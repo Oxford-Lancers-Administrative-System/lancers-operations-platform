@@ -72,10 +72,12 @@ Off limits to every worker, always:
 
 Database lock: **`<HELD` / `NOT HELD>`**
 
-> The local Supabase stack is shared by every worktree. If the lock is NOT HELD,
-> you must not run `npm run db:reset`, `npm run db:seed`, `npm run db:seed-user`,
-> or the Supabase-backed tests — they would destroy the other worker's database
-> state mid-run.
+> The local Supabase stack is shared by every worktree and every reviewer. If
+> the lock is NOT HELD, do not configure or touch that stack and do not run
+> database-backed tests. Run database-free checks locally, let the isolated CI
+> job execute the complete database suite, and disclose that local limitation.
+> The lead grants the same single lock to reviewers one at a time when they need
+> to challenge a database rule.
 
 Run and observe passing:
 
