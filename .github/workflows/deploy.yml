@@ -100,7 +100,12 @@ jobs:
           service: ${{ env.SERVICE }}
           region: ${{ env.REGION }}
           image: ${{ steps.tag.outputs.image }}
+          # No --allow-unauthenticated here: the deploy identity holds
+          # `roles/run.developer` scoped to this service, which can create and
+          # update revisions but deliberately cannot change the service's IAM
+          # policy. Public access is granted once by scripts/gcp-bootstrap.sh.
           flags: >-
+            --service-account=${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }}
             --max-instances=${{ env.MAX_INSTANCES }}
             --min-instances=0
             --concurrency=80
@@ -108,7 +113,6 @@ jobs:
             --memory=512Mi
             --timeout=60s
             --port=8080
-            --allow-unauthenticated
           # Read from Secret Manager at runtime — the value never enters this
           # workflow, the image, or the repository.
           secrets: |

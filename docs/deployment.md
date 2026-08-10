@@ -21,23 +21,51 @@ A pull request never deploys. Only `main` does.
 
 ## One-time GCP setup
 
-Requires a human with Owner on the target project. CI cannot do this, by design
-— see [ADR 0005](adr/0005-github-to-gcp-auth.md).
+Run by a human. CI cannot do this, by design — see
+[ADR 0005](adr/0005-github-to-gcp-auth.md).
+
+Target project: **`oxford-lancers-operations`** (`878714496182`), billing enabled.
 
 ```bash
 gcloud auth login
-GCP_PROJECT_ID=<project-id> ./scripts/gcp-bootstrap.sh
+GCP_PROJECT_ID=oxford-lancers-operations ./scripts/gcp-bootstrap.sh
 ```
 
-That script is idempotent and creates: the enabled APIs (Cloud Run, Cloud Build,
-Artifact Registry, Secret Manager, IAM Credentials, STS, Logging, Monitoring), an
-Artifact Registry Docker repository, a runtime service account, a deploy service
-account, a Workload Identity Pool and Provider trusting only this repository, and
-an empty Secret Manager secret. It creates **no** service-account JSON key.
+The script is idempotent and runs in two phases.
 
-It then prints the exact `gh variable set` commands and the command for storing
-the Supabase secret key. Paste the secret into your own terminal; it must not
-appear in a file, a ticket, a chat message, or a prompt.
+**Phase A** — covered by the roles Brian already holds. Enables the APIs (Cloud
+Run, Cloud Build, Artifact Registry, Secret Manager, IAM Credentials, IAM, STS,
+Logging, Monitoring); creates the Artifact Registry repository, the runtime and
+deploy service accounts, the Secret Manager secret (empty), all resource-scoped
+IAM, and the Cloud Run service itself from a public placeholder image.
+
+**Phase B** — creates the Workload Identity Pool and GitHub OIDC provider. This
+needs `roles/iam.workloadIdentityPoolAdmin`, which `roles/editor` does **not**
+include, because creating a pool establishes trust with an external identity
+provider. If it is not permitted, the script finishes Phase A, prints the grant
+to request, and skips Phase B. Re-run it once the grant lands.
+
+The grant a project Owner must make, once:
+
+```bash
+gcloud projects add-iam-policy-binding oxford-lancers-operations \
+  --member="user:<google-account>" \
+  --role="roles/iam.workloadIdentityPoolAdmin"
+```
+
+It creates **no** service-account JSON key at any point.
+
+Afterwards the script prints the exact `gh variable set` commands and the command
+for storing the Supabase secret key. Paste the secret into your own terminal; it
+must not appear in a file, a ticket, a chat message, or a prompt.
+
+### Why the service is created by hand
+
+`roles/run.developer` can only be granted on a Cloud Run service that already
+exists, and it excludes `run.services.setIamPolicy`. So the service is created
+once at bootstrap — with a placeholder image and public access — and the deploy
+identity is scoped to updating that one service. It can never widen its own
+access or expose a different service.
 
 ### Repository variables the deploy reads
 

@@ -22,17 +22,50 @@ fork cannot impersonate the deployer.
 Two distinct service accounts:
 
 - **deploy** — used by GitHub Actions. Can write to one Artifact Registry
-  repository, deploy Cloud Run revisions (`roles/run.developer`), and act as the
-  runtime identity. Nothing else.
+  repository, deploy revisions of one Cloud Run service (`roles/run.developer`
+  granted **on that service**, not project-wide), and act as the runtime
+  identity. Nothing else.
 - **runtime** — the Cloud Run service's own identity. Can read one Secret Manager
   secret. It cannot deploy anything.
 
-`scripts/gcp-bootstrap.sh` creates all of it idempotently.
+Every binding is scoped to an individual resource. There are no project-level
+role grants. Two consequences follow, both deliberate:
+
+- The Cloud Run service is created **once, by a human**, from a public
+  placeholder image, because `roles/run.developer` can only be granted on a
+  service that already exists. The pipeline thereafter only _updates_ it.
+- `roles/run.developer` excludes `run.services.setIamPolicy`, so the deploy
+  identity cannot change who may invoke the service. Public access is granted
+  once at bootstrap; the workflow does not pass `--allow-unauthenticated`.
+
+`scripts/gcp-bootstrap.sh` creates all of it idempotently, in two phases.
+
+## Who can run the bootstrap
+
+Verified against `oxford-lancers-operations` on 2026-08-10.
+
+Phase A is covered by the roles Brian already holds (`artifactregistry.admin`,
+`secretmanager.admin`, `iam.serviceAccountAdmin`, `run.admin`,
+`serviceusage.serviceUsageAdmin`, `editor`).
+
+Phase B — creating the Workload Identity Pool and provider — requires
+`iam.googleapis.com/workloadIdentityPools.create`, which lives in
+`roles/iam.workloadIdentityPoolAdmin`. **`roles/editor` deliberately excludes
+it** and grants only read access to pools. That is not an oversight: a pool
+establishes a trust relationship with an external identity provider, so creating
+one is a credential-minting boundary rather than ordinary resource creation.
+Granting the role itself requires `resourcemanager.projects.setIamPolicy`, held
+only by a project Owner — `oxfordlancers@gmail.com` on this project.
+
+The script detects this, completes Phase A, prints the exact grant to request,
+and skips Phase B. Re-running it after the grant lands completes the setup.
 
 ## Consequences
 
-- Bootstrap requires a human with project Owner. CI deliberately cannot grant
-  itself permissions.
+- Bootstrap requires a human, and Phase B requires one targeted role grant from
+  a project Owner. CI deliberately cannot grant itself permissions.
 - Rotating credentials is not a task: there is nothing long-lived to rotate.
 - If the repository is renamed or moved, the attribute condition must be updated
   or deploys stop working — a loud, safe failure.
+- Adding a second Cloud Run service later means granting the deploy identity
+  `roles/run.developer` on that service too. That friction is the point.
