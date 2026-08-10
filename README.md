@@ -68,6 +68,18 @@ administrators. All changes go through a pull request with CI green.
   committed, and `.env.example` contains placeholders only.
 - The repository is public. Treat every committed byte as public.
 
+## Licence
+
+This repository carries **no licence file**, which under default copyright means
+all rights are reserved: the code is publicly _readable_ because the repository
+is public, but nobody is granted permission to use, copy, modify, or redistribute
+it. That is the status quo, recorded here so it is a known position rather than
+an oversight — the ticket's "licence if applicable" item was left open.
+
+Adding an explicit licence is a club decision about ownership, not a development
+choice, and belongs with the GitHub organisation owners. Until they make one,
+assume all rights reserved.
+
 ## Known limitations
 
 - **No custom domain** — `app.oxfordlancers.com` is blocked on a GoDaddy

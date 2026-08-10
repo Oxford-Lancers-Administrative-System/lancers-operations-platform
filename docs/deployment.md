@@ -138,8 +138,23 @@ limits.
 - `GET /api/health` → `{ status, service, revision, commit, secretsLoaded, timestamp }`.
 - It touches no dependency on purpose: a health check that fails when the
   database blips turns a blip into an outage.
-- `commit` is the Git SHA baked in at build time, so a running revision can
-  always be tied back to a commit.
+- `commit` is the Git SHA baked into the image at build time, so a running
+  revision can always be tied back to a commit.
+
+> **`/api/health`'s `commit` is the source of truth — not the Cloud Run
+> `commit-sha` revision label.** That label is set by the deploy action from the
+> triggering workflow run's `github.sha`, which during a rollback is the _current_
+> `main`, not the commit of the image actually being deployed. After a rollback
+> the label will disagree with reality; the health endpoint will not, because its
+> value is compiled into the image. To confirm from the registry side instead,
+> compare image digests:
+>
+> ```bash
+> gcloud artifacts docker images list \
+>   europe-west2-docker.pkg.dev/oxford-lancers-operations/lancers/lancers-operations-platform \
+>   --include-tags --format='table(version, tags)'
+> ```
+
 - Cloud Run captures stdout/stderr into Cloud Logging automatically. Query with:
 
 ```bash

@@ -14,12 +14,10 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+# Least privilege at the workflow level. `id-token: write` is granted only to the
+# `deploy` job below, so the preflight job cannot mint a GCP-exchangeable token.
 permissions:
   contents: read
-  # Required for OIDC. GitHub mints a short-lived token that GCP's Workload
-  # Identity Federation exchanges for credentials. No service-account JSON key
-  # is created or stored anywhere — see docs/adr/0005-github-to-gcp-auth.md.
-  id-token: write
 
 jobs:
   preflight:
@@ -48,6 +46,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
+
+    permissions:
+      contents: read
+      # Required for OIDC. GitHub mints a short-lived token that GCP's Workload
+      # Identity Federation exchanges for credentials. No service-account JSON
+      # key is created or stored anywhere — see
+      # docs/adr/0005-github-to-gcp-auth.md.
+      id-token: write
 
     env:
       REGION: ${{ vars.GCP_REGION || 'europe-west2' }}

@@ -77,6 +77,36 @@ Sign in at <http://localhost:3000/login> with `TEST_USER_EMAIL` /
 
 Run `npm run verify` before opening a pull request. It is what CI runs.
 
+## Building and running the production container locally
+
+The same image CI builds and Cloud Run runs. Worth doing before touching the
+`Dockerfile` or anything that only breaks in a production build.
+
+```bash
+docker build -t lancers-ops:local \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL=http://192.0.2.1:54321 \
+  --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_local_placeholder \
+  --build-arg GIT_COMMIT_SHA=local .
+
+docker run --rm -p 8080:8080 -e SUPABASE_SECRET_KEY=local-placeholder lancers-ops:local
+```
+
+Then probe it exactly as CI does:
+
+```bash
+curl -s localhost:8080/api/health          # {"status":"ok", ... "secretsLoaded":true}
+curl -o /dev/null -w '%{http_code}\n' localhost:8080/          # 200
+curl -o /dev/null -w '%{http_code}\n' localhost:8080/login     # 200
+curl -o /dev/null -w '%{http_code}\n' localhost:8080/dashboard # 307
+```
+
+`NEXT_PUBLIC_*` values are **inlined at build time**, so they must be passed as
+build arguments — setting them at `docker run` has no effect. The placeholders
+above point at TEST-NET-1 (RFC 5737), which is unroutable: the point is to prove
+the image serves pages without reaching a database. To exercise it against your
+local stack instead, build with your real `.env.local` values and run with
+`--add-host=host.docker.internal:host-gateway`.
+
 ## Studio and mail
 
 - Supabase Studio — <http://127.0.0.1:54323>
@@ -114,3 +144,10 @@ in that project, or change the ports in `supabase/config.toml`.
 
 **Types keep coming back "drifted"** — you edited
 `src/lib/supabase/database.types.ts` by hand. Don't; regenerate it.
+
+**Two clones of this repo fight over one database.** The Supabase CLI keys its
+Docker volumes by the `project_id` in `supabase/config.toml`, _not_ by directory.
+So a second clone does not get its own stack — it attaches to the same one, and a
+`db:reset` in one working copy silently wipes the other's session and test user.
+If you need two isolated stacks at once, change `project_id` **and** every port
+in the second clone's `config.toml`. Otherwise, run one at a time.
