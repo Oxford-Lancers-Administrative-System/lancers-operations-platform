@@ -6,7 +6,13 @@ happened and what state it left behind.
 
 A worker's summary is not evidence. Every claim below must have been checked by
 the lead against the repository itself: the actual diff, the actual commits, the
-actual command output, the actual review result.
+GitHub Actions logs for the current head SHA, and the actual review result.
+
+This file is a template, not the record. Before launch, post the completed Wave
+record and test matrix as a new Linear comment on every selected issue. At the
+end, post the full completed report as another Linear comment on every attempted
+issue, with links to each draft pull request and CI run. Do not edit this
+checked-in template or commit run evidence into a feature branch.
 
 ---
 
@@ -27,7 +33,7 @@ they were serialised, or why the pair is genuinely independent>`
 **Human gates still in effect for this wave:**
 
 - `<e.g. LAN-90 UX approval — not yet recorded, so LAN-73..LAN-82 stay out of scope>`
-- `<e.g. automated delivery approach unresolved — LAN-78 automated channels out of scope>`
+- `<e.g. automated delivery approach unresolved — invitation-delivery issues out of scope>`
 
 ## Per issue
 
@@ -42,7 +48,7 @@ they were serialised, or why the pair is genuinely independent>`
   <the actual tail of npm run verify, and any database commands>
   ```
 
-- **CI:** `<passing / failing / queued>` — `<check names and conclusion from gh pr checks>`
+- **CI:** `<passing / failing / queued>` — `<check names, current head SHA, run URL, and conclusion verified from gh pr checks plus the Actions log>`
 - **Independent review verdict:** blocked / clear
   - Blockers: `<verbatim, or "none">`
   - Suggestions: `<or "none">`
@@ -58,6 +64,14 @@ they were serialised, or why the pair is genuinely independent>`
 - **Corrections made:** `<what came back, what changed, and the re-verification>`
 - **Untested areas and residual risk:** `<from the matrix's deliberately-untested
 section, plus anything discovered during the run>`
+
+## Database-lock timeline
+
+| Holder | Phase | Acquired | Released | Database actions performed |
+| ------ | ----- | -------- | -------- | -------------------------- |
+| `<implementer or reviewer>` | `<implementation or review>` | `<time>` | `<time>` | `<commands/tests>` |
+
+There may never be overlapping holders.
 
 ## Blockers and owner decisions needed
 
