@@ -31,13 +31,14 @@ Full walkthrough and troubleshooting: **[docs/local-development.md](docs/local-d
 
 ## Documentation
 
-| Document                                               | What it covers                                            |
-| ------------------------------------------------------ | --------------------------------------------------------- |
-| [docs/local-development.md](docs/local-development.md) | Clean machine → running app; every npm script; migrations |
-| [docs/architecture.md](docs/architecture.md)           | Stack, layout, request path, security model               |
-| [docs/deployment.md](docs/deployment.md)               | Cloud Run deploy, secrets, cost controls, **rollback**    |
-| [docs/adr/](docs/adr/)                                 | Architecture decision records                             |
-| [CLAUDE.md](CLAUDE.md)                                 | Agent working agreement and hard rules                    |
+| Document                                               | What it covers                                                      |
+| ------------------------------------------------------ | ------------------------------------------------------------------- |
+| [docs/local-development.md](docs/local-development.md) | Clean machine → running app; every npm script; migrations           |
+| [docs/architecture.md](docs/architecture.md)           | Stack, layout, request path, security model                         |
+| [docs/deployment.md](docs/deployment.md)               | Cloud Run deploy, secrets, cost controls, **rollback**              |
+| [docs/adr/](docs/adr/)                                 | Architecture decision records                                       |
+| [AGENTS.md](AGENTS.md)                                 | **Canonical working agreement** — commands, conventions, hard rules |
+| [CLAUDE.md](CLAUDE.md)                                 | Claude Code entry point; imports `AGENTS.md`                        |
 
 ## Scripts
 
