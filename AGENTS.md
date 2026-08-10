@@ -305,11 +305,13 @@ reads the Linear dependency graph, picks work whose dependencies are actually
 **merged** and whose human gates have been passed, **writes a test matrix for
 each issue before any implementation starts**, runs at most **two**
 worktree-isolated implementers on genuinely independent issues, checks each
-result against the repository rather than against the worker's report, routes
-every draft pull request through the independent reviewer, and leaves a run
-report. Work that could collide is serialised, not parallelised — including
-anything touching the local Supabase stack, which is one shared set of
-containers no matter how many worktrees exist.
+result against the repository and the Actions logs rather than against the
+worker's report, routes every draft pull request through the independent
+reviewer, and leaves durable Linear evidence before and after the wave. Work
+that could collide is serialised, not parallelised. The local Supabase stack is
+one shared set of containers, so one wave-wide lock covers implementers and
+reviewers; at most one agent may use database-backed tests or destructive
+database commands at a time.
 
 Three rules follow from that and are worth stating on their own:
 
@@ -321,19 +323,23 @@ Three rules follow from that and are worth stating on their own:
   is ambiguous, internally inconsistent, or missing a material acceptance
   criterion stops the wave. Product decisions are Brian's.
 - **Human gates outrank the graph.** No user-facing implementation before the
-  LAN-90 UX approval is recorded. **Automated WhatsApp delivery is the locked
-  owner decision** — manual copying or posting of RSVP links is not an MVP, a
-  pilot mode, a fallback, or a temporary operating model, and no agent may
-  implement or assume one. LAN-78, LAN-82 and the project summary still specify
-  manual distribution; all three are blocked until Brian corrects them.
+  LAN-90 UX approval is recorded. **Automated WhatsApp delivery is a locked
+  requirement** — manual posting or manual distribution is never an MVP, pilot,
+  fallback, or separate acceptable path, and no agent may implement or assume
+  one. No invitation-delivery implementation begins until the feasible approach
+  is resolved. LAN-78, LAN-82 and the project summary still specify manual
+  distribution; that wording is stale and all three are blocked until Brian
+  corrects them.
 - **One database lock, every agent.** Worktree isolation isolates files, not the
   local Supabase stack — one set of containers shared by every worktree.
   Implementers and reviewers alike hold the lock one at a time.
 
 **No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase,
-or writes to production.** Brian merges. `.claude/settings.json` denies those
-commands session-wide and blocks bypass-permissions mode, so this is a control
-and not only an instruction; `tests/agent-harness.test.ts` fails if either drifts.
+or writes to production.** Brian merges. `.claude/settings.json` blocks
+bypass-permissions mode and denies the common direct command forms; protected
+`main`, draft-only workflow, review, and CI remain the authoritative controls.
+The settings file narrows risk but is not described as an exhaustive shell
+sandbox. `tests/agent-harness.test.ts` fails if the checked-in guards drift.
 
 Do **not** add a fourth role, a hook, or an agent framework. Concurrency stays
 at two. Both are decisions for Brian, and

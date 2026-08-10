@@ -171,12 +171,25 @@ describe("agent harness: the process controls", () => {
     expect(flat(reviewer)).toMatch(/green CI run is not approval/i);
   });
 
+  it("makes the reviewer challenge the PR head, not main", () => {
+    expect(flat(reviewer)).toMatch(/git switch --detach FETCH_HEAD/i);
+    expect(flat(reviewer)).toMatch(/expected_sha/i);
+    expect(flat(reviewer)).toMatch(/omitting this step would test `main`/i);
+  });
+
   it("makes the reviewer challenge critical behaviours by injecting a defect", () => {
     expect(flat(reviewer)).toMatch(/Challenge the critical behaviours/i);
     expect(flat(reviewer)).toMatch(/Restore the exact pull-request state before moving on/i);
     // Lightweight by decision — a framework here would be a dependency and a
     // scope change, not an improvement.
     expect(flat(reviewer)).toMatch(/Do not install a mutation-testing framework/i);
+  });
+
+  it("extends the one database lock across implementers and reviewers", () => {
+    expect(flat(lead)).toMatch(/one wave-wide database lock/i);
+    expect(flat(lead)).toMatch(/implementer or reviewer/i);
+    expect(flat(reviewer)).toMatch(/database lock: HELD/i);
+    expect(flat(reviewer)).toMatch(/Never take the lock yourself/i);
   });
 
   it("keeps Playwright out until a screen exists, and additive when it arrives", () => {
@@ -208,10 +221,9 @@ describe("agent harness: the process controls", () => {
   it("treats automated delivery as locked and manual distribution as forbidden", () => {
     // The harness must not leave a single sentence an agent could read as
     // permission to ship manual link copying.
-    expect(flat(lead)).toMatch(/automated WhatsApp delivery is the locked owner decision/i);
-    expect(flat(lead)).toMatch(
-      /not an MVP, not a pilot mode, not a fallback, and not a temporary operating model/i,
-    );
+    expect(flat(lead)).toMatch(/Automated WhatsApp delivery is a locked requirement/i);
+    expect(flat(lead)).toMatch(/Manual posting or manual distribution is never/i);
+    expect(flat(lead)).toMatch(/never an MVP, pilot, fallback, or separate acceptable path/i);
     for (const text of [flat(lead), flat(AGENTS_MD), flat(ADR_0013)]) {
       expect(text).not.toMatch(/manual distribution is a separate.{0,40}locked owner decision/i);
     }
@@ -224,6 +236,7 @@ describe("agent harness: the process controls", () => {
     for (const blocked of ["LAN-78", "LAN-82", "project summary"]) {
       expect(gate, `${blocked} must be named as blocked`).toMatch(new RegExp(blocked, "i"));
     }
+    expect(gate).toMatch(/treat that wording as .{0,3}stale.{0,3} and stop for correction/i);
     expect(gate).toMatch(/blockers for Brian, not text for you to fix/i);
     expect(gate).toMatch(/Do not edit a Linear issue to remove the contradiction/i);
   });
@@ -231,7 +244,9 @@ describe("agent harness: the process controls", () => {
   it("pins the reviewer to the pull request's exact head commit", () => {
     expect(flat(reviewer)).toMatch(/Pin yourself to the exact head commit/i);
     expect(flat(reviewer)).toMatch(/headRefOid/);
-    expect(flat(reviewer)).toMatch(/git checkout --detach/);
+    expect(flat(reviewer)).toMatch(/git switch --detach FETCH_HEAD/);
+    expect(flat(reviewer)).toMatch(/expected_sha/);
+    expect(flat(reviewer)).toMatch(/omitting this step would test `main`/i);
     // Without this it silently reviews the default branch.
     expect(flat(reviewer)).toMatch(/you will review `main`, or a stale copy/i);
     expect(flat(lead)).toMatch(/head commit SHA it must review/i);
@@ -249,6 +264,10 @@ describe("agent harness: the process controls", () => {
 
   it("extends the database lock to every agent, reviewers included", () => {
     expect(flat(lead)).toMatch(/every agent, not just implementers/i);
+    expect(flat(lead)).toMatch(/one .{0,3}wave-wide database lock/i);
+    expect(flat(lead)).toMatch(/implementer .{0,3}or reviewer/i);
+    expect(flat(reviewer)).toMatch(/database lock: HELD/i);
+    expect(flat(reviewer)).toMatch(/Never take the lock\s*yourself/i);
     expect(flat(lead)).toMatch(/Exactly one holder at a time, across the whole wave/i);
     // The reviewer is the agent most likely to assume it is exempt.
     expect(flat(reviewer)).toMatch(/The database lock applies to you too/i);
@@ -265,17 +284,31 @@ describe("agent harness: the process controls", () => {
   it("makes the lead read the actual GitHub Actions run, not a claim", () => {
     const text = flat(lead);
     expect(text).toMatch(/Read the actual GitHub Actions run, not a summary of it/i);
-    expect(text).toMatch(/gh run view <run-id> --log-failed/);
+    expect(text).toMatch(/gh run view <run id> --log-failed/);
+    expect(text).toMatch(/gh run view <run id> --log/);
+    expect(text).toMatch(/current head SHA/i);
     expect(text).toMatch(/gh run list --commit/);
     expect(text).toMatch(
       /A green run you have not opened is not a result — it is a claim you have chosen to believe/i,
     );
   });
 
-  it("requires a wave record before launch and a run report after", () => {
+  it("requires durable Linear evidence before and after a wave", () => {
     expect(flat(lead)).toMatch(/Record the wave, then launch/i);
-    expect(flat(lead)).toMatch(/Leave a run report/i);
+    expect(flat(lead)).toMatch(/Linear comment on every selected issue before/i);
+    expect(flat(lead)).toMatch(/Persist the completed report as a new Linear comment/i);
     expect(flat(lead)).toMatch(/No second wave without Brian's approval/i);
+  });
+
+  it("checks the actual CI logs for the current pull-request head", () => {
+    expect(flat(lead)).toMatch(/gh run view <run id> --log/i);
+    expect(flat(lead)).toMatch(/current head SHA/i);
+  });
+
+  it("treats automated WhatsApp delivery as locked and every manual path as stale", () => {
+    expect(flat(lead)).toMatch(/Automated WhatsApp delivery is a locked requirement/i);
+    expect(flat(lead)).toMatch(/Manual posting or manual distribution is never/i);
+    expect(flat(lead)).toMatch(/LAN-78.*stale/i);
   });
 
   it("keeps a failed run recoverable", () => {
@@ -360,10 +393,26 @@ describe("agent harness: mechanical guards", () => {
     expect(deny).toContain("Bash(gh pr ready *)");
   });
 
-  it("blocks pushing to main and rewriting history", () => {
-    expect(deny).toContain("Bash(git push * main)");
-    expect(deny).toContain("Bash(git push *:main)");
-    expect(deny).toContain("Bash(git push --force*)");
+  it("blocks common push-to-main, history-rewrite, and branch-deletion forms", () => {
+    for (const rule of [
+      "Bash(git push * main)",
+      "Bash(git push *:main)",
+      "Bash(git push * refs/heads/main*)",
+      "Bash(git push *:refs/heads/main*)",
+      "Bash(git push --force*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git push * +*)",
+      "Bash(git push * --delete*)",
+    ]) {
+      expect(deny).toContain(rule);
+    }
+  });
+
+  it("blocks raw GitHub API writes and destructive pull-request state changes", () => {
+    expect(deny).toContain("Bash(gh api *)");
+    expect(deny).toContain("Bash(gh pr close *)");
+    expect(deny).toContain("Bash(gh pr reopen *)");
   });
 
   it("blocks deployment", () => {

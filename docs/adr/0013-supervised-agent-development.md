@@ -146,26 +146,29 @@ otherwise reason its way past:
   through LAN-82; it deliberately does not block LAN-71 or LAN-72, which have no
   interface. If an implementer would have to invent a screen, a state, a primary
   action, or a label, the gate has not been passed.
-- **Delivery.** **Automated WhatsApp delivery is the locked owner decision.**
-  Manual copying or posting of RSVP links is not an MVP, not a pilot mode, not a
-  fallback, and not a temporary operating model. An agent may never implement it,
-  offer it as an interim step, treat it as satisfying an automated-delivery
-  requirement, or assume it to resolve an ambiguity.
+- **Delivery.** **Automated WhatsApp delivery is a locked requirement.** Manual
+  posting or manual distribution is never an MVP, pilot, fallback, or separate
+  acceptable path. No invitation-delivery workflow begins before Brian resolves
+  the feasible approach, and an agent may never implement a manual path, offer it
+  as an interim step, treat it as satisfying an automated-delivery requirement,
+  or assume it to resolve an ambiguity.
 
   This currently contradicts the requirements themselves. **LAN-78**, **LAN-82**,
   and the First Operational Vertical Slice **project summary** still specify
-  manual distribution. Those are recorded as blockers for Brian, and the lead is
-  forbidden from selecting any of them until the requirements are corrected. An
-  agent does not resolve the contradiction by editing the issue, by reinterpreting
-  it, or by building the automated version from a document that specifies the
-  manual one.
+  manual distribution. That wording is stale; those artifacts are recorded as
+  blockers for Brian, and the lead is forbidden from selecting any of them until
+  the requirements are corrected. An agent does not resolve the contradiction by
+  editing the issue, by reinterpreting it, or by building the automated version
+  from a document that specifies the manual one.
 
 ### Waves are recorded, and blockers are never assumptions
 
 Each wave is recorded before launch (selected issues and why they are unblocked,
 dependency status, expected collisions, worktree and branch assignments, human
 gates still in effect) and reported afterwards, including when it is abandoned
-or interrupted. Eight stop rules end a wave rather than being reasoned around,
+or interrupted. The pre-launch record and test matrix, then the completed run
+report, are persisted as Linear comments on every attempted issue; chat and a
+temporary worktree are not durable evidence. Eight stop rules end a wave rather than being reasoned around,
 and the supervisor may never silently convert a blocker into an assumption.
 Correction is bounded to one reasonable cycle before a failure becomes a
 reported blocker rather than a grind.
@@ -178,15 +181,16 @@ Two mechanical guards back this up, because a role description is a prompt and a
 prompt is not a control:
 
 - `.claude/settings.json` denies, session-wide, the commands that would merge,
-  un-draft, push to `main`, rewrite history, deploy, reach hosted Supabase, or
-  change repository settings and secrets — including the obvious alternate forms
-  (`git -C`, `git -c`, `bunx`/`pnpm dlx`/direct `node_modules/.bin` paths,
-  `gh api graphql` mutations, raw `curl` at the GitHub API) and the shell
-  indirections that would hide them (`bash -c`, `sh -c`, `eval`, flagged
-  `xargs`). It also denies edits to `.claude/**`, so an agent cannot rewrite the
-  guardrails it runs under. Deny rules are evaluated ahead of everything else and
-  take effect without workspace trust, because they only restrict. The file
-  grants nothing.
+  un-draft, close or reopen a pull request, push to `main`, rewrite history,
+  delete a branch, deploy, reach hosted Supabase, mutate GitHub through the raw
+  API, or change repository settings and secrets — including the alternate forms
+  (`git -C`, `git -c`, `git push origin --force`, refspec `+`, `--mirror`,
+  `bunx`/`pnpm dlx`/direct `node_modules/.bin` paths, raw `curl` at the GitHub
+  API) and the shell indirections that would hide them (`bash -c`, `sh -c`,
+  `eval`, flagged `xargs`). It also denies edits to `.claude/**`, so an agent
+  cannot rewrite the guardrails it runs under. Deny rules are evaluated ahead of
+  everything else and take effect without workspace trust, because they only
+  restrict. The file grants nothing.
 - The same file sets `disableBypassPermissionsMode`, so those denials cannot be
   skipped by starting a session in bypass mode. This is deliberately preserved:
   without it, an autonomous run could switch off every control above.
@@ -236,8 +240,9 @@ from completed batches rather than a feeling that things went well:
 - no case of the lead accepting a self-report that the repository contradicted;
 - pull requests still reviewable by one person in one sitting at the current
   size;
-- a resolution for the shared local Supabase stack, which today forces
-  database-touching work to be serialised no matter how many workers exist.
+- a resolution for the shared local Supabase stack, whose one wave-wide lock
+  today serialises database-backed work by implementers and reviewers no matter
+  how many worktrees exist.
 
 Until then, a batch is at most two issues.
 

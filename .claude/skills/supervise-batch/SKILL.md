@@ -58,13 +58,13 @@ those two may proceed while UX approval is outstanding. If an implementer would
 have to invent a screen, a state, a primary action, or a label, the gate has not
 been passed, whatever the graph says.
 
-**Delivery — automated WhatsApp delivery is the locked owner decision.**
+**Delivery — automated WhatsApp delivery is a locked requirement.**
 
-Manual copying or posting of RSVP links is **not** an MVP, not a pilot mode, not
-a fallback, and not a temporary operating model. There is no version of this
-slice in which an operator pasting links by hand is the accepted answer. If an
-issue, a runbook, or a summary tells you otherwise, that document is wrong — you
-do not follow it, and you do not build from it.
+**Manual posting or manual distribution is never an MVP, pilot, fallback, or
+separate acceptable path.** There is no version of this slice in which an
+operator pasting links by hand is the accepted answer. No invitation-delivery
+issue is eligible until Brian has resolved the feasible automated approach and
+the issue expresses it consistently.
 
 You may never:
 
@@ -73,13 +73,16 @@ You may never:
 - treat an automated-delivery requirement as satisfied by a manual one;
 - resolve a delivery ambiguity by assuming the manual path.
 
-**Blocked until their requirements are corrected — do not select these:**
+**Stale sources — blocked until their requirements are corrected:**
 
-| Artifact                                                 | Problem                                                                                              |
+| Artifact                                                 | Why it is stale                                                                                      |
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | **LAN-78**                                               | Specifies manual distribution as a locked owner decision, contradicting automated WhatsApp delivery. |
 | **LAN-82**                                               | Its end-to-end walkthrough and operator runbook inherit the manual-distribution assumption.          |
 | **The First Operational Vertical Slice project summary** | Describes the slice with the same manual-distribution framing.                                       |
+
+If LAN-78 or any other source still calls for manual distribution, treat that
+wording as **stale** and stop for correction; do not implement it.
 
 These are **blockers for Brian**, not text for you to fix. Do not edit a Linear
 issue to remove the contradiction, do not reinterpret it, and do not build the
@@ -123,27 +126,29 @@ worktree and every agent.** Worktree isolation isolates _files_. It does not
 isolate the database. Anything that resets, migrates, mutates, or tests against
 it is destructive to every other agent running at that moment.
 
-The lock covers **any agent that can touch the database — implementers and
-reviewers alike**. A reviewer running the Supabase-backed tests, or challenging
-an RLS or constraint rule by injecting a defect, is mutating the same containers
-an implementer is mid-run against.
+The lead owns one **wave-wide database lock**, and it covers any agent that can
+touch the database — implementers and reviewers alike. A reviewer running the
+Supabase-backed tests, or challenging an RLS or constraint rule by injecting a
+defect, is mutating the same containers an implementer is mid-run against.
 
-You own the lock. The rules:
-
-- **Exactly one holder at a time, across the whole wave.** Not one per role, not
-  one per worktree — one, total.
+- **Exactly one holder at a time, across the whole wave.** At most one active
+  agent — implementer **or reviewer** — may hold it. Not one per role, not one
+  per worktree — one, total.
 - Every brief states the holder explicitly: **HELD** or **NOT HELD**, in writing.
   A brief that omits it is incomplete and the agent is instructed to stop.
-- A non-holder must not run `npm run db:reset`, `npm run db:seed`,
-  `npm run db:seed-user`, a migration, or the Supabase-backed tests — and must
-  ask rather than take the lock.
+- A non-holder must not configure the shared stack or run `npm run db:reset`,
+  `npm run db:seed`, `npm run db:seed-user`, a migration, or the Supabase-backed
+  tests. It runs the database-free checks locally, relies on the isolated CI job
+  for the full database suite, and **discloses that limitation**.
+- A reviewer that must challenge a database, RLS, transaction, or migration rule
+  is launched only after the lock is released, and its prompt states **HELD**.
+  Database-backed reviewers run one at a time.
 - **Hand the lock over explicitly.** An agent tells you when it is done with the
   database; you confirm before granting it to the next one. Never assume a
   finished-looking agent has released it.
-- Sequence database work rather than overlapping it. If both issues need the
-  database throughout, that is a serialize decision, not a scheduling one.
-- Before granting the lock to a reviewer, confirm no implementer is still
-  running against the database.
+- If both implementation issues require local database work, serialize that work
+  or select a different pair. Worktree isolation does not make the database
+  independent.
 
 Resetting a database another agent is mid-run against destroys its work and
 surfaces as a failure that looks like that agent's bug. This is the single most
@@ -189,12 +194,18 @@ is tested at that level too.
 
 ## 5 — Record the wave, then launch
 
-Before launching anything, write the **wave record** — the first section of
-`run-report.md` beside this file:
+Before launching anything, write the **wave record** using the first section of
+`run-report.md` beside this file. Persist that record and each issue's completed
+test matrix as a new Linear comment on every selected issue **before** launching
+an implementer. Do not edit the checked-in template, and do not leave the only
+copy in chat or a transient worktree.
+
+The record contains:
 
 - the selected issues, and why each is unblocked;
 - dependency status, naming the merges that cleared each blocker;
-- expected shared-file or migration collisions, and how they are serialised;
+- expected shared-file, migration, or database collisions, and how they are
+  serialised;
 - worktree and branch assignments;
 - who holds the database lock, and the planned hand-over order;
 - which human gates remain in effect.
@@ -215,10 +226,11 @@ issue it belongs to:
 3. **Link both from the pull request description**, so the PR and the Linear
    issue point at each other.
 
-If Linear is unreachable, the fallback durable location is a committed file
-under `docs/runs/<date>-<issue>.md` on the issue's own branch, **linked from the
-Linear issue as soon as it is reachable again**. Choose one of these two. Do not
-invent a third, and never leave the evidence only in your own context.
+**Linear is the only durable location.** Do not commit orchestration evidence
+into a feature branch to preserve it — a run report is not part of the product,
+and a branch that never merges takes the evidence with it. If Linear is
+unreachable, stop the wave and report that as a blocker rather than launching
+work you cannot record. Never leave the evidence only in your own context.
 
 Set each branch name yourself: `feat/lan-nn-short-slug` (or `fix/`, `docs/`,
 `chore/`), based on `main`.
@@ -256,14 +268,16 @@ Confirm, from that output and not from the report:
 ### Read the actual GitHub Actions run, not a summary of it
 
 **A worker's "tests pass" is not evidence, and neither is a green tick you did
-not open.** Go to the run itself, for the head commit you just resolved:
+not open.** Pasted local output remains a worker claim; the isolated CI logs are
+the independently inspectable command evidence. Go to the run itself, for the
+current head SHA you just resolved:
 
 ```bash
 gh pr checks <n>                                  # names, conclusions, and run URLs
 gh run list --commit "$HEAD_SHA" --limit 10       # the runs for THIS commit
-gh run view <run-id>                              # per-job outcome
-gh run view <run-id> --log-failed                 # every failing step's log
-gh run view <run-id> --job <job-id> --log         # the full log of a job you doubt
+gh run view <run id>                              # per-job outcome
+gh run view <run id> --log-failed                 # every failing step's log
+gh run view <run id> --log                        # the full log of a job you doubt
 ```
 
 Confirm, from the run output itself:
@@ -271,9 +285,11 @@ Confirm, from the run output itself:
 - both required checks — `Format, lint, typecheck, test, build` and
   `Container builds and serves` — **completed and concluded `success`**, not
   queued, not in progress, not skipped, not cancelled;
-- the run is **for `$HEAD_SHA`**, not for an earlier push to the same branch;
-- the test step actually executed and reported a test count, rather than passing
-  because nothing ran or everything was filtered out;
+- the run belongs to the pull request's **current head SHA**, not to an earlier
+  push to the same branch;
+- the logs show the verification steps actually ran: the test step executed and
+  reported a test count, rather than passing because nothing ran or everything
+  was filtered out;
 - the tests the matrix requires appear in that output;
 - no step was neutralised — no `continue-on-error`, no silently skipped job, no
   workflow file change in the diff that weakened the gate.
@@ -288,15 +304,21 @@ Do not repair it yourself, and do not pass it to the reviewer.
 
 For each pull request that survives §6, launch the `code-reviewer` subagent in
 fresh context. Give it the pull request number, **the head commit SHA it must
-review**, the Linear issue identifier, the test matrix, and its database-lock
-status. **Do not** paste the implementer's summary into it, and do not tell it
-what you concluded — its independence is the entire reason it exists.
+review**, the Linear issue identifier, the test matrix, and whether it holds the
+wave-wide database lock. **Do not** paste the implementer's summary into it, and
+do not tell it what you concluded — its independence is the entire reason it
+exists.
 
-The reviewer starts on the default branch, so it must check out that exact head
-commit before it reads, tests, or challenges anything. Its report must name the
-SHA it reviewed; if that does not match the head you sent it, the review is of
+The reviewer starts on the default branch, so it must fetch the pull request
+head and detach at that exact SHA before it reads, tests, or challenges
+anything; testing `main` is not a review. Its report must name the SHA it
+reviewed; if that does not match the head you sent it, the review is of
 something else and does not count. Its report must also show a clean worktree —
 no injected defect committed, staged, pushed, or left behind.
+
+If a critical challenge needs local Supabase, wait until every other agent has
+released the lock, grant it to this reviewer, and run database-backed reviewers
+serially. A reviewer without the lock may not touch the shared stack.
 
 The implementer writes the tests; it does not get to certify them. The reviewer
 independently judges test adequacy against the matrix, and challenges every
@@ -312,13 +334,18 @@ reasonable correction cycle, stop and report it as a blocker. Do not grind.
 
 ## 8 — Leave a run report
 
-Produce the full `run-report.md` — for every wave, including one that was
-abandoned, blocked, or interrupted. It carries: issues attempted, branches and
-pull requests, test matrices, tests added and commands executed, CI results,
-independent-review findings, the critical behaviours deliberately challenged and
-whether the tests caught them, corrections made, blockers and owner decisions
-needed, untested areas and residual risks, the exact repository state, and the
-recommended next action.
+Produce the full report from `run-report.md` for every wave, including one that
+was abandoned, blocked, or interrupted. It carries: issues attempted, branches
+and pull requests, test matrices, tests added and commands executed, CI results
+and run links, independent-review findings, the critical behaviours deliberately
+challenged and whether the tests caught them, the database-lock timeline,
+corrections made, blockers and owner decisions needed, untested areas and
+residual risks, the exact repository state, and the recommended next action.
+
+Persist the completed report as a new Linear comment on every attempted issue and
+include links to every draft pull request and CI run. Do not edit the template or
+commit orchestration evidence into a feature branch merely to preserve it. If no
+issue was launched, persist the blocked wave record on the first candidate issue.
 
 Then stop. Brian merges, and Brian decides whether there is a second wave.
 
