@@ -1,0 +1,22 @@
+-- Init migration.
+--
+-- Intentionally empty of schema objects. This ticket stands up the build and
+-- deployment loop only; the conceptual domain model is approved but is NOT
+-- implemented here. Creating a `players`, `events`, or any other domain table
+-- in this migration is out of scope and will be rejected in review.
+--
+-- Its purpose is to prove that the migration path itself works: `supabase db
+-- reset` applies migrations cleanly from an empty database, CI verifies the
+-- same, and `npm run types:generate` produces types from the result.
+--
+-- Rules for every migration added after this one (enforced by
+-- `npm run check:rls`, which runs in CI):
+--
+--   * Any `create table` in an API-exposed schema must be followed by
+--     `alter table ... enable row level security;` in the same migration.
+--   * Deny-by-default: a table with RLS enabled and no policy is unreadable,
+--     which is the correct starting point. Add policies deliberately.
+--
+-- See docs/adr/0002-rls-posture.md.
+
+select 1 where false;

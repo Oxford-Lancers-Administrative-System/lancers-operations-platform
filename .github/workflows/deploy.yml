@@ -1,0 +1,156 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Existing image tag to deploy (a commit SHA). Leave blank to build from HEAD. Use this to roll back."
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  # Required for OIDC. GitHub mints a short-lived token that GCP's Workload
+  # Identity Federation exchanges for credentials. No service-account JSON key
+  # is created or stored anywhere — see docs/adr/0005-github-to-gcp-auth.md.
+  id-token: write
+
+jobs:
+  preflight:
+    name: Check deploy configuration
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$PROJECT_ID" ] && [ -n "$WIF_PROVIDER" ] && [ -n "$SERVICE_ACCOUNT" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deploy skipped::GCP is not configured yet. Run scripts/gcp-bootstrap.sh and set the repository variables listed in docs/deployment.md."
+          fi
+
+  deploy:
+    name: Build and deploy
+    needs: preflight
+    if: needs.preflight.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+
+    env:
+      REGION: ${{ vars.GCP_REGION || 'europe-west2' }}
+      SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'lancers-operations-platform' }}
+      REPOSITORY: ${{ vars.ARTIFACT_REGISTRY_REPO || 'lancers' }}
+      MAX_INSTANCES: ${{ vars.CLOUD_RUN_MAX_INSTANCES || '3' }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve image tag
+        id: tag
+        run: |
+          TAG="${{ inputs.image_tag }}"
+          if [ -z "$TAG" ]; then TAG="${{ github.sha }}"; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${{ vars.GCP_REGION || 'europe-west2' }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPO || 'lancers' }}/${{ vars.CLOUD_RUN_SERVICE || 'lancers-operations-platform' }}:$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud (OIDC / Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build and push image
+        # Skipped on rollback: the tag already exists in Artifact Registry, and
+        # rebuilding it would defeat the point of rolling back to a known image.
+        if: inputs.image_tag == ''
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.tag.outputs.image }}
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+            GIT_COMMIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ env.SERVICE }}
+          region: ${{ env.REGION }}
+          image: ${{ steps.tag.outputs.image }}
+          # No --allow-unauthenticated here: the deploy identity holds
+          # `roles/run.developer` scoped to this service, which can create and
+          # update revisions but deliberately cannot change the service's IAM
+          # policy. Public access is granted once by scripts/gcp-bootstrap.sh.
+          flags: >-
+            --service-account=${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }}
+            --max-instances=${{ env.MAX_INSTANCES }}
+            --min-instances=0
+            --concurrency=80
+            --cpu=1
+            --memory=512Mi
+            --timeout=60s
+            --port=8080
+          # Read from Secret Manager at runtime — the value never enters this
+          # workflow, the image, or the repository.
+          secrets: |
+            SUPABASE_SECRET_KEY=${{ vars.SUPABASE_SECRET_KEY_SECRET || 'supabase-secret-key' }}:latest
+
+      - name: Smoke test the deployed revision
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          echo "Deployed to $URL"
+          for attempt in $(seq 1 20); do
+            BODY=$(curl -fsS "$URL/api/health" || true)
+            if [ -n "$BODY" ]; then
+              echo "$BODY"
+              echo "$BODY" | grep -q '"status":"ok"' || { echo "Unhealthy response"; exit 1; }
+              echo "$BODY" | grep -q "\"commit\":\"${{ steps.tag.outputs.tag }}\"" \
+                || echo "::warning title=Commit mismatch::Serving revision does not report the expected commit."
+              echo "$BODY" | grep -q '"secretsLoaded":true' \
+                || { echo "Secret Manager value was not injected at runtime"; exit 1; }
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Health check never succeeded"
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Cloud Run deploy"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Service | \`${{ env.SERVICE }}\` |"
+            echo "| Region | \`${{ env.REGION }}\` |"
+            echo "| Image tag | \`${{ steps.tag.outputs.tag }}\` |"
+            echo "| URL | ${{ steps.deploy.outputs.url }} |"
+            echo ""
+            echo "Roll back: re-run this workflow via **Run workflow** with a previous commit SHA as \`image_tag\`."
+          } >> "$GITHUB_STEP_SUMMARY"
