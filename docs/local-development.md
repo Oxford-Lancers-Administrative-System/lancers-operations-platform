@@ -58,22 +58,22 @@ Sign in at <http://localhost:3000/login> with `TEST_USER_EMAIL` /
 
 ## Everyday commands
 
-| Command                                      | What it does                                    |
-| -------------------------------------------- | ----------------------------------------------- |
-| `npm run dev`                                | Dev server on :3000                             |
-| `npm run build`                              | Production build (also typechecks)              |
-| `npm run start`                              | Serve the production build                      |
-| `npm run lint` / `lint:fix`                  | ESLint                                          |
-| `npm run format` / `format:check`            | Prettier                                        |
-| `npm run typecheck`                          | `tsc --noEmit`                                  |
-| `npm run test` / `test:watch`                | Vitest                                          |
-| `npm run verify`                             | format:check → lint → typecheck → test → build  |
-| `npm run db:start` / `db:stop` / `db:status` | Local Supabase lifecycle                        |
-| `npm run db:reset`                           | Drop and re-apply every migration from empty    |
-| `npm run db:seed-user`                       | Create/update the local test user               |
-| `npm run types:generate`                     | Regenerate `src/lib/supabase/database.types.ts` |
-| `npm run types:check`                        | Fail if those types have drifted                |
-| `npm run check:rls`                          | Fail if a migration creates a table without RLS |
+| Command                                      | What it does                                     |
+| -------------------------------------------- | ------------------------------------------------ |
+| `npm run dev`                                | Dev server on :3000                              |
+| `npm run build`                              | Production build (also typechecks)               |
+| `npm run start`                              | Serve the production build                       |
+| `npm run lint` / `lint:fix`                  | ESLint                                           |
+| `npm run format` / `format:check`            | Prettier                                         |
+| `npm run typecheck`                          | `next typegen` (route types) then `tsc --noEmit` |
+| `npm run test` / `test:watch`                | Vitest                                           |
+| `npm run verify`                             | format:check → lint → typecheck → test → build   |
+| `npm run db:start` / `db:stop` / `db:status` | Local Supabase lifecycle                         |
+| `npm run db:reset`                           | Drop and re-apply every migration from empty     |
+| `npm run db:seed-user`                       | Create/update the local test user                |
+| `npm run types:generate`                     | Regenerate `src/lib/supabase/database.types.ts`  |
+| `npm run types:check`                        | Fail if those types have drifted                 |
+| `npm run check:rls`                          | Fail if a migration creates a table without RLS  |
 
 Run `npm run verify` before opening a pull request. It is what CI runs.
 
