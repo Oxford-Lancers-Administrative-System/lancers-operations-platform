@@ -128,19 +128,20 @@ otherwise reason its way past:
   through LAN-82; it deliberately does not block LAN-71 or LAN-72, which have no
   interface. If an implementer would have to invent a screen, a state, a primary
   action, or a label, the gate has not been passed.
-- **Delivery approach.** No automated WhatsApp or email delivery workflow before
-  Brian resolves the approach, and **manual posting is never introduced as a
-  fallback assumption**. LAN-78's manual distribution is a separate locked owner
-  decision — a first-class recorded Delivery Result — and building it as
-  specified is not affected; downgrading some other issue's automated
-  requirement to manual posting is what is forbidden.
+- **Delivery approach.** Automated WhatsApp delivery is locked. No
+  invitation-delivery workflow begins before Brian resolves the feasible
+  approach, and manual posting or manual distribution is never an MVP, pilot,
+  fallback, or separate acceptable path. Any source that still says otherwise,
+  including LAN-78, is stale and blocks implementation until corrected.
 
 ### Waves are recorded, and blockers are never assumptions
 
 Each wave is recorded before launch (selected issues and why they are unblocked,
 dependency status, expected collisions, worktree and branch assignments, human
 gates still in effect) and reported afterwards, including when it is abandoned
-or interrupted. Eight stop rules end a wave rather than being reasoned around,
+or interrupted. The pre-launch record and test matrix, then the completed run
+report, are persisted as Linear comments on every attempted issue; chat and a
+temporary worktree are not durable evidence. Eight stop rules end a wave rather than being reasoned around,
 and the supervisor may never silently convert a blocker into an assumption.
 Correction is bounded to one reasonable cycle before a failure becomes a
 reported blocker rather than a grind.
@@ -152,11 +153,13 @@ the evidence is worse than the mess.
 Two mechanical guards back this up, because a role description is a prompt and a
 prompt is not a control:
 
-- `.claude/settings.json` denies, session-wide, the commands that would merge,
-  un-draft, push to `main`, rewrite history, deploy, reach hosted Supabase, or
-  change repository settings and secrets. Deny rules are evaluated ahead of
-  everything else and take effect without workspace trust, because they only
-  restrict. The file grants nothing.
+- `.claude/settings.json` denies common direct command forms that would merge,
+  un-draft, push to `main`, rewrite history, delete a branch, deploy, reach
+  hosted Supabase, or mutate GitHub through the raw API. Deny rules are
+  evaluated ahead of everything else and the file grants nothing. These
+  pattern rules reduce risk; they are not an exhaustive shell sandbox, so
+  protected `main`, draft-only workflow, CI, review, and least-privilege
+  credentials remain the authoritative controls.
 - The same file sets `disableBypassPermissionsMode`, so those denials cannot be
   skipped by starting a session in bypass mode.
 
@@ -187,8 +190,9 @@ from completed batches rather than a feeling that things went well:
 - no case of the lead accepting a self-report that the repository contradicted;
 - pull requests still reviewable by one person in one sitting at the current
   size;
-- a resolution for the shared local Supabase stack, which today forces
-  database-touching work to be serialised no matter how many workers exist.
+- a resolution for the shared local Supabase stack, whose one wave-wide lock
+  today serialises database-backed work by implementers and reviewers no matter
+  how many worktrees exist.
 
 Until then, a batch is at most two issues.
 
