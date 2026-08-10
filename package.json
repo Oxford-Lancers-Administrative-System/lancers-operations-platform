@@ -19,6 +19,7 @@
     "db:status": "supabase status",
     "db:reset": "supabase db reset",
     "db:seed-user": "node scripts/create-test-user.mjs",
+    "db:seed": "node scripts/seed-local.mjs",
     "types:generate": "node scripts/generate-types.mjs",
     "types:check": "node scripts/generate-types.mjs --check",
     "check:rls": "node scripts/check-rls-migrations.mjs"
@@ -42,6 +43,7 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
+    "@types/pg": "^8.21.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.4.2",
@@ -49,6 +51,7 @@
     "eslint-config-next": "16.3.0",
     "eslint-config-prettier": "^10.1.8",
     "jsdom": "^27.0.1",
+    "pg": "^8.23.0",
     "prettier": "^3.9.6",
     "supabase": "^2.113.0",
     "tailwindcss": "^4",

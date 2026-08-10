@@ -45,9 +45,17 @@ Fill `.env.local` from that output:
 Also set `TEST_USER_PASSWORD` to anything at least 12 characters. Then:
 
 ```bash
+npm run db:seed        # loads the synthetic domain dataset (local only)
 npm run db:seed-user   # creates the one pre-provisioned test user
 npm run dev            # http://localhost:3000
 ```
+
+`db:seed` writes roughly twelve thousand rows of deterministic synthetic data —
+two seasons, 52 people, 110 events and the full participation loop. It contains
+no real person, contact detail or club record: names come from an invented pool,
+every email domain is under the reserved `.example` TLD, and every phone number
+is in a range reserved for fiction. It refuses to run against anything but
+loopback.
 
 Sign in at <http://localhost:3000/login> with `TEST_USER_EMAIL` /
 `TEST_USER_PASSWORD` and you should reach `/dashboard`.
@@ -70,6 +78,7 @@ Sign in at <http://localhost:3000/login> with `TEST_USER_EMAIL` /
 | `npm run verify`                             | format:check → lint → typecheck → test → build   |
 | `npm run db:start` / `db:stop` / `db:status` | Local Supabase lifecycle                         |
 | `npm run db:reset`                           | Drop and re-apply every migration from empty     |
+| `npm run db:seed`                            | Load the deterministic synthetic dataset         |
 | `npm run db:seed-user`                       | Create/update the local test user                |
 | `npm run types:generate`                     | Regenerate `src/lib/supabase/database.types.ts`  |
 | `npm run types:check`                        | Fail if those types have drifted                 |
@@ -118,15 +127,39 @@ local stack instead, build with your real `.env.local` values and run with
 npx supabase migration new descriptive_name   # creates supabase/migrations/<ts>_descriptive_name.sql
 # edit the file
 npm run db:reset                              # re-apply everything from empty
+npm run db:seed                               # confirm the seed still loads
 npm run types:generate                        # regenerate types
 npm run check:rls                             # RLS posture gate
+npm run test                                  # constraint, security and seed tests
 ```
 
 Commit the migration **and** the regenerated types together. CI fails if they
 disagree.
 
-Every migration that creates a table in an exposed schema must enable RLS on it
-in the same migration — see [ADR 0002](adr/0002-rls-posture.md).
+Every migration that creates a table in an exposed schema must:
+
+- enable RLS on it in the same migration — [ADR 0002](adr/0002-rls-posture.md);
+- revoke all privileges from `anon`, `authenticated` **and** `service_role`,
+  then grant back only what the server path needs — [ADR 0010](adr/0010-domain-table-access-posture.md);
+- have an entry in [`architecture/data-model.md`](architecture/data-model.md).
+
+Migrations already applied to a shared environment are **never** edited or
+reordered. Correct them with a new migration, and read
+[`migration-runbook.md`](migration-runbook.md) before going anywhere near hosted
+Supabase.
+
+## Working against the database directly
+
+The domain tables are not reachable through the Data API by design, so schema
+work and the schema tests connect to PostgreSQL directly:
+
+```bash
+psql postgresql://postgres:postgres@127.0.0.1:54322/postgres
+```
+
+`scripts/lib/local-db.mjs` is the shared entry point used by the seed and the
+tests. Its guard refuses any host that is not loopback and any hosted Supabase
+connection string. Do not weaken it.
 
 ## Troubleshooting
 
@@ -144,6 +177,12 @@ in that project, or change the ports in `supabase/config.toml`.
 
 **Types keep coming back "drifted"** — you edited
 `src/lib/supabase/database.types.ts` by hand. Don't; regenerate it.
+
+**Schema tests fail with "seed is not loaded"** — `npm run db:reset` wipes the
+synthetic data. Re-run `npm run db:seed`.
+
+**Sign-in stops working after a reset** — `db:reset` wipes the auth user too.
+Re-run `npm run db:seed-user`.
 
 **Two clones of this repo fight over one database.** The Supabase CLI keys its
 Docker volumes by the `project_id` in `supabase/config.toml`, _not_ by directory.

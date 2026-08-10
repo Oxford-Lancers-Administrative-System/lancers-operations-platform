@@ -1,6 +1,6 @@
 # 0002 — RLS enabled everywhere, deny-by-default
 
-**Status:** Accepted · **Date:** 2026-08-08 (decided) / 2026-08-10 (recorded here)
+**Status:** Accepted · **Date:** 2026-08-08 (decided) / 2026-08-10 (recorded here) · **Extended by** [0010](0010-domain-table-access-posture.md)
 
 ## Context
 
@@ -33,4 +33,7 @@ says otherwise.
 
 - Adding a table is a two-line habit, permanently. This is intentional friction.
 - When the domain model lands, per-table policy tests are added next to the
-  existing runtime assertion rather than replacing it.
+  existing runtime assertion rather than replacing it. **This happened on
+  2026-08-10:** see [ADR 0010](0010-domain-table-access-posture.md), which
+  extends this posture with grant-level deny-by-default and `security_invoker`
+  views.

@@ -1,6 +1,6 @@
 # 0007 — This repository contains no club domain schema
 
-**Status:** Accepted · **Date:** 2026-08-10
+**Status:** Superseded by [0011](0011-domain-schema-baseline.md) · **Date:** 2026-08-10
 
 ## Context
 
@@ -38,3 +38,7 @@ executable SQL.
 The ticket that introduces the domain model deletes `tests/no-domain-code.test.ts`
 as part of its work. Deleting it is the explicit act of crossing the boundary —
 which is the point.
+
+**That happened on 2026-08-10.** The domain schema baseline landed and this ADR
+is superseded by [0011](0011-domain-schema-baseline.md), which records what
+replaces the boundary. The reasoning above stands for the period it covered.

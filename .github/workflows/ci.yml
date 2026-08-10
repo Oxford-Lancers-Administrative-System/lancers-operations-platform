@@ -61,6 +61,12 @@ jobs:
       - name: Verify generated types match the schema (drift check)
         run: npm run types:check
 
+      - name: Load the synthetic dataset
+        # Proves the seed still loads against a database rebuilt from empty, and
+        # gives the schema and seed-property tests something to assert against.
+        # Synthetic only — see scripts/seed-local.mjs.
+        run: npm run db:seed
+
       - name: Provision the test user
         env:
           TEST_USER_EMAIL: ci.user@oxfordlancers.local

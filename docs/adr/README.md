@@ -16,4 +16,9 @@ accident. Routine implementation choices do not need an ADR.
 | [0004](0004-styling-baseline.md)                 | Material UI and Tailwind coexist; MUI is the component baseline        | Accepted               |
 | [0005](0005-github-to-gcp-auth.md)               | GitHub authenticates to GCP with OIDC and Workload Identity Federation | Accepted               |
 | [0006](0006-solo-developer-branch-protection.md) | `main` is protected, CI is required, zero human approvals              | Accepted (provisional) |
-| [0007](0007-zero-domain-code-boundary.md)        | This repository contains no club domain schema                         | Accepted               |
+| [0007](0007-zero-domain-code-boundary.md)        | This repository contains no club domain schema                         | Superseded by 0011     |
+| [0008](0008-relational-mapping-conventions.md)   | Relational mapping conventions for the domain schema                   | Accepted               |
+| [0009](0009-state-vocabulary-representation.md)  | Frozen state vocabularies are enums; configurable ones are tables      | Accepted               |
+| [0010](0010-domain-table-access-posture.md)      | Domain tables are unreachable from the browser, twice over             | Accepted               |
+| [0011](0011-domain-schema-baseline.md)           | The zero-domain-schema boundary is closed                              | Accepted               |
+| [0012](0012-explicit-event-audience.md)          | The confirmed event audience is a relation; its non-emptiness is not   | Accepted               |

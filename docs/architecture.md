@@ -1,7 +1,13 @@
 # Architecture
 
-Infrastructure scaffold for the Oxford Lancers operations platform. It contains
-no club domain functionality — see [ADR 0007](adr/0007-zero-domain-code-boundary.md).
+Operations platform for the Oxford Lancers. The repository holds the
+infrastructure and the **domain schema baseline** — the frozen conceptual domain
+model implemented as migrations. No application workflow is built on it yet.
+
+The physical data model, the conceptual-to-relational map and the invariant
+enforcement matrix are in [`architecture/data-model.md`](architecture/data-model.md).
+How a schema change reaches production is in
+[`migration-runbook.md`](migration-runbook.md).
 
 ## Stack
 
@@ -37,12 +43,38 @@ src/
   theme.ts                MUI baseline theme
 supabase/
   config.toml             local stack + auth configuration
-  migrations/             one intentionally empty init migration
-  seed.sql                intentionally empty
-scripts/                  type generation, RLS gate, test user, GCP bootstrap
-tests/                    integration + boundary tests
+  migrations/             the domain schema baseline plus one correction migration
+  seed.sql                intentionally empty — see scripts/seed-local.mjs
+scripts/
+  seed-local.mjs          deterministic synthetic dataset (local only)
+  lib/local-db.mjs        local-database access + the non-local guard
+  …                       type generation, RLS gate, test user, GCP bootstrap
+tests/                    integration, schema, and security tests
+docs/architecture/        the physical data model
 docs/adr/                 architecture decision records
 ```
+
+## Data layer
+
+Thirty-four tables, eight derived views and thirty-one enum types in `public`,
+plus three staging tables in an unexposed `staging` schema.
+
+| Area          | Tables                                                                                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Identity      | `people`, `person_aliases`, `contact_points`                                                                                                           |
+| Cycles        | `seasons`, `terms`, `committee_years`                                                                                                                  |
+| Membership    | `season_memberships`, `season_membership_status_events`, `recruitment_prospects`                                                                       |
+| Squad         | `position_vocabularies`, `positions`, `position_assignments`, `jersey_assignments`, `onboarding_item_types`, `onboarding_items`, `eligibility_records` |
+| Roles         | `roles`, `role_aliases`, `role_assignments`                                                                                                            |
+| Availability  | `availability_statuses`                                                                                                                                |
+| Events        | `event_series`, `alternative_groups`, `events`, `schedule_changes`, `event_questions`, `event_audience_members`                                        |
+| Participation | `invitations`, `rsvp_responses`, `question_responses`, `attendance_records`                                                                            |
+| Machinery     | `notification_jobs`, `delivery_results`                                                                                                                |
+| Reporting     | `weekly_reports`, `follow_up_actions`, `audit_events`                                                                                                  |
+
+Durable relational integrity lives in PostgreSQL; changeable workflow behaviour
+lives in the TypeScript service layer. Which rule sits where, and why, is the
+[invariant enforcement matrix](architecture/data-model.md#invariant-enforcement-matrix).
 
 `src/proxy.ts` — Next.js 16 renamed the `middleware` convention to `proxy`. Same
 semantics, different filename and export name.
@@ -80,6 +112,12 @@ right:
 - `admin.ts` imports `server-only`, so importing it from a Client Component is a
   build error rather than a leak.
 - RLS is deny-by-default on every exposed table — [ADR 0002](adr/0002-rls-posture.md).
+- Domain tables are also unreachable at the **grant** level: `anon` and
+  `authenticated` hold no privilege on any of them, and every view is
+  `security_invoker` — [ADR 0010](adr/0010-domain-table-access-posture.md).
+- Availability data is restricted to the privileged server path, and no column
+  anywhere can hold a diagnosis or treatment (Requirement 8, enforced
+  structurally and asserted by test).
 - The service layer is the primary authorization boundary; RLS is the backstop.
 - Development and CI never touch production — [ADR 0001](adr/0001-local-supabase-only.md).
 
@@ -87,21 +125,27 @@ right:
 
 Deliberately minimal: email/password only, one manually pre-provisioned user,
 public self-registration disabled, one trivial session-protected page. No
-application roles, profile tables, invitations, onboarding, or domain-specific
-authorization exist.
+application-level roles or domain authorization exist yet — the `roles` and
+`role_assignments` tables model the club's committee and coaching seats, which
+is a different thing from a permission model and is not wired to authentication.
 
 Google OAuth is deferred — it needs an approved redirect domain and a club
 administrator able to create OAuth credentials, both open club-side items.
 
 ## Guardrails that run in CI
 
-| Gate                                   | Mechanism                      |
-| -------------------------------------- | ------------------------------ |
-| Formatting, lint, types, tests, build  | `npm run verify`               |
-| Migrations apply cleanly from empty    | `supabase db reset` in CI      |
-| Generated types match the schema       | `npm run types:check`          |
-| Every new table enables RLS            | `npm run check:rls`            |
-| A browser-safe key reads nothing       | `tests/rls-posture.test.ts`    |
-| Sign-in works, public sign-up does not | `tests/auth-flow.test.ts`      |
-| No domain schema exists                | `tests/no-domain-code.test.ts` |
-| The container builds and serves        | `container` job in `ci.yml`    |
+| Gate                                       | Mechanism                             |
+| ------------------------------------------ | ------------------------------------- |
+| Formatting, lint, types, tests, build      | `npm run verify`                      |
+| Migrations apply cleanly from empty        | `supabase db reset` in CI             |
+| The seed loads after a clean reset         | `npm run db:seed` in `ci.yml`         |
+| Generated types match the schema           | `npm run types:check`                 |
+| Every new table enables RLS                | `npm run check:rls`                   |
+| A browser-safe key reads nothing           | `tests/rls-posture.test.ts`           |
+| Sign-in works, public sign-up does not     | `tests/auth-flow.test.ts`             |
+| Frozen invariants are really enforced      | `tests/schema-invariants.test.ts`     |
+| Valid messy data is still accepted         | `tests/schema-accepts.test.ts`        |
+| The audience relation and P7's five states | `tests/schema-event-audience.test.ts` |
+| RLS, grants and view rights hold           | `tests/schema-security.test.ts`       |
+| The synthetic dataset stays messy          | `tests/synthetic-seed.test.ts`        |
+| The container builds and serves            | `container` job in `ci.yml`           |
