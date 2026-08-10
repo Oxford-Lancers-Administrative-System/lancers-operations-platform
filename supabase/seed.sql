@@ -1,0 +1,12 @@
+-- Seed data for the local Supabase stack.
+--
+-- Intentionally empty. There is no domain schema to seed, and the ticket's
+-- fixture guidance is explicit: fixtures must mirror the real shape of club
+-- data (from the synthetic data specification) and must not be invented ahead
+-- of the domain model.
+--
+-- The one local account this scaffold needs is the pre-provisioned auth test
+-- user, created through the Auth admin API rather than raw SQL so that password
+-- hashing and identity records are handled correctly:
+--
+--   npm run db:seed-user

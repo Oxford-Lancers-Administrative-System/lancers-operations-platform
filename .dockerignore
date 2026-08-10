@@ -1,0 +1,14 @@
+.git
+.github
+.next
+node_modules
+npm-debug.log
+coverage
+docs
+supabase/.branches
+supabase/.temp
+.env
+.env.*
+!.env.example
+README.md
+*.md

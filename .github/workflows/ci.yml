@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same branch supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Format, lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start local Supabase
+        # Every check runs against a local stack. The production project is never
+        # reachable from CI, by design — see docs/adr/0001-local-supabase-only.md.
+        run: npx supabase start
+
+      - name: Capture local Supabase credentials
+        id: supabase
+        run: |
+          npx supabase status -o json > /tmp/supabase-status.json
+          node -e '
+            const s = require("/tmp/supabase-status.json");
+            const out = [
+              `NEXT_PUBLIC_SUPABASE_URL=${s.API_URL}`,
+              `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${s.PUBLISHABLE_KEY ?? s.ANON_KEY}`,
+              `SUPABASE_SECRET_KEY=${s.SECRET_KEY ?? s.SERVICE_ROLE_KEY}`,
+            ];
+            require("fs").appendFileSync(process.env.GITHUB_ENV, out.join("\n") + "\n");
+          '
+          rm -f /tmp/supabase-status.json
+        # These are ephemeral, locally generated credentials for a throwaway
+        # container. They are not project secrets and never leave the runner.
+
+      - name: Verify migrations apply cleanly from empty
+        run: npx supabase db reset --no-seed
+
+      - name: Verify RLS posture of migrations
+        run: npm run check:rls
+
+      - name: Verify generated types match the schema (drift check)
+        run: npm run types:check
+
+      - name: Provision the test user
+        env:
+          TEST_USER_EMAIL: ci.user@oxfordlancers.local
+          TEST_USER_PASSWORD: ${{ secrets.CI_TEST_USER_PASSWORD || 'CiLocalPassword123!' }}
+        run: npm run db:seed-user
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        env:
+          # Turns "local Supabase not configured" from a silent skip into a failure.
+          REQUIRE_SUPABASE_TESTS: "1"
+          TEST_USER_EMAIL: ci.user@oxfordlancers.local
+          TEST_USER_PASSWORD: ${{ secrets.CI_TEST_USER_PASSWORD || 'CiLocalPassword123!' }}
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx supabase stop --no-backup || true
+
+  container:
+    name: Container builds and serves
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: lancers-operations-platform:ci
+          # NEXT_PUBLIC_* values are inlined by Next.js at build time, so the
+          # image must be built with them or every rendered route 500s. These
+          # placeholders point at TEST-NET-1 (RFC 5737), which is unroutable —
+          # the point is to prove the image serves pages without reaching a
+          # database, not to talk to one.
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=http://192.0.2.1:54321
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_ci_placeholder
+            GIT_COMMIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Container serves the app
+        # The same probe Cloud Run uses, plus the public routes. If this fails the
+        # deploy would fail too, so it fails here on the pull request instead.
+        run: |
+          set -euo pipefail
+          docker run -d --name app -p 8080:8080 -e SUPABASE_SECRET_KEY=ci-placeholder \
+            lancers-operations-platform:ci
+
+          ready=false
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/api/health > /tmp/health.json; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ready" != true ]; then
+            echo "Health check never passed. Container logs:"
+            docker logs app
+            docker rm -f app
+            exit 1
+          fi
+
+          cat /tmp/health.json; echo
+          grep -q '"status":"ok"' /tmp/health.json
+          grep -q '"commit":"${{ github.sha }}"' /tmp/health.json
+          grep -q '"secretsLoaded":true' /tmp/health.json
+
+          check() {
+            actual=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "http://localhost:8080$1")
+            echo "$1 -> $actual (expected $2)"
+            [ "$actual" = "$2" ]
+          }
+          check / 200
+          check /login 200
+          # Protected, and no session: must redirect rather than render.
+          check /dashboard 307
+
+          docker rm -f app
