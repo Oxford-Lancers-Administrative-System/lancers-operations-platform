@@ -133,6 +133,20 @@ client bundle at build time, so they are build arguments, not runtime secrets.
 Raise `max-instances` only alongside a deliberate look at Supabase connection
 limits.
 
+> **A stray service-level annotation looks like it contradicts this.**
+> `gcloud run services describe` reports `run.googleapis.com/maxScale=20` at the
+> service level, which is a Cloud Run system default. The value that actually
+> governs scaling is the one on the revision template,
+> `autoscaling.knative.dev/maxScale=3`, set from `--max-instances`. Verified on
+> the live revision. It is deliberately left alone: mutating a system-managed
+> annotation on a working production service to tidy a display value is not worth
+> the risk. Check the effective cap with:
+>
+> ```bash
+> gcloud run revisions describe <revision> --region europe-west2 \
+>   --format="value(metadata.annotations)" | tr ';' '\n' | grep maxScale
+> ```
+
 ## Health check and logging
 
 - `GET /api/health` → `{ status, service, revision, commit, secretsLoaded, timestamp }`.
