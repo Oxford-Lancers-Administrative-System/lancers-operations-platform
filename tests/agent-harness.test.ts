@@ -166,12 +166,25 @@ describe("agent harness: the process controls", () => {
     expect(flat(reviewer)).toMatch(/green CI run is not approval/i);
   });
 
+  it("makes the reviewer challenge the PR head, not main", () => {
+    expect(flat(reviewer)).toMatch(/git switch --detach FETCH_HEAD/i);
+    expect(flat(reviewer)).toMatch(/expected_sha/i);
+    expect(flat(reviewer)).toMatch(/omitting this step would test `main`/i);
+  });
+
   it("makes the reviewer challenge critical behaviours by injecting a defect", () => {
     expect(flat(reviewer)).toMatch(/Challenge the critical behaviours/i);
     expect(flat(reviewer)).toMatch(/Discard the change immediately/i);
     // Lightweight by decision — a framework here would be a dependency and a
     // scope change, not an improvement.
     expect(flat(reviewer)).toMatch(/Do not install a mutation-testing framework/i);
+  });
+
+  it("extends the one database lock across implementers and reviewers", () => {
+    expect(flat(lead)).toMatch(/one wave-wide database lock/i);
+    expect(flat(lead)).toMatch(/implementer or reviewer/i);
+    expect(flat(reviewer)).toMatch(/database lock: HELD/i);
+    expect(flat(reviewer)).toMatch(/Never take the lock yourself/i);
   });
 
   it("keeps Playwright out until a screen exists, and additive when it arrives", () => {
@@ -198,13 +211,25 @@ describe("agent harness: the process controls", () => {
   it("holds the two human gates that outrank a clear dependency graph", () => {
     expect(flat(lead)).toMatch(/LAN-90/);
     expect(flat(lead)).toMatch(/LAN-71 or LAN-72/);
-    expect(flat(lead)).toMatch(/manual posting must never be introduced as a fallback assumption/i);
+    expect(flat(lead)).toMatch(/Manual posting or manual distribution is never/i);
   });
 
-  it("requires a wave record before launch and a run report after", () => {
+  it("requires durable Linear evidence before and after a wave", () => {
     expect(flat(lead)).toMatch(/Record the wave, then launch/i);
-    expect(flat(lead)).toMatch(/Leave a run report/i);
+    expect(flat(lead)).toMatch(/Linear comment on every selected issue before/i);
+    expect(flat(lead)).toMatch(/Persist the completed report as a new Linear comment/i);
     expect(flat(lead)).toMatch(/No second wave without Brian's approval/i);
+  });
+
+  it("checks the actual CI logs for the current pull-request head", () => {
+    expect(flat(lead)).toMatch(/gh run view <run id> --log/i);
+    expect(flat(lead)).toMatch(/current head SHA/i);
+  });
+
+  it("treats automated WhatsApp delivery as locked and every manual path as stale", () => {
+    expect(flat(lead)).toMatch(/Automated WhatsApp delivery is a locked requirement/i);
+    expect(flat(lead)).toMatch(/Manual posting or manual distribution is never/i);
+    expect(flat(lead)).toMatch(/LAN-78.*stale/i);
   });
 
   it("keeps a failed run recoverable", () => {
@@ -238,10 +263,26 @@ describe("agent harness: mechanical guards", () => {
     expect(deny).toContain("Bash(gh pr ready *)");
   });
 
-  it("blocks pushing to main and rewriting history", () => {
-    expect(deny).toContain("Bash(git push * main)");
-    expect(deny).toContain("Bash(git push *:main)");
-    expect(deny).toContain("Bash(git push --force*)");
+  it("blocks common push-to-main, history-rewrite, and branch-deletion forms", () => {
+    for (const rule of [
+      "Bash(git push * main)",
+      "Bash(git push *:main)",
+      "Bash(git push * refs/heads/main*)",
+      "Bash(git push *:refs/heads/main*)",
+      "Bash(git push --force*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git push * +*)",
+      "Bash(git push * --delete*)",
+    ]) {
+      expect(deny).toContain(rule);
+    }
+  });
+
+  it("blocks raw GitHub API writes and destructive pull-request state changes", () => {
+    expect(deny).toContain("Bash(gh api *)");
+    expect(deny).toContain("Bash(gh pr close *)");
+    expect(deny).toContain("Bash(gh pr reopen *)");
   });
 
   it("blocks deployment", () => {
