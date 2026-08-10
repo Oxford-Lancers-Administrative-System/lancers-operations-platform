@@ -28,10 +28,15 @@
       "Bash(gh secret *)",
       "Bash(gh auth token *)",
       "Bash(gcloud secrets *)",
-      "Bash(gh api --method *)",
-      "Bash(gh api -X *)",
-      "Bash(gh api * --method *)",
-      "Bash(gh api * -X *)"
+      "Bash(git push * refs/heads/main*)",
+      "Bash(git push *:refs/heads/main*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git push * +*)",
+      "Bash(git push * --delete*)",
+      "Bash(gh pr close *)",
+      "Bash(gh pr reopen *)",
+      "Bash(gh api *)"
     ]
   }
 }
