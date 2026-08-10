@@ -326,10 +326,10 @@ Three rules follow from that and are worth stating on their own:
   LAN-90 UX approval is recorded. **Automated WhatsApp delivery is a locked
   requirement** — manual posting or manual distribution is never an MVP, pilot,
   fallback, or separate acceptable path, and no agent may implement or assume
-  one. No invitation-delivery implementation begins until the feasible approach
-  is resolved. LAN-78, LAN-82 and the project summary still specify manual
-  distribution; that wording is stale and all three are blocked until Brian
-  corrects them.
+  one. **LAN-92 is the open decision gate**: it owns the provider, recipient
+  pattern, prerequisites, and failure behaviour, no agent closes it, and LAN-78
+  stays blocked until it closes and LAN-78 is amended with the selected
+  approach. LAN-82 is blocked transitively.
 - **One database lock, every agent.** Worktree isolation isolates files, not the
   local Supabase stack — one set of containers shared by every worktree.
   Implementers and reviewers alike hold the lock one at a time.

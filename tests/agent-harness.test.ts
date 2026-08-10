@@ -229,16 +229,27 @@ describe("agent harness: the process controls", () => {
     }
   });
 
-  it("blocks the issues whose requirements still specify manual distribution", () => {
-    // LAN-78, LAN-82 and the project summary contradict the locked decision.
-    // The lead must refuse them rather than reconcile them itself.
+  it("holds LAN-92 open as the delivery decision gate", () => {
+    // LAN-92 owns the provider, recipient pattern, prerequisites, and failure
+    // behaviour. An agent deciding any of them has left its authority.
     const gate = flat(lead);
-    for (const blocked of ["LAN-78", "LAN-82", "project summary"]) {
-      expect(gate, `${blocked} must be named as blocked`).toMatch(new RegExp(blocked, "i"));
+    expect(gate).toMatch(/LAN-92 is the decision gate, and it is not closed/i);
+    for (const blocked of ["LAN-78", "LAN-82", "LAN-90"]) {
+      expect(gate, `${blocked} must have its gate status stated`).toMatch(new RegExp(blocked));
     }
-    expect(gate).toMatch(/treat that wording as .{0,3}stale.{0,3} and stop for correction/i);
-    expect(gate).toMatch(/blockers for Brian, not text for you to fix/i);
+    expect(gate).toMatch(/Do not choose the provider, the recipient pattern, or the failure/i);
+    expect(gate).toMatch(/stop rule 1 \(missing owner decision\)/i);
+  });
+
+  it("still treats any surviving manual-distribution wording as stale", () => {
+    // Brian corrected LAN-78, LAN-82 and the project summary. The rule stays, so
+    // a regression in any source stops the wave instead of being reconciled.
+    const gate = flat(lead);
+    expect(gate).toMatch(/treat that wording as .{0,3}stale.{0,3}/i);
+    expect(gate).toMatch(/stop rule 2 \(requirements conflict\)/i);
     expect(gate).toMatch(/Do not edit a Linear issue to remove the contradiction/i);
+    // The frozen schema's manual channel is a domain capability, not a loophole.
+    expect(gate).toMatch(/must not be removed/i);
   });
 
   it("pins the reviewer to the pull request's exact head commit", () => {

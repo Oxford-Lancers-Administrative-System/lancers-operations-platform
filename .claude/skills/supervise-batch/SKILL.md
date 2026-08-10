@@ -60,37 +60,49 @@ been passed, whatever the graph says.
 
 **Delivery — automated WhatsApp delivery is a locked requirement.**
 
+> The system must automatically deliver event invitations and RSVP access
+> through WhatsApp. An operator manually copying, sending, or posting RSVP links
+> is not an acceptable MVP, pilot, fallback, or temporary operating model.
+
 **Manual posting or manual distribution is never an MVP, pilot, fallback, or
 separate acceptable path.** There is no version of this slice in which an
-operator pasting links by hand is the accepted answer. No invitation-delivery
-issue is eligible until Brian has resolved the feasible automated approach and
-the issue expresses it consistently.
+operator pasting links by hand is the accepted answer.
 
 You may never:
 
-- implement manual link copying or manual posting as the delivery path;
+- implement manual link copying, sending, or posting as the delivery path;
 - offer it as an interim step, a stopgap, or "phase one";
 - treat an automated-delivery requirement as satisfied by a manual one;
+- let a "mark as sent" action stand in for delivery;
 - resolve a delivery ambiguity by assuming the manual path.
 
-**Stale sources — blocked until their requirements are corrected:**
+The frozen schema's `manual` channel and outcome remain a valid general domain
+capability and must not be removed. They are simply not a completion path for
+this slice.
 
-| Artifact                                                 | Why it is stale                                                                                      |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **LAN-78**                                               | Specifies manual distribution as a locked owner decision, contradicting automated WhatsApp delivery. |
-| **LAN-82**                                               | Its end-to-end walkthrough and operator runbook inherit the manual-distribution assumption.          |
-| **The First Operational Vertical Slice project summary** | Describes the slice with the same manual-distribution framing.                                       |
+**LAN-92 is the decision gate, and it is not closed.**
 
-If LAN-78 or any other source still calls for manual distribution, treat that
-wording as **stale** and stop for correction; do not implement it.
+`LAN-92 — Decision gate: resolve the automated WhatsApp RSVP delivery approach`
+owns the remaining technical and operational decision: which API, provider and
+account configuration, the recipient pattern, template/consent prerequisites,
+and the delivery-failure behaviour. It is a decision, not an implementation
+ticket, and no agent closes it.
 
-These are **blockers for Brian**, not text for you to fix. Do not edit a Linear
-issue to remove the contradiction, do not reinterpret it, and do not build the
-automated version from a document that specifies the manual one. Report the
-conflict under stop rule 2 (requirements conflict) and stop.
+| Issue      | Status until LAN-92 closes                                                                                                                                                                                |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **LAN-78** | Blocked by LAN-92. Not executable until LAN-92 closes **and** LAN-78's description has been amended with the selected provider/API, recipient pattern, prerequisites, and provider-specific verification. |
+| **LAN-82** | Transitively blocked through LAN-78. Its end-to-end walk drives the automated delivery adapter LAN-92 selects.                                                                                            |
+| **LAN-90** | May draft in parallel, but its WhatsApp delivery surface cannot receive **final** approval until LAN-92 is recorded.                                                                                      |
 
-Any _other_ issue that turns out to depend on delivery behaviour is blocked the
-same way until Brian's correction lands.
+Do not choose the provider, the recipient pattern, or the failure behaviour
+during implementation. If you find yourself deciding any of them, LAN-92 has not
+closed and you are outside your authority — stop under stop rule 1 (missing
+owner decision).
+
+If any source still calls for manual distribution, treat that wording as
+**stale**, report it under stop rule 2 (requirements conflict), and stop. Do not
+edit a Linear issue to remove the contradiction, do not reinterpret it, and do
+not build the automated version from a document that specifies the manual one.
 
 **Frozen scope.** Anything on the "Stop and ask Brian" list in `AGENTS.md` — the
 domain model, security or privacy posture, infrastructure cost, the ownership

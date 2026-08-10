@@ -33,10 +33,8 @@ they were serialised, or why the pair is genuinely independent>`
 **Human gates still in effect for this wave:**
 
 - `<e.g. LAN-90 UX approval — not yet recorded, so LAN-73..LAN-82 stay out of scope>`
-- `<e.g. automated delivery approach unresolved — invitation-delivery issues out
-of scope; LAN-78, LAN-82 and the project summary still specify manual link
-distribution, which contradicts the locked automated-WhatsApp requirement, so
-all three are blocked until Brian corrects them>`
+- `<e.g. LAN-92 delivery decision gate still open — LAN-78 blocked, LAN-82
+blocked transitively, LAN-90 delivery surface cannot get final approval>`
 
 **Database lock:** `<which agent holds it, and the hand-over order — exactly one
 holder at a time across the whole wave, reviewers included>`

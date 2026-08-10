@@ -148,18 +148,24 @@ otherwise reason its way past:
   action, or a label, the gate has not been passed.
 - **Delivery.** **Automated WhatsApp delivery is a locked requirement.** Manual
   posting or manual distribution is never an MVP, pilot, fallback, or separate
-  acceptable path. No invitation-delivery workflow begins before Brian resolves
-  the feasible approach, and an agent may never implement a manual path, offer it
-  as an interim step, treat it as satisfying an automated-delivery requirement,
-  or assume it to resolve an ambiguity.
+  acceptable path. An agent may never implement a manual path, offer it as an
+  interim step, let a "mark as sent" action stand in for delivery, treat a manual
+  path as satisfying an automated-delivery requirement, or assume it to resolve
+  an ambiguity. The frozen schema's `manual` channel and outcome stay — they are
+  a valid domain capability, just not a completion path for this slice.
 
-  This currently contradicts the requirements themselves. **LAN-78**, **LAN-82**,
-  and the First Operational Vertical Slice **project summary** still specify
-  manual distribution. That wording is stale; those artifacts are recorded as
-  blockers for Brian, and the lead is forbidden from selecting any of them until
-  the requirements are corrected. An agent does not resolve the contradiction by
-  editing the issue, by reinterpreting it, or by building the automated version
-  from a document that specifies the manual one.
+  **LAN-92 is the open decision gate.** It owns the provider and API, the
+  recipient pattern, template and consent prerequisites, and the delivery-failure
+  behaviour. No agent closes it and no agent decides any of those during
+  implementation. LAN-78 is blocked until LAN-92 closes _and_ LAN-78 is amended
+  with the selected approach; LAN-82 is blocked transitively; LAN-90 may draft in
+  parallel but cannot receive final approval for its delivery surface first.
+
+  An earlier revision of these requirements specified manual distribution as a
+  locked decision. Brian has since corrected LAN-78, LAN-82 and the project
+  summary. The harness keeps the rule that any source still saying otherwise is
+  stale and stops the wave under a requirements conflict, rather than being
+  reconciled by an agent.
 
 ### Waves are recorded, and blockers are never assumptions
 
