@@ -8,20 +8,30 @@ imports this file; do not duplicate anything from here into it.
 Operations platform for the **Oxford Lancers**, a contact football club. Release
 one covers the club's eight approved operational workflows.
 
-**None of them exist yet.** This repository is currently an infrastructure
-scaffold whose only job is to prove the development, CI, and deployment loop.
-Until the ticket that legitimately introduces the domain model:
+The repository holds the infrastructure scaffold **and the domain schema
+baseline**: the frozen conceptual domain model v1.2 implemented as PostgreSQL
+migrations, with a deterministic synthetic seed and the tests that prove the
+invariants. No application workflow is built on it yet.
 
-- **No domain tables, entities, or migrations** — no players, rosters, events,
-  RSVPs, attendance, injuries, or communications.
-- **No real-data imports.** No roster data, no member records.
-- **No application workflows.** None of the eight.
-- **No fixtures.** Seed data must mirror the real shape of club data, which is
-  what the synthetic data specification exists for. Tidy invented fixtures hide
-  the problems real data causes.
+Read [`docs/architecture/data-model.md`](docs/architecture/data-model.md) before
+touching `supabase/migrations/`. It maps every conceptual entity and every
+invariant to its physical treatment; a table with no entry there is a defect.
 
-`tests/no-domain-code.test.ts` enforces this and fails the build. The ticket
-that crosses the boundary deletes that test; nothing else may.
+Still out of bounds, and still needing a decision from Brian rather than a
+migration:
+
+- **New club concepts.** The frozen model's "deliberately absent" list is
+  binding: no kit-inventory ledger, no finance beyond subscription status, no
+  game-day logistics entity, no statistics, no media, no second team. Adding one
+  is a release-scope change.
+- **Reinterpreting the frozen model.** Renaming a state, widening a closed
+  vocabulary, or relaxing an invariant changes the approved domain model.
+- **Real-data imports.** No roster data and no member records, in any
+  environment, until the pre-pilot gate in
+  [`docs/migration-runbook.md`](docs/migration-runbook.md) is passed.
+- **Tidy fixtures.** Seed data mirrors the real shape of club data — that is
+  what `scripts/seed-local.mjs` and the synthetic data specification are for.
+  Invented tidy fixtures hide the problems real data causes.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
@@ -52,7 +62,9 @@ directly on components — use `sx`.
 | Question                                              | Source of truth                             |
 | ----------------------------------------------------- | ------------------------------------------- |
 | Stack, layout, request path, security model           | `docs/architecture.md`                      |
+| What each table means, and where each invariant lives | `docs/architecture/data-model.md`           |
 | Clean machine → running app; every script; migrations | `docs/local-development.md`                 |
+| How a schema change reaches production, and recovery  | `docs/migration-runbook.md`                 |
 | Cloud Run deploy, secrets, cost controls, rollback    | `docs/deployment.md`                        |
 | Why a decision was made                               | `docs/adr/` (index in `docs/adr/README.md`) |
 
@@ -90,6 +102,7 @@ npm run db:start           # start the stack; first run pulls images
 npm run db:stop
 npm run db:status          # prints URL and keys
 npm run db:reset           # drop and re-apply every migration from empty
+npm run db:seed            # load the deterministic synthetic dataset (local only)
 npm run db:seed-user       # create/update the one local test user
 npx supabase migration new <name>
 
@@ -117,7 +130,8 @@ First run on a new machine:
 npm install
 npm run db:start
 cp .env.example .env.local   # fill from `npm run db:status`
-npm run db:seed-user
+npm run db:seed              # synthetic domain data
+npm run db:seed-user         # the one local auth user
 npm run dev
 ```
 
@@ -144,9 +158,11 @@ src/lib/supabase/        client (browser) · server (per-request) · admin (priv
                          env.ts · database.types.ts (GENERATED — never hand-edit)
 src/proxy.ts             session refresh + route protection
 src/theme.ts             MUI baseline theme
-supabase/migrations/     SQL migrations
-scripts/                 type generation, RLS gate, test user, GCP bootstrap
-tests/                   integration and boundary tests
+supabase/migrations/     SQL migrations — the domain schema baseline
+scripts/                 type generation, RLS gate, seed, test user, GCP bootstrap
+scripts/lib/             shared local-database access, with the non-local guard
+tests/                   integration, schema, and security tests
+docs/architecture/       the physical data model
 docs/ · docs/adr/        documentation and decision records
 ```
 
@@ -186,8 +202,12 @@ a hard gate. See `docs/adr/0006-solo-developer-branch-protection.md`.
 ```bash
 npm run verify
 # and, if migrations changed:
-npm run db:reset && npm run types:generate && npm run check:rls
+npm run db:reset && npm run db:seed && npm run types:generate && npm run check:rls
 ```
+
+Applying a migration to hosted Supabase is a separate, explicitly authorized
+human action that no agent performs — see
+[`docs/migration-runbook.md`](docs/migration-runbook.md).
 
 ## Definition of done for a repository change
 
@@ -197,8 +217,11 @@ npm run db:reset && npm run types:generate && npm run check:rls
 3. Every new table in an exposed schema enables RLS in the same migration.
 4. Documentation updated where behaviour or commands changed; a new constraint
    on future work is recorded as an ADR.
-5. No secret value, real member data, or domain schema was introduced.
-6. CI green on the pull request.
+5. No secret value and no real member data was introduced, and no new club
+   concept was added to the domain model without Brian's decision.
+6. A change to `supabase/migrations/` updates `docs/architecture/data-model.md`
+   in the same commit — the map and the schema must not drift.
+7. CI green on the pull request.
 
 Reporting something as done means it was run and observed to pass — not that it
 should pass.
@@ -228,13 +251,26 @@ migration. `npm run check:rls` enforces it in CI. The service layer is the
 primary authorization boundary; RLS is the backstop.
 See `docs/adr/0002-rls-posture.md`.
 
+**Grant nothing to a browser-facing role.** Every migration revokes all
+privileges from `anon`, `authenticated` and `service_role` on the tables it
+creates, then grants back only what the server path needs — and only
+`select, insert` on an append-only history table. Views must be declared
+`security_invoker = true`, or they run as their owner and bypass RLS entirely.
+See `docs/adr/0010-domain-table-access-posture.md`.
+
+**Migrations are forward-only once shared.** Never edit or reorder a migration
+that has been applied anywhere but your own machine; correct it with a new one.
+No agent applies a migration to hosted Supabase. See `docs/migration-runbook.md`.
+
 **This repository is public.** Treat every committed byte as published.
 
 ## Stop and ask Brian
 
 Stop and ask before any change that would alter:
 
-- **The approved domain model** — including introducing any part of it.
+- **The approved domain model** — renaming a state, widening a closed
+  vocabulary, relaxing an invariant, or adding a club concept the frozen model
+  deliberately excludes.
 - **Security or privacy posture** — RLS, authentication, authorization,
   what data is exposed, how secrets are handled, IAM.
 - **Infrastructure cost** — new cloud resources or services, raising

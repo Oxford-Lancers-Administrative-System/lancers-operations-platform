@@ -2,11 +2,13 @@
 
 Operations platform for the **Oxford Lancers**.
 
-> **This repository is currently infrastructure scaffold.** It exists to prove
-> the development, CI, and deployment loop end to end before any club domain
-> work begins. It deliberately contains **no** players, rosters, events,
-> attendance, RSVPs, injuries, or communications — no domain tables at all.
-> See [ADR 0007](docs/adr/0007-zero-domain-code-boundary.md).
+> **Current state: infrastructure plus the domain schema baseline.** The
+> approved conceptual domain model is implemented as PostgreSQL migrations, with
+> a deterministic synthetic dataset and tests that prove its invariants are
+> enforced by the database rather than merely documented. **No application
+> workflow is built on it yet** — no screens, no API routes, no notification
+> delivery, and no real roster data anywhere.
+> See [docs/architecture/data-model.md](docs/architecture/data-model.md).
 
 |                 |                                                                         |
 | --------------- | ----------------------------------------------------------------------- |
@@ -23,6 +25,7 @@ Requires Node ≥ 20.9, npm, and a running Docker daemon.
 npm install
 npm run db:start            # local Supabase; first run pulls images
 cp .env.example .env.local  # fill from `npm run db:status`
+npm run db:seed             # synthetic domain data (local only)
 npm run db:seed-user        # the one pre-provisioned test user
 npm run dev                 # http://localhost:3000
 ```
@@ -31,14 +34,16 @@ Full walkthrough and troubleshooting: **[docs/local-development.md](docs/local-d
 
 ## Documentation
 
-| Document                                               | What it covers                                                      |
-| ------------------------------------------------------ | ------------------------------------------------------------------- |
-| [docs/local-development.md](docs/local-development.md) | Clean machine → running app; every npm script; migrations           |
-| [docs/architecture.md](docs/architecture.md)           | Stack, layout, request path, security model                         |
-| [docs/deployment.md](docs/deployment.md)               | Cloud Run deploy, secrets, cost controls, **rollback**              |
-| [docs/adr/](docs/adr/)                                 | Architecture decision records                                       |
-| [AGENTS.md](AGENTS.md)                                 | **Canonical working agreement** — commands, conventions, hard rules |
-| [CLAUDE.md](CLAUDE.md)                                 | Claude Code entry point; imports `AGENTS.md`                        |
+| Document                                                           | What it covers                                                      |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| [docs/local-development.md](docs/local-development.md)             | Clean machine → running app; every npm script; migrations           |
+| [docs/architecture.md](docs/architecture.md)                       | Stack, layout, request path, security model                         |
+| [docs/architecture/data-model.md](docs/architecture/data-model.md) | **Every table, every invariant, and where each rule is enforced**   |
+| [docs/migration-runbook.md](docs/migration-runbook.md)             | How a schema change reaches production, and how to recover          |
+| [docs/deployment.md](docs/deployment.md)                           | Cloud Run deploy, secrets, cost controls, **rollback**              |
+| [docs/adr/](docs/adr/)                                             | Architecture decision records                                       |
+| [AGENTS.md](AGENTS.md)                                             | **Canonical working agreement** — commands, conventions, hard rules |
+| [CLAUDE.md](CLAUDE.md)                                             | Claude Code entry point; imports `AGENTS.md`                        |
 
 ## Scripts
 
@@ -64,6 +69,12 @@ administrators. All changes go through a pull request with CI green.
   project is never a development target. ([ADR 0001](docs/adr/0001-local-supabase-only.md))
 - Row Level Security is enabled on every exposed table, deny-by-default, and
   enforced in CI. ([ADR 0002](docs/adr/0002-rls-posture.md))
+- Domain tables are unreachable from the browser twice over: no RLS policy
+  **and** no grant to any browser-facing role.
+  ([ADR 0010](docs/adr/0010-domain-table-access-posture.md))
+- The synthetic dataset contains no real person, contact detail or club record.
+  Every email domain is under the reserved `.example` TLD and every phone number
+  is in a range reserved for fiction, asserted by test.
 - Secrets live in GCP Secret Manager and are read at runtime. Nothing secret is
   committed, and `.env.example` contains placeholders only.
 - The repository is public. Treat every committed byte as public.
@@ -84,7 +95,12 @@ assume all rights reserved.
 
 - **No custom domain** — `app.oxfordlancers.com` is blocked on a GoDaddy
   transfer. The Cloud Run default URL is used.
-- **No staging environment** — one production Supabase project plus local.
+- **No staging environment** — one production Supabase project plus local. A
+  staging environment and a rehearsed backup restore are both mandatory gates
+  before real roster data enters the system.
+  ([docs/migration-runbook.md](docs/migration-runbook.md#pre-pilot-gate))
+- **No second administrator** — locked Requirement 14 is unsatisfied, so schema
+  promotion currently has a single point of failure.
 - **Google OAuth deferred** — needs an approved redirect domain and a club
   administrator who can create OAuth credentials. Email/password is the
   sanctioned fallback.
