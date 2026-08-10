@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "disableBypassPermissionsMode": "disable",
+    "deny": [
+      "Bash(gh pr merge *)",
+      "Bash(gh pr ready *)",
+      "Bash(git push * main)",
+      "Bash(git push *:main)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(gh workflow run *)",
+      "Bash(gcloud run *)",
+      "Bash(gcloud builds *)",
+      "Bash(gcloud deploy *)",
+      "Bash(docker push *)",
+      "Bash(supabase link *)",
+      "Bash(supabase db push *)",
+      "Bash(supabase db remote *)",
+      "Bash(supabase projects *)",
+      "Bash(supabase secrets *)",
+      "Bash(npx supabase link *)",
+      "Bash(npx supabase db push *)",
+      "Bash(npx supabase db remote *)",
+      "Bash(npx supabase projects *)",
+      "Bash(npx supabase secrets *)",
+      "Bash(gh repo edit *)",
+      "Bash(gh ruleset *)",
+      "Bash(gh secret *)",
+      "Bash(gh auth token *)",
+      "Bash(gcloud secrets *)",
+      "Bash(gh api --method *)",
+      "Bash(gh api -X *)",
+      "Bash(gh api * --method *)",
+      "Bash(gh api * -X *)"
+    ]
+  }
+}

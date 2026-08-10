@@ -66,6 +66,7 @@ directly on components — use `sx`.
 | Clean machine → running app; every script; migrations | `docs/local-development.md`                 |
 | How a schema change reaches production, and recovery  | `docs/migration-runbook.md`                 |
 | Cloud Run deploy, secrets, cost controls, rollback    | `docs/deployment.md`                        |
+| How supervised parallel agent work is run             | `.claude/skills/supervise-batch/SKILL.md`   |
 | Why a decision was made                               | `docs/adr/` (index in `docs/adr/README.md`) |
 
 If this file and a `docs/` page disagree, `docs/` is more specific and wins —
@@ -152,6 +153,7 @@ Infrastructure bootstrap lives in `scripts/gcp-bootstrap.sh` and is idempotent.
 ## Directory conventions
 
 ```
+.claude/                 the approved agent roles, and their deny rules
 src/app/                 routes (App Router)
 src/app/api/             route handlers
 src/lib/supabase/        client (browser) · server (per-request) · admin (privileged)
@@ -289,6 +291,46 @@ steps, dependencies, theme contents — proceed and explain in the pull request.
 
 ## Agent tooling
 
-Deliberately minimal. Do **not** add custom subagents, skills, hooks, slash
-commands, or an agent hierarchy. If repeated development work demonstrates a
-concrete recurring need, raise a ticket for it rather than building one here.
+Still deliberately minimal, but no longer absent. Exactly three roles are
+approved, and they live under `.claude/`:
+
+| Role                               | File                                  | What it does                                                                  |
+| ---------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------- |
+| Lead workflow (`/supervise-batch`) | `.claude/skills/supervise-batch/`     | Selects at most two independent issues, briefs workers, verifies, hands back. |
+| Issue implementer                  | `.claude/agents/issue-implementer.md` | One issue, one worktree, one branch, one **draft** pull request.              |
+| Code reviewer                      | `.claude/agents/code-reviewer.md`     | Fresh context, read-only, reviews the diff — never repairs its own findings.  |
+
+The operating model, in one paragraph: a top-level session acts as lead. It
+reads the Linear dependency graph, picks work whose dependencies are actually
+**merged** and whose human gates have been passed, **writes a test matrix for
+each issue before any implementation starts**, runs at most **two**
+worktree-isolated implementers on genuinely independent issues, checks each
+result against the repository rather than against the worker's report, routes
+every draft pull request through the independent reviewer, and leaves a run
+report. Work that could collide is serialised, not parallelised — including
+anything touching the local Supabase stack, which is one shared set of
+containers no matter how many worktrees exist.
+
+Three rules follow from that and are worth stating on their own:
+
+- **The implementer writes the tests; it does not certify them.** The reviewer
+  judges adequacy independently against the matrix, and challenges every
+  critical rule by injecting a plausible defect and confirming a test fails. A
+  green CI run is not approval.
+- **Ambiguity escalates, it does not get resolved by an agent.** An issue that
+  is ambiguous, internally inconsistent, or missing a material acceptance
+  criterion stops the wave. Product decisions are Brian's.
+- **Human gates outrank the graph.** No user-facing implementation before the
+  LAN-90 UX approval is recorded; no automated delivery workflow before the
+  delivery approach is resolved, and manual posting is never substituted as a
+  fallback assumption.
+
+**No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase,
+or writes to production.** Brian merges. `.claude/settings.json` denies those
+commands session-wide and blocks bypass-permissions mode, so this is a control
+and not only an instruction; `tests/agent-harness.test.ts` fails if either drifts.
+
+Do **not** add a fourth role, a hook, or an agent framework. Concurrency stays
+at two. Both are decisions for Brian, and
+[`docs/adr/0013-supervised-agent-development.md`](docs/adr/0013-supervised-agent-development.md)
+records the reasoning and the evidence that would justify changing either.
