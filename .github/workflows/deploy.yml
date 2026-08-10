@@ -74,6 +74,11 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      # Creates a docker-container driver builder. The default `docker` driver
+      # cannot export a build cache, so `cache-to: type=gha` below fails without
+      # this. The CI container job has always had it; the deploy job did not.
+      - uses: docker/setup-buildx-action@v3
+
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
 
