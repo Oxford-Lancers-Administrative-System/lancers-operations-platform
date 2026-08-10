@@ -5,7 +5,8 @@ Operations platform for the **Oxford Lancers**.
 > **Current state: infrastructure plus the domain schema baseline.** The
 > approved conceptual domain model is implemented as PostgreSQL migrations, with
 > a deterministic synthetic dataset and tests that prove its invariants are
-> enforced by the database rather than merely documented. **No application
+> enforced by the database rather than merely documented. Independently verified
+> on 2026-08-10, with two findings corrected in a forward-only migration. **No application
 > workflow is built on it yet** — no screens, no API routes, no notification
 > delivery, and no real roster data anywhere.
 > See [docs/architecture/data-model.md](docs/architecture/data-model.md).

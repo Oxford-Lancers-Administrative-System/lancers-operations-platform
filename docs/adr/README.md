@@ -21,3 +21,4 @@ accident. Routine implementation choices do not need an ADR.
 | [0009](0009-state-vocabulary-representation.md)  | Frozen state vocabularies are enums; configurable ones are tables      | Accepted               |
 | [0010](0010-domain-table-access-posture.md)      | Domain tables are unreachable from the browser, twice over             | Accepted               |
 | [0011](0011-domain-schema-baseline.md)           | The zero-domain-schema boundary is closed                              | Accepted               |
+| [0012](0012-explicit-event-audience.md)          | The confirmed event audience is a relation; its non-emptiness is not   | Accepted               |

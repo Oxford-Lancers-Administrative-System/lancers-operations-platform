@@ -208,6 +208,59 @@ describe.runIf(seeded)("synthetic dataset properties (SDA §11.5)", () => {
 });
 
 describe.runIf(seeded)("the scenarios the schema ticket names", () => {
+  it("has a confirmed audience for every event that issued invitations", async () => {
+    // Correction pass: the audience is now a relation, so the seed has to build
+    // one. Every invitation resolves from an audience member of the same event.
+    const orphaned = await count(
+      `select count(*) as count from public.invitations i
+        where not exists (
+          select 1 from public.event_audience_members a
+           where a.id = i.audience_member_id and a.event_id = i.event_id)`,
+    );
+    expect(orphaned).toBe(0);
+
+    const audience = await count("select count(*) as count from public.event_audience_members");
+    const invitations = await count("select count(*) as count from public.invitations");
+    expect(audience).toBeGreaterThan(invitations);
+  });
+
+  it("has audience members who were confirmed and never invited", async () => {
+    // Invariant P7's `never-invited` state, present in the data rather than
+    // only in the view definition.
+    const neverInvited = await count(
+      "select count(*) as count from public.invitation_response_state where response_state = 'never_invited'",
+    );
+    expect(neverInvited).toBeGreaterThan(0);
+
+    const flagged = await count("select count(*) as count from public.uninvited_audience_members");
+    expect(flagged).toBe(neverInvited);
+  });
+
+  it("reports all five P7 states from the seeded season", async () => {
+    const { rows } = await client.query<{ response_state: string }>(
+      "select distinct response_state from public.invitation_response_state",
+    );
+    const states = rows.map((r) => r.response_state).sort();
+
+    for (const required of [
+      "awaiting_response",
+      "expired_without_response",
+      "never_invited",
+      "responded_no",
+      "responded_yes",
+    ]) {
+      expect(states, `P7 state ${required} is not represented in the seed`).toContain(required);
+    }
+  });
+
+  it("keeps uninvited audience members out of the nonresponse queue", async () => {
+    const leaked = await count(
+      `select count(*) as count from public.nonresponse_queue q
+        where q.invitation_id is null`,
+    );
+    expect(leaked).toBe(0);
+  });
+
   it("covers every RSVP outcome, including nonresponse and required decline reasons", async () => {
     expect(
       await count("select count(*) as count from public.rsvp_responses where response = 'yes'"),

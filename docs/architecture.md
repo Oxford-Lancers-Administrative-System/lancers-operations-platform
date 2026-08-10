@@ -43,7 +43,7 @@ src/
   theme.ts                MUI baseline theme
 supabase/
   config.toml             local stack + auth configuration
-  migrations/             the domain schema baseline, in twelve ordered files
+  migrations/             the domain schema baseline plus one correction migration
   seed.sql                intentionally empty — see scripts/seed-local.mjs
 scripts/
   seed-local.mjs          deterministic synthetic dataset (local only)
@@ -67,7 +67,7 @@ plus three staging tables in an unexposed `staging` schema.
 | Squad         | `position_vocabularies`, `positions`, `position_assignments`, `jersey_assignments`, `onboarding_item_types`, `onboarding_items`, `eligibility_records` |
 | Roles         | `roles`, `role_aliases`, `role_assignments`                                                                                                            |
 | Availability  | `availability_statuses`                                                                                                                                |
-| Events        | `event_series`, `alternative_groups`, `events`, `schedule_changes`, `event_questions`                                                                  |
+| Events        | `event_series`, `alternative_groups`, `events`, `schedule_changes`, `event_questions`, `event_audience_members`                                        |
 | Participation | `invitations`, `rsvp_responses`, `question_responses`, `attendance_records`                                                                            |
 | Machinery     | `notification_jobs`, `delivery_results`                                                                                                                |
 | Reporting     | `weekly_reports`, `follow_up_actions`, `audit_events`                                                                                                  |
@@ -134,13 +134,18 @@ administrator able to create OAuth credentials, both open club-side items.
 
 ## Guardrails that run in CI
 
-| Gate                                   | Mechanism                      |
-| -------------------------------------- | ------------------------------ |
-| Formatting, lint, types, tests, build  | `npm run verify`               |
-| Migrations apply cleanly from empty    | `supabase db reset` in CI      |
-| Generated types match the schema       | `npm run types:check`          |
-| Every new table enables RLS            | `npm run check:rls`            |
-| A browser-safe key reads nothing       | `tests/rls-posture.test.ts`    |
-| Sign-in works, public sign-up does not | `tests/auth-flow.test.ts`      |
-| No domain schema exists                | `tests/no-domain-code.test.ts` |
-| The container builds and serves        | `container` job in `ci.yml`    |
+| Gate                                       | Mechanism                             |
+| ------------------------------------------ | ------------------------------------- |
+| Formatting, lint, types, tests, build      | `npm run verify`                      |
+| Migrations apply cleanly from empty        | `supabase db reset` in CI             |
+| The seed loads after a clean reset         | `npm run db:seed` in `ci.yml`         |
+| Generated types match the schema           | `npm run types:check`                 |
+| Every new table enables RLS                | `npm run check:rls`                   |
+| A browser-safe key reads nothing           | `tests/rls-posture.test.ts`           |
+| Sign-in works, public sign-up does not     | `tests/auth-flow.test.ts`             |
+| Frozen invariants are really enforced      | `tests/schema-invariants.test.ts`     |
+| Valid messy data is still accepted         | `tests/schema-accepts.test.ts`        |
+| The audience relation and P7's five states | `tests/schema-event-audience.test.ts` |
+| RLS, grants and view rights hold           | `tests/schema-security.test.ts`       |
+| The synthetic dataset stays messy          | `tests/synthetic-seed.test.ts`        |
+| The container builds and serves            | `container` job in `ci.yml`           |

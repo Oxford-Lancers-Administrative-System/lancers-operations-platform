@@ -13,7 +13,9 @@
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
+  confirmAudienceMember,
   createBaseline,
+  expectAccepted,
   expectRejected,
   one,
   openLocalClient,
@@ -134,23 +136,39 @@ describe("identity (I1–I6)", () => {
 
 describe("participation (P1–P8)", () => {
   it("P1 — refuses an invitation to a draft event", async () => {
+    // A draft may carry a proposed audience — that is what the approver
+    // reviews. It may not carry an invitation.
+    const member = await confirmAudienceMember(
+      client,
+      { eventId: base.draftEventId, seasonId: base.seasonId },
+      { capacity: "player", membershipId: base.membershipId },
+    );
+
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity, season_membership_id)
-       values ($1, 'draft', true, $2, 'player', $3)`,
-      [base.draftEventId, base.seasonId, base.membershipId],
+         (event_id, event_status, solicits_response, season_id, audience_member_id,
+          capacity, season_membership_id)
+       values ($1, 'draft', true, $2, $3, 'player', $4)`,
+      [base.draftEventId, base.seasonId, member, base.membershipId],
       "invitations_require_an_approved_event",
     );
   });
 
   it("P1 — refuses an invitation that lies about its event's status", async () => {
+    const member = await confirmAudienceMember(
+      client,
+      { eventId: base.draftEventId, seasonId: base.seasonId },
+      { capacity: "player", membershipId: base.otherMembershipId },
+    );
+
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity, season_membership_id)
-       values ($1, 'approved', true, $2, 'player', $3)`,
-      [base.draftEventId, base.seasonId, base.otherMembershipId],
+         (event_id, event_status, solicits_response, season_id, audience_member_id,
+          capacity, season_membership_id)
+       values ($1, 'approved', true, $2, $3, 'player', $4)`,
+      [base.draftEventId, base.seasonId, member, base.otherMembershipId],
       "invitations_event_state_is_current",
     );
   });
@@ -225,28 +243,52 @@ describe("participation (P1–P8)", () => {
   });
 
   it("P8 — refuses a participation record anchored to both a membership and a person", async () => {
+    const member = await confirmAudienceMember(
+      client,
+      { eventId: base.approvedEventId, seasonId: base.seasonId },
+      { capacity: "player", membershipId: base.otherMembershipId },
+    );
+
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity, season_membership_id, person_id)
-       values ($1, 'approved', true, $2, 'player', $3, $4)`,
-      [base.approvedEventId, base.seasonId, base.otherMembershipId, base.personId],
+         (event_id, event_status, solicits_response, season_id, audience_member_id,
+          capacity, season_membership_id, person_id)
+       values ($1, 'approved', true, $2, $3, 'player', $4, $5)`,
+      [base.approvedEventId, base.seasonId, member, base.otherMembershipId, base.personId],
       "invitations_anchor_matches_capacity",
+    );
+
+    // The same rule guards the audience itself.
+    await expectRejected(
+      client,
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, season_membership_id, person_id)
+       values ($1, $2, 'player', $3, $4)`,
+      [base.approvedEventId, base.seasonId, base.otherMembershipId, base.personId],
+      "event_audience_members_anchor_matches_capacity",
     );
   });
 
   it("P8 — refuses a coach-capacity invitation anchored to a season membership", async () => {
+    const member = await confirmAudienceMember(
+      client,
+      { eventId: base.approvedEventId, seasonId: base.seasonId },
+      { capacity: "player", membershipId: base.otherMembershipId },
+    );
+
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity, season_membership_id)
-       values ($1, 'approved', true, $2, 'coach', $3)`,
-      [base.approvedEventId, base.seasonId, base.otherMembershipId],
+         (event_id, event_status, solicits_response, season_id, audience_member_id,
+          capacity, season_membership_id)
+       values ($1, 'approved', true, $2, $3, 'coach', $4)`,
+      [base.approvedEventId, base.seasonId, member, base.otherMembershipId],
       "invitations_anchor_matches_capacity",
     );
   });
 
-  it("refuses an invitation whose membership belongs to a different season", async () => {
+  it("refuses a participation record whose membership belongs to a different season", async () => {
     const foreign = await one<{ id: string }>(
       client,
       `insert into public.season_memberships (person_id, season_id, status, entry)
@@ -254,12 +296,25 @@ describe("participation (P1–P8)", () => {
       [base.personId, base.otherSeasonId],
     );
 
+    // The audience is now the first gate: a member of another season's roster
+    // cannot be confirmed for this season's event at all.
+    await expectRejected(
+      client,
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, season_membership_id)
+       values ($1, $2, 'player', $3)`,
+      [base.approvedEventId, base.seasonId, foreign.id],
+      "event_audience_members_membership_same_season",
+    );
+
+    // And the invitation carries the same rule independently.
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity, season_membership_id)
-       values ($1, 'approved', true, $2, 'player', $3)`,
-      [base.approvedEventId, base.seasonId, foreign.id],
+         (event_id, event_status, solicits_response, season_id, audience_member_id,
+          capacity, season_membership_id)
+       values ($1, 'approved', true, $2, $3, 'player', $4)`,
+      [base.approvedEventId, base.seasonId, base.audienceMemberId, foreign.id],
       "invitations_membership_same_season",
     );
   });
@@ -268,9 +323,10 @@ describe("participation (P1–P8)", () => {
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity, season_membership_id)
-       values ($1, 'approved', true, $2, 'player', $3)`,
-      [base.approvedEventId, base.seasonId, base.membershipId],
+         (event_id, event_status, solicits_response, season_id, audience_member_id,
+          capacity, season_membership_id)
+       values ($1, 'approved', true, $2, $3, 'player', $4)`,
+      [base.approvedEventId, base.seasonId, base.audienceMemberId, base.membershipId],
       "invitations_one_per_player_per_event",
     );
   });
@@ -458,12 +514,19 @@ describe("events (E1–E6)", () => {
       [base.seasonId, base.personId],
     );
 
+    const member = await confirmAudienceMember(
+      client,
+      { eventId: informational.id, seasonId: base.seasonId },
+      { capacity: "player", membershipId: base.membershipId },
+    );
+
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity, season_membership_id, status)
-       values ($1, 'approved', false, $2, 'player', $3, 'expired')`,
-      [informational.id, base.seasonId, base.membershipId],
+         (event_id, event_status, solicits_response, season_id, audience_member_id,
+          capacity, season_membership_id, status)
+       values ($1, 'approved', false, $2, $3, 'player', $4, 'expired')`,
+      [informational.id, base.seasonId, member, base.membershipId],
       "invitations_expire_only_when_asked",
     );
   });
@@ -566,6 +629,118 @@ describe("machinery (M1–M5)", () => {
       [base.seasonId, report.id],
       "weekly_reports_first_version_supersedes_nothing",
     );
+  });
+
+  describe("M5 — supersession stays inside one report series", () => {
+    // Correction pass, following independent verification: `supersedes_id` was
+    // an unconstrained self reference, so one season's report could supersede
+    // an unrelated one while every existing test stayed green. A regeneration
+    // must supersede an earlier version of the SAME report — same season, same
+    // reporting date.
+    it("accepts a regeneration of the same season and date", async () => {
+      const first = await one<{ id: string }>(
+        client,
+        `insert into public.weekly_reports
+           (season_id, report_on, metric_definition_version, data_as_of, content)
+         values ($1, '2026-11-16', 'master-table-v1', now(), '{}'::jsonb) returning id`,
+        [base.seasonId],
+      );
+
+      await expectAccepted(
+        client,
+        `insert into public.weekly_reports
+           (season_id, report_on, version, supersedes_id, metric_definition_version, data_as_of, content)
+         values ($1, '2026-11-16', 2, $2, 'master-table-v1', now(), '{}'::jsonb)`,
+        [base.seasonId, first.id],
+      );
+    });
+
+    it("refuses a supersession that crosses seasons", async () => {
+      const otherSeasonReport = await one<{ id: string }>(
+        client,
+        `insert into public.weekly_reports
+           (season_id, report_on, metric_definition_version, data_as_of, content)
+         values ($1, '2026-11-16', 'master-table-v1', now(), '{}'::jsonb) returning id`,
+        [base.otherSeasonId],
+      );
+
+      await expectRejected(
+        client,
+        `insert into public.weekly_reports
+           (season_id, report_on, version, supersedes_id, metric_definition_version, data_as_of, content)
+         values ($1, '2026-11-16', 2, $2, 'master-table-v1', now(), '{}'::jsonb)`,
+        [base.seasonId, otherSeasonReport.id],
+        "weekly_reports_supersedes_the_same_report",
+      );
+    });
+
+    it("refuses a supersession that crosses reporting dates", async () => {
+      const earlier = await one<{ id: string }>(
+        client,
+        `insert into public.weekly_reports
+           (season_id, report_on, metric_definition_version, data_as_of, content)
+         values ($1, '2026-11-16', 'master-table-v1', now(), '{}'::jsonb) returning id`,
+        [base.seasonId],
+      );
+
+      await expectRejected(
+        client,
+        `insert into public.weekly_reports
+           (season_id, report_on, version, supersedes_id, metric_definition_version, data_as_of, content)
+         values ($1, '2026-11-23', 2, $2, 'master-table-v1', now(), '{}'::jsonb)`,
+        [base.seasonId, earlier.id],
+        "weekly_reports_supersedes_the_same_report",
+      );
+    });
+
+    it("still refuses two reports superseding the same predecessor", async () => {
+      const first = await one<{ id: string }>(
+        client,
+        `insert into public.weekly_reports
+           (season_id, report_on, metric_definition_version, data_as_of, content)
+         values ($1, '2026-11-16', 'master-table-v1', now(), '{}'::jsonb) returning id`,
+        [base.seasonId],
+      );
+      await client.query(
+        `insert into public.weekly_reports
+           (season_id, report_on, version, supersedes_id, metric_definition_version, data_as_of, content)
+         values ($1, '2026-11-16', 2, $2, 'master-table-v1', now(), '{}'::jsonb)`,
+        [base.seasonId, first.id],
+      );
+
+      await expectRejected(
+        client,
+        `insert into public.weekly_reports
+           (season_id, report_on, version, supersedes_id, metric_definition_version, data_as_of, content)
+         values ($1, '2026-11-16', 3, $2, 'master-table-v1', now(), '{}'::jsonb)`,
+        [base.seasonId, first.id],
+        "weekly_reports_one_superseding_row",
+      );
+    });
+
+    it("keeps the superseded snapshot byte-for-byte — regeneration never rewrites", async () => {
+      const first = await one<{ id: string; content: unknown }>(
+        client,
+        `insert into public.weekly_reports
+           (season_id, report_on, metric_definition_version, data_as_of, content)
+         values ($1, '2026-11-16', 'master-table-v1', now(), '{"outstanding": 37}'::jsonb)
+         returning id, content`,
+        [base.seasonId],
+      );
+      await client.query(
+        `insert into public.weekly_reports
+           (season_id, report_on, version, supersedes_id, metric_definition_version, data_as_of, content)
+         values ($1, '2026-11-16', 2, $2, 'master-table-v1', now(), '{"outstanding": 34}'::jsonb)`,
+        [base.seasonId, first.id],
+      );
+
+      const original = await one<{ content: { outstanding: number } }>(
+        client,
+        "select content from public.weekly_reports where id = $1",
+        [first.id],
+      );
+      expect(original.content.outstanding).toBe(37);
+    });
   });
 });
 

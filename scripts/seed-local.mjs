@@ -385,6 +385,7 @@ const rows = {
   events: [],
   schedule_changes: [],
   event_questions: [],
+  event_audience_members: [],
   invitations: [],
   rsvp_responses: [],
   question_responses: [],
@@ -1745,75 +1746,77 @@ const invitedEvents = events.filter(
     ["approved", "occurred", "not_held", "cancelled"].includes(e.status) && e.solicits_response,
 );
 
-invitedEvents.forEach((event, index) => {
-  // The invited set is per-event and grows across the term (SDA §11.3): it is
-  // not a fixed roster snapshot.
-  const audienceSize = Math.min(invitableMemberships.length, 35 + Math.floor(index / 6));
+/** Records who the approver confirmed. Invitations are resolved from this. */
+function addAudienceMember(event, { membership = null, person = null, capacity }) {
+  return add("event_audience_members", {
+    id: uuid(),
+    event_id: event.id,
+    season_id: seasonCurrent.id,
+    capacity,
+    season_membership_id: membership?.id ?? null,
+    person_id: person?.id ?? null,
+    added_at: event.audience_confirmed_at ?? event.created_at,
+    added_by_person_id: event.audience_confirmed_by_person_id,
+  });
+}
 
-  for (const membership of invitableMemberships.slice(0, audienceSize)) {
-    invitations.push(
-      add("invitations", {
-        id: uuid(),
-        event_id: event.id,
-        event_status: event.status,
-        solicits_response: event.solicits_response,
-        season_id: seasonCurrent.id,
-        capacity: "player",
-        season_membership_id: membership.id,
-        person_id: null,
-        status: "pending",
-        issued_at: null,
-        expires_at: event.response_deadline_at,
-        cancelled_at: null,
-        created_at: event.approved_at,
-        _event: event,
-      }),
-    );
-  }
+function inviteAudienceMember(event, member, status) {
+  invitations.push(
+    add("invitations", {
+      id: uuid(),
+      event_id: event.id,
+      event_status: event.status,
+      solicits_response: event.solicits_response,
+      season_id: seasonCurrent.id,
+      audience_member_id: member.id,
+      capacity: member.capacity,
+      season_membership_id: member.season_membership_id,
+      person_id: member.person_id,
+      status,
+      issued_at: status === "issued" ? event.approved_at : null,
+      expires_at: event.response_deadline_at,
+      cancelled_at: null,
+      created_at: event.approved_at,
+      _event: event,
+    }),
+  );
+}
+
+// Invariant P7's `never-invited` state has to exist in the data for the
+// reporting view to be worth anything. Two events are seeded where the approver
+// confirmed people the invitation run then missed — which is precisely the
+// exception public.uninvited_audience_members exists to catch, and precisely
+// what the baseline schema could not tell apart from "outside the audience".
+const UNINVITED_AUDIENCE = new Map([
+  [3, 2],
+  [11, 3],
+]);
+
+invitedEvents.forEach((event, index) => {
+  // The confirmed audience is per-event and grows across the term (SDA §11.3):
+  // it is not a fixed roster snapshot.
+  const audienceSize = Math.min(invitableMemberships.length, 35 + Math.floor(index / 6));
+  const confirmed = invitableMemberships.slice(0, audienceSize);
+  const skipCount = UNINVITED_AUDIENCE.get(index) ?? 0;
+
+  confirmed.forEach((membership, position) => {
+    const member = addAudienceMember(event, { membership, capacity: "player" });
+    if (position >= confirmed.length - skipCount) return;
+    inviteAudienceMember(event, member, "pending");
+  });
 
   for (const { person, capacity } of staffInvitees) {
-    invitations.push(
-      add("invitations", {
-        id: uuid(),
-        event_id: event.id,
-        event_status: event.status,
-        solicits_response: event.solicits_response,
-        season_id: seasonCurrent.id,
-        capacity,
-        season_membership_id: null,
-        person_id: person.id,
-        status: "pending",
-        issued_at: null,
-        expires_at: event.response_deadline_at,
-        cancelled_at: null,
-        created_at: event.approved_at,
-        _event: event,
-      }),
-    );
+    const member = addAudienceMember(event, { person, capacity });
+    inviteAudienceMember(event, member, "pending");
   }
 });
 
-// Informational events still resolve an audience — for visibility only.
+// Informational events resolve an audience too — for visibility only. Invariant
+// E6 keeps them out of the response and nonresponse streams entirely.
 for (const event of events.filter((e) => !e.solicits_response && e.status === "approved")) {
   for (const membership of invitableMemberships) {
-    invitations.push(
-      add("invitations", {
-        id: uuid(),
-        event_id: event.id,
-        event_status: event.status,
-        solicits_response: false,
-        season_id: seasonCurrent.id,
-        capacity: "player",
-        season_membership_id: membership.id,
-        person_id: null,
-        status: "issued",
-        issued_at: event.approved_at,
-        expires_at: null,
-        cancelled_at: null,
-        created_at: event.approved_at,
-        _event: event,
-      }),
-    );
+    const member = addAudienceMember(event, { membership, capacity: "player" });
+    inviteAudienceMember(event, member, "issued");
   }
 }
 
@@ -2885,6 +2888,20 @@ const WRITE_PLAN = [
     "event_questions",
   ],
   [
+    "public.event_audience_members",
+    [
+      "id",
+      "event_id",
+      "season_id",
+      "capacity",
+      "season_membership_id",
+      "person_id",
+      "added_at",
+      "added_by_person_id",
+    ],
+    "event_audience_members",
+  ],
+  [
     "public.invitations",
     [
       "id",
@@ -2892,6 +2909,7 @@ const WRITE_PLAN = [
       "event_status",
       "solicits_response",
       "season_id",
+      "audience_member_id",
       "capacity",
       "season_membership_id",
       "person_id",
@@ -3158,6 +3176,13 @@ try {
     `  ${Object.entries(eventTypes)
       .map(([k, v]) => `${k} ${v}`)
       .join(", ")}`,
+  );
+  console.log(counts("confirmed audience members", rows.event_audience_members.length));
+  console.log(
+    counts(
+      "  never invited (P7 exception)",
+      rows.event_audience_members.length - rows.invitations.length,
+    ),
   );
   console.log(counts("invitations", rows.invitations.length));
   console.log(counts("rsvp responses", rows.rsvp_responses.length));

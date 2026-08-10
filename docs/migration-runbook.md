@@ -82,7 +82,11 @@ Once a migration has been applied to a shared environment it is **immutable**:
   skips.
 - Never renumber or reorder applied migrations.
 - A mistake is corrected by a **new** migration, with a filename and comment
-  that say what it corrects.
+  that say what it corrects. `20260810121300_domain_event_audience.sql` is the
+  worked example: it corrects two defects found by independent verification and
+  edits none of the twelve baseline parts. It also backfills before adding its
+  `not null` column, so it is correct against a database that already holds
+  invitations — not only against a rebuild from empty.
 - Down migrations are **not** maintained. An untested rollback script is worse
   than none: it invites a destructive action under time pressure that has never
   been rehearsed. Recovery is forward-fix or restore — see below.
@@ -213,7 +217,7 @@ migration, and in the project's Notion operational record. No secret value, ever
 
 | Field                        | Example                                                          |
 | ---------------------------- | ---------------------------------------------------------------- |
-| Migration version(s) applied | `20260810120000` … `20260810121200`                              |
+| Migration version(s) applied | `20260810120000` … `20260810121300`                              |
 | Commit SHA                   | `418d9e2`                                                        |
 | Operator                     | Brian Schuster                                                   |
 | Timestamp (UTC)              | `2026-08-11T09:14:00Z`                                           |

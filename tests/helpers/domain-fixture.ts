@@ -85,6 +85,28 @@ export async function expectAccepted(
   }
 }
 
+/** Confirms an audience member for an event, returning its id. */
+export async function confirmAudienceMember(
+  client: Client,
+  event: { eventId: string; seasonId: string },
+  anchor: { capacity: string; membershipId?: string; personId?: string },
+): Promise<string> {
+  const row = await one<{ id: string }>(
+    client,
+    `insert into public.event_audience_members
+       (event_id, season_id, capacity, season_membership_id, person_id)
+     values ($1, $2, $3, $4, $5) returning id`,
+    [
+      event.eventId,
+      event.seasonId,
+      anchor.capacity,
+      anchor.membershipId ?? null,
+      anchor.personId ?? null,
+    ],
+  );
+  return row.id;
+}
+
 export interface Baseline {
   personId: string;
   otherPersonId: string;
@@ -102,6 +124,7 @@ export interface Baseline {
   draftEventId: string;
   occurredEventId: string;
   invitationId: string;
+  audienceMemberId: string;
   officeRoleId: string;
   ordinaryRoleId: string;
 }
@@ -119,6 +142,11 @@ export async function createBaseline(client: Client): Promise<Baseline> {
   const otherPerson = await one<{ id: string }>(
     client,
     "insert into public.people (given_name, family_name) values ('Fixture', 'Secondary') returning id",
+  );
+  // A third identity, for the cases that need an invitee, a bystander, and a
+  // participant somebody else's audience row was confirmed for.
+  await client.query(
+    "insert into public.people (given_name, family_name) values ('Fixture', 'Third')",
   );
 
   const vocabulary = await one<{ id: string }>(
@@ -215,12 +243,23 @@ export async function createBaseline(client: Client): Promise<Baseline> {
     [season.id, person.id],
   );
 
+  // An invitation is resolved from a confirmed audience member (model §2.3), so
+  // the audience row comes first.
+  const audienceMember = await one<{ id: string }>(
+    client,
+    `insert into public.event_audience_members
+       (event_id, season_id, capacity, season_membership_id, added_by_person_id)
+     values ($1, $2, 'player', $3, $4) returning id`,
+    [approvedEvent.id, season.id, membership.id, person.id],
+  );
+
   const invitation = await one<{ id: string }>(
     client,
     `insert into public.invitations (
-       event_id, event_status, solicits_response, season_id, capacity, season_membership_id, status)
-     values ($1, 'approved', true, $2, 'player', $3, 'issued') returning id`,
-    [approvedEvent.id, season.id, membership.id],
+       event_id, event_status, solicits_response, season_id, audience_member_id,
+       capacity, season_membership_id, status)
+     values ($1, 'approved', true, $2, $3, 'player', $4, 'issued') returning id`,
+    [approvedEvent.id, season.id, audienceMember.id, membership.id],
   );
 
   const officeRole = await one<{ id: string }>(
@@ -251,6 +290,7 @@ export async function createBaseline(client: Client): Promise<Baseline> {
     draftEventId: draftEvent.id,
     occurredEventId: occurredEvent.id,
     invitationId: invitation.id,
+    audienceMemberId: audienceMember.id,
     officeRoleId: officeRole.id,
     ordinaryRoleId: ordinaryRole.id,
   };

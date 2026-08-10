@@ -9,6 +9,7 @@
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
+  confirmAudienceMember,
   createBaseline,
   expectAccepted,
   one,
@@ -355,12 +356,18 @@ describe("participation as it really happens", () => {
        values ($1, 'Transport to Brackenridge?', 'boolean', '{player,coach}') returning id`,
       [base.approvedEventId],
     );
+    const coachMember = await confirmAudienceMember(
+      client,
+      { eventId: base.approvedEventId, seasonId: base.seasonId },
+      { capacity: "coach", personId: base.otherPersonId },
+    );
     const coachInvitation = await one<{ id: string }>(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity, person_id, status)
-       values ($1, 'approved', true, $2, 'coach', $3, 'issued') returning id`,
-      [base.approvedEventId, base.seasonId, base.otherPersonId],
+         (event_id, event_status, solicits_response, season_id, audience_member_id,
+          capacity, person_id, status)
+       values ($1, 'approved', true, $2, $3, 'coach', $4, 'issued') returning id`,
+      [base.approvedEventId, base.seasonId, coachMember, base.otherPersonId],
     );
 
     await expectAccepted(
@@ -545,11 +552,17 @@ describe("derived current-state views", () => {
        values ($1, 'AGM', 'meeting', 'approved', '2027-06-09', false, now(), $2, now(), $2) returning id`,
       [base.seasonId, base.personId],
     );
+    const member = await confirmAudienceMember(
+      client,
+      { eventId: informational.id, seasonId: base.seasonId },
+      { capacity: "player", membershipId: base.membershipId },
+    );
     await client.query(
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity, season_membership_id, status)
-       values ($1, 'approved', false, $2, 'player', $3, 'issued')`,
-      [informational.id, base.seasonId, base.membershipId],
+         (event_id, event_status, solicits_response, season_id, audience_member_id,
+          capacity, season_membership_id, status)
+       values ($1, 'approved', false, $2, $3, 'player', $4, 'issued')`,
+      [informational.id, base.seasonId, member, base.membershipId],
     );
 
     const inStream = await one<{ count: string }>(
@@ -568,12 +581,18 @@ describe("derived current-state views", () => {
 
   it("computes RSVP-versus-attendance mismatches rather than reconciling them", async () => {
     // Requirement 7: flagged, never silently reconciled.
+    const member = await confirmAudienceMember(
+      client,
+      { eventId: base.occurredEventId, seasonId: base.seasonId },
+      { capacity: "player", membershipId: base.membershipId },
+    );
     const invitation = await one<{ id: string }>(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity, season_membership_id, status)
-       values ($1, 'occurred', true, $2, 'player', $3, 'responded') returning id`,
-      [base.occurredEventId, base.seasonId, base.membershipId],
+         (event_id, event_status, solicits_response, season_id, audience_member_id,
+          capacity, season_membership_id, status)
+       values ($1, 'occurred', true, $2, $3, 'player', $4, 'responded') returning id`,
+      [base.occurredEventId, base.seasonId, member, base.membershipId],
     );
     await client.query(
       `insert into public.rsvp_responses (invitation_id, response, reason, source, responded_at)

@@ -482,6 +482,113 @@ export type Database = {
           },
         ]
       }
+      event_audience_members: {
+        Row: {
+          added_at: string
+          added_by_person_id: string | null
+          capacity: Database["public"]["Enums"]["invitation_capacity"]
+          event_id: string
+          id: string
+          participant_id: string | null
+          person_id: string | null
+          season_id: string
+          season_membership_id: string | null
+        }
+        Insert: {
+          added_at?: string
+          added_by_person_id?: string | null
+          capacity: Database["public"]["Enums"]["invitation_capacity"]
+          event_id: string
+          id?: string
+          participant_id?: string | null
+          person_id?: string | null
+          season_id: string
+          season_membership_id?: string | null
+        }
+        Update: {
+          added_at?: string
+          added_by_person_id?: string | null
+          capacity?: Database["public"]["Enums"]["invitation_capacity"]
+          event_id?: string
+          id?: string
+          participant_id?: string | null
+          person_id?: string | null
+          season_id?: string
+          season_membership_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_audience_members_added_by_person_id_fkey"
+            columns: ["added_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_added_by_person_id_fkey"
+            columns: ["added_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "rsvp_attendance_mismatches"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_event_same_season"
+            columns: ["event_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_event_same_season"
+            columns: ["event_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "rsvp_attendance_mismatches"
+            referencedColumns: ["event_id", "season_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_membership_same_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_membership_same_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       event_questions: {
         Row: {
           answer_type: Database["public"]["Enums"]["question_answer_type"]
@@ -897,6 +1004,7 @@ export type Database = {
       }
       invitations: {
         Row: {
+          audience_member_id: string
           cancelled_at: string | null
           capacity: Database["public"]["Enums"]["invitation_capacity"]
           created_at: string
@@ -905,6 +1013,7 @@ export type Database = {
           expires_at: string | null
           id: string
           issued_at: string | null
+          participant_id: string | null
           person_id: string | null
           season_id: string
           season_membership_id: string | null
@@ -912,6 +1021,7 @@ export type Database = {
           status: Database["public"]["Enums"]["invitation_status"]
         }
         Insert: {
+          audience_member_id: string
           cancelled_at?: string | null
           capacity: Database["public"]["Enums"]["invitation_capacity"]
           created_at?: string
@@ -920,6 +1030,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           issued_at?: string | null
+          participant_id?: string | null
           person_id?: string | null
           season_id: string
           season_membership_id?: string | null
@@ -927,6 +1038,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["invitation_status"]
         }
         Update: {
+          audience_member_id?: string
           cancelled_at?: string | null
           capacity?: Database["public"]["Enums"]["invitation_capacity"]
           created_at?: string
@@ -935,6 +1047,7 @@ export type Database = {
           expires_at?: string | null
           id?: string
           issued_at?: string | null
+          participant_id?: string | null
           person_id?: string | null
           season_id?: string
           season_membership_id?: string | null
@@ -942,6 +1055,18 @@ export type Database = {
           status?: Database["public"]["Enums"]["invitation_status"]
         }
         Relationships: [
+          {
+            foreignKeyName: "invitations_belong_to_the_resolved_audience"
+            columns: [
+              "audience_member_id",
+              "event_id",
+              "capacity",
+              "participant_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "event_audience_members"
+            referencedColumns: ["id", "event_id", "capacity", "participant_id"]
+          },
           {
             foreignKeyName: "invitations_event_same_season"
             columns: ["event_id", "season_id"]
@@ -1567,22 +1692,8 @@ export type Database = {
             foreignKeyName: "question_responses_invitation_event"
             columns: ["invitation_id", "event_id"]
             isOneToOne: false
-            referencedRelation: "invitation_response_state"
-            referencedColumns: ["invitation_id", "event_id"]
-          },
-          {
-            foreignKeyName: "question_responses_invitation_event"
-            columns: ["invitation_id", "event_id"]
-            isOneToOne: false
             referencedRelation: "invitations"
             referencedColumns: ["id", "event_id"]
-          },
-          {
-            foreignKeyName: "question_responses_invitation_event"
-            columns: ["invitation_id", "event_id"]
-            isOneToOne: false
-            referencedRelation: "nonresponse_queue"
-            referencedColumns: ["invitation_id", "event_id"]
           },
           {
             foreignKeyName: "question_responses_question_event"
@@ -2341,11 +2452,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "weekly_reports_supersedes_id_fkey"
-            columns: ["supersedes_id"]
+            foreignKeyName: "weekly_reports_supersedes_the_same_report"
+            columns: ["supersedes_id", "season_id", "report_on"]
             isOneToOne: false
             referencedRelation: "weekly_reports"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "season_id", "report_on"]
           },
         ]
       }
@@ -2508,6 +2619,7 @@ export type Database = {
       }
       invitation_response_state: {
         Row: {
+          audience_member_id: string | null
           capacity: Database["public"]["Enums"]["invitation_capacity"] | null
           event_id: string | null
           expires_at: string | null
@@ -2525,42 +2637,56 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "invitations_event_same_season"
+            foreignKeyName: "event_audience_members_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "rsvp_attendance_mismatches"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_event_same_season"
             columns: ["event_id", "season_id"]
             isOneToOne: false
             referencedRelation: "events"
             referencedColumns: ["id", "season_id"]
           },
           {
-            foreignKeyName: "invitations_event_same_season"
+            foreignKeyName: "event_audience_members_event_same_season"
             columns: ["event_id", "season_id"]
             isOneToOne: false
             referencedRelation: "rsvp_attendance_mismatches"
             referencedColumns: ["event_id", "season_id"]
           },
           {
-            foreignKeyName: "invitations_membership_same_season"
+            foreignKeyName: "event_audience_members_membership_same_season"
             columns: ["season_membership_id", "season_id"]
             isOneToOne: false
             referencedRelation: "constitutional_membership"
             referencedColumns: ["season_membership_id", "season_id"]
           },
           {
-            foreignKeyName: "invitations_membership_same_season"
+            foreignKeyName: "event_audience_members_membership_same_season"
             columns: ["season_membership_id", "season_id"]
             isOneToOne: false
             referencedRelation: "season_memberships"
             referencedColumns: ["id", "season_id"]
           },
           {
-            foreignKeyName: "invitations_person_id_fkey"
+            foreignKeyName: "event_audience_members_person_id_fkey"
             columns: ["person_id"]
             isOneToOne: false
             referencedRelation: "people"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "invitations_person_id_fkey"
+            foreignKeyName: "event_audience_members_person_id_fkey"
             columns: ["person_id"]
             isOneToOne: false
             referencedRelation: "person_standing"
@@ -2587,42 +2713,56 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "invitations_event_same_season"
+            foreignKeyName: "event_audience_members_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "rsvp_attendance_mismatches"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_event_same_season"
             columns: ["event_id", "season_id"]
             isOneToOne: false
             referencedRelation: "events"
             referencedColumns: ["id", "season_id"]
           },
           {
-            foreignKeyName: "invitations_event_same_season"
+            foreignKeyName: "event_audience_members_event_same_season"
             columns: ["event_id", "season_id"]
             isOneToOne: false
             referencedRelation: "rsvp_attendance_mismatches"
             referencedColumns: ["event_id", "season_id"]
           },
           {
-            foreignKeyName: "invitations_membership_same_season"
+            foreignKeyName: "event_audience_members_membership_same_season"
             columns: ["season_membership_id", "season_id"]
             isOneToOne: false
             referencedRelation: "constitutional_membership"
             referencedColumns: ["season_membership_id", "season_id"]
           },
           {
-            foreignKeyName: "invitations_membership_same_season"
+            foreignKeyName: "event_audience_members_membership_same_season"
             columns: ["season_membership_id", "season_id"]
             isOneToOne: false
             referencedRelation: "season_memberships"
             referencedColumns: ["id", "season_id"]
           },
           {
-            foreignKeyName: "invitations_person_id_fkey"
+            foreignKeyName: "event_audience_members_person_id_fkey"
             columns: ["person_id"]
             isOneToOne: false
             referencedRelation: "people"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "invitations_person_id_fkey"
+            foreignKeyName: "event_audience_members_person_id_fkey"
             columns: ["person_id"]
             isOneToOne: false
             referencedRelation: "person_standing"
@@ -2697,6 +2837,78 @@ export type Database = {
           to_state: string | null
         }
         Relationships: []
+      }
+      uninvited_audience_members: {
+        Row: {
+          audience_member_id: string | null
+          capacity: Database["public"]["Enums"]["invitation_capacity"] | null
+          event_id: string | null
+          event_name: string | null
+          event_status: Database["public"]["Enums"]["event_status"] | null
+          event_type: Database["public"]["Enums"]["event_type"] | null
+          person_id: string | null
+          scheduled_on: string | null
+          season_id: string | null
+          season_membership_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_audience_members_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "rsvp_attendance_mismatches"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_event_same_season"
+            columns: ["event_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_event_same_season"
+            columns: ["event_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "rsvp_attendance_mismatches"
+            referencedColumns: ["event_id", "season_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_membership_same_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "constitutional_membership"
+            referencedColumns: ["season_membership_id", "season_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_membership_same_season"
+            columns: ["season_membership_id", "season_id"]
+            isOneToOne: false
+            referencedRelation: "season_memberships"
+            referencedColumns: ["id", "season_id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_audience_members_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
       }
     }
     Functions: {
