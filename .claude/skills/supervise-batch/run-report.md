@@ -67,9 +67,9 @@ section, plus anything discovered during the run>`
 
 ## Database-lock timeline
 
-| Holder | Phase | Acquired | Released | Database actions performed |
-| ------ | ----- | -------- | -------- | -------------------------- |
-| `<implementer or reviewer>` | `<implementation or review>` | `<time>` | `<time>` | `<commands/tests>` |
+| Holder                      | Phase                        | Acquired | Released | Database actions performed |
+| --------------------------- | ---------------------------- | -------- | -------- | -------------------------- |
+| `<implementer or reviewer>` | `<implementation or review>` | `<time>` | `<time>` | `<commands/tests>`         |
 
 There may never be overlapping holders.
 
