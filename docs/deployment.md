@@ -133,13 +133,42 @@ client bundle at build time, so they are build arguments, not runtime secrets.
 Raise `max-instances` only alongside a deliberate look at Supabase connection
 limits.
 
+> **A stray service-level annotation looks like it contradicts this.**
+> `gcloud run services describe` reports `run.googleapis.com/maxScale=20` at the
+> service level, which is a Cloud Run system default. The value that actually
+> governs scaling is the one on the revision template,
+> `autoscaling.knative.dev/maxScale=3`, set from `--max-instances`. Verified on
+> the live revision. It is deliberately left alone: mutating a system-managed
+> annotation on a working production service to tidy a display value is not worth
+> the risk. Check the effective cap with:
+>
+> ```bash
+> gcloud run revisions describe <revision> --region europe-west2 \
+>   --format="value(metadata.annotations)" | tr ';' '\n' | grep maxScale
+> ```
+
 ## Health check and logging
 
 - `GET /api/health` → `{ status, service, revision, commit, secretsLoaded, timestamp }`.
 - It touches no dependency on purpose: a health check that fails when the
   database blips turns a blip into an outage.
-- `commit` is the Git SHA baked in at build time, so a running revision can
-  always be tied back to a commit.
+- `commit` is the Git SHA baked into the image at build time, so a running
+  revision can always be tied back to a commit.
+
+> **`/api/health`'s `commit` is the source of truth — not the Cloud Run
+> `commit-sha` revision label.** That label is set by the deploy action from the
+> triggering workflow run's `github.sha`, which during a rollback is the _current_
+> `main`, not the commit of the image actually being deployed. After a rollback
+> the label will disagree with reality; the health endpoint will not, because its
+> value is compiled into the image. To confirm from the registry side instead,
+> compare image digests:
+>
+> ```bash
+> gcloud artifacts docker images list \
+>   europe-west2-docker.pkg.dev/oxford-lancers-operations/lancers/lancers-operations-platform \
+>   --include-tags --format='table(version, tags)'
+> ```
+
 - Cloud Run captures stdout/stderr into Cloud Logging automatically. Query with:
 
 ```bash
