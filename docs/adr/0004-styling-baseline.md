@@ -1,6 +1,8 @@
-# 0004 — Material UI is the styling baseline; Tailwind is unresolved
+# 0004 — Material UI and Tailwind coexist; MUI is the component baseline
 
-**Status:** **Open — decision required** · **Date:** 2026-08-10
+**Status:** Accepted · **Date:** 2026-08-10 · **Decided by:** Brian Schuster
+
+Supersedes the open question originally raised in this ADR.
 
 ## Context
 
@@ -9,29 +11,35 @@ The repository was scaffolded with `create-next-app`, which installed Tailwind
 CSS v4. The two overlap: both ship a CSS reset (Tailwind's Preflight, MUI's
 `CssBaseline`), and both offer a complete styling idiom.
 
-Leaving both installed with no rule about which to use is the kind of ambiguity
-that produces an inconsistent UI six months later, when the answer is "whichever
-the agent felt like that day."
+The concern raised was that leaving both installed without a rule produces an
+inconsistent UI later, and that removing Tailwind gets expensive once anything
+depends on it.
 
-## Current state
+## Decision
 
-- Material UI **is** the baseline. `src/theme.ts` is the theme file, applied in
-  `src/app/layout.tsx` via `AppRouterCacheProvider` + `ThemeProvider` +
-  `CssBaseline`. Every page in the repository is built with MUI components only.
-- Tailwind remains installed (`tailwindcss`, `@tailwindcss/postcss`,
-  `postcss.config.mjs`, the `@import "tailwindcss"` in `src/app/globals.css`) and
-  is **not used by any application code**.
+**Both stay.** Reviewed separately on Brian's instruction and found not to be a
+problem in practice. Tailwind is not removed.
 
-## Decision required
+The rule that keeps it from becoming ambiguous:
 
-Brian is having this reviewed separately. Two options:
+- **Material UI is the component baseline.** Anything that is a component —
+  buttons, inputs, dialogs, tables, navigation — is MUI, themed through
+  `src/theme.ts`. Do not hand-roll a component in Tailwind that MUI provides.
+- **Tailwind is available for layout and one-off utility styling** where reaching
+  for `sx` would be more verbose than useful.
+- Do not style the _same element_ with both. Pick one per element.
 
-1. **Remove Tailwind.** Delete the two dependencies, `postcss.config.mjs`, and
-   the `@import` line. One styling system. This is the current recommendation.
-2. **Keep both**, with an explicit written rule about which is used for what.
+## Evidence
 
-Until it is decided: **build UI with MUI.** Do not add Tailwind classes to
-application code — that would make option 1 expensive.
+The two resets coexist without visible breakage. `CssBaseline` is applied inside
+`AppRouterCacheProvider` with `enableCssLayer: true`, which places MUI's styles
+in a CSS layer so plain-CSS and utility rules win predictably over MUI's
+defaults rather than fighting specificity. The rendered pages — `/`, `/login`,
+`/dashboard` — were checked in a browser and in the production container with
+both resets active.
 
-Because no application code depends on Tailwind today, option 1 is currently a
-clean deletion. That stops being true as soon as someone uses a Tailwind class.
+## Consequences
+
+- Removing Tailwind later is no longer a clean deletion. That is accepted.
+- If the two idioms do start producing inconsistency, that is grounds for a new
+  ADR superseding this one — not for quietly reversing it.

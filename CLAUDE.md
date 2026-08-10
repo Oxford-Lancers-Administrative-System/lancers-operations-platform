@@ -41,10 +41,11 @@ for administrators. Work on a branch, open a pull request, let CI pass, merge.
 Zero human approvals are required — Brian may merge his own.
 → [ADR 0006](docs/adr/0006-solo-developer-branch-protection.md)
 
-**6. Build UI with Material UI, not Tailwind.** Tailwind is installed but unused
-and its future is an open decision. Adding Tailwind classes to application code
-would make removing it expensive.
-→ [ADR 0004](docs/adr/0004-styling-baseline.md) — **open, do not resolve without Brian**
+**6. Material UI is the component baseline.** Anything MUI provides — buttons,
+inputs, dialogs, tables, navigation — is MUI, themed through `src/theme.ts`.
+Tailwind is also installed and may be used for layout and one-off utility
+styling, but never style the same element with both.
+→ [ADR 0004](docs/adr/0004-styling-baseline.md)
 
 ---
 
@@ -123,7 +124,6 @@ dependencies, the theme's contents.
 - Anything needing a credential, an external account, or an authorization.
 - Changing a decision recorded in `docs/adr/` — write a superseding ADR and get
   agreement; do not quietly reverse one.
-- Resolving the Tailwind-vs-MUI question (ADR 0004).
 - Applying anything to the production Supabase project.
 - Introducing the domain model.
 
@@ -134,9 +134,9 @@ to `docs/adr/README.md`. ADRs are immutable once accepted — supersede, never e
 
 ## Known open items
 
-- **ADR 0004** — Tailwind vs MUI, unresolved.
-- **Hosted Supabase project** — key scheme not yet verified against the real
-  project; the code already handles both. ([ADR 0003](docs/adr/0003-supabase-key-types.md))
+- **Hosted Supabase project** — public self-registration is still **enabled** on
+  the production project (`disable_signup: false`). It must be turned off; local
+  is already correct. Key scheme is verified. ([ADR 0003](docs/adr/0003-supabase-key-types.md))
 - **GCP project** — not yet created; `scripts/gcp-bootstrap.sh` is ready to run.
   The deploy workflow skips cleanly until it is configured.
 - **Custom domain** — blocked on a GoDaddy transfer. Cloud Run default URL only.

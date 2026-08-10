@@ -1,9 +1,8 @@
 @import "tailwindcss";
 
 /*
- * NOTE: Tailwind is inherited from the create-next-app scaffold. The ticket
- * mandates a Material UI baseline, which is what the application code uses.
- * Whether Tailwind stays alongside MUI is an open decision — see
- * docs/adr/0004-styling-baseline.md. Do not build UI on Tailwind until it is
- * resolved.
+ * Tailwind and Material UI both ship here on purpose (decided 2026-08-10).
+ * MUI is the component baseline; Tailwind covers layout and one-off utility
+ * styling. Never style the same element with both.
+ * See docs/adr/0004-styling-baseline.md.
  */

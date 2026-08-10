@@ -75,5 +75,6 @@ administrators. All changes go through a pull request with CI green.
 - **Google OAuth deferred** — needs an approved redirect domain and a club
   administrator who can create OAuth credentials. Email/password is the
   sanctioned fallback.
-- **Tailwind vs Material UI unresolved** — MUI is the baseline; Tailwind is
-  installed but unused pending a decision. ([ADR 0004](docs/adr/0004-styling-baseline.md))
+- **Two styling systems** — Material UI is the component baseline; Tailwind is
+  also available for layout and utility styling. Never style one element with
+  both. ([ADR 0004](docs/adr/0004-styling-baseline.md))
