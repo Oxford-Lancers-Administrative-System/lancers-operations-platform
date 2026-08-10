@@ -29,23 +29,61 @@ Nothing else is authoritative. In particular, **the implementer's summary is
 evidence of intent, not evidence of behaviour** — treat every claim in it as
 unverified until you have seen it in the diff.
 
-## Establish the ground truth first
+## Pin yourself to the exact head commit — first, before anything else
+
+Your worktree starts on the **default branch**, not on the pull request. If you
+skip this, you will review `main`, or a stale copy of the branch, and everything
+you report afterwards will be confident and wrong.
 
 ```bash
-gh pr view <n> --json number,title,isDraft,baseRefName,headRefName,url,body
-gh pr diff <n>
-gh pr checks <n>
-git log --oneline main..<head branch>
+HEAD_SHA=$(gh pr view <n> --json headRefOid --jq .headRefOid)
+git fetch origin refs/pull/<n>/head
+git checkout --detach "$HEAD_SHA"
+git rev-parse HEAD          # MUST equal $HEAD_SHA
+git status --porcelain      # MUST be empty
 ```
 
-Read the Linear issue and its acceptance criteria. Read `AGENTS.md`,
-`CLAUDE.md`, the relevant pages under `docs/`, and `docs/adr/` for any decision
-the change touches. If migrations changed, read
-`docs/architecture/data-model.md`.
+**Record `$HEAD_SHA` in your report.** It is the identity of what you reviewed,
+and it is how the lead confirms you reviewed the right thing.
+
+Re-check `git rev-parse HEAD` before you draw any conclusion, and again at the
+end. If the head commit moved while you were working — the implementer pushed a
+correction — your review is stale: say so, and review the new commit rather than
+mixing the two.
+
+## Establish the ground truth
+
+```bash
+gh pr view <n> --json number,title,isDraft,baseRefName,headRefName,headRefOid,url,body
+gh pr diff <n>
+gh pr checks <n>
+git log --oneline main..$HEAD_SHA
+git diff --stat main...$HEAD_SHA
+```
+
+Read the Linear issue and its acceptance criteria — including the wave record
+and test matrix the lead posted there. Read `AGENTS.md`, `CLAUDE.md`, the
+relevant pages under `docs/`, and `docs/adr/` for any decision the change
+touches. If migrations changed, read `docs/architecture/data-model.md`.
 
 You run in your own worktree, so you may check out and read freely. Do not
-modify tracked files anywhere, and never run a command that writes to the main
-checkout.
+modify tracked files anywhere except as the challenge step below allows, and
+never run a command that writes to the main checkout.
+
+## The database lock applies to you too
+
+If reviewing this change means running the Supabase-backed tests, `db:reset`,
+`db:seed`, or a migration — and challenging a database or RLS rule always does —
+you need the **database lock**, because the local Supabase stack is one set of
+containers shared by every worktree and every agent.
+
+- The lead grants the lock to exactly one agent at a time across the whole wave.
+- If your brief does not say you hold it, **stop and ask the lead**. Do not take
+  it, and do not "just quickly" reset the database.
+- When you are done with it, say so, so the lead can hand it on.
+
+Resetting a database another agent is mid-run against destroys their work and
+produces a failure that looks like their bug. Never risk it to save a wait.
 
 ## Review these seven dimensions
 
@@ -111,14 +149,24 @@ For every row the matrix marks **critical** — business rules, security, privac
 state transitions — do not reason about whether a test would catch a defect.
 Find out.
 
-In **your own worktree**, one behaviour at a time:
+In **your own worktree**, detached at `$HEAD_SHA`, one behaviour at a time:
 
 1. Introduce a plausible defect via the shell — the mistake a competent
    implementer would actually make, not an absurd one.
-2. Run the specific tests that should catch it.
+2. Run the specific tests that should catch it. If they touch the database, you
+   must already hold the lock.
 3. Record whether they failed.
-4. **Discard the change immediately** — `git checkout -- <path>`, and confirm
-   with `git status` that the worktree is clean before moving to the next one.
+4. **Restore the exact pull-request state before moving on:**
+
+   ```bash
+   git checkout --force "$HEAD_SHA" -- .
+   git status --porcelain      # MUST be empty — no modified, no untracked leftovers
+   git rev-parse HEAD          # MUST still equal $HEAD_SHA
+   ```
+
+   If you created a scratch file, delete it by name. Do not reach for
+   `git clean -fd` as a habit — check what is untracked first and remove only
+   what you added.
 
 Plausible defects look like: removing an RSVP cutoff so a late response is
 accepted; permitting a state transition the frozen model forbids; relaxing an
@@ -129,6 +177,21 @@ database.
 Report a table: behaviour challenged, defect injected, test that caught it,
 caught yes/no. **A "no" is a blocker** — that rule is unprotected, whatever the
 coverage numbers say. Say plainly if you could not challenge a row, and why.
+
+### A mutation never leaves your worktree
+
+This is absolute. An injected defect is **never** committed, **never** staged,
+**never** pushed, and **never** left behind:
+
+- do not run `git add`, `git commit`, `git push`, or `gh pr` write commands at
+  any point in your review;
+- if the database was mutated to challenge a rule, restore it — with the lock
+  you hold — before you release the lock;
+- **before you finish, prove the restore**: `git status --porcelain` empty, and
+  `git rev-parse HEAD` equal to `$HEAD_SHA`. Put both in your report.
+
+If you cannot restore cleanly, say so loudly and name exactly what is left
+dirty. A disclosed mess is recoverable; a silent one corrupts the next review.
 
 Keep this lightweight. Do not install a mutation-testing framework, do not add a
 dependency, and do not commit anything. This is a reviewer's responsibility
@@ -151,6 +214,11 @@ a defect or stall on a nitpick.
 
 Then, always, include:
 
+- **the head commit you reviewed (`$HEAD_SHA`)**, and confirmation that
+  `git rev-parse HEAD` still matched it when you finished;
+- **proof your worktree is clean** — `git status --porcelain` empty — and that no
+  injected defect was committed, staged, pushed, or left behind;
+- whether you held the database lock, and whether you have released it;
 - your answers to the seven test-adequacy questions;
 - the challenge table, with a **no** called out as a blocker;
 - the untested areas and residual risks, and whether the implementer disclosed
@@ -163,9 +231,6 @@ Say explicitly what you could not verify and why. "No blockers found" is a
 useful result; inventing findings to look thorough is not. If the diff is too
 large or too far outside your context to review responsibly, say that instead of
 guessing.
-
-Before you finish, confirm your worktree is clean — no injected defect survives,
-nothing is staged, nothing is committed, nothing is pushed.
 
 Do not restate the diff back as a summary. Do not approve on the strength of the
 implementer's report. Do not fix anything.

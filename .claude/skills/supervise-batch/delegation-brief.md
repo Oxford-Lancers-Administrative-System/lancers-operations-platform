@@ -72,10 +72,17 @@ Off limits to every worker, always:
 
 Database lock: **`<HELD` / `NOT HELD>`**
 
-> The local Supabase stack is shared by every worktree. If the lock is NOT HELD,
-> you must not run `npm run db:reset`, `npm run db:seed`, `npm run db:seed-user`,
-> or the Supabase-backed tests — they would destroy the other worker's database
-> state mid-run.
+> The local Supabase stack is one set of containers shared by every worktree and
+> every agent — implementers and reviewers alike. Worktree isolation isolates
+> files, not the database. Exactly one agent holds this lock at a time across the
+> whole wave.
+>
+> If the lock is NOT HELD, you must not run `npm run db:reset`, `npm run db:seed`,
+> `npm run db:seed-user`, a migration, or the Supabase-backed tests — they would
+> destroy another agent's database state mid-run. Ask the lead; never take it.
+>
+> If it is HELD, tell the lead when you are finished with the database so it can
+> be handed to the next agent.
 
 Run and observe passing:
 

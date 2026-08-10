@@ -58,14 +58,36 @@ those two may proceed while UX approval is outstanding. If an implementer would
 have to invent a screen, a state, a primary action, or a label, the gate has not
 been passed, whatever the graph says.
 
-**Delivery approach — automated channels.** No automated WhatsApp or email
-delivery workflow is implemented until Brian has resolved the delivery approach.
-And **manual posting must never be introduced as a fallback assumption**: if an
-issue calls for automated delivery, you stop and escalate rather than quietly
-substituting a manual path. (LAN-78's manual distribution is a separate, already
-locked owner decision — a first-class recorded Delivery Result, not a fallback.
-Building LAN-78 as specified is fine; downgrading some _other_ issue's automated
-requirement to manual posting is not.)
+**Delivery — automated WhatsApp delivery is the locked owner decision.**
+
+Manual copying or posting of RSVP links is **not** an MVP, not a pilot mode, not
+a fallback, and not a temporary operating model. There is no version of this
+slice in which an operator pasting links by hand is the accepted answer. If an
+issue, a runbook, or a summary tells you otherwise, that document is wrong — you
+do not follow it, and you do not build from it.
+
+You may never:
+
+- implement manual link copying or manual posting as the delivery path;
+- offer it as an interim step, a stopgap, or "phase one";
+- treat an automated-delivery requirement as satisfied by a manual one;
+- resolve a delivery ambiguity by assuming the manual path.
+
+**Blocked until their requirements are corrected — do not select these:**
+
+| Artifact                                                 | Problem                                                                                              |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **LAN-78**                                               | Specifies manual distribution as a locked owner decision, contradicting automated WhatsApp delivery. |
+| **LAN-82**                                               | Its end-to-end walkthrough and operator runbook inherit the manual-distribution assumption.          |
+| **The First Operational Vertical Slice project summary** | Describes the slice with the same manual-distribution framing.                                       |
+
+These are **blockers for Brian**, not text for you to fix. Do not edit a Linear
+issue to remove the contradiction, do not reinterpret it, and do not build the
+automated version from a document that specifies the manual one. Report the
+conflict under stop rule 2 (requirements conflict) and stop.
+
+Any _other_ issue that turns out to depend on delivery behaviour is blocked the
+same way until Brian's correction lands.
 
 **Frozen scope.** Anything on the "Stop and ask Brian" list in `AGENTS.md` — the
 domain model, security or privacy posture, infrastructure cost, the ownership
@@ -94,17 +116,38 @@ Two migrations in one wave is the sharpest of these: migrations are forward-only
 once shared and their filenames encode order, so a pair that both migrate cannot
 be reconciled afterwards. Serialize, always.
 
-A further shared resource is easy to miss: **the local Supabase stack is a
-single set of containers shared by every worktree.** `db:reset`, `db:seed`,
-`db:seed-user` and the Supabase-backed tests destroy every other worker's
-database state. So:
+### The database lock — every agent, not just implementers
 
-- Grant the **database lock** to at most one worker per wave, in writing, in its
-  brief.
-- The other worker's brief says explicitly that it does **not** hold the lock and
-  must not run those commands.
-- If both issues need the database, that is a serialize decision, not a
-  scheduling one.
+**The local Supabase stack is a single set of containers shared by every
+worktree and every agent.** Worktree isolation isolates _files_. It does not
+isolate the database. Anything that resets, migrates, mutates, or tests against
+it is destructive to every other agent running at that moment.
+
+The lock covers **any agent that can touch the database — implementers and
+reviewers alike**. A reviewer running the Supabase-backed tests, or challenging
+an RLS or constraint rule by injecting a defect, is mutating the same containers
+an implementer is mid-run against.
+
+You own the lock. The rules:
+
+- **Exactly one holder at a time, across the whole wave.** Not one per role, not
+  one per worktree — one, total.
+- Every brief states the holder explicitly: **HELD** or **NOT HELD**, in writing.
+  A brief that omits it is incomplete and the agent is instructed to stop.
+- A non-holder must not run `npm run db:reset`, `npm run db:seed`,
+  `npm run db:seed-user`, a migration, or the Supabase-backed tests — and must
+  ask rather than take the lock.
+- **Hand the lock over explicitly.** An agent tells you when it is done with the
+  database; you confirm before granting it to the next one. Never assume a
+  finished-looking agent has released it.
+- Sequence database work rather than overlapping it. If both issues need the
+  database throughout, that is a serialize decision, not a scheduling one.
+- Before granting the lock to a reviewer, confirm no implementer is still
+  running against the database.
+
+Resetting a database another agent is mid-run against destroys its work and
+surfaces as a failure that looks like that agent's bug. This is the single most
+likely way a two-agent wave produces a confusing, wrong result.
 
 Prefer one issue over a bad pair. A wave of one that lands is worth more than a
 wave of two that collide.
@@ -153,7 +196,29 @@ Before launching anything, write the **wave record** — the first section of
 - dependency status, naming the merges that cleared each blocker;
 - expected shared-file or migration collisions, and how they are serialised;
 - worktree and branch assignments;
+- who holds the database lock, and the planned hand-over order;
 - which human gates remain in effect.
+
+### Persist it in Linear before you launch
+
+**Agent context is transient and is not evidence.** A run whose plan lived only
+in a conversation cannot be audited, resumed, or disputed afterwards.
+
+The **durable location is the Linear issue** — one comment per artifact, on the
+issue it belongs to:
+
+1. **Before launch**, post a comment on each selected issue containing that
+   issue's **wave record** and its complete **test matrix**. Post it _before_
+   the implementer starts, so the contract is timestamped ahead of the code.
+2. **After the wave**, post the **run report** as a comment — on each issue
+   attempted, including issues that were abandoned or blocked.
+3. **Link both from the pull request description**, so the PR and the Linear
+   issue point at each other.
+
+If Linear is unreachable, the fallback durable location is a committed file
+under `docs/runs/<date>-<issue>.md` on the issue's own branch, **linked from the
+Linear issue as soon as it is reachable again**. Choose one of these two. Do not
+invent a third, and never leave the evidence only in your own context.
 
 Set each branch name yourself: `feat/lan-nn-short-slug` (or `fix/`, `docs/`,
 `chore/`), based on `main`.
@@ -172,11 +237,11 @@ A worker's report is a claim. Before it goes anywhere, check it against the
 repository:
 
 ```bash
-gh pr view <n> --json number,isDraft,baseRefName,headRefName,url,statusCheckRollup
+HEAD_SHA=$(gh pr view <n> --json headRefOid --jq .headRefOid)
+gh pr view <n> --json number,isDraft,baseRefName,headRefName,headRefOid,url,statusCheckRollup
 gh pr diff <n>
-git log --oneline main..<head branch>
-git diff --stat main...<head branch>
-gh pr checks <n>
+git log --oneline main..$HEAD_SHA
+git diff --stat main...$HEAD_SHA
 ```
 
 Confirm, from that output and not from the report:
@@ -186,10 +251,35 @@ Confirm, from that output and not from the report:
 - every file in the diff is inside the scope you gave, and nothing in it touches
   another worker's paths, `.claude/`, `.github/workflows/`, or branch protection;
 - the commits are real and their messages match the work;
-- the tests named in the test matrix actually exist in the diff;
-- CI is **passing**, not queued and not skipped;
-- the verification commands were actually run — a claim of `npm run verify`
-  passing with no output to show is not evidence.
+- the tests named in the test matrix actually exist in the diff.
+
+### Read the actual GitHub Actions run, not a summary of it
+
+**A worker's "tests pass" is not evidence, and neither is a green tick you did
+not open.** Go to the run itself, for the head commit you just resolved:
+
+```bash
+gh pr checks <n>                                  # names, conclusions, and run URLs
+gh run list --commit "$HEAD_SHA" --limit 10       # the runs for THIS commit
+gh run view <run-id>                              # per-job outcome
+gh run view <run-id> --log-failed                 # every failing step's log
+gh run view <run-id> --job <job-id> --log         # the full log of a job you doubt
+```
+
+Confirm, from the run output itself:
+
+- both required checks — `Format, lint, typecheck, test, build` and
+  `Container builds and serves` — **completed and concluded `success`**, not
+  queued, not in progress, not skipped, not cancelled;
+- the run is **for `$HEAD_SHA`**, not for an earlier push to the same branch;
+- the test step actually executed and reported a test count, rather than passing
+  because nothing ran or everything was filtered out;
+- the tests the matrix requires appear in that output;
+- no step was neutralised — no `continue-on-error`, no silently skipped job, no
+  workflow file change in the diff that weakened the gate.
+
+A red or missing run is a blocker. A green run you have not opened is not a
+result — it is a claim you have chosen to believe.
 
 If any of this does not hold, send it back to that worker with the specific gap.
 Do not repair it yourself, and do not pass it to the reviewer.
@@ -197,9 +287,16 @@ Do not repair it yourself, and do not pass it to the reviewer.
 ## 7 — Independent review
 
 For each pull request that survives §6, launch the `code-reviewer` subagent in
-fresh context. Give it the pull request number, the Linear issue identifier, and
-the test matrix. **Do not** paste the implementer's summary into it, and do not
-tell it what you concluded — its independence is the entire reason it exists.
+fresh context. Give it the pull request number, **the head commit SHA it must
+review**, the Linear issue identifier, the test matrix, and its database-lock
+status. **Do not** paste the implementer's summary into it, and do not tell it
+what you concluded — its independence is the entire reason it exists.
+
+The reviewer starts on the default branch, so it must check out that exact head
+commit before it reads, tests, or challenges anything. Its report must name the
+SHA it reviewed; if that does not match the head you sent it, the review is of
+something else and does not count. Its report must also show a clean worktree —
+no injected defect committed, staged, pushed, or left behind.
 
 The implementer writes the tests; it does not get to certify them. The reviewer
 independently judges test adequacy against the matrix, and challenges every

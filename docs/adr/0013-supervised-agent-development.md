@@ -48,16 +48,34 @@ The operating model:
 - Implementers run with `isolation: worktree`. A shared checkout is not an
   acceptable substitute; two writers in one working tree is the failure this
   whole structure exists to prevent.
-- The reviewer starts cold, holds no editing tools, and is given only the pull
-  request number and the issue identifier — never the implementer's summary.
+- The reviewer starts cold, holds no editing tools, and is given the pull request
+  number, the head commit SHA, the issue identifier, the test matrix, and its
+  lock status — never the implementer's summary.
 - **No agent merges, un-drafts, deploys, migrates hosted Supabase, or writes to
   production.** Brian merges. Every batch ends with him holding reviewed pull
   requests.
 - Work that could collide is serialised rather than parallelised. The list is in
   the lead workflow: migration ordering, generated database types, auth
   boundaries, shared routing or shell, root dependency files, shared theme, the
-  same service or API or core test fixture — and the local Supabase stack, which
-  is a single set of containers shared by every worktree.
+  same service or API or core test fixture.
+- **The database lock covers every agent, not only implementers.** Worktree
+  isolation isolates files; it does not isolate the local Supabase stack, which is
+  one set of containers shared by every worktree. A reviewer running the
+  Supabase-backed tests or challenging an RLS rule mutates the same database an
+  implementer is running against. Exactly one holder at a time across a wave,
+  stated in writing in every brief, handed over explicitly.
+- **The reviewer pins itself to the pull request's exact head commit** before
+  reading, testing, or challenging anything, and reports that SHA. A reviewer
+  starts on the default branch, so without this step it reviews `main` and is
+  confidently wrong. An injected defect is never committed, staged, pushed, or
+  left behind, and the reviewer proves a clean worktree at the exact head commit
+  before it finishes.
+- **The lead reads the GitHub Actions run itself** — job conclusions and logs for
+  that head commit — rather than a worker's claim or an unopened green tick.
+- **Plans, test matrices, and run reports are persisted in Linear** as comments on
+  the issue they belong to: the wave record and matrix before launch, the run
+  report after, both linked from the pull request. Agent context is transient and
+  is not evidence.
 
 ### Testing is a contract written before implementation
 
@@ -128,12 +146,19 @@ otherwise reason its way past:
   through LAN-82; it deliberately does not block LAN-71 or LAN-72, which have no
   interface. If an implementer would have to invent a screen, a state, a primary
   action, or a label, the gate has not been passed.
-- **Delivery approach.** No automated WhatsApp or email delivery workflow before
-  Brian resolves the approach, and **manual posting is never introduced as a
-  fallback assumption**. LAN-78's manual distribution is a separate locked owner
-  decision — a first-class recorded Delivery Result — and building it as
-  specified is not affected; downgrading some other issue's automated
-  requirement to manual posting is what is forbidden.
+- **Delivery.** **Automated WhatsApp delivery is the locked owner decision.**
+  Manual copying or posting of RSVP links is not an MVP, not a pilot mode, not a
+  fallback, and not a temporary operating model. An agent may never implement it,
+  offer it as an interim step, treat it as satisfying an automated-delivery
+  requirement, or assume it to resolve an ambiguity.
+
+  This currently contradicts the requirements themselves. **LAN-78**, **LAN-82**,
+  and the First Operational Vertical Slice **project summary** still specify
+  manual distribution. Those are recorded as blockers for Brian, and the lead is
+  forbidden from selecting any of them until the requirements are corrected. An
+  agent does not resolve the contradiction by editing the issue, by reinterpreting
+  it, or by building the automated version from a document that specifies the
+  manual one.
 
 ### Waves are recorded, and blockers are never assumptions
 
@@ -154,11 +179,35 @@ prompt is not a control:
 
 - `.claude/settings.json` denies, session-wide, the commands that would merge,
   un-draft, push to `main`, rewrite history, deploy, reach hosted Supabase, or
-  change repository settings and secrets. Deny rules are evaluated ahead of
-  everything else and take effect without workspace trust, because they only
-  restrict. The file grants nothing.
+  change repository settings and secrets — including the obvious alternate forms
+  (`git -C`, `git -c`, `bunx`/`pnpm dlx`/direct `node_modules/.bin` paths,
+  `gh api graphql` mutations, raw `curl` at the GitHub API) and the shell
+  indirections that would hide them (`bash -c`, `sh -c`, `eval`, flagged
+  `xargs`). It also denies edits to `.claude/**`, so an agent cannot rewrite the
+  guardrails it runs under. Deny rules are evaluated ahead of everything else and
+  take effect without workspace trust, because they only restrict. The file
+  grants nothing.
 - The same file sets `disableBypassPermissionsMode`, so those denials cannot be
-  skipped by starting a session in bypass mode.
+  skipped by starting a session in bypass mode. This is deliberately preserved:
+  without it, an autonomous run could switch off every control above.
+
+**These deny rules supplement the real controls; they do not replace them.**
+Bash pattern matching is prefix-based and a determined or unlucky agent can
+always find a spelling nobody enumerated. The controls that actually hold are
+structural, and the deny rules exist to stop the easy accident before it reaches
+them:
+
+| Real control                | What it guarantees                                                                                                               |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Protected `main` (ADR 0006) | No direct push, no force-push, no deletion — including for administrators. CI is required.                                       |
+| A human merge               | Brian is the only one who merges, and only from a draft pull request he has read.                                                |
+| Restricted credentials      | No production Supabase key or deploy credential exists on a development machine. Hosted work needs authorisation no agent holds. |
+| Worktree isolation          | An implementer's writes land in its own checkout, not in anyone else's.                                                          |
+| Independent review          | A second agent, cold, checks the diff and challenges the tests.                                                                  |
+
+If a deny rule is ever the only thing standing between an agent and a
+destructive action, that is a design defect to fix structurally — not a rule to
+add another pattern to.
 
 `tests/agent-harness.test.ts` asserts these invariants and runs inside the
 existing `npm run test` step. No new CI job was added, and no existing check was

@@ -143,6 +143,11 @@ describe("agent harness: the process controls", () => {
   const lead = frontMatter(path.join(skillsDir, "supervise-batch", "SKILL.md")).body;
   const implementer = frontMatter(path.join(agentsDir, "issue-implementer.md")).body;
   const reviewer = frontMatter(path.join(agentsDir, "code-reviewer.md")).body;
+  const AGENTS_MD = readFileSync(path.join(repoRoot, "AGENTS.md"), "utf8");
+  const ADR_0013 = readFileSync(
+    path.join(repoRoot, "docs", "adr", "0013-supervised-agent-development.md"),
+    "utf8",
+  );
 
   it("requires the test contract before implementation, not after", () => {
     expect(flat(lead)).toMatch(/test matrix before the implementer is launched/i);
@@ -168,7 +173,7 @@ describe("agent harness: the process controls", () => {
 
   it("makes the reviewer challenge critical behaviours by injecting a defect", () => {
     expect(flat(reviewer)).toMatch(/Challenge the critical behaviours/i);
-    expect(flat(reviewer)).toMatch(/Discard the change immediately/i);
+    expect(flat(reviewer)).toMatch(/Restore the exact pull-request state before moving on/i);
     // Lightweight by decision — a framework here would be a dependency and a
     // scope change, not an improvement.
     expect(flat(reviewer)).toMatch(/Do not install a mutation-testing framework/i);
@@ -195,10 +200,76 @@ describe("agent harness: the process controls", () => {
     }
   });
 
-  it("holds the two human gates that outrank a clear dependency graph", () => {
+  it("holds the UX gate that outranks a clear dependency graph", () => {
     expect(flat(lead)).toMatch(/LAN-90/);
     expect(flat(lead)).toMatch(/LAN-71 or LAN-72/);
-    expect(flat(lead)).toMatch(/manual posting must never be introduced as a fallback assumption/i);
+  });
+
+  it("treats automated delivery as locked and manual distribution as forbidden", () => {
+    // The harness must not leave a single sentence an agent could read as
+    // permission to ship manual link copying.
+    expect(flat(lead)).toMatch(/automated WhatsApp delivery is the locked owner decision/i);
+    expect(flat(lead)).toMatch(
+      /not an MVP, not a pilot mode, not a fallback, and not a temporary operating model/i,
+    );
+    for (const text of [flat(lead), flat(AGENTS_MD), flat(ADR_0013)]) {
+      expect(text).not.toMatch(/manual distribution is a separate.{0,40}locked owner decision/i);
+    }
+  });
+
+  it("blocks the issues whose requirements still specify manual distribution", () => {
+    // LAN-78, LAN-82 and the project summary contradict the locked decision.
+    // The lead must refuse them rather than reconcile them itself.
+    const gate = flat(lead);
+    for (const blocked of ["LAN-78", "LAN-82", "project summary"]) {
+      expect(gate, `${blocked} must be named as blocked`).toMatch(new RegExp(blocked, "i"));
+    }
+    expect(gate).toMatch(/blockers for Brian, not text for you to fix/i);
+    expect(gate).toMatch(/Do not edit a Linear issue to remove the contradiction/i);
+  });
+
+  it("pins the reviewer to the pull request's exact head commit", () => {
+    expect(flat(reviewer)).toMatch(/Pin yourself to the exact head commit/i);
+    expect(flat(reviewer)).toMatch(/headRefOid/);
+    expect(flat(reviewer)).toMatch(/git checkout --detach/);
+    // Without this it silently reviews the default branch.
+    expect(flat(reviewer)).toMatch(/you will review `main`, or a stale copy/i);
+    expect(flat(lead)).toMatch(/head commit SHA it must review/i);
+  });
+
+  it("guarantees an injected defect never survives the review", () => {
+    const text = flat(reviewer);
+    expect(text).toMatch(/A mutation never leaves your worktree/i);
+    expect(text).toMatch(
+      /never.{0,3} committed, .{0,10}never.{0,3} staged, .{0,10}never.{0,3} pushed/i,
+    );
+    expect(text).toMatch(/git status --porcelain # MUST be empty/i);
+    expect(text).toMatch(/prove the restore/i);
+  });
+
+  it("extends the database lock to every agent, reviewers included", () => {
+    expect(flat(lead)).toMatch(/every agent, not just implementers/i);
+    expect(flat(lead)).toMatch(/Exactly one holder at a time, across the whole wave/i);
+    // The reviewer is the agent most likely to assume it is exempt.
+    expect(flat(reviewer)).toMatch(/The database lock applies to you too/i);
+    expect(flat(implementer)).toMatch(/implementers and reviewers alike/i);
+  });
+
+  it("persists the plan, matrix, and run report outside agent context", () => {
+    const text = flat(lead);
+    expect(text).toMatch(/Persist it in Linear before you launch/i);
+    expect(text).toMatch(/durable location.{0,20}is the Linear issue/i);
+    expect(text).toMatch(/never leave the evidence only in your own context/i);
+  });
+
+  it("makes the lead read the actual GitHub Actions run, not a claim", () => {
+    const text = flat(lead);
+    expect(text).toMatch(/Read the actual GitHub Actions run, not a summary of it/i);
+    expect(text).toMatch(/gh run view <run-id> --log-failed/);
+    expect(text).toMatch(/gh run list --commit/);
+    expect(text).toMatch(
+      /A green run you have not opened is not a result — it is a claim you have chosen to believe/i,
+    );
   });
 
   it("requires a wave record before launch and a run report after", () => {
@@ -224,7 +295,58 @@ describe("agent harness: mechanical guards", () => {
   const deny = settings.permissions?.deny ?? [];
 
   it("cannot be switched off with bypass-permissions mode", () => {
+    // Preserved deliberately: without it an autonomous run could start in bypass
+    // mode and skip every rule below.
     expect(settings.permissions?.disableBypassPermissionsMode).toBe("disable");
+  });
+
+  it("covers the alternate spellings of a denied command", () => {
+    // A prefix rule only blocks the spelling it was written for. These are the
+    // straightforward re-writes of an already-denied action.
+    for (const rule of [
+      "Bash(git -C * push *)", // wrapper form: git -C <dir> push
+      "Bash(git -c * push *)", // config-override form
+      "Bash(git push *refs/heads/main*)", // fully-qualified ref
+      "Bash(git push --mirror*)",
+      "Bash(gh api graphql *)", // mergePullRequest via GraphQL
+      "Bash(curl *api.github.com*)", // the API without gh at all
+      "Bash(bunx supabase *)",
+      "Bash(pnpm dlx supabase *)",
+      "Bash(*node_modules/.bin/supabase *)",
+    ]) {
+      expect(deny, `${rule} is missing`).toContain(rule);
+    }
+  });
+
+  it("closes the shell indirections that would hide a denied command", () => {
+    // `bash -c "gh pr merge 6"` is one string to the matcher, not a gh command.
+    for (const rule of ["Bash(bash -c *)", "Bash(sh -c *)", "Bash(eval *)", "Bash(xargs *)"]) {
+      expect(deny, `${rule} is missing`).toContain(rule);
+    }
+  });
+
+  it("stops an agent rewriting the guardrails it runs under", () => {
+    // Edit rules cover every file-editing tool; a Write(...) path rule is never
+    // consulted, so this must be spelled Edit(...).
+    expect(deny).toContain("Edit(./.claude/**)");
+  });
+
+  it("documents that these rules supplement the real controls", () => {
+    // Recorded so nobody mistakes a pattern list for the security model.
+    const adr = readFileSync(
+      path.join(repoRoot, "docs", "adr", "0013-supervised-agent-development.md"),
+      "utf8",
+    ).replace(/\s+/g, " ");
+    expect(adr).toMatch(/deny rules supplement the real controls; they do not replace them/i);
+    for (const control of [
+      "Protected `main`",
+      "A human merge",
+      "Restricted credentials",
+      "Worktree isolation",
+      "Independent review",
+    ]) {
+      expect(adr, `${control} must be named`).toContain(control);
+    }
   });
 
   it("grants nothing — the checked-in file only restricts", () => {

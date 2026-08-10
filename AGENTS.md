@@ -321,9 +321,14 @@ Three rules follow from that and are worth stating on their own:
   is ambiguous, internally inconsistent, or missing a material acceptance
   criterion stops the wave. Product decisions are Brian's.
 - **Human gates outrank the graph.** No user-facing implementation before the
-  LAN-90 UX approval is recorded; no automated delivery workflow before the
-  delivery approach is resolved, and manual posting is never substituted as a
-  fallback assumption.
+  LAN-90 UX approval is recorded. **Automated WhatsApp delivery is the locked
+  owner decision** — manual copying or posting of RSVP links is not an MVP, a
+  pilot mode, a fallback, or a temporary operating model, and no agent may
+  implement or assume one. LAN-78, LAN-82 and the project summary still specify
+  manual distribution; all three are blocked until Brian corrects them.
+- **One database lock, every agent.** Worktree isolation isolates files, not the
+  local Supabase stack — one set of containers shared by every worktree.
+  Implementers and reviewers alike hold the lock one at a time.
 
 **No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase,
 or writes to production.** Brian merges. `.claude/settings.json` denies those

@@ -27,7 +27,15 @@ they were serialised, or why the pair is genuinely independent>`
 **Human gates still in effect for this wave:**
 
 - `<e.g. LAN-90 UX approval — not yet recorded, so LAN-73..LAN-82 stay out of scope>`
-- `<e.g. automated delivery approach unresolved — LAN-78 automated channels out of scope>`
+- `<e.g. LAN-78, LAN-82 and the project summary still specify manual link
+distribution, which contradicts the locked automated-WhatsApp decision — all
+three are blocked until Brian corrects them>`
+
+**Database lock:** `<which agent holds it, and the hand-over order — exactly one
+holder at a time across the whole wave, reviewers included>`
+
+**Where this is persisted:** `<links to the Linear comments carrying the wave
+record, each test matrix, and this report>`
 
 ## Per issue
 
@@ -42,7 +50,11 @@ they were serialised, or why the pair is genuinely independent>`
   <the actual tail of npm run verify, and any database commands>
   ```
 
-- **CI:** `<passing / failing / queued>` — `<check names and conclusion from gh pr checks>`
+- **Head commit reviewed:** `<$HEAD_SHA — the SHA the reviewer reported, which
+must match the pull request head>`
+- **CI:** `<conclusion per required check, read from the run itself — gh run view
+for $HEAD_SHA, not a worker's claim. Note the test count observed and confirm
+the run was for this commit.>`
 - **Independent review verdict:** blocked / clear
   - Blockers: `<verbatim, or "none">`
   - Suggestions: `<or "none">`
@@ -55,6 +67,8 @@ they were serialised, or why the pair is genuinely independent>`
 
   A **no** is a finding, not a footnote: the rule is unprotected.
 
+- **Reviewer worktree clean:** `<git status --porcelain empty; no injected defect
+committed, staged, pushed, or left behind; database lock released>`
 - **Corrections made:** `<what came back, what changed, and the re-verification>`
 - **Untested areas and residual risk:** `<from the matrix's deliberately-untested
 section, plus anything discovered during the run>`
@@ -73,7 +87,10 @@ Never convert one of these into an assumption to keep the run moving.
 - Worktrees created, and whether each was cleaned up: `<...>`
 - Draft pull requests open: `<...>`
 - Linear issue statuses now: `<...>`
+- Database lock: `<released / still held, and by whom>`
 - Anything left in a partial state, and exactly where: `<...>`
+- Durable evidence links: `<Linear comment URLs for the wave record, test
+matrices, and this report>`
 
 ## Recommended next action
 

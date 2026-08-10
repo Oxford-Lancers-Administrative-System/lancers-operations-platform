@@ -82,11 +82,17 @@ Write those into `.env.local` in your worktree, following `.env.example`. Those
 values are ephemeral local container credentials, not project secrets. Never
 print them into your report, and never write a real value into a tracked file.
 
-**The local Supabase stack is a single shared resource.** Every worktree talks
-to the same containers. `npm run db:reset`, `npm run db:seed`,
-`npm run db:seed-user` and the Supabase-backed tests are destructive to every
-other worker. Run them **only** if your brief says you hold the database lock.
-If you need the lock and do not have it, stop and ask the lead — do not take it.
+**The local Supabase stack is a single shared resource.** Every worktree and
+every agent — implementers and reviewers alike — talks to the same containers.
+Worktree isolation isolates files, not the database. `npm run db:reset`,
+`npm run db:seed`, `npm run db:seed-user`, a migration, and the Supabase-backed
+tests are destructive to every other agent running at that moment.
+
+Exactly one agent holds the **database lock** at a time, across the whole wave.
+Run those commands **only** if your brief says you hold it. If you need it and
+do not have it, stop and ask the lead — never take it, and never "just quickly"
+reset. When you are finished with the database, tell the lead so it can be
+handed on.
 
 ## Doing the work
 
