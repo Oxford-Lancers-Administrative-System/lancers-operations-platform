@@ -58,14 +58,13 @@ those two may proceed while UX approval is outstanding. If an implementer would
 have to invent a screen, a state, a primary action, or a label, the gate has not
 been passed, whatever the graph says.
 
-**Delivery approach — automated channels.** No automated WhatsApp or email
-delivery workflow is implemented until Brian has resolved the delivery approach.
-And **manual posting must never be introduced as a fallback assumption**: if an
-issue calls for automated delivery, you stop and escalate rather than quietly
-substituting a manual path. (LAN-78's manual distribution is a separate, already
-locked owner decision — a first-class recorded Delivery Result, not a fallback.
-Building LAN-78 as specified is fine; downgrading some _other_ issue's automated
-requirement to manual posting is not.)
+**Delivery approach — automated channels.** Automated WhatsApp delivery is a
+locked requirement. No invitation-delivery issue is eligible until Brian has
+resolved the feasible delivery approach and the issue expresses that approach
+consistently. **Manual posting or manual distribution is never an MVP, pilot,
+fallback, or separate acceptable path.** If LAN-78 or any other source still
+calls for manual distribution, treat that wording as stale and stop for
+correction; do not implement it.
 
 **Frozen scope.** Anything on the "Stop and ask Brian" list in `AGENTS.md` — the
 domain model, security or privacy posture, infrastructure cost, the ownership
@@ -96,15 +95,20 @@ be reconciled afterwards. Serialize, always.
 
 A further shared resource is easy to miss: **the local Supabase stack is a
 single set of containers shared by every worktree.** `db:reset`, `db:seed`,
-`db:seed-user` and the Supabase-backed tests destroy every other worker's
-database state. So:
+`db:seed-user` and Supabase-backed tests can mutate state underneath any other
+agent. The lead owns one **wave-wide database lock**:
 
-- Grant the **database lock** to at most one worker per wave, in writing, in its
-  brief.
-- The other worker's brief says explicitly that it does **not** hold the lock and
-  must not run those commands.
-- If both issues need the database, that is a serialize decision, not a
-  scheduling one.
+- At most one active agent — implementer **or reviewer** — may hold it.
+- Every implementer brief states **HELD** or **NOT HELD**. A worker without it
+  must not configure the shared local stack or run database-backed tests; it may
+  run database-free checks and must rely on the isolated CI job for the full
+  database suite, disclosing that limitation.
+- A reviewer that must challenge a database, RLS, transaction, or migration rule
+  is launched only after the lock is released, and its prompt states **HELD**.
+  Database-backed reviewers run one at a time.
+- If both implementation issues require local database work, serialize that work
+  or select a different pair. Worktree isolation does not make the database
+  independent.
 
 Prefer one issue over a bad pair. A wave of one that lands is worth more than a
 wave of two that collide.
@@ -146,12 +150,18 @@ is tested at that level too.
 
 ## 5 — Record the wave, then launch
 
-Before launching anything, write the **wave record** — the first section of
-`run-report.md` beside this file:
+Before launching anything, write the **wave record** using the first section of
+`run-report.md` beside this file. Persist that record and each issue's completed
+test matrix as a new Linear comment on every selected issue **before** launching
+an implementer. Do not edit the checked-in template, and do not leave the only
+copy in chat or a transient worktree.
+
+The record contains:
 
 - the selected issues, and why each is unblocked;
 - dependency status, naming the merges that cleared each blocker;
-- expected shared-file or migration collisions, and how they are serialised;
+- expected shared-file, migration, or database collisions, and how they are
+  serialised;
 - worktree and branch assignments;
 - which human gates remain in effect.
 
@@ -177,6 +187,9 @@ gh pr diff <n>
 git log --oneline main..<head branch>
 git diff --stat main...<head branch>
 gh pr checks <n>
+gh run list --branch <head branch> --workflow CI --limit 1 \
+  --json databaseId,headSha,status,conclusion
+gh run view <run id> --log
 ```
 
 Confirm, from that output and not from the report:
@@ -188,8 +201,10 @@ Confirm, from that output and not from the report:
 - the commits are real and their messages match the work;
 - the tests named in the test matrix actually exist in the diff;
 - CI is **passing**, not queued and not skipped;
-- the verification commands were actually run — a claim of `npm run verify`
-  passing with no output to show is not evidence.
+- the GitHub Actions run belongs to the pull request's current head SHA, and its
+  logs show the verification steps actually ran. Pasted local output remains a
+  worker claim; use the isolated CI logs as the independently inspectable
+  command evidence.
 
 If any of this does not hold, send it back to that worker with the specific gap.
 Do not repair it yourself, and do not pass it to the reviewer.
@@ -197,9 +212,16 @@ Do not repair it yourself, and do not pass it to the reviewer.
 ## 7 — Independent review
 
 For each pull request that survives §6, launch the `code-reviewer` subagent in
-fresh context. Give it the pull request number, the Linear issue identifier, and
-the test matrix. **Do not** paste the implementer's summary into it, and do not
-tell it what you concluded — its independence is the entire reason it exists.
+fresh context. Give it the pull request number, the Linear issue identifier, the
+test matrix, and whether it holds the wave-wide database lock. The reviewer must
+fetch the pull request head and detach at that exact SHA before it runs any test
+or injects any defect; testing `main` is not a review. **Do not** paste the
+implementer's summary into it, and do not tell it what you concluded — its
+independence is the entire reason it exists.
+
+If a critical challenge needs local Supabase, wait until every other agent has
+released the lock, grant it to this reviewer, and run database-backed reviewers
+serially. A reviewer without the lock may not touch the shared stack.
 
 The implementer writes the tests; it does not get to certify them. The reviewer
 independently judges test adequacy against the matrix, and challenges every
@@ -215,13 +237,18 @@ reasonable correction cycle, stop and report it as a blocker. Do not grind.
 
 ## 8 — Leave a run report
 
-Produce the full `run-report.md` — for every wave, including one that was
-abandoned, blocked, or interrupted. It carries: issues attempted, branches and
-pull requests, test matrices, tests added and commands executed, CI results,
-independent-review findings, the critical behaviours deliberately challenged and
-whether the tests caught them, corrections made, blockers and owner decisions
-needed, untested areas and residual risks, the exact repository state, and the
-recommended next action.
+Produce the full report from `run-report.md` for every wave, including one that
+was abandoned, blocked, or interrupted. It carries: issues attempted, branches
+and pull requests, test matrices, tests added and commands executed, CI results
+and run links, independent-review findings, the critical behaviours deliberately
+challenged and whether the tests caught them, the database-lock timeline,
+corrections made, blockers and owner decisions needed, untested areas and
+residual risks, the exact repository state, and the recommended next action.
+
+Persist the completed report as a new Linear comment on every attempted issue and
+include links to every draft pull request and CI run. Do not edit the template or
+commit orchestration evidence into a feature branch merely to preserve it. If no
+issue was launched, persist the blocked wave record on the first candidate issue.
 
 Then stop. Brian merges, and Brian decides whether there is a second wave.
 
