@@ -60,8 +60,21 @@ SECRET_NAME="${SUPABASE_SECRET_KEY_SECRET:-supabase-secret-key}"
 MAX_INSTANCES="${CLOUD_RUN_MAX_INSTANCES:-3}"
 PLACEHOLDER_IMAGE="us-docker.pkg.dev/cloudrun/container/hello"
 
-RUNTIME_SA="${SERVICE}-run"
-DEPLOY_SA="${SERVICE}-deploy"
+# Service account IDs are capped at 30 characters by GCP, and
+# "lancers-operations-platform-run" is 31. Hence a separate short base name
+# rather than deriving them from ${SERVICE}.
+SA_PREFIX="${GCP_SA_PREFIX:-lancers-ops}"
+RUNTIME_SA="${SA_PREFIX}-run"
+DEPLOY_SA="${SA_PREFIX}-deploy"
+
+for sa in "${RUNTIME_SA}" "${DEPLOY_SA}"; do
+  if [ "${#sa}" -gt 30 ] || [ "${#sa}" -lt 6 ]; then
+    echo "Service account id '${sa}' is ${#sa} chars; GCP requires 6-30." >&2
+    echo "Set GCP_SA_PREFIX to something shorter." >&2
+    exit 1
+  fi
+done
+
 RUNTIME_SA_EMAIL="${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com"
 DEPLOY_SA_EMAIL="${DEPLOY_SA}@${PROJECT_ID}.iam.gserviceaccount.com"
 

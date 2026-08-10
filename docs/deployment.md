@@ -45,11 +45,23 @@ include, because creating a pool establishes trust with an external identity
 provider. If it is not permitted, the script finishes Phase A, prints the grant
 to request, and skips Phase B. Re-run it once the grant lands.
 
-The grant a project Owner must make, once:
+The grant a project Owner must make, once. **The Owner of this project does not
+use the command line**, so the Console steps are the primary instructions:
+
+1. Open <https://console.cloud.google.com/iam-admin/iam?project=oxford-lancers-operations>
+   and sign in as the Owner (`oxfordlancers@gmail.com`).
+2. Check the project name at the top reads **Oxford Lancers Operations**.
+3. Click **＋ GRANT ACCESS**.
+4. **New principals**: `brian.daniel.schuster@gmail.com`
+5. **Assign roles** → **Select a role** → type `Workload Identity Pool` in the
+   filter → choose **IAM Workload Identity Pool Admin**.
+6. Click **SAVE**. The change takes effect within about a minute.
+
+The CLI equivalent, for an Owner who prefers it:
 
 ```bash
 gcloud projects add-iam-policy-binding oxford-lancers-operations \
-  --member="user:<google-account>" \
+  --member="user:brian.daniel.schuster@gmail.com" \
   --role="roles/iam.workloadIdentityPoolAdmin"
 ```
 
