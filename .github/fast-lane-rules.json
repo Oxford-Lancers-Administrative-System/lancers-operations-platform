@@ -1,0 +1,197 @@
+{
+  "version": 1,
+  "_purpose": "The checked-in eligibility rules for the batched fast lane (LAN-102, docs/adr/0017). The merge workflow and tests/fast-lane-*.test.ts both read THIS file, from the base branch, never from the pull request under evaluation. Prose describing the lane lives in docs/fast-lane.md and AGENTS.md; this file is what actually decides.",
+  "_evaluationOrder": [
+    "1. Any changed file whose status is not in allowedChangeStatuses makes the batch ineligible.",
+    "2. Any path matching `protected` makes the batch ineligible (protected governance rule).",
+    "3. Any path matching `ineligible` (and none of that entry's `except` globs) makes the batch ineligible.",
+    "4. A path matching a class `include` glob takes that class.",
+    "5. Anything else is UNCLASSIFIED, which is ineligible. Absence of a rule is never permission.",
+    "6. If any file took the `test` class, testGuards are applied to the whole diff.",
+    "7. An empty diff is ineligible."
+  ],
+  "baseBranch": "main",
+  "optInLabel": "fast-lane",
+  "_optInLabel": "The label expresses INTENT and is how a pull request asks to be considered. It is never evidence of eligibility: the workflow recomputes eligibility from the diff and refuses a labelled pull request whose diff contains an ineligible path.",
+  "requiredChecks": ["Format, lint, typecheck, test, build", "Container builds and serves"],
+  "_requiredChecks": "The job `name:` values in .github/workflows/ci.yml. Every one must have concluded `success` against the pull request's current head commit. A queued, running, skipped, cancelled, neutral, stale or failed check blocks the merge; a check that did not run is not a check that passed. GitHub branch protection is the authoritative gate — this list is a second, independently checked-in copy so that renaming a job in ci.yml without updating branch protection fails a test instead of silently emptying the gate.",
+  "allowedChangeStatuses": ["A", "M"],
+  "_allowedChangeStatuses": "Added and modified only. A deletion, a rename, a copy or a type change is ineligible whatever it touches — deleting a runbook or renaming a test away is exactly the shape of change that needs a human, and refusing the whole class is simpler to reason about than enumerating the safe deletions.",
+  "protected": [
+    {
+      "path": ".github/**",
+      "reason": "Automatic-merge authority itself: the merge workflow, these rules, CI, the deploy pipeline and the pull-request template. A lane that can merge a change to the thing that decides what it may merge has no ceiling."
+    },
+    {
+      "path": ".claude/**",
+      "reason": "The agent harness — role definitions, the lead workflow and the mechanical deny rules that stop an agent merging. On the mandatory level-2 review floor (ADR 0015)."
+    },
+    {
+      "path": "AGENTS.md",
+      "reason": "The authoritative working agreement, and where the fast-lane policy, its exclusions and its required verification are written down."
+    },
+    {
+      "path": "CLAUDE.md",
+      "reason": "Agent instructions, and it imports AGENTS.md."
+    },
+    {
+      "path": "scripts/fast-lane/**",
+      "reason": "The classifier and the gate. The code that computes eligibility cannot be merged by the lane it computes eligibility for."
+    },
+    {
+      "path": "tests/fast-lane-*.test.ts",
+      "reason": "The tests that prove the lane behaves as written. A lane that can merge a weakening of its own tests can merge anything next."
+    },
+    {
+      "path": "tests/agent-harness.test.ts",
+      "reason": "The checked-in proof that agents cannot merge, un-draft, deploy or reach hosted Supabase."
+    },
+    {
+      "path": "docs/fast-lane.md",
+      "reason": "The prose statement of eligibility, required verification and merge authority."
+    },
+    {
+      "path": "docs/adr/**",
+      "reason": "Decision records. Reversing or amending one is Brian's decision (AGENTS.md, 'Stop and ask Brian'), and ADR 0017 records this lane's own authority."
+    }
+  ],
+  "ineligible": [
+    {
+      "path": "src/**",
+      "reason": "Application and production code, regardless of line count — including the tests colocated beside it, which sit in the same directories as the code they cover and cannot be told apart from it by path alone."
+    },
+    {
+      "path": "supabase/**",
+      "reason": "Schema, migrations and database configuration."
+    },
+    {
+      "path": "scripts/**",
+      "except": ["scripts/pilot/**/*.md"],
+      "reason": "Executable tooling: type generation, the RLS gate, the seed, and the hand-run hosted pilot SQL. Only the pilot READMEs beside that SQL are documentation."
+    },
+    {
+      "path": "package.json",
+      "reason": "Dependency and command surface."
+    },
+    {
+      "path": "package-lock.json",
+      "reason": "Dependency surface."
+    },
+    {
+      "path": ".env.example",
+      "reason": "Secret and configuration surface."
+    },
+    {
+      "path": "Dockerfile",
+      "reason": "Deployment and infrastructure."
+    },
+    {
+      "path": ".dockerignore",
+      "reason": "Deployment and infrastructure."
+    },
+    {
+      "path": "docs/architecture.md",
+      "reason": "The architecture and security model. The issue excludes architecture changes, and a doc-only edit here either records a change that is not in this diff or drifts from one that is."
+    },
+    {
+      "path": "docs/architecture/**",
+      "reason": "The physical data model. AGENTS.md requires it to change in the same commit as a migration, so it never changes alone in an eligible batch."
+    },
+    {
+      "path": "next.config.ts",
+      "reason": "Build configuration."
+    },
+    {
+      "path": "tsconfig.json",
+      "reason": "Build configuration."
+    },
+    {
+      "path": "eslint.config.mjs",
+      "reason": "Quality-gate configuration."
+    },
+    {
+      "path": "postcss.config.mjs",
+      "reason": "Build configuration."
+    },
+    {
+      "path": "vitest.config.ts",
+      "reason": "Test-harness configuration: it decides which tests run at all."
+    },
+    {
+      "path": "vitest.setup.ts",
+      "reason": "Test-harness configuration."
+    },
+    {
+      "path": ".prettierrc.json",
+      "reason": "Quality-gate configuration."
+    },
+    {
+      "path": ".prettierignore",
+      "reason": "Quality-gate configuration: it decides which files are checked."
+    },
+    {
+      "path": ".gitignore",
+      "reason": "Decides what can be committed, including what stays out of a public repository."
+    },
+    {
+      "path": "public/**",
+      "reason": "Shipped assets."
+    }
+  ],
+  "classes": {
+    "documentation": {
+      "include": ["docs/**/*.md", "README.md", "scripts/pilot/**/*.md"],
+      "_note": "Operational and production runbooks are deliberately included — docs/pilot-data-runbook.md and docs/migration-runbook.md are documentation, and stating a boundary accurately in one is the kind of change this lane exists for. docs/adr/** and docs/architecture* are removed above."
+    },
+    "test": {
+      "include": ["tests/**/*.test.ts", "tests/**/*.test.tsx", "tests/helpers/**/*.ts"],
+      "_note": "Cross-cutting tests under tests/ only. Colocated src/**/*.test.ts is excluded by src/** above, on purpose."
+    },
+    "agent-instruction": {
+      "include": [],
+      "_note": "Deliberately empty today, and this is a finding rather than an oversight. LAN-102 makes agent-instruction changes eligible EXCEPT the protected governance rules — but every agent-instruction file in this repository (AGENTS.md, CLAUDE.md, .claude/**, and the pull-request template) now carries at least one of the four protected rules: fast-lane eligibility, required verification, automatic-merge authority, or the protection of those rules. Applying the issue's own exclusion therefore empties the class. Widening it is a decision for Brian, taken with a human reading the diff, which is the whole point of the exclusion. See docs/fast-lane.md."
+    }
+  },
+  "testGuards": {
+    "_purpose": "Applied whenever any file in the batch took the `test` class. A test change may add coverage, strengthen coverage, or correct a demonstrably incorrect or flaky test. It may not remove or weaken coverage.",
+    "forbidNetNegativeTestLines": true,
+    "forbidNetRemovedAssertions": true,
+    "assertionTokens": ["expect("],
+    "forbidAddedTokens": [
+      "it.skip(",
+      "test.skip(",
+      "describe.skip(",
+      "it.only(",
+      "test.only(",
+      "describe.only(",
+      "it.todo(",
+      "test.todo(",
+      "it.fails(",
+      "test.fails(",
+      "xit(",
+      "xdescribe(",
+      ".skipIf(",
+      ".runIf(",
+      "expect.soft(",
+      "vi.mock(",
+      "@vitest-skip"
+    ],
+    "_forbidAddedTokens": "Introducing any of these into a test file sends the batch to the normal lane. They are not forbidden in the repository — they are forbidden as an unreviewed change."
+  },
+  "verification": {
+    "_purpose": "Proportionate LOCAL verification, fixed per class so that no agent chooses its own. Required GitHub CI (requiredChecks above) is the merge gate and runs the complete repository check on every pull request regardless; these local commands are what an agent must run and observe passing before opening the batch.",
+    "_notRequired": "`npm run build` is not required locally for either class: no file Next.js compiles is in an eligible batch, and CI builds the application and the container on every pull request anyway. This is the one place the repository-wide `npm run verify` requirement is narrowed, and it is narrowed only for these classes.",
+    "documentation": {
+      "local": ["npm run format:check", "npm run test"],
+      "_why": "Prettier formats Markdown, so a docs change can fail format:check. Several suites assert on documentation content — tests/pilot-data-contract.test.ts, tests/agent-harness.test.ts and tests/fast-lane-*.test.ts — so a runbook edit can break a test without touching a line of code."
+    },
+    "test": {
+      "local": ["npm run format:check", "npm run lint", "npm run typecheck", "npm run test"],
+      "_why": "A test change is TypeScript: it can fail formatting, linting, type checking, or the suite itself."
+    },
+    "agent-instruction": {
+      "local": ["npm run format:check", "npm run lint", "npm run typecheck", "npm run test"],
+      "_why": "Stated so the rule exists if the class is ever widened. The class is empty today."
+    }
+  }
+}
