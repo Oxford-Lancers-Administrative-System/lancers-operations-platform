@@ -248,13 +248,20 @@ describe("row 11 — everything ineligible keeps the workflow it already had", (
   });
 
   it("does not turn the general rule into a suggestion", () => {
-    const section = fastLaneSection();
+    // Flattened: `npm run verify` in backticks is the same sentence as npm run
+    // verify without them, and a guard that only catches one of the two spellings
+    // fails on the one somebody would actually write.
+    const section = flat(fastLaneSection());
     for (const softener of [
       /npm run verify is (now )?optional/i,
-      /verify (is )?no longer required/i,
-      /pull requests need not be drafts/i,
-      /agents may merge/i,
+      /npm run verify (is )?(now )?no longer required/i,
+      /npm run verify need not/i,
+      /without running npm run verify/i,
+      /verify is optional/i,
+      /(pull requests|batches|they) need not be drafts/i,
+      /(an )?agents? may merge/i,
       /at the (agent|implementer)'s discretion/i,
+      /the agent decides (what|which|how much)/i,
     ]) {
       expect(section, `the fast-lane section must not say: ${softener}`).not.toMatch(softener);
     }

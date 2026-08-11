@@ -122,9 +122,17 @@ describe("row 2 — application and production code is never eligible", () => {
     "docs/architecture/data-model.md",
   ];
 
-  it.each(NEVER_ELIGIBLE)("refuses %s", (file) => {
-    expect(classifyPath(file, rules).eligible).toBe(false);
+  it.each(NEVER_ELIGIBLE)("refuses %s by an explicit rule, not by accident", (file) => {
+    const result = classifyPath(file, rules);
+    expect(result.eligible).toBe(false);
     expect(classify({ files: modified(file) }, rules).eligible).toBe(false);
+    // "excluded" means a rule named this path and said no. "unclassified" means
+    // it fell off the end and the fail-closed default caught it. Both refuse
+    // today, but only the first survives someone widening a class include — so
+    // deleting `src/**` from the excluded set must fail here rather than pass
+    // because the default happened to cover for it.
+    expect(result.verdict, `${file} is refused only by the fail-closed default`).toBe("excluded");
+    expect(result.reason).toBeTruthy();
   });
 
   it("refuses a one-line change and a comment-only change alike", () => {
