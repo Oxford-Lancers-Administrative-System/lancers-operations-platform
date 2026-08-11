@@ -102,11 +102,27 @@ a notice and skips cleanly rather than failing red.
 
 ## Secrets
 
-The Supabase secret key lives in **Secret Manager** and is injected into the
-Cloud Run revision at runtime (`--set-secrets`). It is never baked into the
-image, never present in the workflow environment, and never in the repository.
+Two server-only values, and they are **different credentials with different
+reach**. Both live in **Secret Manager** and are injected into the Cloud Run
+revision at runtime (`--set-secrets`). Neither is baked into the image, present
+in the workflow environment, or in the repository.
 
-Rotate it with:
+| Variable              | Secret Manager id     | What it is                                                                                                                                                                | Status                          |
+| --------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `SUPABASE_SECRET_KEY` | `supabase-secret-key` | Presented to the Data API. PostgREST connects as `authenticator`, switches to `service_role`. Bypasses RLS.                                                               | **Provisioned**                 |
+| `DATABASE_URL`        | not created yet       | Direct PostgreSQL connection for the service layer's transactions. A PostgreSQL login in its own right — a **second** privileged credential, broader than `service_role`. | **Not provisioned. See below.** |
+
+**`DATABASE_URL` has no hosted value, and creating one is not a deployment
+task.** Which PostgreSQL role the hosted runtime uses, the minimum grants it
+needs, whether it bypasses RLS, how the secret is rotated, and which connection
+mode suits Cloud Run's scale-to-zero profile are all open questions owned by
+LAN-83 and recorded in
+[ADR 0014](adr/0014-transactional-data-access.md). Do not invent one: locally
+the connection is `postgres`, which has admin privileges, and copying that shape
+to production would hand the runtime a database superuser. Until LAN-83 closes,
+no deployed code path reads this variable.
+
+Rotate the Supabase secret key with:
 
 ```bash
 printf '%s' 'NEW_KEY' | gcloud secrets versions add supabase-secret-key --data-file=-

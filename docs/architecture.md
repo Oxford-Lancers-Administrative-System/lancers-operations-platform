@@ -97,6 +97,40 @@ Route protection in `proxy.ts` is convenience, not the authorization boundary.
 `/dashboard` re-checks the session itself, because a proxy matcher can be changed
 or bypassed and Server Actions are not separate routes in the matcher chain.
 
+### Reaching club data
+
+Club data is never read or written from a component, a Server Action or a route
+handler directly. Everything goes through a **service module** under
+`src/lib/services/`, and there are two ways out of it into the database:
+
+```
+Server Component / Server Action / route handler
+  │
+  └─▶ src/lib/services/*        one module per aggregate; every function takes
+      │                          an explicit actor (personId from resolveOperator)
+      │
+      ├─▶ createAdminClient()   Data API · secret key → PostgREST connects as
+      │                          `authenticator`, switches to `service_role`
+      │                          Reads that need no transaction.
+      │
+      └─▶ withTransaction()     src/lib/db · DIRECT PostgreSQL connection, a
+                                 SEPARATE credential and a SECOND access path.
+                                 Real begin/commit. Nested calls join the outer
+                                 transaction — an inner failure rolls the whole
+                                 thing back. Every multi-statement write, and
+                                 recordAudit(tx, …) alongside the change it
+                                 describes (invariant M2).
+```
+
+Both paths are privileged and server-only. They are **not the same principal**:
+the second authenticates as a PostgreSQL login in its own right — locally
+`postgres`, which owns every table and has admin privileges. See
+[ADR 0014](adr/0014-transactional-data-access.md), and
+`src/lib/services/README.md` for the conventions a service module follows.
+
+The hosted runtime role for that second path, its grants, its RLS treatment and
+its pooling mode are **deliberately unresolved** and owned by LAN-83.
+
 ## Security model
 
 Three tiers of configuration, and the boundary between them is the thing to get
@@ -107,10 +141,32 @@ right:
 | Local        | CLI-generated keys in `.env.local`     | n/a                       | n/a           |
 | Browser-safe | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | **Yes**, inlined at build | No            |
 | Server-only  | `SUPABASE_SECRET_KEY`                  | Never                     | **Yes**       |
+| Server-only  | `DATABASE_URL`                         | Never                     | **Yes**       |
+
+**There are two privileged credentials, not one, and they are different
+principals.** `SUPABASE_SECRET_KEY` is presented to the Data API; PostgREST
+connects as `authenticator` and switches to `service_role`, which bypasses RLS
+via `BYPASSRLS`. `DATABASE_URL` is a direct PostgreSQL connection authenticating
+as a PostgreSQL login in its own right, with that login's own attributes and
+grants — locally `postgres`, which owns every table and has admin privileges.
+The second is a **broader** credential and reaches the database by a route
+PostgREST's grants do not mediate. [ADR 0010](adr/0010-domain-table-access-posture.md)'s
+posture is extended by it, not preserved unchanged — see
+[ADR 0014](adr/0014-transactional-data-access.md).
+
+The hosted role for `DATABASE_URL`, its grants, whether it bypasses RLS, and its
+pooling mode are **open questions owned by LAN-83**. No hosted value exists, and
+none may be created without that decision. Locally the guard in
+`src/lib/db/url.ts` refuses any non-loopback host and any hosted Supabase
+connection string, and is not configurable.
 
 - Anything prefixed `NEXT_PUBLIC_` is public. Assume the internet reads it.
-- `admin.ts` imports `server-only`, so importing it from a Client Component is a
-  build error rather than a leak.
+- `admin.ts` and `src/lib/db/` import `server-only`, so importing either from a
+  Client Component is a build error rather than a leak.
+- A database rejection reaching an operator is mapped to a typed error carrying
+  only `code`, `constraint` and `table`. PostgreSQL's `detail`, `hint` and
+  `where` quote the offending row — for this schema, a real person's details —
+  and are never copied out.
 - RLS is deny-by-default on every exposed table — [ADR 0002](adr/0002-rls-posture.md).
 - Domain tables are also unreachable at the **grant** level: `anon` and
   `authenticated` hold no privilege on any of them, and every view is
@@ -119,6 +175,9 @@ right:
   anywhere can hold a diagnosis or treatment (Requirement 8, enforced
   structurally and asserted by test).
 - The service layer is the primary authorization boundary; RLS is the backstop.
+  The layer now exists — `src/lib/db/` and `src/lib/services/` — but it carries
+  **no authorization rule yet**. `requireRole()` arrives in LAN-73. Until then a
+  service function takes an actor and records it; it does not check it.
 - Development and CI never touch production — [ADR 0001](adr/0001-local-supabase-only.md).
 
 ## Authentication scope
