@@ -68,10 +68,11 @@ export default async function DashboardPage() {
             // "No operator record is linked to this account" was false for a
             // deactivated operator, whose record *is* linked and has simply
             // been disabled, and it sent that person somewhere useless. The
-            // replacement is true of all three causes and still discloses which
-            // one applies to nobody. Brian chose one neutral state over two
-            // specific ones on 2026-08-11; the vocabulary is LAN-90's to
-            // settle, and LAN-73 may revisit it when it builds the real state.
+            // replacement is true of all three causes, and still tells the
+            // reader nothing about which of them applies to him. Brian chose
+            // the one neutral state over two specific ones on 2026-08-11; the
+            // vocabulary is LAN-90's to settle, and LAN-73 may revisit it when
+            // it builds the real state.
             <Alert severity="warning" sx={{ width: "100%" }}>
               This account cannot access the operator area. Contact the committee.
             </Alert>
