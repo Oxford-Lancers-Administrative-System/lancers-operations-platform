@@ -23,9 +23,22 @@ checked-in template or commit run evidence into a feature branch.
 Written **before** launch, and left unedited afterwards. If reality diverged
 from it, say so in Corrections rather than rewriting this section.
 
-| Issue    | Why it is unblocked                                         | Dependency status        | Worktree / branch | Database lock   |
-| -------- | ----------------------------------------------------------- | ------------------------ | ----------------- | --------------- |
-| `LAN-nn` | `<blocking issues, and the merge commit that cleared each>` | `<all merged into main>` | `<branch>`        | HELD / NOT HELD |
+| Issue    | Review level                                                      | Why it is unblocked                                         | Dependency status        | Worktree / branch | Database lock   |
+| -------- | ----------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------ | ----------------- | --------------- |
+| `LAN-nn` | `<0 / 1 / 2 / 3 — level 2 if this cell is missing or left blank>` | `<blocking issues, and the merge commit that cleared each>` | `<all merged into main>` | `<branch>`        | HELD / NOT HELD |
+
+**Review level and expected blast radius** — assigned at matrix time, before
+launch, per `SKILL.md` §4:
+
+| Issue    | Review level      | Expected blast radius                                    | Justification (required below level 2)                                                               |
+| -------- | ----------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `LAN-nn` | `<0 / 1 / 2 / 3>` | `<what breaks if this is wrong, and who could reach it>` | `<why it is unreachable or non-behavioural, and that no mandatory-floor path is touched — or "n/a">` |
+
+An unspecified level is **level 2**, never "no review" — the default fails safe,
+upward. An assignment below level 2 with no justification recorded **both** here
+and in the per-issue section below is not compliant, and the level reverts to 2.
+A change touching the mandatory level-2 floor is at least level 2 however small
+it is.
 
 **Expected collisions:** `<shared files, migrations, generated types — and how
 they were serialised, or why the pair is genuinely independent>`
@@ -48,6 +61,13 @@ record, each test matrix, and this report>`
 
 - **Branch / pull request:** `<branch>` · `<draft PR URL>` · still draft: yes/no
 - **Test matrix:** `<link or inline>` — material behaviours: `<n>`, critical: `<n>`
+- **Review level:** `<0 / 1 / 2 / 3 — level 2 if this line is missing or left
+blank>` · assigned at matrix time · re-checked against the actual diff at §6:
+  `<unchanged, or raised to <n> because ...>`
+- **Justification for a level below 2:** `<why it is unreachable or
+non-behavioural, the expected blast radius, and confirmation that no
+mandatory-floor path is touched — required here as well as in the wave record;
+"n/a" at level 2 and above>`
 - **Tests added:** `<files, and what each proves>`
 - **Commands run, and observed result:**
 
@@ -60,7 +80,8 @@ must match the pull request head>`
 - **CI:** `<check names, current head SHA, run URL, and conclusion per required
 check — verified from gh pr checks plus the Actions log for this commit, not
 from a worker's claim. Note the test count observed.>`
-- **Independent review verdict:** blocked / clear
+- **Independent review verdict:** blocked / clear / `<not launched — level 0 or
+1, with the justification above>`
   - Blockers: `<verbatim, or "none">`
   - Suggestions: `<or "none">`
 - **Critical behaviours challenged** (reviewer injected a plausible defect and

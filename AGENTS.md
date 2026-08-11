@@ -307,13 +307,14 @@ each issue before any implementation starts**, runs at most **two**
 worktree-isolated implementers on genuinely independent issues, checks each
 result against the repository and the Actions logs rather than against the
 worker's report, routes every draft pull request through the independent
-reviewer, and leaves durable Linear evidence before and after the wave. Work
+reviewer at **review level 2 and above**, and leaves durable Linear evidence
+before and after the wave. Work
 that could collide is serialised, not parallelised. The local Supabase stack is
 one shared set of containers, so one wave-wide lock covers implementers and
 reviewers; at most one agent may use database-backed tests or destructive
 database commands at a time.
 
-Three rules follow from that and are worth stating on their own:
+These rules follow from that and are worth stating on their own:
 
 - **The implementer writes the tests; it does not certify them.** The reviewer
   judges adequacy independently against the matrix, and challenges every
@@ -333,6 +334,21 @@ Three rules follow from that and are worth stating on their own:
 - **One database lock, every agent.** Worktree isolation isolates files, not the
   local Supabase stack — one set of containers shared by every worktree.
   Implementers and reviewers alike hold the lock one at a time.
+- **Review is graded, and the grade is set before implementation.** Four levels —
+  **0** none, **1** lead verification, **2** full independent review, **3**
+  multi-round — keyed on **reachability and blast radius, never on diff size**,
+  and assigned with the test matrix rather than from the diff that comes back.
+  **Level 2 is the default, and an unspecified level resolves to level 2** rather
+  than to "no review": the default fails safe, upward. A **mandatory level-2
+  floor** overrides the lead's discretion however small the change is —
+  `supabase/migrations/`, any grant, policy or RLS surface, `src/lib/auth/`,
+  `src/lib/db/`, secrets or `.env.example`, any dependency change
+  (`package.json`, `package-lock.json`), `.claude/`, `.github/workflows/`, and
+  `AGENTS.md`. The lead may assign level 0 or 1 on its
+  own authority **only** with the justification recorded in both the wave record
+  and the run report. **One correction cycle at every level**, and the
+  defect-injection standard at levels 2 and 3 is untouched. See
+  [`docs/adr/0015-graded-review-levels.md`](docs/adr/0015-graded-review-levels.md).
 
 **No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase,
 or writes to production.** Brian merges. `.claude/settings.json` blocks

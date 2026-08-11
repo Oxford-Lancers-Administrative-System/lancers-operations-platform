@@ -24,6 +24,11 @@ Concurrency starts at two deliberately.
 would justify raising it. Raising it is Brian's decision, not a judgement you
 make mid-wave.
 
+Review is **graded** rather than uniform: four levels, chosen at matrix time from
+reachability and blast radius, with a mandatory level-2 floor and level 2 as the
+default. §4 defines them, and `docs/adr/0015-graded-review-levels.md` records the
+reasoning.
+
 ## 1 — Read the graph before choosing anything
 
 Read the current **First Operational Vertical Slice** project in Linear: every
@@ -169,7 +174,7 @@ likely way a two-agent wave produces a confusing, wrong result.
 Prefer one issue over a bad pair. A wave of one that lands is worth more than a
 wave of two that collide.
 
-## 4 — Write the test contract before any implementation
+## 4 — Write the test contract, and set the review level, before any implementation
 
 **For each selected issue, write a test matrix before the implementer is
 launched.** Use `test-matrix.md` beside this file. Derive it from the Linear
@@ -188,6 +193,120 @@ ambiguity yourself, and never let the implementer resolve it by choosing its
 preferred behaviour. That is how a slice silently becomes a different product.
 
 The matrix goes into the delegation brief and into the pull request evidence.
+
+### Assign the review level, with the matrix, before anyone writes code
+
+**Every issue is reviewed. What varies is how much.** The harness prescribes four
+graded review levels, and the level is chosen **from the acceptance criteria, at
+matrix time, before an implementer is launched** — never from the diff that comes
+back. Choosing it afterwards is how a level gets picked to fit the work that was
+actually done.
+
+Record two things beside each matrix, in the wave record:
+
+- the **review level** — one of the four below;
+- the **expected blast radius** — one sentence naming what could go wrong if this
+  change were defective, and who or what could reach the defect. Writing that
+  sentence is the point of the exercise: it is what surfaces "nothing consumes
+  this yet" before wave-scale process is applied to a patch-scale change, and it
+  is what stops a level being chosen by feel.
+
+#### The criterion is reachability and blast radius, never diff size
+
+**Diff size is not the criterion, and "it is only a small change" is never a
+reason to review less.** That reasoning is exactly how scrutiny gets skipped on
+the changes that most need it — a one-character `>=`, a deleted guard, a widened
+`select`. Two of LAN-72's four review blockers were one-line defects, and one of
+them leaked a person's name and contact details out of the single field three
+documents promise never to copy out.
+
+Ask these two questions instead:
+
+- **Reachability** — can a defect here be reached from a deployed code path, by a
+  user, an operator, or a scheduled job? Something nothing consumes yet cannot
+  reach a person yet, and the issue that wires it up gets its own review under
+  real enforcement, which is a stronger test than a reviewer poking at it in
+  isolation.
+- **Blast radius** — if it is wrong, what is the worst observable outcome? A
+  cosmetic string is not an authorization bypass, a privacy leak, or a destroyed
+  database.
+
+A four-line change to an authorization predicate is level 2 or 3. A large change
+that nothing imports may be level 1. Neither conclusion comes from counting
+lines.
+
+#### The four levels
+
+| Level                           | What runs                                                                                                                                                                                | When it applies                                                                                                                                                                                                |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0 — none**                    | The lead verifies CI for the current head SHA and reads the whole diff itself. No independent reviewer is launched.                                                                      | Documentation only, with no behavioural change and no change to a runbook, role definition, or policy that gates a production action.                                                                          |
+| **1 — lead verification**       | Everything at level 0, plus the lead checks the implementer's own defect-injection results and its disclosed residual risk against the matrix.                                           | A behavioural change that is unreachable from any deployed code path, touches no security or privacy surface, adds no dependency, and changes no schema. **All four must hold**; one failing makes it level 2. |
+| **2 — full independent review** | §7 in full: a fresh-context reviewer, pinned to the head SHA, judging test adequacy independently against the matrix and challenging every critical row by injecting a plausible defect. | **The default.** Anything reachable by a user or an operator, anything carrying a critical matrix row, and everything on the mandatory floor below.                                                            |
+| **3 — multi-round**             | Level 2, and then the corrections are re-reviewed **as new code** — re-read and re-challenged in fresh context, rather than merely confirmed to have addressed the earlier blockers.     | Migrations; grants, policies, or RLS; authentication or authorization; secrets or a new privileged credential; and any change to the harness itself.                                                           |
+
+The assigned level is a minimum, not a quota. Raising it needs no justification,
+and any agent may ask for a higher one at any point.
+
+#### Level 2 is what happens when nobody says otherwise
+
+**An unspecified level is level 2.** A wave record with no review-level field, a
+level left blank, a level nobody got round to deciding, or a value outside 0–3
+resolves to **2 — full independent review**. It is never read as level 0, and it
+is never read as "no review".
+
+The default fails **safe, upward**. Silence means _more_ scrutiny, not less,
+because the outcome this structure exists to prevent is a defect reaching a
+person unchallenged — not a review that turned out to be unnecessary. If you find
+yourself about to skip a review because nobody wrote a level down, that omission
+is exactly the case this default exists for: run level 2.
+
+#### The mandatory level-2 floor — it overrides the lead's discretion
+
+A change touching any of these is **at least level 2 regardless of how small it
+is**, and the lead may not reason its way past it. A floor a lead can argue
+around is not a floor:
+
+- any change under `supabase/migrations/`;
+- any grant, policy, or RLS surface — a `grant`, a `revoke`, a policy, or a
+  view's `security_invoker` declaration;
+- anything under `src/lib/auth/`;
+- anything under `src/lib/db/`;
+- anything touching a secret, or `.env.example`;
+- any dependency change — `package.json`, `package-lock.json`, or a first use of
+  a package not already depended on;
+- any change under `.claude/`;
+- any change under `.github/workflows/`;
+- any change to `AGENTS.md`.
+
+A change touching one floor path and nothing else is still level 2. The floor is
+not satisfied by the change being tiny, by a green CI run, or by the implementer
+having injected its own defects.
+
+**This list is a floor, not a definition of what deserves review.** Level 2
+remains the default for everything; these entries only remove the lead's
+discretion to go below it. A path's absence from the list is never an argument
+for level 0 or 1 — that case still has to be made on reachability and blast
+radius, and recorded.
+
+#### The lead may assign level 0 or 1 — but only on the record
+
+The lead may assign level 0 or level 1 on its own authority, without waiting for
+Brian, **provided the justification is recorded in both places**:
+
+1. in the **wave record**, before launch, beside the matrix; and
+2. in the **run report**, afterwards.
+
+The justification names the level, says why the change is unreachable or
+non-behavioural, states the expected blast radius, and confirms that no
+mandatory-floor path is touched.
+
+**An assignment below level 2 with no recorded justification is not compliant,
+and the level reverts to 2.** The lead is deciding how much scrutiny its own wave
+receives, which is the one judgement here that nothing else checks; the written
+reason is the whole audit trail. A skipped review that reads as an oversight is
+worse than either doing it or deciding openly not to.
+
+Assigning a level _above_ the floor never needs a justification.
 
 ### End-to-end testing policy
 
@@ -215,6 +334,8 @@ copy in chat or a transient worktree.
 The record contains:
 
 - the selected issues, and why each is unblocked;
+- the **review level** for each, its **expected blast radius**, and — for any
+  level below 2 — the justification required by §4;
 - dependency status, naming the merges that cleared each blocker;
 - expected shared-file, migration, or database collisions, and how they are
   serialised;
@@ -312,12 +433,40 @@ result — it is a claim you have chosen to believe.
 If any of this does not hold, send it back to that worker with the specific gap.
 Do not repair it yourself, and do not pass it to the reviewer.
 
+### Re-check the review level against the diff you just read
+
+The level was assigned at §4 from acceptance criteria, before the code existed.
+You are looking at the code now, so this costs nothing:
+
+- if the diff touches a **mandatory-floor** path the matrix did not anticipate,
+  the level is at least 2 — raise it and proceed at the higher one;
+- if a change assigned level 0 or 1 turns out to be **reachable** after all,
+  raise it;
+- **never lower a level here.** Lowering it from the returned diff is choosing
+  the scrutiny to fit the work, which is the failure the matrix-time rule exists
+  to prevent. If the level now looks too high, run it anyway and say so in the
+  run report.
+
+Record any raise, and the reason, in the run report.
+
 ## 7 — Independent review
 
-For each pull request that survives §6, launch the `code-reviewer` subagent in
-fresh context. Give it the pull request number, **the head commit SHA it must
-review**, the Linear issue identifier, the test matrix, and whether it holds the
-wave-wide database lock. **Do not** paste the implementer's summary into it, and
+**This section is what level 2 means, and it runs in full at levels 2 and 3.**
+The graded levels in §4 decide _when_ an independent review happens; they never
+decide what one consists of. Nothing below is negotiable, and no level weakens
+the defect-injection standard.
+
+At level 0 or level 1 no independent reviewer is launched: the lead performs the
+verification that level describes, and the justification recorded at §4 stands in
+its place. At level 3, run this section, then send the corrections back through
+it as new code — re-read and re-challenged in fresh context, not merely confirmed
+to have addressed the earlier blockers.
+
+For each pull request that survives §6 at level 2 or above, launch the
+`code-reviewer` subagent in fresh context. Give it the pull request number, **the
+head commit SHA it must review**, the Linear issue identifier, the test matrix,
+**the review level it is being invoked at**, and whether it holds the wave-wide
+database lock. **Do not** paste the implementer's summary into it, and
 do not tell it what you concluded — its independence is the entire reason it
 exists.
 
@@ -341,18 +490,24 @@ Blockers go back to the implementer that wrote the code, with the reviewer's
 finding verbatim. Then re-verify (§6) and re-review. The reviewer never fixes its
 own findings.
 
-**One correction cycle.** If CI or the independent review still fails after one
-reasonable correction cycle, stop and report it as a blocker. Do not grind.
+**One correction cycle, at every level.** The limit does not scale with the
+level. If CI or the independent review still fails after one reasonable
+correction cycle, stop and report it as a blocker. Do not grind. Level 3's
+re-review of the corrections happens **inside** that single cycle — it is a
+second pass over one correction, not a second correction. A defect found later,
+by a subsequent issue's review, re-enters as new work with its own level rather
+than consuming a cycle budget belonging to something else.
 
 ## 8 — Leave a run report
 
 Produce the full report from `run-report.md` for every wave, including one that
 was abandoned, blocked, or interrupted. It carries: issues attempted, branches
-and pull requests, test matrices, tests added and commands executed, CI results
-and run links, independent-review findings, the critical behaviours deliberately
-challenged and whether the tests caught them, the database-lock timeline,
-corrections made, blockers and owner decisions needed, untested areas and
-residual risks, the exact repository state, and the recommended next action.
+and pull requests, test matrices, **the review level assigned to each issue with
+its justification and any raise made at §6**, tests added and commands executed,
+CI results and run links, independent-review findings, the critical behaviours
+deliberately challenged and whether the tests caught them, the database-lock
+timeline, corrections made, blockers and owner decisions needed, untested areas
+and residual risks, the exact repository state, and the recommended next action.
 
 Persist the completed report as a new Linear comment on every attempted issue and
 include links to every draft pull request and CI run. Do not edit the template or

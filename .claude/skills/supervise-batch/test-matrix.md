@@ -26,6 +26,28 @@ implementer fill it — if the issue is:**
 Product ambiguity is Brian's to resolve. An implementer choosing its preferred
 reading is how a slice quietly becomes a different product.
 
+## Review level and expected blast radius — decide them here
+
+Two required fields, filled in **now**, from the acceptance criteria — not later,
+from the diff that comes back.
+
+**Review level:** `<0 / 1 / 2 / 3 — level 2 if this line is missing or left blank>`
+
+**Expected blast radius:** `<one sentence: what could go wrong if this change were
+defective, and who or what could reach the defect — a user, an operator, a
+scheduled job, or nothing yet>`
+
+**Justification, required only below level 2:** `<why the change is unreachable
+or non-behavioural, and confirmation that it touches no mandatory-floor path>`
+
+The level is keyed on **reachability and blast radius, never on diff size**. The
+mandatory level-2 floor, the four levels, and the recording requirements are in
+`SKILL.md` §4; a change on the floor is at least level 2 however small it is, and
+the lead may not reason its way past that. Copy all three fields into the wave
+record and, below level 2, into the run report as well. Writing the blast-radius
+sentence is what surfaces "nothing consumes this yet" before wave-scale process
+is applied to a patch-scale change.
+
 ## The matrix
 
 One row per **material behaviour** — a behaviour a person or another system can

@@ -22,5 +22,6 @@ accident. Routine implementation choices do not need an ADR.
 | [0010](0010-domain-table-access-posture.md)      | Domain tables are unreachable from the browser, twice over                               | Accepted               |
 | [0011](0011-domain-schema-baseline.md)           | The zero-domain-schema boundary is closed                                                | Accepted               |
 | [0012](0012-explicit-event-audience.md)          | The confirmed event audience is a relation; its non-emptiness is not                     | Accepted               |
-| [0013](0013-supervised-agent-development.md)     | Supervised parallel agent development, capped at two workers                             | Accepted               |
+| [0013](0013-supervised-agent-development.md)     | Supervised parallel agent development, capped at two workers                             | Amended by 0015        |
 | [0014](0014-transactional-data-access.md)        | Transactional writes use a direct PostgreSQL connection — a second privileged credential | Accepted               |
+| [0015](0015-graded-review-levels.md)             | Review is graded into four levels, keyed on reachability                                 | Accepted               |

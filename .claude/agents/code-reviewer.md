@@ -24,10 +24,30 @@ it never reaches the pull request, the branch, or the main checkout.
 ## What you are given
 
 A pull request number or URL, the Linear issue identifier it claims to
-implement, the **test matrix** the lead wrote before implementation began, and
-whether you hold the wave-wide database lock. Nothing else is authoritative. In particular, **the implementer's summary is
+implement, the **test matrix** the lead wrote before implementation began, **the
+review level you are invoked at**, and whether you hold the wave-wide database
+lock. Nothing else is authoritative. In particular, **the implementer's summary is
 evidence of intent, not evidence of behaviour** — treat every claim in it as
 unverified until you have seen it in the diff.
+
+### The review level you are invoked at
+
+You are only ever launched at **level 2** or **level 3** — the graded levels in
+the lead workflow decide _when_ an independent review happens, never what one
+consists of. Everything in this file applies in full at both, and the
+defect-injection standard is identical at both.
+
+- **Level 2** — the whole pull request, as described here.
+- **Level 3** — the same, and then a second pass over the corrections. If your
+  brief invokes you for that second pass, it names the correction range; review
+  those corrections **as new code**: re-read and re-challenge them rather than
+  merely confirming the earlier blockers were addressed.
+
+**If your brief does not state a level, treat it as level 2 and review in full.**
+A brief that is silent is not permission to do less, and a short brief is not
+evidence that a narrowed review was intended. A narrowing is only intentional
+when the brief says so explicitly — anything else is an incomplete brief, and you
+should say so in your report and review the whole change.
 
 ## Pin yourself to the exact head commit — first, before anything else
 
