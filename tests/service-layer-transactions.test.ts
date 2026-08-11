@@ -338,6 +338,57 @@ describe("row 5 — concurrent transactions are isolated", () => {
     expect(await fixture.countPeople(observer, "concurrent-a")).toBe(1);
     expect(await fixture.countPeople(observer, "concurrent-b")).toBe(1);
   });
+
+  it("starts an independent transaction while another is mid-callback", async () => {
+    /**
+     * The staggered case, and the one that actually protects this row.
+     *
+     * The test above launches both calls in one `Promise.all`, so both reach
+     * `pool.connect()` before either records itself as the current
+     * transaction. They therefore get independent connections no matter how
+     * "the current transaction" is stored — including a module-level global,
+     * which would be badly wrong.
+     *
+     * The failure only appears when a second call STARTS while the first is
+     * already inside its callback. That is the ordinary shape of two concurrent
+     * HTTP requests, and with a shared global B would silently JOIN A — so B's
+     * committed work would be destroyed when A rolled back. `AsyncLocalStorage`
+     * scopes the store per async context, which is what makes B independent.
+     */
+    let announceAInside: () => void = () => {};
+    const aIsInside = new Promise<void>((resolve) => (announceAInside = resolve));
+    let announceBDone: () => void = () => {};
+    const bIsDone = new Promise<void>((resolve) => (announceBDone = resolve));
+
+    const txIds: Record<string, string> = {};
+    const boom = new Error("A refuses, after B has already committed");
+
+    const aPromise = withTransaction(async (tx) => {
+      txIds.a = await transactionId(tx);
+      await tx.query(...fixture.insertPerson("stagger-a"));
+      announceAInside();
+      await bIsDone; // B runs entirely inside A's scope.
+      throw boom; // …and A then rolls back.
+    });
+
+    await aIsInside;
+
+    await withTransaction(async (tx) => {
+      txIds.b = await transactionId(tx);
+      await tx.query(...fixture.insertPerson("stagger-b"));
+    });
+    announceBDone();
+
+    await expect(aPromise).rejects.toBe(boom);
+
+    // Two transactions, not one.
+    expect(txIds.b).toBeDefined();
+    expect(txIds.a).not.toBe(txIds.b);
+
+    // B committed on its own account, and A's rollback did not reach it.
+    expect(await fixture.countPeople(observer, "stagger-a")).toBe(0);
+    expect(await fixture.countPeople(observer, "stagger-b")).toBe(1);
+  }, 20_000);
 });
 
 describe("row 6 — the connection goes back to the pool on both paths", () => {

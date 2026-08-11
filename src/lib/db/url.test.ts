@@ -11,11 +11,22 @@
  * Parity with `scripts/lib/local-db.mjs` is asserted separately, in
  * tests/service-layer-guard-parity.test.ts.
  */
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { assertLocalDatabaseUrl, resolveDatabaseUrl } from "./url";
 
 const LOCAL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+
+/** Everything the guard must refuse, reused by the unconditionality suite. */
+const MUST_REFUSE: readonly string[] = [
+  "postgresql://postgres:pw@db.abcdefghijklmnop.supabase.co:5432/postgres",
+  "postgresql://postgres.abcdefghijklmnop:pw@aws-0-eu-west-2.pooler.supabase.com:6543/postgres",
+  "postgresql://postgres:pw@pooler.internal.example:6543/postgres",
+  "postgresql://postgres:pw@10.0.0.7:5432/postgres",
+  "postgresql://postgres:pw@db.oxfordlancers.example:5432/postgres",
+];
 
 describe("what the guard accepts", () => {
   it.each([
@@ -115,5 +126,82 @@ describe("resolution from the environment", () => {
         DATABASE_URL: "postgresql://postgres:pw@db.proj.supabase.co:5432/postgres",
       }),
     ).toThrow(/non-local database host/i);
+  });
+});
+
+describe("the guard is unconditional — there is no way to switch it off", () => {
+  /**
+   * Row 12 says the guard must not be weakened, widened, "or made
+   * configurable". The refusal cases above prove the LOGIC; they cannot see an
+   * escape hatch, because they all call the guard with whatever the ambient
+   * environment happens to be.
+   *
+   * That gap matters more here than anywhere else in this repository: this is
+   * the second privileged credential, ADR 0001 is a hard rule, and both the ADR
+   * and the module header claim the guard is "deliberately not configurable" —
+   * a claim nothing else enforces.
+   *
+   * So: set every plausible bypass variable at once and demand the same
+   * refusals.
+   */
+  const BYPASS_ATTEMPTS: Readonly<Record<string, string>> = {
+    ALLOW_REMOTE_DATABASE: "1",
+    ALLOW_NON_LOCAL_DATABASE: "1",
+    SUPABASE_ALLOW_REMOTE: "1",
+    SKIP_DB_GUARD: "1",
+    FORCE: "1",
+    CI: "1",
+    NODE_ENV: "production",
+  };
+
+  const saved = new Map<string, string | undefined>();
+
+  afterEach(() => {
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    saved.clear();
+  });
+
+  function setBypassEnvironment(): void {
+    for (const [name, value] of Object.entries(BYPASS_ATTEMPTS)) {
+      saved.set(name, process.env[name]);
+      process.env[name] = value;
+    }
+  }
+
+  it.each(MUST_REFUSE)("still refuses %s with every bypass variable set", (url) => {
+    setBypassEnvironment();
+    expect(() => assertLocalDatabaseUrl(url)).toThrow();
+  });
+
+  it("still refuses through resolveDatabaseUrl, ambient and injected alike", () => {
+    setBypassEnvironment();
+    const hosted = MUST_REFUSE[0];
+
+    expect(() => resolveDatabaseUrl({ DATABASE_URL: hosted })).toThrow();
+    expect(() => resolveDatabaseUrl({ ...BYPASS_ATTEMPTS, DATABASE_URL: hosted })).toThrow();
+    expect(() => resolveDatabaseUrl({ SUPABASE_DB_URL: hosted })).toThrow();
+  });
+
+  it("still accepts loopback with those variables set, so the suite is not vacuous", () => {
+    setBypassEnvironment();
+    expect(assertLocalDatabaseUrl(LOCAL)).toBe(LOCAL);
+  });
+
+  it("reads no environment variable except the one injectable parameter", () => {
+    /**
+     * The structural half, and the one that survives a bypass variable nobody
+     * thought to guess. `resolveDatabaseUrl` takes its environment as an
+     * argument defaulting to `process.env`; that default is the ONLY place this
+     * module may touch the environment. Any other read is either a hidden
+     * escape hatch or hidden configuration, and both are what row 12 forbids.
+     */
+    const source = readFileSync(path.join(import.meta.dirname, "url.ts"), "utf8");
+    const reads = source.match(/process\.env/g) ?? [];
+
+    expect(reads).toHaveLength(1);
+    expect(source).toContain("env: Record<string, string | undefined> = process.env");
   });
 });

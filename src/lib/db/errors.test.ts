@@ -24,6 +24,23 @@ import {
   type ServiceErrorKind,
 } from "./errors";
 
+/**
+ * Everything a naive caller, logger or crash reporter could get at: the
+ * sentence, the name, the stack, and whatever `console.error` or a JSON log
+ * line would serialise. If a secret is not in here, it did not escape.
+ */
+function everythingThatEscapesFrom(error: ServiceError): string {
+  return JSON.stringify({
+    message: error.message,
+    name: error.name,
+    rule: error.rule,
+    context: error.context,
+    stack: error.stack,
+    cause: (error as { cause?: unknown }).cause,
+    enumerable: { ...error },
+  });
+}
+
 describe("the taxonomy is distinguishable by the caller", () => {
   const members = [
     { kind: "not_found", error: new NotFound("gone"), type: NotFound },
@@ -91,6 +108,29 @@ describe("the mapper degrades safely", () => {
     const mapped = mapDatabaseError(new Error("connect ECONNREFUSED 127.0.0.1:54322"));
     expect(isServiceError(mapped)).toBe(true);
     expect(mapped.kind).toBe("unexpected");
+
+    // Row 10's privacy clause applies to THIS branch too, and it is the branch
+    // connection-level failures land in. Locally the leak would be a loopback
+    // address, which looks harmless; against a hosted pooler the same string is
+    // the hosted hostname, printed by the same code path.
+    expect(mapped.message).not.toContain("127.0.0.1");
+    expect(mapped.message).not.toMatch(/ECONNREFUSED|54322/);
+    expect(everythingThatEscapesFrom(mapped)).not.toMatch(/ECONNREFUSED|54322|127\.0\.0\.1/);
+  });
+
+  it("does not echo a connection failure that quotes the connection string", () => {
+    const mapped = mapDatabaseError(
+      new Error(
+        "could not connect to server: " +
+          "postgresql://postgres:hunter2-the-real-password@db.proj.supabase.co:5432/postgres",
+      ),
+    );
+
+    const escaped = everythingThatEscapesFrom(mapped);
+    expect(mapped.kind).toBe("unexpected");
+    expect(escaped).not.toContain("hunter2-the-real-password");
+    expect(escaped).not.toContain("postgresql://");
+    expect(escaped).not.toContain("db.proj.supabase.co");
   });
 
   it.each([
@@ -102,6 +142,10 @@ describe("the mapper degrades safely", () => {
     const mapped = mapDatabaseError(thrown);
     expect(isServiceError(mapped)).toBe(true);
     expect(mapped.kind).toBe("unexpected");
+    // Whatever was thrown, none of it is copied into what a caller can read.
+    if (typeof thrown === "string") {
+      expect(everythingThatEscapesFrom(mapped)).not.toContain(thrown);
+    }
   });
 
   it("types an unrecognised constraint by its SQLSTATE class rather than giving up", () => {
