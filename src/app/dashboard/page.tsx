@@ -64,10 +64,17 @@ export default async function DashboardPage() {
           ) : (
             // One state for all three unresolved causes — no link, an inactive
             // link, and (unreachable here, because the session gate above has
-            // already redirected) no session. LAN-71 specifies this single
-            // message; the vocabulary is LAN-90's to settle.
+            // already redirected) no session. LAN-95 reworded it: LAN-71's
+            // "No operator record is linked to this account" was false for a
+            // deactivated operator, whose record *is* linked and has simply
+            // been disabled, and it sent that person somewhere useless. The
+            // replacement is true of all three causes, and still tells the
+            // reader nothing about which of them applies to him. Brian chose
+            // the one neutral state over two specific ones on 2026-08-11; the
+            // vocabulary is LAN-90's to settle, and LAN-73 may revisit it when
+            // it builds the real state.
             <Alert severity="warning" sx={{ width: "100%" }}>
-              No operator record is linked to this account.
+              This account cannot access the operator area. Contact the committee.
             </Alert>
           )}
 
