@@ -119,7 +119,22 @@ export async function withTransaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T>
 
   try {
     const result = await currentTransaction.run(tx, () => fn(tx));
-    await client.query("commit");
+
+    try {
+      await client.query("commit");
+    } catch (error) {
+      // `commit` is a statement like any other, and it can be rejected like any
+      // other: a DEFERRABLE constraint is checked here rather than at the
+      // insert that violated it, and a serialization failure, a statement
+      // timeout or a lost connection all surface at this point too.
+      //
+      // It does not pass through `makeTx`, so without this it would escape as a
+      // raw driver error — carrying the driver's sentence and, for a deferred
+      // constraint, `detail`, which quotes the offending row. For this schema
+      // that is a real person's name and contact details.
+      throw mapDatabaseError(error);
+    }
+
     return result;
   } catch (error) {
     try {

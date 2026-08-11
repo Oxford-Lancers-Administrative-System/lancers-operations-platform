@@ -19,7 +19,14 @@ vi.mock("server-only", () => ({}));
 
 import type { Client } from "pg";
 
-import { closePool, isServiceError, withTransaction, type ServiceError, type Tx } from "@/lib/db";
+import {
+  closePool,
+  getPool,
+  isServiceError,
+  withTransaction,
+  type ServiceError,
+  type Tx,
+} from "@/lib/db";
 import { createBaseline, type Baseline } from "./helpers/domain-fixture";
 
 afterAll(async () => {
@@ -250,5 +257,84 @@ describe("row 10 — an unmapped rejection still degrades safely", () => {
     });
 
     expect(boom.kind).toBe("unexpected");
+  });
+});
+
+describe("a rejection raised at COMMIT is mapped like any other", () => {
+  /**
+   * `commit` is the one statement `withTransaction` issues that does not pass
+   * through the callback's query interface, so it is the one place a raw driver
+   * error could escape.
+   *
+   * A DEFERRABLE INITIALLY DEFERRED constraint is the cleanest way to force
+   * that: the violating insert is accepted, and the check happens at commit
+   * time. This uses a temp table with `on commit drop`, so it needs no
+   * migration and leaves nothing behind.
+   *
+   * The everyday path is safe today — the schema has no deferrable constraints.
+   * This matters because a serialization failure, a statement timeout at commit
+   * or a lost connection all arrive the same way, and because the first
+   * migration to model a cyclic foreign key under ADR 0008 will make it routine.
+   */
+  async function commitRejection(): Promise<unknown> {
+    try {
+      await withTransaction(async (tx) => {
+        await tx.query("create temp table lan72_commit_probe (email text) on commit drop");
+        await tx.query(
+          `alter table lan72_commit_probe
+             add constraint lan72_commit_probe_email_unique unique (email)
+             deferrable initially deferred`,
+        );
+        // Both accepted. The constraint is not checked until commit.
+        await tx.query("insert into lan72_commit_probe (email) values ('jane.smith@example.com')");
+        await tx.query("insert into lan72_commit_probe (email) values ('jane.smith@example.com')");
+      });
+    } catch (error) {
+      return error;
+    }
+    throw new Error("Expected the commit to be rejected, but the transaction committed.");
+  }
+
+  it("reaches the caller as a ServiceError, not as a raw driver error", async () => {
+    const error = await commitRejection();
+
+    expect(isServiceError(error)).toBe(true);
+    expect((error as ServiceError).kind).toBe("conflict");
+    expect((error as ServiceError).context?.code).toBe("23505");
+    expect((error as ServiceError).rule).toBe("lan72_commit_probe_email_unique");
+  });
+
+  it("leaks neither the driver's sentence nor the offending row's values", async () => {
+    // `detail` on a deferred unique violation quotes the row that collided.
+    // For this schema that is a real person's name and contact details, and
+    // ADR 0014 and the module header both say it is never copied out.
+    const error = (await commitRejection()) as ServiceError;
+    const everythingThatEscapes = JSON.stringify({
+      message: error.message,
+      name: error.name,
+      rule: error.rule,
+      context: error.context,
+      stack: error.stack,
+      enumerable: { ...error },
+    });
+
+    expect(everythingThatEscapes).not.toContain("jane.smith@example.com");
+    expect(everythingThatEscapes).not.toMatch(/duplicate key value violates/i);
+    expect(everythingThatEscapes).not.toContain("postgresql://");
+  });
+
+  it("leaves the pool healthy, so a failed commit is not also a leak", async () => {
+    await commitRejection();
+
+    const pool = getPool();
+    expect(pool.totalCount - pool.idleCount).toBe(0);
+
+    // And the connection still works — the temp table went with the aborted
+    // transaction rather than lingering on a recycled client.
+    const value = await withTransaction(async (tx) => {
+      const result = await tx.query<{ n: number }>("select 1 as n");
+      return result.rows[0].n;
+    });
+    expect(value).toBe(1);
   });
 });
