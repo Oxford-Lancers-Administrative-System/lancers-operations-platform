@@ -9,7 +9,7 @@ from that. See [ADR 0001](adr/0001-local-supabase-only.md).
 ## The promotion path
 
 ```
-local migration development
+local migration development  (DEVELOPMENT clone)
         │   npx supabase migration new <name>
         │   npm run db:reset && npm run db:seed
         │   npm run types:generate
@@ -25,7 +25,7 @@ CI (.github/workflows/ci.yml)
 reviewed merge to `main`
         │   CI green is a hard gate; human approvals are zero (ADR 0006)
         ▼
-explicitly authorized application to hosted Supabase
+explicitly authorized application to hosted Supabase  (DEPLOYMENT clone)
             a deliberate human action, never the pipeline
 ```
 
@@ -193,6 +193,9 @@ part of the sequence for exactly that reason.
 - **Run Claude, or any other agent.**
 - **Run local Supabase** — no `npx supabase start`, no `npm run db:start`.
 - **Run the test suite**, or `npm run verify` (which runs it).
+- **Run anything else that needs the local stack** — `npm run types:check`,
+  `npm run types:generate`, `npm run db:seed`. They read the local database, and
+  there is not one here.
 - **Run `npx supabase db reset`.** It is local, but it has no business here, and
   muscle memory is the risk this table exists to remove.
 
@@ -237,8 +240,15 @@ git switch main
 git pull --ff-only
 git status --short                      # must print NOTHING
 
+npm ci                                  # the PINNED Supabase CLI, not whatever npx fetches
 npx supabase migration list --linked    # what is about to be applied
 ```
+
+`npm ci` is here because the Supabase CLI is a dev dependency of this
+repository. Without it `npx` downloads some arbitrary latest version, and the
+tool that talks to the production database should be the one the lockfile pins.
+It installs into `node_modules`, which is git-ignored, so the working tree stays
+clean. It is not a licence to run anything else.
 
 `git status --short` printing nothing is a hard gate: an uncommitted file here
 means this clone has been used as a workspace, which it must not be.
@@ -270,8 +280,17 @@ npx supabase migration list --linked       # local and remote agree
 curl -s https://<service-url>/api/health   # status ok, secretsLoaded true
 ```
 
-Then regenerate types against local (never against production) and confirm no
-drift: `npm run types:check`.
+### After the apply — in the DEVELOPMENT clone
+
+```bash
+npm run types:check                        # generated types match the schema
+```
+
+**This step belongs here, not in the deployment clone.** `types:check` runs
+`scripts/generate-types.mjs`, which shells out to
+`supabase gen types typescript --local` — it reads the **local** stack, by
+design, so that types are never generated from production. The deployment clone
+has no local stack and never starts one, so the check is unrunnable there.
 
 ## When a migration fails
 
@@ -283,8 +302,8 @@ drift: `npm run types:check`.
    npx supabase migration list --linked
    ```
 
-   In the deployment clone. The remote column is authoritative. If it disagrees with what the error
-   suggested, trust the list.
+   In the deployment clone. The remote column is authoritative. If it disagrees
+   with what the error suggested, trust the list.
 
 2. **Determine whether the failed migration applied partially.** Inspect the
    objects it should have created. A fully rolled-back migration leaves nothing;
@@ -298,6 +317,13 @@ drift: `npm run types:check`.
    | Partially applied, no data loss, remaining work is additive                                | **Forward-fix.** Write a new migration that is idempotent about what already exists (`if not exists`, `drop … if exists` on the partial objects). |
    | Data was transformed or removed, or the schema is in a state you cannot describe precisely | **Restore** to the verified recovery point, then treat the whole change as not applied.                                                           |
    | Application is failing in production because of the schema state                           | **Restore first, diagnose second.** Availability is the club's, and it is a football club's operations system in season.                          |
+
+   **Which clone does what here.** Reading state and re-applying happen in the
+   **deployment clone**. Authoring the corrective migration and verifying it
+   locally from empty happen in the **development clone**, through a branch, a
+   pull request and a merge like any other change — the deployment clone edits
+   no file and runs no local stack, so "correct the SQL" and "verify locally"
+   are never done there.
 
 4. **Never fabricate the history table.** Editing
    `supabase_migrations.schema_migrations` by hand to "mark it applied" makes
