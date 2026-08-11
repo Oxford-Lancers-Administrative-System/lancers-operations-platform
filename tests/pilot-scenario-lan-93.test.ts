@@ -573,3 +573,54 @@ describe("cleanup.sql preserves the durable pilot foundation", () => {
     expect(await snapshot(client)).toEqual(before);
   });
 });
+
+describe("the cleanup's cascade enumeration is complete against the live schema", () => {
+  /**
+   * `cleanup.sql` claims to name every foreign key that PostgreSQL would follow
+   * on its behalf — every `on delete cascade` and `on delete set null` pointing
+   * at a row it deletes — because those are the paths by which a narrow delete
+   * silently widens. That claim was true when it was written. Nothing made it
+   * stay true: a later migration adding an eighth such key would degrade the
+   * "refuses to widen" property to a cascade, in silence.
+   *
+   * So the claim is checked against the catalogue rather than against the
+   * comment. Read-only: no DDL, nothing another test file shares is locked.
+   */
+  it("names every cascade and set-null foreign key that points at a scenario row", async () => {
+    const scenarioTables = SCENARIO_ROWS.map(([table]) => table);
+
+    const { rows } = await client.query<{
+      referencing_table: string;
+      referenced_table: string;
+      on_delete: string;
+    }>(
+      `select (cn.nspname || '.' || child.relname) as referencing_table,
+              (pn.nspname || '.' || parent.relname) as referenced_table,
+              con.confdeltype as on_delete
+         from pg_constraint con
+         join pg_class child on child.oid = con.conrelid
+         join pg_namespace cn on cn.oid = child.relnamespace
+         join pg_class parent on parent.oid = con.confrelid
+         join pg_namespace pn on pn.oid = parent.relnamespace
+        where con.contype = 'f'
+          and con.confdeltype in ('c', 'n')
+          and (pn.nspname || '.' || parent.relname) = any ($1)
+        order by 1`,
+      [scenarioTables],
+    );
+
+    // The seven that exist today. A drop below this is a schema change nobody
+    // told this test about, and a pass on an empty result would prove nothing.
+    expect(rows.length).toBeGreaterThanOrEqual(7);
+
+    const raw = readFileSync(path.join(scenarioDir, "cleanup.sql"), "utf8");
+    for (const row of rows) {
+      expect(
+        raw,
+        `cleanup.sql does not check ${row.referencing_table}, which PostgreSQL would ` +
+          `${row.on_delete === "c" ? "cascade-delete" : "silently null"} when ` +
+          `${row.referenced_table} loses a row`,
+      ).toContain(`from ${row.referencing_table}`);
+    }
+  });
+});

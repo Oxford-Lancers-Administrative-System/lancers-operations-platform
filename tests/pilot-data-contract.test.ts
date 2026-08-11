@@ -63,6 +63,10 @@ describe("nothing applies pilot data without a human", () => {
     "supabase/config.toml",
     "Dockerfile",
     ".dockerignore",
+    // Not one of the paths matrix row 6 enumerates, but `npm run db:reset` is a
+    // documented developer command and is the cheapest place for a pilot script
+    // to acquire an automatic caller.
+    "package.json",
   ];
 
   const candidates = AUTOMATIC_PATHS.flatMap((entry) =>
@@ -247,13 +251,110 @@ describe("the scenario scripts stay inside the conventions", () => {
     }
   });
 
-  it("every delete in cleanup.sql is keyed on a deterministic identifier", () => {
-    const statements = cleanup.split(";").filter((statement) => /delete\s+from/i.test(statement));
+  /**
+   * The exact conjuncts each delete is allowed to have.
+   *
+   * Asserting that "a UUID appears somewhere in the statement" is not a
+   * constraint: `where id = '…' or name like 'PILOT-LAN-93%'` satisfies it and
+   * deletes every row carrying the sentinel, in seasons no preflight looked at.
+   * One character is the whole distance between the narrowest possible delete
+   * and an arbitrarily wide one, so the predicate is pinned literally.
+   */
+  const EXPECTED_DELETES: readonly (readonly [table: string, conjuncts: readonly string[]])[] = [
+    ["public.events", ["id = '00930093-0093-4093-8093-000000000006'", "name like 'PILOT-LAN-93%'"]],
+    [
+      "public.season_memberships",
+      [
+        "id = '00930093-0093-4093-8093-000000000005'",
+        "person_id = '00930093-0093-4093-8093-000000000004'",
+        "season_id = '00930093-0093-4093-8093-000000000003'",
+      ],
+    ],
+    ["public.people", ["id = '00930093-0093-4093-8093-000000000004'", "known_as = 'PILOT-LAN-93'"]],
+    [
+      "public.seasons",
+      ["id = '00930093-0093-4093-8093-000000000003'", "label like 'PILOT-LAN-93%'"],
+    ],
+    [
+      "public.positions",
+      ["id = '00930093-0093-4093-8093-000000000002'", "label like 'PILOT-LAN-93%'"],
+    ],
+    [
+      "public.position_vocabularies",
+      ["id = '00930093-0093-4093-8093-000000000001'", "code = 'pilot-lan-93'"],
+    ],
+  ];
 
-    expect(statements.length).toBe(6);
-    for (const statement of statements) {
-      expect(statement).toMatch(/where/i);
-      expect(statement).toMatch(/00930093-0093-4093-8093-[0-9a-f]{12}/i);
+  /** `delete from X where a and b` -> { table: "X", conjuncts: ["a", "b"] }. */
+  function parseDeletes(sql: string): { table: string; where: string; conjuncts: string[] }[] {
+    return sql
+      .replace(/--[^\n]*/g, "")
+      .split(";")
+      .filter((statement) => /\bdelete\s+from\b/i.test(statement))
+      .map((statement) => {
+        const parsed = /\bdelete\s+from\s+([\w.]+)\s+where\s+([\s\S]+)$/i.exec(
+          statement.replace(/\s+/g, " ").trim(),
+        );
+        if (!parsed) throw new Error(`A delete with no where clause: ${statement.trim()}`);
+        return {
+          table: parsed[1],
+          where: parsed[2].trim(),
+          conjuncts: parsed[2]
+            .split(/\s+and\s+/i)
+            .map((part) => part.trim())
+            .filter(Boolean),
+        };
+      });
+  }
+
+  it("every delete in cleanup.sql conjoins its identifier with the sentinel", () => {
+    const parsed = parseDeletes(cleanup);
+
+    expect(parsed.map((statement) => statement.table)).toEqual(
+      EXPECTED_DELETES.map(([table]) => table),
+    );
+
+    for (const [index, [table, conjuncts]] of EXPECTED_DELETES.entries()) {
+      const statement = parsed[index];
+
+      // No disjunction, anywhere. An `or` between the identifier and the
+      // sentinel turns "this row" into "every row carrying the sentinel".
+      expect(statement.where, `${table}: the where clause must not disjoin`).not.toMatch(/\bor\b/i);
+
+      // And the conjuncts are exactly these — so dropping the sentinel half,
+      // or adding a condition, is a failure rather than a silent widening.
+      expect(statement.conjuncts, `${table}: unexpected delete predicate`).toEqual([...conjuncts]);
+      expect(statement.conjuncts.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("holds every pilot scenario to that shape, not just this one", () => {
+    // Written generically because the runbook says this scenario is meant to be
+    // copied: a future `scripts/pilot/<issue>/cleanup.sql` inherits the rule.
+    const cleanups = filesUnder("scripts/pilot").filter((file) => file.endsWith("cleanup.sql"));
+    expect(cleanups.length).toBeGreaterThanOrEqual(1);
+
+    for (const file of cleanups) {
+      const sentinel = new RegExp(`PILOT-${path.basename(path.dirname(file))}`, "i");
+
+      for (const statement of parseDeletes(read(file))) {
+        expect(statement.where, `${file}: ${statement.table}`).not.toMatch(/\bor\b/i);
+        expect(statement.conjuncts.length, `${file}: ${statement.table}`).toBeGreaterThanOrEqual(2);
+
+        // One conjunct pins the row by its deterministic identifier …
+        expect(
+          statement.conjuncts.some((part) => /^id = '[0-9a-f-]{36}'$/i.test(part)),
+          `${file}: ${statement.table} must be keyed on a deterministic id`,
+        ).toBe(true);
+
+        // … and the rest prove ownership, by the sentinel or by the scenario's
+        // own parent identifiers.
+        const ownership = statement.conjuncts.filter((part) => !/^id = /i.test(part));
+        expect(
+          ownership.every((part) => sentinel.test(part) || /'[0-9a-f-]{36}'/i.test(part)),
+          `${file}: ${statement.table} has a conjunct that proves nothing`,
+        ).toBe(true);
+      }
     }
   });
 
@@ -441,21 +542,121 @@ describe("the pilot runbook represents elevated access truthfully", () => {
     expect(runbook).toMatch(/coaching seat/i);
   });
 
-  it("never templates a grant of a constitutional office", () => {
-    const grants = sqlBlocks.filter((block) => /insert into public\.role_assignments/i.test(block));
+  /**
+   * Splits a SQL expression list on its top-level commas, so a comma inside a
+   * string literal or a function call does not shift every later position.
+   */
+  function splitExpressions(list: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let quoted = false;
+    let current = "";
+
+    for (const character of list) {
+      if (character === "'") quoted = !quoted;
+      if (!quoted && character === "(") depth += 1;
+      if (!quoted && character === ")") depth -= 1;
+      if (!quoted && depth === 0 && character === ",") {
+        parts.push(current.trim());
+        current = "";
+        continue;
+      }
+      current += character;
+    }
+    if (current.trim() !== "") parts.push(current.trim());
+    return parts;
+  }
+
+  /**
+   * A grant template, parsed into the columns it writes and the value supplied
+   * for each — positionally.
+   *
+   * Asserting that the word `effective_to` appears somewhere in the block is not
+   * a constraint on the grant: it survives in the `returning` clause of a
+   * template that has stopped setting it, and `role_assignments.effective_to` is
+   * nullable, so an open-ended grant would be accepted by the database in
+   * silence. This is the one grant defect with no database backstop, so the
+   * column list and the supplied values are read separately and paired.
+   */
+  interface Grant {
+    columns: string[];
+    values: string[];
+  }
+
+  function parseGrants(blocks: readonly string[]): Grant[] {
+    return blocks
+      .filter((block) => /insert\s+into\s+public\.role_assignments/i.test(block))
+      .map((block) => {
+        const flat = block
+          .replace(/--[^\n]*/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        const columnList = /insert\s+into\s+public\.role_assignments\s*\(([^)]*)\)/i.exec(flat);
+        if (!columnList) throw new Error(`Grant template has no column list: ${flat}`);
+
+        // Either `insert … select <values> from …` or `insert … values (<values>)`.
+        // `returning` is deliberately outside both: it reports, it does not write.
+        const fromSelect = /\)\s*select\s+(.*?)\s+from\s+/i.exec(flat);
+        const fromValues = /\)\s*values\s*\((.*?)\)\s*(?:returning|;|$)/i.exec(flat);
+        const valueList = fromSelect?.[1] ?? fromValues?.[1];
+        if (valueList === undefined) throw new Error(`Grant template supplies no values: ${flat}`);
+
+        return {
+          columns: splitExpressions(columnList[1]),
+          values: splitExpressions(valueList),
+        };
+      });
+  }
+
+  /** The value the template supplies for a named column, or undefined. */
+  function valueFor(grant: Grant, column: string): string | undefined {
+    const index = grant.columns.indexOf(column);
+    return index === -1 ? undefined : grant.values[index];
+  }
+
+  it("parses a grant template with one value per column", () => {
+    const grants = parseGrants(sqlBlocks);
     expect(grants.length).toBeGreaterThanOrEqual(1);
 
     for (const grant of grants) {
-      expect(grant).not.toMatch(/'(president|vice_president|secretary|treasurer)'/i);
-      expect(grant).not.toMatch(/is_constitutional_office\s*(,|\))?\s*values[\s\S]*\btrue\b/i);
+      // Without this, every positional assertion below could be reading the
+      // wrong expression and still agreeing with itself.
+      expect(grant.values.length).toBe(grant.columns.length);
+    }
+  });
+
+  it("never templates a grant of a constitutional office", () => {
+    for (const grant of parseGrants(sqlBlocks)) {
+      // The office flag and the scope are taken FROM the role, never asserted
+      // by the person writing the grant. A literal here is how a template
+      // starts disagreeing with `public.roles` about what a seat is.
+      expect(valueFor(grant, "is_constitutional_office")).toBe("r.is_constitutional_office");
+      expect(valueFor(grant, "scope")).toBe("r.scope");
+      expect(valueFor(grant, "role_id")).toBe("r.id");
+
+      for (const value of grant.values) {
+        expect(value).not.toMatch(/'(president|vice_president|secretary|treasurer)'/i);
+      }
     }
   });
 
   it("time-bounds every grant at the moment it is made", () => {
-    const grants = sqlBlocks.filter((block) => /insert into public\.role_assignments/i.test(block));
+    const grants = parseGrants(sqlBlocks);
+
     for (const grant of grants) {
-      expect(grant).toMatch(/effective_to/);
+      expect(grant.columns, "a grant must write effective_to").toContain("effective_to");
+      expect(grant.columns).toContain("effective_from");
+
+      // And the value supplied for it must actually be an end date. A column
+      // present with `null` in its slot is an open-ended grant wearing the
+      // right column name.
+      const end = valueFor(grant, "effective_to");
+      expect(end, "effective_to must be supplied a value").toBeDefined();
+      expect(end).toMatch(/<effective-to>/);
+      expect(end).not.toMatch(/\bnull\b/i);
     }
+
     expect(runbook).toMatch(/`effective_to` is set\s+in the same statement/i);
     expect(runbook).toMatch(/expires or is deactivated at handoff/i);
   });

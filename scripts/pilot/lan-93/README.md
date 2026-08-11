@@ -90,9 +90,11 @@ non-loopback host — and asserts that:
 - cleanup restores the database to a row-for-row identical snapshot of every
   table, taken before setup ran;
 - cleanup run twice is a no-op;
-- a durable identity created before setup (Auth user, person, operator account,
-  time-bounded `it_officer` assignment, audit event) is byte-identical
-  afterwards;
+- a durable identity created before setup — Auth user, person, operator
+  account, a **time-bounded, non-constitutional role assignment** and an audit
+  event — is byte-identical afterwards. The fixture mints a role of its own
+  (`pilot_fixture_it_officer`) rather than depending on seeded reference data,
+  because `public.roles` is populated by the local-only seed;
 - each preflight aborts, writing nothing, when its prerequisite is not met.
 
 [`tests/pilot-data-contract.test.ts`](../../../tests/pilot-data-contract.test.ts)

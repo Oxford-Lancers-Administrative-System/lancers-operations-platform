@@ -172,6 +172,12 @@ Supabase, that:
 - [ ] cleanup with no setup ever run succeeds and changes nothing;
 - [ ] cleanup refuses, rather than widening, when a foreign row hangs off the
       scenario — including every `cascade` and `set null` foreign key;
+- [ ] that enumeration is checked against `pg_constraint` rather than against a
+      comment, so a later migration adding an eighth such key fails a test
+      instead of quietly turning a refusal into a cascade;
+- [ ] every delete's `where` clause conjoins the deterministic identifier with
+      the sentinel, asserted as a parsed predicate — one `and` becoming `or` is
+      the whole distance between the narrowest delete and an arbitrary one;
 - [ ] the durable pilot foundation is byte-identical afterwards.
 
 [`tests/pilot-scenario-lan-93.test.ts`](../tests/pilot-scenario-lan-93.test.ts)
