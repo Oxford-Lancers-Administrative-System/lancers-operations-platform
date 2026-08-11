@@ -28,7 +28,12 @@ migration:
   vocabulary, or relaxing an invariant changes the approved domain model.
 - **Real-data imports.** No roster data and no member records, in any
   environment, until the pre-pilot gate in
-  [`docs/migration-runbook.md`](docs/migration-runbook.md) is passed.
+  [`docs/migration-runbook.md`](docs/migration-runbook.md) is passed. The one
+  narrow exception — approved pilot identities for the leadership testers, and
+  clearly synthetic feature scenarios, in hosted, placed there by Brian — is
+  defined and bounded by
+  [`docs/pilot-data-runbook.md`](docs/pilot-data-runbook.md). It is not a route
+  to the real roster or to real club operations.
 - **Tidy fixtures.** Seed data mirrors the real shape of club data — that is
   what `scripts/seed-local.mjs` and the synthetic data specification are for.
   Invented tidy fixtures hide the problems real data causes.
@@ -65,6 +70,8 @@ directly on components — use `sx`.
 | What each table means, and where each invariant lives | `docs/architecture/data-model.md`           |
 | Clean machine → running app; every script; migrations | `docs/local-development.md`                 |
 | How a schema change reaches production, and recovery  | `docs/migration-runbook.md`                 |
+| Testing a feature against **hosted** Supabase         | `docs/pilot-data-runbook.md`                |
+| What is in hosted that is not schema                  | `docs/pilot-data-manifest.md`               |
 | Cloud Run deploy, secrets, cost controls, rollback    | `docs/deployment.md`                        |
 | How supervised parallel agent work is run             | `.claude/skills/supervise-batch/SKILL.md`   |
 | Why a decision was made                               | `docs/adr/` (index in `docs/adr/README.md`) |
@@ -163,6 +170,7 @@ src/theme.ts             MUI baseline theme
 supabase/migrations/     SQL migrations — the domain schema baseline
 scripts/                 type generation, RLS gate, seed, test user, GCP bootstrap
 scripts/lib/             shared local-database access, with the non-local guard
+scripts/pilot/<issue>/   hosted pilot-data setup.sql / cleanup.sql — RUN BY HAND
 tests/                   integration, schema, and security tests
 docs/architecture/       the physical data model
 docs/ · docs/adr/        documentation and decision records
@@ -211,6 +219,48 @@ Applying a migration to hosted Supabase is a separate, explicitly authorized
 human action that no agent performs — see
 [`docs/migration-runbook.md`](docs/migration-runbook.md).
 
+## Pilot data and the production handoff
+
+There is one production database, no staging, and one person who may write to
+it. **Every pull request states what Brian has to do**, in the **Production
+handoff** block of `.github/PULL_REQUEST_TEMPLATE.md` — six lines, answered even
+when every answer is "No" or "None": schema migration and filenames;
+compatibility and deployment order; pilot setup required; pilot cleanup
+required; other Brian action; verification after Brian acts.
+
+**Does this pull request need pilot-data artifacts?** `docs/pilot-data-runbook.md`
+decides, and it is the source of truth for everything below. In short: it needs
+them when the change cannot be honestly proved against the local stack and has
+to be exercised by a human against hosted Auth and the deployed container, and
+when the rows that exercise it are not already there. Then the pull request
+ships `scripts/pilot/<issue-id>/setup.sql`, `cleanup.sql` and `README.md`, plus
+an automated test proving — against **local** Supabase — that setup is
+repeatable, that cleanup removes only its own rows and is repeatable, and that
+the durable pilot identities, access records and audit history survive it. If
+the answer is genuinely "no artifacts needed", say that in the pull request
+rather than leaving the section blank.
+
+**The timing rule.** Tell Brian **as soon as you discover** an owner action is
+required — a migration, a pilot script, a secret, an Auth user, a dashboard
+step. Repeat it in the pull request description. Repeat it again in the final
+handoff. Leaving him to infer an action from a changed migration or SQL file is
+a defect in the pull request, not a detail he will spot.
+
+**What an agent never does here.** Run a pilot script against hosted Supabase.
+Create or invite a hosted Auth user. Grant, end-date or otherwise change hosted
+access. Decide retention. Insert reference data into hosted. Add a database
+concept to label test data — the ownership marker is a deterministic identifier
+plus a `PILOT-<ISSUE-ID>` sentinel, never a new column and never a new table.
+And nothing under `supabase/migrations/`, `supabase/seed.sql`,
+`scripts/seed-local.mjs`, `.github/workflows/`, the `Dockerfile` or any `src/`
+startup path may reference `scripts/pilot/` — a pilot script reaches a database
+because a human chose to run it. Running one against the disposable **local**
+stack inside a test is verification, and is fine.
+
+Real roster data and real club operations stay prohibited in every environment
+until the pre-pilot gate closes. See
+`docs/adr/0016-controlled-production-pilot-data.md`.
+
 ## Definition of done for a repository change
 
 1. `npm run verify` passes locally.
@@ -224,6 +274,9 @@ human action that no agent performs — see
 6. A change to `supabase/migrations/` updates `docs/architecture/data-model.md`
    in the same commit — the map and the schema must not drift.
 7. CI green on the pull request.
+8. The pull request's **Production handoff** block is filled in — every line,
+   including the "No" and "None" answers — and any pilot-data artifacts the
+   change needs are supplied and proved by test.
 
 Reporting something as done means it was run and observed to pass — not that it
 should pass.
