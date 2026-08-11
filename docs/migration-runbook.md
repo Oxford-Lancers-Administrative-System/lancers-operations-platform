@@ -227,6 +227,11 @@ deployment clone must never run a `db reset` or the test suite.
 npm run db:reset && npm run check:rls && npm run test
 
 # 2. Confirm the commit being deployed is the reviewed, merged one.
+#    `git fetch` first: `origin/main` is a LOCAL cache of the remote branch, and
+#    in a clone that has not fetched since the merge this step confirms the
+#    wrong commit while looking entirely correct. A gate that silently passes is
+#    worse than no gate.
+git fetch origin
 git log --oneline -1 origin/main
 
 # 3. Confirm a recovery point exists and note its timestamp.
