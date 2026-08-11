@@ -20,6 +20,7 @@
     "db:reset": "supabase db reset",
     "db:seed-user": "node scripts/create-test-user.mjs",
     "db:seed": "node scripts/seed-local.mjs",
+    "db:link-operator": "node scripts/link-test-operator.mjs",
     "types:generate": "node scripts/generate-types.mjs",
     "types:check": "node scripts/generate-types.mjs --check",
     "check:rls": "node scripts/check-rls-migrations.mjs"
