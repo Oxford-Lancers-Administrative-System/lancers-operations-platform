@@ -617,9 +617,15 @@ describe("agent harness: graded review levels", () => {
     expect(flat(floor)).toMatch(/absence from the list is never an argument/i);
 
     // The same floor is stated in the working agreement, where a reader who
-    // never opens the skill will find it.
+    // never opens the skill will find it — and checked against the bullet that
+    // enumerates it, not the whole file. `supabase/migrations/`, `.claude/` and
+    // `.env.example` all appear elsewhere in AGENTS.md, so a whole-file check
+    // passes happily while the floor itself loses entries.
     for (const entry of FLOOR) {
-      expect(AGENTS_MD, `${entry} is missing from the AGENTS.md floor`).toContain(entry);
+      expect(
+        agentsGradedBullet,
+        `${entry} is missing from the AGENTS.md floor enumeration`,
+      ).toContain(entry);
     }
     // ...and with its binding force, not merely the nine paths. "overrides"
     // quietly becoming "informs" there is a repeal, and the nine paths would
@@ -703,6 +709,12 @@ describe("agent harness: graded review levels", () => {
     expect(flat(matrixTemplate)).toMatch(/Review level:/);
     expect(flat(matrixTemplate)).toMatch(/Expected blast radius:/);
     expect(flat(runReport)).toMatch(/assigned at matrix time, before launch/i);
+    // The working agreement is the canonical statement of the operating model,
+    // and it is the only place row 5 was not pinned. An alternation, so an
+    // honest reword of either clause survives while losing both does not.
+    expect(flat(AGENTS_MD)).toMatch(
+      /grade is set before implementation|assigned with the test matrix rather than from the diff/i,
+    );
 
     // The verification-time re-check may only raise a level. Lowering it there
     // is choosing the scrutiny to fit the work that came back.
@@ -792,12 +804,18 @@ describe("agent harness: graded review levels", () => {
    * innocent "unless" elsewhere in the file is unaffected.
    */
   it("refuses an escape hatch bolted onto the floor, the default, or the authority", () => {
+    // Escape-shaped phrases, not bare conjunctions. A bare /\bunless\b/ fails
+    // "a level may not be lowered after launch except by Brian" and "it does not
+    // move down once set unless Brian says so" — both of which make the policy
+    // *stricter*. A guard that misfires on a tightening before it catches an
+    // attack is a guard somebody will relax, so these require the qualifier to
+    // hand discretion to an agent, or to name a leniency.
     const SOFTENERS = [
-      /\bunless\b/i,
-      /\bexcept\b/i,
+      /\bunless\s+(the\s+)?(lead|implementer|reviewer)\b/i,
+      /\bunless\b[^.]{0,30}\b(trivially inert|routine|low[- ]risk)\b/i,
+      /\bexcept\s+(where|when|if|as)?\s*(the\s+)?(lead|implementer|reviewer)\b/i,
       /\bnormally\b/i,
       /\bgenerally\b/i,
-      /\bin practice\b/i,
       /\bmay simply\b/i,
       /at the lead's discretion/i,
       /\bwaive[drs]?\b/i,
@@ -807,15 +825,23 @@ describe("agent harness: graded review levels", () => {
       /no reviewer launched/i,
     ];
 
-    // The whole policy block: the levels, the criterion, the default, the floor,
-    // and the downgrade authority.
+    // Every section that can repeal the policy, not only the ones a defect
+    // happened to be demonstrated in. §7 is the section that actually launches
+    // the reviewer, so a qualifier there ("…unless the lead has already read the
+    // whole diff, in which case the launch is waived") repeals more than a
+    // qualifier on the floor does.
     const guarded: [string, string][] = [
       ["the graded-level policy", section(lead, "### Assign the review level")],
       [
         "the verification-time re-check",
         section(lead, "### Re-check the review level against the diff"),
       ],
+      ["the independent-review section", section(lead, "## 7 — Independent review")],
       ["the AGENTS.md graded-review bullet", agentsGradedBullet],
+      [
+        "the AGENTS.md agent-tooling section",
+        AGENTS_MD.slice(AGENTS_MD.indexOf("## Agent tooling")),
+      ],
     ];
 
     // A missing bullet would make its negative assertions vacuous.

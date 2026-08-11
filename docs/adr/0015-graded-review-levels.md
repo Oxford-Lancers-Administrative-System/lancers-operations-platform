@@ -151,27 +151,56 @@ database lock, and the two-worker cap.
   wide, the default is level 2, and the fail-safe direction is upward.
 - `tests/agent-harness.test.ts` pins every element above, in **both**
   directions. Positively: the four levels, each level's entry criteria **by
-  content rather than by length**, each floor entry, the override wording in
-  `SKILL.md` _and_ in `AGENTS.md`, the recorded-justification requirement in both
-  places, the matrix-time timing, the reachability-not-size criterion, the
-  fail-safe default, and the one-cycle limit. Negatively: the floor, the default,
-  the downgrade authority, and the verification-time re-check may not acquire a
-  qualifier — "unless", "except", "normally", "in practice", "at the lead's
-  discretion" and the like fail the suite inside those sections.
+  content rather than by length**, each floor entry — checked inside `SKILL.md`'s
+  floor section and inside `AGENTS.md`'s graded-review bullet, rather than
+  anywhere in either file — the override wording in both, the
+  recorded-justification requirement in both recording locations, the matrix-time
+  timing in the skill, the templates **and** the working agreement, the
+  reachability-not-size criterion, the fail-safe default, and the one-cycle
+  limit. Negatively: five regions may not acquire a qualifier — the graded-level
+  policy (§4), the verification-time re-check (§6), **the independent-review
+  section (§7), which is what actually launches the reviewer**, the `AGENTS.md`
+  graded-review bullet, and the `AGENTS.md` § Agent tooling section.
 - **The second direction was added after a review found six escapes, and every
   one was a contradicting addition rather than a deletion.** A positive assertion
   proves a sentence is present and notices nothing about the exception written
   beside it: a floor reading "…is still level 2, unless the lead records that the
-  touched path is trivially inert" satisfied the entire suite. The token ban is a
-  list of shapes, not a proof — a qualifier phrased in words nobody enumerated
-  would still pass. That residual gap is why `.claude/**` and `AGENTS.md` are on
-  the floor, and why prose no test pins is a preference rather than a guarantee.
+  touched path is trivially inert" satisfied the entire suite. Scope is the other
+  half of the lesson — the first correction guarded only the sections the six
+  demonstrated defects happened to occupy, which left §7 open to a strictly worse
+  repeal ("…unless the lead has already read the whole diff, in which case the
+  launch is waived"), and checked the `AGENTS.md` floor entries against the whole
+  file, where three of the nine appear elsewhere and could be deleted from the
+  floor unnoticed.
+- **The token ban is a list of shapes, not a proof.** A qualifier phrased in
+  words nobody enumerated still passes, and enumerating further is not the
+  answer: the tokens are deliberately narrowed to phrases that hand discretion to
+  an agent ("unless the lead", "except where the lead", "at the lead's
+  discretion") rather than bare conjunctions, because a guard that fires on
+  "a level may not be lowered except by Brian" — a **tightening** — is a guard
+  somebody will relax, and a relaxed guard catches nothing. The residual gap is
+  why `.claude/**` and `AGENTS.md` are on the floor, and why prose no test pins
+  is a preference rather than a guarantee.
+- **One assertion was deliberately given up.** Deleting the sentence "A floor a
+  lead can argue around is not a floor" now passes, where an earlier revision
+  caught it. It is rhetorical restatement and the binding clauses beside it are
+  still pinned, but pinning it verbatim also failed an honest reword — and a test
+  that cries wolf gets relaxed. The trade is recorded rather than presented as
+  strictly better.
 - **Whether a level is assigned correctly remains a judgement**, and no test can
   check it. The floor bounds the damage; the verification-time re-check catches a
   level set too low against the code that actually arrived; and the requirement to
   record a justification in two places means a wrong call is at least legible
   afterwards. A test can assert a justification exists, not that it is sound —
   Brian reads the run report.
+- **Level 1's "unreachable" test is a judgement made before the code exists,**
+  by the lead, about its own wave. A new service module that nothing imports yet
+  is honestly unreachable, so its business rules could be written at level 1 and
+  never face an injection challenge. This ADR's answer — the issue that wires it
+  up gets its own review, under real enforcement — is an argument rather than a
+  guarantee: that issue's diff does not contain the predicate, and a reviewer
+  pinned to that diff has no reason to re-challenge it. The
+  verification-time re-check and the floor bound this; neither closes it.
 - **At level 0 or 1 there is no independent reviewer**, so nothing catches a
   shared-resource side effect the implementer does not disclose. On 2026-08-11 an
   implementer silently changed the shared local stack's test-user password and
