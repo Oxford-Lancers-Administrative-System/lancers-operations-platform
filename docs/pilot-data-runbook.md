@@ -391,6 +391,32 @@ nothing and reports success — the one place this procedure could fail open. Ze
 rows returned means the role code does not exist and **no access was granted**.
 Do not re-run it hopefully; fix the `select` above first.
 
+> **What the automated check recognises, and what it does not.**
+> `tests/pilot-data-contract.test.ts` reads this file and proves that every
+> grant is time-bounded and grants no constitutional office. It finds a grant by
+> matching one literal statement opener: `insert`, then `into`, then the
+> schema-qualified, unquoted table name `public` dot `role_assignments`.
+> Case-insensitive and whitespace-flexible, and nothing else. Its own
+> completeness self-check counts that same pattern, so a statement written any
+> other way is not merely unchecked — it is **invisible to the check that would
+> have reported it was missed**.
+>
+> Not recognised, and therefore not constrained: an `update` that grants or
+> re-opens access, including one that clears `effective_to`; an unqualified
+> `role_assignments`; a quoted `"public"."role_assignments"`; an insert routed
+> through a CTE or a view. The scan reads **this file only** —
+> `scripts/pilot/lan-93/cleanup.sql` also writes to `role_assignments` and is
+> not read by it.
+>
+> This note cannot spell that opener out contiguously, because the check scans
+> the raw file and would parse the example as a grant. That is the boundary,
+> demonstrated rather than described: it is textual, and it sees exactly one
+> spelling.
+>
+> **So match the template above exactly, or extend the check before writing the
+> statement a different way.** A green test run is not evidence that anything
+> looked at what you wrote.
+
 > **Reference data is not yet in the hosted database.** The role vocabulary
 > (`public.roles`) is currently created by `scripts/seed-local.mjs`, which is
 > **local only** — so a freshly migrated hosted project has an empty `roles`
@@ -456,6 +482,10 @@ Removing access must not remove history. In order:
    the login itself should no longer exist.
 4. **Never delete the `people` row**, and never delete unrelated club history to
    tidy up after somebody.
+
+These are `update` statements, so the grant check described in step 4 does not
+read them. Ending access this way is correct; **granting** or re-opening access
+with an `update` would go unchecked.
 
 ```sql
 update public.role_assignments
