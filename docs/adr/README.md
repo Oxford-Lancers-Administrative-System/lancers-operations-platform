@@ -8,18 +8,19 @@ Record a decision here when it constrains future work: something a future
 developer or agent would otherwise have to re-litigate or would break by
 accident. Routine implementation choices do not need an ADR.
 
-| ADR                                              | Title                                                                  | Status                 |
-| ------------------------------------------------ | ---------------------------------------------------------------------- | ---------------------- |
-| [0001](0001-local-supabase-only.md)              | Development and CI run against local Supabase only                     | Accepted               |
-| [0002](0002-rls-posture.md)                      | RLS enabled everywhere, deny-by-default                                | Accepted               |
-| [0003](0003-supabase-key-types.md)               | Support both Supabase key naming schemes                               | Accepted               |
-| [0004](0004-styling-baseline.md)                 | Material UI and Tailwind coexist; MUI is the component baseline        | Accepted               |
-| [0005](0005-github-to-gcp-auth.md)               | GitHub authenticates to GCP with OIDC and Workload Identity Federation | Accepted               |
-| [0006](0006-solo-developer-branch-protection.md) | `main` is protected, CI is required, zero human approvals              | Accepted (provisional) |
-| [0007](0007-zero-domain-code-boundary.md)        | This repository contains no club domain schema                         | Superseded by 0011     |
-| [0008](0008-relational-mapping-conventions.md)   | Relational mapping conventions for the domain schema                   | Accepted               |
-| [0009](0009-state-vocabulary-representation.md)  | Frozen state vocabularies are enums; configurable ones are tables      | Accepted               |
-| [0010](0010-domain-table-access-posture.md)      | Domain tables are unreachable from the browser, twice over             | Accepted               |
-| [0011](0011-domain-schema-baseline.md)           | The zero-domain-schema boundary is closed                              | Accepted               |
-| [0012](0012-explicit-event-audience.md)          | The confirmed event audience is a relation; its non-emptiness is not   | Accepted               |
-| [0013](0013-supervised-agent-development.md)     | Supervised parallel agent development, capped at two workers           | Accepted               |
+| ADR                                              | Title                                                                                    | Status                 |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------- | ---------------------- |
+| [0001](0001-local-supabase-only.md)              | Development and CI run against local Supabase only                                       | Accepted               |
+| [0002](0002-rls-posture.md)                      | RLS enabled everywhere, deny-by-default                                                  | Accepted               |
+| [0003](0003-supabase-key-types.md)               | Support both Supabase key naming schemes                                                 | Accepted               |
+| [0004](0004-styling-baseline.md)                 | Material UI and Tailwind coexist; MUI is the component baseline                          | Accepted               |
+| [0005](0005-github-to-gcp-auth.md)               | GitHub authenticates to GCP with OIDC and Workload Identity Federation                   | Accepted               |
+| [0006](0006-solo-developer-branch-protection.md) | `main` is protected, CI is required, zero human approvals                                | Accepted (provisional) |
+| [0007](0007-zero-domain-code-boundary.md)        | This repository contains no club domain schema                                           | Superseded by 0011     |
+| [0008](0008-relational-mapping-conventions.md)   | Relational mapping conventions for the domain schema                                     | Accepted               |
+| [0009](0009-state-vocabulary-representation.md)  | Frozen state vocabularies are enums; configurable ones are tables                        | Accepted               |
+| [0010](0010-domain-table-access-posture.md)      | Domain tables are unreachable from the browser, twice over                               | Accepted               |
+| [0011](0011-domain-schema-baseline.md)           | The zero-domain-schema boundary is closed                                                | Accepted               |
+| [0012](0012-explicit-event-audience.md)          | The confirmed event audience is a relation; its non-emptiness is not                     | Accepted               |
+| [0013](0013-supervised-agent-development.md)     | Supervised parallel agent development, capped at two workers                             | Accepted               |
+| [0014](0014-transactional-data-access.md)        | Transactional writes use a direct PostgreSQL connection — a second privileged credential | Accepted               |

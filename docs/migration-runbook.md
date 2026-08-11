@@ -9,7 +9,7 @@ from that. See [ADR 0001](adr/0001-local-supabase-only.md).
 ## The promotion path
 
 ```
-local migration development
+local migration development  (DEVELOPMENT clone)
         │   npx supabase migration new <name>
         │   npm run db:reset && npm run db:seed
         │   npm run types:generate
@@ -25,7 +25,7 @@ CI (.github/workflows/ci.yml)
 reviewed merge to `main`
         │   CI green is a hard gate; human approvals are zero (ADR 0006)
         ▼
-explicitly authorized application to hosted Supabase
+explicitly authorized application to hosted Supabase  (DEPLOYMENT clone)
             a deliberate human action, never the pipeline
 ```
 
@@ -42,7 +42,8 @@ migration that reproduces it, plus a note in the deployment record below.
 
 ## Local cycle
 
-The full loop, and what each step proves:
+In the **development clone** — the unlinked one, and the only place local
+Supabase runs. The full loop, and what each step proves:
 
 ```bash
 npm run db:reset          # every migration applies to an EMPTY database
@@ -63,8 +64,10 @@ starts trusting columns that no longer exist.
 - **No agent applies a migration to hosted Supabase.** Not with a tool, not with
   a script, not "just to check". Automated application to production is outside
   the authority any agent working in this repository holds.
-- **Brian authorizes and performs hosted application himself**, with the
-  commands from this runbook.
+- **Brian authorizes and performs hosted application himself**, from the
+  **deployment clone**, with the commands from this runbook. The clone agents
+  work in is never linked to hosted Supabase — see [the two-clone
+  model](#the-two-clone-model).
 - **Production credentials never appear** on a development machine, in a prompt,
   in Git, in Notion, in CI logs, or in the client bundle. The hosted database
   password and the Supabase secret key live in GCP Secret Manager and in Brian's
@@ -129,36 +132,145 @@ Redacting availability data (review F13) is a bounded, expected deletion rather
 than a destructive schema change, but it is performed by a database owner, is
 recorded in `audit_events`, and follows the same authorization rule.
 
-## Applying to hosted Supabase
+## The two-clone model
 
-Performed by Brian, from his own machine, with credentials that exist only
-there.
+**Added on Brian's direct instruction, outside LAN-72's scope.**
 
-### Preflight
+Schema promotion uses **two separate clones of this repository on Brian's
+machine**. They are not two branches and not two directories that happen to
+exist — they have different jobs, different linkage to hosted Supabase, and
+different rules.
+
+|                           | **Development clone**                                  | **Deployment clone**                                              |
+| ------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------- |
+| What it is for            | Writing migrations, running the app, running the tests | Applying reviewed migrations to hosted Supabase, and nothing else |
+| Who works in it           | Brian, Claude, any agent                               | **Brian only**                                                    |
+| Local Supabase            | Yes — this is the only place it runs                   | **Never**                                                         |
+| Linked to hosted Supabase | **No. Stays unlinked.**                                | Yes                                                               |
+| What may be edited        | Everything                                             | **Nothing.** It is a checkout, not a workspace                    |
+
+### The development clone stays unlinked
 
 ```bash
-# 1. Confirm what is about to be applied. Nothing else may be pending.
-supabase migration list --linked
+npx supabase unlink      # confirm and keep it that way
+```
 
-# 2. Confirm the local database rebuilds from empty with the same set.
+**This is the control, not a tidiness preference.** While a clone is linked, the
+`--linked` variants of otherwise-local commands become reachable in it, and
+`supabase db reset --linked` **destroys the production database**. That is one
+flag away from `npm run db:reset`, which is a routine local command this
+runbook tells you to run and which agents run constantly.
+
+Be clear about what does _not_ save you there: the repository's checked-in deny
+rules do **not** block `supabase db reset --linked`. `scripts/lib/local-db.mjs`
+and `tests/rls-posture.test.ts` refuse non-local hosts, but they guard _this
+repository's_ scripts and tests — not the Supabase CLI's own linked commands.
+The protection is that the clone an agent works in has nothing to be linked to.
+
+### What the split fixes
+
+With one clone doing both jobs, the preflight verification below and the agent
+harness share a single local Supabase stack, and a local `db reset` is
+indistinguishable from an accident. That is not hypothetical: on 2026-08-11 an
+authorized `npm run db:reset` during preflight-style verification was briefly
+misread as an unexplained wipe, because two things legitimately reset the same
+database and nothing in the setup distinguished them.
+
+Separating the clones separates the failure modes. The clone that can reach
+production never runs a reset; the clone that runs resets cannot reach
+production.
+
+### Only merged, committed migrations are deployed
+
+The deployment clone applies migrations **from `main`**, already reviewed, CI-
+green and merged. It never applies a migration from a branch, from a working
+tree, or from an uncommitted file. `git status --short` returning nothing is
+part of the sequence for exactly that reason.
+
+### Never, in the deployment clone
+
+- **Edit a migration**, or any other file.
+- **Run Claude, or any other agent.**
+- **Run local Supabase** — no `npx supabase start`, no `npm run db:start`.
+- **Run the test suite**, or `npm run verify` (which runs it).
+- **Run anything else that needs the local stack** — `npm run types:check`,
+  `npm run types:generate`, `npm run db:seed`. They read the local database, and
+  there is not one here.
+- **Run `npx supabase db reset`.** It is local, but it has no business here, and
+  muscle memory is the risk this table exists to remove.
+
+### Never, in any clone
+
+```
+npx supabase db reset --linked
+```
+
+There is no situation in this project where that command is correct. It drops
+and rebuilds the **production** database. Recovery is a restore from backup, and
+[the pre-pilot gate](#pre-pilot-gate) records that hosted restore has **not**
+been rehearsed.
+
+## Applying to hosted Supabase
+
+Performed by Brian, in the **deployment clone**, with credentials that exist
+only there. This section owns the canonical command sequence; [the two-clone
+model](#the-two-clone-model) above owns the rules about which clone does what.
+
+**Verification happens in the development clone. Only the push happens in the
+deployment clone.** That division is the whole point of the split — the
+deployment clone must never run a `db reset` or the test suite.
+
+### Preflight — in the DEVELOPMENT clone
+
+```bash
+# 1. Confirm the local database rebuilds from empty with the same set.
 npm run db:reset && npm run check:rls && npm run test
+
+# 2. Confirm the commit being deployed is the reviewed, merged one.
+#    `git fetch` first: `origin/main` is a LOCAL cache of the remote branch, and
+#    in a clone that has not fetched since the merge this step confirms the
+#    wrong commit while looking entirely correct. A gate that silently passes is
+#    worse than no gate.
+git fetch origin
+git log --oneline -1 origin/main
 
 # 3. Confirm a recovery point exists and note its timestamp.
 #    Supabase dashboard → Database → Backups.
-
-# 4. Confirm the commit being deployed is the reviewed, merged one.
-git log --oneline -1 origin/main
 ```
 
-Refuse to proceed if: the pending list contains a migration you did not expect;
-`migration list` shows local and remote already disagreeing; or no recovery
-point is confirmed.
-
-### Apply
+### Preflight — in the DEPLOYMENT clone
 
 ```bash
-supabase db push --linked            # add --dry-run first to print the plan
+git switch main
+git pull --ff-only
+git status --short                      # must print NOTHING
+
+npm ci                                  # the PINNED Supabase CLI, not whatever npx fetches
+npx supabase migration list --linked    # what is about to be applied
 ```
+
+`npm ci` is here because the Supabase CLI is a dev dependency of this
+repository. Without it `npx` downloads some arbitrary latest version, and the
+tool that talks to the production database should be the one the lockfile pins.
+It installs into `node_modules`, which is git-ignored, so the working tree stays
+clean. It is not a licence to run anything else.
+
+`git status --short` printing nothing is a hard gate: an uncommitted file here
+means this clone has been used as a workspace, which it must not be.
+
+Refuse to proceed if: the working tree is not clean; the pending list contains a
+migration you did not expect; `migration list` shows local and remote already
+disagreeing; or no recovery point is confirmed.
+
+### Apply — in the DEPLOYMENT clone
+
+```bash
+npx supabase db push --linked --dry-run   # print the plan; read it
+npx supabase db push --linked             # apply it
+```
+
+The dry run is not optional politeness. It is the last point at which an
+unexpected pending migration is cheap to discover.
 
 Each migration runs in a transaction where PostgreSQL permits it, so a failing
 statement rolls that migration back. Some statements are not
@@ -166,15 +278,24 @@ transaction-safe — notably `create index concurrently` and, in some cases,
 `alter type ... add value`. A migration containing one of those can fail
 **partially applied**, which is the case the next section is for.
 
-### Verify
+### Verify — in the DEPLOYMENT clone
 
 ```bash
-supabase migration list --linked     # local and remote agree
+npx supabase migration list --linked       # local and remote agree
 curl -s https://<service-url>/api/health   # status ok, secretsLoaded true
 ```
 
-Then regenerate types against local (never against production) and confirm no
-drift: `npm run types:check`.
+### After the apply — in the DEVELOPMENT clone
+
+```bash
+npm run types:check                        # generated types match the schema
+```
+
+**This step belongs here, not in the deployment clone.** `types:check` runs
+`scripts/generate-types.mjs`, which shells out to
+`supabase gen types typescript --local` — it reads the **local** stack, by
+design, so that types are never generated from production. The deployment clone
+has no local stack and never starts one, so the check is unrunnable there.
 
 ## When a migration fails
 
@@ -183,11 +304,11 @@ drift: `npm run types:check`.
 1. **Determine the last successfully applied migration.**
 
    ```bash
-   supabase migration list --linked
+   npx supabase migration list --linked
    ```
 
-   The remote column is authoritative. If it disagrees with what the error
-   suggested, trust the list.
+   In the deployment clone. The remote column is authoritative. If it disagrees
+   with what the error suggested, trust the list.
 
 2. **Determine whether the failed migration applied partially.** Inspect the
    objects it should have created. A fully rolled-back migration leaves nothing;
@@ -201,6 +322,13 @@ drift: `npm run types:check`.
    | Partially applied, no data loss, remaining work is additive                                | **Forward-fix.** Write a new migration that is idempotent about what already exists (`if not exists`, `drop … if exists` on the partial objects). |
    | Data was transformed or removed, or the schema is in a state you cannot describe precisely | **Restore** to the verified recovery point, then treat the whole change as not applied.                                                           |
    | Application is failing in production because of the schema state                           | **Restore first, diagnose second.** Availability is the club's, and it is a football club's operations system in season.                          |
+
+   **Which clone does what here.** Reading state and re-applying happen in the
+   **deployment clone**. Authoring the corrective migration and verifying it
+   locally from empty happen in the **development clone**, through a branch, a
+   pull request and a merge like any other change — the deployment clone edits
+   no file and runs no local stack, so "correct the SQL" and "verify locally"
+   are never done there.
 
 4. **Never fabricate the history table.** Editing
    `supabase_migrations.schema_migrations` by hand to "mark it applied" makes
