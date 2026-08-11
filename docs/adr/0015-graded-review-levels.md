@@ -149,11 +149,23 @@ database lock, and the two-worker cap.
   and it is also the risk: this decision is a control on how much scrutiny future
   agent work receives, written with the help of agents. The floor is therefore
   wide, the default is level 2, and the fail-safe direction is upward.
-- `tests/agent-harness.test.ts` pins every element above that a future edit could
-  quietly remove: the four levels and their criteria, each floor entry, the
-  override wording, the recorded-justification requirement in both places, the
-  matrix-time timing, the reachability-not-size criterion, the fail-safe default,
-  and the one-cycle limit. Prose no test pins is a preference, not a guarantee.
+- `tests/agent-harness.test.ts` pins every element above, in **both**
+  directions. Positively: the four levels, each level's entry criteria **by
+  content rather than by length**, each floor entry, the override wording in
+  `SKILL.md` _and_ in `AGENTS.md`, the recorded-justification requirement in both
+  places, the matrix-time timing, the reachability-not-size criterion, the
+  fail-safe default, and the one-cycle limit. Negatively: the floor, the default,
+  the downgrade authority, and the verification-time re-check may not acquire a
+  qualifier — "unless", "except", "normally", "in practice", "at the lead's
+  discretion" and the like fail the suite inside those sections.
+- **The second direction was added after a review found six escapes, and every
+  one was a contradicting addition rather than a deletion.** A positive assertion
+  proves a sentence is present and notices nothing about the exception written
+  beside it: a floor reading "…is still level 2, unless the lead records that the
+  touched path is trivially inert" satisfied the entire suite. The token ban is a
+  list of shapes, not a proof — a qualifier phrased in words nobody enumerated
+  would still pass. That residual gap is why `.claude/**` and `AGENTS.md` are on
+  the floor, and why prose no test pins is a preference rather than a guarantee.
 - **Whether a level is assigned correctly remains a judgement**, and no test can
   check it. The floor bounds the damage; the verification-time re-check catches a
   level set too low against the code that actually arrived; and the requirement to
