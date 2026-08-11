@@ -358,11 +358,178 @@ describe("the scenario scripts stay inside the conventions", () => {
     }
   });
 
-  it("both scripts carry a preflight that raises rather than warns", () => {
-    for (const sql of [setup, cleanup]) {
-      expect(sql).toMatch(/do \$preflight\$/);
-      expect(sql).toMatch(/raise exception/);
-      expect(sql).not.toMatch(/raise warning/i);
+  /**
+   * A parsed preflight: its guard blocks, and any raise outside all of them.
+   *
+   * The rules below are stated as what a guard MUST be, never as a list of
+   * things it must not be. A blacklist is how `raise notice` walked past the
+   * previous version of this assertion — `raise warning` was forbidden and
+   * every other level was not, and downgrading one word turned a refusal into a
+   * message nobody reads while the whole suite stayed green.
+   */
+  interface GuardBlock {
+    condition: string;
+    body: string;
+    raises: { level: string; line: string }[];
+    hasNestedIf: boolean;
+  }
+
+  const RAISE_LEVELS = ["exception", "warning", "notice", "info", "log", "debug"];
+
+  function parsePreflight(sql: string): { blocks: GuardBlock[]; looseRaises: string[] } {
+    const preflight = /do \$preflight\$([\s\S]*?)\$preflight\$;/.exec(sql);
+    if (!preflight) throw new Error("no do $preflight$ … $preflight$; block");
+
+    const lines = preflight[1]
+      .replace(/--[^\n]*/g, "")
+      .split("\n")
+      .map((line) => line.trim());
+
+    const blocks: GuardBlock[] = [];
+    const looseRaises: string[] = [];
+    const open: {
+      condition: string[];
+      body: string[];
+      raises: GuardBlock["raises"];
+      nested: boolean;
+    }[] = [];
+
+    for (const line of lines) {
+      if (/^if\b/.test(line)) {
+        for (const enclosing of open) enclosing.nested = true;
+        open.push({ condition: [line], body: [line], raises: [], nested: false });
+        continue;
+      }
+
+      if (/^raise\b/i.test(line)) {
+        const level = /^raise\s+([a-z]+)/i.exec(line)?.[1]?.toLowerCase() ?? "";
+        if (open.length === 0) looseRaises.push(line);
+        else open[open.length - 1].raises.push({ level, line });
+      }
+
+      for (const enclosing of open) enclosing.body.push(line);
+      // The condition runs until `then`, which may be several lines below `if`.
+      const innermost = open[open.length - 1];
+      if (innermost && !innermost.condition.join(" ").includes(" then")) {
+        if (innermost.condition[innermost.condition.length - 1] !== line) {
+          innermost.condition.push(line);
+        }
+      }
+
+      if (/^end if;$/.test(line)) {
+        const finished = open.pop();
+        if (!finished) throw new Error("an 'end if;' with no matching 'if'");
+        blocks.push({
+          condition: finished.condition.join(" "),
+          body: finished.body.join(" "),
+          raises: finished.raises,
+          hasNestedIf: finished.nested,
+        });
+      }
+    }
+
+    if (open.length > 0) throw new Error("an 'if' with no matching 'end if;'");
+    return { blocks, looseRaises };
+  }
+
+  const PREFLIGHTS = [["setup.sql", setup, 10] as const, ["cleanup.sql", cleanup, 17] as const];
+
+  it.each(PREFLIGHTS)("%s carries a preflight of guard blocks, parsed", (_name, sql, minimum) => {
+    const { blocks } = parsePreflight(sql);
+    // A parser that found nothing must not be able to pass everything below.
+    expect(blocks.length).toBeGreaterThanOrEqual(minimum);
+  });
+
+  it.each(PREFLIGHTS)("every guard in %s refuses — no other outcome exists", (name, sql) => {
+    const { blocks, looseRaises } = parsePreflight(sql);
+
+    for (const block of blocks) {
+      // A guard that raises nothing is a guard that lets the run continue,
+      // whether it was gutted, commented out, or never finished.
+      expect(
+        block.raises.length + (block.hasNestedIf ? 1 : 0),
+        `${name}: this guard raises nothing — ${block.condition.slice(0, 90)}`,
+      ).toBeGreaterThanOrEqual(1);
+
+      for (const raise of block.raises) {
+        // Positive requirement, not a blacklist: the level must BE exception.
+        expect(
+          raise.level,
+          `${name}: a preflight guard must raise exception, not ${raise.level || "an unnamed level"} — ${raise.line.slice(0, 90)}`,
+        ).toBe("exception");
+      }
+
+      // An innermost guard is exactly one refusal and nothing else.
+      if (!block.hasNestedIf) {
+        expect(block.raises.length, `${name}: ${block.condition.slice(0, 90)}`).toBe(1);
+      }
+    }
+
+    // The only raise permitted outside a guard is the single "preflight passed"
+    // notice, which reports rather than decides.
+    expect(looseRaises.length).toBeLessThanOrEqual(1);
+    for (const line of looseRaises) {
+      expect(line.toLowerCase()).toMatch(/^raise notice /);
+      expect(line).toMatch(/preflight passed/);
+    }
+  });
+
+  it.each(PREFLIGHTS)("every raise in %s names its level explicitly", (name, sql) => {
+    const { blocks, looseRaises } = parsePreflight(sql);
+    const everyRaise = [
+      ...blocks.flatMap((block) => block.raises.map((r) => r.line)),
+      ...looseRaises,
+    ];
+
+    expect(everyRaise.length).toBeGreaterThan(0);
+    for (const line of everyRaise) {
+      // `raise 'text'` defaults to EXCEPTION, which is correct but invisible.
+      // Requiring the word makes every later reading of this file unambiguous.
+      const level = /^raise\s+([a-z]+)/i.exec(line)?.[1]?.toLowerCase();
+      expect(RAISE_LEVELS, `${name}: ${line.slice(0, 90)}`).toContain(level);
+    }
+  });
+
+  it.each(PREFLIGHTS)("%s raises nowhere except inside its preflight", (name, sql) => {
+    // Otherwise a second `do $ … $;` block could carry guards the parser
+    // above never looks at, and a weak one there would be invisible to every
+    // structural rule in this file.
+    const inFile = (sql.replace(/--[^\n]*/g, "").match(/^\s*raise\b/gim) ?? []).length;
+    const { blocks, looseRaises } = parsePreflight(sql);
+    const inPreflight =
+      blocks.reduce((total, block) => total + block.raises.length, 0) + looseRaises.length;
+
+    expect(inPreflight, `${name}: a raise exists outside the preflight block`).toBe(inFile);
+    expect(sql.match(/do \$/g)?.length ?? 0, `${name}: exactly one anonymous block`).toBe(1);
+  });
+
+  it("cleanup.sql guards every foreign key PostgreSQL would follow unasked", () => {
+    // The live-schema half of this — that these seven are ALL of them — is
+    // `tests/pilot-scenario-lan-93.test.ts`, which reads pg_constraint and
+    // requires a behavioural test per key. This half is structural: each guard
+    // must be a real `if … then raise exception … end if;` block that queries
+    // the table. A comment mentioning the table satisfies neither.
+    const { blocks } = parsePreflight(cleanup);
+
+    for (const table of [
+      "public.person_aliases",
+      "public.contact_points",
+      "public.event_questions",
+      "public.event_audience_members",
+      "public.onboarding_item_types",
+      "staging.legacy_roster_rows",
+      "staging.legacy_event_rows",
+    ]) {
+      const guard = blocks.find(
+        (block) =>
+          new RegExp(`from \\s*${table.replace(".", "\\.")}\\b`).test(block.condition) &&
+          block.raises.some((raise) => raise.level === "exception"),
+      );
+
+      expect(
+        guard,
+        `cleanup.sql has no guard block querying ${table} and raising an exception`,
+      ).toBeDefined();
     }
   });
 
@@ -581,32 +748,53 @@ describe("the pilot runbook represents elevated access truthfully", () => {
   interface Grant {
     columns: string[];
     values: string[];
+    statement: string;
   }
 
-  function parseGrants(blocks: readonly string[]): Grant[] {
-    return blocks
-      .filter((block) => /insert\s+into\s+public\.role_assignments/i.test(block))
-      .map((block) => {
-        const flat = block
-          .replace(/--[^\n]*/g, "")
-          .replace(/\s+/g, " ")
-          .trim();
+  /** Every `insert into public.role_assignments` in the document, wherever it is. */
+  const GRANT_OPENER = /insert\s+into\s+public\.role_assignments/gi;
 
-        const columnList = /insert\s+into\s+public\.role_assignments\s*\(([^)]*)\)/i.exec(flat);
-        if (!columnList) throw new Error(`Grant template has no column list: ${flat}`);
+  /**
+   * Parses EVERY grant in the whole document — not one per fenced block, and not
+   * only the fences tagged `sql`.
+   *
+   * The previous version filtered fences and then `exec`ed once per fence, so it
+   * read the first grant in each and no other. A second `insert into
+   * public.role_assignments` appended to an existing fence — the obvious next
+   * edit, with a section headed "Brian's own elevated access" directly below
+   * one — was never looked at. Scanning the raw document means the fence tag,
+   * the fence itself, and the position in the file are all irrelevant.
+   */
+  function parseAllGrants(document: string): Grant[] {
+    const flatDocument = document.replace(/--[^\n]*/g, "");
+    const grants: Grant[] = [];
 
-        // Either `insert … select <values> from …` or `insert … values (<values>)`.
-        // `returning` is deliberately outside both: it reports, it does not write.
-        const fromSelect = /\)\s*select\s+(.*?)\s+from\s+/i.exec(flat);
-        const fromValues = /\)\s*values\s*\((.*?)\)\s*(?:returning|;|$)/i.exec(flat);
-        const valueList = fromSelect?.[1] ?? fromValues?.[1];
-        if (valueList === undefined) throw new Error(`Grant template supplies no values: ${flat}`);
+    for (const opener of flatDocument.matchAll(GRANT_OPENER)) {
+      const start = opener.index ?? 0;
+      const terminator = flatDocument.indexOf(";", start);
+      const statement = flatDocument
+        .slice(start, terminator === -1 ? flatDocument.length : terminator + 1)
+        .replace(/\s+/g, " ")
+        .trim();
 
-        return {
-          columns: splitExpressions(columnList[1]),
-          values: splitExpressions(valueList),
-        };
+      const columnList = /insert\s+into\s+public\.role_assignments\s*\(([^)]*)\)/i.exec(statement);
+      if (!columnList) throw new Error(`Grant has no column list: ${statement}`);
+
+      // Either `insert … select <values> from …` or `insert … values (<values>)`.
+      // `returning` is deliberately outside both: it reports, it does not write.
+      const fromSelect = /\)\s*select\s+(.*?)\s+from\s+/i.exec(statement);
+      const fromValues = /\)\s*values\s*\((.*?)\)\s*(?:returning|;|$)/i.exec(statement);
+      const valueList = fromSelect?.[1] ?? fromValues?.[1];
+      if (valueList === undefined) throw new Error(`Grant supplies no values: ${statement}`);
+
+      grants.push({
+        columns: splitExpressions(columnList[1]),
+        values: splitExpressions(valueList),
+        statement,
       });
+    }
+
+    return grants;
   }
 
   /** The value the template supplies for a named column, or undefined. */
@@ -615,9 +803,23 @@ describe("the pilot runbook represents elevated access truthfully", () => {
     return index === -1 ? undefined : grant.values[index];
   }
 
-  it("parses a grant template with one value per column", () => {
-    const grants = parseGrants(sqlBlocks);
-    expect(grants.length).toBeGreaterThanOrEqual(1);
+  /** Is this value read from `public.roles`, rather than asserted by the author? */
+  function isDerivedFromTheRole(value: string | undefined): boolean {
+    if (value === undefined) return false;
+    return /^r\./i.test(value) || /select[\s\S]*from\s+public\.roles\b/i.test(value);
+  }
+
+  it("parses every grant in the document, not the first one in each fence", () => {
+    const occurrences = (runbook.match(/insert\s+into\s+public\.role_assignments/gi) ?? []).length;
+    const grants = parseAllGrants(runbook);
+
+    expect(occurrences).toBeGreaterThanOrEqual(1);
+    // Self-detecting: a parser that reads one grant per fence, or skips a fence
+    // it does not recognise, disagrees with a plain count of the document.
+    expect(
+      grants.length,
+      "some grant in this document was never parsed, so nothing below constrains it",
+    ).toBe(occurrences);
 
     for (const grant of grants) {
       // Without this, every positional assertion below could be reading the
@@ -627,34 +829,49 @@ describe("the pilot runbook represents elevated access truthfully", () => {
   });
 
   it("never templates a grant of a constitutional office", () => {
-    for (const grant of parseGrants(sqlBlocks)) {
-      // The office flag and the scope are taken FROM the role, never asserted
-      // by the person writing the grant. A literal here is how a template
-      // starts disagreeing with `public.roles` about what a seat is.
-      expect(valueFor(grant, "is_constitutional_office")).toBe("r.is_constitutional_office");
-      expect(valueFor(grant, "scope")).toBe("r.scope");
-      expect(valueFor(grant, "role_id")).toBe("r.id");
+    const grants = parseAllGrants(runbook);
+    expect(grants.length).toBeGreaterThanOrEqual(1);
 
-      for (const value of grant.values) {
-        expect(value).not.toMatch(/'(president|vice_president|secretary|treasurer)'/i);
+    for (const grant of grants) {
+      // The office flag and the scope are read FROM the role, never asserted by
+      // the person writing the grant. A literal here is how a template starts
+      // disagreeing with `public.roles` about what a seat is — and an
+      // authorization record that disagrees with the seat is the untruthful
+      // grant this whole section exists to prevent.
+      for (const column of ["role_id", "scope", "is_constitutional_office"]) {
+        const value = valueFor(grant, column);
+        expect(grant.columns, `a grant must write ${column}`).toContain(column);
+        expect(
+          isDerivedFromTheRole(value),
+          `${column} must be read from public.roles, not written as ${value}`,
+        ).toBe(true);
       }
+
+      // And no constitutional office is named anywhere in the statement —
+      // including the `where r.code = …` that chooses which seat is granted.
+      expect(grant.statement).not.toMatch(/'(president|vice_president|secretary|treasurer)'/i);
     }
   });
 
   it("time-bounds every grant at the moment it is made", () => {
-    const grants = parseGrants(sqlBlocks);
+    const grants = parseAllGrants(runbook);
+    expect(grants.length).toBeGreaterThanOrEqual(1);
 
     for (const grant of grants) {
       expect(grant.columns, "a grant must write effective_to").toContain("effective_to");
       expect(grant.columns).toContain("effective_from");
 
-      // And the value supplied for it must actually be an end date. A column
-      // present with `null` in its slot is an open-ended grant wearing the
-      // right column name.
+      // And the value in its slot must be an end date. A column present with
+      // `null` or `default` is an open-ended grant wearing the right column
+      // name, and `role_assignments.effective_to` is nullable — the database
+      // accepts it in silence, so this assertion is the only control.
       const end = valueFor(grant, "effective_to");
       expect(end, "effective_to must be supplied a value").toBeDefined();
-      expect(end).toMatch(/<effective-to>/);
-      expect(end).not.toMatch(/\bnull\b/i);
+      expect(end?.trim()).not.toBe("");
+      expect(end, "effective_to must not be null or defaulted").not.toMatch(/^(null|default)$/i);
+      expect(end, "effective_to must be an end date").toMatch(
+        /<effective-to>|date\s+'|::date|current_date|now\(\)/i,
+      );
     }
 
     expect(runbook).toMatch(/`effective_to` is set\s+in the same statement/i);

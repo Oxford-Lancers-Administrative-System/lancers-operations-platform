@@ -166,15 +166,29 @@ Supabase, that:
 - [ ] setup run twice leaves exactly one copy of each row;
 - [ ] setup run again after a row was removed by hand restores it;
 - [ ] setup does not rewrite a row that is already there;
-- [ ] setup aborts, writing nothing, when a prerequisite is not met;
+- [ ] **every refusal either script contains is exercised** — something actually
+      attempts the thing each preflight is supposed to refuse, so a guard that is
+      deleted, commented out, inverted, made unreachable or downgraded from
+      `raise exception` to a `raise notice` fails a test. The list of refusals is
+      read out of the scripts and compared against the list of tests, so a new
+      guard with no test is itself a failure;
+- [ ] any refusal that genuinely cannot be reached by a test is named in an
+      explicit exemption list, with the reason, and the list is asserted to
+      still match a real refusal;
+- [ ] every preflight guard **structurally** terminates in `raise exception` —
+      asserted as what a guard must be, never as a list of levels it must not
+      be, because a blacklist only ever catches the levels somebody thought of;
 - [ ] cleanup restores a row-for-row identical snapshot of every table;
 - [ ] cleanup run a second time is a no-op;
 - [ ] cleanup with no setup ever run succeeds and changes nothing;
 - [ ] cleanup refuses, rather than widening, when a foreign row hangs off the
       scenario — including every `cascade` and `set null` foreign key;
-- [ ] that enumeration is checked against `pg_constraint` rather than against a
-      comment, so a later migration adding an eighth such key fails a test
-      instead of quietly turning a refusal into a cascade;
+- [ ] that enumeration is checked three ways rather than by reading the script:
+      `pg_constraint` is queried for the keys that actually exist, each one must
+      have a guard block that queries its table and raises, and each must have a
+      test that puts a row there and watches the cleanup refuse. A later
+      migration adding an eighth such key fails a test rather than quietly
+      turning a refusal into a cascade;
 - [ ] every delete's `where` clause conjoins the deterministic identifier with
       the sentinel, asserted as a parsed predicate — one `and` becoming `or` is
       the whole distance between the narrowest delete and an arbitrary one;

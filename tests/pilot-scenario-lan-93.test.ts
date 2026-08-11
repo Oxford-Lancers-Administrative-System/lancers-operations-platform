@@ -9,6 +9,15 @@
  * cleanup that is a no-op the second time, and a durable pilot foundation that
  * survives all of it — are asserted here rather than asserted in prose.
  *
+ * **Every refusal both scripts contain is exercised here, and the list is
+ * checked against the scripts rather than maintained by hand.** That is the
+ * point of `GUARD_CASES` and the coverage assertion at the foot of this file: a
+ * preflight that is deleted, commented out, inverted, made unreachable or
+ * quietly downgraded to a `raise notice` fails a test, because something
+ * actually attempts the thing it is supposed to refuse. Two guards are
+ * exempt — named, justified and asserted to still exist — because falsifying
+ * them needs DDL against tables every other test file shares.
+ *
  * LOCAL ONLY, and structurally so: the connection is opened by
  * `scripts/lib/local-db.mjs`, which refuses any non-loopback host and any
  * hosted Supabase connection string. Running the scripts here as verification
@@ -52,6 +61,12 @@ const SCENARIO_ROWS: readonly (readonly [table: string, id: string])[] = [
   ["public.events", ID.event],
 ];
 
+/** The migration version both scripts require to be applied. */
+const REQUIRED_MIGRATION = "20260811090000";
+
+const SETUP_FILE = readFileSync(path.join(scenarioDir, "setup.sql"), "utf8");
+const CLEANUP_FILE = readFileSync(path.join(scenarioDir, "cleanup.sql"), "utf8");
+
 /**
  * Reads a pilot script and returns its body with the outer transaction removed.
  *
@@ -60,9 +75,7 @@ const SCENARIO_ROWS: readonly (readonly [table: string, id: string])[] = [
  * file's own transaction, because a `commit` in a test would leave rows in a
  * database shared with every other test file and every other agent.
  */
-function scriptBody(name: string): string {
-  const raw = readFileSync(path.join(scenarioDir, name), "utf8");
-
+function scriptBody(name: string, raw: string): string {
   const meaningful = raw
     .split("\n")
     .map((line) => line.trim())
@@ -78,8 +91,8 @@ function scriptBody(name: string): string {
   return raw.replace(/^begin;$/m, "").replace(/^commit;$/m, "");
 }
 
-const SETUP = scriptBody("setup.sql");
-const CLEANUP = scriptBody("cleanup.sql");
+const SETUP = scriptBody("setup.sql", SETUP_FILE);
+const CLEANUP = scriptBody("cleanup.sql", CLEANUP_FILE);
 
 /**
  * A digest of every base table in `public` and `staging`: row count, plus an
@@ -126,10 +139,52 @@ async function scenarioRowCount(client: Client): Promise<number> {
   return found;
 }
 
+// ---------------------------------------------------------------------------
+// Spare rows, for arranging a guard's precondition
+// ---------------------------------------------------------------------------
+// Deliberately NOT carrying the scenario's sentinel or identifiers: these stand
+// in for somebody else's data, which is the thing every guard exists to protect.
+
+async function spareVocabulary(client: Client, code: string, id?: string): Promise<string> {
+  const row = await one<{ id: string }>(
+    client,
+    `insert into public.position_vocabularies (id, code, label, adopted_on)
+     values (coalesce($1::uuid, gen_random_uuid()), $2, 'Somebody else vocabulary', '2020-01-01')
+     returning id`,
+    [id ?? null, code],
+  );
+  return row.id;
+}
+
+async function spareSeason(
+  client: Client,
+  label: string,
+  vocabularyId: string,
+  id?: string,
+): Promise<string> {
+  const row = await one<{ id: string }>(
+    client,
+    `insert into public.seasons (id, label, status, position_vocabulary_id)
+     values (coalesce($1::uuid, gen_random_uuid()), $2, 'planning', $3)
+     returning id`,
+    [id ?? null, label, vocabularyId],
+  );
+  return row.id;
+}
+
+async function sparePerson(client: Client, tag: string): Promise<string> {
+  const row = await one<{ id: string }>(
+    client,
+    "insert into public.people (given_name, family_name) values ('Somebody', $1) returning id",
+    [tag],
+  );
+  return row.id;
+}
+
 /**
  * The durable pilot foundation, as it exists on the hosted project: an Auth
  * user, the Person it resolves to, the operator link, a time-bounded
- * `it_officer` assignment, and an audit row naming that Person as an actor.
+ * role assignment, and an audit row naming that Person as an actor.
  *
  * Created before any scenario runs, so "cleanup preserves the foundation" has
  * something real to be true about. Nothing here is created by a pilot scenario
@@ -139,6 +194,7 @@ interface Durable {
   authUserId: string;
   personId: string;
   operatorAccountId: string;
+  roleId: string;
   roleAssignmentId: string;
   auditEventId: string;
   committeeYearId: string;
@@ -170,6 +226,9 @@ async function createDurableFoundation(client: Client): Promise<Durable> {
      values ('pilot-fixture-2011-12', '2011-06-01', '2011-06-01', '2012-06-01') returning id`,
   );
 
+  // A role of its own rather than the seeded `it_officer`: `public.roles` is
+  // populated by the local-only seed, so depending on it would tie this test to
+  // reference data the hosted project does not have.
   const role = await one<{ id: string; scope: string; is_constitutional_office: boolean }>(
     client,
     `insert into public.roles (code, name, scope, is_constitutional_office)
@@ -201,6 +260,7 @@ async function createDurableFoundation(client: Client): Promise<Durable> {
     authUserId: user.id,
     personId: person.id,
     operatorAccountId: operator.id,
+    roleId: role.id,
     roleAssignmentId: assignment.id,
     auditEventId: audit.id,
     committeeYearId: committeeYear.id,
@@ -373,60 +433,6 @@ describe("setup.sql is repeatable", () => {
   });
 });
 
-describe("setup.sql verifies its prerequisites and fails closed", () => {
-  it("refuses when the schema it was written against is not applied", async () => {
-    await client.query(
-      "delete from supabase_migrations.schema_migrations where version = '20260811090000'",
-    );
-
-    await expectRejected(client, SETUP, [], /migration 20260811090000 is not applied/);
-    expect(await scenarioRowCount(client)).toBe(0);
-  });
-
-  it("refuses to adopt a row occupying one of its identifiers without the sentinel", async () => {
-    await client.query(
-      "insert into public.people (id, given_name, family_name) values ($1, 'Someone', 'Else')",
-      [ID.person],
-    );
-
-    await expectRejected(client, SETUP, [], /people …0004 exists and is not this scenario/);
-
-    // The impostor row is still there, and still says what it said.
-    const person = await one<{ given_name: string; known_as: string | null }>(
-      client,
-      "select given_name, known_as from public.people where id = $1",
-      [ID.person],
-    );
-    expect(person.given_name).toBe("Someone");
-    expect(person.known_as).toBeNull();
-    expect(await scenarioRowCount(client)).toBe(1);
-  });
-
-  it("refuses when another row already holds a natural key it needs", async () => {
-    await client.query(
-      `insert into public.position_vocabularies (code, label, adopted_on)
-       values ('pilot-lan-93', 'Something else entirely', '2020-01-01')`,
-    );
-
-    await expectRejected(client, SETUP, [], /already uses code pilot-lan-93/);
-    expect(await scenarioRowCount(client)).toBe(0);
-  });
-
-  it("leaves nothing behind when a prerequisite fails", async () => {
-    const before = await snapshot(client);
-
-    await client.query(
-      "delete from supabase_migrations.schema_migrations where version = '20260811090000'",
-    );
-    await expectRejected(client, SETUP, [], /is not applied/);
-    await client.query(
-      "insert into supabase_migrations.schema_migrations (version) values ('20260811090000')",
-    );
-
-    expect(await snapshot(client)).toEqual(before);
-  });
-});
-
 describe("cleanup.sql removes only what its paired setup created", () => {
   it("restores the exact pre-setup state of every table", async () => {
     const before = await snapshot(client);
@@ -450,48 +456,6 @@ describe("cleanup.sql removes only what its paired setup created", () => {
   it("succeeds and changes nothing when the scenario was never set up", async () => {
     const before = await snapshot(client);
     await client.query(CLEANUP);
-    expect(await snapshot(client)).toEqual(before);
-  });
-
-  it("refuses rather than widening to another event in the scenario season", async () => {
-    await client.query(SETUP);
-    await client.query(
-      `insert into public.events (season_id, name, event_type, status)
-       values ($1, 'Someone else''s event', 'practice', 'draft')`,
-      [ID.season],
-    );
-    const before = await snapshot(client);
-
-    await expectRejected(client, CLEANUP, [], /another event exists in the scenario season/);
-
-    expect(await snapshot(client)).toEqual(before);
-    expect(await scenarioRowCount(client)).toBe(6);
-  });
-
-  it("refuses rather than cascade-deleting a row that hangs off the scenario event", async () => {
-    await client.query(SETUP);
-    await client.query(
-      `insert into public.event_questions (event_id, prompt) values ($1, 'Whose question is this?')`,
-      [ID.event],
-    );
-    const before = await snapshot(client);
-
-    await expectRejected(client, CLEANUP, [], /would be cascade-deleted/);
-
-    expect(await snapshot(client)).toEqual(before);
-  });
-
-  it("refuses rather than silently nulling a staging row that references the scenario", async () => {
-    await client.query(SETUP);
-    await client.query(
-      `insert into staging.legacy_roster_rows (import_batch, normalisation_status, matched_person_id)
-       values ('pilot-fixture-batch', 'normalised', $1)`,
-      [ID.person],
-    );
-    const before = await snapshot(client);
-
-    await expectRejected(client, CLEANUP, [], /would be silently nulled/);
-
     expect(await snapshot(client)).toEqual(before);
   });
 
@@ -538,39 +502,494 @@ describe("cleanup.sql preserves the durable pilot foundation", () => {
     );
     expect(assignment.effective_to).not.toBeNull();
   });
+});
 
-  it("refuses when the scenario person has itself become a durable identity", async () => {
-    await client.query(SETUP);
+// ---------------------------------------------------------------------------
+// Every refusal, exercised
+// ---------------------------------------------------------------------------
 
-    const user = await one<{ id: string }>(
-      client,
-      "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id",
-      ["pilot-scenario-promoted@oxfordlancers.local"],
-    );
-    await client.query(
-      "insert into public.operator_accounts (auth_user_id, person_id) values ($1, $2)",
-      [user.id, ID.person],
-    );
+/**
+ * One guard, and the situation that must make it fire.
+ *
+ * `message` is a fragment of the exception the guard raises. It is matched
+ * against what the database actually raised — so a passing case proves that
+ * specific guard fired, not merely that something went wrong — and it is
+ * matched against the script's own text by the coverage assertion at the foot
+ * of this file, so a guard with no case here is a failure.
+ */
+interface GuardCase {
+  script: "setup" | "cleanup";
+  message: string;
+  /** Runs `setup.sql` before arranging. Most cleanup guards need the scenario present. */
+  afterSetup?: boolean;
+  /** The table whose foreign key this case proves the guard for, where relevant. */
+  cascadeTable?: string;
+  arrange: (client: Client, durable: Durable) => Promise<void>;
+}
+
+const GUARD_CASES: readonly GuardCase[] = [
+  // --- setup.sql -----------------------------------------------------------
+  {
+    script: "setup",
+    message: "no supabase_migrations.schema_migrations",
+    // Renaming this table is DDL, but it is DDL against a table no other test
+    // file in this repository touches, so nothing else can be blocked by it.
+    arrange: async (c) =>
+      void (await c.query(
+        "alter table supabase_migrations.schema_migrations rename to schema_migrations_hidden_by_test",
+      )),
+  },
+  {
+    script: "setup",
+    message: "is not applied. Apply the merged migrations first",
+    arrange: async (c) =>
+      void (await c.query("delete from supabase_migrations.schema_migrations where version = $1", [
+        REQUIRED_MIGRATION,
+      ])),
+  },
+  {
+    script: "setup",
+    message: "position_vocabularies …0001 exists and is not this scenario",
+    arrange: async (c) => void (await spareVocabulary(c, "not-the-pilot-code", ID.vocabulary)),
+  },
+  {
+    script: "setup",
+    message: "positions …0002 exists and is not this scenario",
+    arrange: async (c) => {
+      const vocabulary = await spareVocabulary(c, "spare-for-position");
+      await c.query(
+        `insert into public.positions (id, vocabulary_id, code, label, side)
+         values ($1, $2, 'ZZ', 'Somebody else position', 'defence')`,
+        [ID.position, vocabulary],
+      );
+    },
+  },
+  {
+    script: "setup",
+    message: "seasons …0003 exists and is not this scenario",
+    arrange: async (c) => {
+      const vocabulary = await spareVocabulary(c, "spare-for-season");
+      await spareSeason(c, "SOMEBODY ELSE 2029-30", vocabulary, ID.season);
+    },
+  },
+  {
+    script: "setup",
+    message: "people …0004 exists and is not this scenario",
+    arrange: async (c) =>
+      void (await c.query(
+        "insert into public.people (id, given_name, family_name) values ($1, 'Someone', 'Else')",
+        [ID.person],
+      )),
+  },
+  {
+    script: "setup",
+    message: "season_memberships …0005 exists and is not this scenario",
+    arrange: async (c) => {
+      const vocabulary = await spareVocabulary(c, "spare-for-membership");
+      const season = await spareSeason(c, "SOMEBODY ELSE membership season", vocabulary);
+      const person = await sparePerson(c, "Membership");
+      await c.query(
+        `insert into public.season_memberships (id, person_id, season_id, status, entry)
+         values ($1, $2, $3, 'confirmed', 'new')`,
+        [ID.membership, person, season],
+      );
+    },
+  },
+  {
+    script: "setup",
+    message: "events …0006 exists and is not this scenario",
+    arrange: async (c) => {
+      const vocabulary = await spareVocabulary(c, "spare-for-event");
+      const season = await spareSeason(c, "SOMEBODY ELSE event season", vocabulary);
+      await c.query(
+        `insert into public.events (id, season_id, name, event_type, status)
+         values ($1, $2, 'Somebody else event', 'practice', 'draft')`,
+        [ID.event, season],
+      );
+    },
+  },
+  {
+    script: "setup",
+    message: "another position_vocabularies row already uses code pilot-lan-93",
+    arrange: async (c) => void (await spareVocabulary(c, "pilot-lan-93")),
+  },
+  {
+    script: "setup",
+    message: "another seasons row already uses the label PILOT-LAN-93 scenario season",
+    arrange: async (c) => {
+      const vocabulary = await spareVocabulary(c, "spare-for-label-clash");
+      await spareSeason(c, "PILOT-LAN-93 scenario season", vocabulary);
+    },
+  },
+  {
+    script: "setup",
+    message: "already holds a different membership in the scenario season",
+    arrange: async (c) => {
+      // Everything the earlier guards check is arranged to pass, so this one is
+      // the guard under test rather than the first one to trip.
+      await c.query(
+        `insert into public.position_vocabularies (id, code, label, adopted_on)
+         values ($1, 'pilot-lan-93', 'PILOT-LAN-93 scenario vocabulary', '2026-08-11')`,
+        [ID.vocabulary],
+      );
+      await c.query(
+        `insert into public.seasons (id, label, status, position_vocabulary_id)
+         values ($1, 'PILOT-LAN-93 scenario season', 'planning', $2)`,
+        [ID.season, ID.vocabulary],
+      );
+      await c.query(
+        `insert into public.people (id, given_name, family_name, known_as)
+         values ($1, 'Pilot', 'Scenario', 'PILOT-LAN-93')`,
+        [ID.person],
+      );
+      await c.query(
+        `insert into public.season_memberships (person_id, season_id, status, entry)
+         values ($1, $2, 'confirmed', 'new')`,
+        [ID.person, ID.season],
+      );
+    },
+  },
+
+  // --- cleanup.sql: ownership ---------------------------------------------
+  {
+    script: "cleanup",
+    message: "people …0004 does not carry the PILOT-LAN-93 sentinel",
+    afterSetup: true,
+    arrange: async (c) =>
+      void (await c.query("update public.people set known_as = null where id = $1", [ID.person])),
+  },
+  {
+    script: "cleanup",
+    message: "events …0006 does not carry the PILOT-LAN-93 sentinel",
+    afterSetup: true,
+    arrange: async (c) =>
+      void (await c.query("update public.events set name = 'Renamed by somebody' where id = $1", [
+        ID.event,
+      ])),
+  },
+  {
+    script: "cleanup",
+    message: "seasons …0003 does not carry the PILOT-LAN-93 sentinel",
+    afterSetup: true,
+    arrange: async (c) =>
+      void (await c.query("update public.seasons set label = 'Renamed season' where id = $1", [
+        ID.season,
+      ])),
+  },
+  {
+    script: "cleanup",
+    message: "positions …0002 does not carry the PILOT-LAN-93 sentinel",
+    afterSetup: true,
+    arrange: async (c) =>
+      void (await c.query("update public.positions set label = 'Renamed position' where id = $1", [
+        ID.position,
+      ])),
+  },
+  {
+    script: "cleanup",
+    message: "position_vocabularies …0001 does not carry the PILOT-LAN-93 sentinel",
+    afterSetup: true,
+    arrange: async (c) =>
+      void (await c.query(
+        "update public.position_vocabularies set code = 'renamed-vocabulary' where id = $1",
+        [ID.vocabulary],
+      )),
+  },
+  {
+    script: "cleanup",
+    message: "season_memberships …0005 is not this scenario",
+    afterSetup: true,
+    arrange: async (c) => {
+      const person = await sparePerson(c, "Reassigned");
+      await c.query("update public.season_memberships set person_id = $1 where id = $2", [
+        person,
+        ID.membership,
+      ]);
+    },
+  },
+
+  // --- cleanup.sql: the durable foundation ---------------------------------
+  {
+    script: "cleanup",
+    message: "linked to an operator account",
+    afterSetup: true,
+    arrange: async (c) => {
+      const user = await one<{ id: string }>(
+        c,
+        "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id",
+        ["pilot-scenario-promoted@oxfordlancers.local"],
+      );
+      await c.query(
+        "insert into public.operator_accounts (auth_user_id, person_id) values ($1, $2)",
+        [user.id, ID.person],
+      );
+    },
+  },
+  {
+    script: "cleanup",
+    message: "holds or granted a role assignment",
+    afterSetup: true,
+    arrange: async (c, d) =>
+      void (await c.query(
+        `insert into public.role_assignments (
+           person_id, role_id, scope, is_constitutional_office,
+           committee_year_id, effective_from, effective_to)
+         values ($1, $2, 'committee_year', false, $3, '2011-06-01', '2011-12-01')`,
+        [ID.person, d.roleId, d.committeeYearId],
+      )),
+  },
+  {
+    script: "cleanup",
+    message: "is an actor in audit_events",
+    afterSetup: true,
+    arrange: async (c) =>
+      void (await c.query(
+        `insert into public.audit_events (actor_person_id, action, entity_table, entity_id)
+         values ($1, 'something.happened', 'events', $2)`,
+        [ID.person, ID.event],
+      )),
+  },
+
+  // --- cleanup.sql: rows PostgreSQL would remove or alter unasked -----------
+  // These five, plus the two below, are every `on delete cascade` and
+  // `on delete set null` foreign key pointing at a scenario row. None of them
+  // has a `restrict` backstop, so the preflight is the entire control.
+  {
+    script: "cleanup",
+    message: "person_aliases rows hang off the scenario person",
+    afterSetup: true,
+    cascadeTable: "public.person_aliases",
+    arrange: async (c) =>
+      void (await c.query(
+        "insert into public.person_aliases (person_id, alias) values ($1, 'Somebody else alias')",
+        [ID.person],
+      )),
+  },
+  {
+    script: "cleanup",
+    message: "contact_points rows hang off the scenario person",
+    afterSetup: true,
+    cascadeTable: "public.contact_points",
+    arrange: async (c) =>
+      void (await c.query(
+        `insert into public.contact_points (person_id, kind, raw_value)
+         values ($1, 'email', 'somebody-else-placeholder')`,
+        [ID.person],
+      )),
+  },
+  {
+    script: "cleanup",
+    message: "event_questions rows hang off the scenario event",
+    afterSetup: true,
+    cascadeTable: "public.event_questions",
+    arrange: async (c) =>
+      void (await c.query(
+        "insert into public.event_questions (event_id, prompt) values ($1, 'Whose question is this?')",
+        [ID.event],
+      )),
+  },
+  {
+    script: "cleanup",
+    message: "event_audience_members rows hang off the scenario event",
+    afterSetup: true,
+    cascadeTable: "public.event_audience_members",
+    arrange: async (c, d) =>
+      void (await c.query(
+        `insert into public.event_audience_members (event_id, season_id, capacity, person_id)
+         values ($1, $2, 'guest', $3)`,
+        [ID.event, ID.season, d.personId],
+      )),
+  },
+  {
+    script: "cleanup",
+    message: "onboarding_item_types rows hang off the scenario season",
+    afterSetup: true,
+    cascadeTable: "public.onboarding_item_types",
+    arrange: async (c) =>
+      void (await c.query(
+        `insert into public.onboarding_item_types (season_id, code, label)
+         values ($1, 'somebody-else-item', 'Somebody else onboarding item')`,
+        [ID.season],
+      )),
+  },
+  {
+    script: "cleanup",
+    message: "staging.legacy_roster_rows reference the scenario person",
+    afterSetup: true,
+    cascadeTable: "staging.legacy_roster_rows",
+    arrange: async (c) =>
+      void (await c.query(
+        `insert into staging.legacy_roster_rows (import_batch, normalisation_status, matched_person_id)
+         values ('pilot-fixture-batch', 'normalised', $1)`,
+        [ID.person],
+      )),
+  },
+  {
+    script: "cleanup",
+    message: "staging.legacy_event_rows reference the scenario event",
+    afterSetup: true,
+    cascadeTable: "staging.legacy_event_rows",
+    arrange: async (c) =>
+      void (await c.query(
+        `insert into staging.legacy_event_rows
+           (import_batch, raw_cell, normalisation_status, normalised_event_id)
+         values ('pilot-fixture-batch', 'Somebody else cell', 'normalised', $1)`,
+        [ID.event],
+      )),
+  },
+
+  // --- cleanup.sql: containment -------------------------------------------
+  {
+    script: "cleanup",
+    message: "another event exists in the scenario season",
+    afterSetup: true,
+    arrange: async (c) =>
+      void (await c.query(
+        `insert into public.events (season_id, name, event_type, status)
+         values ($1, 'Somebody else event', 'practice', 'draft')`,
+        [ID.season],
+      )),
+  },
+  {
+    script: "cleanup",
+    message: "another season membership exists in the scenario season",
+    afterSetup: true,
+    arrange: async (c) => {
+      const person = await sparePerson(c, "Extra member");
+      await c.query(
+        `insert into public.season_memberships (person_id, season_id, status, entry)
+         values ($1, $2, 'confirmed', 'new')`,
+        [person, ID.season],
+      );
+    },
+  },
+  {
+    script: "cleanup",
+    message: "another season uses the scenario position vocabulary",
+    afterSetup: true,
+    arrange: async (c) =>
+      void (await spareSeason(c, "SOMEBODY ELSE sharing the vocabulary", ID.vocabulary)),
+  },
+  {
+    script: "cleanup",
+    message: "another position belongs to the scenario vocabulary",
+    afterSetup: true,
+    arrange: async (c) =>
+      void (await c.query(
+        `insert into public.positions (vocabulary_id, code, label, side)
+         values ($1, 'ZZ', 'Somebody else position', 'defence')`,
+        [ID.vocabulary],
+      )),
+  },
+];
+
+describe("every refusal in both scripts is exercised", () => {
+  it.each(GUARD_CASES)("$script refuses: $message", async (guard) => {
+    if (guard.afterSetup) await client.query(SETUP);
+    await guard.arrange(client, durable);
+
     const before = await snapshot(client);
 
-    await expectRejected(client, CLEANUP, [], /linked to an operator account/);
+    // `expectRejected` matches the fragment against the message PostgreSQL
+    // actually raised, so this passes only if THIS guard fired — not if some
+    // earlier one did, and not if the statement failed for an unrelated reason.
+    await expectRejected(client, guard.script === "setup" ? SETUP : CLEANUP, [], guard.message);
 
+    // Refusing is only half of it. Nothing may have been written or removed.
     expect(await snapshot(client)).toEqual(before);
-    expect(await scenarioRowCount(client)).toBe(6);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Coverage: the list above is checked against the scripts, not maintained by eye
+// ---------------------------------------------------------------------------
+
+/**
+ * Every `raise exception` literal in a script, with PostgreSQL's doubled
+ * quotes unescaped so the text matches what the database actually raises.
+ */
+function declaredRefusals(sql: string): string[] {
+  const withoutComments = sql.replace(/--[^\n]*/g, "");
+  return [...withoutComments.matchAll(/raise\s+exception\s*(?:\n\s*)?'((?:[^']|'')*)'/gi)].map(
+    (match) => match[1].replace(/''/g, "'"),
+  );
+}
+
+/**
+ * Does this refusal's text contain that fragment?
+ *
+ * `%` is a plpgsql format placeholder, so the literal in the script and the
+ * message the database raises differ exactly there. Matching per segment is the
+ * general rule that follows: a fragment may not span a substitution, and any
+ * fragment that does not is compared literally against both.
+ */
+function coversRefusal(refusal: string, fragment: string): boolean {
+  return refusal.split("%").some((segment) => segment.includes(fragment));
+}
+
+/**
+ * The two refusals no behavioural test can reach.
+ *
+ * Both are `to_regclass` checks that a required table exists. Falsifying either
+ * needs DDL against `public.people`, `public.events` and the rest — tables every
+ * other test file in this suite reads concurrently — and an `access exclusive`
+ * lock on those would make this suite the reason another one is flaky. The
+ * exemption is deliberately per-message rather than per-script, so a new guard
+ * is never exempt by accident, and each entry is asserted below to still match
+ * exactly one real refusal.
+ */
+const EXEMPT_FROM_BEHAVIOURAL_COVERAGE = [
+  "LAN-93 pilot setup refused: missing table(s) %.",
+  "LAN-93 pilot cleanup refused: the expected schema is not present.",
+] as const;
+
+describe("the refusals the scripts declare are the refusals this file exercises", () => {
+  const declared = [...declaredRefusals(SETUP_FILE), ...declaredRefusals(CLEANUP_FILE)];
+
+  it("finds every refusal in both scripts", () => {
+    // A pass produced by a parser that found nothing is not a pass.
+    expect(declared.length).toBeGreaterThanOrEqual(30);
+    expect(declaredRefusals(SETUP_FILE).length).toBeGreaterThanOrEqual(10);
+    expect(declaredRefusals(CLEANUP_FILE).length).toBeGreaterThanOrEqual(18);
   });
 
-  it("refuses when the scenario person is an actor in the audit trail", async () => {
-    await client.query(SETUP);
-    await client.query(
-      `insert into public.audit_events (actor_person_id, action, entity_table, entity_id)
-       values ($1, 'something.happened', 'events', $2)`,
-      [ID.person, ID.event],
+  it("exercises every refusal that is not explicitly exempt", () => {
+    const uncovered = declared.filter(
+      (refusal) =>
+        !GUARD_CASES.some((guard) => coversRefusal(refusal, guard.message)) &&
+        !EXEMPT_FROM_BEHAVIOURAL_COVERAGE.some((exempt) => refusal === exempt),
     );
-    const before = await snapshot(client);
 
-    await expectRejected(client, CLEANUP, [], /invariant M2/);
+    expect(
+      uncovered,
+      "these refusals have no behavioural test — add a GUARD_CASES entry, or exempt it explicitly and say why",
+    ).toEqual([]);
+  });
 
-    expect(await snapshot(client)).toEqual(before);
+  it("keeps every exemption honest", () => {
+    for (const exempt of EXEMPT_FROM_BEHAVIOURAL_COVERAGE) {
+      // A stale exemption is worse than none: it would silently excuse a guard
+      // that no longer exists, or excuse nothing at all while looking careful.
+      expect(declared.filter((refusal) => refusal === exempt).length).toBe(1);
+    }
+    expect(EXEMPT_FROM_BEHAVIOURAL_COVERAGE.length).toBeLessThanOrEqual(2);
+  });
+
+  it("pairs every guard case with exactly one refusal", () => {
+    // A fragment that matched two refusals could pass while the guard it names
+    // is gone, because some other guard raised something containing it.
+    for (const guard of GUARD_CASES) {
+      const matches = declared.filter((refusal) => coversRefusal(refusal, guard.message));
+      expect(matches.length, `"${guard.message}" identifies ${matches.length} refusals`).toBe(1);
+    }
+  });
+
+  it("has no guard case that matches nothing in the scripts", () => {
+    const orphans = GUARD_CASES.filter(
+      (guard) => !declared.some((refusal) => coversRefusal(refusal, guard.message)),
+    ).map((guard) => guard.message);
+
+    expect(orphans, "these cases assert a message no script raises").toEqual([]);
   });
 });
 
@@ -583,10 +1002,11 @@ describe("the cleanup's cascade enumeration is complete against the live schema"
    * stay true: a later migration adding an eighth such key would degrade the
    * "refuses to widen" property to a cascade, in silence.
    *
-   * So the claim is checked against the catalogue rather than against the
-   * comment. Read-only: no DDL, nothing another test file shares is locked.
+   * So the claim is checked against the catalogue, and against a behavioural
+   * test per key — not against the script's prose. Read-only: no DDL, nothing
+   * another test file shares is locked.
    */
-  it("names every cascade and set-null foreign key that points at a scenario row", async () => {
+  it("has a behavioural test for every cascade and set-null foreign key", async () => {
     const scenarioTables = SCENARIO_ROWS.map(([table]) => table);
 
     const { rows } = await client.query<{
@@ -609,18 +1029,16 @@ describe("the cleanup's cascade enumeration is complete against the live schema"
       [scenarioTables],
     );
 
-    // The seven that exist today. A drop below this is a schema change nobody
-    // told this test about, and a pass on an empty result would prove nothing.
+    // The seven that exist today. A pass on an empty result would prove nothing.
     expect(rows.length).toBeGreaterThanOrEqual(7);
 
-    const raw = readFileSync(path.join(scenarioDir, "cleanup.sql"), "utf8");
     for (const row of rows) {
       expect(
-        raw,
-        `cleanup.sql does not check ${row.referencing_table}, which PostgreSQL would ` +
-          `${row.on_delete === "c" ? "cascade-delete" : "silently null"} when ` +
+        GUARD_CASES.some((guard) => guard.cascadeTable === row.referencing_table),
+        `no test proves cleanup.sql refuses when ${row.referencing_table} would be ` +
+          `${row.on_delete === "c" ? "cascade-deleted" : "silently nulled"} as ` +
           `${row.referenced_table} loses a row`,
-      ).toContain(`from ${row.referencing_table}`);
+      ).toBe(true);
     }
   });
 });

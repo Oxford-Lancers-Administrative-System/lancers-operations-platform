@@ -95,7 +95,13 @@ non-loopback host — and asserts that:
   event — is byte-identical afterwards. The fixture mints a role of its own
   (`pilot_fixture_it_officer`) rather than depending on seeded reference data,
   because `public.roles` is populated by the local-only seed;
-- each preflight aborts, writing nothing, when its prerequisite is not met.
+- **every refusal either script contains** aborts the run and writes nothing —
+  each one is exercised by a test that arranges the situation it exists to
+  refuse, and the list of refusals is read out of the SQL and compared against
+  the list of tests, so a guard added without a test fails the suite. Two
+  refusals are exempt and named in that file: both are `to_regclass` checks that
+  a required table exists, and falsifying either would need DDL against tables
+  every other test file reads.
 
 [`tests/pilot-data-contract.test.ts`](../../../tests/pilot-data-contract.test.ts)
 covers the other half: that these files stay inside the conventions, and that
