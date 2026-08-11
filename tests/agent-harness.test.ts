@@ -451,3 +451,445 @@ describe("agent harness: mechanical guards", () => {
     }
   });
 });
+
+/**
+ * Graded review levels (docs/adr/0015). This decision makes the harness *less*
+ * strict in some cases, which means the prose describing it is a control on how
+ * much scrutiny future agent work receives. Prose no test pins is a preference,
+ * not a guarantee — so every element a future edit could quietly remove is
+ * asserted here: the four levels and their criteria, each entry of the
+ * mandatory level-2 floor, the wording that makes the floor override the lead's
+ * discretion, the recorded-justification requirement in both places, the
+ * matrix-time timing, reachability-rather-than-size, the fail-safe default, and
+ * the unchanged one-cycle limit.
+ *
+ * Nothing here relaxes the defect-injection standard. The assertions above
+ * about challenging critical rows by injection are deliberately left untouched,
+ * and the last test in this block re-asserts them so that a future edit cannot
+ * weaken the standard "to accommodate the levels".
+ */
+describe("agent harness: graded review levels", () => {
+  const flat = (text: string) => text.replace(/\*\*/g, "").replace(/\s+/g, " ");
+  const skill = path.join(skillsDir, "supervise-batch");
+
+  const lead = frontMatter(path.join(skill, "SKILL.md")).body;
+  const reviewer = frontMatter(path.join(agentsDir, "code-reviewer.md")).body;
+  const matrixTemplate = readFileSync(path.join(skill, "test-matrix.md"), "utf8");
+  const runReport = readFileSync(path.join(skill, "run-report.md"), "utf8");
+  const brief = readFileSync(path.join(skill, "delegation-brief.md"), "utf8");
+  const AGENTS_MD = readFileSync(path.join(repoRoot, "AGENTS.md"), "utf8");
+  const adrPath = path.join(repoRoot, "docs", "adr", "0015-graded-review-levels.md");
+  const adrIndex = readFileSync(path.join(repoRoot, "docs", "adr", "README.md"), "utf8");
+
+  /**
+   * The § Agent tooling bullet carrying the graded model into the working
+   * agreement. AGENTS.md is the file most readers actually open, so the floor's
+   * binding force has to be pinned there and not only in the skill.
+   */
+  const agentsGradedBullet = (() => {
+    const start = AGENTS_MD.indexOf("- **Review is graded");
+    if (start < 0) return "";
+    const end = AGENTS_MD.indexOf("\n\n", start);
+    return AGENTS_MD.slice(start, end === -1 ? undefined : end);
+  })();
+
+  /** The Markdown section introduced by `headingPrefix`, up to the next heading of the same or higher rank. */
+  function section(text: string, headingPrefix: string): string {
+    const lines = text.split("\n");
+    const start = lines.findIndex((line) => line.startsWith(headingPrefix));
+    expect(start, `"${headingPrefix}" is missing`).toBeGreaterThanOrEqual(0);
+    const depth = /^#+/.exec(lines[start])![0].length;
+    let end = lines.length;
+    for (let i = start + 1; i < lines.length; i += 1) {
+      const heading = /^(#+) /.exec(lines[i]);
+      if (heading && heading[1].length <= depth) {
+        end = i;
+        break;
+      }
+    }
+    return lines.slice(start, end).join("\n");
+  }
+
+  /** Every path or surface that forces level 2 regardless of how small the change is. */
+  const FLOOR = [
+    "supabase/migrations/",
+    "src/lib/auth/",
+    "src/lib/db/",
+    ".env.example",
+    "package.json",
+    "package-lock.json",
+    ".claude/",
+    ".github/workflows/",
+    "AGENTS.md",
+  ];
+
+  // Row 1 — four levels exist, each with a stated criterion.
+  it("defines four graded levels, each with what runs and when it applies", () => {
+    const levels = section(lead, "#### The four levels")
+      .split("\n")
+      .filter((line) => /^\|\s*\*\*[0-9] —/.test(line))
+      .map((line) =>
+        line
+          .split("|")
+          .slice(1, -1)
+          .map((cell) => cell.trim()),
+      );
+
+    expect(levels.map((row) => row[0])).toEqual([
+      "**0 — none**",
+      "**1 — lead verification**",
+      "**2 — full independent review**",
+      "**3 — multi-round**",
+    ]);
+
+    // A level with no criterion is a level chosen by taste — and a criterion
+    // rewritten into "whatever the lead judges low risk" is the same thing with
+    // more words, which length alone cannot tell apart. Pin what each level buys
+    // and what triggers it, by content.
+    for (const [label, whatRuns, whenItApplies] of levels) {
+      expect(whatRuns.length, `${label} does not say what runs`).toBeGreaterThan(60);
+      expect(whenItApplies.length, `${label} does not say when it applies`).toBeGreaterThan(60);
+    }
+
+    const [level0, level1, level2, level3] = levels;
+
+    expect(level0[1]).toMatch(/reads the whole diff/i);
+    expect(level0[1]).toMatch(/No independent reviewer is launched/i);
+    expect(level0[2]).toMatch(/Documentation only/i);
+    expect(level0[2]).toMatch(/no behavioural change/i);
+
+    expect(level1[1]).toMatch(/defect-injection results/i);
+    // All four conjuncts, and the gate that keeps them conjuncts. Without these
+    // the criterion can be rewritten as lead discretion over reachable code —
+    // which also silently contradicts the matrix-time rule.
+    expect(level1[2]).toMatch(/unreachable from any deployed code path/i);
+    expect(level1[2]).toMatch(/no security or privacy surface/i);
+    expect(level1[2]).toMatch(/adds no dependency/i);
+    expect(level1[2]).toMatch(/changes no schema/i);
+    expect(level1[2]).toMatch(/All four must hold/i);
+
+    // What level 2 buys is defined here as well as in the reviewer role file,
+    // and this copy of it must keep naming the injection.
+    expect(level2[1]).toMatch(/pinned to the head SHA/i);
+    expect(level2[1]).toMatch(/every critical row by injecting a plausible defect/i);
+    expect(level2[2]).toMatch(/everything on the mandatory floor/i);
+
+    expect(level3[1]).toMatch(/as new code/i);
+    expect(level3[1]).toMatch(/re-challenged/i);
+    for (const trigger of [
+      /Migrations/i,
+      /grants, policies, or RLS/i,
+      /authentication or authorization/i,
+      /secrets or a new privileged credential/i,
+      /any change to the harness itself/i,
+    ]) {
+      expect(level3[2], `level 3 must still be triggered by ${trigger}`).toMatch(trigger);
+    }
+
+    // The default lives on level 2 and nowhere else — checked across the whole
+    // row, since a row can claim to be the default in either column.
+    const defaultRows = levels.filter((row) => /the default/i.test(row.join(" ")));
+    expect(defaultRows.map((row) => row[0])).toEqual(["**2 — full independent review**"]);
+  });
+
+  // Row 2 — the mandatory level-2 floor, and that it beats lead discretion.
+  it("enumerates a mandatory level-2 floor that overrides the lead's discretion", () => {
+    const floor = section(lead, "#### The mandatory level-2 floor");
+
+    for (const entry of FLOOR) {
+      expect(floor, `${entry} is missing from the mandatory level-2 floor`).toContain(entry);
+    }
+    // Named surfaces rather than paths — a migration is not the only way to
+    // change a grant or a policy.
+    expect(flat(floor)).toMatch(/any grant, policy, or RLS surface/i);
+    expect(flat(floor)).toMatch(/anything touching a secret/i);
+    expect(flat(floor)).toMatch(/any dependency change/i);
+
+    // A floor the lead may reason its way past is not a floor. Matched on the
+    // load-bearing verbs rather than the exact sentence, so an honest reword
+    // passes and a weakening does not.
+    expect(flat(floor)).toMatch(/at least level 2 regardless of how small/i);
+    expect(flat(floor)).toMatch(/(may not|cannot|must not|never) (reason|argue)[^.]{0,60}past/i);
+    // One floor path and nothing else is still level 2.
+    expect(flat(floor)).toMatch(/touching one floor path and nothing else is still level 2/i);
+    // And the list is a minimum, not a definition of what deserves review.
+    expect(flat(floor)).toMatch(/a floor, not a definition of what deserves review/i);
+    expect(flat(floor)).toMatch(/absence from the list is never an argument/i);
+
+    // The same floor is stated in the working agreement, where a reader who
+    // never opens the skill will find it — and checked against the bullet that
+    // enumerates it, not the whole file. `supabase/migrations/`, `.claude/` and
+    // `.env.example` all appear elsewhere in AGENTS.md, so a whole-file check
+    // passes happily while the floor itself loses entries.
+    for (const entry of FLOOR) {
+      expect(
+        agentsGradedBullet,
+        `${entry} is missing from the AGENTS.md floor enumeration`,
+      ).toContain(entry);
+    }
+    // ...and with its binding force, not merely the nine paths. "overrides"
+    // quietly becoming "informs" there is a repeal, and the nine paths would
+    // survive it untouched.
+    expect(flat(AGENTS_MD)).toMatch(/mandatory level-2 floor overrides the lead's discretion/i);
+    expect(flat(AGENTS_MD)).toMatch(/however small the change/i);
+  });
+
+  // Row 3 — downgrade authority exists, but only on the record.
+  it("lets the lead assign 0 or 1 only with the justification recorded twice", () => {
+    const authority = section(lead, "#### The lead may assign level 0 or 1");
+
+    expect(flat(authority)).toMatch(/may assign level 0 or level 1 on its own authority/i);
+    expect(flat(authority)).toMatch(/recorded in both places/i);
+    expect(flat(authority)).toMatch(/in the wave record, before launch/i);
+    expect(flat(authority)).toMatch(/in the run report, afterwards/i);
+    // An unjustified downgrade must be impossible to record as compliant.
+    expect(flat(authority)).toMatch(/no recorded justification is not compliant/i);
+    expect(flat(authority)).toMatch(/the level reverts to 2/i);
+
+    // Both recording locations carry the field, so "there was nowhere to put
+    // it" is never available as an excuse.
+    expect(flat(matrixTemplate)).toMatch(/Justification, required only below level 2/i);
+    expect(flat(runReport)).toMatch(/Justification \(required below level 2\)/i);
+    expect(flat(runReport)).toMatch(/Justification for a level below 2/i);
+    expect(flat(runReport)).toMatch(/required here as well as in the wave record/i);
+  });
+
+  // Row 4 — the fail-safe default. This is the one that must fail upward.
+  it("resolves an unspecified review level to 2, never to no review", () => {
+    const fallback = section(lead, "#### Level 2 is what happens when nobody says otherwise");
+
+    expect(flat(fallback)).toMatch(/An unspecified level is level 2/i);
+    // Every shape "unspecified" takes in practice.
+    expect(flat(fallback)).toMatch(/no review-level field/i);
+    expect(flat(fallback)).toMatch(/left blank/i);
+    expect(flat(fallback)).toMatch(/a value outside 0–3/i);
+    expect(flat(fallback)).toMatch(/resolves to 2 — full independent review/i);
+    // It is never read downward.
+    expect(flat(fallback)).toMatch(/never read as level 0/i);
+    expect(flat(fallback)).toMatch(/never read as "no review"/i);
+    expect(flat(fallback)).toMatch(/fails safe, upward/i);
+    expect(flat(fallback)).toMatch(/Silence means _more_ scrutiny, not less/i);
+
+    // The templates encode the default in the placeholder itself, so deleting a
+    // level from a real record still resolves upward.
+    expect(flat(runReport)).toMatch(/level 2 if this cell is missing or left blank/i);
+    expect(flat(runReport)).toMatch(/level 2 if this line is missing or left blank/i);
+    expect(flat(matrixTemplate)).toMatch(/level 2 if this line is missing or left blank/i);
+    expect(flat(brief)).toMatch(/level 2 if this line is missing or left blank/i);
+    expect(flat(runReport)).toMatch(/An unspecified level is level 2, never "no review"/i);
+
+    // The working agreement states the same default, in the same direction.
+    expect(flat(AGENTS_MD)).toMatch(
+      /Level 2 is the default, and an unspecified level resolves to level 2 rather than to "no review": the default fails safe, upward/i,
+    );
+
+    // And the reviewer, which is the agent a silent brief would otherwise
+    // quietly narrow.
+    expect(flat(reviewer)).toMatch(
+      /If your brief does not state a level, treat it as level 2 and review in full/i,
+    );
+    expect(flat(reviewer)).toMatch(/A brief that is silent is not permission to do less/i);
+  });
+
+  // Row 5 — assigned at matrix time, from the criteria, before implementation.
+  it("assigns the level with the matrix, before implementation, not from the diff", () => {
+    expect(lead).toMatch(
+      /^## 4 — Write the test contract, and set the review level, before any implementation$/m,
+    );
+    const assign = section(lead, "### Assign the review level");
+    expect(flat(assign)).toMatch(/at matrix time, before an implementer is launched/i);
+    expect(flat(assign)).toMatch(/never from the diff that comes back/i);
+    expect(flat(assign)).toMatch(/how a level gets picked to fit the work that was actually done/i);
+    // The blast-radius sentence is the control that surfaces "nothing consumes
+    // this yet" before wave-scale process is applied to a patch-scale change.
+    expect(flat(assign)).toMatch(/the expected blast radius/i);
+    expect(flat(assign)).toMatch(/who or what could reach the defect/i);
+
+    expect(flat(matrixTemplate)).toMatch(/Review level and expected blast radius — decide them/i);
+    expect(flat(matrixTemplate)).toMatch(/Review level:/);
+    expect(flat(matrixTemplate)).toMatch(/Expected blast radius:/);
+    expect(flat(runReport)).toMatch(/assigned at matrix time, before launch/i);
+    // The working agreement is the canonical statement of the operating model,
+    // and it is the only place row 5 was not pinned. An alternation, so an
+    // honest reword of either clause survives while losing both does not.
+    expect(flat(AGENTS_MD)).toMatch(
+      /grade is set before implementation|assigned with the test matrix rather than from the diff/i,
+    );
+
+    // The verification-time re-check may only raise a level. Lowering it there
+    // is choosing the scrutiny to fit the work that came back.
+    const recheck = section(lead, "### Re-check the review level against the diff");
+    expect(flat(recheck)).toMatch(/raise it and proceed at the higher one/i);
+    expect(flat(recheck)).toMatch(/never lower a level here/i);
+    expect(flat(recheck)).toMatch(/Record any raise, and the reason, in the run report/i);
+  });
+
+  // Row 6 — the criterion, stated explicitly, is not diff size.
+  it("keys the level on reachability and blast radius, and says size is not the criterion", () => {
+    const criterion = section(lead, "#### The criterion is reachability and blast radius");
+
+    expect(flat(criterion)).toMatch(/Diff size is not the criterion/i);
+    expect(flat(criterion)).toMatch(
+      /"it is only a small change" is never a reason to review less/i,
+    );
+    expect(flat(criterion)).toMatch(/Reachability — can a defect here be reached/i);
+    expect(flat(criterion)).toMatch(/Blast radius — if it is wrong/i);
+    // The concrete counter-example, so the rule is not abstract.
+    expect(flat(criterion)).toMatch(
+      /four-line change to an authorization predicate is level 2 or 3/i,
+    );
+    expect(flat(criterion)).toMatch(/Neither conclusion comes from counting lines/i);
+
+    expect(flat(AGENTS_MD)).toMatch(/reachability and blast radius, never on diff size/i);
+  });
+
+  // Row 7 — the injection standard at levels 2 and 3 is untouched.
+  it("leaves the defect-injection standard at levels 2 and 3 exactly as it was", () => {
+    // The graded model decides when a review happens, never what it consists of.
+    expect(flat(lead)).toMatch(/what level 2 means, and it runs in full at levels 2 and 3/i);
+    expect(flat(lead)).toMatch(/they never decide what one consists of/i);
+    expect(flat(lead)).toMatch(/no level weakens the defect-injection standard/i);
+    expect(flat(reviewer)).toMatch(
+      /Everything in this file applies in full at both, and the defect-injection standard is identical at both/i,
+    );
+
+    // Re-asserted here as well as above: if a future edit relaxes the standard
+    // "to accommodate the levels", this block fails too, next to the policy
+    // that would have been the excuse.
+    expect(flat(reviewer)).toMatch(/Challenge the critical behaviours/i);
+    expect(flat(reviewer)).toMatch(/Restore the exact pull-request state before moving on/i);
+    expect(flat(reviewer)).toMatch(/A mutation never leaves your worktree/i);
+    expect(flat(reviewer)).toMatch(/Do not install a mutation-testing framework/i);
+    expect(flat(lead)).toMatch(/challenges every critical behaviour by injecting a plausible/i);
+  });
+
+  // Row 8 — the reviewer is told its level, so a narrowing is legible.
+  it("tells the reviewer which level it is invoked at", () => {
+    expect(flat(lead)).toMatch(/the review level it is being invoked at/i);
+    expect(flat(reviewer)).toMatch(/the review level you are invoked at/i);
+    expect(flat(reviewer)).toMatch(/only ever launched at level 2 or level 3/i);
+    // The one narrowing that is real: the level-3 second pass over corrections.
+    expect(flat(reviewer)).toMatch(/it names the correction range/i);
+    expect(flat(reviewer)).toMatch(/review those corrections as new code/i);
+    expect(flat(reviewer)).toMatch(/anything else is an incomplete brief/i);
+  });
+
+  // Row 9 — one correction cycle, and it does not scale with the level.
+  it("keeps one correction cycle at every level", () => {
+    expect(flat(lead)).toMatch(/One correction cycle, at every level/i);
+    expect(flat(lead)).toMatch(/The limit does not scale with the level/i);
+    // Level 3's second pass is inside that cycle, not an extra one.
+    expect(flat(lead)).toMatch(/happens inside that single cycle/i);
+    // And a defect found later does not consume a budget belonging elsewhere.
+    expect(flat(lead)).toMatch(/re-enters as new work with its own level/i);
+    expect(flat(AGENTS_MD)).toMatch(/One correction cycle at every level/i);
+  });
+
+  /**
+   * Rows 2 and 4, from the other direction — and the reason this test exists.
+   *
+   * Every assertion above proves that a sentence is *present*. None of them
+   * notices a contradicting sentence added beside it. A floor reading "…is still
+   * level 2, unless the lead records that the touched path is trivially inert"
+   * satisfies every positive assertion in this file and repeals the floor; so
+   * does "an unspecified level may simply be treated as level 0". Both were
+   * demonstrated against the first version of this suite, and neither was a
+   * deletion.
+   *
+   * So the load-bearing sections are also asserted negatively: they may not
+   * acquire a qualifier. The ban is a list of shapes rather than a proof — a
+   * qualifier phrased in words nobody enumerated would still pass — which is why
+   * these sections are additionally on the mandatory floor and read by a human
+   * before they merge. It is scoped to the graded-level policy alone, so an
+   * innocent "unless" elsewhere in the file is unaffected.
+   */
+  it("refuses an escape hatch bolted onto the floor, the default, or the authority", () => {
+    // Escape-shaped phrases, not bare conjunctions. A bare /\bunless\b/ fails
+    // "a level may not be lowered after launch except by Brian" and "it does not
+    // move down once set unless Brian says so" — both of which make the policy
+    // *stricter*. A guard that misfires on a tightening before it catches an
+    // attack is a guard somebody will relax, so these require the qualifier to
+    // hand discretion to an agent, or to name a leniency.
+    const SOFTENERS = [
+      /\bunless\s+(the\s+)?(lead|implementer|reviewer)\b/i,
+      /\bunless\b[^.]{0,30}\b(trivially inert|routine|low[- ]risk)\b/i,
+      /\bexcept\s+(where|when|if|as)?\s*(the\s+)?(lead|implementer|reviewer)\b/i,
+      /\bnormally\b/i,
+      /\bgenerally\b/i,
+      /\bmay simply\b/i,
+      /at the lead's discretion/i,
+      /\bwaive[drs]?\b/i,
+      /\bexempt(ion)?\b/i,
+      /level [01] is permitted/i,
+      /treated as level 0/i,
+      /no reviewer launched/i,
+    ];
+
+    // Every section that can repeal the policy, not only the ones a defect
+    // happened to be demonstrated in. §7 is the section that actually launches
+    // the reviewer, so a qualifier there ("…unless the lead has already read the
+    // whole diff, in which case the launch is waived") repeals more than a
+    // qualifier on the floor does.
+    const guarded: [string, string][] = [
+      ["the graded-level policy", section(lead, "### Assign the review level")],
+      [
+        "the verification-time re-check",
+        section(lead, "### Re-check the review level against the diff"),
+      ],
+      ["the independent-review section", section(lead, "## 7 — Independent review")],
+      ["the AGENTS.md graded-review bullet", agentsGradedBullet],
+      [
+        "the AGENTS.md agent-tooling section",
+        AGENTS_MD.slice(AGENTS_MD.indexOf("## Agent tooling")),
+      ],
+    ];
+
+    // A missing bullet would make its negative assertions vacuous.
+    expect(agentsGradedBullet.length, "AGENTS.md graded-review bullet is missing").toBeGreaterThan(
+      400,
+    );
+
+    for (const [where, text] of guarded) {
+      for (const softener of SOFTENERS) {
+        expect(text, `${where} must not acquire a qualifier: ${softener}`).not.toMatch(softener);
+      }
+    }
+
+    // And nowhere in the lead workflow may the challenge itself become optional.
+    expect(flat(lead)).not.toMatch(
+      /challenge is optional|may skip the (defect )?injection|injection may be skipped/i,
+    );
+  });
+
+  // Row 10 — the record is truthful: ADR 0015 exists, is indexed, and amends 0013.
+  it("records the graded model in an ADR that amends 0013, and indexes it", () => {
+    expect(existsSync(adrPath), "docs/adr/0015-graded-review-levels.md is missing").toBe(true);
+    const adr = flat(readFileSync(adrPath, "utf8"));
+
+    expect(adr).toMatch(/Amends \[0013\]\(0013-supervised-agent-development\.md\)/i);
+    // ADR 0013 records a single review standard; leaving that uncorrected is
+    // exactly the documentation drift the definition of done forbids.
+    expect(adr).toMatch(/ADR 0013 records a single review standard/i);
+    expect(adr).toMatch(/routes each draft pull request to the independent reviewer at level 2/i);
+    for (const clause of [
+      /four graded levels/i,
+      /mandatory level-2 floor/i,
+      /reachability and blast radius, never diff size/i,
+      /unspecified level is level 2/i,
+      /One correction cycle at every level/i,
+    ]) {
+      expect(adr, `ADR 0015 must record ${clause}`).toMatch(clause);
+    }
+
+    expect(adrIndex).toContain("[0015](0015-graded-review-levels.md)");
+    expect(adrIndex, "0013 must be marked as amended in the index").toMatch(
+      /0013-supervised-agent-development\.md\).*Amended by 0015/,
+    );
+
+    // AGENTS.md § Agent tooling carries the graded model, not the old single one.
+    expect(flat(AGENTS_MD)).toMatch(/Review is graded/i);
+    expect(flat(AGENTS_MD)).toMatch(/an unspecified level resolves to level 2/i);
+    expect(AGENTS_MD).toContain("docs/adr/0015-graded-review-levels.md");
+    expect(flat(AGENTS_MD)).toMatch(/independent reviewer at review level 2 and above/i);
+  });
+});

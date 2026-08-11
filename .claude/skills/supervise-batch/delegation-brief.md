@@ -26,6 +26,24 @@ as an outcome, not as a list of steps.>`
 
 ## 3. Test matrix — the contract your tests are judged against
 
+**Review level for this issue:** `<0 / 1 / 2 / 3 — level 2 if this line is
+missing or left blank>`
+**Expected blast radius:** `<what breaks if this is wrong, and who could reach it>`
+
+The level was assigned from the acceptance criteria before you were launched, and
+it is keyed on reachability and blast radius, not on how large the diff turns out
+to be. At level 2 and 3 a fresh-context reviewer will challenge every critical
+row by injecting a defect. **At level 0 or 1 no independent reviewer is
+launched**, so your own account of what you did not test is the only record there
+will be — disclose it accordingly.
+
+If your work turns out to touch a mandatory level-2 floor path — a migration; a
+grant, policy or RLS surface; `src/lib/auth/`; `src/lib/db/`; a secret or
+`.env.example`; a dependency; `.claude/`; `.github/workflows/`; or `AGENTS.md` —
+or turns out to be reachable when this brief assumed it was not, **say so plainly
+in your report**. The level was chosen before the code existed and the lead
+re-checks it against the diff.
+
 `<Paste the completed matrix from test-matrix.md, or link to it. It was written
 before you were launched, from the acceptance criteria and the authoritative
 requirements.>`
@@ -127,6 +145,8 @@ Beyond the standing ones in your role definition, stop and hand back if:
 - `git log --oneline main..HEAD`;
 - `git diff --stat main...HEAD`;
 - the tests you added, and which matrix row each one covers;
+- whether the work touched a mandatory level-2 floor path, or turned out to be
+  reachable, when the brief assumed otherwise;
 - every matrix row you did **not** cover, and why;
 - the tail of each verification command's output;
 - untested areas and residual risk, disclosed accurately;
