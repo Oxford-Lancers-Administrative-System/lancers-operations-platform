@@ -35,16 +35,18 @@ Full walkthrough and troubleshooting: **[docs/local-development.md](docs/local-d
 
 ## Documentation
 
-| Document                                                           | What it covers                                                      |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| [docs/local-development.md](docs/local-development.md)             | Clean machine → running app; every npm script; migrations           |
-| [docs/architecture.md](docs/architecture.md)                       | Stack, layout, request path, security model                         |
-| [docs/architecture/data-model.md](docs/architecture/data-model.md) | **Every table, every invariant, and where each rule is enforced**   |
-| [docs/migration-runbook.md](docs/migration-runbook.md)             | How a schema change reaches production, and how to recover          |
-| [docs/deployment.md](docs/deployment.md)                           | Cloud Run deploy, secrets, cost controls, **rollback**              |
-| [docs/adr/](docs/adr/)                                             | Architecture decision records                                       |
-| [AGENTS.md](AGENTS.md)                                             | **Canonical working agreement** — commands, conventions, hard rules |
-| [CLAUDE.md](CLAUDE.md)                                             | Claude Code entry point; imports `AGENTS.md`                        |
+| Document                                                           | What it covers                                                                                   |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| [docs/local-development.md](docs/local-development.md)             | Clean machine → running app; every npm script; migrations                                        |
+| [docs/architecture.md](docs/architecture.md)                       | Stack, layout, request path, security model                                                      |
+| [docs/architecture/data-model.md](docs/architecture/data-model.md) | **Every table, every invariant, and where each rule is enforced**                                |
+| [docs/migration-runbook.md](docs/migration-runbook.md)             | How a schema change reaches production, and how to recover                                       |
+| [docs/pilot-data-runbook.md](docs/pilot-data-runbook.md)           | **Testing a feature against hosted Supabase** — pilot identities, synthetic scenarios, retention |
+| [docs/pilot-data-manifest.md](docs/pilot-data-manifest.md)         | What is currently in the hosted database that is not schema                                      |
+| [docs/deployment.md](docs/deployment.md)                           | Cloud Run deploy, secrets, cost controls, **rollback**                                           |
+| [docs/adr/](docs/adr/)                                             | Architecture decision records                                                                    |
+| [AGENTS.md](AGENTS.md)                                             | **Canonical working agreement** — commands, conventions, hard rules                              |
+| [CLAUDE.md](CLAUDE.md)                                             | Claude Code entry point; imports `AGENTS.md`                                                     |
 
 ## Scripts
 
@@ -100,6 +102,15 @@ assume all rights reserved.
   staging environment and a rehearsed backup restore are both mandatory gates
   before real roster data enters the system.
   ([docs/migration-runbook.md](docs/migration-runbook.md#pre-pilot-gate))
+- **Controlled leadership pilot only, and no real club data** — until those
+  gates close, the hosted database may hold the schema, approved pilot
+  identities for the leadership testers, and clearly synthetic feature
+  scenarios. **The real roster and real club operations — events, RSVPs,
+  attendance, availability, subscriptions, contact details — remain prohibited
+  in every environment.** Pilot data is put there by hand, by Brian, never by an
+  agent, CI or a deploy.
+  ([docs/pilot-data-runbook.md](docs/pilot-data-runbook.md) ·
+  [ADR 0016](docs/adr/0016-controlled-production-pilot-data.md))
 - **No second administrator** — locked Requirement 14 is unsatisfied, so schema
   promotion currently has a single point of failure.
 - **Google OAuth deferred** — needs an approved redirect domain and a club

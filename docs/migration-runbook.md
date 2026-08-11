@@ -6,6 +6,19 @@ human authorization — applied to the single hosted Supabase project.
 There is **one production database and no staging**. Everything below follows
 from that. See [ADR 0001](adr/0001-local-supabase-only.md).
 
+> **Scope: this runbook owns schema promotion. It does not own data.**
+> Putting rows into the hosted database — durable pilot identities, and the
+> synthetic scenarios a feature is tested against — is a separate operation with
+> its own rules, its own scripts and its own retention policy:
+> **[docs/pilot-data-runbook.md](pilot-data-runbook.md)**, decided in
+> [ADR 0016](adr/0016-controlled-production-pilot-data.md).
+>
+> They are never combined. A migration never inserts scenario data, and a pilot
+> script never changes the schema. Applying a migration, running a pilot setup
+> or cleanup, rolling the application back, forward-fixing a schema and
+> restoring from backup are five different operations — the pilot-data runbook
+> tabulates the difference.
+
 ## The promotion path
 
 ```
@@ -357,21 +370,44 @@ migration, and in the project's Notion operational record. No secret value, ever
 
 ## Pre-pilot gate
 
-**Before any real roster data or pilot user enters the system**, both of these
-must be true. Neither blocks writing and validating the schema locally, and
-neither is built by this ticket.
+**Before any real roster data or real club operational data enters the system**,
+all three of these must be true. None of them blocks writing and validating the
+schema locally.
 
 1. **A non-production staging environment exists.** A second Supabase project
    that migrations are applied to first. Creating it is a cost and ownership
    commitment and needs separate authorization — it is explicitly out of scope
-   here.
+   here. (LAN-83)
 2. **Hosted backup and restore have been verified by rehearsal.** Not "backups
    are enabled" — an actual restore performed into a scratch project, timed, and
    recorded. An unrehearsed restore is an assumption, and the destructive-change
-   gate above depends on it being a fact.
+   gate above depends on it being a fact. (LAN-84)
+3. **The controlled use of real club data has been separately authorized.**
+   (LAN-86)
 
-Until both hold, the hosted database should contain schema and synthetic data
-only.
+### What the gate does and does not permit
+
+This gate was originally written as "before any real roster data **or pilot
+user** enters the system". [ADR 0016](adr/0016-controlled-production-pilot-data.md)
+narrowed that, and the narrowing is precise:
+
+| In the hosted database, before the gate                                                                                                                       | Permitted?                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| Schema                                                                                                                                                        | **Yes**                                      |
+| **Approved pilot identities and access** — Auth users, `people`, `operator_accounts` and truthful, time-bounded `role_assignments` for the leadership testers | **Yes**, with Brian's explicit authorization |
+| **Clearly synthetic feature scenarios** — issue-owned, deterministic, sentinel-marked, removable                                                              | **Yes**, run by hand by Brian                |
+| **The real roster**, or any bulk import of club records                                                                                                       | **No.** Still gated                          |
+| **Real club operations** — real events, RSVPs, attendance, availability, subscriptions, or contact details for anyone other than the pilot testers themselves | **No.** Still gated                          |
+
+Permitting synthetic data does **not** permit real data with the names removed.
+The distinction is whether a person reading the row could mistake it for a
+record of something the club actually did.
+
+Everything about how those two permitted categories are provisioned, run,
+retained and finally removed — including the one deliberate cutover before the
+real roster is loaded — is in
+[docs/pilot-data-runbook.md](pilot-data-runbook.md). None of it is performed by
+an agent, and none of it is performed by the deployment pipeline.
 
 ## Ownership
 
