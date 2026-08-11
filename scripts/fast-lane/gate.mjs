@@ -77,8 +77,24 @@ export function requiredChecksPassed(checkRuns, headSha, rules) {
  * before this is consulted, and nothing here can reverse it.
  */
 export function linearIssues(text) {
-  return [...new Set((text ?? "").match(/\bLAN-\d+\b/g) ?? [])].sort();
+  const found = new Set();
+  for (const match of (text ?? "").matchAll(CLOSING_INSTRUCTION)) {
+    for (const id of match[1].match(/LAN-\d+/gi) ?? []) found.add(id.toUpperCase());
+  }
+  return [...found].sort();
 }
+
+/**
+ * A closing instruction, not a mention.
+ *
+ * The keywords are Linear's, so what the merge comment claims was delivered is
+ * the same set Linear will act on. A batch that merely *refers* to an issue
+ * — "LAN-99 is the fix half and is not in this pull request" — must not be
+ * recorded as having delivered it, and must not close it. One keyword may
+ * govern a comma-separated run, which is how a four-issue batch is written.
+ */
+const CLOSING_INSTRUCTION =
+  /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b\s*:?\s*((?:LAN-\d+(?:\s*(?:,|and)\s*)?)+)/gi;
 
 /**
  * @param {{ verdict: object|undefined, pullRequest: object|null, checkRuns: object[], rules: object }} input

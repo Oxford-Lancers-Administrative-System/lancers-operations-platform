@@ -221,12 +221,40 @@ describe("the pull request must be mergeable in its own right", () => {
 // ---------------------------------------------------------------------------
 
 describe("row 12 — a batch pull request names every issue it delivers", () => {
-  it("collects several issue identifiers from the title and body", () => {
-    expect(linearIssues("Batch: LAN-98\n\nCloses LAN-100, closes LAN-99. See LAN-98.")).toEqual([
+  it("collects an issue only where the text instructs it to close", () => {
+    expect(linearIssues("Batch\n\nCloses LAN-100. Fixes LAN-99. Resolves LAN-98.")).toEqual([
       "LAN-100",
       "LAN-98",
       "LAN-99",
     ]);
+    // One keyword may govern a comma-separated run, which is how a four-issue
+    // batch is actually written.
+    expect(linearIssues("Closes LAN-97, LAN-98 and LAN-99")).toEqual([
+      "LAN-97",
+      "LAN-98",
+      "LAN-99",
+    ]);
+  });
+
+  it("does not treat a passing mention as a delivery", () => {
+    // Found on the real LAN-100 batch: its body explains that LAN-99 is the fix
+    // half and is NOT in the pull request, and names LAN-102 as the lane that
+    // will carry it. Scraping bare identifiers reported all three as delivered,
+    // which would have put a false claim in the merge comment.
+    const body = [
+      "Closes LAN-100.",
+      "LAN-99 is the fix half and is not in this pull request.",
+      "It cannot be processed until LAN-102 merges.",
+      "See also LAN-93.",
+    ].join("\n");
+    expect(linearIssues(body)).toEqual(["LAN-100"]);
+  });
+
+  it("refuses a batch that only mentions issues without instructing a close", () => {
+    const result = gate({ title: "Batch", body: "Related to LAN-97 and LAN-98." });
+    expect(result.merge).toBe(false);
+    expect(result.issues).toEqual([]);
+    expect(result.reasons.join(" ")).toMatch(/names no Linear issue/i);
   });
 
   it("refuses a batch that names no issue, because it would close none", () => {
@@ -237,7 +265,7 @@ describe("row 12 — a batch pull request names every issue it delivers", () => 
 
   it("reports all four issues of a full batch for the audit trail", () => {
     const result = gate({
-      body: "Closes LAN-97. Closes LAN-98. Closes LAN-99. Closes LAN-100.",
+      body: "Closes LAN-97, LAN-98, LAN-99 and LAN-100.",
     });
     expect(result.issues).toEqual(["LAN-100", "LAN-97", "LAN-98", "LAN-99"]);
     expect(result.merge).toBe(true);

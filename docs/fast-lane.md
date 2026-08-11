@@ -173,7 +173,11 @@ sufficient: it cannot make an ineligible change eligible.
 2. Put several eligible issues in **one** branch and one pull request.
 3. Run the local verification for every class present, and observe it pass.
 4. Open a **draft** pull request using the template, filling in the **Fast lane**
-   block and naming every included issue as `Closes LAN-nn`.
+   block and naming every included issue as `Closes LAN-nn`. The keyword is
+   required — `close`, `fix` or `resolve`, in any tense, optionally governing a
+   comma-separated run. A bare mention is **not** a delivery: a batch may
+   explain that LAN-99 is a separate fix without claiming to have delivered it,
+   and the workflow will refuse a batch that names no issue it intends to close.
 5. Apply the `fast-lane` label.
 6. CI runs. The merge workflow recomputes eligibility from the diff, checks every
    required check, marks the pull request ready, squash-merges it, and comments
@@ -259,7 +263,9 @@ The issues carry `gitBranchName`, so the Linear GitHub integration is connected.
 that "Automate issue closing on merge" (or the equivalent) is on, and that the
 magic-word list includes `Closes`. A batch pull request has one branch name and
 several issues, so closure comes from the `Closes LAN-nn` lines in the pull
-request body, not from the branch name.
+request body, not from the branch name. The workflow reads the same keywords
+Linear does, so what its merge comment records as delivered is the same set
+Linear acts on — and a bare mention closes nothing in either.
 
 If the integration turns out not to close them, **do not** design a Linear API
 key into this repository. A new privileged credential is Brian's decision and is
