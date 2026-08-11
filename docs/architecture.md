@@ -123,29 +123,47 @@ right:
 
 ## Authentication scope
 
-Deliberately minimal: email/password only, one manually pre-provisioned user,
-public self-registration disabled, one trivial session-protected page. No
-application-level roles or domain authorization exist yet — the `roles` and
-`role_assignments` tables model the club's committee and coaching seats, which
-is a different thing from a permission model and is not wired to authentication.
+Still deliberately minimal on the sign-in side: email/password only, one
+manually pre-provisioned user, public self-registration disabled.
+
+**Authentication now resolves to a person.** `public.operator_accounts` joins a
+Supabase auth user to exactly one `people` row (LAN-71). `resolveOperator()` in
+`src/lib/auth/operator.ts` reads the _verified_ user from
+`supabase.auth.getUser()` — never a raw cookie claim — and returns that person
+together with their currently-effective role codes, or `null` when there is no
+session, no link, or the link has been deactivated. `operator_accounts` is
+reachable only through the privileged server client: RLS on, zero policies, no
+grant to `anon` or `authenticated`, and no `delete` for `service_role`, because
+revocation is a dated deactivation and an actor named by history must stay
+resolvable.
+
+`role_assignments` is therefore now readable as **the authorization input** —
+the club's committee and coaching seats, expressed as role codes a decision can
+be made against. It is still only the input. **Nothing enforces it yet:**
+`/dashboard` displays the resolved operator's role codes and checks none of
+them, and route-level and action-level enforcement arrive in LAN-73. Until then,
+a role code appearing in the application is a fact on display, not a permission
+in force.
 
 Google OAuth is deferred — it needs an approved redirect domain and a club
 administrator able to create OAuth credentials, both open club-side items.
 
 ## Guardrails that run in CI
 
-| Gate                                       | Mechanism                             |
-| ------------------------------------------ | ------------------------------------- |
-| Formatting, lint, types, tests, build      | `npm run verify`                      |
-| Migrations apply cleanly from empty        | `supabase db reset` in CI             |
-| The seed loads after a clean reset         | `npm run db:seed` in `ci.yml`         |
-| Generated types match the schema           | `npm run types:check`                 |
-| Every new table enables RLS                | `npm run check:rls`                   |
-| A browser-safe key reads nothing           | `tests/rls-posture.test.ts`           |
-| Sign-in works, public sign-up does not     | `tests/auth-flow.test.ts`             |
-| Frozen invariants are really enforced      | `tests/schema-invariants.test.ts`     |
-| Valid messy data is still accepted         | `tests/schema-accepts.test.ts`        |
-| The audience relation and P7's five states | `tests/schema-event-audience.test.ts` |
-| RLS, grants and view rights hold           | `tests/schema-security.test.ts`       |
-| The synthetic dataset stays messy          | `tests/synthetic-seed.test.ts`        |
-| The container builds and serves            | `container` job in `ci.yml`           |
+| Gate                                             | Mechanism                                |
+| ------------------------------------------------ | ---------------------------------------- |
+| Formatting, lint, types, tests, build            | `npm run verify`                         |
+| Migrations apply cleanly from empty              | `supabase db reset` in CI                |
+| The seed loads after a clean reset               | `npm run db:seed` in `ci.yml`            |
+| Generated types match the schema                 | `npm run types:check`                    |
+| Every new table enables RLS                      | `npm run check:rls`                      |
+| A browser-safe key reads nothing                 | `tests/rls-posture.test.ts`              |
+| Sign-in works, public sign-up does not           | `tests/auth-flow.test.ts`                |
+| Frozen invariants are really enforced            | `tests/schema-invariants.test.ts`        |
+| Valid messy data is still accepted               | `tests/schema-accepts.test.ts`           |
+| The audience relation and P7's five states       | `tests/schema-event-audience.test.ts`    |
+| RLS, grants and view rights hold                 | `tests/schema-security.test.ts`          |
+| The operator join is unreachable and undeletable | `tests/schema-operator-accounts.test.ts` |
+| The local operator link script stays local       | `tests/link-test-operator.test.ts`       |
+| The synthetic dataset stays messy                | `tests/synthetic-seed.test.ts`           |
+| The container builds and serves                  | `container` job in `ci.yml`              |

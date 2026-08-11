@@ -18,9 +18,10 @@ model wins and the difference is a defect here.
 | — the baseline set                                     | 13 files, organised as 12 logical parts (part 12 splits into `12a` staging and `12b` views) |
 | — the correction pass                                  | 1 file, part 13                                                                             |
 | Scaffold `init` migration, predating the domain schema | 1                                                                                           |
-| **Files applied by a rebuild from empty**              | **15**                                                                                      |
+| Identity-join migration, added after the baseline      | 1 — `operator_accounts` (LAN-71)                                                            |
+| **Files applied by a rebuild from empty**              | **16**                                                                                      |
 
-The schema is **35 tables, 9 views and 31 enum types** in `public`, plus **3
+The schema is **36 tables, 9 views and 31 enum types** in `public`, plus **3
 tables** in the unexposed `staging` schema. Constraint, foreign-key and index
 totals are deliberately not published here: they change with every migration,
 nothing depends on the number, and a stale count is worse than none. Query the
@@ -79,6 +80,7 @@ erDiagram
     PEOPLE ||--o{ RECRUITMENT_PROSPECTS : "may be"
     PEOPLE ||--o{ ROLE_ASSIGNMENTS : holds
     PEOPLE ||--o| PEOPLE : "merged into"
+    PEOPLE ||--o| OPERATOR_ACCOUNTS : "signs in as"
 
     SEASONS ||--o{ SEASON_MEMBERSHIPS : scopes
     SEASONS ||--o{ EVENT_SERIES : schedules
@@ -192,6 +194,33 @@ These are physical necessities, not new product scope.
 | `season_membership_status_events`    | Register D1 makes per-stint reporting a query over status history, which needs a typed home.                                                                                                                         |
 | `staging.*`                          | Architecture cheat sheet §1: legacy files land in staging, are validated, and only then promote.                                                                                                                     |
 | `event_audience_members`             | The frozen model gives Event an _audience definition_, and invariant P7 needs `never-invited` to be reportable. A repeating attribute is a table; without it the database cannot name anyone the approver confirmed. |
+| `operator_accounts`                  | An **identity join**, not a new club concept: one auth user to one Person, so a session can name the actor an audited write records (M2). No role column. See [below](#operator-accounts).                           |
+
+#### Operator accounts
+
+`public.operator_accounts` (LAN-71) is how an authenticated session becomes a
+`people.id` — the actor id that `audit_events.actor_person_id` and every
+`*_by_person_id` column needs. Four decisions are worth stating, because each
+one is load-bearing rather than incidental:
+
+- **Not a column on `people`.** An auth account is an operational fact about how
+  somebody signs in, not a durable club fact about who they are. A Person who
+  never logs in is normal.
+- **No role column.** Authorization reads `role_assignments`, so a committee
+  handover changes who can do what without touching authentication.
+- **Deactivation, never deletion.** `is_active = false` requires a dated
+  `disabled_at` (`operator_accounts_disabled_is_dated`), and `service_role`
+  holds `select, insert, update` but deliberately **no `delete`**.
+- **`on delete restrict` on both foreign keys.** Neither the Person nor the
+  `auth.users` row may be deleted out from under history, so an actor named by
+  an audited write stays resolvable (invariant M2).
+
+RLS is enabled with zero policies and no grant to `anon` or `authenticated`, per
+[ADR 0010](../adr/0010-domain-table-access-posture.md). Resolution lives in
+`src/lib/auth/operator.ts`; it reads the verified user from
+`supabase.auth.getUser()` and treats an assignment as current when
+`effective_to is null or effective_to > now()`. Nothing enforces those role
+codes yet — that is LAN-73.
 
 ### Derived views
 

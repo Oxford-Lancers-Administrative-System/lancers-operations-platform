@@ -1392,6 +1392,54 @@ export type Database = {
           },
         ]
       }
+      operator_accounts: {
+        Row: {
+          auth_user_id: string
+          created_at: string
+          disabled_at: string | null
+          disabled_reason: string | null
+          id: string
+          is_active: boolean
+          person_id: string
+          updated_at: string
+        }
+        Insert: {
+          auth_user_id: string
+          created_at?: string
+          disabled_at?: string | null
+          disabled_reason?: string | null
+          id?: string
+          is_active?: boolean
+          person_id: string
+          updated_at?: string
+        }
+        Update: {
+          auth_user_id?: string
+          created_at?: string
+          disabled_at?: string | null
+          disabled_reason?: string | null
+          id?: string
+          is_active?: boolean
+          person_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "operator_accounts_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: true
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "operator_accounts_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: true
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       people: {
         Row: {
           created_at: string
