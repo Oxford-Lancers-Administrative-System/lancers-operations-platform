@@ -27,6 +27,27 @@ if migrations changed. "Should pass" is not verification.
 
 ```
 
+## Fast lane
+
+<!--
+Answer the first line for every pull request. If it is "No", write "No — normal
+lane" and delete nothing else; the rest of this block is then not applicable and
+saying so is the answer.
+
+The eligibility rules are `.github/fast-lane-rules.json`, and the merge workflow
+recomputes them from the diff. Nothing written here grants eligibility — a
+classification that disagrees with the diff is simply refused, on the pull
+request, with the reason. See docs/fast-lane.md.
+-->
+
+- **Classification:** No — normal lane / `documentation` / `test` /
+  `agent-instruction` — and why:
+- **Included Linear issues:** <!-- `Closes LAN-nn` for every one, so they close on merge -->
+- **Verification run locally:** <!-- the exact commands the rules require for these classes, and their result -->
+- **Required checks (CI result):** <!-- both ci.yml jobs, and their conclusion -->
+- **Merge result:** <!-- filled in by the workflow's comment after it merges; "pending" until then -->
+- **Exclusions:** <!-- work that was separated out because it was ineligible, and where it went. "None" if the batch was eligible whole -->
+
 ## Production handoff
 
 <!--
