@@ -67,7 +67,8 @@ currently-effective committee seats in the current committee year, so the local
 operator has a realistic role list rather than an empty one. It refuses any
 non-local database, prints no key material, and is safe to run twice — a second
 run reports the existing link and changes nothing. Skip it and the app still
-works; `/dashboard` simply reports that no operator record is linked.
+works; `/dashboard` simply reports that the account cannot access the operator
+area.
 
 Sign in at <http://localhost:3000/login> with `TEST_USER_EMAIL` /
 `TEST_USER_PASSWORD` and you should reach `/dashboard`, which names the linked
@@ -198,9 +199,10 @@ synthetic data. Re-run `npm run db:seed`.
 **Sign-in stops working after a reset** — `db:reset` wipes the auth user too.
 Re-run `npm run db:seed-user`.
 
-**`/dashboard` says no operator record is linked** — `db:reset` wipes the
-`operator_accounts` row along with everything else. Re-run `npm run db:seed`,
-`npm run db:seed-user` and `npm run db:link-operator`, in that order.
+**`/dashboard` says this account cannot access the operator area** —
+`db:reset` wipes the `operator_accounts` row along with everything else. Re-run
+`npm run db:seed`, `npm run db:seed-user` and `npm run db:link-operator`, in
+that order.
 
 **Two clones of this repo fight over one database.** The Supabase CLI keys its
 Docker volumes by the `project_id` in `supabase/config.toml`, _not_ by directory.
