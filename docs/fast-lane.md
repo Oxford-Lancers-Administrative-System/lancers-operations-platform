@@ -247,9 +247,10 @@ force pushes does not block it. What must be true:
 
 ### 3. The `fast-lane` label
 
-Create it once: **Issues → Labels → New label**, named exactly `fast-lane`.
-`gh label create fast-lane --description "Batched low-risk work, merged by
-.github/workflows/fast-lane-merge.yml" --color 0E8A16`
+Already created — confirm it exists under **Issues → Labels**, named exactly
+`fast-lane`. If it is ever deleted, recreate it with
+`gh label create fast-lane --color 0E8A16`. Without it every pull request is
+refused for not having asked, which is the right failure.
 
 ### 4. Linear closure
 
@@ -273,9 +274,9 @@ prove it:
 
 1. Merge LAN-102 (this lane) into `main`.
 2. Complete actions 1–4.
-3. Take the prepared LAN-100 pull request — documentation-only, one file,
-   `docs/pilot-data-runbook.md` — confirm it is labelled `fast-lane` and CI is
-   green.
+3. Take the prepared LAN-100 pull request (#13) — documentation-only, one file,
+   `docs/pilot-data-runbook.md`, already labelled `fast-lane` — and confirm CI
+   is green on it.
 4. Run the workflow by hand once: **Actions → Fast-lane merge → Run workflow**,
    with the pull-request number. This is needed only for a pull request whose CI
    finished before the workflow existed; afterwards `workflow_run` fires on its
