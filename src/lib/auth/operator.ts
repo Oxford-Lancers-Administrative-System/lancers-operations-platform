@@ -36,7 +36,8 @@ export interface ResolvedOperator {
   displayName: string;
   /**
    * `roles.code` for every assignment currently in effect, de-duplicated and
-   * sorted. Empty is a legitimate answer: an operator who holds no committee
+   * sorted. A seat that has not started yet, or that has ended, is not in
+   * effect. Empty is a legitimate answer: an operator who holds no committee
    * or coaching seat right now is resolved, just unroled.
    */
   roleCodes: string[];
@@ -53,30 +54,55 @@ type PersonNameColumns = {
 
 type AssignmentColumns = {
   role_id: string;
+  effective_from: string;
   effective_to: string | null;
 };
 
+/** Midnight UTC on a `date` column's value, or `null` if it will not parse. */
+function startOfDayMs(day: string): number | null {
+  const parsed = Date.parse(`${day}T00:00:00Z`);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 /**
- * LAN-71 fixes "currently effective" as `effective_to is null or
- * effective_to > now()`, and this implements exactly that reading and no other.
+ * "Currently effective" is bounded at *both* ends:
  *
- * Note what is deliberately *absent*: there is no `effective_from <= now()`
- * term, so a future-dated assignment resolves as current. That is the specified
- * behaviour, it is raised with Brian, and LAN-73 — which is the first issue that
- * will act on a role code — owns the question.
+ *     effective_from <= now() and (effective_to is null or effective_to > now())
  *
- * `role_assignments.effective_to` is a `date`, so the boundary sits at midnight
- * UTC. `d::timestamptz > now()` and `d > current_date` agree for every date, so
- * comparing the date's midnight instant against the current instant is the same
- * predicate the database would apply: an assignment whose last day is today has
- * already ended, matching the half-open `daterange(effective_from,
- * effective_to, '[)')` the schema's own exclusion constraints use.
+ * Both bounds are deliberate. Neither is an oversight to be tidied away.
+ *
+ *   * The **start** bound is LAN-95's correction. `effective_from` is `not
+ *     null` and the schema permits a future date, because that is precisely
+ *     what effective-dating exists for: a committee seat is recorded at the AGM
+ *     to begin later. Without this term, next year's Treasurer resolves as
+ *     holding the role today — and LAN-73's `requireRole()`, which consumes
+ *     this output, would hand them authority before their seat starts. The
+ *     accepted cost, decided by Brian on 2026-08-11, is that a seat dated to
+ *     begin on the day of a handover confers nothing until that date.
+ *
+ *   * The **end** bound is LAN-71's, unchanged. An assignment whose last day
+ *     has passed is over.
+ *
+ * Both columns are `date`, so each boundary sits at midnight UTC.
+ * `d::timestamptz > now()` and `d > current_date` agree for every date, so
+ * comparing a date's midnight instant against the current instant is the same
+ * predicate the database would apply. Together the two terms reproduce the
+ * half-open `daterange(effective_from, effective_to, '[)')` the schema's own
+ * exclusion constraints use: in effect on the first day, not on the last.
+ *
+ * A bound that will not parse — including a column the query forgot to select,
+ * which arrives as `undefined` — excludes the assignment rather than admitting
+ * it. A role missing from `roleCodes` is visible and gets reported; a bound
+ * silently ignored is authority nobody granted.
  */
 function isCurrentlyEffective(assignment: AssignmentColumns, nowMs: number): boolean {
+  const startsAt = startOfDayMs(assignment.effective_from);
+  if (startsAt === null || startsAt > nowMs) return false;
+
   if (assignment.effective_to === null) return true;
 
-  const endsAt = Date.parse(`${assignment.effective_to}T00:00:00Z`);
-  if (Number.isNaN(endsAt)) return false;
+  const endsAt = startOfDayMs(assignment.effective_to);
+  if (endsAt === null) return false;
 
   return endsAt > nowMs;
 }
@@ -166,7 +192,7 @@ async function readCurrentRoleCodes(
 ): Promise<string[]> {
   const { data: assignments, error: assignmentError } = await admin
     .from("role_assignments")
-    .select("role_id, effective_to")
+    .select("role_id, effective_from, effective_to")
     .eq("person_id", personId);
 
   if (assignmentError) {
