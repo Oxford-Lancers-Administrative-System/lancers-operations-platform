@@ -408,9 +408,17 @@ describe("the check itself still bites", () => {
         "!LOOPBACK_HOSTS.has(parsed.hostname)",
         "![...LOOPBACK_HOSTS].some((h) => parsed.hostname.startsWith(h))",
       );
-      expect(loosened).not.toBe(read(file));
+      expect(loosened, "the splice must have applied, or this control proves nothing").not.toBe(
+        read(file),
+      );
 
-      expect(inspectGuard("under test", loosened, fn).join("\n")).toMatch(/expected/);
+      // A prefix match accepts `localhost.evil.example`, which the parity
+      // suite's CASES table proves is refused today. The finding must say which
+      // predicate changed and what it now reads, or a reader cannot act on it.
+      const report = inspectGuard("under test", loosened, fn).join("\n");
+      expect(report).toMatch(/non-loopback host refusal reads/);
+      expect(report).toMatch(/startsWith/);
+      expect(report).toMatch(/expected "!LOOPBACK_HOSTS\.has\(parsed\.hostname\)"/);
     },
   );
 
