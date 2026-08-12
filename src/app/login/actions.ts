@@ -14,12 +14,12 @@ export type LoginState = { error: string | null };
 export async function signIn(_prevState: LoginState, formData: FormData): Promise<LoginState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const redirectToRaw = String(formData.get("redirectTo") ?? "/dashboard");
+  const redirectToRaw = String(formData.get("redirectTo") ?? "/operate");
 
   // Only allow same-origin relative paths, so a crafted link cannot bounce a
   // freshly authenticated user off to an attacker-controlled host.
   const redirectTo =
-    redirectToRaw.startsWith("/") && !redirectToRaw.startsWith("//") ? redirectToRaw : "/dashboard";
+    redirectToRaw.startsWith("/") && !redirectToRaw.startsWith("//") ? redirectToRaw : "/operate";
 
   if (!email || !password) {
     return { error: "Enter an email address and password." };
