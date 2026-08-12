@@ -30,9 +30,14 @@ src/
   app/
     page.tsx              trivial public page
     login/                email/password sign-in (Server Action)
-    dashboard/            the one session-protected page
+    operate/              the operator shell — the protected area (LAN-73)
+    dashboard/            LAN-71's session-protected wiring proof, superseded by operate/
     api/health/route.ts   dependency-free health endpoint
     layout.tsx            MUI providers + CssBaseline
+  lib/auth/
+    operator.ts           session → club Person and currently-effective role codes
+    capabilities.ts       privileged action → permitted role codes. The policy.
+    guards.ts             requireOperator / requireRole / requireCapability
   lib/supabase/
     env.ts                env resolution; the NEXT_PUBLIC_ boundary
     client.ts             browser client (publishable key, RLS applies)
@@ -85,17 +90,23 @@ semantics, different filename and export name.
 Browser
   │
   ├─▶ src/proxy.ts          refresh Supabase session, write rotated cookies,
-  │                          redirect anonymous requests for /dashboard to /login
+  │                          redirect anonymous requests for a PROTECTED_PREFIXES
+  │                          path — /dashboard, /operate — to /login, keeping the
+  │                          requested path in ?redirectTo
   │
   ├─▶ Server Component      createClient() from lib/supabase/server.ts
   │                          publishable key → RLS applies
+  │                          a protected page also calls a guard from lib/auth
   │
   └─▶ Server Action         sign in / sign out; sets auth cookies
+                             a privileged action calls requireCapability() first
 ```
 
 Route protection in `proxy.ts` is convenience, not the authorization boundary.
-`/dashboard` re-checks the session itself, because a proxy matcher can be changed
-or bypassed and Server Actions are not separate routes in the matcher chain.
+Every protected page re-checks for itself, because a proxy matcher can be changed
+or bypassed and Server Actions are not separate routes in the matcher chain. Under
+`/operate` the layout and the page each resolve independently, and a privileged
+Server Action guards itself a third time — see **Authorization** below.
 
 ### Reaching club data
 
@@ -196,33 +207,75 @@ grant to `anon` or `authenticated`, and no `delete` for `service_role`, because
 revocation is a dated deactivation and an actor named by history must stay
 resolvable.
 
-`role_assignments` is therefore now readable as **the authorization input** —
-the club's committee and coaching seats, expressed as role codes a decision can
-be made against. It is still only the input. **Nothing enforces it yet:**
-`/dashboard` displays the resolved operator's role codes and checks none of
-them, and route-level and action-level enforcement arrive in LAN-73. Until then,
-a role code appearing in the application is a fact on display, not a permission
-in force.
+`role_assignments` is readable as **the authorization input** — the club's
+committee and coaching seats, expressed as role codes a decision can be made
+against. Since LAN-73 those codes are **enforced**, and how is the next section.
+
+### Authorization
+
+**The service layer is the authorization boundary; RLS is the backstop**
+(ADR 0010). Concretely, since LAN-73:
+
+```
+src/lib/auth/capabilities.ts   the policy, as frozen data: each privileged action
+                               → the role codes permitted to perform it
+src/lib/auth/guards.ts         the decision: assertRole / assertCapability (pure,
+                               take an actor) and requireOperator / requireRole /
+                               requireCapability (take the actor from the verified
+                               session and nowhere else)
+```
+
+Four properties this arrangement is built to have, and which tests hold it to:
+
+- **One place decides.** No page, Server Action or service module carries its own
+  list of role codes; each names a capability and reads it from the map. A test
+  scans `src/` and fails on a role code in a string literal anywhere else.
+- **An undecided grant refuses everybody.** A capability with an empty role list
+  is refused to every operator including the President — absence of a decision is
+  never permission. Three capabilities are in that state today, each naming the
+  issue that owes the answer.
+- **Enforcement is in the action, not the route.** A Server Action is a POST
+  endpoint that anyone with a session can call whether or not a screen offered it,
+  so every privileged action calls `requireCapability()` itself. Actions take no
+  actor argument, because a browser would then supply it. Navigation visibility
+  neither grants nor revokes anything.
+- **A refusal names the requirement, never the holdings.** `NotPermitted` says
+  what the action requires; it never lists the roles the caller holds, and never
+  says who does hold the missing one.
+
+An operator with no currently-effective seat is still a legitimate operator: they
+open the shell, and are refused each privileged action individually.
+
+**The role catalogue is seeded, not migrated.** `public.roles` is populated only
+by `scripts/seed-local.mjs`; no migration defines it, so a hosted database has no
+role rows until somebody creates them, and every capability keys on codes that do
+not exist there yet. Recorded on LAN-73 as an owner action.
 
 Google OAuth is deferred — it needs an approved redirect domain and a club
 administrator able to create OAuth credentials, both open club-side items.
 
 ## Guardrails that run in CI
 
-| Gate                                             | Mechanism                                |
-| ------------------------------------------------ | ---------------------------------------- |
-| Formatting, lint, types, tests, build            | `npm run verify`                         |
-| Migrations apply cleanly from empty              | `supabase db reset` in CI                |
-| The seed loads after a clean reset               | `npm run db:seed` in `ci.yml`            |
-| Generated types match the schema                 | `npm run types:check`                    |
-| Every new table enables RLS                      | `npm run check:rls`                      |
-| A browser-safe key reads nothing                 | `tests/rls-posture.test.ts`              |
-| Sign-in works, public sign-up does not           | `tests/auth-flow.test.ts`                |
-| Frozen invariants are really enforced            | `tests/schema-invariants.test.ts`        |
-| Valid messy data is still accepted               | `tests/schema-accepts.test.ts`           |
-| The audience relation and P7's five states       | `tests/schema-event-audience.test.ts`    |
-| RLS, grants and view rights hold                 | `tests/schema-security.test.ts`          |
-| The operator join is unreachable and undeletable | `tests/schema-operator-accounts.test.ts` |
-| The local operator link script stays local       | `tests/link-test-operator.test.ts`       |
-| The synthetic dataset stays messy                | `tests/synthetic-seed.test.ts`           |
-| The container builds and serves                  | `container` job in `ci.yml`              |
+| Gate                                              | Mechanism                                     |
+| ------------------------------------------------- | --------------------------------------------- |
+| Formatting, lint, types, tests, build             | `npm run verify`                              |
+| Migrations apply cleanly from empty               | `supabase db reset` in CI                     |
+| The seed loads after a clean reset                | `npm run db:seed` in `ci.yml`                 |
+| Generated types match the schema                  | `npm run types:check`                         |
+| Every new table enables RLS                       | `npm run check:rls`                           |
+| A browser-safe key reads nothing                  | `tests/rls-posture.test.ts`                   |
+| Sign-in works, public sign-up does not            | `tests/auth-flow.test.ts`                     |
+| Frozen invariants are really enforced             | `tests/schema-invariants.test.ts`             |
+| Valid messy data is still accepted                | `tests/schema-accepts.test.ts`                |
+| The audience relation and P7's five states        | `tests/schema-event-audience.test.ts`         |
+| RLS, grants and view rights hold                  | `tests/schema-security.test.ts`               |
+| The operator join is unreachable and undeletable  | `tests/schema-operator-accounts.test.ts`      |
+| Capability grants are exactly what was decided    | `src/lib/auth/capabilities.test.ts`           |
+| Guards refuse, and disclose nothing doing it      | `src/lib/auth/guards.test.ts`                 |
+| Privileged actions enforce, not their pages       | `src/app/operate/actions.test.ts`             |
+| Only the capability map names a role code         | `tests/capability-map-single-source.test.ts`  |
+| Every capability's role codes exist in the schema | `tests/operator-capability-catalogue.test.ts` |
+| `/operate` is unreachable without a session       | `tests/operate-route-protection.test.ts`      |
+| The local operator link script stays local        | `tests/link-test-operator.test.ts`            |
+| The synthetic dataset stays messy                 | `tests/synthetic-seed.test.ts`                |
+| The container builds and serves                   | `container` job in `ci.yml`                   |

@@ -52,12 +52,13 @@ currently-effective committee seats in the current committee year, so the local
 operator has a realistic role list rather than an empty one. It refuses any
 non-local database, prints no key material, and is safe to run twice — a second
 run reports the existing link and changes nothing. Skip it and the app still
-works; `/dashboard` simply reports that the account cannot access the operator
-area.
+works; `/operate` shows the unlinked account state — “You’re signed in, but this
+account is not connected to a Lancers operator profile” — and no operator data.
 
 Sign in at the assigned `/login` URL shown by `db:acquire` with the generated
-local credentials and you should reach `/dashboard`, which names the linked
-person and lists their current role codes.
+local credentials and you should reach `/operate`, which sends you on to the
+first destination your roles permit — `/operate/roster` today. The assigned
+application port is `:3000` for primary and `:3010` for overflow.
 
 For a review-ready stack, retrieve the generated local-only credentials without
 copying them into a durable record:
@@ -128,6 +129,7 @@ curl -s localhost:8080/api/health          # {"status":"ok", ... "secretsLoaded"
 curl -o /dev/null -w '%{http_code}\n' localhost:8080/          # 200
 curl -o /dev/null -w '%{http_code}\n' localhost:8080/login     # 200
 curl -o /dev/null -w '%{http_code}\n' localhost:8080/dashboard # 307
+curl -o /dev/null -w '%{http_code}\n' localhost:8080/operate   # 307
 ```
 
 `NEXT_PUBLIC_*` values are **inlined at build time**, so they must be passed as
@@ -206,10 +208,21 @@ synthetic data. Re-run `npm run db:seed`.
 **Sign-in stops working after a reset** — `db:reset` wipes the auth user too.
 Re-run `npm run db:seed-user`.
 
-**`/dashboard` says this account cannot access the operator area** —
-`db:reset` wipes the `operator_accounts` row along with everything else. Re-run
-`npm run db:seed`, `npm run db:seed-user` and `npm run db:link-operator`, in
-that order.
+**`/operate` says "Operator profile not connected", or `/dashboard` says this
+account cannot access the operator area** — `db:reset` wipes the
+`operator_accounts` row along with everything else. Re-run `npm run db:seed`,
+`npm run db:seed-user` and `npm run db:link-operator`, in that order.
+
+The two `/operate` account states are different problems and say so. "Operator
+profile not connected" means there is no `operator_accounts` row for the signed-in
+user — the fix above. "Your Lancers operator access is inactive" means the row
+exists with `is_active = false`, which locally only happens if you set it
+yourself; set it back rather than re-seeding.
+
+**`/operate/report` says you do not have access to this action** — it is meant
+to, for everybody, until LAN-81 records who an "authorized report operator" is.
+The capability is declared with no role codes in `src/lib/auth/capabilities.ts`
+and refuses every operator, deliberately, rather than guessing.
 
 **A database command says the token is missing, invalid, or stale** — acquire a
 slot for this issue worktree. If a previous owner was reclaimed, its old token
