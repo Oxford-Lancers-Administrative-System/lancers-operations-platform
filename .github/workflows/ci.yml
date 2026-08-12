@@ -65,13 +65,15 @@ jobs:
         # Proves the seed still loads against a database rebuilt from empty, and
         # gives the schema and seed-property tests something to assert against.
         # Synthetic only — see scripts/seed-local.mjs.
-        run: npm run db:seed
+        # CI owns its throwaway runner stack directly; developer commands remain
+        # fenced through the two-slot coordinator.
+        run: npm run db:seed:ci
 
       - name: Provision the test user
         env:
           TEST_USER_EMAIL: ci.user@oxfordlancers.local
           TEST_USER_PASSWORD: ${{ secrets.CI_TEST_USER_PASSWORD || 'CiLocalPassword123!' }}
-        run: npm run db:seed-user
+        run: npm run db:seed-user:ci
 
       - name: Check formatting
         run: npm run format:check
@@ -88,7 +90,8 @@ jobs:
           REQUIRE_SUPABASE_TESTS: "1"
           TEST_USER_EMAIL: ci.user@oxfordlancers.local
           TEST_USER_PASSWORD: ${{ secrets.CI_TEST_USER_PASSWORD || 'CiLocalPassword123!' }}
-        run: npm run test
+        # The runner-local stack was created above and has no agent-session lease.
+        run: npm run test:ci
 
       - name: Build
         run: npm run build

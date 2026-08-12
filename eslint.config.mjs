@@ -20,6 +20,7 @@ const eslintConfig = defineConfig([
     // Scratch space written by the Supabase CLI; contains vendored bundles.
     "supabase/.temp/**",
     "supabase/.branches/**",
+    ".lancers-runtime/**",
   ]),
 ]);
 

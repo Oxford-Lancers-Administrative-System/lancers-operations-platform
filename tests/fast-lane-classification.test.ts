@@ -187,9 +187,9 @@ describe("row 3 — the lane cannot widen itself", () => {
     "AGENTS.md",
     "CLAUDE.md",
     ".claude/settings.json",
-    ".claude/agents/issue-implementer.md",
     ".claude/agents/code-reviewer.md",
-    ".claude/skills/supervise-batch/SKILL.md",
+    ".claude/skills/start-issue/SKILL.md",
+    "docs/adr/0018-single-issue-agent-development.md",
   ];
 
   it.each(GOVERNANCE)("refuses %s as a protected governance rule", (file) => {

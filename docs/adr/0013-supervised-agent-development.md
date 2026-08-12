@@ -1,6 +1,6 @@
 # 0013 — Supervised parallel agent development, capped at two workers
 
-**Status:** Accepted · **Date:** 2026-08-10
+**Status:** Superseded by [0018](0018-single-issue-agent-development.md) · **Date:** 2026-08-10
 
 Supersedes the blanket "no custom subagents, skills, hooks, slash commands, or
 agent hierarchy" rule previously stated in `AGENTS.md` and `CLAUDE.md`. That rule

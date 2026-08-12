@@ -182,12 +182,11 @@ The protection is that the clone an agent works in has nothing to be linked to.
 
 ### What the split fixes
 
-With one clone doing both jobs, the preflight verification below and the agent
-harness share a single local Supabase stack, and a local `db reset` is
-indistinguishable from an accident. That is not hypothetical: on 2026-08-11 an
-authorized `npm run db:reset` during preflight-style verification was briefly
-misread as an unexplained wipe, because two things legitimately reset the same
-database and nothing in the setup distinguished them.
+With one clone doing both jobs, a preflight reset and development reset are
+indistinguishable. The development clone now routes repository database
+commands through the two-slot local coordinator, but that does not make the
+deployment clone a development environment or authorize local commands there.
+The clone boundary below remains the production credential boundary.
 
 Separating the clones separates the failure modes. The clone that can reach
 production never runs a reset; the clone that runs resets cannot reach
