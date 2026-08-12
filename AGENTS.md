@@ -194,6 +194,14 @@ style the same element with both. See `docs/adr/0004-styling-baseline.md`.
 
 ## Workflow
 
+**User-facing implementation.** Before changing a user-facing workflow, read
+the assigned Linear issue and all of its comments, then read
+[`docs/ux/slice-ux.md`](docs/ux/slice-ux.md), the corresponding contract under
+`docs/ux/tickets/`, and every associated desktop and 375px phone wireframe.
+Stop when higher-authority sources conflict or an unrecorded product or security
+decision is required. The implementation pull request must include a
+UX-conformance checklist and screenshots for every applicable presentation.
+
 **Branches.** Never commit to `main`; it is protected and rejects direct and
 force pushes, including for administrators. Branch from `main` using
 `feat/…`, `fix/…`, `docs/…`, or `chore/…`.
