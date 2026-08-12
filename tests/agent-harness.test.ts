@@ -197,6 +197,24 @@ describe("local Supabase workflow contract", () => {
     ).toMatch(/findOwningSessionPid/);
   });
 
+  it("keeps developer database commands fenced while CI uses explicit local-only entry points", () => {
+    const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+    const workflow = readFileSync(path.join(root, ".github", "workflows", "ci.yml"), "utf8");
+
+    expect(pkg.scripts["db:seed"]).toMatch(/local-supabase-command/);
+    expect(pkg.scripts["db:seed-user"]).toMatch(/local-supabase-command/);
+    expect(pkg.scripts.test).toBe("vitest run");
+    expect(pkg.scripts.pretest).toMatch(/require-local-supabase-lease/);
+
+    expect(pkg.scripts["db:seed:ci"]).toBe("node scripts/seed-local.mjs");
+    expect(pkg.scripts["db:seed-user:ci"]).toBe("node scripts/create-test-user.mjs");
+    expect(pkg.scripts["test:ci"]).toBe("vitest run");
+    expect(workflow).toContain("npm run db:seed:ci");
+    expect(workflow).toContain("npm run db:seed-user:ci");
+    expect(workflow).toContain("npm run test:ci");
+    expect(workflow).not.toMatch(/run: npm run (db:seed|db:seed-user|test)$/m);
+  });
+
   it("records the superseding decision", () => {
     const adr = readFileSync(
       path.join(root, "docs", "adr", "0018-single-issue-agent-development.md"),
