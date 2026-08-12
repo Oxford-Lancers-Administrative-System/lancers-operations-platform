@@ -52,18 +52,21 @@ function lookupProcess(pid) {
 
 export function findOwningSessionPid(startPid = process.ppid, lookup = lookupProcess) {
   let pid = startPid;
-  const fallback = startPid;
   for (let depth = 0; depth < 32 && pid > 1; depth += 1) {
     let processInfo;
     try {
       processInfo = lookup(pid);
     } catch {
-      break;
+      throw new Error(
+        "Could not positively identify the owning Claude or Codex session; refusing to acquire a local Supabase lease.",
+      );
     }
     if (/(^|\/)(claude|codex)(\s|$)/i.test(processInfo.command)) return pid;
     pid = processInfo.ppid;
   }
-  return fallback;
+  throw new Error(
+    "Could not positively identify the owning Claude or Codex session; refusing to acquire a local Supabase lease.",
+  );
 }
 
 function repositoryIdentity(repoPath) {

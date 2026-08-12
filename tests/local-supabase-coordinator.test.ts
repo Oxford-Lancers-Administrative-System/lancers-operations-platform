@@ -62,6 +62,24 @@ describe("two-slot local Supabase coordinator", () => {
     expect(findOwningSessionPid(10, (pid) => processes.get(pid)!)).toBe(30);
   });
 
+  it("finds Codex too, and refuses lookup denial or a chain with no agent session", () => {
+    const codex = new Map([
+      [10, { ppid: 20, command: "node" }],
+      [20, { ppid: 1, command: "/Applications/Codex.app/codex" }],
+    ]);
+    expect(findOwningSessionPid(10, (pid) => codex.get(pid)!)).toBe(20);
+    expect(() =>
+      findOwningSessionPid(10, () => {
+        throw new Error("denied");
+      }),
+    ).toThrow(/refusing to acquire/i);
+    expect(() =>
+      findOwningSessionPid(10, (pid) =>
+        pid === 10 ? { ppid: 20, command: "node" } : { ppid: 1, command: "zsh" },
+      ),
+    ).toThrow(/refusing to acquire/i);
+  });
+
   it("atomically gives simultaneous claimants different slots", async () => {
     const { repo, env } = fixture();
     const [first, second] = await Promise.all([
@@ -109,6 +127,19 @@ describe("two-slot local Supabase coordinator", () => {
       env,
       probe: () => true,
       portProbe: async (port: number) => primaryPorts.has(port),
+    });
+    expect(lease?.slot).toBe("overflow");
+  });
+
+  it("uses overflow when only the primary edge inspector port is occupied", async () => {
+    const { repo, env } = fixture();
+    const lease = await acquireLeaseRaw({
+      issueId: "LAN-1",
+      repoPath: repo,
+      pid: 101,
+      env,
+      probe: () => true,
+      portProbe: async (port: number) => port === SLOT_DEFINITIONS[0].ports.inspector,
     });
     expect(lease?.slot).toBe("overflow");
   });
