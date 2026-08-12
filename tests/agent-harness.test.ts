@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
+import { assertCiLocalExecution } from "../scripts/lib/ci-local-execution.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const agents = path.join(root, ".claude", "agents");
@@ -206,13 +207,37 @@ describe("local Supabase workflow contract", () => {
     expect(pkg.scripts.test).toBe("vitest run");
     expect(pkg.scripts.pretest).toMatch(/require-local-supabase-lease/);
 
-    expect(pkg.scripts["db:seed:ci"]).toBe("node scripts/seed-local.mjs");
-    expect(pkg.scripts["db:seed-user:ci"]).toBe("node scripts/create-test-user.mjs");
-    expect(pkg.scripts["test:ci"]).toBe("vitest run");
+    for (const command of ["db:seed:ci", "db:seed-user:ci", "test:ci"])
+      expect(pkg.scripts[command]).toMatch(/ci-local-command/);
     expect(workflow).toContain("npm run db:seed:ci");
     expect(workflow).toContain("npm run db:seed-user:ci");
     expect(workflow).toContain("npm run test:ci");
     expect(workflow).not.toMatch(/run: npm run (db:seed|db:seed-user|test)$/m);
+  });
+
+  it("refuses every unfenced CI entry point outside a positively identified runner workspace", () => {
+    const cwd = root;
+    const runner = {
+      CI: "true",
+      GITHUB_ACTIONS: "true",
+      GITHUB_WORKSPACE: cwd,
+      RUNNER_TEMP: "/tmp",
+    };
+
+    expect(() => assertCiLocalExecution({ env: {}, cwd })).toThrow(/restricted to GitHub Actions/i);
+    expect(() => assertCiLocalExecution({ env: { ...runner, CI: "false" }, cwd })).toThrow(
+      /restricted to GitHub Actions/i,
+    );
+    expect(() =>
+      assertCiLocalExecution({ env: { ...runner, GITHUB_ACTIONS: "false" }, cwd }),
+    ).toThrow(/restricted to GitHub Actions/i);
+    expect(() =>
+      assertCiLocalExecution({ env: { ...runner, GITHUB_WORKSPACE: path.dirname(cwd) }, cwd }),
+    ).toThrow(/GITHUB_WORKSPACE/i);
+    expect(() =>
+      assertCiLocalExecution({ env: { ...runner, RUNNER_TEMP: "relative" }, cwd }),
+    ).toThrow(/RUNNER_TEMP/i);
+    expect(() => assertCiLocalExecution({ env: runner, cwd })).not.toThrow();
   });
 
   it("records the superseding decision", () => {
