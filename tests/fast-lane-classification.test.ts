@@ -465,26 +465,70 @@ describe("row 8 — test changes may not weaken coverage", () => {
     expect(result.eligible).toBe(false);
   });
 
-  it("weighs the batch as a whole, so one added assertion cannot pay for ten removed", () => {
-    const patch = [
+  /**
+   * The three escapes an independent reviewer found in the first version of
+   * this guard, each of which classified as eligible. They are kept as named
+   * cases because the shape they share — a count that nets out across a
+   * boundary — is what any future edit to `applyTestGuards` is most likely to
+   * reintroduce.
+   */
+  const crossFilePayment = (addedCount: number, removedCount: number) => ({
+    files: [
+      { status: "A", path: "tests/added.test.ts" },
+      { status: "M", path: "tests/gutted.test.ts" },
+    ],
+    patch: [
       "diff --git a/tests/added.test.ts b/tests/added.test.ts",
-      "@@ -0,0 +1,1 @@",
-      "+  expect(1).toBe(1);",
+      `@@ -0,0 +1,${addedCount} @@`,
+      ...Array.from({ length: addedCount }, () => "+  expect(1).toBe(1);"),
       "diff --git a/tests/gutted.test.ts b/tests/gutted.test.ts",
-      "@@ -1,10 +1,0 @@",
-      ...Array.from({ length: 10 }, () => "-  expect(true).toBe(true);"),
-    ].join("\n");
-    const result = classify(
-      {
-        files: [
-          { status: "A", path: "tests/added.test.ts" },
-          { status: "M", path: "tests/gutted.test.ts" },
-        ],
-        patch,
-      },
-      rules,
+      `@@ -1,${removedCount} +1,0 @@`,
+      ...Array.from({ length: removedCount }, () => "-  expect(realInvariant()).toBe(true);"),
+    ].join("\n"),
+  });
+
+  it("refuses one added assertion paying for ten removed", () => {
+    const result = classify(crossFilePayment(1, 10), rules);
+    expect(result.eligible).toBe(false);
+  });
+
+  it("refuses ten trivial assertions paying for ten real ones removed elsewhere", () => {
+    // The batch nets to zero on both lines and assertion count. Comparing
+    // per file is what catches it; batch-wide netting merged it unreviewed.
+    const result = classify(crossFilePayment(10, 10), rules);
+    expect(result.eligible).toBe(false);
+    expect(result.reasons.join(" ")).toMatch(/tests\/gutted\.test\.ts/);
+  });
+
+  it("refuses real assertions replaced in place by tautologies", () => {
+    // Same file, same line count, same `expect(` count. Only the meaning
+    // changed, so an assertion about a bare literal cannot count as coverage.
+    const result = classifyTest(
+      testPatch(
+        "-    expect(rows).toHaveLength(4);",
+        "-    expect(rows[0].id).toBe(expectedId);",
+        "+    expect(true).toBe(true);",
+        "+    expect(1).toBe(1);",
+      ),
     );
     expect(result.eligible).toBe(false);
+    expect(result.reasons.join(" ")).toMatch(/assert something/i);
+  });
+
+  it("counts a removed line whose content begins with a SQL comment", () => {
+    // `parsePatch` used to skip any line starting `---`, which swallowed
+    // content lines beginning `--`. A column-zero `--` is what SQL inside a
+    // template literal produces, and this repository's tests are full of it.
+    const result = classifyTest(
+      testPatch(
+        "--- ensure the guard fires",
+        "--- and the row is refused",
+        "--- and nothing is written",
+        "+  const sql = `select 1`;",
+      ),
+    );
+    expect(result.eligible).toBe(false);
+    expect(result.reasons.join(" ")).toMatch(/net-negative/i);
   });
 });
 

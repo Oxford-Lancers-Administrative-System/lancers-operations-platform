@@ -80,6 +80,13 @@ must match the pull request head>`
 - **CI:** `<check names, current head SHA, run URL, and conclusion per required
 check — verified from gh pr checks plus the Actions log for this commit, not
 from a worker's claim. Note the test count observed.>`
+- **Fast-lane classification:** `<eligible / ineligible / unclassifiable>` ·
+  class `<documentation | test | agent-instruction | n/a>` · the rule that
+  decided it
+- **Batch membership:** `<the other issues in this batch, or "not batched">`
+- **Merge result:** `<merged automatically by the workflow at <sha>, or "draft,
+awaiting Brian">`
+- **Exclusions:** `<work split out into a normal pull request, and why>`
 - **Independent review verdict:** blocked / clear / `<not launched — level 0 or
 1, with the justification above>`
   - Blockers: `<verbatim, or "none">`

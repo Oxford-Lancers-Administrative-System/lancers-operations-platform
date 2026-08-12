@@ -188,13 +188,28 @@ jobs:
           # Agents open drafts and are forbidden to un-draft. This workflow does
           # it, and only here — after eligibility was recomputed from the diff
           # and every required check concluded success.
+          #
+          # It has to happen before the merge, not after: GitHub refuses to
+          # merge a draft, so the order is forced. What is NOT forced is leaving
+          # it un-drafted when the merge then fails — branch protection
+          # refusing, a --match-head-commit mismatch, a 403. That would leave the
+          # pull request ready for review with nobody having read it, and no
+          # agent can put it back, because `gh pr ready` is denied to them. So
+          # the merge is trapped and the draft restored on any failure, which is
+          # what docs/fast-lane.md promises.
           gh pr ready "$PR" --repo "$REPO"
 
           # --match-head-commit refuses if the head moved since it was read.
           # No --admin, ever: that would bypass branch protection, which is the
           # authoritative gate this lane depends on.
-          gh pr merge "$PR" --repo "$REPO" --squash --delete-branch \
-            --match-head-commit "$HEAD_SHA"
+          if ! gh pr merge "$PR" --repo "$REPO" --squash --delete-branch \
+            --match-head-commit "$HEAD_SHA"; then
+            echo "::error::Merge refused. Restoring the draft state."
+            if ! gh pr ready "$PR" --repo "$REPO" --undo; then
+              echo "::error::Could not restore the draft. PR #$PR is un-drafted and UNMERGED — a human must re-draft or close it."
+            fi
+            exit 1
+          fi
 
           {
             echo "**Merged by the fast lane.**"

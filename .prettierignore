@@ -8,3 +8,6 @@ package-lock.json
 supabase/.temp/
 supabase/.branches/
 src/lib/supabase/database.types.ts
+
+# Agent worktrees are checkouts of this repository, not source of it.
+.claude/worktrees/

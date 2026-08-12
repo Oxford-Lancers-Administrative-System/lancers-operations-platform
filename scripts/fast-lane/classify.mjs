@@ -140,7 +140,13 @@ export function parsePatch(patch) {
       continue;
     }
     if (!current) continue;
-    if (line.startsWith("+++") || line.startsWith("---")) continue;
+    // Only the real file headers, which git always writes as `--- a/…`,
+    // `+++ b/…` or `/dev/null`. Matching a bare `---`/`+++` prefix would also
+    // swallow *content* lines that begin `--` or `++` — and a column-zero `--`
+    // is exactly what SQL inside a template literal produces, in a repository
+    // whose tests are full of it. Those lines would then be invisible to the
+    // net-negative guard below.
+    if (/^--- ("?a\/|\/dev\/null)/.test(line) || /^\+\+\+ ("?b\/|\/dev\/null)/.test(line)) continue;
     if (line.startsWith("+")) perFile.get(current).added.push(line.slice(1));
     else if (line.startsWith("-")) perFile.get(current).removed.push(line.slice(1));
   }
@@ -151,34 +157,52 @@ const count = (lines, token) =>
   lines.reduce((total, line) => total + line.split(token).length - 1, 0);
 
 /**
+ * An assertion whose subject is a bare literal proves nothing:
+ * `expect(true).toBe(true)` and `expect(1).toBe(1)` type-check, pass, and
+ * assert about the language rather than about this repository. They are not
+ * counted as added coverage, so two real assertions cannot be replaced by two
+ * tautologies while the count stays level.
+ */
+const TAUTOLOGY =
+  /expect\(\s*(?:true|false|null|undefined|-?\d+(?:\.\d+)?|'[^']*'|"[^"]*"|`[^`]*`)\s*\)/g;
+
+const countMeaningful = (lines, token) =>
+  count(
+    lines.map((l) => l.replace(TAUTOLOGY, "")),
+    token,
+  );
+
+/**
  * Coverage may be added or strengthened, never removed or weakened.
  *
- * Applied across the whole batch whenever any file took the `test` class, so
- * that adding one assertion in a new file cannot pay for deleting ten in
- * another.
+ * Applied **per file**, not across the batch. Batch-wide netting is what would
+ * let a new file full of trivial assertions pay for gutting a real one: ten
+ * added and ten removed nets to zero and merges unreviewed. Comparing within
+ * each file removes that trade. The cost is that a legitimate net-negative
+ * refactor now falls out of the lane into the normal one, which is the safe
+ * direction.
  */
 export function applyTestGuards(testFiles, patch, rules) {
   const guards = rules.testGuards;
   const failures = [];
   const changes = parsePatch(patch).filter((change) => testFiles.includes(change.file));
 
-  const added = changes.reduce((total, change) => total + change.added.length, 0);
-  const removed = changes.reduce((total, change) => total + change.removed.length, 0);
+  for (const change of changes) {
+    if (guards.forbidNetNegativeTestLines && change.removed.length > change.added.length) {
+      failures.push(
+        `${change.file} is net-negative (${change.added.length} added, ${change.removed.length} removed). Removing test lines may be correct, but it is not something this lane merges unreviewed.`,
+      );
+    }
 
-  if (guards.forbidNetNegativeTestLines && removed > added) {
-    failures.push(
-      `Test changes are net-negative (${added} added, ${removed} removed). Removing test lines may be correct, but it is not something this lane merges unreviewed.`,
-    );
-  }
-
-  if (guards.forbidNetRemovedAssertions) {
-    for (const token of guards.assertionTokens) {
-      const addedAssertions = changes.reduce((t, c) => t + count(c.added, token), 0);
-      const removedAssertions = changes.reduce((t, c) => t + count(c.removed, token), 0);
-      if (removedAssertions > addedAssertions) {
-        failures.push(
-          `Test changes remove more \`${token}\` assertions than they add (${addedAssertions} added, ${removedAssertions} removed).`,
-        );
+    if (guards.forbidNetRemovedAssertions) {
+      for (const token of guards.assertionTokens) {
+        const addedAssertions = countMeaningful(change.added, token);
+        const removedAssertions = count(change.removed, token);
+        if (removedAssertions > addedAssertions) {
+          failures.push(
+            `${change.file}: test changes remove more \`${token}\` assertions than they add (${addedAssertions} added that assert something, ${removedAssertions} removed).`,
+          );
+        }
       }
     }
   }
