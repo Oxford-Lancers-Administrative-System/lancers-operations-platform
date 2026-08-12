@@ -192,6 +192,9 @@ describe("local Supabase workflow contract", () => {
     }
     expect(readFileSync(path.join(root, ".gitignore"), "utf8")).toMatch(/^\.lancers-runtime\/$/m);
     expect(pkg.scripts.pretest).toMatch(/require-local-supabase-lease/);
+    expect(
+      readFileSync(path.join(root, "scripts", "local-supabase-coordinator.mjs"), "utf8"),
+    ).toMatch(/findOwningSessionPid/);
   });
 
   it("records the superseding decision", () => {

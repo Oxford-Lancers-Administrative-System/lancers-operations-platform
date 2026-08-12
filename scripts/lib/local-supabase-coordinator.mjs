@@ -19,6 +19,7 @@ export const SLOT_DEFINITIONS = [
       pooler: 54329,
       studio: 54323,
       mailpit: 54324,
+      inspector: 8083,
       analytics: 54327,
     },
   },
@@ -33,10 +34,37 @@ export const SLOT_DEFINITIONS = [
       pooler: 55329,
       studio: 55323,
       mailpit: 55324,
+      inspector: 8183,
       analytics: 55327,
     },
   },
 ];
+
+function lookupProcess(pid) {
+  const line = execFileSync("ps", ["-o", "ppid=,comm=", "-p", String(pid)], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
+  const match = /^(\d+)\s+(.+)$/.exec(line);
+  if (!match) throw new Error(`Could not inspect process ${pid}.`);
+  return { ppid: Number(match[1]), command: match[2] };
+}
+
+export function findOwningSessionPid(startPid = process.ppid, lookup = lookupProcess) {
+  let pid = startPid;
+  const fallback = startPid;
+  for (let depth = 0; depth < 32 && pid > 1; depth += 1) {
+    let processInfo;
+    try {
+      processInfo = lookup(pid);
+    } catch {
+      break;
+    }
+    if (/(^|\/)(claude|codex)(\s|$)/i.test(processInfo.command)) return pid;
+    pid = processInfo.ppid;
+  }
+  return fallback;
+}
 
 function repositoryIdentity(repoPath) {
   try {
@@ -161,6 +189,8 @@ function renderConfig(source, slot) {
         return `port = ${slot.ports[portBySection[section]]}`;
       if (section === "db" && /^shadow_port\s*=/.test(line))
         return `shadow_port = ${slot.ports.shadow}`;
+      if (section === "edge_runtime" && /^inspector_port\s*=/.test(line))
+        return `inspector_port = ${slot.ports.inspector}`;
       if (/^site_url\s*=/.test(line))
         return `site_url = "http://localhost:${slot.applicationPort}"`;
       if (/^additional_redirect_urls\s*=/.test(line))
@@ -274,19 +304,6 @@ export async function updateLease({
       throw new Error(`Lease is ${record.state}; database mutation is refused.`);
     if (state) record.state = state;
     record.lastHeartbeat = new Date(now).toISOString();
-    writeRegistry(paths.registry, registry);
-    return record;
-  });
-}
-
-export async function transferLeaseOwner({ repoPath, token, pid, env = process.env }) {
-  const paths = coordinatorPaths(repoPath, env);
-  return withAllocatorLock(paths, () => {
-    const registry = readRegistry(paths.registry);
-    const record = Object.values(registry.slots).find((candidate) => candidate.token === token);
-    if (!record || record.repoPath !== fs.realpathSync(repoPath) || record.state !== "active")
-      throw new Error("Cannot transfer an invalid or inactive lease.");
-    record.owner = { pid, startedAt: new Date().toISOString() };
     writeRegistry(paths.registry, registry);
     return record;
   });

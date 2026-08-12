@@ -1,14 +1,12 @@
 #!/usr/bin/env node
 import process from "node:process";
-import path from "node:path";
-import { spawn } from "node:child_process";
 import {
   acquireLease,
   cleanupStale,
   coordinatorStatus,
+  findOwningSessionPid,
   readSession,
   releaseLease,
-  transferLeaseOwner,
   updateLease,
 } from "./lib/local-supabase-coordinator.mjs";
 
@@ -16,22 +14,24 @@ const repoPath = process.cwd();
 const [operation, argument] = process.argv.slice(2);
 
 try {
-  if (operation === "status") console.log(JSON.stringify(coordinatorStatus(repoPath), null, 2));
-  else if (operation === "acquire") {
-    const lease = await acquireLease({ issueId: argument, repoPath });
+  if (operation === "status") {
+    const registry = coordinatorStatus(repoPath);
+    const slots = Object.fromEntries(
+      Object.entries(registry.slots).map(([name, record]) => {
+        const safeRecord = { ...record };
+        delete safeRecord.token;
+        return [name, safeRecord];
+      }),
+    );
+    console.log(JSON.stringify({ ...registry, slots }, null, 2));
+  } else if (operation === "acquire") {
+    const lease = await acquireLease({ issueId: argument, repoPath, pid: findOwningSessionPid() });
     if (!lease) {
       console.log(
         "Both local Supabase slots are legitimately occupied. Continue database-independent work and retry later.",
       );
       process.exitCode = 2;
     } else {
-      const keeper = spawn(
-        process.execPath,
-        [path.join(repoPath, "scripts", "local-supabase-lease-keeper.mjs"), repoPath, lease.token],
-        { detached: true, stdio: "ignore" },
-      );
-      keeper.unref();
-      await transferLeaseOwner({ repoPath, token: lease.token, pid: keeper.pid });
       console.log(
         `Acquired ${lease.slot} for ${lease.issueId} (application http://localhost:${lease.applicationPort}).`,
       );

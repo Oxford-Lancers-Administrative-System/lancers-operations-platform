@@ -8,6 +8,7 @@ import {
   SLOT_DEFINITIONS,
   acquireLease as acquireLeaseRaw,
   coordinatorStatus,
+  findOwningSessionPid,
   releaseLease,
   updateLease,
 } from "../scripts/lib/local-supabase-coordinator.mjs";
@@ -33,7 +34,7 @@ function fixture() {
   fs.writeFileSync(path.join(repo, "supabase", "seed.sql"), "-- synthetic\n");
   fs.writeFileSync(
     path.join(repo, "supabase", "config.toml"),
-    'project_id = "tracked"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[db.pooler]\nport = 54329\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[auth]\nsite_url = "http://localhost:3000"\nadditional_redirect_urls = ["http://localhost:3000"]\n[analytics]\nport = 54327\n',
+    'project_id = "tracked"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[db.pooler]\nport = 54329\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[edge_runtime]\nenabled = true\ninspector_port = 8083\n[auth]\nsite_url = "http://localhost:3000"\nadditional_redirect_urls = ["http://localhost:3000"]\n[analytics]\nport = 54327\n',
   );
   execFileSync("git", ["init", "-q"], { cwd: repo });
   execFileSync("git", ["remote", "add", "origin", "git@example.test:oxford/lancers.git"], {
@@ -51,6 +52,15 @@ describe("two-slot local Supabase coordinator", () => {
     const error = Object.assign(new Error("missing"), { code: "ESRCH" });
     throw error;
   };
+
+  it("binds ownership to the live Claude or Codex session ancestor", () => {
+    const processes = new Map([
+      [10, { ppid: 20, command: "node" }],
+      [20, { ppid: 30, command: "npm" }],
+      [30, { ppid: 1, command: "/usr/local/bin/claude" }],
+    ]);
+    expect(findOwningSessionPid(10, (pid) => processes.get(pid)!)).toBe(30);
+  });
 
   it("atomically gives simultaneous claimants different slots", async () => {
     const { repo, env } = fixture();
@@ -200,6 +210,16 @@ describe("two-slot local Supabase coordinator", () => {
     );
   });
 
+  it("refuses a valid token presented from another worktree of the same repository", async () => {
+    const { repo, env } = fixture();
+    const secondWorktree = path.join(path.dirname(repo), "other-worktree");
+    fs.cpSync(repo, secondWorktree, { recursive: true });
+    const lease = await acquireLease({ issueId: "LAN-1", repoPath: repo, pid: 101, env });
+    await expect(
+      updateLease({ repoPath: secondWorktree, token: lease!.token, env }),
+    ).rejects.toThrow(/missing, invalid, or stale/i);
+  });
+
   it("generates distinct complete port sets and untracked runtime configuration", async () => {
     const { repo, env } = fixture();
     const first = await acquireLease({
@@ -224,6 +244,9 @@ describe("two-slot local Supabase coordinator", () => {
     expect(
       fs.readFileSync(path.join(first!.runtimeRoot, "supabase", "config.toml"), "utf8"),
     ).toContain(first!.projectId);
+    expect(
+      fs.readFileSync(path.join(second!.runtimeRoot, "supabase", "config.toml"), "utf8"),
+    ).toContain(`inspector_port = ${second!.ports.inspector}`);
     expect(fs.readFileSync(path.join(repo, "supabase", "config.toml"), "utf8")).toContain(
       'project_id = "tracked"',
     );
