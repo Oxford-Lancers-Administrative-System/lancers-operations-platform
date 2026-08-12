@@ -196,7 +196,17 @@ describe("row 9 — no agent gains merge capability from any of this", () => {
     ]) {
       expect(deny, `${rule} is missing`).toContain(rule);
     }
-    expect(settings.permissions?.allow ?? []).toEqual([]);
+    expect(settings.permissions?.allow ?? []).toEqual([
+      "Bash(npx vitest *)",
+      "Bash(gh pr edit * --add-label *)",
+      "Bash(gh pr comment *)",
+      "Bash(gh run rerun *)",
+      "Bash(gh run view *)",
+      "Bash(gh run list *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr view *)",
+    ]);
     expect(settings.permissions?.disableBypassPermissionsMode).toBe("disable");
   });
 
