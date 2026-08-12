@@ -77,8 +77,10 @@ async function rejectionFrom(
 }
 
 /**
- * The four rejections LAN-72 names, each raised by the database itself. The
- * constraint names were read out of `supabase/migrations/`, not assumed.
+ * Every named rejection the mapper answers specifically, each raised by the
+ * database itself. The constraint names were read out of
+ * `supabase/migrations/`, not assumed. LAN-72 named the first four; LAN-76
+ * added the three the event form depends on.
  */
 const CASES = [
   {
@@ -117,6 +119,38 @@ const CASES = [
       ),
   },
   {
+    name: "an event that ends before it starts",
+    constraint: "events_times_ordered",
+    kind: "constraint_violated",
+    attempt: (tx: Tx, base: Baseline) =>
+      tx.query(
+        `insert into public.events (season_id, name, event_type, starts_at, ends_at)
+         values ($1, 'Backwards practice', 'practice', '20:00', '19:00')`,
+        [base.seasonId],
+      ),
+  },
+  {
+    name: "an event with no name",
+    constraint: "events_name_not_blank",
+    kind: "constraint_violated",
+    attempt: (tx: Tx, base: Baseline) =>
+      tx.query(
+        `insert into public.events (season_id, name, event_type) values ($1, '   ', 'practice')`,
+        [base.seasonId],
+      ),
+  },
+  {
+    name: "a withdrawal that does not say why",
+    constraint: "events_negative_decisions_are_explained",
+    kind: "constraint_violated",
+    attempt: (tx: Tx, base: Baseline) =>
+      tx.query(
+        `insert into public.events (season_id, name, event_type, status)
+         values ($1, 'Abandoned practice', 'practice', 'withdrawn')`,
+        [base.seasonId],
+      ),
+  },
+  {
     name: "a duplicate membership for a person in a season",
     constraint: "season_memberships_one_per_person_per_season",
     kind: "conflict",
@@ -144,7 +178,7 @@ async function collectAll(): Promise<ServiceError[]> {
   return errors;
 }
 
-describe("row 9 — four real rejections, four specific answers", () => {
+describe("row 9 — every named rejection, and a specific answer for each", () => {
   it.each(CASES)("maps $name", async ({ constraint, kind, attempt }) => {
     const error = await rejectionFrom(attempt);
 
@@ -156,7 +190,7 @@ describe("row 9 — four real rejections, four specific answers", () => {
     expect(error.kind).toBe(kind);
   });
 
-  it("gives all four distinct, non-generic messages", async () => {
+  it("gives every one of them a distinct, non-generic message", async () => {
     const errors = await collectAll();
     const messages = errors.map((error) => error.message);
 
@@ -169,10 +203,10 @@ describe("row 9 — four real rejections, four specific answers", () => {
     }
   });
 
-  it("keeps all four distinguishable by the caller without reading English", async () => {
+  it("keeps every one distinguishable by the caller without reading English", async () => {
     const errors = await collectAll();
     // `rule` is the discriminator that stays distinct even where two rules
-    // share a taxonomy member, which two of these four do.
+    // share a taxonomy member, which several of these do.
     expect(new Set(errors.map((error) => error.rule)).size).toBe(CASES.length);
   });
 
