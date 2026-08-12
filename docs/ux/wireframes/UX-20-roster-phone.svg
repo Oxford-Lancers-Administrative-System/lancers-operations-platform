@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="375" height="956" viewBox="0 0 375 956" role="img">
-<title>UX-20 Roster phone</title><desc>LAN-75, route /operate/roster, phone presentation</desc>
+<title>UX-20 Roster phone</title><desc>LAN-75, route /operate/roster, phone presentation All displayed people, contact details, statuses, responses, and attendance records are synthetic and do not correspond to real members.</desc>
 <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#0B1F3A" flood-opacity="0.10"/></filter></defs>
 <rect x="0" y="0" width="375" height="956" rx="0" fill="#F4F7FB" stroke="none" stroke-width="1" opacity="1"/>
 <rect x="0" y="0" width="375" height="58" rx="0" fill="#263238" stroke="none" stroke-width="1" opacity="1"/>
@@ -22,22 +22,22 @@
 <rect x="275" y="312" width="72" height="28" rx="14" fill="#E5F0FF" stroke="none" stroke-width="1" opacity="1"/>
 <text x="311.0" y="331" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#175EA8" text-anchor="middle">Filters</text>
 <rect x="16" y="358" width="343" height="76" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
-<text x="28" y="382" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Chase Fellows</text>
+<text x="28" y="382" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Avery Fielding</text>
 <text x="28" y="402" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="400" fill="#66768D" text-anchor="start">Active</text>
 <rect x="267" y="400" width="75" height="28" rx="14" fill="#EEF2F7" stroke="none" stroke-width="1" opacity="1"/>
 <text x="304.5" y="419" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Returning</text>
 <rect x="16" y="442" width="343" height="76" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
-<text x="28" y="466" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Kalani Bassi</text>
+<text x="28" y="466" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Samira Quinn</text>
 <text x="28" y="486" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="400" fill="#66768D" text-anchor="start">Confirmed</text>
 <rect x="267" y="484" width="75" height="28" rx="14" fill="#EEF2F7" stroke="none" stroke-width="1" opacity="1"/>
 <text x="304.5" y="503" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Returning</text>
 <rect x="16" y="526" width="343" height="76" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
-<text x="28" y="550" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">David Babarinde</text>
+<text x="28" y="550" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Leo Hartwell</text>
 <text x="28" y="570" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="400" fill="#66768D" text-anchor="start">Inactive</text>
 <rect x="267" y="568" width="75" height="28" rx="14" fill="#EEF2F7" stroke="none" stroke-width="1" opacity="1"/>
 <text x="304.5" y="587" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Returning</text>
 <rect x="16" y="610" width="343" height="76" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
-<text x="28" y="634" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Marcus Hill</text>
+<text x="28" y="634" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Devon Skye</text>
 <text x="28" y="654" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="400" fill="#66768D" text-anchor="start">Confirmed</text>
 <rect x="267" y="652" width="68" height="28" rx="14" fill="#EEF2F7" stroke="none" stroke-width="1" opacity="1"/>
 <text x="301.0" y="671" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">New</text>

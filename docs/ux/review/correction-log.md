@@ -1,6 +1,10 @@
 # UX reconciliation correction log
 
-Status: owner-review draft · reconciled 12 August 2026
+Status: sanitized public implementation package · workflow direction approved 12 August 2026
+
+> **Synthetic scenario data:** All displayed people, contact details, statuses, responses, and attendance records are synthetic and do not correspond to real members.
+
+Approval evidence: [LAN-90 approval comment](https://linear.app/brian-schuster/issue/LAN-90/0-define-and-approve-the-minimum-ux-for-the-first-operational-vertical#comment-44f1c4de-cc9f-4708-86b3-b2ba555bf960) · [Notion approval record](https://app.notion.com/p/3ba488886d5781ed9adedd53635d1c6f)
 
 | Requested correction                                                                                                                                                                                                          | Owning Linear issue(s)            | Revised contract and screens                                                                             |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -15,4 +19,5 @@ Status: owner-review draft · reconciled 12 August 2026
 | Post-occurrence coach access; Saving/Saved/failure; four-state correction; latest actor/time; denial; minimal data                                                                                                            | LAN-110 reusing LAN-80            | UX-90–UX-96                                                                                              |
 | Distinct attendance-only coach walk-up surface without operator navigation or sensitive fields; operator walk-up unchanged                                                                                                    | LAN-80, LAN-110                   | New UX-97; UX-73 retained for authorized operators                                                       |
 | Desktop and phone clipping/overlap correction plus package-wide visual pass                                                                                                                                                   | LAN-74, LAN-81, LAN-110           | UX-12 desktop, UX-80 desktop, UX-81 desktop, UX-95 phone; all exported screens re-rendered and inspected |
-| Live Linear and owner decisions restored above UX package; approval labels removed                                                                                                                                            | LAN-90                            | README, master contract, PDF cover/final review page                                                     |
+| Live Linear and owner decisions restored above UX package; Brian’s dated workflow-direction approval linked                                                                                                                   | LAN-90                            | Master contract, focused ticket contracts, PDF cover/final review page                                   |
+| Real and roster-derived names and associated contact details replaced with a fictional cast; synthetic-data notice added                                                                                                      | LAN-90                            | Markdown, all SVG metadata and the regenerated public review PDF                                         |

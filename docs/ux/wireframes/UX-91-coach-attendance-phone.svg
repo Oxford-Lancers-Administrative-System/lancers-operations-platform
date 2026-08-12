@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="375" height="1080" viewBox="0 0 375 1080" role="img">
-<title>UX-91 Team Practice attendance phone</title><desc>LAN-110, route /operate/events/[id]/attendance, phone presentation</desc>
+<title>UX-91 Team Practice attendance phone</title><desc>LAN-110, route /operate/events/[id]/attendance, phone presentation All displayed people, contact details, statuses, responses, and attendance records are synthetic and do not correspond to real members.</desc>
 <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#0B1F3A" flood-opacity="0.10"/></filter></defs>
 <rect x="0" y="0" width="375" height="1080" rx="0" fill="#F4F7FB" stroke="none" stroke-width="1" opacity="1"/>
 <rect x="0" y="0" width="375" height="58" rx="0" fill="#263238" stroke="none" stroke-width="1" opacity="1"/>
@@ -22,7 +22,7 @@
 <rect x="275" y="311" width="72" height="28" rx="14" fill="#E5F0FF" stroke="none" stroke-width="1" opacity="1"/>
 <text x="311.0" y="330" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#175EA8" text-anchor="middle">Filters</text>
 <rect x="16" y="357" width="343" height="112" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
-<text x="28" y="381" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Chase Fellows</text>
+<text x="28" y="381" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Avery Fielding</text>
 <text x="28" y="401" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="400" fill="#66768D" text-anchor="start">RSVP: Attending</text>
 <rect x="26" y="414" width="75" height="28" rx="14" fill="#E4F6ED" stroke="none" stroke-width="1" opacity="1"/>
 <text x="63.5" y="433" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#177A50" text-anchor="middle">Present</text>
@@ -32,9 +32,9 @@
 <text x="221.5" y="433" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Excused</text>
 <rect x="263" y="414" width="75" height="28" rx="14" fill="#EEF2F7" stroke="none" stroke-width="1" opacity="1"/>
 <text x="300.5" y="433" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Absent</text>
-<text x="28" y="459" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Saved · Jordan Taylor · 20:07</text>
+<text x="28" y="459" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Saved · Casey North · 20:07</text>
 <rect x="16" y="477" width="343" height="112" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
-<text x="28" y="501" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Kalani Bassi</text>
+<text x="28" y="501" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Samira Quinn</text>
 <text x="28" y="521" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="400" fill="#66768D" text-anchor="start">RSVP: No response</text>
 <rect x="26" y="534" width="75" height="28" rx="14" fill="#E4F6ED" stroke="none" stroke-width="1" opacity="1"/>
 <text x="63.5" y="553" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#177A50" text-anchor="middle">Present</text>
@@ -44,9 +44,9 @@
 <text x="221.5" y="553" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Excused</text>
 <rect x="263" y="534" width="75" height="28" rx="14" fill="#EEF2F7" stroke="none" stroke-width="1" opacity="1"/>
 <text x="300.5" y="553" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Absent</text>
-<text x="28" y="579" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Saved · Alex Morgan · 20:08</text>
+<text x="28" y="579" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Saved · Morgan Pike · 20:08</text>
 <rect x="16" y="597" width="343" height="112" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
-<text x="28" y="621" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">David Babarinde</text>
+<text x="28" y="621" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Leo Hartwell</text>
 <text x="28" y="641" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="400" fill="#66768D" text-anchor="start">RSVP: Attending</text>
 <rect x="26" y="654" width="75" height="28" rx="14" fill="#EEF2F7" stroke="none" stroke-width="1" opacity="1"/>
 <text x="63.5" y="673" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Present</text>
@@ -56,9 +56,9 @@
 <text x="221.5" y="673" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Excused</text>
 <rect x="263" y="654" width="75" height="28" rx="14" fill="#EEF2F7" stroke="none" stroke-width="1" opacity="1"/>
 <text x="300.5" y="673" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Absent</text>
-<text x="28" y="699" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Saved · Jordan Taylor · 20:11</text>
+<text x="28" y="699" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Saved · Casey North · 20:11</text>
 <rect x="16" y="717" width="343" height="112" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
-<text x="28" y="741" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Rohan George</text>
+<text x="28" y="741" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Elias Mercer</text>
 <text x="28" y="761" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="400" fill="#66768D" text-anchor="start">RSVP: Attending</text>
 <rect x="26" y="774" width="75" height="28" rx="14" fill="#EEF2F7" stroke="none" stroke-width="1" opacity="1"/>
 <text x="63.5" y="793" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Present</text>
@@ -68,7 +68,7 @@
 <text x="221.5" y="793" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Excused</text>
 <rect x="263" y="774" width="75" height="28" rx="14" fill="#FDE7E7" stroke="none" stroke-width="1" opacity="1"/>
 <text x="300.5" y="793" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#A93434" text-anchor="middle">Absent</text>
-<text x="28" y="819" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Saved · Jordan Taylor · 22:31</text>
+<text x="28" y="819" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Saved · Casey North · 22:31</text>
 <rect x="16" y="845" width="343" height="44" rx="8" fill="#1565C0" stroke="#1565C0" stroke-width="1" opacity="1"/>
 <text x="187.5" y="873" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">Add walk-up</text>
 <rect x="0" y="1018" width="375" height="62" rx="0" fill="#FFFFFF" stroke="#D9E1EB" stroke-width="1" opacity="1"/>

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="375" height="848" viewBox="0 0 375 848" role="img">
-<title>UX-22 Activate with outstanding onboarding phone</title><desc>LAN-75, route /operate/roster/[membershipId], phone presentation</desc>
+<title>UX-22 Activate with outstanding onboarding phone</title><desc>LAN-75, route /operate/roster/[membershipId], phone presentation All displayed people, contact details, statuses, responses, and attendance records are synthetic and do not correspond to real members.</desc>
 <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#0B1F3A" flood-opacity="0.10"/></filter></defs>
 <rect x="0" y="0" width="375" height="848" rx="0" fill="#F4F7FB" stroke="none" stroke-width="1" opacity="1"/>
 <rect x="0" y="0" width="375" height="58" rx="0" fill="#263238" stroke="none" stroke-width="1" opacity="1"/>
@@ -11,7 +11,7 @@
 <text x="357" y="94" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="end">AM</text>
 <text x="16" y="150" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800" fill="#0B2343" text-anchor="start">Activate with</text>
 <text x="16" y="176" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800" fill="#0B2343" text-anchor="start">outstanding onboarding</text>
-<text x="16" y="204" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="400" fill="#65758D" text-anchor="start">Chase Fellows has one required item</text>
+<text x="16" y="204" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="400" fill="#65758D" text-anchor="start">Avery Fielding has one required item</text>
 <text x="16" y="221" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="400" fill="#65758D" text-anchor="start">outstanding.</text>
 <rect x="16" y="246" width="343" height="74" rx="8" fill="#FFF7E6" stroke="#E7C56E" stroke-width="1" opacity="1"/>
 <rect x="28" y="259" width="7" height="7" rx="4" fill="#1565C0" stroke="none" stroke-width="1" opacity="1"/>

@@ -1,8 +1,10 @@
-# Lancers MVP UX contract — owner-review draft
+# Lancers MVP UX contract — approved workflow direction
 
-Status: **Awaiting Brian’s dated Notion approval linked from LAN-90**  
+Status: **Approved by Brian on 12 August 2026 for coding handoff** — [LAN-90 approval comment](https://linear.app/brian-schuster/issue/LAN-90/0-define-and-approve-the-minimum-ux-for-the-first-operational-vertical#comment-44f1c4de-cc9f-4708-86b3-b2ba555bf960) · [Notion approval record](https://app.notion.com/p/3ba488886d5781ed9adedd53635d1c6f)  
 Source reconciliation date: 12 August 2026  
-Purpose: derived design contract for review; not application code and not yet implementation authorization
+Purpose: approved workflow-direction contract for implementation; not application code or pixel-level design approval
+
+> **Synthetic scenario data:** All displayed people, contact details, statuses, responses, and attendance records are synthetic and do not correspond to real members.
 
 ## 1. Authority and governance
 
@@ -16,7 +18,7 @@ Authority order:
 4. The owning ticket contract.
 5. The named SVG for information hierarchy and presentation.
 
-When sources conflict or a required behavior is absent, stop and request/reconcile an owner decision. Do not resolve product policy in application code. The package remains an owner-review draft until Brian’s dated approval is recorded in Notion and linked from LAN-90.
+When sources conflict or a required behavior is absent, stop and request/reconcile an owner decision. Do not resolve product policy in application code. Brian approved this workflow direction on 12 August 2026 in the linked Linear comment and Notion record; implementation must still re-read its current live issue and comments before work begins.
 
 ## 2. MVP boundary
 
@@ -213,7 +215,7 @@ The report view reads stored JSON content only. Regeneration creates a new versi
 | UX-12     | This person already has a current-season membership | `/operate/roster/new`             | Authorized roster operator                         | LAN-74          | [`desktop`](wireframes/UX-12-returner-current-membership-refusal-desktop.svg) / [`375px phone`](wireframes/UX-12-returner-current-membership-refusal-phone.svg) |
 | UX-13     | Returning player added                              | `/operate/roster/[membershipId]`  | Authorized roster operator                         | LAN-74          | [`desktop`](wireframes/UX-13-returner-created-desktop.svg) / [`375px phone`](wireframes/UX-13-returner-created-phone.svg)                                       |
 | UX-20     | Roster                                              | `/operate/roster`                 | Authorized roster operator                         | LAN-75          | [`desktop`](wireframes/UX-20-roster-desktop.svg) / [`375px phone`](wireframes/UX-20-roster-phone.svg)                                                           |
-| UX-21     | Chase Fellows                                       | `/operate/roster/[membershipId]`  | Authorized roster operator                         | LAN-75          | [`desktop`](wireframes/UX-21-membership-detail-desktop.svg) / [`375px phone`](wireframes/UX-21-membership-detail-phone.svg)                                     |
+| UX-21     | Avery Fielding                                      | `/operate/roster/[membershipId]`  | Authorized roster operator                         | LAN-75          | [`desktop`](wireframes/UX-21-membership-detail-desktop.svg) / [`375px phone`](wireframes/UX-21-membership-detail-phone.svg)                                     |
 | UX-22     | Activate with outstanding onboarding                | `/operate/roster/[membershipId]`  | Exec or GM                                         | LAN-75          | [`desktop`](wireframes/UX-22-activation-override-desktop.svg) / [`375px phone`](wireframes/UX-22-activation-override-phone.svg)                                 |
 | UX-23     | No memberships match these filters                  | `/operate/roster`                 | Authorized roster operator                         | LAN-75          | [`desktop`](wireframes/UX-23-roster-empty-desktop.svg) / [`375px phone`](wireframes/UX-23-roster-empty-phone.svg)                                               |
 | UX-30     | Events                                              | `/operate/events`                 | Authorized event operator                          | LAN-76          | [`desktop`](wireframes/UX-30-event-list-desktop.svg) / [`375px phone`](wireframes/UX-30-event-list-phone.svg)                                                   |
@@ -253,8 +255,8 @@ The report view reads stored JSON content only. Regeneration creates a new versi
 | UX-96     | You cannot record attendance for this event         | `/operate/events/[id]/attendance` | Signed-in coach without LAN-110 capability         | LAN-110         | [`desktop`](wireframes/UX-96-coach-unauthorized-desktop.svg) / [`375px phone`](wireframes/UX-96-coach-unauthorized-phone.svg)                                   |
 | UX-97     | Add walk-up attendance                              | `/operate/events/[id]/attendance` | Head Coach, OC or DC                               | LAN-80, LAN-110 | [`desktop`](wireframes/UX-97-coach-walk-up-desktop.svg) / [`375px phone`](wireframes/UX-97-coach-walk-up-phone.svg)                                             |
 
-## 12. Review protocol and approval gate
+## 12. Review protocol and approved handoff
 
 For each ticket, compare the live issue and relationships against its contract, then compare both desktop and 375px screenshots by stable screen ID. Review route, visible data, action labels, terminal states, authorization denials and responsive reflow. Any deviation must name the affected screen ID and owner decision.
 
-The package is ready for owner review only. It must not be labelled approved, implementation-ready, or a fidelity pass until every conflict is resolved and Brian’s dated Notion approval is linked from LAN-90.
+Brian approved the workflow direction on 12 August 2026. The package is implementation-ready at the workflow-contract level, subject to each implementer re-reading the live owning Linear issue and comments. The approval does not cover pixel fidelity, hosted Supabase, production data, real users, cloud resources, deployment, or any unrecorded product or security decision.

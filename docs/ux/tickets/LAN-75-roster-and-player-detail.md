@@ -1,6 +1,10 @@
 # LAN-75 - Roster and membership detail
 
-Status: owner-review draft; verify against the current live Linear issue before implementation.
+Status: workflow direction approved by Brian on 12 August 2026; verify against the current live Linear issue before implementation.
+
+> **Synthetic scenario data:** All displayed people, contact details, statuses, responses, and attendance records are synthetic and do not correspond to real members.
+
+Approval evidence: [LAN-90 approval comment](https://linear.app/brian-schuster/issue/LAN-90/0-define-and-approve-the-minimum-ux-for-the-first-operational-vertical#comment-44f1c4de-cc9f-4708-86b3-b2ba555bf960) · [Notion approval record](https://app.notion.com/p/3ba488886d5781ed9adedd53635d1c6f)
 
 ## Purpose
 
@@ -20,7 +24,7 @@ The current live LAN-75 issue, comments, relationships and recorded owner decisi
 ## Wireframes
 
 - **UX-20 - Roster:** [`desktop`](../wireframes/UX-20-roster-desktop.svg) / [`phone`](../wireframes/UX-20-roster-phone.svg)
-- **UX-21 - Chase Fellows:** [`desktop`](../wireframes/UX-21-membership-detail-desktop.svg) / [`phone`](../wireframes/UX-21-membership-detail-phone.svg)
+- **UX-21 - Avery Fielding:** [`desktop`](../wireframes/UX-21-membership-detail-desktop.svg) / [`phone`](../wireframes/UX-21-membership-detail-phone.svg)
 - **UX-22 - Activate with outstanding onboarding:** [`desktop`](../wireframes/UX-22-activation-override-desktop.svg) / [`phone`](../wireframes/UX-22-activation-override-phone.svg)
 - **UX-23 - No memberships match these filters:** [`desktop`](../wireframes/UX-23-roster-empty-desktop.svg) / [`phone`](../wireframes/UX-23-roster-empty-phone.svg)
 
@@ -48,7 +52,7 @@ The current live LAN-75 issue, comments, relationships and recorded owner decisi
 - Use the registered route pattern and screen ID in tests and implementation review notes.
 - Preserve the desktop and phone information hierarchy shown in the SVGs. Responsive reflow may not remove required information or actions.
 - Do not add a new role, destination, workflow, field, status, or delivery action without a recorded design decision.
-- Before implementation, confirm Brian’s dated Notion approval is linked from LAN-90 and reconcile any live-issue changes since this export.
+- Before implementation, re-read the live owning issue and comments and reconcile any changes recorded after Brian’s 12 August 2026 approval.
 - In implementation review, provide LAN-75, implemented screen IDs, desktop and 375px phone screenshots, acceptance-criteria results, and every deviation or assumption.
 
 ## Acceptance criteria

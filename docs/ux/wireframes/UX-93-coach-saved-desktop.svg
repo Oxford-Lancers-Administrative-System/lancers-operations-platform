@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1024" viewBox="0 0 1440 1024" role="img">
-<title>UX-93 Team Practice attendance desktop</title><desc>LAN-110, route /operate/events/[id]/attendance, desktop presentation</desc>
+<title>UX-93 Team Practice attendance desktop</title><desc>LAN-110, route /operate/events/[id]/attendance, desktop presentation All displayed people, contact details, statuses, responses, and attendance records are synthetic and do not correspond to real members.</desc>
 <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#0B1F3A" flood-opacity="0.10"/></filter></defs>
 <rect x="0" y="0" width="1440" height="1024" rx="0" fill="#F4F7FB" stroke="none" stroke-width="1" opacity="1"/>
 <rect x="0" y="0" width="1440" height="38" rx="0" fill="#263238" stroke="none" stroke-width="1" opacity="1"/>
@@ -12,7 +12,7 @@
 <text x="32" y="166" font-family="Inter, Arial, sans-serif" font-size="15" font-weight="600" fill="#FFFFFF" text-anchor="start">Attendance</text>
 <text x="28" y="214" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#9DB2CB" text-anchor="start">Occurred events only</text>
 <line x1="20" y1="928" x2="206" y2="928" stroke="#315070" stroke-width="1"/>
-<text x="28" y="962" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="start">Jordan Taylor</text>
+<text x="28" y="962" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="600" fill="#FFFFFF" text-anchor="start">Casey North</text>
 <text x="28" y="984" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="400" fill="#9DB2CB" text-anchor="start">Head Coach</text>
 <text x="274" y="84" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800" fill="#0B2343" text-anchor="start">Team Practice attendance</text>
 <text x="274" y="114" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="400" fill="#66768D" text-anchor="start">Latest committed value confirmed</text>
@@ -26,7 +26,7 @@
 <text x="788.28" y="244" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="700" fill="#51627A" text-anchor="start">RSVP / unit</text>
 <text x="1087" y="244" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="700" fill="#51627A" text-anchor="start">Attendance</text>
 <rect x="274" y="262" width="1118" height="76" rx="0" fill="#FFFFFF" stroke="#E0E7EF" stroke-width="1" opacity="1"/>
-<text x="290" y="288" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#1B2D47" text-anchor="start">Rohan George</text>
+<text x="290" y="288" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#1B2D47" text-anchor="start">Elias Mercer</text>
 <text x="290" y="309" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="400" fill="#687891" text-anchor="start">RSVP: Attending</text>
 <rect x="1077" y="280" width="70" height="28" rx="14" fill="#E4F6ED" stroke="none" stroke-width="1" opacity="1"/>
 <text x="1112.0" y="299" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#177A50" text-anchor="middle">Present</text>
@@ -37,5 +37,5 @@
 <text x="1264.0" y="299" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Excused</text>
 <rect x="1305" y="280" width="70" height="28" rx="14" fill="#EEF2F7" stroke="none" stroke-width="1" opacity="1"/>
 <text x="1340.0" y="299" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Absent</text>
-<text x="1376" y="325" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="end">Saved · Jordan Taylor · 22:36</text>
+<text x="1376" y="325" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="end">Saved · Casey North · 22:36</text>
 </svg>

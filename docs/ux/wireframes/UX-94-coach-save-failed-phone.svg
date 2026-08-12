@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="375" height="844" viewBox="0 0 375 844" role="img">
-<title>UX-94 We could not save this change phone</title><desc>LAN-110, route /operate/events/[id]/attendance, phone presentation</desc>
+<title>UX-94 We could not save this change phone</title><desc>LAN-110, route /operate/events/[id]/attendance, phone presentation All displayed people, contact details, statuses, responses, and attendance records are synthetic and do not correspond to real members.</desc>
 <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#0B1F3A" flood-opacity="0.10"/></filter></defs>
 <rect x="0" y="0" width="375" height="844" rx="0" fill="#F4F7FB" stroke="none" stroke-width="1" opacity="1"/>
 <rect x="0" y="0" width="375" height="58" rx="0" fill="#263238" stroke="none" stroke-width="1" opacity="1"/>
@@ -17,7 +17,7 @@
 <text x="44" y="252" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#6D4A00" text-anchor="start">Failed-save feedback never implies the</text>
 <text x="44" y="268" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#6D4A00" text-anchor="start">unsaved selection became authoritative.</text>
 <rect x="16" y="299" width="343" height="112" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
-<text x="28" y="323" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Rohan George</text>
+<text x="28" y="323" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Elias Mercer</text>
 <text x="28" y="343" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="400" fill="#66768D" text-anchor="start">RSVP: Attending · Unsaved</text>
 <rect x="26" y="356" width="75" height="28" rx="14" fill="#E4F6ED" stroke="none" stroke-width="1" opacity="1"/>
 <text x="63.5" y="375" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#177A50" text-anchor="middle">Present</text>
@@ -27,7 +27,7 @@
 <text x="221.5" y="375" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Excused</text>
 <rect x="263" y="356" width="75" height="28" rx="14" fill="#EEF2F7" stroke="none" stroke-width="1" opacity="1"/>
 <text x="300.5" y="375" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="600" fill="#40516B" text-anchor="middle">Absent</text>
-<text x="28" y="401" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Latest committed: Absent · Jordan Taylor ·...</text>
+<text x="28" y="401" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Latest committed: Absent · Casey North ·...</text>
 <rect x="16" y="664" width="343" height="44" rx="8" fill="#1565C0" stroke="#1565C0" stroke-width="1" opacity="1"/>
 <text x="187.5" y="692" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">Retry now</text>
 <rect x="16" y="714" width="343" height="44" rx="8" fill="#FFFFFF" stroke="#B7C3D2" stroke-width="1" opacity="1"/>

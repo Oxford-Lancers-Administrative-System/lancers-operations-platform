@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="375" height="1352" viewBox="0 0 375 1352" role="img">
-<title>UX-31 Create event phone</title><desc>LAN-76, route /operate/events/new, phone presentation</desc>
+<title>UX-31 Create event phone</title><desc>LAN-76, route /operate/events/new, phone presentation All displayed people, contact details, statuses, responses, and attendance records are synthetic and do not correspond to real members.</desc>
 <defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#0B1F3A" flood-opacity="0.10"/></filter></defs>
 <rect x="0" y="0" width="375" height="1352" rx="0" fill="#F4F7FB" stroke="none" stroke-width="1" opacity="1"/>
 <rect x="0" y="0" width="375" height="58" rx="0" fill="#263238" stroke="none" stroke-width="1" opacity="1"/>
@@ -43,7 +43,7 @@
 <text x="27" y="856" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#263A55" text-anchor="start">Michaelmas · Week 2</text>
 <text x="16" y="894" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="700" fill="#53647D" text-anchor="start">Owner</text>
 <rect x="16" y="902" width="343" height="42" rx="7" fill="#FFFFFF" stroke="#B9C6D5" stroke-width="1" opacity="1"/>
-<text x="27" y="928" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#263A55" text-anchor="start">Alex Morgan</text>
+<text x="27" y="928" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#263A55" text-anchor="start">Morgan Pike</text>
 <text x="16" y="966" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="700" fill="#53647D" text-anchor="start">Attendance</text>
 <rect x="16" y="974" width="343" height="42" rx="7" fill="#FFFFFF" stroke="#B9C6D5" stroke-width="1" opacity="1"/>
 <text x="27" y="1000" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#263A55" text-anchor="start">Mandatory</text>
