@@ -393,10 +393,20 @@ describe("agent harness: mechanical guards", () => {
     }
   });
 
-  it("grants nothing — the checked-in file only restricts", () => {
-    // Allow rules from a repository file need workspace trust and hand out
-    // capability. Deny rules take effect immediately and only take it away.
-    expect(settings.permissions?.allow ?? []).toEqual([]);
+  it("grants only the owner-approved operational commands", () => {
+    // Brian approved these exact test and pull-request operations. Any additional
+    // capability still requires a separate owner decision.
+    expect(settings.permissions?.allow ?? []).toEqual([
+      "Bash(npx vitest *)",
+      "Bash(gh pr edit * --add-label *)",
+      "Bash(gh pr comment *)",
+      "Bash(gh run rerun *)",
+      "Bash(gh run view *)",
+      "Bash(gh run list *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr view *)",
+    ]);
   });
 
   it("blocks merging and un-drafting a pull request", () => {
