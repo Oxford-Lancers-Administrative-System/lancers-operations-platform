@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { assertCiLocalExecution } from "../scripts/lib/ci-local-execution.mjs";
 
@@ -238,6 +239,46 @@ describe("local Supabase workflow contract", () => {
       assertCiLocalExecution({ env: { ...runner, RUNNER_TEMP: "relative" }, cwd }),
     ).toThrow(/RUNNER_TEMP/i);
     expect(() => assertCiLocalExecution({ env: runner, cwd })).not.toThrow();
+  });
+
+  it("executes the CI identity guard before command dispatch", () => {
+    const command = path.join(root, "scripts", "ci-local-command.mjs");
+    const invoke = (overrides: Record<string, string> = {}) =>
+      spawnSync(process.execPath, [command, "unknown"], {
+        cwd: root,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          CI: "",
+          GITHUB_ACTIONS: "",
+          GITHUB_WORKSPACE: "",
+          RUNNER_TEMP: "",
+          ...overrides,
+        },
+      });
+
+    const outsideCi = invoke();
+    expect(outsideCi.status).toBe(1);
+    expect(outsideCi.stderr).toMatch(/restricted to GitHub Actions/i);
+    expect(outsideCi.stderr).not.toMatch(/Unknown CI local-stack operation/i);
+
+    const wrongWorkspace = invoke({
+      CI: "true",
+      GITHUB_ACTIONS: "true",
+      GITHUB_WORKSPACE: path.dirname(root),
+      RUNNER_TEMP: "/tmp",
+    });
+    expect(wrongWorkspace.stderr).toMatch(/GITHUB_WORKSPACE/i);
+    expect(wrongWorkspace.stderr).not.toMatch(/Unknown CI local-stack operation/i);
+
+    const validRunner = invoke({
+      CI: "true",
+      GITHUB_ACTIONS: "true",
+      GITHUB_WORKSPACE: root,
+      RUNNER_TEMP: "/tmp",
+    });
+    expect(validRunner.status).toBe(1);
+    expect(validRunner.stderr).toMatch(/Unknown CI local-stack operation/i);
   });
 
   it("records the superseding decision", () => {
