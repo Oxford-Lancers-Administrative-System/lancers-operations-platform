@@ -50,6 +50,34 @@ async function transactionId(tx: Tx): Promise<string> {
   return result.rows[0].id;
 }
 
+/**
+ * A rendezvous every participant must reach before any of them may continue.
+ *
+ * Ordering between two concurrent transactions is established by promises and
+ * nothing else. There is no `setTimeout`, no sleep and no retry loop anywhere
+ * in this file, on purpose: a barrier released by a clock makes a race rarer
+ * and less diagnosable rather than fixed, and "passes on my machine, fails on a
+ * two-core runner" is exactly the defect LAN-98 exists to remove.
+ *
+ * `arrive()` is idempotent-safe to over-call and is meant to be called from a
+ * `finally`, so a participant whose own statement threw still releases the
+ * others. Without that, one failing query turns a red test into a hung suite —
+ * and a hang on CI is a worse outcome than the flake it replaced.
+ */
+function rendezvous(participants: number): { reached: Promise<void>; arrive: () => void } {
+  let release: () => void = () => {};
+  const reached = new Promise<void>((resolve) => (release = resolve));
+  let outstanding = participants;
+
+  return {
+    reached,
+    arrive() {
+      outstanding -= 1;
+      if (outstanding <= 0) release();
+    },
+  };
+}
+
 describe("row 1 — commits on success", () => {
   it("leaves rows written inside the callback visible to another connection", async () => {
     const returned = await withTransaction(async (tx) => {
@@ -293,44 +321,82 @@ describe("row 4 — an inner rollback takes the outer transaction with it", () =
 
 describe("row 5 — concurrent transactions are isolated", () => {
   it("does not let two overlapping calls see each other's uncommitted rows", async () => {
-    // Both transactions are held open at the same time, so this fails if the
-    // helper ever reuses one connection for two logical transactions — the bug
-    // that would let one request observe another's in-flight state.
-    let releaseA: () => void = () => {};
-    let releaseB: () => void = () => {};
-    const aHasWritten = new Promise<void>((resolve) => (releaseA = resolve));
-    const bHasWritten = new Promise<void>((resolve) => (releaseB = resolve));
+    /**
+     * Both transactions are held open at the same time, so this fails if the
+     * helper ever reuses one connection for two logical transactions — the bug
+     * that would let one request observe another's in-flight state.
+     *
+     * **Three barriers, not two** (LAN-98). Two barriers order the *writes*
+     * only. They leave A free to finish its read, return, and therefore
+     * **commit**, before B's continuation is ever scheduled — at which point B
+     * legitimately sees a committed row and `bSawA` is 1. That is correct
+     * database behaviour failing a test whose intended ordering was only ever a
+     * scheduling accident, and it is why this test failed CI intermittently on
+     * a two-core runner while passing everywhere else.
+     *
+     * The third barrier makes the intended ordering an actual guarantee:
+     *
+     *   1. both writes complete   (`writes`)
+     *   2. both reads complete    (`reads`)
+     *   3. either callback may return, and only then may either commit
+     *
+     * It cannot deadlock. Every participant *arrives* at each barrier before it
+     * *awaits* it, and every arrival is in a `finally`, so no side can be left
+     * waiting on a rendezvous the other can only reach after committing.
+     */
+    const writes = rendezvous(2);
+    const reads = rendezvous(2);
 
     const seen: Record<string, number> = {};
     const txIds: string[] = [];
+    /** What happened, in the order it happened. Row 1 is asserted from this. */
+    const order: string[] = [];
+
+    /** One side of the pair: write, wait for the other's write, read, wait, return. */
+    async function overlappingTransaction(mine: string, theirs: string): Promise<void> {
+      await withTransaction(async (tx) => {
+        txIds.push(await transactionId(tx));
+
+        try {
+          await tx.query(...fixture.insertPerson(mine));
+        } finally {
+          writes.arrive();
+        }
+        await writes.reached;
+
+        try {
+          const result = await tx.query<{ count: string }>(
+            "select count(*)::text as count from public.people where given_name = $1 and family_name = $2",
+            [fixture.marker, theirs],
+          );
+          seen[`${mine} saw ${theirs}`] = Number(result.rows[0].count);
+          order.push(`${mine} read`);
+        } finally {
+          reads.arrive();
+        }
+
+        // The load-bearing line. Neither callback returns — so neither
+        // transaction commits — until BOTH reads are done.
+        await reads.reached;
+        order.push(`${mine} returns`);
+      });
+    }
 
     await Promise.all([
-      withTransaction(async (tx) => {
-        txIds.push(await transactionId(tx));
-        await tx.query(...fixture.insertPerson("concurrent-a"));
-        releaseA();
-        await bHasWritten;
-        const result = await tx.query<{ count: string }>(
-          "select count(*)::text as count from public.people where given_name = $1 and family_name = $2",
-          [fixture.marker, "concurrent-b"],
-        );
-        seen.aSawB = Number(result.rows[0].count);
-      }),
-      withTransaction(async (tx) => {
-        txIds.push(await transactionId(tx));
-        await tx.query(...fixture.insertPerson("concurrent-b"));
-        releaseB();
-        await aHasWritten;
-        const result = await tx.query<{ count: string }>(
-          "select count(*)::text as count from public.people where given_name = $1 and family_name = $2",
-          [fixture.marker, "concurrent-a"],
-        );
-        seen.bSawA = Number(result.rows[0].count);
-      }),
+      overlappingTransaction("concurrent-a", "concurrent-b"),
+      overlappingTransaction("concurrent-b", "concurrent-a"),
     ]);
 
-    expect(seen.aSawB).toBe(0);
-    expect(seen.bSawA).toBe(0);
+    // Row 1: the ordering the test relies on is a guarantee, not a timing
+    // accident. Both reads precede both returns, whichever side ran first.
+    expect(order).toHaveLength(4);
+    expect([...order].slice(0, 2).sort()).toEqual(["concurrent-a read", "concurrent-b read"]);
+    expect([...order].slice(2).sort()).toEqual(["concurrent-a returns", "concurrent-b returns"]);
+
+    // Row 2: unchanged, and deliberately not relaxed. Each transaction read
+    // while the other's write was still uncommitted, and saw nothing.
+    expect(seen["concurrent-a saw concurrent-b"]).toBe(0);
+    expect(seen["concurrent-b saw concurrent-a"]).toBe(0);
     expect(new Set(txIds).size).toBe(2);
 
     // Both did commit, so the isolation above was real isolation and not two
@@ -354,6 +420,17 @@ describe("row 5 — concurrent transactions are isolated", () => {
      * HTTP requests, and with a shared global B would silently JOIN A — so B's
      * committed work would be destroyed when A rolled back. `AsyncLocalStorage`
      * scopes the store per async context, which is what makes B independent.
+     *
+     * **Examined for the LAN-98 race, and it does not have it.** This is the
+     * only other place in this file that orders work with barriers, and the
+     * write-only pattern that made the test above racy is not a hazard here:
+     * neither assertion depends on B reading before A commits. A cannot commit
+     * at all — it throws — and every assertion is made after both calls have
+     * settled, against the observer connection. `aIsInside` is awaited before B
+     * starts, and `bIsDone` is signalled only after B's `withTransaction` has
+     * resolved, so "B ran entirely inside A's scope" is a guarantee rather than
+     * a scheduling accident. Both barriers are one-way announcements the other
+     * side cannot be starved past. Left as it is, deliberately.
      */
     let announceAInside: () => void = () => {};
     const aIsInside = new Promise<void>((resolve) => (announceAInside = resolve));
