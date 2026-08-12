@@ -13,7 +13,7 @@ import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/env";
  * Route protection here is a convenience, not the authorization boundary. RLS
  * in the database and explicit checks in server code are the real boundary.
  */
-const PROTECTED_PREFIXES = ["/dashboard"];
+const PROTECTED_PREFIXES = ["/dashboard", "/operate"];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
