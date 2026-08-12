@@ -142,13 +142,71 @@ describe("the pilot artifacts are value-free", () => {
     PR_TEMPLATE,
   ];
 
-  /**
-   * The scenario's own deterministic identifier block, and nothing else —
-   * either a full identifier, or the block written with an elided tail.
-   */
-  const SCENARIO_UUIDS = /00930093-0093-4093-8093-(?:[0-9a-f]{12}|…)/gi;
   const ANY_UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
   const MIGRATION_VERSION = /\b20\d{12}\b/g;
+
+  /**
+   * A scenario's own deterministic identifier block — either a full identifier,
+   * or the block written with an elided tail.
+   *
+   * Derived from the directory name rather than hard-coded, so each scenario is
+   * held to **its own** block: `scripts/pilot/lan-74/` may use
+   * `00740074-0074-4074-8074-…` and nothing else. That is stricter than one
+   * shared pattern, not looser — a file quoting another scenario's identifiers
+   * now fails where before it would have passed.
+   */
+  function scenarioBlock(file: string): RegExp | null {
+    const issue = /^lan-(\d+)$/i.exec(path.basename(path.dirname(file)));
+    if (!issue) return null;
+    // LAN-93 reserves 00930093-0093-4093-8093-…, LAN-74 reserves
+    // 00740074-0074-4074-8074-…: the zero-padded number twice, then three times
+    // more, with the UUID version and variant nibbles taking the lead position.
+    const n = issue[1].padStart(4, "0");
+    const tail = n.slice(1);
+    return new RegExp(`${n}${n}-${n}-4${tail}-8${tail}-(?:[0-9a-f]{12}|…)`, "gi");
+  }
+
+  /**
+   * Contact values that cannot reach a human being, and are therefore not
+   * "personal data" in any sense the rule is about.
+   *
+   * `example.invalid` and the rest of RFC 2606 §2 are reserved by the IETF and
+   * are guaranteed never to resolve; `07700 900000`–`900999` is Ofcom's drama
+   * range and is never allocated to a subscriber. A scenario that exercises a
+   * contact-matching feature — LAN-74's duplicate check is the first — cannot
+   * be written without contact values, and refusing these would mean either no
+   * such scenario or a real address in a public repository. The rule this
+   * carves out of is "no REAL name, email, phone"; these are the values chosen
+   * by standards bodies precisely so they can never be anybody's.
+   */
+  const UNROUTABLE_EMAIL = /[\w.%+-]+@(?:[\w-]+\.)*example\.(?:invalid|com|org|net)\b/gi;
+  const RESERVED_PHONE = /(?:\+44\s?|0)7700\s?900\d{3}\b/g;
+
+  /** Every scenario's reserved block, for the files that belong to no one scenario. */
+  const ALL_SCENARIO_BLOCKS = filesUnder("scripts/pilot")
+    .filter((file) => file.endsWith("setup.sql"))
+    .map(scenarioBlock)
+    .filter((block): block is RegExp => block !== null);
+
+  /**
+   * Everything a value-free check is allowed to ignore, removed.
+   *
+   * A file inside `scripts/pilot/<issue>/` is held to that issue's block alone.
+   * The runbook, the manifest and the pull-request template belong to no single
+   * scenario and legitimately quote several, so they are allowed any reserved
+   * block — and still nothing else.
+   */
+  function stripped(file: string): string {
+    const own = scenarioBlock(file);
+    const blocks = own ? [own] : ALL_SCENARIO_BLOCKS;
+
+    let content = read(file);
+    for (const block of blocks) content = content.replace(block, "");
+    return content
+      .replace(MIGRATION_VERSION, "")
+      .replace(UNROUTABLE_EMAIL, "")
+      .replace(RESERVED_PHONE, "");
+  }
 
   it("checks every pilot artifact", () => {
     expect(PUBLIC_SURFACE.length).toBeGreaterThanOrEqual(6);
@@ -156,20 +214,30 @@ describe("the pilot artifacts are value-free", () => {
     expect(PUBLIC_SURFACE).toContain(`${SCENARIO_DIR}/cleanup.sql`);
   });
 
+  it("recognises a reserved contact value, and only a reserved one", () => {
+    // The carve-out above is the one place this file gets more permissive, so
+    // its boundary is asserted rather than assumed. A real-looking address or a
+    // real UK mobile must still be caught.
+    expect("avery@example.invalid".replace(UNROUTABLE_EMAIL, "")).toBe("");
+    expect("avery@ox.ac.uk".replace(UNROUTABLE_EMAIL, "")).toBe("avery@ox.ac.uk");
+    expect("avery@example.invalid.co.uk".replace(UNROUTABLE_EMAIL, "")).not.toBe("");
+    expect("+44 7700 900174".replace(RESERVED_PHONE, "")).toBe("");
+    expect("07700 900174".replace(RESERVED_PHONE, "")).toBe("");
+    expect("+44 7911 123456".replace(RESERVED_PHONE, "")).toBe("+44 7911 123456");
+  });
+
   it.each(PUBLIC_SURFACE)("%s contains no email address", (file) => {
     // Placeholders are angle-bracketed tokens, which cannot match this.
-    expect(read(file)).not.toMatch(/[\w.%+-]+@[\w-]+\.[A-Za-z]{2,}/);
+    expect(stripped(file)).not.toMatch(/[\w.%+-]+@[\w-]+\.[A-Za-z]{2,}/);
   });
 
   it.each(PUBLIC_SURFACE)("%s contains no identifier outside the scenario block", (file) => {
-    const foreign = read(file).replace(SCENARIO_UUIDS, "").match(ANY_UUID) ?? [];
-    expect(foreign).toEqual([]);
+    expect(stripped(file).match(ANY_UUID) ?? []).toEqual([]);
   });
 
   it.each(PUBLIC_SURFACE)("%s contains no phone number or long digit run", (file) => {
-    const stripped = read(file).replace(SCENARIO_UUIDS, "").replace(MIGRATION_VERSION, "");
-    expect(stripped).not.toMatch(/\+\d[\d\s()-]{9,}/);
-    expect(stripped).not.toMatch(/\b\d{7,}\b/);
+    expect(stripped(file)).not.toMatch(/\+\d[\d\s()-]{9,}/);
+    expect(stripped(file)).not.toMatch(/\b\d{7,}\b/);
   });
 
   it.each(PUBLIC_SURFACE)("%s contains no key, token or connection string", (file) => {
@@ -328,34 +396,114 @@ describe("the scenario scripts stay inside the conventions", () => {
     }
   });
 
+  /**
+   * Is this conjunct a deterministic key — one identifier, or an explicit list
+   * of them?
+   *
+   * `id in ('…0002', '…0004', '…0005')` is exactly as narrow as three separate
+   * `id = '…'` deletes and says the same thing more briefly. What it may never
+   * be is a subquery: `id in (select …)` names rows the script cannot enumerate
+   * when it is read, which is the whole property this rule protects.
+   */
+  function isDeterministicKey(conjunct: string): boolean {
+    if (/^id = '[0-9a-f-]{36}'$/i.test(conjunct)) return true;
+    const list = /^id in \(([^)]*)\)$/i.exec(conjunct);
+    if (!list) return false;
+    const items = list[1].split(",").map((item) => item.trim());
+    return items.length > 0 && items.every((item) => /^'[0-9a-f-]{36}'$/i.test(item));
+  }
+
+  /**
+   * A delete that resolves its targets through the sentinel alone, because the
+   * rows were minted by the application and no script can know their ids.
+   *
+   * ## Why this exception exists, and what keeps it from swallowing the rule
+   *
+   * LAN-74 is the first scenario whose feature test *creates a row through the
+   * interface*: the tester enters a returner, and `people.id` comes from
+   * `gen_random_uuid()`. The issue requires cleanup to remove it, and no
+   * deterministic identifier for it can exist. The alternative is not a safer
+   * script — it is a row nobody can remove without hand-written SQL against
+   * production, which is strictly worse.
+   *
+   * So the exception is allowed, and fenced three ways:
+   *
+   *   * it must be **declared** by a `-- SENTINEL-SWEEP:` comment immediately
+   *     above the statement, so a delete that loses its identifier conjunct
+   *     through a careless edit fails this test rather than quietly becoming a
+   *     sweep. The count of declarations must equal the count of sweeps;
+   *   * the statement must still resolve through the scenario's own sentinel,
+   *     and still contain no disjunction;
+   *   * the scenario's own test file must exercise every preflight refusal that
+   *     fences it — which `tests/pilot-scenario-<issue>.test.ts` does.
+   */
+  const SWEEP_DECLARATION = /--\s*SENTINEL-SWEEP:/gi;
+
   it("holds every pilot scenario to that shape, not just this one", () => {
     // Written generically because the runbook says this scenario is meant to be
     // copied: a future `scripts/pilot/<issue>/cleanup.sql` inherits the rule.
     const cleanups = filesUnder("scripts/pilot").filter((file) => file.endsWith("cleanup.sql"));
-    expect(cleanups.length).toBeGreaterThanOrEqual(1);
+    expect(cleanups.length).toBeGreaterThanOrEqual(2);
 
     for (const file of cleanups) {
+      const content = read(file);
       const sentinel = new RegExp(`PILOT-${path.basename(path.dirname(file))}`, "i");
+      const declaredSweeps = (content.match(SWEEP_DECLARATION) ?? []).length;
+      let sweeps = 0;
 
-      for (const statement of parseDeletes(read(file))) {
+      for (const statement of parseDeletes(content)) {
+        // No disjunction, anywhere, in either kind of delete. An `or` between
+        // the identifier and the sentinel turns "this row" into "every row
+        // carrying the sentinel".
         expect(statement.where, `${file}: ${statement.table}`).not.toMatch(/\bor\b/i);
+
+        if (!statement.conjuncts.some(isDeterministicKey)) {
+          sweeps += 1;
+          // A sweep proves ownership by the sentinel and by nothing else, so
+          // the sentinel had better be in it.
+          expect(
+            sentinel.test(statement.where),
+            `${file}: ${statement.table} is keyed on neither an identifier nor the sentinel`,
+          ).toBe(true);
+          continue;
+        }
+
         expect(statement.conjuncts.length, `${file}: ${statement.table}`).toBeGreaterThanOrEqual(2);
 
-        // One conjunct pins the row by its deterministic identifier …
-        expect(
-          statement.conjuncts.some((part) => /^id = '[0-9a-f-]{36}'$/i.test(part)),
-          `${file}: ${statement.table} must be keyed on a deterministic id`,
-        ).toBe(true);
-
-        // … and the rest prove ownership, by the sentinel or by the scenario's
-        // own parent identifiers.
-        const ownership = statement.conjuncts.filter((part) => !/^id = /i.test(part));
+        // The rest prove ownership, by the sentinel or by the scenario's own
+        // parent identifiers.
+        const ownership = statement.conjuncts.filter((part) => !/^id /i.test(part));
         expect(
           ownership.every((part) => sentinel.test(part) || /'[0-9a-f-]{36}'/i.test(part)),
           `${file}: ${statement.table} has a conjunct that proves nothing`,
         ).toBe(true);
       }
+
+      expect(
+        sweeps,
+        `${file}: ${sweeps} sentinel-only delete(s) but ${declaredSweeps} '-- SENTINEL-SWEEP:' ` +
+          `declaration(s). Every sweep must be declared, and every declaration must be a sweep.`,
+      ).toBe(declaredSweeps);
     }
+  });
+
+  it("refuses a sweep that was never declared", () => {
+    // The declaration requirement is the only thing standing between "a delete
+    // that deliberately cannot name its rows" and "a delete that lost its
+    // identifier", so it is asserted against a forgery rather than trusted.
+    const undeclared = `delete from public.people where known_as = 'PILOT-LAN-74';`;
+    const parsed = parseDeletes(undeclared);
+
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].conjuncts.some(isDeterministicKey)).toBe(false);
+    expect((undeclared.match(SWEEP_DECLARATION) ?? []).length).toBe(0);
+  });
+
+  it("does not accept a subquery as a deterministic key", () => {
+    // `id in (select …)` reads like an identifier list and is not one.
+    expect(isDeterministicKey("id in ('00740074-0074-4074-8074-000000000001')")).toBe(true);
+    expect(isDeterministicKey("id in (select id from public.people)")).toBe(false);
+    expect(isDeterministicKey("id in ('00740074-0074-4074-8074-000000000001', foo)")).toBe(false);
   });
 
   /**

@@ -154,9 +154,57 @@ Two halves, and cleanup requires both:
   table can see what the row is, and so a cleanup whose id block was copied
   carelessly still refuses.
 
+The reserved block for `LAN-<n>` is the zero-padded number written five times —
+LAN-93 has `00930093-0093-4093-8093-…`, LAN-74 has `00740074-0074-4074-8074-…` —
+and a scenario may use no block but its own.
+
+A delete may key on `id = '<uuid>'` or on an explicit list,
+`id in ('<uuid>', '<uuid>')`. It may never key on `id in (select …)`: a subquery
+names rows that cannot be enumerated by reading the script, which is the whole
+property this rule protects.
+
 The marker is a convention. **Adding a column, a table, or any other schema
 concept to label test data is a decision for Brian and is not taken by an
 agent.**
+
+### Contact values a scenario may use
+
+A scenario that exercises a contact-matching feature needs contact values, and
+this repository is public. Only values that standards bodies reserve so they can
+never belong to anybody are permitted:
+
+- email in an **RFC 2606** reserved domain — `example.invalid` preferred, or
+  `example.com` / `.org` / `.net`;
+- phone numbers in **Ofcom's drama range**, `07700 900000`–`07700 900999`, in
+  either national or `+44` form.
+
+Anything else is a real person's contact detail as far as this rule is
+concerned, and `tests/pilot-data-contract.test.ts` refuses it.
+
+### The one delete that may be keyed on the sentinel alone
+
+A feature test that creates a row **through the application** produces a row
+whose `people.id` came from `gen_random_uuid()`. No script can know it in
+advance, and leaving it behind means a row only hand-written SQL against
+production can remove — which is worse than the exception.
+
+So a cleanup may contain deletes keyed on the sentinel alone, on these terms:
+
+- each one is preceded by a `-- SENTINEL-SWEEP:` comment saying what it removes.
+  The contract test counts declarations and counts identifier-less deletes, and
+  fails unless they are equal — so a scenario delete that loses its identifier
+  through a careless edit fails a test instead of silently becoming a sweep;
+- the statement still contains no disjunction and still resolves through the
+  scenario's own sentinel;
+- the script's preflight refuses outright if any row the sweep would remove has
+  become anything other than disposable scenario data — an operator account, a
+  role assignment, an actor in `audit_events` or in a status history, a merged
+  identity, or a row with dependents;
+- every one of those refusals is exercised by the scenario's own test.
+
+[`scripts/pilot/lan-74/`](../scripts/pilot/lan-74/) is the worked example.
+**A sweep is narrow because it is guarded, never because nobody tried to widen
+it.** If a scenario can avoid needing one, it should.
 
 ### The scenario test checklist
 
