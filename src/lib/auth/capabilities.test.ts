@@ -1,0 +1,278 @@
+// @vitest-environment node
+/**
+ * The capability map — LAN-73, test-matrix rows 8, 9, 11 and 12.
+ *
+ * These assertions are written as **exact sets**, not as "contains". A test
+ * that checks the President is permitted to approve an event still passes when
+ * somebody adds the IT Officer next to them; a test that checks the permitted
+ * set *is* `["president"]` does not. Every grant here was a recorded decision,
+ * so widening one silently is precisely the failure worth catching.
+ *
+ * The role codes are also checked against the real catalogue in
+ * tests/operator-capability-catalogue.test.ts, against the seeded database.
+ * This file is about the policy; that one is about the codes existing.
+ */
+import { describe, expect, it } from "vitest";
+import {
+  CAPABILITIES,
+  CAPABILITY_KEYS,
+  capabilityRequirement,
+  capabilityRoleCodes,
+  describeRoleRequirement,
+  describeRoles,
+  roleCodesPermit,
+  type CapabilityKey,
+} from "./capabilities";
+
+/** The three coaching seats, per Brian's 12 August 2026 decision. */
+const COACHES = ["head_coach", "offence_coach", "defence_coach"];
+
+/** Every role code in the catalogue, mirroring `scripts/seed-local.mjs`. */
+const CATALOGUE = [
+  "president",
+  "vice_president",
+  "secretary",
+  "treasurer",
+  "social_secretary",
+  "gameday_secretary",
+  "kit_manager",
+  "media_secretary",
+  "it_officer",
+  "general_manager",
+  "head_coach",
+  "offence_coach",
+  "defence_coach",
+];
+
+function permittedSet(key: CapabilityKey): string[] {
+  return [...capabilityRoleCodes(key)].sort();
+}
+
+/**
+ * The codes each capability must refuse, written out rather than derived from
+ * the map.
+ *
+ * Deriving them — "every catalogue code this capability does not list" — reads
+ * better and proves less: widen a grant and the derived list quietly stops
+ * testing the code that was just added, so the very change the suite exists to
+ * catch removes its own assertion. These are literal, so widening a grant fails
+ * here as well as at the exact-set assertion.
+ */
+const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
+  attendance_recorder: [
+    "president",
+    "vice_president",
+    "secretary",
+    "treasurer",
+    "social_secretary",
+    "gameday_secretary",
+    "kit_manager",
+    "media_secretary",
+    "it_officer",
+    "general_manager",
+  ],
+  membership_activation: [
+    "social_secretary",
+    "gameday_secretary",
+    "kit_manager",
+    "media_secretary",
+    "it_officer",
+    "head_coach",
+    "offence_coach",
+    "defence_coach",
+  ],
+  event_approval: [
+    "vice_president",
+    "secretary",
+    "treasurer",
+    "social_secretary",
+    "gameday_secretary",
+    "kit_manager",
+    "media_secretary",
+    "it_officer",
+    "general_manager",
+    "head_coach",
+    "offence_coach",
+    "defence_coach",
+  ],
+};
+
+it("checks every catalogue code against every settled capability", () => {
+  // The three lists above, plus each capability's own grant, must between them
+  // account for the whole catalogue — otherwise a code goes unasserted.
+  for (const [key, refused] of Object.entries(MUST_REFUSE)) {
+    const covered = [...refused, ...capabilityRoleCodes(key as CapabilityKey)].sort();
+    expect(covered, `${key} leaves a catalogue code unasserted`).toEqual([...CATALOGUE].sort());
+  }
+});
+
+describe("row 9 — the attendance-recorder grant is exactly the three coaching seats", () => {
+  it("permits Head Coach, Offence Coach and Defence Coach, and nothing else", () => {
+    expect(permittedSet("attendance_recorder")).toEqual([...COACHES].sort());
+  });
+
+  it.each(COACHES)("permits %s on its own", (code) => {
+    expect(roleCodesPermit([code], "attendance_recorder")).toBe(true);
+  });
+
+  it.each(MUST_REFUSE.attendance_recorder)("refuses %s", (code) => {
+    expect(roleCodesPermit([code], "attendance_recorder")).toBe(false);
+  });
+
+  it("refuses an operator holding no role at all", () => {
+    expect(roleCodesPermit([], "attendance_recorder")).toBe(false);
+  });
+
+  it("refuses a role code that is not in the catalogue at all", () => {
+    // A typo, a renamed seat, or an invented one. None of them is permission.
+    expect(roleCodesPermit(["coach"], "attendance_recorder")).toBe(false);
+    expect(roleCodesPermit(["assistant_coach"], "attendance_recorder")).toBe(false);
+    expect(roleCodesPermit(["offensive_coordinator"], "attendance_recorder")).toBe(false);
+  });
+});
+
+describe("row 11 — the membership-activation grant is Exec plus the General Manager", () => {
+  it("permits exactly the four offices and the General Manager", () => {
+    expect(permittedSet("membership_activation")).toEqual(
+      ["general_manager", "president", "secretary", "treasurer", "vice_president"].sort(),
+    );
+  });
+
+  it.each(["president", "vice_president", "secretary", "treasurer", "general_manager"])(
+    "permits %s on its own",
+    (code) => {
+      expect(roleCodesPermit([code], "membership_activation")).toBe(true);
+    },
+  );
+
+  it.each(COACHES)("refuses %s — a coach never activates a membership", (code) => {
+    expect(roleCodesPermit([code], "membership_activation")).toBe(false);
+  });
+
+  it.each(MUST_REFUSE.membership_activation)("refuses %s", (code) => {
+    expect(roleCodesPermit([code], "membership_activation")).toBe(false);
+  });
+});
+
+describe("row 12 — event approval is the President and nobody else", () => {
+  it("permits exactly president", () => {
+    expect(permittedSet("event_approval")).toEqual(["president"]);
+  });
+
+  it.each(MUST_REFUSE.event_approval)("refuses %s", (code) => {
+    expect(roleCodesPermit([code], "event_approval")).toBe(false);
+  });
+
+  it("has no delegation of any kind", () => {
+    // "Delegated lead" is unrepresentable in the frozen model. If a second code
+    // appears here, somebody invented a delegation concept — which is a
+    // domain-model change and Brian's decision, not a code change.
+    expect(capabilityRoleCodes("event_approval")).toHaveLength(1);
+  });
+});
+
+describe("the undecided capabilities are refused to everybody", () => {
+  const undecided: CapabilityKey[] = [
+    "role_management",
+    "delivery_administration",
+    "leadership_report",
+  ];
+
+  it.each(undecided)("%s permits no role code at all", (key) => {
+    expect(capabilityRoleCodes(key)).toEqual([]);
+  });
+
+  it.each(undecided)("%s refuses even the President", (key) => {
+    expect(roleCodesPermit(["president"], key)).toBe(false);
+  });
+
+  it.each(undecided)("%s refuses every code in the catalogue", (key) => {
+    for (const code of CATALOGUE) {
+      expect(roleCodesPermit([code], key)).toBe(false);
+    }
+    // And the whole catalogue held at once, which is the strongest actor there
+    // could be. An empty grant that widens under enough roles is not empty.
+    expect(roleCodesPermit(CATALOGUE, key)).toBe(false);
+  });
+
+  it.each(undecided)("%s records which issue owes the decision", (key) => {
+    expect(CAPABILITIES[key].decision).toMatch(/undecided/i);
+  });
+});
+
+describe("row 8 — the map is the single source of truth, and is not editable at runtime", () => {
+  it("names every privileged action the slice can refuse", () => {
+    expect([...CAPABILITY_KEYS].sort()).toEqual(
+      [
+        "attendance_recorder",
+        "delivery_administration",
+        "event_approval",
+        "leadership_report",
+        "membership_activation",
+        "role_management",
+      ].sort(),
+    );
+  });
+
+  it("records provenance for every grant", () => {
+    for (const key of CAPABILITY_KEYS) {
+      expect(CAPABILITIES[key].decision.length).toBeGreaterThan(20);
+      expect(CAPABILITIES[key].action.length).toBeGreaterThan(5);
+    }
+  });
+
+  it("refuses a mutation of a grant at runtime", () => {
+    const codes = capabilityRoleCodes("event_approval") as string[];
+    expect(() => codes.push("it_officer")).toThrow();
+    expect(capabilityRoleCodes("event_approval")).toEqual(["president"]);
+  });
+
+  it("refuses a replacement of a whole capability at runtime", () => {
+    const map = CAPABILITIES as Record<string, unknown>;
+    expect(() => {
+      map.event_approval = { key: "event_approval", roleCodes: ["it_officer"] };
+    }).toThrow();
+    expect(capabilityRoleCodes("event_approval")).toEqual(["president"]);
+  });
+});
+
+describe("row 6 — a requirement sentence names the action's need, never the actor's holdings", () => {
+  it("names one role in the singular", () => {
+    expect(capabilityRequirement("event_approval")).toBe(
+      "This action requires the President role.",
+    );
+  });
+
+  it("lists several readably", () => {
+    expect(capabilityRequirement("membership_activation")).toBe(
+      "This action requires one of these roles: President, Vice-President, Secretary, " +
+        "Treasurer or General Manager.",
+    );
+  });
+
+  it("says plainly that nobody is authorized, rather than naming an empty list", () => {
+    expect(capabilityRequirement("leadership_report")).toBe(
+      "No club role is currently authorized to perform this action.",
+    );
+  });
+
+  it("uses the club's names for the two coordinator seats", () => {
+    expect(capabilityRequirement("attendance_recorder")).toBe(
+      "This action requires one of these roles: Head Coach, Offence Coach or Defence Coach.",
+    );
+  });
+
+  it("falls back to the raw code rather than inventing a label", () => {
+    expect(describeRoles(["gameday_secretary"])).toBe("gameday_secretary");
+    expect(describeRoleRequirement(["gameday_secretary"])).toBe(
+      "This action requires the gameday_secretary role.",
+    );
+  });
+
+  it("never mentions a person, an account or a holder", () => {
+    for (const key of CAPABILITY_KEYS) {
+      const sentence = capabilityRequirement(key);
+      expect(sentence).not.toMatch(/you hold|your role|currently hold|assigned to|held by/i);
+    }
+  });
+});

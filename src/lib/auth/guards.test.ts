@@ -1,0 +1,310 @@
+// @vitest-environment node
+/**
+ * The guards — LAN-73, test-matrix rows 5, 6, 9, 10, 11 and 12.
+ *
+ * The actor is supplied directly in every test here, which is the point: an
+ * authorization decision that can only be exercised by rendering a page is an
+ * authorization decision nobody can test properly. `assertRole` and
+ * `assertCapability` take the actor as an argument; `requireOperator`,
+ * `requireRole` and `requireCapability` take it from the verified session,
+ * which is stubbed here at exactly one place — `resolveOperatorAccess` — so
+ * that no test can accidentally prove a guard by supplying an actor the way a
+ * browser never could.
+ *
+ * What is asserted about a refusal, every time: it is a `NotPermitted`, its
+ * `kind` is `not_permitted`, it names what the action requires, and it names
+ * nothing about the person refused.
+ */
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+vi.mock("./operator", () => ({ resolveOperatorAccess: vi.fn() }));
+
+import { isServiceError, NotPermitted, ServiceError } from "@/lib/db";
+import { CAPABILITY_KEYS, capabilityRoleCodes, type CapabilityKey } from "./capabilities";
+import {
+  assertCapability,
+  assertOperator,
+  assertRole,
+  capabilityRule,
+  OPERATOR_REQUIRED_MESSAGE,
+  operatorHasCapability,
+  requireCapability,
+  requireOperator,
+  requireRole,
+} from "./guards";
+import { resolveOperatorAccess, type OperatorAccess, type ResolvedOperator } from "./operator";
+
+const COACHES = ["head_coach", "offence_coach", "defence_coach"] as const;
+
+function actor(roleCodes: string[]): ResolvedOperator {
+  return {
+    authUserId: "11111111-1111-4111-8111-111111111111",
+    personId: "22222222-2222-4222-8222-222222222222",
+    displayName: "Rowan Ashdown",
+    roleCodes,
+    isActive: true,
+  };
+}
+
+function givenSession(access: OperatorAccess) {
+  vi.mocked(resolveOperatorAccess).mockResolvedValue(access);
+}
+
+/** Runs `call`, requires it to have thrown, and hands back what it threw. */
+async function refusalFrom(call: () => unknown | Promise<unknown>): Promise<ServiceError> {
+  let thrown: unknown;
+  try {
+    await call();
+  } catch (error) {
+    thrown = error;
+  }
+
+  if (thrown === undefined) {
+    throw new Error("Expected this call to be refused, and it was not.");
+  }
+  if (!isServiceError(thrown)) {
+    throw new Error(`Expected a ServiceError, got ${String(thrown)}`);
+  }
+  return thrown;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("row 5 — requireOperator()", () => {
+  it("returns the resolved operator for a linked, active account", async () => {
+    const operator = actor(["secretary"]);
+    givenSession({ state: "active", operator });
+
+    await expect(requireOperator()).resolves.toBe(operator);
+  });
+
+  it("returns an operator who holds no role at all — the shell is not role-gated", async () => {
+    const operator = actor([]);
+    givenSession({ state: "active", operator });
+
+    await expect(requireOperator()).resolves.toBe(operator);
+  });
+
+  it.each<OperatorAccess["state"]>(["no_session", "unlinked", "inactive"])(
+    "refuses a %s request with NotPermitted rather than a falsy value",
+    async (state) => {
+      givenSession({ state } as OperatorAccess);
+
+      const refusal = await refusalFrom(() => requireOperator());
+
+      expect(refusal).toBeInstanceOf(NotPermitted);
+      expect(refusal.kind).toBe("not_permitted");
+      expect(refusal.rule).toBe("operator_required");
+    },
+  );
+
+  it("says the same thing for all three unresolved causes", async () => {
+    const messages: string[] = [];
+    for (const state of ["no_session", "unlinked", "inactive"] as const) {
+      givenSession({ state } as OperatorAccess);
+      messages.push((await refusalFrom(() => requireOperator())).message);
+    }
+
+    // A privileged path learns "no operator" and never which of the three. The
+    // account-state screens make that distinction, to the account's own holder.
+    expect(new Set(messages).size).toBe(1);
+    expect(messages[0]).toBe(OPERATOR_REQUIRED_MESSAGE);
+  });
+
+  it("is a bare ServiceError refusal, not an unexpected failure", async () => {
+    givenSession({ state: "unlinked" });
+    const refusal = await refusalFrom(() => requireOperator());
+
+    // `kind` is the contract callers switch on; anything else would be rendered
+    // as "something went wrong" instead of as a refusal.
+    expect(refusal.kind).not.toBe("unexpected");
+    expect(assertOperator).toBeTypeOf("function");
+  });
+});
+
+describe("row 6 — requireRole(codes)", () => {
+  it("returns the operator when a currently-effective assignment matches", async () => {
+    const operator = actor(["treasurer", "it_officer"]);
+    givenSession({ state: "active", operator });
+
+    await expect(requireRole(["treasurer"])).resolves.toBe(operator);
+  });
+
+  it("refuses an operator holding a different role, naming what was needed", async () => {
+    givenSession({ state: "active", operator: actor(["it_officer"]) });
+
+    const refusal = await refusalFrom(() => requireRole(["president"]));
+
+    expect(refusal.kind).toBe("not_permitted");
+    expect(refusal.message).toContain("President");
+  });
+
+  it("does not enumerate the roles the refused operator holds", async () => {
+    givenSession({
+      state: "active",
+      operator: actor(["it_officer", "social_secretary", "kit_manager"]),
+    });
+
+    const refusal = await refusalFrom(() => requireRole(["president"]));
+
+    for (const held of ["it_officer", "IT Officer", "social_secretary", "kit_manager"]) {
+      expect(refusal.message).not.toContain(held);
+    }
+    // Nor who does hold the missing seat.
+    expect(refusal.message).not.toMatch(/held by|contact the president|ask .* president/i);
+  });
+
+  it("refuses an operator holding no currently-effective role", async () => {
+    // The seat that ended yesterday and the seat that starts next season both
+    // arrive here as an empty list — that rule lives in resolveOperator() and
+    // is proved in operator.test.ts. What matters here is that empty refuses.
+    givenSession({ state: "active", operator: actor([]) });
+
+    const refusal = await refusalFrom(() => requireRole(["president"]));
+    expect(refusal.kind).toBe("not_permitted");
+  });
+
+  it("refuses when the required-role list is empty, rather than waving it through", async () => {
+    // A guard whose requirement was never decided must not resolve to "anyone".
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const refusal = await refusalFrom(() => requireRole([]));
+    expect(refusal.kind).toBe("not_permitted");
+  });
+
+  it("refuses before looking at roles when there is no operator", async () => {
+    givenSession({ state: "inactive" });
+
+    const refusal = await refusalFrom(() => requireRole(["president"]));
+    expect(refusal.rule).toBe("operator_required");
+    expect(refusal.message).toBe(OPERATOR_REQUIRED_MESSAGE);
+  });
+
+  it("is callable as a pure assertion with an arbitrary actor", () => {
+    expect(assertRole(actor(["president"]), ["president"]).personId).toBeTruthy();
+    expect(() => assertRole(actor(["secretary"]), ["president"])).toThrow(NotPermitted);
+    expect(() => assertRole(null, ["president"])).toThrow(NotPermitted);
+  });
+});
+
+describe("rows 9 to 12 — requireCapability() over the map", () => {
+  it.each(COACHES)("lets %s record attendance", async (code) => {
+    const operator = actor([code]);
+    givenSession({ state: "active", operator });
+
+    await expect(requireCapability("attendance_recorder")).resolves.toBe(operator);
+  });
+
+  it("lets the President approve an event", async () => {
+    const operator = actor(["president"]);
+    givenSession({ state: "active", operator });
+
+    await expect(requireCapability("event_approval")).resolves.toBe(operator);
+  });
+
+  it("refuses the Secretary the event approval, naming the President", async () => {
+    givenSession({ state: "active", operator: actor(["secretary"]) });
+
+    const refusal = await refusalFrom(() => requireCapability("event_approval"));
+
+    expect(refusal.rule).toBe(capabilityRule("event_approval"));
+    expect(refusal.message).toContain("President");
+    expect(refusal.message).not.toContain("Secretary");
+  });
+
+  it.each(["president", "vice_president", "secretary", "treasurer", "general_manager"])(
+    "lets %s activate a membership",
+    async (code) => {
+      const operator = actor([code]);
+      givenSession({ state: "active", operator });
+
+      await expect(requireCapability("membership_activation")).resolves.toBe(operator);
+    },
+  );
+
+  it.each(["role_management", "delivery_administration", "leadership_report"] as CapabilityKey[])(
+    "refuses %s to the President, because nobody has been granted it",
+    async (key) => {
+      givenSession({ state: "active", operator: actor(["president"]) });
+
+      const refusal = await refusalFrom(() => requireCapability(key));
+      expect(refusal.rule).toBe(capabilityRule(key));
+      expect(refusal.message).toContain("No club role is currently authorized");
+    },
+  );
+
+  it.each(CAPABILITY_KEYS)("refuses %s to an unlinked account", async (key) => {
+    givenSession({ state: "unlinked" });
+
+    const refusal = await refusalFrom(() => requireCapability(key));
+    expect(refusal.rule).toBe("operator_required");
+  });
+
+  it.each(CAPABILITY_KEYS)("refuses %s to a deactivated account", async (key) => {
+    givenSession({ state: "inactive" });
+
+    const refusal = await refusalFrom(() => requireCapability(key));
+    expect(refusal.rule).toBe("operator_required");
+  });
+
+  it.each(CAPABILITY_KEYS)(
+    "refuses %s to an ordinary player with no operator link",
+    async (key) => {
+      // A player is not an operator at all: no `operator_accounts` row.
+      givenSession({ state: "unlinked" });
+
+      const refusal = await refusalFrom(() => requireCapability(key));
+      expect(refusal.kind).toBe("not_permitted");
+    },
+  );
+});
+
+describe("row 10 — an attendance recorder receives nothing else", () => {
+  const others = CAPABILITY_KEYS.filter((key) => key !== "attendance_recorder");
+
+  for (const code of COACHES) {
+    it.each(others)(`refuses %s to a ${code}`, async (key) => {
+      givenSession({ state: "active", operator: actor([code]) });
+
+      const refusal = await refusalFrom(() => requireCapability(key));
+      expect(refusal.rule).toBe(capabilityRule(key));
+    });
+  }
+
+  it("refuses every other capability to somebody holding all three coaching seats", async () => {
+    givenSession({ state: "active", operator: actor([...COACHES]) });
+
+    for (const key of others) {
+      const refusal = await refusalFrom(() => requireCapability(key));
+      expect(refusal.kind).toBe("not_permitted");
+    }
+  });
+
+  it("grants a coach exactly one capability out of the six", () => {
+    const coach = actor(["head_coach"]);
+    const granted = CAPABILITY_KEYS.filter((key) => operatorHasCapability(coach, key));
+
+    expect(granted).toEqual(["attendance_recorder"]);
+  });
+
+  it("never lets a capability be reached through a role it does not list", () => {
+    // Belt and braces over the whole map: for every capability and every code
+    // it does not name, the answer is no.
+    for (const key of CAPABILITY_KEYS) {
+      const permitted = capabilityRoleCodes(key);
+      for (const code of ["president", "secretary", "it_officer", ...COACHES]) {
+        expect(operatorHasCapability(actor([code]), key)).toBe(permitted.includes(code));
+      }
+    }
+  });
+
+  it("refuses a null actor for every capability", () => {
+    for (const key of CAPABILITY_KEYS) {
+      expect(operatorHasCapability(null, key)).toBe(false);
+      expect(() => assertCapability(null, key)).toThrow(NotPermitted);
+    }
+  });
+});

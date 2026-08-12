@@ -31,7 +31,8 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn() }));
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { resolveOperator } from "./operator";
+import { resolveOperator, resolveOperatorAccess } from "./operator";
+import { requireCapability } from "./guards";
 
 type Row = Record<string, unknown>;
 type Tables = Record<string, Row[]>;
@@ -662,6 +663,193 @@ describe("resolveOperator — currently-effective role assignments", () => {
       const resolved = await resolveOperator();
 
       expect(resolved?.roleCodes).toEqual(["treasurer"]);
+    });
+  });
+});
+
+/**
+ * LAN-73 — the four outcomes, reported rather than collapsed.
+ *
+ * `resolveOperator()` answers `null` for three different situations, on
+ * purpose, and every test above depends on that staying true.
+ * `resolveOperatorAccess()` is the same resolution with the reason kept, which
+ * the account-state screens need and which no privileged path is given.
+ *
+ * These run over the same fake database as everything above, so the two
+ * functions are proved to agree on real filtering rather than on a fixture.
+ */
+describe("resolveOperatorAccess — the reason, for the account's own holder", () => {
+  it("reports no session when the request carries no verified user", async () => {
+    givenVerifiedUser(null);
+    givenDatabase(linkedOperatorTables());
+
+    await expect(resolveOperatorAccess()).resolves.toEqual({ state: "no_session" });
+  });
+
+  it("reports unlinked when the verified user has no operator account", async () => {
+    givenVerifiedUser({ id: "44444444-4444-4444-8444-444444444444" });
+    givenDatabase(linkedOperatorTables());
+
+    await expect(resolveOperatorAccess()).resolves.toEqual({ state: "unlinked" });
+  });
+
+  it("reports inactive when the link exists but is deactivated", async () => {
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase(
+      linkedOperatorTables({
+        operator_accounts: [{ auth_user_id: AUTH_USER_ID, person_id: PERSON_ID, is_active: false }],
+      }),
+    );
+
+    await expect(resolveOperatorAccess()).resolves.toEqual({ state: "inactive" });
+  });
+
+  it("tells unlinked and inactive apart, which resolveOperator deliberately does not", async () => {
+    givenVerifiedUser({ id: "44444444-4444-4444-8444-444444444444" });
+    givenDatabase(linkedOperatorTables());
+    const unlinked = await resolveOperatorAccess();
+
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase(
+      linkedOperatorTables({
+        operator_accounts: [{ auth_user_id: AUTH_USER_ID, person_id: PERSON_ID, is_active: false }],
+      }),
+    );
+    const inactive = await resolveOperatorAccess();
+
+    expect(unlinked.state).not.toBe(inactive.state);
+    // Neither carries anything beyond the state itself — no person, no id, no
+    // email, nothing a screen could render by accident.
+    expect(Object.keys(unlinked)).toEqual(["state"]);
+    expect(Object.keys(inactive)).toEqual(["state"]);
+  });
+
+  it("carries the resolved operator, unchanged, when the account is active", async () => {
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase(linkedOperatorTables());
+    const access = await resolveOperatorAccess();
+
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase(linkedOperatorTables());
+    const resolved = await resolveOperator();
+
+    expect(access).toEqual({ state: "active", operator: resolved });
+  });
+
+  it("agrees with resolveOperator on every outcome", async () => {
+    const cases: Array<[string, Tables, { id: string } | null]> = [
+      ["no session", linkedOperatorTables(), null],
+      ["unlinked", linkedOperatorTables(), { id: "44444444-4444-4444-8444-444444444444" }],
+      [
+        "inactive",
+        linkedOperatorTables({
+          operator_accounts: [
+            { auth_user_id: AUTH_USER_ID, person_id: PERSON_ID, is_active: false },
+          ],
+        }),
+        { id: AUTH_USER_ID },
+      ],
+      ["active", linkedOperatorTables(), { id: AUTH_USER_ID }],
+    ];
+
+    for (const [name, tables, user] of cases) {
+      givenVerifiedUser(user);
+      givenDatabase(tables);
+      const access = await resolveOperatorAccess();
+
+      givenVerifiedUser(user);
+      givenDatabase(tables);
+      const resolved = await resolveOperator();
+
+      expect(resolved === null, name).toBe(access.state !== "active");
+    }
+  });
+});
+
+/**
+ * LAN-73 — the guards over the real resolution, not over a stubbed actor.
+ *
+ * Everything else about the guards is proved against an injected actor in
+ * guards.test.ts, which is the only way to reach actors a session could not
+ * produce. This block is the join: a role assignment sitting in the database
+ * becomes, or fails to become, permission — including the two effective-dating
+ * boundaries that decide whether a coach may record attendance today.
+ */
+describe("requireCapability over a real resolution", () => {
+  function coachTables(assignments: Row[]): Tables {
+    return linkedOperatorTables({
+      role_assignments: assignments,
+      roles: [
+        { id: "role-head-coach", code: "head_coach" },
+        { id: "role-secretary", code: "secretary" },
+      ],
+    });
+  }
+
+  function seat(roleId: string, from: string, to: string | null): Row {
+    return { person_id: PERSON_ID, role_id: roleId, effective_from: from, effective_to: to };
+  }
+
+  it("lets a serving Head Coach record attendance", async () => {
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase(coachTables([seat("role-head-coach", LONG_STARTED, null)]));
+
+    const operator = await requireCapability("attendance_recorder");
+
+    expect(operator.personId).toBe(PERSON_ID);
+  });
+
+  it("refuses a Head Coach whose season has ended", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-12T09:00:00.000Z"));
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase(coachTables([seat("role-head-coach", "2025-09-01", "2026-06-30")]));
+
+    await expect(requireCapability("attendance_recorder")).rejects.toMatchObject({
+      kind: "not_permitted",
+    });
+  });
+
+  it("refuses a Head Coach whose season has not started", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-12T09:00:00.000Z"));
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase(coachTables([seat("role-head-coach", "2026-09-01", null)]));
+
+    await expect(requireCapability("attendance_recorder")).rejects.toMatchObject({
+      kind: "not_permitted",
+    });
+  });
+
+  it("refuses a serving Secretary the attendance capability", async () => {
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase(coachTables([seat("role-secretary", LONG_STARTED, null)]));
+
+    await expect(requireCapability("attendance_recorder")).rejects.toMatchObject({
+      kind: "not_permitted",
+    });
+  });
+
+  it("refuses a deactivated account that still holds the seat", async () => {
+    // The assignment is untouched and current; the login is switched off. The
+    // account state, not the role, is what decides here.
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase({
+      ...coachTables([seat("role-head-coach", LONG_STARTED, null)]),
+      operator_accounts: [{ auth_user_id: AUTH_USER_ID, person_id: PERSON_ID, is_active: false }],
+    });
+
+    await expect(requireCapability("attendance_recorder")).rejects.toMatchObject({
+      rule: "operator_required",
+    });
+  });
+
+  it("refuses an account with no operator link at all", async () => {
+    givenVerifiedUser({ id: "44444444-4444-4444-8444-444444444444" });
+    givenDatabase(coachTables([seat("role-head-coach", LONG_STARTED, null)]));
+
+    await expect(requireCapability("attendance_recorder")).rejects.toMatchObject({
+      rule: "operator_required",
     });
   });
 });
