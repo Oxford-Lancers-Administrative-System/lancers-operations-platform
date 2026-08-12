@@ -82,8 +82,14 @@ export interface PersonCandidate {
   email: string | null;
   /** The person's current preferred phone, as recorded. `null` when none. */
   phone: string | null;
-  /** Their membership in the open season, when they already hold one. */
-  currentMembership: { id: string; status: string } | null;
+  /**
+   * Their membership in the open season, when they already hold one.
+   *
+   * `seasonLabel` is carried so that UX-12 can render its approved sentence —
+   * "<name> is already a member for the <season> season" — without a second
+   * query, and without the interface inventing a season name of its own.
+   */
+  currentMembership: { id: string; status: string; seasonLabel: string } | null;
   /** Every field that matched, in a stable order. Never empty. */
   matchedOn: CandidateMatch[];
 }
@@ -229,6 +235,7 @@ interface CandidateRow {
   phone: string | null;
   membership_id: string | null;
   membership_status: string | null;
+  season_label: string;
   matched_given: boolean;
   matched_family: boolean;
   matched_known_as: boolean;
@@ -306,12 +313,22 @@ export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<
            cross join wanted w
           group by c.person_id
        ),
+       -- The contact values shown on UX-11. Preferred first, then anything
+       -- current — because this module now records a supplied contact as
+       -- *not* preferred when the person already has one of that kind, and a
+       -- candidate list that showed those as "—" would drop the field the
+       -- operator's decision most depends on.
        preferred as (
+         select distinct on (person_id, kind) person_id, kind, raw_value
+           from public.contact_points
+          where valid_until is null
+          order by person_id, kind, is_preferred desc, created_at desc
+       ),
+       display_contact as (
          select person_id,
                 max(raw_value) filter (where kind = 'email') as email,
                 max(raw_value) filter (where kind = 'phone') as phone
-           from public.contact_points
-          where is_preferred
+           from preferred
           group by person_id
        )
        select
@@ -319,17 +336,23 @@ export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<
          p.given_name,
          p.family_name,
          p.known_as,
-         preferred.email,
-         preferred.phone,
+         display_contact.email,
+         display_contact.phone,
          m.id                                             as membership_id,
          m.status::text                                   as membership_status,
-         coalesce(lower(p.given_name) = w.given_name
-                  or lower(p.known_as) = w.given_name
+         $7::text                                         as season_label,
+         -- btrim on the stored side as well as the typed side. Names are
+         -- stored as intake received them, and people_given_name_not_blank
+         -- only forbids an all-whitespace value — so ' Bertram ' is a legal
+         -- row, and an import will eventually produce one. Comparing it
+         -- untrimmed hides exactly the duplicate this check exists to find.
+         coalesce(lower(btrim(p.given_name)) = w.given_name
+                  or lower(btrim(p.known_as)) = w.given_name
                   or am.by_given, false)                  as matched_given,
-         coalesce(lower(p.family_name) = w.family_name
+         coalesce(lower(btrim(p.family_name)) = w.family_name
                   or am.by_family, false)                 as matched_family,
-         coalesce(lower(p.known_as) = w.known_as
-                  or lower(p.given_name) = w.known_as
+         coalesce(lower(btrim(p.known_as)) = w.known_as
+                  or lower(btrim(p.given_name)) = w.known_as
                   or am.by_known_as, false)               as matched_known_as,
          coalesce(cm.by_email, false)                     as matched_email,
          coalesce(cm.by_phone, false)                     as matched_phone
@@ -337,16 +360,16 @@ export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<
        cross join wanted w
        left join alias_match   am on am.person_id = p.id
        left join contact_match cm on cm.person_id = p.id
-       left join preferred        on preferred.person_id = p.id
+       left join display_contact  on display_contact.person_id = p.id
        left join public.season_memberships m
               on m.person_id = p.id and m.season_id = $6::uuid
       where p.merged_into_person_id is null
         and (
-          lower(p.given_name) = w.given_name
-          or lower(p.known_as) = w.given_name
-          or lower(p.family_name) = w.family_name
-          or lower(p.known_as) = w.known_as
-          or lower(p.given_name) = w.known_as
+          lower(btrim(p.given_name)) = w.given_name
+          or lower(btrim(p.known_as)) = w.given_name
+          or lower(btrim(p.family_name)) = w.family_name
+          or lower(btrim(p.known_as)) = w.known_as
+          or lower(btrim(p.given_name)) = w.known_as
           or coalesce(am.by_given or am.by_family or am.by_known_as, false)
           or coalesce(cm.by_email or cm.by_phone, false)
         )
@@ -358,6 +381,7 @@ export async function findPersonCandidates(input: ReturnerIntakeInput): Promise<
         normalised.email?.compare ?? null,
         normalised.phone?.compare ?? null,
         season.id,
+        season.label,
       ],
     );
 
@@ -382,7 +406,7 @@ function toCandidate(row: CandidateRow): PersonCandidate {
     phone: row.phone,
     currentMembership:
       row.membership_id && row.membership_status
-        ? { id: row.membership_id, status: row.membership_status }
+        ? { id: row.membership_id, status: row.membership_status, seasonLabel: row.season_label }
         : null,
     matchedOn,
   };
@@ -443,7 +467,12 @@ export async function enterReturningPlayer(params: {
     // `season_memberships_one_per_person_per_season` into the same refusal.
     if (!personCreated) await refuseExistingMembership(tx, personId, season);
 
-    const aliasCreated = await insertAliasIfDistinct(tx, personId, input);
+    // Only for a person this submission minted. Appending a name form to an
+    // existing person's alias history from an intake form would be editing a
+    // record the operator did not ask to edit — and because
+    // `findPersonCandidates` matches on aliases, a mistyped "Known as" would
+    // permanently widen that person's future duplicate matching.
+    const aliasCreated = personCreated ? await insertAliasIfDistinct(tx, personId, input) : false;
     const contactsRecorded = await insertContactPoints(tx, personId, input);
 
     const confirmedOn = await currentDate(tx);

@@ -77,12 +77,19 @@ beforeAll(async () => {
     given_name: string;
     family_name: string | null;
   }>(
+    // Must already hold a preferred email: two tests below turn on what happens
+    // when an operator supplies a second one, and picking a person without one
+    // made both of them vacuous — which is what the fixture assertions in those
+    // tests now refuse to allow.
     `select p.id, p.given_name, p.family_name
        from public.people p
       where p.merged_into_person_id is null
         and not exists (
           select 1 from public.season_memberships m
            where m.person_id = p.id and m.season_id = $1::uuid)
+        and exists (
+          select 1 from public.contact_points c
+           where c.person_id = p.id and c.kind = 'email' and c.is_preferred)
       order by p.given_name
       limit 1`,
     [openSeasonId],
@@ -129,13 +136,28 @@ async function cleanUp(): Promise<void> {
          or (person_id = $2::uuid and season_id = $3::uuid)`,
     [`${MARKER}%`, withoutMembership.id, openSeasonId],
   );
+  // Scoped to this suite's own people. `source = 'operator intake'` alone would
+  // reach rows another suite committed against the same database — vitest runs
+  // test files in parallel, and a cleanup that deletes somebody else's fixture
+  // surfaces as a baffling foreign-key failure over there rather than as the
+  // collision it is.
   await observer.query(
     `delete from public.contact_points
       where person_id in (select id from public.people where given_name like $1)
-         or source = 'operator intake'`,
-    [`${MARKER}%`],
+         or (person_id = $2::uuid and source = 'operator intake')`,
+    // The seeded person keeps every contact the seed gave them: only what this
+    // suite wrote through the service is removed. Deleting all of their
+    // contacts would strip the preferred email two tests depend on, one test
+    // earlier than the test that needs it.
+    [`${MARKER}%`, withoutMembership.id],
   );
-  await observer.query("delete from public.person_aliases where source = 'operator intake'");
+  await observer.query(
+    `delete from public.person_aliases
+      where source = 'operator intake'
+        and (person_id in (select id from public.people where given_name like $1)
+             or person_id = $2::uuid)`,
+    [`${MARKER}%`, withoutMembership.id],
+  );
   await observer.query("delete from public.people where given_name like $1", [`${MARKER}%`]);
 }
 
@@ -516,11 +538,12 @@ describe("enterReturningPlayer — an existing person", () => {
 
     const recorded = result.contactsRecorded.find((contact) => contact.kind === "email");
 
-    if (existingPreferred.rowCount === 0) {
-      expect(recorded?.isPreferred).toBe(true);
-      return;
-    }
-
+    // Asserted, not branched on. An early `return` here would let this test go
+    // silently vacuous the day the seed stops giving this person an email.
+    expect(
+      existingPreferred.rowCount,
+      "the seeded person this test picks must already have a preferred email",
+    ).toBe(1);
     expect(recorded?.isPreferred).toBe(false);
 
     const stillPreferred = await observer.query<{ raw_value: string }>(
@@ -535,7 +558,10 @@ describe("enterReturningPlayer — an existing person", () => {
       "select raw_value from public.contact_points where person_id = $1::uuid and kind = 'email' limit 1",
       [withoutMembership.id],
     );
-    if (existing.rowCount === 0) return;
+    expect(
+      existing.rowCount,
+      "the seeded person this test picks must already have an email to re-supply",
+    ).toBe(1);
 
     const before = await observer.query<{ count: string }>(
       "select count(*)::text as count from public.contact_points where person_id = $1::uuid",
@@ -604,6 +630,73 @@ describe("enterReturningPlayer — an existing person", () => {
 });
 
 // ---------------------------------------------------------------------------
+
+describe("what an intake may not do to somebody who already exists", () => {
+  it("never writes an alias onto a person the operator merely selected", async () => {
+    // The operator is entering somebody they believe is an existing person, and
+    // types a "known as" that is a slip, or simply a form they use. Appending
+    // it to that person's alias history would be editing a record nobody asked
+    // to edit — and because `findPersonCandidates` matches on aliases, it would
+    // permanently widen that person's future duplicate matching too.
+    const before = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.person_aliases where person_id = $1::uuid",
+      [withoutMembership.id],
+    );
+
+    const result = await enterReturningPlayer({
+      actorPersonId,
+      input: { givenName: withoutMembership.givenName, knownAs: unique("NotHisName") },
+      decision: { kind: "existing", personId: withoutMembership.id },
+    });
+
+    expect(result.aliasCreated).toBe(false);
+
+    const after = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.person_aliases where person_id = $1::uuid",
+      [withoutMembership.id],
+    );
+    expect(after.rows[0].count).toBe(before.rows[0].count);
+  });
+
+  it("does write one for a person this submission minted", async () => {
+    // The other half of the same rule, so neither branch can drift unnoticed.
+    const result = await enterReturningPlayer({
+      actorPersonId,
+      input: { givenName: unique("Benedict"), knownAs: "Benny" },
+      decision: { kind: "new", confirmed: true },
+    });
+
+    expect(result.aliasCreated).toBe(true);
+    const aliases = await observer.query(
+      "select alias from public.person_aliases where person_id = $1::uuid",
+      [result.personId],
+    );
+    expect(aliases.rows.map((row) => row.alias)).toEqual(["Benny"]);
+  });
+});
+
+describe("findPersonCandidates — names stored with stray whitespace", () => {
+  it("still surfaces a person whose stored name has surrounding spaces", async () => {
+    // `people_given_name_not_blank` only forbids an all-whitespace value, and
+    // raw intake is stored unvalidated by design — so ' Bertram ' is a legal
+    // row that an import will eventually produce. Comparing it untrimmed hides
+    // exactly the duplicate this check exists to find.
+    const givenName = unique("Spaced");
+    const person = await observer.query<{ id: string }>(
+      "insert into public.people (given_name, family_name) values ($1, $2) returning id",
+      [`  ${givenName}  `, "  Padded  "],
+    );
+
+    const byGiven = await findPersonCandidates({ givenName });
+    expect(byGiven.map((candidate) => candidate.personId)).toContain(person.rows[0].id);
+
+    const byFamily = await findPersonCandidates({
+      givenName: unique("Nobody"),
+      familyName: "Padded",
+    });
+    expect(byFamily.map((candidate) => candidate.personId)).toContain(person.rows[0].id);
+  });
+});
 
 describe("enterReturningPlayer — a failure part-way through", () => {
   it("leaves no person, alias, contact, membership or status event behind", async () => {

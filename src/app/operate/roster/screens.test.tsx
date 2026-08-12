@@ -16,6 +16,21 @@
  * a name in a hidden input or a membership id in a data attribute fails them
  * exactly as a visible one would. A server-rendered page ships its DOM; whatever
  * is in it is disclosed.
+ *
+ * ## What this file CANNOT see, and must not be trusted for
+ *
+ * **Layout.** jsdom does not evaluate MUI breakpoints, so an `sx` of
+ * `{ display: { xs: "none", md: "block" } }` renders here exactly like one that
+ * shows at every width. Hiding the current-season indicator on phone — the one
+ * field `CandidateRow` is documented as never allowed to drop, because it is
+ * what tells the operator whether their selection will be refused — passes
+ * every assertion below. That was demonstrated by injection, not assumed.
+ *
+ * So this file covers **copy, labels, states, field presence and the
+ * unauthorized DOM**. It does not cover the responsive contract, and LAN-74's
+ * "every field is reachable and submittable at 375px" is not evidenced here or
+ * anywhere else automated. It needs a human at 375px, or a browser-driven test
+ * this repository does not have yet.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
@@ -118,7 +133,11 @@ const CANDIDATES: PersonCandidate[] = [
     knownAs: null,
     email: null,
     phone: null,
-    currentMembership: { id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", status: "active" },
+    currentMembership: {
+      id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      status: "active",
+      seasonLabel: "2026-27",
+    },
     matchedOn: ["given name"],
   },
 ];
@@ -293,7 +312,8 @@ describe("UX-12 — already a member this season", () => {
         message:
           "This person already has a membership for the 2026-27 season. " +
           "No duplicate membership was created, and nothing else was changed.",
-        personName: "Ari",
+        personName: "Ari Fielding",
+        seasonLabel: "2026-27",
         membershipId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       },
     });
@@ -303,8 +323,13 @@ describe("UX-12 — already a member this season", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "This person already has a current-season membership",
     );
+    // The approved UX-12 body copy names the person and the season, in that
+    // order — "Avery Fielding is already a member for the 2026–27 season. No
+    // duplicate membership was created." Asserting only the tail of that
+    // sentence is how the shipped screen managed to name nobody at all.
     expect(screen.getByTestId("refusal-message")).toHaveTextContent(
-      "No duplicate membership was created",
+      "Ari Fielding is already a member for the 2026-27 season. " +
+        "No duplicate membership was created.",
     );
     expect(
       screen.getByText(
@@ -328,6 +353,32 @@ describe("UX-12 — already a member this season", () => {
 });
 
 // ---------------------------------------------------------------------------
+
+describe("UX-12 — when the refused person is no longer a candidate", () => {
+  it("falls back to the service's own sentence rather than a blank", async () => {
+    // The composed sentence needs a season label, and that only comes from the
+    // candidate list. When the refused person has dropped out of it, the
+    // operator must still get a sentence.
+    await renderIntakeAt({
+      step: "membership_refused",
+      values: VALUES,
+      candidates: [],
+      refusal: {
+        message: "This person already has a membership for the 2026-27 season.",
+        personName: "Ari Fielding",
+        seasonLabel: null,
+        membershipId: null,
+      },
+    });
+
+    expect(screen.getByTestId("refusal-message")).toHaveTextContent(
+      "This person already has a membership for the 2026-27 season.",
+    );
+    // With no membership to open, that action is not offered at all.
+    expect(screen.queryByRole("link", { name: "Open current membership" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to candidate review" })).toBeInTheDocument();
+  });
+});
 
 const SUMMARY: MembershipSummary = {
   membershipId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",

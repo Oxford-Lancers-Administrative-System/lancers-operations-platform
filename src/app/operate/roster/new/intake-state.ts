@@ -37,8 +37,11 @@ export type IntakeState =
       values: IntakeFormValues;
       candidates: PersonCandidate[];
       refusal: {
+        /** The service's own sentence. Shown when the composed one cannot be. */
         message: string;
         personName: string;
+        /** The open season's label, when the refused person is still a candidate. */
+        seasonLabel: string | null;
         membershipId: string | null;
       };
     };

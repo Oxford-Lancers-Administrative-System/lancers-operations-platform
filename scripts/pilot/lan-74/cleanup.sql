@@ -151,35 +151,48 @@ begin
    where known_as = sentinel
      and id <> all (scenario_people);
 
+  -- Materialised so that the statements which DELETE use exactly the set that
+  -- was VALIDATED. The SQL editor runs this transaction at READ COMMITTED, so
+  -- each statement takes its own snapshot: re-deriving `known_as = sentinel` at
+  -- delete time would remove a person created through the interface *after*
+  -- these guards ran, having passed none of them. A temporary table is dropped
+  -- with the session and adds no schema concept to the database.
+  -- Dropped first as well as `on commit drop`: the latter only fires at
+  -- COMMIT, so running this script twice inside one editor session — or inside
+  -- a test's own transaction — would otherwise collide on the second run.
+  drop table if exists pilot_lan_74_targets;
+  create temporary table pilot_lan_74_targets on commit drop as
+  select unnest(scenario_people || swept) as person_id;
+
   -- (d) The durable foundation. A scenario cleanup never removes an identity
   --     that has become one — and `on delete restrict` would stop it anyway;
   --     these exist so the operator gets a sentence instead of a foreign-key
   --     error, and so the rule is visible in the file rather than implied.
   if exists (
     select 1 from public.operator_accounts
-     where person_id = any (scenario_people || swept)
+     where person_id in (select person_id from pilot_lan_74_targets)
   ) then
     raise exception 'LAN-74 pilot cleanup refused: a person this script would delete is linked to an operator account. Durable identities are never removed by a scenario cleanup.';
   end if;
 
   if exists (
     select 1 from public.role_assignments
-     where person_id = any (scenario_people || swept)
-        or appointed_by_person_id = any (scenario_people || swept)
+     where person_id in (select person_id from pilot_lan_74_targets)
+        or appointed_by_person_id in (select person_id from pilot_lan_74_targets)
   ) then
     raise exception 'LAN-74 pilot cleanup refused: a person this script would delete holds or granted a role assignment. Access records are never removed by a scenario cleanup.';
   end if;
 
   if exists (
     select 1 from public.audit_events
-     where actor_person_id = any (scenario_people || swept)
+     where actor_person_id in (select person_id from pilot_lan_74_targets)
   ) then
     raise exception 'LAN-74 pilot cleanup refused: a person this script would delete is an actor in audit_events. History must stay resolvable (invariant M2).';
   end if;
 
   if exists (
     select 1 from public.season_membership_status_events
-     where actor_person_id = any (scenario_people || swept)
+     where actor_person_id in (select person_id from pilot_lan_74_targets)
   ) then
     raise exception 'LAN-74 pilot cleanup refused: a person this script would delete is the recorded actor on a membership transition. History must stay resolvable (invariant M2).';
   end if;
@@ -189,7 +202,7 @@ begin
   --     scenario cleanup may quietly remove.
   if exists (
     select 1 from public.people
-     where id = any (scenario_people || swept)
+     where id in (select person_id from pilot_lan_74_targets)
        and merged_into_person_id is not null
   ) then
     raise exception 'LAN-74 pilot cleanup refused: a person this script would delete has been merged into another record. Resolve the merge by hand (invariant I6).';
@@ -197,8 +210,8 @@ begin
 
   if exists (
     select 1 from public.people
-     where merged_into_person_id = any (scenario_people || swept)
-        or merged_by_person_id = any (scenario_people || swept)
+     where merged_into_person_id in (select person_id from pilot_lan_74_targets)
+        or merged_by_person_id in (select person_id from pilot_lan_74_targets)
   ) then
     raise exception 'LAN-74 pilot cleanup refused: another person record was merged into, or merged by, one this script would delete. Removing it would orphan that provenance (invariant I6).';
   end if;
@@ -219,11 +232,18 @@ begin
   --     stop it: the scenario's own contacts carry the sentinel, and the
   --     interface-created returner's carry an `example.invalid` address because
   --     README.md tells the tester to enter one.
+  --     UX-10 has a Phone field as well as an Email field, and README step 4
+  --     tells the tester what to put in both: an `example.invalid` address and
+  --     a number in Ofcom's reserved `07700 900xxx` drama range. Both are
+  --     recognised here. A contact that is neither — a real address, a real
+  --     number — is not this scenario's, and stops the script rather than
+  --     being cascade-deleted with the person.
   if exists (
     select 1 from public.contact_points
-     where person_id = any (scenario_people || swept)
+     where person_id in (select person_id from pilot_lan_74_targets)
        and source is distinct from sentinel
        and raw_value not like '%example.invalid%'
+       and raw_value !~ '(\+44 ?|0)7700 ?900[0-9]{3}'
   ) then
     raise exception 'LAN-74 pilot cleanup refused: contact_points that this scenario did not create hang off a person it would delete, and would be cascade-deleted.';
   end if;
@@ -242,7 +262,7 @@ begin
   if to_regclass('staging.legacy_roster_rows') is not null then
     if exists (
       select 1 from staging.legacy_roster_rows
-       where matched_person_id = any (scenario_people || swept)
+       where matched_person_id in (select person_id from pilot_lan_74_targets)
     ) then
       raise exception 'LAN-74 pilot cleanup refused: staging.legacy_roster_rows reference a person this script would delete and would be silently nulled.';
     end if;
@@ -254,7 +274,7 @@ begin
   --     error into an instruction.
   if exists (
     select 1 from public.recruitment_prospects
-     where person_id = any (scenario_people || swept)
+     where person_id in (select person_id from pilot_lan_74_targets)
   ) then
     raise exception 'LAN-74 pilot cleanup refused: a recruitment prospect record exists for a person this script would delete.';
   end if;
@@ -268,18 +288,29 @@ begin
     select 1 from public.season_memberships m
      where m.carried_forward_from_id in (
        select id from public.season_memberships
-        where person_id = any (scenario_people || swept)
+        where person_id in (select person_id from pilot_lan_74_targets)
      )
   ) then
     raise exception 'LAN-74 pilot cleanup refused: a later membership was carried forward from one this script would delete.';
   end if;
 
+  -- A membership in the OPEN season held by one of these people is expected,
+  -- not suspicious: README step 3 tells the tester to select candidate …0003
+  -- and create exactly that, and the returner from step 4 has one too. Those
+  -- are this scenario's own residue and are removed below.
+  --
+  -- A membership in any OTHER season is not. Nothing in this scenario or its
+  -- test instructions can produce one, so its existence means the identifier
+  -- has been reused by something else, and this script stops rather than
+  -- deleting a row from a season it never looked at.
   if exists (
-    select 1 from public.season_memberships
-     where person_id = any (scenario_people)
-       and id <> '00740074-0074-4074-8074-000000000006'
+    select 1
+      from public.season_memberships m
+      join public.seasons s on s.id = m.season_id
+     where m.person_id in (select person_id from pilot_lan_74_targets)
+       and s.status not in ('open', 'active')
   ) then
-    raise exception 'LAN-74 pilot cleanup refused: a scenario person holds a membership this scenario did not create. Investigate before deleting anything.';
+    raise exception 'LAN-74 pilot cleanup refused: a person this script would delete holds a membership in a season other than the open one. Investigate before deleting anything.';
   end if;
 
   -- Everything the slice can hang off a membership. A returner created through
@@ -290,7 +321,7 @@ begin
   if exists (
     select 1
       from public.season_memberships m
-     where m.person_id = any (scenario_people || swept)
+     where m.person_id in (select person_id from pilot_lan_74_targets)
        and (
          exists (select 1 from public.onboarding_items x where x.season_membership_id = m.id)
          or exists (select 1 from public.position_assignments x where x.season_membership_id = m.id)
@@ -313,11 +344,18 @@ $preflight$;
 -- ---------------------------------------------------------------------------
 -- The deletion, in reverse dependency order
 -- ---------------------------------------------------------------------------
--- Scenario rows first, each keyed on its deterministic identifier AND the
--- sentinel. If the sentinel half ever stops matching, the row is not deleted
--- and the parent delete then fails on its foreign key — the transaction aborts
--- rather than half-removing the scenario.
+-- Order is by dependency, NOT by "scenario rows first". Every person this
+-- script removes — the two scenario people and every swept one — must lose
+-- their status history, then their memberships, then their contacts and
+-- aliases, before any of them can be deleted. Deleting the scenario people
+-- earlier would abort on `season_memberships_person_id_fkey`
+-- (`on delete restrict`) the moment a tester had followed README step 3, which
+-- creates a membership for scenario person …0003 through the interface.
+--
+-- Scenario rows carry their deterministic identifier AND the sentinel. The
+-- five sweep statements cannot, and each is declared; see the header.
 
+-- 1. Status history. The scenario's own two rows by identifier and sentinel …
 delete from public.season_membership_status_events
  where id in (
    '00740074-0074-4074-8074-000000000007',
@@ -325,10 +363,29 @@ delete from public.season_membership_status_events
  )
    and actor_label = 'PILOT-LAN-74 setup script';
 
+-- SENTINEL-SWEEP: … then every transition of every membership held by a person
+-- this script is removing, including the ones the application wrote.
+delete from public.season_membership_status_events
+ where season_membership_id in (
+   select m.id
+     from public.season_memberships m
+     join public.people p on p.id = m.person_id
+    where p.known_as = 'PILOT-LAN-74'
+      and m.person_id in (select person_id from pilot_lan_74_targets)
+ );
+
+-- 2. Memberships. The scenario's own row by identifier and person …
 delete from public.season_memberships
  where id = '00740074-0074-4074-8074-000000000006'
    and person_id = '00740074-0074-4074-8074-000000000001';
 
+-- SENTINEL-SWEEP: … then the memberships created through the interface —
+-- README step 3's on scenario person …0003, and step 4's on the new returner.
+delete from public.season_memberships
+ where person_id in (select person_id from pilot_lan_74_targets)
+   and person_id in (select id from public.people where known_as = 'PILOT-LAN-74');
+
+-- 3. Contact points. The scenario's own three by identifier and sentinel …
 delete from public.contact_points
  where id in (
    '00740074-0074-4074-8074-000000000002',
@@ -337,6 +394,19 @@ delete from public.contact_points
  )
    and source = 'PILOT-LAN-74';
 
+-- SENTINEL-SWEEP: … then anything the interface recorded against these people.
+delete from public.contact_points
+ where person_id in (select person_id from pilot_lan_74_targets)
+   and person_id in (select id from public.people where known_as = 'PILOT-LAN-74');
+
+-- SENTINEL-SWEEP: aliases. The scenario writes none and the preflight refuses
+-- if one exists on a scenario person, so this reaches only swept people.
+delete from public.person_aliases
+ where person_id in (select person_id from pilot_lan_74_targets)
+   and person_id in (select id from public.people where known_as = 'PILOT-LAN-74');
+
+-- 4. The people themselves, last. The scenario's two by identifier and
+--    sentinel …
 delete from public.people
  where id in (
    '00740074-0074-4074-8074-000000000001',
@@ -344,47 +414,10 @@ delete from public.people
  )
    and known_as = 'PILOT-LAN-74';
 
--- Then the sweep: the returner created through the interface during testing.
--- Sentinel-only by necessity, fenced by the preflight above, and still in
--- reverse dependency order — history, membership, contacts, aliases, person.
---
--- Each of the five statements below carries a sweep declaration comment. That
--- marker is not decoration: tests/pilot-data-contract.test.ts counts the
--- declarations and counts the deletes that carry no deterministic identifier,
--- and fails unless the two are equal. A scenario delete that lost its
--- identifier conjunct through a careless edit therefore fails a test instead of
--- quietly becoming a sweep.
-
--- SENTINEL-SWEEP: transitions of memberships held by sentinel-carrying people.
-delete from public.season_membership_status_events
- where season_membership_id in (
-   select m.id
-     from public.season_memberships m
-     join public.people p on p.id = m.person_id
-    where p.known_as = 'PILOT-LAN-74'
- );
-
--- SENTINEL-SWEEP: memberships held by sentinel-carrying people.
-delete from public.season_memberships
- where person_id in (
-   select id from public.people where known_as = 'PILOT-LAN-74'
- );
-
--- SENTINEL-SWEEP: contact points of sentinel-carrying people.
-delete from public.contact_points
- where person_id in (
-   select id from public.people where known_as = 'PILOT-LAN-74'
- );
-
--- SENTINEL-SWEEP: aliases of sentinel-carrying people.
-delete from public.person_aliases
- where person_id in (
-   select id from public.people where known_as = 'PILOT-LAN-74'
- );
-
--- SENTINEL-SWEEP: the sentinel-carrying people themselves.
+-- SENTINEL-SWEEP: … then the returner created through the interface.
 delete from public.people
- where known_as = 'PILOT-LAN-74';
+ where id in (select person_id from pilot_lan_74_targets)
+   and known_as = 'PILOT-LAN-74';
 
 -- ---------------------------------------------------------------------------
 -- Verification — read this before you commit

@@ -179,7 +179,11 @@ describe("the pilot artifacts are value-free", () => {
    * carves out of is "no REAL name, email, phone"; these are the values chosen
    * by standards bodies precisely so they can never be anybody's.
    */
-  const UNROUTABLE_EMAIL = /[\w.%+-]+@(?:[\w-]+\.)*example\.(?:invalid|com|org|net)\b/gi;
+  // The domain must END at the reserved label. `\b` would not do it:
+  // `someone@example.invalid.co.uk` is a domain a person can register, and with
+  // `\b` the match would strip everything up to `.invalid`, leaving a residue
+  // with no `@` in it that the email check below then cannot see.
+  const UNROUTABLE_EMAIL = /[\w.%+-]+@(?:[\w-]+\.)*example\.(?:invalid|com|org|net)(?![\w.-])/gi;
   const RESERVED_PHONE = /(?:\+44\s?|0)7700\s?900\d{3}\b/g;
 
   /** Every scenario's reserved block, for the files that belong to no one scenario. */
@@ -220,10 +224,21 @@ describe("the pilot artifacts are value-free", () => {
     // real UK mobile must still be caught.
     expect("avery@example.invalid".replace(UNROUTABLE_EMAIL, "")).toBe("");
     expect("avery@ox.ac.uk".replace(UNROUTABLE_EMAIL, "")).toBe("avery@ox.ac.uk");
-    expect("avery@example.invalid.co.uk".replace(UNROUTABLE_EMAIL, "")).not.toBe("");
     expect("+44 7700 900174".replace(RESERVED_PHONE, "")).toBe("");
     expect("07700 900174".replace(RESERVED_PHONE, "")).toBe("");
     expect("+44 7911 123456".replace(RESERVED_PHONE, "")).toBe("+44 7911 123456");
+
+    // A registrable domain that merely *starts* with a reserved label is not
+    // reserved, and the carve-out must leave it wholly intact — asserting on
+    // the residue is not enough, because a partial strip removes the `@` and
+    // makes the file-level check blind to what is left.
+    for (const routable of [
+      "brian@example.invalid.co.uk",
+      "brian@example.community",
+      "brian@example.nettle.org",
+    ]) {
+      expect(routable.replace(UNROUTABLE_EMAIL, "")).toBe(routable);
+    }
   });
 
   it.each(PUBLIC_SURFACE)("%s contains no email address", (file) => {
@@ -437,7 +452,63 @@ describe("the scenario scripts stay inside the conventions", () => {
    *   * the scenario's own test file must exercise every preflight refusal that
    *     fences it — which `tests/pilot-scenario-<issue>.test.ts` does.
    */
-  const SWEEP_DECLARATION = /--\s*SENTINEL-SWEEP:/gi;
+  const SWEEP_DECLARATION = /--[^\n]*SENTINEL-SWEEP:/i;
+
+  /**
+   * The only tables a sentinel-only sweep may target. Deny by default.
+   *
+   * Without this the exception is a general licence. A declared
+   * `delete from public.audit_events where entity_id in (select id from
+   * public.people where known_as = 'PILOT-…')` satisfies every other rule here,
+   * and deleting audit history is the one thing a pilot cleanup must never do:
+   * invariant M2 and review F13 both require a record to outlive its subject.
+   *
+   * A scenario needing to sweep something else needs Brian to widen this list,
+   * which is the point of it being a list.
+   */
+  const SWEEPABLE_TABLES = [
+    "public.people",
+    "public.person_aliases",
+    "public.contact_points",
+    "public.season_memberships",
+    "public.season_membership_status_events",
+  ];
+
+  /**
+   * Every delete, paired with whether a sweep declaration sits **immediately**
+   * above it.
+   *
+   * Adjacency is the whole mechanism. Counting declarations across the file —
+   * which is what this did first — lets one stray comment in a header license
+   * an identifier-less delete three hundred lines below, which is precisely the
+   * careless edit the declaration exists to catch.
+   *
+   * "Immediately above" means the unbroken run of comment lines directly
+   * preceding the statement, so a declaration may explain itself over two or
+   * three lines. A blank line ends the run: a header block separated from the
+   * statement by whitespace is not attached to it.
+   */
+  function parseDeletesWithDeclarations(
+    sql: string,
+  ): { table: string; where: string; conjuncts: string[]; declared: boolean }[] {
+    let cursor = 0;
+    return parseDeletes(sql).map((statement) => {
+      const at = sql.indexOf(`delete from ${statement.table}`, cursor);
+      cursor = at + 1;
+
+      const above = sql.slice(0, at).split("\n").reverse();
+      // Drop the partial line the statement starts on, then take the unbroken
+      // comment run. `takeWhile` semantics: the first line that is not a
+      // comment stops it, blank included.
+      const block: string[] = [];
+      for (const line of above.slice(1)) {
+        if (!line.trim().startsWith("--")) break;
+        block.push(line);
+      }
+
+      return { ...statement, declared: block.some((line) => SWEEP_DECLARATION.test(line)) };
+    });
+  }
 
   it("holds every pilot scenario to that shape, not just this one", () => {
     // Written generically because the runbook says this scenario is meant to be
@@ -448,55 +519,87 @@ describe("the scenario scripts stay inside the conventions", () => {
     for (const file of cleanups) {
       const content = read(file);
       const sentinel = new RegExp(`PILOT-${path.basename(path.dirname(file))}`, "i");
-      const declaredSweeps = (content.match(SWEEP_DECLARATION) ?? []).length;
-      let sweeps = 0;
 
-      for (const statement of parseDeletes(content)) {
+      for (const statement of parseDeletesWithDeclarations(content)) {
         // No disjunction, anywhere, in either kind of delete. An `or` between
         // the identifier and the sentinel turns "this row" into "every row
         // carrying the sentinel".
         expect(statement.where, `${file}: ${statement.table}`).not.toMatch(/\bor\b/i);
 
-        if (!statement.conjuncts.some(isDeterministicKey)) {
-          sweeps += 1;
-          // A sweep proves ownership by the sentinel and by nothing else, so
-          // the sentinel had better be in it.
+        if (statement.conjuncts.some(isDeterministicKey)) {
+          expect(statement.conjuncts.length, `${file}: ${statement.table}`).toBeGreaterThanOrEqual(
+            2,
+          );
+
+          // The other conjuncts prove ownership, by the sentinel or by the
+          // scenario's own parent identifiers.
+          const ownership = statement.conjuncts.filter((part) => !/^id /i.test(part));
           expect(
-            sentinel.test(statement.where),
-            `${file}: ${statement.table} is keyed on neither an identifier nor the sentinel`,
+            ownership.every((part) => sentinel.test(part) || /'[0-9a-f-]{36}'/i.test(part)),
+            `${file}: ${statement.table} has a conjunct that proves nothing`,
           ).toBe(true);
           continue;
         }
 
-        expect(statement.conjuncts.length, `${file}: ${statement.table}`).toBeGreaterThanOrEqual(2);
-
-        // The rest prove ownership, by the sentinel or by the scenario's own
-        // parent identifiers.
-        const ownership = statement.conjuncts.filter((part) => !/^id /i.test(part));
+        // A sweep proves ownership by the sentinel and by nothing else, so the
+        // sentinel had better be in it …
         expect(
-          ownership.every((part) => sentinel.test(part) || /'[0-9a-f-]{36}'/i.test(part)),
-          `${file}: ${statement.table} has a conjunct that proves nothing`,
+          sentinel.test(statement.where),
+          `${file}: ${statement.table} is keyed on neither an identifier nor the sentinel`,
         ).toBe(true);
-      }
 
-      expect(
-        sweeps,
-        `${file}: ${sweeps} sentinel-only delete(s) but ${declaredSweeps} '-- SENTINEL-SWEEP:' ` +
-          `declaration(s). Every sweep must be declared, and every declaration must be a sweep.`,
-      ).toBe(declaredSweeps);
+        // … it must be declared on the line directly above, so that a scenario
+        // delete which lost its identifier fails here rather than being
+        // silently promoted to a sweep …
+        expect(
+          statement.declared,
+          `${file}: ${statement.table} deletes without a deterministic identifier and carries ` +
+            `no '-- SENTINEL-SWEEP:' comment immediately above it`,
+        ).toBe(true);
+
+        // … and it may only reach a table on the allow-list.
+        expect(
+          SWEEPABLE_TABLES,
+          `${file}: a sentinel-only sweep may not target ${statement.table}`,
+        ).toContain(statement.table);
+      }
     }
+  });
+
+  it("does not let a stray declaration elsewhere in the file license a sweep", () => {
+    const forged =
+      "-- SENTINEL-SWEEP: nothing in particular.\n" +
+      "-- ... three hundred lines of header ...\n\n" +
+      "delete from public.contact_points where source = 'PILOT-LAN-74';\n";
+
+    const parsed = parseDeletesWithDeclarations(forged);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].conjuncts.some(isDeterministicKey)).toBe(false);
+    expect(parsed[0].declared, "a non-adjacent declaration must not count").toBe(false);
+  });
+
+  it("names audit_events as a table no scenario may sweep", () => {
+    const forged =
+      "-- SENTINEL-SWEEP: audit rows about sentinel-carrying people.\n" +
+      "delete from public.audit_events\n" +
+      " where entity_id in (select id from public.people where known_as = 'PILOT-LAN-74');\n";
+
+    const parsed = parseDeletesWithDeclarations(forged);
+    expect(parsed[0].declared).toBe(true);
+    expect(parsed[0].conjuncts.some(isDeterministicKey)).toBe(false);
+    expect(SWEEPABLE_TABLES).not.toContain(parsed[0].table);
   });
 
   it("refuses a sweep that was never declared", () => {
     // The declaration requirement is the only thing standing between "a delete
     // that deliberately cannot name its rows" and "a delete that lost its
     // identifier", so it is asserted against a forgery rather than trusted.
-    const undeclared = `delete from public.people where known_as = 'PILOT-LAN-74';`;
-    const parsed = parseDeletes(undeclared);
+    const undeclared = "delete from public.people where known_as = 'PILOT-LAN-74';";
+    const parsed = parseDeletesWithDeclarations(undeclared);
 
     expect(parsed).toHaveLength(1);
     expect(parsed[0].conjuncts.some(isDeterministicKey)).toBe(false);
-    expect((undeclared.match(SWEEP_DECLARATION) ?? []).length).toBe(0);
+    expect(parsed[0].declared).toBe(false);
   });
 
   it("does not accept a subquery as a deterministic key", () => {

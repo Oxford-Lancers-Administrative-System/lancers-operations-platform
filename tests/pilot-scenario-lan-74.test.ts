@@ -192,9 +192,13 @@ async function interfaceCreatedReturner(client: Client): Promise<string> {
      values ('Fenwold', 'Typedbyhand', $1) returning id`,
     [SENTINEL],
   );
+  // Email AND phone. UX-10 offers both fields and the wireframe shows both
+  // filled, so a fixture with only an email cannot see a guard that refuses on
+  // the phone — which is exactly the defect this fixture used to hide.
   await client.query(
     `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
-     values ($1, 'email', 'typed.by.hand@example.invalid', true, 'operator intake')`,
+     values ($1, 'email', 'typed.by.hand@example.invalid', true, 'operator intake'),
+            ($1, 'phone', '07700 900177', true, 'operator intake')`,
     [row.id],
   );
   return row.id;
@@ -603,6 +607,113 @@ describe("cleanup.sql preserves the durable pilot foundation", () => {
 // ---------------------------------------------------------------------------
 // The sentinel-only sweep
 // ---------------------------------------------------------------------------
+
+/**
+ * Walks README.md's four numbered steps exactly as a tester is told to.
+ *
+ * This suite had every property of the scripts covered in isolation and still
+ * shipped a cleanup that aborted on the documented happy path, because nothing
+ * exercised the steps as a *sequence*. Step 3 tells the tester to select
+ * candidate …0003 and create a membership through the interface; step 4 tells
+ * them to create a new returner with a phone as well as an email. Each was
+ * individually plausible; together they were the failure.
+ */
+async function walkReadmeSteps(client: Client, actorPersonId: string) {
+  const season = await openSeasonId(client);
+
+  // Step 3 — "Use selected person" on the second candidate.
+  const stepThree = await one<{ id: string }>(
+    client,
+    `insert into public.season_memberships (person_id, season_id, status, entry, confirmed_on)
+     values ($1, $2, 'confirmed', 'returning', current_date) returning id`,
+    [ID.personFullName, season],
+  );
+  for (const [from, to] of [
+    [null, "carried_forward"],
+    ["carried_forward", "confirmed"],
+  ] as const) {
+    await client.query(
+      `insert into public.season_membership_status_events
+         (season_membership_id, from_status, to_status, actor_person_id)
+       values ($1, $2::public.membership_status, $3::public.membership_status, $4)`,
+      [stepThree.id, from, to, actorPersonId],
+    );
+  }
+
+  // Step 4 — "Confirm this is a new person", with both contact fields filled.
+  const created = await interfaceCreatedReturner(client);
+  const stepFour = await one<{ id: string }>(
+    client,
+    `insert into public.season_memberships (person_id, season_id, status, entry, confirmed_on)
+     values ($1, $2, 'confirmed', 'returning', current_date) returning id`,
+    [created, season],
+  );
+  await client.query(
+    `insert into public.season_membership_status_events
+       (season_membership_id, from_status, to_status, actor_person_id)
+     values ($1, null, 'carried_forward', $2)`,
+    [stepFour.id, actorPersonId],
+  );
+
+  return { created, stepThreeMembership: stepThree.id, stepFourMembership: stepFour.id };
+}
+
+describe("the documented test sequence, end to end", () => {
+  it("cleans up completely after all four README steps", async () => {
+    const before = await snapshot(client);
+    await client.query(SETUP);
+    await walkReadmeSteps(client, durable.personId);
+
+    // The whole point: this must not raise.
+    await client.query(CLEANUP);
+
+    expect(await snapshot(client)).toEqual(before);
+  });
+
+  it("removes the membership step 3 creates on a scenario person", async () => {
+    await client.query(SETUP);
+    const { stepThreeMembership } = await walkReadmeSteps(client, durable.personId);
+    await client.query(CLEANUP);
+
+    const left = await one<{ n: string }>(
+      client,
+      "select count(*) as n from public.season_memberships where id = $1",
+      [stepThreeMembership],
+    );
+    expect(left.n).toBe("0");
+  });
+
+  it("is not stopped by the phone number step 4 invites", async () => {
+    // UX-10 has a Phone field. A cleanup tolerating only an `example.invalid`
+    // email would abort the moment a tester filled it in.
+    await client.query(SETUP);
+    const { created } = await walkReadmeSteps(client, durable.personId);
+
+    const phone = await one<{ n: string }>(
+      client,
+      "select count(*) as n from public.contact_points where person_id = $1 and kind = 'phone'",
+      [created],
+    );
+    expect(phone.n).toBe("1");
+
+    await client.query(CLEANUP);
+    expect(await scenarioRowCount(client)).toBe(0);
+  });
+
+  it("still refuses a contact value that is neither reserved nor its own", async () => {
+    // The carve-out is for values that cannot reach a human. A real address on
+    // a person this script would delete must still stop it.
+    await client.query(SETUP);
+    const { created } = await walkReadmeSteps(client, durable.personId);
+    await client.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1, 'email', 'someone.real@ox.ac.uk', false, 'operator intake')`,
+      [created],
+    );
+
+    await expectRejected(client, CLEANUP, [], "contact_points that this scenario did not create");
+  });
+});
 
 describe("the sweep of the returner created through the interface", () => {
   it("removes a sentinel-carrying person the scripts never created", async () => {
@@ -1021,7 +1132,7 @@ const GUARD_CASES: readonly GuardCase[] = [
   },
   {
     script: "cleanup",
-    message: "a scenario person holds a membership this scenario did not create",
+    message: "holds a membership in a season other than the open one",
     afterSetup: true,
     arrange: async (c) =>
       void (await c.query(

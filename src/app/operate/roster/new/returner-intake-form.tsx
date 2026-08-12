@@ -388,8 +388,17 @@ function MembershipRefusedStep({
         <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
           This person already has a current-season membership
         </Typography>
+        {/* UX-12's body copy names the person and the season — "Avery Fielding
+            is already a member for the 2026–27 season. No duplicate membership
+            was created." A service module cannot write that sentence: it does
+            not know which candidate the operator clicked. So the interface
+            composes it, and falls back to the service's own sentence in the one
+            case where the person is no longer in the candidate list. */}
         <Typography color="text.secondary" sx={{ mt: 1 }} data-testid="refusal-message">
-          {refusal.message}
+          {refusal.seasonLabel
+            ? `${refusal.personName} is already a member for the ${refusal.seasonLabel} season. ` +
+              "No duplicate membership was created."
+            : refusal.message}
         </Typography>
       </Box>
 

@@ -297,7 +297,11 @@ describe("the write, and how it ends", () => {
         knownAs: "Ave",
         email: null,
         phone: null,
-        currentMembership: { id: "55555555-5555-4555-8555-555555555555", status: "active" },
+        currentMembership: {
+          id: "55555555-5555-4555-8555-555555555555",
+          status: "active",
+          seasonLabel: "2026-27",
+        },
         matchedOn: ["given name"],
       },
     ]);
@@ -316,6 +320,9 @@ describe("the write, and how it ends", () => {
       step: "membership_refused",
       refusal: {
         personName: "Avery Fielding",
+        // Carried so UX-12 can render its approved sentence naming both the
+        // person and the season, which the service's message cannot do.
+        seasonLabel: "2026-27",
         membershipId: "55555555-5555-4555-8555-555555555555",
       },
     });

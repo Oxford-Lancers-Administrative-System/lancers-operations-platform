@@ -190,17 +190,32 @@ production can remove — which is worse than the exception.
 
 So a cleanup may contain deletes keyed on the sentinel alone, on these terms:
 
-- each one is preceded by a `-- SENTINEL-SWEEP:` comment saying what it removes.
-  The contract test counts declarations and counts identifier-less deletes, and
-  fails unless they are equal — so a scenario delete that loses its identifier
-  through a careless edit fails a test instead of silently becoming a sweep;
+- each one carries a `-- SENTINEL-SWEEP:` comment **in the unbroken run of
+  comment lines directly above it**, saying what it removes. A blank line ends
+  that run, so a declaration in a file header attaches to nothing — a scenario
+  delete that loses its identifier through a careless edit fails a test instead
+  of being silently promoted to a sweep;
+- it may only target `people`, `person_aliases`, `contact_points`,
+  `season_memberships` or `season_membership_status_events`. The list is an
+  allow-list and `audit_events` is deliberately not on it: history must outlive
+  its subject (invariant M2, review F13). Widening the list is Brian's decision;
 - the statement still contains no disjunction and still resolves through the
   scenario's own sentinel;
+- the set it removes is resolved **once**, in the preflight, and every guard and
+  every delete uses that same set. Re-deriving it at delete time would let a row
+  created between the preflight and the delete be removed having passed no guard
+  at all — these scripts run at READ COMMITTED in the SQL editor;
 - the script's preflight refuses outright if any row the sweep would remove has
   become anything other than disposable scenario data — an operator account, a
   role assignment, an actor in `audit_events` or in a status history, a merged
   identity, or a row with dependents;
 - every one of those refusals is exercised by the scenario's own test.
+
+**Deletes run in dependency order, not in "scenario rows first" order.** A
+scenario whose feature test creates rows through the interface will have
+children hanging off its own parents — a membership on a scenario person, say —
+and deleting the parents first aborts on `on delete restrict`. Order by what
+references what, and let both kinds of row be removed at each level together.
 
 [`scripts/pilot/lan-74/`](../scripts/pilot/lan-74/) is the worked example.
 **A sweep is narrow because it is guarded, never because nobody tried to widen

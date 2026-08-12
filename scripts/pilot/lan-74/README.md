@@ -78,17 +78,36 @@ Sign in as an approved pilot operator and open **`/operate/roster/new`**.
    review**, select `Fenwold Pilotworth`, and **Use selected person**. Expect
    UX-13 and a membership `Confirmed`, entry `Returning`.
 4. **Creating a new person.** Return to `/operate/roster/new` and enter a
-   person who is genuinely new. **In the "Known as" field type exactly
-   `PILOT-LAN-74`, and use an `@example.invalid` email address.** Choose
-   **Check for matches**, then **Confirm this is a new person**. Expect UX-13.
+   person who is genuinely new. Choose **Check for matches**, then **Confirm
+   this is a new person**. Expect UX-13.
 
-> **Step 4's "Known as" value is what makes the row removable.** The application
-> mints `people.id` itself, so `cleanup.sql` cannot know it in advance. The
-> sentinel in `known_as` is the only handle it has. A returner created without
-> it has to be found and removed by hand.
+### What to type in step 4, exactly
 
-Step 3 also leaves a membership on person `…0003`; `cleanup.sql` removes it
-along with everything else, because that person carries the sentinel.
+`cleanup.sql` can only remove this person if the values identify them, so use
+these and nothing else:
+
+| Field          | Value                                                        |
+| -------------- | ------------------------------------------------------------ |
+| **Known as**   | exactly `PILOT-LAN-74` — this is the only handle cleanup has |
+| **Email**      | any address ending `@example.invalid`                        |
+| **Phone**      | leave blank, or a number in `07700 900000`–`07700 900999`    |
+| Family / Given | anything clearly synthetic                                   |
+
+> **The application mints `people.id` itself**, so `cleanup.sql` cannot know it
+> in advance. `known_as` is the only handle. A returner created without the
+> sentinel has to be found and removed by hand.
+>
+> **The email and phone matter too.** Cleanup refuses to cascade-delete a
+> contact point it cannot account for, so a real-looking address or an ordinary
+> mobile number on this person will stop the whole script. `example.invalid` is
+> reserved by RFC 2606 and `07700 900xxx` is Ofcom's drama range; cleanup
+> recognises both and nothing else.
+
+Step 3 also leaves a membership on person `…0003`, and step 4 leaves a person, a
+membership, contact points and status history. `cleanup.sql` removes all of it —
+the deletes run in dependency order (history, memberships, contacts, aliases,
+then people) precisely so that step 3's membership cannot block the removal of
+the person holding it.
 
 ## How Brian runs the scripts
 
@@ -120,9 +139,22 @@ It is fenced by refusing outright, rather than by being narrow. `cleanup.sql`
 aborts if any person it would remove has an operator account, holds or granted
 a role assignment, is an actor in `audit_events` or on a membership transition,
 has been merged with another record, has a recruitment prospect record, carries
-a contact point the scenario did not create, or has anything hanging off a
-membership. Each of those refusals is exercised by
+a contact point the scenario cannot account for, holds a membership in a season
+other than the open one, or has anything hanging off a membership. Each of those
+refusals is exercised by
 [`tests/pilot-scenario-lan-74.test.ts`](../../../tests/pilot-scenario-lan-74.test.ts).
+
+The set the sweep deletes is resolved **once**, in the preflight, into a
+temporary table, and every guard and every delete then uses that same set. The
+Supabase SQL editor runs at READ COMMITTED, so re-deriving `known_as = 'PILOT-LAN-74'`
+at delete time could remove a person created through the interface _after_ the
+guards ran, having passed none of them.
+
+`tests/pilot-data-contract.test.ts` holds the general rule: a sentinel-only
+delete must be declared on the comment lines directly above it, and may only
+target `people`, `person_aliases`, `contact_points`, `season_memberships` or
+`season_membership_status_events`. `audit_events` is not on that list and never
+will be.
 
 `audit_events` is never deleted. The rows LAN-74 wrote about these people
 survive cleanup by design — `audit_events` is deliberately not foreign-keyed to

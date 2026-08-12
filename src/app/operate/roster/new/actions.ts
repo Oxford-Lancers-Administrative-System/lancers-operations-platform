@@ -96,7 +96,7 @@ export async function submitReturnerIntake(
     return {
       step: "candidates",
       values,
-      candidates: await findPersonCandidates(input),
+      candidates: await candidatesOrNone(input),
       formError: "Choose the person this is, or confirm that this is a new person.",
     };
   }
@@ -136,7 +136,7 @@ async function buildFailureState(
   input: Parameters<typeof findPersonCandidates>[0],
   selectedPersonId: FormDataEntryValue | null,
 ): Promise<IntakeState> {
-  const candidates = await findPersonCandidates(input);
+  const candidates = await candidatesOrNone(input);
 
   if (
     isServiceError(error) &&
@@ -153,6 +153,7 @@ async function buildFailureState(
         personName: person
           ? personLabel(person)
           : personLabel({ givenName: values.givenName, familyName: values.familyName || null }),
+        seasonLabel: person?.currentMembership?.seasonLabel ?? null,
         membershipId: person?.currentMembership?.id ?? null,
       },
     };
@@ -173,4 +174,26 @@ async function buildFailureState(
  */
 function safeMessage(error: unknown): string {
   return isServiceError(error) ? error.message : GENERIC_FAILURE;
+}
+
+/**
+ * The candidate list, or an empty one — never a throw.
+ *
+ * Both call sites are on a path that is *already* reporting a failure, and the
+ * commonest reason the write failed is a reason `findPersonCandidates` shares:
+ * no open season, or two of them. Letting it raise there would replace the
+ * sentence the operator needs with an unhandled server-action error, on exactly
+ * the submission where they most need to be told what happened.
+ *
+ * Returning nothing is safe here because an empty candidate list on a refusal
+ * screen is a display detail; the refusal itself is what the operator acts on.
+ */
+async function candidatesOrNone(
+  input: Parameters<typeof findPersonCandidates>[0],
+): Promise<Awaited<ReturnType<typeof findPersonCandidates>>> {
+  try {
+    return await findPersonCandidates(input);
+  } catch {
+    return [];
+  }
 }
