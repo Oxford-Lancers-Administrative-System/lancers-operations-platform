@@ -75,12 +75,25 @@ rule sits where, and why, is the invariant enforcement matrix in
 Do not re-implement a database constraint here, and do not push a policy
 decision into a migration.
 
+## What is built
+
+| Module      | Aggregate                                                      | Issue  |
+| ----------- | -------------------------------------------------------------- | ------ |
+| `audit.ts`  | `audit_events`                                                 | LAN-72 |
+| `roster.ts` | Returner intake — person, contact points and season membership | LAN-74 |
+
+`roster.ts` is the first module to carry a workflow rule, and it is worth
+reading as the pattern the rest follow: the duplicate check is a separate
+read-only call, the write takes an explicit operator and an explicit decision,
+everything commits in one transaction, and the membership's two status
+transitions go to `season_membership_status_events` rather than being duplicated
+into `audit_events` (register D9).
+
 ## What is not built yet
 
-This directory currently holds the substrate and `recordAudit` only. The rules
-`docs/architecture/data-model.md` § _Rules deliberately left to TypeScript_
-names — the non-empty confirmed audience (E1b), sequential report-version
-allocation (M5), legal state transitions and who may trigger them, atomic job
-claiming (M1), material-change detection (E2), archived-season immutability
-(M3) — are **not implemented**, and each has its own issue. Nothing in the
-application enforces them today.
+Most of it. The rules `docs/architecture/data-model.md` § _Rules deliberately
+left to TypeScript_ names — the non-empty confirmed audience (E1b), sequential
+report-version allocation (M5), the remaining state transitions and who may
+trigger them, atomic job claiming (M1), material-change detection (E2),
+archived-season immutability (M3) — are **not implemented**, and each has its
+own issue. Nothing in the application enforces them today.
