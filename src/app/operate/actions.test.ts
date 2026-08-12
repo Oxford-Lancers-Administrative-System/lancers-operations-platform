@@ -242,7 +242,16 @@ describe("row 6 — an action's refusal names the requirement, never the caller"
     givenCaller({ state: "active", operator: actor(HELD) });
 
     const refusal = await refusalFrom(action);
-    const disclosed = [refusal.message, refusal.rule ?? "", JSON.stringify(refusal.context ?? {})]
+    // Own enumerable properties too, for the same reason as `guards.test.ts`:
+    // an action that attaches the actor to the error it re-throws leaks just as
+    // far as one that writes the codes into the message. `message` is listed
+    // explicitly because `Error` defines it as own but non-enumerable.
+    const disclosed = [
+      refusal.message,
+      refusal.rule ?? "",
+      JSON.stringify(refusal.context ?? {}),
+      ...Object.entries(refusal).map(([key, value]) => `${key}=${JSON.stringify(value)}`),
+    ]
       .join(" | ")
       .toLowerCase();
 

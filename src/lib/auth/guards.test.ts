@@ -361,16 +361,42 @@ describe("row 6 — no refusal says anything about what the actor holds", () => 
     return NOISY_HOLDINGS.filter((code) => !capabilityRoleCodes(key).includes(code));
   }
 
-  /** Everything a caller could read off the refusal, flattened into one string. */
+  /**
+   * Everything a caller could read off the refusal, flattened into one string.
+   *
+   * The four fields `ServiceError` defines, **and** every own enumerable
+   * property. A refusal that carries the actor on an extra property —
+   * `Object.assign(refusal, { actor })`, the shape of "attach it so the error
+   * boundary can show something useful" — leaks exactly as far as one that puts
+   * the codes in the message, and reading only the named fields misses it.
+   * `message` stays listed explicitly because `Error` defines it as own but
+   * *non-enumerable*, so `Object.entries` does not see it.
+   */
   function everythingDisclosed(refusal: ServiceError): string {
     return [
       refusal.message,
       refusal.name,
       refusal.rule ?? "",
       JSON.stringify(refusal.context ?? {}),
+      ...Object.entries(refusal).map(([key, value]) => `${key}=${JSON.stringify(value)}`),
     ]
       .join(" | ")
       .toLowerCase();
+  }
+
+  /**
+   * Does `disclosed` name `term` as a term in its own right?
+   *
+   * Not a substring test. "vice-president" contains "president", so a plain
+   * `toContain` reports a privacy leak the moment someone narrows
+   * `membership_activation` — which `capabilities.ts` explicitly invites as
+   * "an edit to one array in this file". A false failure here is worse than no
+   * failure: the natural way to make it green again is to weaken the assertion,
+   * which is the exact defect this suite exists to prevent.
+   */
+  function discloses(disclosed: string, term: string): boolean {
+    const escaped = term.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?<![a-z-])${escaped}(?![a-z-])`).test(disclosed);
   }
 
   function expectDisclosesNothing(refusal: ServiceError, held: readonly string[]) {
@@ -378,11 +404,14 @@ describe("row 6 — no refusal says anything about what the actor holds", () => 
 
     expect(held.length, "the actor holds nothing, so this proves nothing").toBeGreaterThan(0);
     for (const code of held) {
-      expect(disclosed, `the refusal names the code "${code}" the actor holds`).not.toContain(code);
       expect(
-        disclosed,
-        `the refusal names "${LABELS[code]}", which is what the actor holds`,
-      ).not.toContain(LABELS[code].toLowerCase());
+        discloses(disclosed, code),
+        `the refusal names the code "${code}" the actor holds: ${disclosed}`,
+      ).toBe(false);
+      expect(
+        discloses(disclosed, LABELS[code]),
+        `the refusal names "${LABELS[code]}", which is what the actor holds: ${disclosed}`,
+      ).toBe(false);
     }
   }
 
