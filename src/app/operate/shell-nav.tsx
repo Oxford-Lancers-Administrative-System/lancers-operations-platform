@@ -44,8 +44,27 @@ export default function ShellNav({ operatorName }: { operatorName: string }) {
         top: { md: 0 },
         left: 0,
         zIndex: (theme) => theme.zIndex.appBar,
+        // From `md` up the panel is exactly one viewport tall and sticks to the
+        // top of it. All three of these lines are load-bearing:
+        //
+        //   * `height` — a definite height, not a `maxHeight` ceiling with no
+        //     floor. The ceiling alone let the panel collapse to its content,
+        //     which put a dark block at the top of a long white column. Brian
+        //     found that on a real screen; the render tests could not see it.
+        //   * `alignSelf` — the layout's flex parent says `alignItems:
+        //     "stretch"`, and a stretched flex item fills its container, which
+        //     is taller than the viewport on any page that scrolls. A sticky
+        //     element with nowhere to move never sticks, so the item opts out
+        //     of stretching and takes its height from the line above.
+        //   * `overflowY` — a definite height needs somewhere for the content
+        //     to go on a short viewport, or the operator's name is clipped off
+        //     the bottom rather than scrolled to.
+        //
+        // At `xs` none of this applies: the nav is a fixed bottom bar sized by
+        // its own content, and the main column clears it with padding.
         alignSelf: { md: "flex-start" },
-        maxHeight: { md: "100dvh" },
+        height: { md: "100dvh" },
+        overflowY: { md: "auto" },
         display: "flex",
         flexDirection: "column",
       }}

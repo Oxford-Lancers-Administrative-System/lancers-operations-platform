@@ -402,3 +402,141 @@ describe("row 6 — the refusal screen names the requirement, never the reader's
     expect(container.textContent).toContain("No club role is currently authorized");
   });
 });
+
+/**
+ * The shell's shape at each breakpoint — the defect Brian found by signing in
+ * and looking, which every test in this file was blind to.
+ *
+ * The sidebar had `maxHeight: { md: "100dvh" }` and `alignSelf: { md:
+ * "flex-start" }` and no floor, so the dark panel stopped at the end of its
+ * three navigation items and left a column of white beneath it down the whole
+ * left-hand side. Nothing here failed, because nothing here looked at layout.
+ *
+ * **What this test is, and what it is not.** jsdom applies no layout: it does
+ * not know the viewport is 960px wide, does not evaluate media queries, and
+ * computes no box for anything. So this reads the CSS Emotion actually emitted
+ * for the element and asserts the declarations inside each breakpoint's block.
+ * That makes it a regression guard on the *declared* style — it would have
+ * caught this defect and will catch it coming back — and it is **not** proof
+ * that the rendered page looks right. Only a person on a real screen can say
+ * that, which is precisely how this was found.
+ *
+ * One trap worth naming, because falling into it would make the whole thing
+ * decorative: `max-height:100dvh` **contains** the substring `height:100dvh`.
+ * An assertion written with `toContain` would have passed against the broken
+ * code. Every height assertion below is anchored to a declaration boundary.
+ */
+describe("row 16 — the shell's declared shape at each breakpoint", () => {
+  /** Every rule Emotion has written into the document, as text. */
+  function allStyleText(): string {
+    return Array.from(document.querySelectorAll("style"))
+      .map((tag) => tag.textContent ?? "")
+      .join("\n");
+  }
+
+  function emotionClassOf(element: Element): string {
+    const found = Array.from(element.classList).find((name) => name.startsWith("css-"));
+    if (!found) throw new Error(`no Emotion class on <${element.tagName.toLowerCase()}>`);
+    return found;
+  }
+
+  /**
+   * The declarations this element gets at a breakpoint. `minWidth: null` means
+   * the unconditional block. Returns every matching block joined, because
+   * Emotion is free to split one `sx` across several.
+   */
+  function declarationsAt(element: Element, minWidth: number | null): string {
+    const css = allStyleText();
+    const cls = emotionClassOf(element);
+    const selector = `\\.${cls}\\{([^}]*)\\}`;
+    const pattern =
+      minWidth === null
+        ? new RegExp(`(?:^|\\n)${selector}`, "g")
+        : new RegExp(`@media \\(min-width:${minWidth}px\\)\\{${selector}`, "g");
+
+    const blocks = [...css.matchAll(pattern)].map((match) => match[1]);
+    if (blocks.length === 0) {
+      throw new Error(
+        `no ${minWidth === null ? "base" : `min-width:${minWidth}px`} rule found for .${cls} — ` +
+          "the test cannot assert anything about a block it did not find",
+      );
+    }
+    return blocks.join(";");
+  }
+
+  /** `height:100dvh` as a declaration, never as the tail of `max-height:`. */
+  function declares(declarations: string, property: string, value: string): boolean {
+    return new RegExp(`(^|;)\\s*(-webkit-|-ms-)?${property}:\\s*${value}\\s*(;|$)`).test(
+      declarations,
+    );
+  }
+
+  async function renderShell() {
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
+    const { container } = render(await OperateLayout(layoutProps(<p>destination</p>)));
+    return {
+      nav: container.querySelector("nav")!,
+      main: container.querySelector("main")!,
+    };
+  }
+
+  it("gives the desktop sidebar a full viewport of height, not a ceiling", async () => {
+    const { nav } = await renderShell();
+    const desktop = declarationsAt(nav, 900);
+
+    // The floor. Without it the panel collapses to its content and the rest of
+    // the column is white — which is the whole of this defect.
+    expect(declares(desktop, "height", "100dvh"), `md declarations were: ${desktop}`).toBe(true);
+  });
+
+  it("keeps the desktop sidebar sticky at the top, and out of the stretch", async () => {
+    const { nav } = await renderShell();
+    const desktop = declarationsAt(nav, 900);
+
+    // Sticky and full-height have to hold together: the layout's flex parent
+    // stretches its children, and a stretched item fills a container taller
+    // than the viewport, leaving sticky nothing to do.
+    expect(declares(desktop, "position", "sticky")).toBe(true);
+    expect(declares(desktop, "top", "0")).toBe(true);
+    expect(declares(desktop, "align-self", "flex-start")).toBe(true);
+    expect(declares(desktop, "width", "226px")).toBe(true);
+  });
+
+  it("lets a short desktop viewport scroll the sidebar rather than clip it", async () => {
+    const { nav } = await renderShell();
+
+    expect(declares(declarationsAt(nav, 900), "overflow-y", "auto")).toBe(true);
+  });
+
+  it("leaves the phone bottom bar exactly as it was", async () => {
+    const { nav } = await renderShell();
+    const phone = declarationsAt(nav, 0);
+
+    expect(declares(phone, "position", "fixed")).toBe(true);
+    expect(declares(phone, "bottom", "0")).toBe(true);
+    expect(declares(phone, "width", "100%")).toBe(true);
+    // A bottom bar is as tall as its content. A full-height panel at 375px
+    // would be a dark screen with three links on it.
+    expect(declares(phone, "height", "100dvh")).toBe(false);
+    expect(declares(phone, "align-self", "flex-start")).toBe(false);
+  });
+
+  it("keeps the phone main column clear of the fixed bottom bar", async () => {
+    const { main } = await renderShell();
+
+    // 12 spacing units. If this goes, the last line of every page sits under
+    // the navigation and cannot be scrolled into view.
+    expect(declares(declarationsAt(main, 0), "padding-bottom", "96px")).toBe(true);
+    expect(declares(declarationsAt(main, 900), "padding-bottom", "32px")).toBe(true);
+  });
+
+  it("does not let the main column squeeze the sidebar or overflow sideways", async () => {
+    const { main } = await renderShell();
+    const base = declarationsAt(main, null);
+
+    // `min-width: 0` on a flex child is what stops a wide table pushing the
+    // whole layout past the viewport and producing horizontal scrolling.
+    expect(declares(base, "min-width", "0")).toBe(true);
+    expect(declares(base, "flex-grow", "1")).toBe(true);
+  });
+});
