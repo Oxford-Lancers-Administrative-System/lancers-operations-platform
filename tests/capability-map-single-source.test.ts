@@ -90,7 +90,31 @@ describe("row 8 — one module decides what a role may do", () => {
   });
 });
 
-describe("row 17 — no database privilege was added anywhere in this work", () => {
+/**
+ * Row 17 in part, and the part is the point.
+ *
+ * This block was called "no database privilege was added anywhere in this work"
+ * and a level-3 reviewer showed the name was a lie: they added a real migration
+ * granting `select on public.people to authenticated`, and the suite stayed
+ * green, because nothing here reads `supabase/migrations/`.
+ *
+ * It is renamed rather than widened, deliberately. The obvious widening — assert
+ * `supabase/migrations/` is unchanged relative to `main` — is a test that is
+ * **false for every legitimate future migration**, in a shared file that the
+ * next nine issues inherit. It would have to be deleted by whoever first adds a
+ * migration, which makes it a tripwire against doing correct work rather than a
+ * guard against incorrect work, and a test people learn to delete is worse than
+ * no test.
+ *
+ * What actually holds row 17 for LAN-73: `npm run check:rls` in CI, which reads
+ * every migration and fails on a table without RLS; the `git diff --stat` in the
+ * pull request, which shows no file under `supabase/migrations/` at all; and
+ * review. What this block holds is narrower and genuinely local — that the
+ * application surface this issue wrote reaches the database only through the
+ * service layer, and carries no SQL, no privilege change and no policy of its
+ * own. That property stays true and stays checkable as the slice grows.
+ */
+describe("the LAN-73 application surface carries no SQL and no privilege change", () => {
   const surface = files.filter(
     (file) =>
       file.startsWith(join("src", "app", "operate")) || file.startsWith(join("src", "lib", "auth")),
@@ -98,6 +122,14 @@ describe("row 17 — no database privilege was added anywhere in this work", () 
 
   it("found the LAN-73 surface", () => {
     expect(surface.length).toBeGreaterThan(5);
+  });
+
+  it("does not claim to check migrations, and does not check them", () => {
+    // Stated as an assertion so the scope cannot quietly drift back to the
+    // name it used to have. `supabase/migrations/` is out of this file's reach
+    // by design — see the note above for what covers it instead.
+    expect(surface.every((file) => file.startsWith(join("src", "")))).toBe(true);
+    expect(surface.some((file) => file.includes("supabase"))).toBe(false);
   });
 
   it("contains no grant, policy, or row-level-security statement", () => {
