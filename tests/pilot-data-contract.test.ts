@@ -735,72 +735,165 @@ describe("the pilot runbook represents elevated access truthfully", () => {
   }
 
   /**
-   * A grant template, parsed into the columns it writes and the value supplied
-   * for each — positionally.
+   * A statement that WRITES to `role_assignments`, parsed into the columns it
+   * assigns and the expression assigned to each.
    *
    * Asserting that the word `effective_to` appears somewhere in the block is not
    * a constraint on the grant: it survives in the `returning` clause of a
    * template that has stopped setting it, and `role_assignments.effective_to` is
    * nullable, so an open-ended grant would be accepted by the database in
    * silence. This is the one grant defect with no database backstop, so the
-   * column list and the supplied values are read separately and paired.
+   * assigned columns and the assigned values are read separately and paired.
    */
-  interface Grant {
-    columns: string[];
-    values: string[];
+  interface Write {
+    kind: "insert" | "update";
+    /** Column name → the expression assigned to it, in statement order. */
+    assignments: { column: string; value: string }[];
     statement: string;
   }
 
-  /** Every `insert into public.role_assignments` in the document, wherever it is. */
-  const GRANT_OPENER = /insert\s+into\s+public\.role_assignments/gi;
+  /**
+   * Everything that has to disappear before a statement can be read reliably:
+   * comments, blockquote and list markers, quoted identifiers, schema
+   * qualification, and line wrapping.
+   *
+   * LAN-99's instruction was to **normalise before parsing rather than add
+   * structural rules**, and this is where that is paid. Once `"public"."role_
+   * assignments"`, `public.role_assignments` and `role_assignments` are all the
+   * same six-and-a-bit characters, one small parser reads every spelling of the
+   * statement class instead of one literal opener.
+   *
+   * Blockquote markers go because a grant written inside a `>` block is still a
+   * grant. Fences are deliberately NOT considered: the fence tag, the fence
+   * itself, and the position in the file stay irrelevant, which is the ground
+   * won in LAN-93's third review round and must not be given back.
+   */
+  function normaliseSql(document: string): string {
+    return (
+      document
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .replace(/--[^\n]*/g, " ")
+        // Blockquote and unordered-list markers at the start of a line.
+        .replace(/^[ \t]*(?:[>*+-][ \t]?)+/gm, " ")
+        // `"role_assignments"` → `role_assignments`, for any quoted identifier.
+        .replace(/"([A-Za-z_][A-Za-z0-9_$]*)"/g, "$1")
+        .replace(/\s+/g, " ")
+        // Any schema qualifier immediately in front of the table.
+        .replace(/\b[A-Za-z_][A-Za-z0-9_$]*\s*\.\s*(role_assignments)\b/gi, "$1")
+    );
+  }
 
   /**
-   * Parses EVERY grant in the whole document — not one per fenced block, and not
-   * only the fences tagged `sql`.
+   * Anything that could be a write to `role_assignments`, whatever the verb.
    *
-   * The previous version filtered fences and then `exec`ed once per fence, so it
-   * read the first grant in each and no other. A second `insert into
-   * public.role_assignments` appended to an existing fence — the obvious next
-   * edit, with a section headed "Brian's own elevated access" directly below
-   * one — was never looked at. Scanning the raw document means the fence tag,
-   * the fence itself, and the position in the file are all irrelevant.
+   * **Deliberately broader than the parser below can read.** `merge`, `delete`,
+   * `truncate` and `copy` are in here precisely because `parseWrite` cannot
+   * decompose them: a statement in one of those forms is found, handed to a
+   * parser that refuses it, and the suite goes **red with a message**. That is
+   * the whole fix for the self-referential completeness check — the finder and
+   * the parser are no longer the same expression, and the direction they differ
+   * in is "shout", not "vanish".
    */
-  function parseAllGrants(document: string): Grant[] {
-    const flatDocument = document.replace(/--[^\n]*/g, "");
-    const grants: Grant[] = [];
+  const WRITE_STATEMENT =
+    /\b(?:insert\s+into|update|merge\s+into|upsert\s+into|delete\s+from|truncate(?:\s+table)?|copy)\s+role_assignments\b/gi;
 
-    for (const opener of flatDocument.matchAll(GRANT_OPENER)) {
-      const start = opener.index ?? 0;
-      const terminator = flatDocument.indexOf(";", start);
-      const statement = flatDocument
-        .slice(start, terminator === -1 ? flatDocument.length : terminator + 1)
-        .replace(/\s+/g, " ")
-        .trim();
+  /** Truncated for a readable failure message; the file is what you go and read. */
+  const quote = (statement: string): string =>
+    statement.length > 240 ? `${statement.slice(0, 240)}…` : statement;
 
-      const columnList = /insert\s+into\s+public\.role_assignments\s*\(([^)]*)\)/i.exec(statement);
-      if (!columnList) throw new Error(`Grant has no column list: ${statement}`);
+  /** A candidate statement, from its verb to its terminator. */
+  function candidateStatements(normalised: string): { text: string; index: number }[] {
+    const found: { text: string; index: number }[] = [];
+    for (const match of normalised.matchAll(WRITE_STATEMENT)) {
+      const start = match.index;
+      const terminator = normalised.indexOf(";", start);
+      found.push({
+        index: start,
+        text: normalised
+          .slice(start, terminator === -1 ? normalised.length : terminator + 1)
+          .trim(),
+      });
+    }
+    return found;
+  }
+
+  /**
+   * Decomposes one candidate. **Throws on anything it cannot read**, so an
+   * unrecognised form fails loudly instead of slipping past unconstrained.
+   */
+  function parseWrite(statement: string): Write {
+    if (/^insert\s+into\b/i.test(statement)) {
+      const columnList = /^insert\s+into\s+role_assignments\s*\(([^)]*)\)/i.exec(statement);
+      if (!columnList) {
+        throw new Error(
+          `A write to role_assignments has no column list, so nothing can be paired with it: ${quote(statement)}`,
+        );
+      }
 
       // Either `insert … select <values> from …` or `insert … values (<values>)`.
       // `returning` is deliberately outside both: it reports, it does not write.
       const fromSelect = /\)\s*select\s+(.*?)\s+from\s+/i.exec(statement);
       const fromValues = /\)\s*values\s*\((.*?)\)\s*(?:returning|;|$)/i.exec(statement);
       const valueList = fromSelect?.[1] ?? fromValues?.[1];
-      if (valueList === undefined) throw new Error(`Grant supplies no values: ${statement}`);
+      if (valueList === undefined) {
+        throw new Error(`A write to role_assignments supplies no values: ${quote(statement)}`);
+      }
 
-      grants.push({
-        columns: splitExpressions(columnList[1]),
-        values: splitExpressions(valueList),
+      const columns = splitExpressions(columnList[1]);
+      const values = splitExpressions(valueList);
+      if (columns.length !== values.length) {
+        throw new Error(
+          `A write to role_assignments pairs ${columns.length} columns with ${values.length} values: ${quote(statement)}`,
+        );
+      }
+
+      return {
+        kind: "insert",
+        assignments: columns.map((column, index) => ({ column, value: values[index] })),
         statement,
-      });
+      };
     }
 
-    return grants;
+    if (/^update\b/i.test(statement)) {
+      const setClause = /^update\s+role_assignments\s+set\s+([\s\S]*)$/i.exec(statement);
+      if (!setClause) {
+        throw new Error(`An update of role_assignments has no set clause: ${quote(statement)}`);
+      }
+
+      // `where` and `returning` restrict and report; neither assigns anything.
+      const assigned = setClause[1]
+        .replace(/;\s*$/, "")
+        .split(/\s+where\s+/i)[0]
+        .split(/\s+returning\s+/i)[0];
+
+      return {
+        kind: "update",
+        assignments: splitExpressions(assigned).map((part) => {
+          const pair = /^([A-Za-z_][A-Za-z0-9_$]*)\s*=\s*([\s\S]+)$/.exec(part.trim());
+          if (!pair) {
+            throw new Error(
+              `An update of role_assignments assigns something this check cannot read — "${part.trim()}" in: ${quote(statement)}`,
+            );
+          }
+          return { column: pair[1].toLowerCase(), value: pair[2].trim() };
+        }),
+        statement,
+      };
+    }
+
+    throw new Error(
+      `A statement writes role_assignments in a form this check cannot read, so nothing constrains it: ${quote(statement)}`,
+    );
   }
 
-  /** The value the template supplies for a named column, or undefined. */
-  function valueFor(grant: Grant, column: string): string | undefined {
-    const index = grant.columns.indexOf(column);
-    return index === -1 ? undefined : grant.values[index];
+  /** Every write to `role_assignments` in one already-normalised document. */
+  function findWrites(normalised: string): Write[] {
+    return candidateStatements(normalised).map((candidate) => parseWrite(candidate.text));
+  }
+
+  /** The expression assigned to a named column, or undefined. */
+  function valueFor(write: Write, column: string): string | undefined {
+    return write.assignments.find((assignment) => assignment.column === column)?.value;
   }
 
   /** Is this value read from `public.roles`, rather than asserted by the author? */
@@ -809,73 +902,400 @@ describe("the pilot runbook represents elevated access truthfully", () => {
     return /^r\./i.test(value) || /select[\s\S]*from\s+public\.roles\b/i.test(value);
   }
 
-  it("parses every grant in the document, not the first one in each fence", () => {
-    const occurrences = (runbook.match(/insert\s+into\s+public\.role_assignments/gi) ?? []).length;
-    const grants = parseAllGrants(runbook);
+  /**
+   * An end date, anchored at the start of the assigned expression.
+   *
+   * Anchored on purpose. An unterminated statement runs on into whatever
+   * follows it in the document, and an unanchored pattern would happily find a
+   * `date '` fifty words later and call an open-ended grant time-bounded.
+   */
+  const END_DATE = /^(?:date\s+'|timestamptz?\s+'|current_date\b|now\(\)|'[^']*'\s*::|<[a-z-]*>)/i;
 
-    expect(occurrences).toBeGreaterThanOrEqual(1);
-    // Self-detecting: a parser that reads one grant per fence, or skips a fence
-    // it does not recognise, disagrees with a plain count of the document.
-    expect(
-      grants.length,
-      "some grant in this document was never parsed, so nothing below constrains it",
-    ).toBe(occurrences);
+  /** What a write may be wrong about. Two categories, one per surviving rule. */
+  interface Violation {
+    rule: "truthful" | "time-bound";
+    message: string;
+  }
 
-    for (const grant of grants) {
-      // Without this, every positional assertion below could be reading the
-      // wrong expression and still agreeing with itself.
-      expect(grant.values.length).toBe(grant.columns.length);
-    }
-  });
+  /**
+   * Every rule the grant templates must satisfy, expressed once.
+   *
+   * The `it` blocks below assert this is empty for the real documents; the
+   * injection block at the end feeds it deliberately broken copies of the same
+   * documents and requires it to object. One implementation, judged both ways —
+   * a rule that is only ever shown correct input is a rule nobody has tested.
+   *
+   * **How the rule is expressed for an `update`.** An `update` has no column
+   * list, so the positional pairing an `insert` needs does not apply to it: its
+   * assignments come from the `set` clause, and the rule is about the **value
+   * assigned**, not about which columns are present. Concretely — an `insert`
+   * creates the assignment, so it must supply `role_id`, `scope`,
+   * `is_constitutional_office`, `effective_from` and `effective_to`; an
+   * `update` need supply none of them, but whichever of them it *does* assign
+   * is held to exactly the same standard. That is what makes
+   * `set effective_to = null` a violation while the deprovisioning template's
+   * `set effective_to = date '<end-date>'` stays correct, and it is why an
+   * `update` that only touches `note` is not treated as a grant.
+   */
+  function violations(normalised: string): Violation[] {
+    const found: Violation[] = [];
 
-  it("never templates a grant of a constitutional office", () => {
-    const grants = parseAllGrants(runbook);
-    expect(grants.length).toBeGreaterThanOrEqual(1);
+    for (const write of findWrites(normalised)) {
+      const columns = write.assignments.map((assignment) => assignment.column);
 
-    for (const grant of grants) {
       // The office flag and the scope are read FROM the role, never asserted by
       // the person writing the grant. A literal here is how a template starts
       // disagreeing with `public.roles` about what a seat is — and an
       // authorization record that disagrees with the seat is the untruthful
       // grant this whole section exists to prevent.
       for (const column of ["role_id", "scope", "is_constitutional_office"]) {
-        const value = valueFor(grant, column);
-        expect(grant.columns, `a grant must write ${column}`).toContain(column);
-        expect(
-          isDerivedFromTheRole(value),
-          `${column} must be read from public.roles, not written as ${value}`,
-        ).toBe(true);
+        if (write.kind === "insert" && !columns.includes(column)) {
+          found.push({
+            rule: "truthful",
+            message: `a grant must write ${column}: ${quote(write.statement)}`,
+          });
+          continue;
+        }
+        if (!columns.includes(column)) continue;
+        if (!isDerivedFromTheRole(valueFor(write, column))) {
+          found.push({
+            rule: "truthful",
+            message: `${column} must be read from public.roles, not written as ${valueFor(write, column)}: ${quote(write.statement)}`,
+          });
+        }
       }
 
       // And no constitutional office is named anywhere in the statement —
       // including the `where r.code = …` that chooses which seat is granted.
-      expect(grant.statement).not.toMatch(/'(president|vice_president|secretary|treasurer)'/i);
+      if (/'(president|vice_president|secretary|treasurer)'/i.test(write.statement)) {
+        found.push({
+          rule: "truthful",
+          message: `a constitutional office is named in: ${quote(write.statement)}`,
+        });
+      }
+
+      // An insert creates the assignment, so it must bound it at that moment.
+      if (write.kind === "insert") {
+        for (const column of ["effective_from", "effective_to"]) {
+          if (!columns.includes(column)) {
+            found.push({
+              rule: "time-bound",
+              message: `a grant must write ${column}: ${quote(write.statement)}`,
+            });
+          }
+        }
+      }
+
+      // And whoever assigns `effective_to` must assign it an end date. A column
+      // present with `null` or `default` is an open-ended grant wearing the
+      // right column name, and `role_assignments.effective_to` is nullable —
+      // the database accepts it in silence, so this assertion is the only
+      // control, for the `insert` that opens access and for the `update` that
+      // could re-open it alike.
+      if (columns.includes("effective_to")) {
+        const end = valueFor(write, "effective_to");
+        if (end === undefined || end.trim() === "" || !END_DATE.test(end.trim())) {
+          found.push({
+            rule: "time-bound",
+            message: `effective_to must be an end date, not "${end}", in: ${quote(write.statement)}`,
+          });
+        }
+      }
+    }
+
+    return found;
+  }
+
+  /**
+   * The files this scan reads, and why these (matrix row 7).
+   *
+   * `docs/pilot-data-runbook.md` is the procedure Brian executes by hand against
+   * the one production database. `docs/pilot-data-manifest.md` records what is
+   * in hosted and mentions the table zero times today — it is scanned so that
+   * the first grant written into it is constrained on the day it appears rather
+   * than the day somebody remembers. Everything under `scripts/pilot/` is
+   * scanned too, README and SQL alike: `cleanup.sql` already touches
+   * `role_assignments` (reads only, today) and was previously outside the scan
+   * entirely, which the issue calls out. Enumerating the directory rather than
+   * the files means a future `scripts/pilot/<issue>/` is scanned the moment it
+   * is added, with nobody having to remember this list exists.
+   *
+   * What stays out, said plainly: `supabase/migrations/` and `src/`. Those are
+   * code, not a hand-executed procedure, and the grants they contain — none
+   * today — would be reviewed as code and proved against the local database.
+   */
+  const GRANT_SCAN: readonly string[] = [
+    PILOT_RUNBOOK,
+    PILOT_MANIFEST,
+    ...filesUnder("scripts/pilot"),
+  ];
+
+  it("scans every hand-executed pilot document, and finds writes in them", () => {
+    expect(GRANT_SCAN).toContain(PILOT_RUNBOOK);
+    expect(GRANT_SCAN).toContain(PILOT_MANIFEST);
+    expect(GRANT_SCAN).toContain("scripts/pilot/lan-93/README.md");
+    expect(GRANT_SCAN).toContain("scripts/pilot/lan-93/cleanup.sql");
+
+    const writes = GRANT_SCAN.flatMap((file) => findWrites(normaliseSql(read(file))));
+
+    // The templated grant, and the deprovisioning update that ends it. A pass
+    // produced by finding nothing at all is not a pass.
+    expect(writes.length, "no write to role_assignments was found anywhere").toBeGreaterThanOrEqual(
+      2,
+    );
+    expect(writes.map((write) => write.kind)).toContain("insert");
+    expect(writes.map((write) => write.kind)).toContain("update");
+
+    for (const write of writes) {
+      expect(write.assignments.length).toBeGreaterThan(0);
     }
   });
 
-  it("time-bounds every grant at the moment it is made", () => {
-    const grants = parseAllGrants(runbook);
-    expect(grants.length).toBeGreaterThanOrEqual(1);
+  it("cannot be satisfied by a statement it failed to recognise", () => {
+    /**
+     * The self-check, made non-self-referential (matrix row 2).
+     *
+     * The old version counted candidates with `/insert\s+into\s+public\.role_
+     * assignments/` and parsed with the same expression, so "some grant was
+     * never parsed" was true by construction for every statement the expression
+     * could not see. Here the count comes from a pattern that recognises verbs
+     * the parser deliberately cannot decompose, and the parser throws rather
+     * than skipping — so the two can only disagree loudly.
+     *
+     * The second half is the honest limit and where the tension sits: a write
+     * whose verb is not adjacent to the table would be missed by the finder
+     * too. So every *mention* of the identifier that is not inside a found
+     * statement is checked for a writing verb close in front of it. That is
+     * deliberately conservative — it will also fire on prose that puts "insert"
+     * within thirty characters of the table name, and the answer to that is to
+     * reword the sentence or widen the finder, never to loosen this. Prose that
+     * merely names the table, a heading, a column reference and
+     * `select … from role_assignments` all stay green, which is the other half
+     * of the requirement.
+     */
+    const MENTION = /\brole_assignments\b/gi;
+    const WRITING_VERB_JUST_BEFORE = /\b(insert|update|merge|upsert|copy|truncate)\b[^;]{0,30}$/i;
 
-    for (const grant of grants) {
-      expect(grant.columns, "a grant must write effective_to").toContain("effective_to");
-      expect(grant.columns).toContain("effective_from");
+    for (const file of GRANT_SCAN) {
+      const normalised = normaliseSql(read(file));
+      const statements = candidateStatements(normalised);
 
-      // And the value in its slot must be an end date. A column present with
-      // `null` or `default` is an open-ended grant wearing the right column
-      // name, and `role_assignments.effective_to` is nullable — the database
-      // accepts it in silence, so this assertion is the only control.
-      const end = valueFor(grant, "effective_to");
-      expect(end, "effective_to must be supplied a value").toBeDefined();
-      expect(end?.trim()).not.toBe("");
-      expect(end, "effective_to must not be null or defaulted").not.toMatch(/^(null|default)$/i);
-      expect(end, "effective_to must be an end date").toMatch(
-        /<effective-to>|date\s+'|::date|current_date|now\(\)/i,
-      );
+      expect(() => statements.map((candidate) => parseWrite(candidate.text))).not.toThrow();
+
+      for (const mention of normalised.matchAll(MENTION)) {
+        const inside = statements.some(
+          (candidate) =>
+            mention.index >= candidate.index &&
+            mention.index < candidate.index + candidate.text.length,
+        );
+        if (inside) continue;
+
+        const before = normalised.slice(Math.max(0, mention.index - 40), mention.index);
+        expect(
+          before,
+          `${file}: a mention of role_assignments has a writing verb in front of it but was not parsed as a statement — widen the finder rather than the tolerance. Context: "${before}"`,
+        ).not.toMatch(WRITING_VERB_JUST_BEFORE);
+      }
     }
+  });
+
+  it("never templates a grant of a constitutional office", () => {
+    const writes = GRANT_SCAN.flatMap((file) => findWrites(normaliseSql(read(file))));
+    expect(writes.length).toBeGreaterThanOrEqual(2);
+
+    for (const write of writes) {
+      if (write.kind === "insert") {
+        for (const column of ["role_id", "scope", "is_constitutional_office"]) {
+          const value = valueFor(write, column);
+          const columns = write.assignments.map((assignment) => assignment.column);
+          expect(columns, `a grant must write ${column}`).toContain(column);
+          expect(
+            isDerivedFromTheRole(value),
+            `${column} must be read from public.roles, not written as ${value}`,
+          ).toBe(true);
+        }
+      }
+
+      expect(write.statement).not.toMatch(/'(president|vice_president|secretary|treasurer)'/i);
+    }
+
+    expect(
+      GRANT_SCAN.flatMap((file) => violations(normaliseSql(read(file)))).filter(
+        (violation) => violation.rule === "truthful",
+      ),
+    ).toEqual([]);
+  });
+
+  it("time-bounds every grant at the moment it is made", () => {
+    const writes = GRANT_SCAN.flatMap((file) => findWrites(normaliseSql(read(file))));
+    expect(writes.length).toBeGreaterThanOrEqual(2);
+
+    for (const write of writes) {
+      const columns = write.assignments.map((assignment) => assignment.column);
+
+      if (write.kind === "insert") {
+        expect(columns, "a grant must write effective_to").toContain("effective_to");
+        expect(columns).toContain("effective_from");
+      }
+
+      if (columns.includes("effective_to")) {
+        const end = valueFor(write, "effective_to");
+        expect(end, "effective_to must be supplied a value").toBeDefined();
+        expect(end?.trim()).not.toBe("");
+        expect(end, "effective_to must not be null or defaulted").not.toMatch(/^(null|default)\b/i);
+        expect(end, "effective_to must be an end date").toMatch(END_DATE);
+      }
+    }
+
+    expect(
+      GRANT_SCAN.flatMap((file) => violations(normaliseSql(read(file)))).filter(
+        (violation) => violation.rule === "time-bound",
+      ),
+    ).toEqual([]);
 
     expect(runbook).toMatch(/`effective_to` is set\s+in the same statement/i);
     expect(runbook).toMatch(/expires or is deactivated at handoff/i);
+  });
+
+  // -------------------------------------------------------------------------
+  // The check is shown broken documents, so it cannot rot into a no-op
+  // -------------------------------------------------------------------------
+
+  describe("an open-ended grant turns this suite red, however it is written", () => {
+    /** The real runbook with one thing changed. Nothing on disk is touched. */
+    const mutated = (find: string | RegExp, replace: string): string => {
+      const result = runbook.replace(find, replace);
+      expect(result, `the injection did not apply: ${find}`).not.toBe(runbook);
+      return normaliseSql(result);
+    };
+
+    /** An open-ended grant in every spelling the issue names. */
+    const OPEN_ENDED = {
+      "an unqualified insert, relying on search_path":
+        "insert into role_assignments (person_id, role_id, scope, is_constitutional_office, " +
+        "committee_year_id, effective_from, effective_to, note) values " +
+        "('p', 'r', 'committee_year', false, 'c', current_date, null, 'x');",
+      "a fully quoted insert":
+        'insert into "public"."role_assignments" (person_id, role_id, scope, ' +
+        "is_constitutional_office, committee_year_id, effective_from, effective_to, note) values " +
+        "('p', 'r', 'committee_year', false, 'c', current_date, null, 'x');",
+      "an unqualified-and-quoted insert":
+        'insert into "role_assignments" (person_id, role_id, scope, is_constitutional_office, ' +
+        "committee_year_id, effective_from, effective_to, note) values " +
+        "('p', 'r', 'committee_year', false, 'c', current_date, null, 'x');",
+      "a new open-ended update":
+        "update public.role_assignments set effective_to = null where person_id = 'p';",
+      "an update that clears it with a default":
+        "update role_assignments set effective_to = default where person_id = 'p';",
+      "an insert … select with a null end date":
+        "insert into public.role_assignments (person_id, role_id, scope, " +
+        "is_constitutional_office, committee_year_id, effective_from, effective_to, note) select " +
+        "'p', r.id, r.scope, r.is_constitutional_office, 'c', current_date, null, 'x' " +
+        "from public.roles r where r.code = 'it_officer';",
+    };
+
+    it("the runbook as it stands today is clean", () => {
+      // Row 5. A false positive on the correct document is a failure of this
+      // check, not a finding about the runbook.
+      expect(violations(normaliseSql(runbook))).toEqual([]);
+      for (const file of GRANT_SCAN) {
+        expect(violations(normaliseSql(read(file))), `${file} must be clean today`).toEqual([]);
+      }
+    });
+
+    it("catches the mutated deprovisioning template, which adds no statement at all", () => {
+      // The sharpest injection: it changes a literal in a template that already
+      // exists, so anything keyed on counting new statements misses it entirely.
+      const document = mutated("set effective_to = date '<end-date>'", "set effective_to = null");
+      const found = violations(document);
+      expect(found.map((violation) => violation.message).join("\n")).toMatch(
+        /effective_to must be an end date/,
+      );
+      expect(found.some((violation) => violation.rule === "time-bound")).toBe(true);
+    });
+
+    it.each(Object.entries(OPEN_ENDED))("catches %s", (_label, statement) => {
+      // Appended to the end of the document, outside any fence — the position,
+      // the fence and the fence's tag are all irrelevant by construction.
+      const found = violations(normaliseSql(`${runbook}\n\n${statement}\n`));
+      expect(found.map((violation) => violation.message).join("\n")).toMatch(
+        /effective_to must be an end date/,
+      );
+    });
+
+    it.each([
+      ["inside a blockquote", (sql: string) => `> ${sql}`],
+      ["inside an HTML comment", (sql: string) => `<!--\n${sql}\n-->`],
+      ["indented as a code block", (sql: string) => `    ${sql}`],
+      ["in a fence tagged text", (sql: string) => "```text\n" + sql + "\n```"],
+      ["in a fence tagged sql", (sql: string) => "```sql\n" + sql + "\n```"],
+      ["outside any fence at all", (sql: string) => sql],
+    ])("catches an open-ended grant %s", (_label, wrap) => {
+      // The regression row. Fence tag, fence presence and position must all stay
+      // irrelevant — this is the ground won in LAN-93's third review round.
+      const statement = OPEN_ENDED["a new open-ended update"];
+      const found = violations(normaliseSql(`${runbook}\n\n${wrap(statement)}\n`));
+      expect(found.length, `an open-ended grant ${_label} was not caught`).toBeGreaterThan(0);
+    });
+
+    it("catches a grant of a constitutional office, and one asserting its own scope", () => {
+      const office = violations(
+        normaliseSql(
+          `${runbook}\n\ninsert into role_assignments (person_id, role_id, scope, ` +
+            "is_constitutional_office, committee_year_id, effective_from, effective_to, note) " +
+            "select 'p', r.id, r.scope, r.is_constitutional_office, 'c', current_date, " +
+            "date '2026-12-31', 'x' from public.roles r where r.code = 'president';\n",
+        ),
+      );
+      expect(office.map((violation) => violation.message).join("\n")).toMatch(
+        /a constitutional office is named/,
+      );
+
+      const asserted = violations(
+        normaliseSql(
+          `${runbook}\n\ninsert into role_assignments (person_id, role_id, scope, ` +
+            "is_constitutional_office, committee_year_id, effective_from, effective_to, note) " +
+            "values ('p', 'r', 'committee_year', true, 'c', current_date, date '2026-12-31', 'x');\n",
+        ),
+      );
+      expect(asserted.map((violation) => violation.message).join("\n")).toMatch(
+        /is_constitutional_office must be read from public\.roles/,
+      );
+    });
+
+    it("refuses a write it cannot decompose, instead of ignoring it", () => {
+      // A form the parser was never taught. It must shout, not vanish — this is
+      // the property that stops the completeness check being satisfied by
+      // construction ever again.
+      for (const statement of [
+        "merge into role_assignments using x on true when matched then update set effective_to = null;",
+        "copy role_assignments from stdin;",
+        "insert into role_assignments select * from staging;",
+        "update role_assignments set (effective_to, note) = (null, 'x') where person_id = 'p';",
+      ]) {
+        expect(
+          () => findWrites(normaliseSql(`${runbook}\n\n${statement}\n`)),
+          `this check must object to: ${statement}`,
+        ).toThrow(/role_assignments/);
+      }
+    });
+
+    it("stays green on reads and on prose that merely names the table", () => {
+      // The other half of row 2: too broad is a test that is red on a correct
+      // document, which is how it gets weakened later.
+      for (const harmless of [
+        "select id, effective_to from public.role_assignments where person_id = 'p';",
+        "select 1 from role_assignments ra join people p on p.id = ra.person_id;",
+        "Access is `role_assignments`, and it is effective-dated.",
+        "## What `role_assignments` records",
+        "| Examples | `operator_accounts`, `role_assignments` |",
+        "`cleanup.sql` also writes to `role_assignments` and is read by this scan.",
+      ]) {
+        const document = normaliseSql(`${runbook}\n\n${harmless}\n`);
+        expect(violations(document), `must stay green: ${harmless}`).toEqual([]);
+        expect(() => findWrites(document)).not.toThrow();
+      }
+    });
   });
 
   it("deprovisions by end-dating and deactivating, never by deleting", () => {
