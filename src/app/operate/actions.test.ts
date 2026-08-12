@@ -225,3 +225,31 @@ describe("row 10 — an attendance recorder is refused every other action", () =
     expect(refusal.message).not.toContain("Head Coach");
   });
 });
+
+describe("row 6 — an action's refusal names the requirement, never the caller", () => {
+  /**
+   * The same rule as `guards.test.ts`, asserted at the surface a browser can
+   * actually reach. The guard is where the message is built and where that
+   * suite proves the property; this is here because a server action is the
+   * thing an attacker calls, and an action that one day catches a refusal and
+   * re-throws it "with a bit more detail for the operator" would defeat the
+   * rule without touching the guard at all.
+   */
+  const HELD = ["it_officer", "social_secretary", "kit_manager"];
+  const LABELS = ["IT Officer", "Social Secretary", "Kit Manager"];
+
+  it.each(ACTIONS)("$name tells the caller nothing about their own roles", async ({ action }) => {
+    givenCaller({ state: "active", operator: actor(HELD) });
+
+    const refusal = await refusalFrom(action);
+    const disclosed = [refusal.message, refusal.rule ?? "", JSON.stringify(refusal.context ?? {})]
+      .join(" | ")
+      .toLowerCase();
+
+    for (const code of [...HELD, ...LABELS]) {
+      expect(disclosed, `the refusal names "${code}"`).not.toContain(code.toLowerCase());
+    }
+    // Non-vacuous: it is a real refusal that really does say what is needed.
+    expect(refusal.message).toContain("You do not have access to this action.");
+  });
+});

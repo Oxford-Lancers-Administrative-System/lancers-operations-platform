@@ -99,10 +99,15 @@ export function assertRole(
     throw new NotPermitted(OPERATOR_REQUIRED_MESSAGE, { rule: OPERATOR_REQUIRED_RULE });
   }
 
-  // An empty `codes` is refused, not waved through. A guard called with no
-  // required role is a guard whose requirement was never decided, and the
-  // fail-open reading of it hands the action to everybody.
   const held = operator.roleCodes.some((code) => codes.includes(code));
+
+  // The `codes.length === 0` term is redundant *today* and is kept on purpose:
+  // with `some`, an empty required-role list already yields `false`, so the
+  // refusal happens either way. It stays because the failure it guards against
+  // is silent and one refactor away — rewrite this as `codes.every(...)`, which
+  // reads just as plausibly, and an empty list becomes `true` and hands the
+  // action to everybody. A guard called with no required role is a guard whose
+  // requirement was never decided, and that must never resolve to "anyone".
   if (codes.length === 0 || !held) {
     throw new NotPermitted(`${REFUSAL_HEADLINE} ${requirement}`, { rule: options.rule });
   }

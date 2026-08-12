@@ -377,3 +377,28 @@ describe("row 1 — no session reaches nothing, from the layout or from any page
     await expect(page()).rejects.toThrow(`REDIRECT:/login?redirectTo=${encoded}`);
   });
 });
+
+describe("row 6 — the refusal screen names the requirement, never the reader's roles", () => {
+  it("renders none of the roles the refused operator actually holds", async () => {
+    // The screen builds its requirement from the capability, not from the
+    // actor, and this is what holds it to that. A UX-05 that helpfully listed
+    // "your roles: it_officer, kit_manager" would tell whoever has the session
+    // exactly what the account is worth.
+    const held = ["it_officer", "social_secretary", "kit_manager", "head_coach"];
+    givenAccess({ state: "active", operator: actor(held) });
+
+    const { container } = render(await ReportPage());
+    const html = container.innerHTML.toLowerCase();
+
+    for (const code of held) {
+      expect(html, `the refusal screen names "${code}"`).not.toContain(code);
+    }
+    for (const label of ["it officer", "social secretary", "kit manager", "head coach"]) {
+      expect(html, `the refusal screen names "${label}"`).not.toContain(label);
+    }
+    // Non-vacuous: this really is the refusal, and it really does say what is
+    // required.
+    expect(container.textContent).toContain("You do not have access to this action");
+    expect(container.textContent).toContain("No club role is currently authorized");
+  });
+});

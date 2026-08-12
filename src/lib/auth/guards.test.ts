@@ -308,3 +308,130 @@ describe("row 10 — an attendance recorder receives nothing else", () => {
     }
   });
 });
+
+/**
+ * Row 6, the half that is about the reader rather than the action — and the
+ * gap a level-3 review found here.
+ *
+ * The suite already checked this on the `assertRole` path, against one actor,
+ * naming three codes and one label. `assertCapability` — which is what every
+ * page and every server action actually calls — had no equivalent, and its only
+ * two assertions were incidental single-label checks. A reviewer appended a
+ * sentence naming `operator.roleCodes` to its refusal, and all 1141 tests in
+ * the repository passed: a refused Secretary was told "This action requires the
+ * President role. You hold secretary." and nothing objected.
+ *
+ * So the checks below are generic in all three directions the earlier ones were
+ * not: **every** capability, **every** code the actor holds, and **both** the
+ * raw code and its display label — because the accidental protection that did
+ * exist was blind to the code form, which is the form a careless template
+ * interpolation produces.
+ *
+ * They also read the whole error rather than only its message. Holdings moved
+ * into `rule` or `context` would leak exactly as far: `context` is built for
+ * logs, and a log line is not a private place.
+ */
+describe("row 6 — no refusal says anything about what the actor holds", () => {
+  /**
+   * Codes to hold while being refused. Deliberately several, deliberately
+   * including a coaching seat, and filtered per capability so that the actor is
+   * always genuinely refused and always genuinely holds something.
+   */
+  const NOISY_HOLDINGS = [
+    "it_officer",
+    "social_secretary",
+    "kit_manager",
+    "head_coach",
+    "president",
+    "treasurer",
+  ];
+
+  /** Display labels, written out here rather than imported from the module. */
+  const LABELS: Record<string, string> = {
+    it_officer: "IT Officer",
+    social_secretary: "Social Secretary",
+    kit_manager: "Kit Manager",
+    head_coach: "Head Coach",
+    president: "President",
+    treasurer: "Treasurer",
+  };
+
+  /** What the actor holds, minus anything that would let the capability through. */
+  function heldWhileRefused(key: CapabilityKey): string[] {
+    return NOISY_HOLDINGS.filter((code) => !capabilityRoleCodes(key).includes(code));
+  }
+
+  /** Everything a caller could read off the refusal, flattened into one string. */
+  function everythingDisclosed(refusal: ServiceError): string {
+    return [
+      refusal.message,
+      refusal.name,
+      refusal.rule ?? "",
+      JSON.stringify(refusal.context ?? {}),
+    ]
+      .join(" | ")
+      .toLowerCase();
+  }
+
+  function expectDisclosesNothing(refusal: ServiceError, held: readonly string[]) {
+    const disclosed = everythingDisclosed(refusal);
+
+    expect(held.length, "the actor holds nothing, so this proves nothing").toBeGreaterThan(0);
+    for (const code of held) {
+      expect(disclosed, `the refusal names the code "${code}" the actor holds`).not.toContain(code);
+      expect(
+        disclosed,
+        `the refusal names "${LABELS[code]}", which is what the actor holds`,
+      ).not.toContain(LABELS[code].toLowerCase());
+    }
+  }
+
+  it.each(CAPABILITY_KEYS)(
+    "assertCapability(%s) names the requirement and none of the holdings",
+    (key) => {
+      const held = heldWhileRefused(key);
+      let refusal: ServiceError | undefined;
+
+      try {
+        assertCapability(actor(held), key);
+      } catch (error) {
+        refusal = error as ServiceError;
+      }
+
+      expect(refusal, "the actor was not refused, so this proves nothing").toBeDefined();
+      // Non-vacuous: there really is a message, and it really does say what the
+      // action needs. An empty one would satisfy every assertion below.
+      expect(refusal!.message).toContain("You do not have access to this action.");
+      expectDisclosesNothing(refusal!, held);
+    },
+  );
+
+  it.each(CAPABILITY_KEYS)("requireCapability(%s) discloses nothing either", async (key) => {
+    // The path a server action and a page actually take, in case the two ever
+    // diverge.
+    const held = heldWhileRefused(key);
+    givenSession({ state: "active", operator: actor(held) });
+
+    expectDisclosesNothing(await refusalFrom(() => requireCapability(key)), held);
+  });
+
+  it("discloses nothing from requireRole either, for any required role", async () => {
+    const held = ["it_officer", "social_secretary", "kit_manager", "head_coach"];
+
+    for (const required of [["president"], ["secretary", "treasurer"], ["general_manager"]]) {
+      givenSession({ state: "active", operator: actor(held) });
+      expectDisclosesNothing(await refusalFrom(() => requireRole(required)), held);
+    }
+  });
+
+  it("says nothing about the account when there is no operator at all", async () => {
+    // The other direction of the same rule: three unresolved causes, one
+    // message, and nothing in it about which cause applies or to whom.
+    for (const state of ["no_session", "unlinked", "inactive"] as const) {
+      givenSession({ state } as OperatorAccess);
+      const disclosed = everythingDisclosed(await refusalFrom(() => requireOperator()));
+
+      expect(disclosed).not.toMatch(/unlink|inactive|deactivat|disabled|no session|expired/);
+    }
+  });
+});
