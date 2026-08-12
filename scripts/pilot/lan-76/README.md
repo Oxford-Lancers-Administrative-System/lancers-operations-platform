@@ -20,9 +20,15 @@ against rows a script arranged.
 ## Ownership marker: sentinel only
 
 The runbook's marker has two halves — a deterministic primary key and a
-`PILOT-<ISSUE-ID>` sentinel — and this scenario has only the second, because
-the application generates the identifier when Brian presses Save. The missing
-half is replaced by a restriction that is at least as narrow:
+`PILOT-<ISSUE-ID>` sentinel — and this scenario has only the second, because the
+application generates the identifier when Brian presses Save. The missing half is
+replaced by a status restriction. **That restriction is not equivalent to a
+deterministic key, and it is worth being exact about why:** a key names one
+pre-known row, and the sentinel is then an independent second proof of ownership.
+Here, `name like '%PILOT-LAN-76%'` is a substring match on a column an operator
+types into, and `status in (…)` limits the blast radius rather than proving who
+created the row. What the pair does guarantee is that this file can only ever
+remove an event that carries the sentinel **and** never reached approval:
 
 | Half             | Here                                                   |
 | ---------------- | ------------------------------------------------------ |
@@ -33,6 +39,11 @@ Both are conjoined in the one delete, and neither is sufficient alone. The
 status restriction means this file cannot delete an approved, occurred,
 cancelled or rejected event — the only kind that has invitations, responses or
 attendance behind it.
+
+The exact predicate is pinned — table and conjuncts — in
+`tests/pilot-data-contract.test.ts` (`SENTINEL_ONLY_DELETES`). Changing it, here
+or in any future scenario, means changing that list too, which is a line in a
+diff rather than a pattern an assertion might or might not recognise.
 
 **So: every event you create for this test must have `PILOT-LAN-76` in its
 name.** An event without it is invisible to `cleanup.sql` and stays in the
@@ -81,10 +92,17 @@ Those rows are **not** removed by cleanup.
 ### 3. After testing — `cleanup.sql`
 
 Deletes the scenario's events, and refuses rather than widening when anything
-hangs off one: an audience, event questions, invitations, attendance,
-notification jobs, schedule changes, a follow-up action, or a legacy staging
-row. It never touches `auth.users`, `operator_accounts`, `role_assignments`,
-`roles` or `audit_events`.
+hangs off one: an audience, event questions, notification jobs, schedule changes,
+a follow-up action, or a legacy staging row. It never touches `auth.users`,
+`operator_accounts`, `role_assignments`, `roles` or `audit_events`.
+
+Invitations and attendance records are **not** among those guards, deliberately.
+Both are pinned by composite foreign key to an event status this delete already
+excludes — an invitation requires an approved event (invariant P1) and an
+attendance record requires an occurred one (P5) — so an event carrying either is
+already refused, one check earlier, for having passed approval. A guard there
+could never fire, and an unreachable guard reads as protection while proving
+nothing.
 
 Verification query, which the script also runs for you:
 

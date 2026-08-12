@@ -359,6 +359,10 @@ Create or invite a hosted Auth user. Grant, end-date or otherwise change hosted
 access. Decide retention. Insert reference data into hosted. Add a database
 concept to label test data — the ownership marker is a deterministic identifier
 plus a `PILOT-<ISSUE-ID>` sentinel, never a new column and never a new table.
+Where the rows are created by the **application** rather than by the setup
+script there is no identifier to use, and the second shape in
+`docs/pilot-data-runbook.md` § The ownership marker applies instead — each such
+scenario is pinned individually, and adding one is Brian's decision.
 And nothing under `supabase/migrations/`, `supabase/seed.sql`,
 `scripts/seed-local.mjs`, `.github/workflows/`, the `Dockerfile` or any `src/`
 startup path may reference `scripts/pilot/` — a pilot script reaches a database
