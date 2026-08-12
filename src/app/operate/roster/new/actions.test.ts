@@ -328,6 +328,34 @@ describe("the write, and how it ends", () => {
     });
   });
 
+  it("still reports the write's failure when the candidate re-read also fails", async () => {
+    // The realistic case: the write failed because there is no open season, and
+    // `findPersonCandidates` needs one too, so the failure path's own re-read
+    // raises as well. Swallowing that is right — the candidate list is display
+    // detail on a refusal screen — but the operator must still be told what
+    // actually went wrong, and the action must not throw.
+    const { NotFound } = await import("@/lib/db");
+    vi.mocked(enterReturningPlayer).mockRejectedValue(
+      new NotFound("There is no open season, so a membership cannot be created yet.", {
+        rule: "no_open_season",
+      }),
+    );
+    vi.mocked(findPersonCandidates).mockRejectedValue(
+      new NotFound("There is no open season, so a membership cannot be created yet.", {
+        rule: "no_open_season",
+      }),
+    );
+
+    const state = await submitReturnerIntake(
+      INITIAL_INTAKE_STATE,
+      form({ ...VALID_DETAILS, intent: "confirm_new" }),
+    );
+
+    expect(state.step).toBe("candidates");
+    expect(state).toMatchObject({ candidates: [] });
+    expect((state as { formError?: string }).formError).toContain("no open season");
+  });
+
   it("keeps a non-refusal failure on the candidate step and says nothing raw", async () => {
     vi.mocked(enterReturningPlayer).mockRejectedValue(
       new Error('connect ECONNREFUSED 127.0.0.1:54322 password="hunter2"'),

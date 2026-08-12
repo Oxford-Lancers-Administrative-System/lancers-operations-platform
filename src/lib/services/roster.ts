@@ -78,9 +78,17 @@ export interface PersonCandidate {
   givenName: string;
   familyName: string | null;
   knownAs: string | null;
-  /** The person's current preferred email, as recorded. `null` when none. */
+  /**
+   * A current email to show on UX-11: the preferred one if there is one, else
+   * the most recently recorded. `null` when the person has none.
+   *
+   * Not strictly "the preferred one" — this module records a supplied contact
+   * as *not* preferred when the person already has one of that kind, and a
+   * candidate list showing those as "—" would drop the field the operator's
+   * decision most depends on.
+   */
   email: string | null;
-  /** The person's current preferred phone, as recorded. `null` when none. */
+  /** A current phone, on the same rule as `email`. `null` when none. */
   phone: string | null;
   /**
    * Their membership in the open season, when they already hold one.

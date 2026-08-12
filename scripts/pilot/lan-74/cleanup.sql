@@ -238,12 +238,23 @@ begin
   --     recognised here. A contact that is neither — a real address, a real
   --     number — is not this scenario's, and stops the script rather than
   --     being cascade-deleted with the person.
+  --
+  --     Both patterns are ANCHORED, and both are permits: matching means the
+  --     guard does not fire. A substring test would have accepted an address at
+  --     a domain ending `.invalid.co.uk` — which anybody can register — for
+  --     exactly the reason UNROUTABLE_EMAIL in the contract test may not end in
+  --     a word boundary. The address must END at the reserved domain, and the
+  --     number must not merely be embedded in a longer run of digits.
+  --
+  --     (Deliberately described rather than exemplified: this file is scanned
+  --     by tests/pilot-data-contract.test.ts, and a routable example address
+  --     written out in a comment is precisely what that scan exists to catch.)
   if exists (
     select 1 from public.contact_points
      where person_id in (select person_id from pilot_lan_74_targets)
        and source is distinct from sentinel
-       and raw_value not like '%example.invalid%'
-       and raw_value !~ '(\+44 ?|0)7700 ?900[0-9]{3}'
+       and raw_value !~* '@([a-z0-9-]+\.)*example\.invalid[[:space:]]*$'
+       and raw_value !~ '(^|[^0-9])(\+44 ?|0)7700 ?900[0-9]{3}([^0-9]|$)'
   ) then
     raise exception 'LAN-74 pilot cleanup refused: contact_points that this scenario did not create hang off a person it would delete, and would be cascade-deleted.';
   end if;

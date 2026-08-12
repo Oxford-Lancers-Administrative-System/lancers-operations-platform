@@ -259,7 +259,9 @@ describe("UX-11 — Review possible matches", () => {
     expect(candidates[1]).toHaveTextContent("(no family name on record)");
   });
 
-  it("shows each candidate's current-season membership, including at phone width", () => {
+  // Named for what it actually proves. jsdom does not evaluate breakpoints, so
+  // no test in this file can assert "at phone width" — see the header.
+  it("shows each candidate's current-season membership, the field it must never drop", () => {
     const candidates = screen.getAllByTestId("candidate");
     expect(candidates[0]).toHaveTextContent("No membership");
     // The field that decides whether selecting this person will be refused is

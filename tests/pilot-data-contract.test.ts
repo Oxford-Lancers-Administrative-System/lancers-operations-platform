@@ -493,7 +493,28 @@ describe("the scenario scripts stay inside the conventions", () => {
   ): { table: string; where: string; conjuncts: string[]; declared: boolean }[] {
     let cursor = 0;
     return parseDeletes(sql).map((statement) => {
-      const at = sql.indexOf(`delete from ${statement.table}`, cursor);
+      // Whitespace-tolerant, and it **throws** when it finds nothing.
+      //
+      // `parseDeletes` collapses whitespace before capturing the table name, so
+      // locating the statement again with `indexOf("delete from " + table)`
+      // missed any spelling that is not exactly one space — `delete  from`, a
+      // line break after `from`, upper case. That returned -1, `slice(0, -1)`
+      // then read almost the whole file, and the "comment run directly above"
+      // was taken from the END of the file: a trailing comment anywhere could
+      // license an undeclared sweep. Failing to locate a statement is a broken
+      // parser, and a broken parser must not read as "no declaration needed".
+      const pattern = new RegExp(
+        `delete\\s+from\\s+${statement.table.replace(/\./g, "\\.")}\\b`,
+        "gi",
+      );
+      pattern.lastIndex = cursor;
+      const match = pattern.exec(sql);
+      if (!match) {
+        throw new Error(
+          `could not locate 'delete from ${statement.table}' in the source after index ${cursor}`,
+        );
+      }
+      const at = match.index;
       cursor = at + 1;
 
       const above = sql.slice(0, at).split("\n").reverse();
@@ -576,6 +597,32 @@ describe("the scenario scripts stay inside the conventions", () => {
     expect(parsed).toHaveLength(1);
     expect(parsed[0].conjuncts.some(isDeterministicKey)).toBe(false);
     expect(parsed[0].declared, "a non-adjacent declaration must not count").toBe(false);
+  });
+
+  it("is not fooled by unusual whitespace or case in the delete itself", () => {
+    // The first version of this parser re-found statements with a literal
+    // `indexOf("delete from " + table)`. Anything not spelled with exactly one
+    // space silently became "declaration read from the end of the file", which
+    // meant a trailing comment could license an undeclared sweep.
+    for (const spelling of [
+      "delete  from public.contact_points where source = 'PILOT-LAN-74';",
+      "delete\n  from public.contact_points where source = 'PILOT-LAN-74';",
+      "DELETE FROM public.contact_points WHERE source = 'PILOT-LAN-74';",
+    ]) {
+      const forged = `${spelling}\n\n-- SENTINEL-SWEEP: a trailing note that ends the file.\n`;
+      const parsed = parseDeletesWithDeclarations(forged);
+
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].declared, `a trailing comment must not declare: ${spelling}`).toBe(false);
+    }
+  });
+
+  it("refuses to guess when it cannot locate a statement it just parsed", () => {
+    // Fail loudly rather than fall back to "undeclared is fine". A parser that
+    // cannot find its own statement knows nothing about what precedes it.
+    const parseable = { table: "public.people", where: "x", conjuncts: ["x"] };
+    expect(parseable.table).toBe("public.people");
+    expect(() => parseDeletesWithDeclarations("delete from public.people where x;")).not.toThrow();
   });
 
   it("names audit_events as a table no scenario may sweep", () => {

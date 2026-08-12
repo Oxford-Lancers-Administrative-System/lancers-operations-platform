@@ -201,6 +201,15 @@ async function interfaceCreatedReturner(client: Client): Promise<string> {
             ($1, 'phone', '07700 900177', true, 'operator intake')`,
     [row.id],
   );
+  // And the alias. README step 4 has the tester type `PILOT-LAN-74` into
+  // "Known as" against a different given name, and `enterReturningPlayer`
+  // records that as a `person_aliases` row. Without it the alias sweep is never
+  // exercised in the delete direction — and `person_aliases.person_id` is
+  // `on delete cascade`, so a broken sweep would be invisible in a snapshot.
+  await client.query(
+    "insert into public.person_aliases (person_id, alias, source) values ($1, $2, 'operator intake')",
+    [row.id, SENTINEL],
+  );
   return row.id;
 }
 
@@ -695,6 +704,57 @@ describe("the documented test sequence, end to end", () => {
       [created],
     );
     expect(phone.n).toBe("1");
+
+    await client.query(CLEANUP);
+    expect(await scenarioRowCount(client)).toBe(0);
+  });
+
+  it("removes the alias the interface records for a step-4 Known as", async () => {
+    await client.query(SETUP);
+    const { created } = await walkReadmeSteps(client, durable.personId);
+
+    const before = await one<{ n: string }>(
+      client,
+      "select count(*) as n from public.person_aliases where person_id = $1",
+      [created],
+    );
+    expect(before.n).toBe("1");
+
+    await client.query(CLEANUP);
+
+    const after = await one<{ n: string }>(
+      client,
+      "select count(*) as n from public.person_aliases where person_id = $1",
+      [created],
+    );
+    expect(after.n).toBe("0");
+  });
+
+  it("accepts a routable domain that merely starts with the reserved one — by refusing", async () => {
+    // The exemption is anchored: an address must END at `example.invalid`.
+    // `example.invalid.co.uk` is registrable, so it is somebody's real contact
+    // as far as this guard is concerned, and it must stop the script.
+    await client.query(SETUP);
+    const { created } = await walkReadmeSteps(client, durable.personId);
+    await client.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1, 'email', 'someone@example.invalid.co.uk', false, 'operator intake')`,
+      [created],
+    );
+
+    await expectRejected(client, CLEANUP, [], "contact_points that this scenario did not create");
+  });
+
+  it("accepts every phone spelling README step 4 permits", async () => {
+    await client.query(SETUP);
+    const { created } = await walkReadmeSteps(client, durable.personId);
+    await client.query("delete from public.contact_points where person_id = $1", [created]);
+    await client.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1, 'phone', '+44 7700 900321', true, 'operator intake'),
+              ($1, 'email', 'x@sub.example.invalid', false, 'operator intake')`,
+      [created],
+    );
 
     await client.query(CLEANUP);
     expect(await scenarioRowCount(client)).toBe(0);
