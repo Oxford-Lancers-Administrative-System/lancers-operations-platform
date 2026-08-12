@@ -8,10 +8,11 @@ import { createClient } from "@/lib/supabase/server";
  * belongs to, and to that person's currently-effective role assignments.
  *
  * LAN-71. This is the identity half of the picture only. Nothing here enforces
- * anything: `roleCodes` is the *input* an authorization decision will read, and
- * route-level and action-level enforcement arrive in LAN-73. Calling this and
- * ignoring the result is, today, not a security hole — it is simply the state
- * of the codebase.
+ * anything: `roleCodes` is the *input* an authorization decision reads, and the
+ * decision itself lives in `capabilities.ts` and `guards.ts` (LAN-73). Since
+ * those landed, calling this and ignoring the result **is** a security hole —
+ * a page or an action that resolves an operator and does not guard is
+ * unguarded, which is why the guards, not this module, are what callers use.
  *
  * Two rules this module exists to keep in one place:
  *
@@ -119,6 +120,31 @@ function formatDisplayName(person: PersonNameColumns): string {
 }
 
 /**
+ * Why this request has no operator, or the operator it has.
+ *
+ * LAN-73. `resolveOperator()` below collapses the three unresolved causes into
+ * one `null` and always will — that is LAN-71's contract, and every caller that
+ * only needs "is there an operator?" keeps it.
+ *
+ * This union exists because the account-state screens have to tell two of those
+ * causes apart. Brian decided on 12 August 2026 (LAN-107, and `slice-ux.md`
+ * § 8) that an unlinked account and a deactivated one must read differently,
+ * because the next action differs: one person has to be linked, the other has
+ * to be re-enabled, and one message that covers both sends at least one of them
+ * somewhere useless.
+ *
+ * That is a disclosure to the **holder of the account, about their own
+ * account**, made after the session has been verified. It is not a disclosure
+ * about anybody else: no state carries a person, a role, another account or a
+ * contact detail, and an anonymous caller reaches none of them.
+ */
+export type OperatorAccess =
+  | { state: "no_session" }
+  | { state: "unlinked" }
+  | { state: "inactive" }
+  | { state: "active"; operator: ResolvedOperator };
+
+/**
  * Resolves the current request's operator, or `null`.
  *
  * Returns `null` — indistinguishably, and on purpose — when there is no
@@ -128,10 +154,24 @@ function formatDisplayName(person: PersonNameColumns): string {
  *
  * Throws only if a query the server path depends on fails outright. That is not
  * the same thing as "no operator", and quietly reporting a broken database as
- * an operator with no roles would be an authorization lie the moment LAN-73
- * starts reading `roleCodes`.
+ * an operator with no roles would be an authorization lie now that LAN-73 reads
+ * `roleCodes`.
  */
 export async function resolveOperator(): Promise<ResolvedOperator | null> {
+  const access = await resolveOperatorAccess();
+  return access.state === "active" ? access.operator : null;
+}
+
+/**
+ * The same resolution, reporting which of the four outcomes happened.
+ *
+ * One implementation, so the two functions cannot drift: `resolveOperator()` is
+ * this function with the reason thrown away. Everything the module header says
+ * about verification and about the privileged client applies here unchanged —
+ * the identity still comes from `auth.getUser()`, and the join is still pinned
+ * to the verified user's own id.
+ */
+export async function resolveOperatorAccess(): Promise<OperatorAccess> {
   const supabase = await createClient();
 
   // Verified against the auth server. An absent, expired or tampered session
@@ -139,7 +179,7 @@ export async function resolveOperator(): Promise<ResolvedOperator | null> {
   // operator" rather than an exception.
   const { data: userData, error: userError } = await supabase.auth.getUser();
   const user = userError ? null : (userData?.user ?? null);
-  if (!user) return null;
+  if (!user) return { state: "no_session" };
 
   const admin = createAdminClient();
 
@@ -152,7 +192,8 @@ export async function resolveOperator(): Promise<ResolvedOperator | null> {
   if (accountError) {
     throw new Error(`Could not read operator_accounts: ${accountError.message}`);
   }
-  if (!account || !account.is_active) return null;
+  if (!account) return { state: "unlinked" };
+  if (!account.is_active) return { state: "inactive" };
 
   const { data: person, error: personError } = await admin
     .from("people")
@@ -164,15 +205,21 @@ export async function resolveOperator(): Promise<ResolvedOperator | null> {
     throw new Error(`Could not read the linked person: ${personError.message}`);
   }
   // `person_id` is a `not null` foreign key, so this is unreachable short of a
-  // schema change. Treated as "no operator" rather than crashing the request.
-  if (!person) return null;
+  // schema change. Reported as unlinked rather than crashing the request: the
+  // link genuinely does not reach a person, and "contact the administrator with
+  // the address you signed in with" is the right next action for a login whose
+  // club record has gone missing.
+  if (!person) return { state: "unlinked" };
 
   return {
-    authUserId: user.id,
-    personId: person.id,
-    displayName: formatDisplayName(person),
-    roleCodes: await readCurrentRoleCodes(admin, account.person_id),
-    isActive: true,
+    state: "active",
+    operator: {
+      authUserId: user.id,
+      personId: person.id,
+      displayName: formatDisplayName(person),
+      roleCodes: await readCurrentRoleCodes(admin, account.person_id),
+      isActive: true,
+    },
   };
 }
 
