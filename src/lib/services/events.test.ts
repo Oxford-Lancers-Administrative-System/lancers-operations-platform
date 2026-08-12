@@ -647,6 +647,47 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
     expect(list.totalInSeason).toBeGreaterThan(0);
   });
 
+  it("excludes an event belonging to a season the club is not operating", async () => {
+    // The one assertion that fails if `and e.season_id = $1` is deleted from
+    // the query. Every other assertion in this block is containment- or
+    // filter-shaped and stays green without it, which independent review
+    // demonstrated by removing the predicate and watching them all pass.
+    const other = await observer.query<{ id: string }>(
+      `select id from public.seasons
+        where status not in ('open', 'active', 'closing')
+        order by starts_on desc limit 1`,
+    );
+    // The seeded dataset carries an archived season. Without one this assertion
+    // would prove nothing, so it says so rather than passing vacuously.
+    expect(other.rows[0], "the seeded dataset has no non-operating season").toBeDefined();
+
+    const foreign = await observer.query<{ id: string }>(
+      `insert into public.events (season_id, name, event_type, status, scheduled_on)
+       values ($1, $2, 'practice', 'draft', '2026-10-14')
+       returning id`,
+      [other.rows[0].id, `${NAME_MARKER} Last season's practice`],
+    );
+    const mine = await createEventDraft(actorPersonId, draft());
+
+    const list = await listCurrentSeasonEvents();
+    const unfilteredTotal = list.totalInSeason;
+
+    expect(list.events.map((row) => row.id)).toContain(mine.id);
+    expect(list.events.map((row) => row.id)).not.toContain(foreign.rows[0].id);
+
+    // And the season total is the season's, not the database's.
+    const inSeason = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.events where season_id = $1",
+      [mine.seasonId],
+    );
+    expect(unfilteredTotal).toBe(Number(inSeason.rows[0].count));
+
+    const everything = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.events",
+    );
+    expect(unfilteredTotal).toBeLessThan(Number(everything.rows[0].count));
+  });
+
   it("filters by status without changing the season total", async () => {
     const event = await createEventDraft(actorPersonId, draft());
 

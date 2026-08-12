@@ -12,10 +12,12 @@ import { labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
  * UX-30's search and filters.
  *
  * A plain `GET` form. The filter is in the query string, which means a filtered
- * list is a link an operator can send to somebody, the back button does what it
- * looks like it does, and the whole thing works before any JavaScript arrives.
- * The one thing React does here is fold the two selects away on a phone, which
- * `slice-ux.md` § 7 asks for: "a single search/filter entry point".
+ * list is a link an operator can send to somebody, and the back button does
+ * what it looks like it does. The search box and the submit work before any
+ * JavaScript arrives; the two selects are folded away behind a `Filters` toggle
+ * at phone width, which `slice-ux.md` § 7 asks for — "a single search/filter
+ * entry point" — and that toggle is React state, so on a phone with no
+ * JavaScript they cannot be opened. Said plainly rather than claimed away.
  *
  * Folded, not duplicated — one set of controls laid out two ways by CSS. A
  * phone copy and a desktop copy would put every control in the accessibility

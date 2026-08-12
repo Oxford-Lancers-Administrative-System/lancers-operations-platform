@@ -169,6 +169,11 @@ interface EventDetailRow extends EventRow {
   season_id: string;
 }
 
+/** Escapes the two LIKE metacharacters, and the escape character itself. */
+function escapeLikePattern(value: string | null): string | null {
+  return value === null ? null : value.replace(/([\\%_])/g, "\\$1");
+}
+
 function asDate(value: Date | string | null): string | null {
   if (value === null) return null;
   if (typeof value === "string") return value.slice(0, 10);
@@ -212,7 +217,11 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
   return withTransaction(async (tx) => {
     const season = await readCurrentSeasonIn(tx);
 
-    const search = optional(filters.search);
+    // `%` and `_` are LIKE syntax, and an operator typing either means the
+    // character. Escaped here rather than in the SQL so the pattern the
+    // database receives is exactly what was searched for. Not an injection
+    // concern — the value is a parameter either way — just a wrong result.
+    const search = escapeLikePattern(optional(filters.search));
     const status = optional(filters.status);
     const eventType = optional(filters.eventType);
 
@@ -244,8 +253,15 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
   });
 }
 
-export const EVENT_NOT_FOUND_MESSAGE =
-  "That event no longer exists, or it belongs to a season this club is not operating.";
+/**
+ * Deliberately says only that the event is gone.
+ *
+ * An earlier draft added "or it belongs to a season this club is not
+ * operating", which `readEventIn` does not check — it reads by id alone, and an
+ * event from any season resolves. A refusal that describes a rule the code does
+ * not apply teaches the reader something false about the system.
+ */
+export const EVENT_NOT_FOUND_MESSAGE = "That event no longer exists.";
 
 /** One event, with everything the detail screen states as fact. */
 export async function readEvent(eventId: string): Promise<EventDetail> {
