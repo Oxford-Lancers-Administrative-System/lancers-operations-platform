@@ -61,9 +61,16 @@ Binding notes:
 Owned by an issue, identified by deterministic ids plus a `PILOT-<ISSUE-ID>`
 sentinel, and removable by the paired cleanup script.
 
-| Issue    | Artifacts               | Rows created                                                                                                                                                                             | Applied to hosted                                                  | Retention                                                               |
-| -------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `LAN-93` | `scripts/pilot/lan-93/` | 6 — one each in `position_vocabularies`, `positions`, `seasons`, `people`, `season_memberships`, `events`. All ids in the block `00930093-0093-4093-8093-…`, all carrying `PILOT-LAN-93` | **No.** It is a worked example, proved against local Supabase only | N/A while unapplied. If ever applied: retain, and remove at the cutover |
+One scenario — `LAN-76` — has no deterministic-id half, because its rows are
+created by the deployed **application** rather than by its setup script. Its
+ownership marker is the sentinel conjoined with a restriction to the statuses a
+scenario event can be in, declared in the scenario's own README and enforced by
+`tests/pilot-data-contract.test.ts`.
+
+| Issue    | Artifacts               | Rows created                                                                                                                                                                                                  | Applied to hosted                                                        | Retention                                                                                                                                         |
+| -------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LAN-93` | `scripts/pilot/lan-93/` | 6 — one each in `position_vocabularies`, `positions`, `seasons`, `people`, `season_memberships`, `events`. All ids in the block `00930093-0093-4093-8093-…`, all carrying `PILOT-LAN-93`                      | **No.** It is a worked example, proved against local Supabase only       | N/A while unapplied. If ever applied: retain, and remove at the cutover                                                                           |
+| `LAN-76` | `scripts/pilot/lan-76/` | **None by script.** `setup.sql` writes nothing — it is a prerequisite check. The rows are the events Brian creates in the application while testing, every one of them named with the `PILOT-LAN-76` sentinel | **No**, until Brian runs the feature test against the deployed container | Retain while event work continues; `cleanup.sql` removes the events when the scenario stops being useful. The audit rows describing them are kept |
 
 ## Retired scenarios
 

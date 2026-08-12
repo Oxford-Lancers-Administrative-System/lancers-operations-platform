@@ -335,17 +335,55 @@ describe("the scenario scripts stay inside the conventions", () => {
     expect(cleanups.length).toBeGreaterThanOrEqual(1);
 
     for (const file of cleanups) {
-      const sentinel = new RegExp(`PILOT-${path.basename(path.dirname(file))}`, "i");
+      const scenario = path.basename(path.dirname(file));
+      const sentinel = new RegExp(`PILOT-${scenario}`, "i");
+
+      /**
+       * The second legitimate ownership shape, and the only one that may omit
+       * a deterministic identifier.
+       *
+       * A scenario whose rows are created by the **application** — a human
+       * pressing Save in the deployed product — has no key to delete by,
+       * because PostgreSQL generates it at insert time. LAN-76 is the first,
+       * and it will not be the last: every remaining slice ticket is tested
+       * that way.
+       *
+       * Permission is not implicit. The scenario has to say so, in its own
+       * README, under this exact heading — which is what stops a script-created
+       * scenario quietly dropping its `id = '…'` half and passing. And the
+       * relaxation is narrow: the sentinel is still required, and so is at
+       * least one further conjunct narrowing which of the sentinel's rows may
+       * go, so the predicate can never be the sentinel alone.
+       */
+      const declaresSentinelOnly = read(`scripts/pilot/${scenario}/README.md`).includes(
+        "## Ownership marker: sentinel only",
+      );
 
       for (const statement of parseDeletes(read(file))) {
         expect(statement.where, `${file}: ${statement.table}`).not.toMatch(/\bor\b/i);
         expect(statement.conjuncts.length, `${file}: ${statement.table}`).toBeGreaterThanOrEqual(2);
 
-        // One conjunct pins the row by its deterministic identifier …
-        expect(
-          statement.conjuncts.some((part) => /^id = '[0-9a-f-]{36}'$/i.test(part)),
-          `${file}: ${statement.table} must be keyed on a deterministic id`,
-        ).toBe(true);
+        const keyed = statement.conjuncts.some((part) => /^id = '[0-9a-f-]{36}'$/i.test(part));
+
+        if (!keyed) {
+          expect(
+            declaresSentinelOnly,
+            `${file}: ${statement.table} is not keyed on a deterministic id, and ` +
+              `scripts/pilot/${scenario}/README.md does not declare the sentinel-only shape`,
+          ).toBe(true);
+
+          // The sentinel, and something else that narrows which of its rows go.
+          const sentinelConjuncts = statement.conjuncts.filter((part) => sentinel.test(part));
+          expect(
+            sentinelConjuncts.length,
+            `${file}: ${statement.table} must be qualified by the ${scenario} sentinel`,
+          ).toBe(1);
+          expect(
+            statement.conjuncts.length - sentinelConjuncts.length,
+            `${file}: ${statement.table} is the sentinel alone — nothing narrows it`,
+          ).toBeGreaterThanOrEqual(1);
+          continue;
+        }
 
         // … and the rest prove ownership, by the sentinel or by the scenario's
         // own parent identifiers.
@@ -432,7 +470,34 @@ describe("the scenario scripts stay inside the conventions", () => {
     return { blocks, looseRaises };
   }
 
-  const PREFLIGHTS = [["setup.sql", setup, 10] as const, ["cleanup.sql", cleanup, 17] as const];
+  /**
+   * Every preflight in the repository, and the smallest number of guard blocks
+   * it is allowed to shrink to.
+   *
+   * Enumerated rather than hard-coded to the worked example: the runbook says a
+   * scenario is meant to be copied, and a copy whose preflight was gutted would
+   * otherwise be checked by nothing. The minimum is per file because these
+   * scripts are not the same size — LAN-93 creates six rows and guards each of
+   * them; LAN-76 writes nothing and guards the state of the database it is
+   * about to be tested against. Lowering one of these numbers is the change a
+   * reviewer has to see.
+   */
+  const PREFLIGHTS = [
+    ["lan-93/setup.sql", setup, 10] as const,
+    ["lan-93/cleanup.sql", cleanup, 17] as const,
+    ["lan-76/setup.sql", read("scripts/pilot/lan-76/setup.sql"), 5] as const,
+    ["lan-76/cleanup.sql", read("scripts/pilot/lan-76/cleanup.sql"), 6] as const,
+  ];
+
+  it("checks the preflight of every scenario in the repository", () => {
+    const scenarios = new Set(
+      filesUnder("scripts/pilot")
+        .filter((file) => file.endsWith(".sql"))
+        .map((file) => file.replace(/^scripts\/pilot\//, "")),
+    );
+
+    expect(new Set(PREFLIGHTS.map(([name]) => name))).toEqual(scenarios);
+  });
 
   it.each(PREFLIGHTS)("%s carries a preflight of guard blocks, parsed", (_name, sql, minimum) => {
     const { blocks } = parsePreflight(sql);
