@@ -16,7 +16,11 @@ Hard limits, and they are not yours to raise:
 
 - **At most two** implementation issues, concurrently.
 - **One issue, one worktree, one branch, one writer** each.
-- **Draft** pull requests only. No auto-merge. No deployment.
+- **Draft** pull requests only, and no deployment. **One exception — the fast
+  lane:** a batch whose every changed path is fast-lane eligible carries the
+  `fast-lane` label, and a checked-in GitHub Action merges it once required CI
+  passes. You never merge it yourself. See `docs/fast-lane.md` and
+  `docs/adr/0017-batched-fast-lane.md`.
 - **No second wave without Brian's approval.**
 
 Concurrency starts at two deliberately.
@@ -376,6 +380,24 @@ missing or vague, so an incomplete brief wastes a whole launch.
 While they run, you supervise. Do not implement anything yourself, and do not
 start a third worker.
 
+## 5a — Classify for the fast lane before assigning worktrees
+
+Before briefing anyone, classify every selected issue against
+`.github/fast-lane-rules.json` using `node scripts/fast-lane/cli.mjs`.
+
+- **Several eligible issues travel as ONE batch pull request**, on one branch,
+  with one implementer. This overrides "one issue, one worktree, one branch"
+  for eligible work only.
+- **Mixed work splits**: an eligible batch pull request, and a normal draft
+  pull request for the rest. Never one pull request carrying both.
+- **Ineligible or unclassifiable work uses the normal lane**, unchanged.
+- Record the classification and its reason in the wave record. An ambiguous
+  result is not eligible.
+
+Anything touching a protected governance path — the fast-lane rules, the merge
+workflow, `.claude/`, or `AGENTS.md` — is ineligible however small it is, and
+that includes changes to this rule.
+
 ## 6 — Verify the evidence yourself
 
 A worker's report is a claim. Before it goes anywhere, check it against the
@@ -555,7 +577,11 @@ Cleaning up a mess by destroying the evidence of it is worse than the mess.
 
 ## Never, under any circumstance
 
-- merge, auto-merge, enable auto-merge, or take a pull request out of draft;
+- merge, auto-merge, enable auto-merge, or take a pull request out of draft —
+  **except** applying the `fast-lane` label to a batch you have classified as
+  eligible, which hands the merge to the checked-in workflow rather than
+  performing it yourself. The workflow recomputes eligibility from the diff and
+  ignores your classification;
 - deploy, run a deployment workflow, or change Cloud Run;
 - link to, push to, or migrate hosted Supabase;
 - push to `main`, force-push, or change branch protection or required checks;

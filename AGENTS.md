@@ -74,6 +74,7 @@ directly on components — use `sx`.
 | What is in hosted that is not schema                  | `docs/pilot-data-manifest.md`               |
 | Cloud Run deploy, secrets, cost controls, rollback    | `docs/deployment.md`                        |
 | How supervised parallel agent work is run             | `.claude/skills/supervise-batch/SKILL.md`   |
+| How low-risk work is batched and merged automatically | `docs/fast-lane.md`                         |
 | Why a decision was made                               | `docs/adr/` (index in `docs/adr/README.md`) |
 
 If this file and a `docs/` page disagree, `docs/` is more specific and wins —
@@ -171,6 +172,8 @@ supabase/migrations/     SQL migrations — the domain schema baseline
 scripts/                 type generation, RLS gate, seed, test user, GCP bootstrap
 scripts/lib/             shared local-database access, with the non-local guard
 scripts/pilot/<issue>/   hosted pilot-data setup.sql / cleanup.sql — RUN BY HAND
+scripts/fast-lane/       fast-lane classifier and merge gate (governance — protected)
+.github/fast-lane-rules.json  the checked-in fast-lane eligibility rules
 tests/                   integration, schema, and security tests
 docs/architecture/       the physical data model
 docs/ · docs/adr/        documentation and decision records
@@ -218,6 +221,98 @@ npm run db:reset && npm run db:seed && npm run types:generate && npm run check:r
 Applying a migration to hosted Supabase is a separate, explicitly authorized
 human action that no agent performs — see
 [`docs/migration-runbook.md`](docs/migration-runbook.md).
+
+The one scoped exception to the two paragraphs above is the fast lane, below. It
+narrows what runs locally for two classes of change and hands the merge to a
+workflow. It changes nothing for anything else.
+
+## The fast lane
+
+Documentation, cross-cutting tests, and qualifying agent-instruction work can be
+batched into **one** pull request and merged **automatically** by a GitHub Action
+once every required check has passed, without Brian approving each one.
+Everything else keeps the workflow it already has: a **draft** pull request, the
+full `npm run verify` locally, and Brian merges it.
+
+The rules that decide are checked in and machine-readable, and the merge workflow
+and its tests both read them:
+[`.github/fast-lane-rules.json`](.github/fast-lane-rules.json). The mechanism,
+the reasoning and the owner actions are in
+[`docs/fast-lane.md`](docs/fast-lane.md); the decision is
+[`docs/adr/0017-batched-fast-lane.md`](docs/adr/0017-batched-fast-lane.md).
+
+**Eligibility is re-derived from the diff.** The merge workflow reads the rules
+and the classifier from `main` and applies them to `git diff main...head`. It
+does not trust the `fast-lane` label, the title, the body, a commit trailer, or
+any other artifact the agent wrote. The label is how a pull request **asks**; it
+is never the evidence. A labelled pull request whose diff contains an ineligible
+path is refused.
+
+**Eligible.**
+
+- `documentation` — `docs/**/*.md`, `README.md`, `scripts/pilot/**/*.md`.
+  Operational and production runbooks are included deliberately: such a change
+  alters what a human is told, never what a machine does.
+- `test` — `tests/**/*.test.ts`, `tests/**/*.test.tsx`, `tests/helpers/**/*.ts`,
+  where the change adds coverage, strengthens it, or corrects a demonstrably
+  incorrect or flaky test.
+- `agent-instruction` — an eligible class with an empty path list today, because
+  every agent-instruction file in this repository carries a protected governance
+  rule. Widening it is Brian's decision.
+
+Added and modified files only, and several eligible issues should travel as one
+combined batch.
+
+**Never eligible.** Application and production code (`src/**`), regardless of how
+small the diff is; schema and migrations; `scripts/**` beyond the pilot READMEs;
+any dependency change; deployment, infrastructure and workflow files; build,
+quality-gate and test-harness configuration; `.env.example`; decision records;
+the architecture and data-model documents; any test change that removes or
+weakens valid coverage; and any batch that mixes eligible and ineligible work —
+which must be split into a fast-lane pull request and a normal one, and is
+otherwise refused whole rather than merged in part.
+
+**Protected governance rules.** A change to fast-lane eligibility, to the
+required verification for the fast lane, to automatic-merge authority, or to the
+protection of these rules uses the normal workflow and needs Brian's approval,
+even when the file is Markdown. `.github/**`, `scripts/fast-lane/**`,
+`.claude/**`, `AGENTS.md`, `CLAUDE.md`, `docs/adr/**`, `docs/fast-lane.md`,
+`tests/agent-harness.test.ts` and `tests/fast-lane-*.test.ts` carry them. These
+rules cannot weaken or remove their own protections through the lane.
+
+**It fails closed.** A path no rule classifies is unclassified, and unclassified
+is ineligible — absence of a rule is never permission. An empty diff, a deletion,
+a rename, a new top-level directory, an unresolved conflict or a check that did
+not run all send the pull request back to the normal lane, still a draft, for a
+human to read.
+
+**Proportionate verification**, fixed per class so that no agent picks its own:
+
+| Class               | Run locally, and watch it pass                                              |
+| ------------------- | --------------------------------------------------------------------------- |
+| `documentation`     | `npm run format:check`, `npm run test`                                      |
+| `test`              | `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run test` |
+| `agent-instruction` | as `test`                                                                   |
+
+`npm run build` is not required locally for these classes — no file Next.js
+compiles can be in an eligible batch, and CI builds the application and the
+container on every pull request regardless. That is the whole of the narrowing.
+Required GitHub CI is the merge gate, runs in full, and is necessary but never
+sufficient: a green run cannot make an ineligible change eligible.
+
+**Tiny application-code fixes stay in the normal lane and never auto-merge.**
+Their review is proportionate to reachability and blast radius under the graded
+model, but they are drafts and Brian merges them.
+
+**No agent merges.** A GitHub Action does, and only after it has recomputed
+eligibility itself. Agents still open drafts and still cannot un-draft or merge;
+`.claude/settings.json` and `tests/agent-harness.test.ts` are unchanged by the
+fast lane.
+
+**A fast-lane merge does not deploy.** A merge performed with `GITHUB_TOKEN` does
+not trigger downstream workflows, so `deploy.yml` does not run. Nothing eligible
+for this lane needs deploying, but `main` can move without a Cloud Run revision
+following it.
 
 ## Pilot data and the production handoff
 
@@ -277,6 +372,11 @@ until the pre-pilot gate closes. See
 8. The pull request's **Production handoff** block is filled in — every line,
    including the "No" and "None" answers — and any pilot-data artifacts the
    change needs are supplied and proved by test.
+
+Item 1 is narrowed for the two eligible fast-lane classes, and for nothing else:
+see § **The fast lane** and `.github/fast-lane-rules.json` for exactly what runs
+instead. Item 8's Production handoff block is still required — an eligible batch
+answers "No" and "None" to every line, which is the point of asking.
 
 Reporting something as done means it was run and observed to pass — not that it
 should pass.

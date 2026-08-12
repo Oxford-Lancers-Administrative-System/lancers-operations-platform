@@ -1,0 +1,232 @@
+name: Fast-lane merge
+
+# Merges a batch of low-risk work automatically, once every required check has
+# passed, without a human reading the diff. LAN-102 / docs/adr/0017.
+#
+# The design constraint that makes this safe, and the one thing never to relax:
+# THIS WORKFLOW RE-DERIVES ELIGIBILITY FROM THE DIFF. It reads the eligibility
+# rules and the classifier from the BASE branch — `main`, already reviewed and
+# merged — and applies them to `git diff base...head`. It never trusts the
+# label, the title, the body, a commit trailer, or any other artifact written by
+# the agent that opened the pull request. The `fast-lane` label is how a pull
+# request asks; the diff is what answers.
+#
+# The pull request's own code is fetched as git objects and diffed. It is never
+# checked out and never executed, so a pull request cannot supply the rules that
+# judge it, and cannot alter this workflow's behaviour by editing this file:
+# `workflow_run`, `pull_request_target` and `workflow_dispatch` all run the
+# default branch's copy. The rules mark `.github/**` and `scripts/fast-lane/**`
+# protected as well, so such a pull request is refused as well as powerless.
+#
+# No agent holds merge capability. `.claude/settings.json` still denies
+# `gh pr merge` and `gh pr ready`, and tests/agent-harness.test.ts still proves
+# it. Authority lives here, in a reviewable checked-in file; revoking it is
+# deleting this file.
+#
+# CONSEQUENCE, stated so it is not discovered later: a merge performed with
+# GITHUB_TOKEN does not trigger downstream workflows, so a fast-lane merge does
+# NOT run deploy.yml (or ci.yml on `main`). That is correct for this lane —
+# application code is ineligible, so nothing merged this way needs deploying —
+# but `main` can move without a deploy. See docs/fast-lane.md.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  pull_request_target:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: "Pull-request number to re-evaluate."
+        required: true
+        type: string
+
+concurrency:
+  group: fast-lane-merge
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    name: Evaluate and merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      # Narrowed from the repository default, which must itself allow write —
+      # a workflow can only reduce GITHUB_TOKEN's permissions, never widen them.
+      contents: write # merge
+      pull-requests: write # mark ready for review, comment, merge
+      checks: read # read the required checks' conclusions
+      actions: read # read the triggering CI run
+
+    steps:
+      - name: Check out the base branch
+        uses: actions/checkout@v5
+        with:
+          # Deliberately the base branch and never the pull request's head. The
+          # rules and the classifier that decide this must be the reviewed,
+          # merged ones. `fetch-depth: 0` so the merge base is computable.
+          ref: main
+          fetch-depth: 0
+
+      - name: Resolve the pull request
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          DISPATCH_PR: ${{ inputs.pull_request }}
+          TARGET_PR: ${{ github.event.pull_request.number }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENT" in
+            workflow_dispatch) PR="$DISPATCH_PR" ;;
+            pull_request_target) PR="$TARGET_PR" ;;
+            workflow_run)
+              PR=$(gh api "repos/$REPO/commits/$RUN_HEAD_SHA/pulls" \
+                     --jq '[.[] | select(.state == "open")] | first | .number // empty')
+              ;;
+            *) PR="" ;;
+          esac
+          if [ -z "${PR:-}" ]; then
+            echo "No open pull request to evaluate." >> "$GITHUB_STEP_SUMMARY"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          echo "number=$PR" >> "$GITHUB_OUTPUT"
+
+      - name: Read the pull request and its checks
+        if: steps.resolve.outputs.found == 'true'
+        id: read
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.resolve.outputs.number }}
+        run: |
+          set -euo pipefail
+
+          # `mergeable` is computed asynchronously; UNKNOWN is a refusal, not a
+          # reason to guess, so poll briefly and then let the gate decide.
+          for _ in 1 2 3 4 5; do
+            gh pr view "$PR" --repo "$REPO" \
+              --json number,state,isDraft,isCrossRepository,baseRefName,headRefOid,mergeable,labels,title,body \
+              > pr.json
+            [ "$(jq -r .mergeable pr.json)" = "UNKNOWN" ] || break
+            sleep 5
+          done
+
+          HEAD_SHA=$(jq -r .headRefOid pr.json)
+          echo "head_sha=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+          # The pull request's objects, fetched but never checked out and never
+          # executed. Only `git diff` reads them.
+          git fetch --no-tags origin "pull/$PR/head:refs/fast-lane/head"
+          FETCHED=$(git rev-parse refs/fast-lane/head)
+          if [ "$FETCHED" != "$HEAD_SHA" ]; then
+            echo "Head moved during evaluation ($FETCHED vs $HEAD_SHA); refusing." \
+              >> "$GITHUB_STEP_SUMMARY"
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "stale=false" >> "$GITHUB_OUTPUT"
+
+          BASE=$(git merge-base origin/main refs/fast-lane/head)
+          git diff --name-status "$BASE" refs/fast-lane/head > files.txt
+          git diff -U0 "$BASE" refs/fast-lane/head > patch.diff
+
+          gh api --paginate "repos/$REPO/commits/$HEAD_SHA/check-runs" \
+            --jq '.check_runs' | jq -s 'add // []' > checks.json
+
+      - name: Re-derive eligibility from the diff
+        if: steps.resolve.outputs.found == 'true' && steps.read.outputs.stale == 'false'
+        id: gate
+        run: |
+          set -euo pipefail
+          node scripts/fast-lane/cli.mjs \
+            --pr pr.json --files files.txt --patch patch.diff --checks checks.json
+
+      - name: Report a refusal on the pull request
+        if: steps.gate.outputs.merge == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.resolve.outputs.number }}
+        run: |
+          set -euo pipefail
+          # Only worth saying when somebody asked for the lane. An unlabelled
+          # pull request is simply a normal one and needs no comment.
+          if jq -e '.labels[]?.name | select(. == "fast-lane")' pr.json > /dev/null; then
+            {
+              echo "**Fast lane: refused.** This pull request stays in the normal lane —"
+              echo "it remains a draft, and Brian merges it."
+              echo ""
+              jq -r '.reasons[] | "- " + .' fast-lane-verdict.json
+              echo ""
+              echo "Eligibility was recomputed from the diff against \`main\`; the label did not decide it."
+              echo "See \`docs/fast-lane.md\`."
+            } | gh pr comment "$PR" --repo "$REPO" --body-file -
+          fi
+
+      - name: Merge
+        if: steps.gate.outputs.merge == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ steps.resolve.outputs.number }}
+          HEAD_SHA: ${{ steps.read.outputs.head_sha }}
+          ISSUES: ${{ steps.gate.outputs.issues }}
+          CLASSES: ${{ steps.gate.outputs.classes }}
+        run: |
+          set -euo pipefail
+
+          # Agents open drafts and are forbidden to un-draft. This workflow does
+          # it, and only here — after eligibility was recomputed from the diff
+          # and every required check concluded success.
+          #
+          # It has to happen before the merge, not after: GitHub refuses to
+          # merge a draft, so the order is forced. What is NOT forced is leaving
+          # it un-drafted when the merge then fails — branch protection
+          # refusing, a --match-head-commit mismatch, a 403. That would leave the
+          # pull request ready for review with nobody having read it, and no
+          # agent can put it back, because `gh pr ready` is denied to them. So
+          # the merge is trapped and the draft restored on any failure, which is
+          # what docs/fast-lane.md promises.
+          gh pr ready "$PR" --repo "$REPO"
+
+          # --match-head-commit refuses if the head moved since it was read.
+          # No --admin, ever: that would bypass branch protection, which is the
+          # authoritative gate this lane depends on.
+          if ! gh pr merge "$PR" --repo "$REPO" --squash --delete-branch \
+            --match-head-commit "$HEAD_SHA"; then
+            echo "::error::Merge refused. Restoring the draft state."
+            if ! gh pr ready "$PR" --repo "$REPO" --undo; then
+              echo "::error::Could not restore the draft. PR #$PR is un-drafted and UNMERGED — a human must re-draft or close it."
+            fi
+            exit 1
+          fi
+
+          {
+            echo "**Merged by the fast lane.**"
+            echo ""
+            echo "- Classification: \`$CLASSES\`"
+            echo "- Linear issues delivered: $ISSUES"
+            echo "- Merged commit: \`$HEAD_SHA\` (squashed)"
+            echo "- Required checks: all green before the merge."
+            echo ""
+            echo "A GITHUB_TOKEN merge does not trigger downstream workflows, so \`deploy.yml\`"
+            echo "did not run. Nothing eligible for this lane needs deploying."
+          } | gh pr comment "$PR" --repo "$REPO" --body-file -
+
+      - name: Record the verdict
+        if: always() && steps.resolve.outputs.found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fast-lane-verdict
+          path: fast-lane-verdict.json
+          if-no-files-found: ignore
