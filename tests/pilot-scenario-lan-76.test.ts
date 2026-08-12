@@ -175,6 +175,43 @@ async function createScenarioEvent(
   return event.id;
 }
 
+/**
+ * Makes the one prerequisite `setup.sql` needs and the seeded dataset does not
+ * guarantee: an active operator account linked to a person.
+ *
+ * A developer's stack has one because `AGENTS.md`'s first-run sequence ends in
+ * `npm run db:link-operator`. A CI runner does not — `.github/workflows/ci.yml`
+ * seeds the data and the auth user and stops there. A happy-path test that took
+ * that precondition from ambient state would therefore pass on one machine and
+ * fail on the other, which is exactly what it did: it proved the seed rather
+ * than the script.
+ *
+ * So every test that expects `setup.sql` to *succeed* arranges the precondition
+ * itself, inside the transaction it already rolls back — the same discipline
+ * `GUARD_CASES` uses for the negative cases.
+ */
+async function ensureActiveOperator(client: Client): Promise<void> {
+  const existing = await one<{ n: string }>(
+    client,
+    `select count(*) as n
+       from public.operator_accounts a
+       join public.people p on p.id = a.person_id
+      where a.is_active`,
+  );
+  if (Number(existing.n) > 0) return;
+
+  const user = await one<{ id: string }>(
+    client,
+    "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id",
+    ["lan-76-scenario-fixture@oxfordlancers.local"],
+  );
+  await client.query(
+    `insert into public.operator_accounts (auth_user_id, person_id)
+     values ($1, (select id from public.people limit 1))`,
+    [user.id],
+  );
+}
+
 /** How many events currently carry the sentinel. */
 async function scenarioEventCount(client: Client): Promise<number> {
   const row = await one<{ n: string }>(
@@ -233,6 +270,7 @@ describe("the local-only guard this suite depends on", () => {
 
 describe("setup.sql asserts prerequisites and writes nothing", () => {
   it("leaves the database byte-for-byte identical", async () => {
+    await ensureActiveOperator(client);
     const before = await snapshot(client);
 
     await client.query(SETUP);
@@ -241,6 +279,7 @@ describe("setup.sql asserts prerequisites and writes nothing", () => {
   });
 
   it("run a second time changes nothing either", async () => {
+    await ensureActiveOperator(client);
     await client.query(SETUP);
     const after = await snapshot(client);
 
@@ -270,6 +309,7 @@ describe("setup.sql asserts prerequisites and writes nothing", () => {
     // The retention policy allows pilot data to accumulate. A prerequisite
     // check that refused because a previous test had not been cleaned up would
     // be telling Brian to delete data the policy says he may keep.
+    await ensureActiveOperator(client);
     await createScenarioEvent(client);
 
     await expect(client.query(SETUP)).resolves.toBeDefined();
