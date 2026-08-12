@@ -45,5 +45,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Agent worktrees created by /supervise-batch — never committed.
+# Claude Code issue worktrees — never committed.
 .claude/worktrees/
+
+# Generated local Supabase slot configuration, fencing tokens, and session state.
+.lancers-runtime/

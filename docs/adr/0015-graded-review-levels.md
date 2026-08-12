@@ -1,6 +1,6 @@
 # 0015 — Review is graded into four levels, keyed on reachability
 
-**Status:** Accepted · **Date:** 2026-08-11 · **Amends
+**Status:** Superseded by [0018](0018-single-issue-agent-development.md) · **Date:** 2026-08-11 · **Amends
 [0013](0013-supervised-agent-development.md)**
 
 ADR 0013 records a **single** review standard: every draft pull request goes to a

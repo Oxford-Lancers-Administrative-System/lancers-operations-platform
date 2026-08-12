@@ -84,4 +84,4 @@ if (match) {
   console.log(`Created local test user: ${email}`);
 }
 
-console.log("Sign in at http://localhost:3000/login");
+console.log(`Sign in at http://localhost:${process.env.PORT ?? "3000"}/login`);

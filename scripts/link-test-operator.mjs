@@ -145,7 +145,9 @@ try {
 
   console.log(`Linked ${email} -> ${displayName(person)}`);
   console.log(`Currently-effective roles: ${person.codes}`);
-  console.log("Sign in at http://localhost:3000/login and open /dashboard.");
+  console.log(
+    `Sign in at http://localhost:${process.env.PORT ?? "3000"}/login and open /dashboard.`,
+  );
 } catch (error) {
   await client.query("rollback").catch(() => {});
   fail(`Could not link the local test operator: ${error.message}`);

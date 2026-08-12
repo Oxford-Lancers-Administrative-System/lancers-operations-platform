@@ -32,9 +32,18 @@ const HEADER = `/**
 
 function generate() {
   try {
+    const workdir = process.env.SUPABASE_WORKDIR;
     return execFileSync(
       "supabase",
-      ["gen", "types", "typescript", "--local", "--schema", "public"],
+      [
+        "gen",
+        "types",
+        "typescript",
+        "--local",
+        "--schema",
+        "public",
+        ...(workdir ? ["--workdir", workdir] : []),
+      ],
       {
         cwd: root,
         encoding: "utf8",

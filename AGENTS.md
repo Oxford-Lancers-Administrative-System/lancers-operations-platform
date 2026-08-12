@@ -73,7 +73,7 @@ directly on components — use `sx`.
 | Testing a feature against **hosted** Supabase         | `docs/pilot-data-runbook.md`                |
 | What is in hosted that is not schema                  | `docs/pilot-data-manifest.md`               |
 | Cloud Run deploy, secrets, cost controls, rollback    | `docs/deployment.md`                        |
-| How supervised parallel agent work is run             | `.claude/skills/supervise-batch/SKILL.md`   |
+| How one issue is implemented and reviewed             | `.claude/skills/start-issue/SKILL.md`       |
 | How low-risk work is batched and merged automatically | `docs/fast-lane.md`                         |
 | Why a decision was made                               | `docs/adr/` (index in `docs/adr/README.md`) |
 
@@ -107,12 +107,16 @@ npm run build              # production build
 npm run start              # serve the production build
 
 # Database (local Supabase only)
+npm run db:acquire -- LAN-### # claim primary, or overflow when primary is occupied
 npm run db:start           # start the stack; first run pulls images
 npm run db:stop
 npm run db:status          # prints URL and keys
 npm run db:reset           # drop and re-apply every migration from empty
 npm run db:seed            # load the deterministic synthetic dataset (local only)
 npm run db:seed-user       # create/update the one local test user
+npm run db:heartbeat
+npm run db:review-ready
+npm run db:release
 npx supabase migration new <name>
 
 # Types
@@ -137,11 +141,12 @@ First run on a new machine:
 
 ```bash
 npm install
+npm run db:acquire -- LAN-1  # replace with the issue being worked
 npm run db:start
-cp .env.example .env.local   # fill from `npm run db:status`
 npm run db:seed              # synthetic domain data
 npm run db:seed-user         # the one local auth user
-npm run dev
+npm run db:link-operator
+npm run dev:slot
 ```
 
 ## Deployment
@@ -452,73 +457,61 @@ steps, dependencies, theme contents — proceed and explain in the pull request.
 
 ## Agent tooling
 
-Still deliberately minimal, but no longer absent. Exactly three roles are
-approved, and they live under `.claude/`:
+Exactly one user-invoked workflow and one review subagent are approved:
 
-| Role                               | File                                  | What it does                                                                  |
-| ---------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------- |
-| Lead workflow (`/supervise-batch`) | `.claude/skills/supervise-batch/`     | Selects at most two independent issues, briefs workers, verifies, hands back. |
-| Issue implementer                  | `.claude/agents/issue-implementer.md` | One issue, one worktree, one branch, one **draft** pull request.              |
-| Code reviewer                      | `.claude/agents/code-reviewer.md`     | Fresh context, read-only, reviews the diff — never repairs its own findings.  |
+| Role                                   | File                              | What it does                                                                                                |
+| -------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Lead workflow (`/start-issue LAN-###`) | `.claude/skills/start-issue/`     | The top-level session implements one explicit issue in its dedicated worktree through draft PR and handoff. |
+| Code reviewer                          | `.claude/agents/code-reviewer.md` | Fresh-context, independently isolated review; reports findings and never repairs them.                      |
 
-The operating model, in one paragraph: a top-level session acts as lead. It
-reads the Linear dependency graph, picks work whose dependencies are actually
-**merged** and whose human gates have been passed, **writes a test matrix for
-each issue before any implementation starts**, runs at most **two**
-worktree-isolated implementers on genuinely independent issues, checks each
-result against the repository and the Actions logs rather than against the
-worker's report, routes every draft pull request through the independent
-reviewer at **review level 2 and above**, and leaves durable Linear evidence
-before and after the wave. Work
-that could collide is serialised, not parallelised. The local Supabase stack is
-one shared set of containers, so one wave-wide lock covers implementers and
-reviewers; at most one agent may use database-backed tests or destructive
-database commands at a time.
+The top-level session reads the complete issue, confirms dependencies and human
+gates, enters or safely resumes one issue-specific worktree from current
+`main`, writes an internal acceptance/test matrix, implements directly, verifies
+actual results, routes graded review, corrects findings, and hands back one
+normal draft pull request. It never launches an implementation subagent, selects
+a second issue, starts a wave, uses the fast lane, merges, un-drafts, deploys,
+migrates hosted Supabase, or writes to production.
 
-These rules follow from that and are worth stating on their own:
+- **Worktree isolation is mandatory.** One issue has one worktree and one branch.
+  The primary checkout remains unchanged and clean. Reviewers use their own
+  isolated worktrees.
+- **The implementer writes tests but does not certify them.** Normal and Highest
+  risk changes receive a fresh-context reviewer that independently judges the
+  matrix and challenges critical rules with plausible defect injection. Green
+  CI is required but is not approval.
+- **Review is graded before implementation by reachability and blast radius,
+  never diff size.** Low risk is top-level verification only; Normal application
+  work receives one independent review; Highest risk includes auth,
+  authorization, migrations, grants/RLS, secrets, privileged credentials,
+  production-affecting workflows, and the agent harness. A correction at
+  Highest risk requires a fresh re-review of the corrected head. An unspecified
+  grade resolves to Normal.
+- **Ambiguity escalates; routine engineering does not.** Stop only for a genuine
+  owner decision, irreconcilable authoritative conflict, missing access or
+  credential, or an unsafe technical blocker. Resolve ordinary implementation
+  choices, test failures, and local-tooling problems directly.
+- **Human gates outrank dependencies.** LAN-90 remains the UX gate. Automated
+  WhatsApp delivery is locked; manual distribution is never a fallback. LAN-92
+  owns the open provider, recipient, prerequisites, and failure decisions.
+- **Local database coordination has two fenced slots.** Primary is first;
+  overflow is created only when primary is genuinely occupied. A stable
+  machine-local registry, short allocator lock, liveness plus heartbeat,
+  randomized fencing tokens, complete non-conflicting port sets, and protected
+  `review-ready` state prevent one worktree from resetting another's stack.
+  Every destructive or mutating database command validates the current token.
 
-- **The implementer writes the tests; it does not certify them.** The reviewer
-  judges adequacy independently against the matrix, and challenges every
-  critical rule by injecting a plausible defect and confirming a test fails. A
-  green CI run is not approval.
-- **Ambiguity escalates, it does not get resolved by an agent.** An issue that
-  is ambiguous, internally inconsistent, or missing a material acceptance
-  criterion stops the wave. Product decisions are Brian's.
-- **Human gates outrank the graph.** No user-facing implementation before the
-  LAN-90 UX approval is recorded. **Automated WhatsApp delivery is a locked
-  requirement** — manual posting or manual distribution is never an MVP, pilot,
-  fallback, or separate acceptable path, and no agent may implement or assume
-  one. **LAN-92 is the open decision gate**: it owns the provider, recipient
-  pattern, prerequisites, and failure behaviour, no agent closes it, and LAN-78
-  stays blocked until it closes and LAN-78 is amended with the selected
-  approach. LAN-82 is blocked transitively.
-- **One database lock, every agent.** Worktree isolation isolates files, not the
-  local Supabase stack — one set of containers shared by every worktree.
-  Implementers and reviewers alike hold the lock one at a time.
-- **Review is graded, and the grade is set before implementation.** Four levels —
-  **0** none, **1** lead verification, **2** full independent review, **3**
-  multi-round — keyed on **reachability and blast radius, never on diff size**,
-  and assigned with the test matrix rather than from the diff that comes back.
-  **Level 2 is the default, and an unspecified level resolves to level 2** rather
-  than to "no review": the default fails safe, upward. A **mandatory level-2
-  floor** overrides the lead's discretion however small the change is —
-  `supabase/migrations/`, any grant, policy or RLS surface, `src/lib/auth/`,
-  `src/lib/db/`, secrets or `.env.example`, any dependency change
-  (`package.json`, `package-lock.json`), `.claude/`, `.github/workflows/`, and
-  `AGENTS.md`. The lead may assign level 0 or 1 on its
-  own authority **only** with the justification recorded in both the wave record
-  and the run report. **One correction cycle at every level**, and the
-  defect-injection standard at levels 2 and 3 is untouched. See
-  [`docs/adr/0015-graded-review-levels.md`](docs/adr/0015-graded-review-levels.md).
+Linear recordkeeping is limited to In Progress at start, the draft PR link, and
+one final evidence/handoff comment. Use In Review only for genuine human or
+visual acceptance. See
+[`docs/adr/0018-single-issue-agent-development.md`](docs/adr/0018-single-issue-agent-development.md).
 
-**No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase,
-or writes to production.** Brian merges. `.claude/settings.json` blocks
-bypass-permissions mode and denies the common direct command forms; protected
-`main`, draft-only workflow, review, and CI remain the authoritative controls.
-The settings file narrows risk but is not described as an exhaustive shell
-sandbox. `tests/agent-harness.test.ts` fails if the checked-in guards drift.
+Every issue returns one draft pull request, and Brian merges it. **No agent
+merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to
+production.**
 
-Do **not** add a fourth role, a hook, or an agent framework. Concurrency stays
-at two. Both are decisions for Brian, and
-[`docs/adr/0013-supervised-agent-development.md`](docs/adr/0013-supervised-agent-development.md)
-records the reasoning and the evidence that would justify changing either.
+`.claude/settings.json` keeps bypass disabled and denies common direct forms of
+merge, un-draft, force push, deploy, hosted Supabase, raw GitHub mutation, and
+guardrail editing. Those patterns supplement protected `main`, human merge,
+restricted credentials, worktree isolation, independent review, and CI; they do
+not replace those controls. `tests/agent-harness.test.ts` fails if this posture
+drifts.
