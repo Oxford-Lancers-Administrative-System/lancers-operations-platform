@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="1164" viewBox="0 0 375 1164" role="img">
+<title>UX-50 Delivery · Team Practice phone</title><desc>LAN-78, route /operate/events/[id]/delivery, phone presentation All displayed people, contact details, statuses, responses, and attendance records are synthetic and do not correspond to real members.</desc>
+<defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#0B1F3A" flood-opacity="0.10"/></filter></defs>
+<rect x="0" y="0" width="375" height="1164" rx="0" fill="#F4F7FB" stroke="none" stroke-width="1" opacity="1"/>
+<rect x="0" y="0" width="375" height="58" rx="0" fill="#263238" stroke="none" stroke-width="1" opacity="1"/>
+<text x="14" y="22" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="start">UX-50</text>
+<text x="361" y="22" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="600" fill="#BFD1E8" text-anchor="end">LAN-78  |  Phone</text>
+<text x="14" y="43" font-family="Inter, Arial, sans-serif" font-size="9" font-weight="500" fill="#FFFFFF" text-anchor="start">/operate/events/[id]/delivery</text>
+<rect x="0" y="58" width="375" height="58" rx="0" fill="#263238" stroke="none" stroke-width="1" opacity="1"/>
+<text x="18" y="94" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF" text-anchor="start">LANCERS</text>
+<text x="357" y="94" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="end">AM</text>
+<text x="16" y="150" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800" fill="#0B2343" text-anchor="start">Delivery · Team Practice</text>
+<text x="16" y="178" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="400" fill="#65758D" text-anchor="start">Official 1:1 WhatsApp delivery</text>
+<rect x="16" y="203" width="343" height="74" rx="8" fill="#FFF7E6" stroke="#E7C56E" stroke-width="1" opacity="1"/>
+<rect x="28" y="216" width="7" height="7" rx="4" fill="#1565C0" stroke="none" stroke-width="1" opacity="1"/>
+<text x="44" y="226" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#6D4A00" text-anchor="start">Operators never copy, send or post</text>
+<text x="44" y="242" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#6D4A00" text-anchor="start">invitations manually. Delivery telemetry</text>
+<text x="44" y="258" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#6D4A00" text-anchor="start">does not imply an RSVP.</text>
+<rect x="16.0" y="289" width="166.5" height="66" rx="9" fill="#FFFFFF" stroke="#DCE4EE" stroke-width="1" opacity="1"/>
+<text x="30.0" y="317" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800" fill="#0B2343" text-anchor="start">42</text>
+<text x="30.0" y="339" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#63728A" text-anchor="start">Audience</text>
+<rect x="192.5" y="289" width="166.5" height="66" rx="9" fill="#FFFFFF" stroke="#DCE4EE" stroke-width="1" opacity="1"/>
+<text x="206.5" y="317" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800" fill="#0B2343" text-anchor="start">38</text>
+<text x="206.5" y="339" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#63728A" text-anchor="start">Delivered</text>
+<rect x="16.0" y="363" width="166.5" height="66" rx="9" fill="#FFFFFF" stroke="#DCE4EE" stroke-width="1" opacity="1"/>
+<text x="30.0" y="391" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800" fill="#0B2343" text-anchor="start">2</text>
+<text x="30.0" y="413" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#63728A" text-anchor="start">Queued</text>
+<rect x="192.5" y="363" width="166.5" height="66" rx="9" fill="#FFFFFF" stroke="#DCE4EE" stroke-width="1" opacity="1"/>
+<text x="206.5" y="391" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800" fill="#0B2343" text-anchor="start">2</text>
+<text x="206.5" y="413" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#63728A" text-anchor="start">Failed</text>
+<rect x="16" y="437" width="343" height="108" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
+<text x="28" y="461" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Channel</text>
+<text x="28" y="485" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#334963" text-anchor="start">Official WhatsApp Business Platform</text>
+<text x="28" y="503" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">1:1 per invitation</text>
+<rect x="16" y="553" width="343" height="108" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
+<text x="28" y="577" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Destination</text>
+<text x="28" y="601" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#334963" text-anchor="start">Secure signed RSVP page</text>
+<text x="28" y="619" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">One live token</text>
+<rect x="16" y="669" width="343" height="108" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
+<text x="28" y="693" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Fallback</text>
+<text x="28" y="717" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#334963" text-anchor="start">Automated email / calendar</text>
+<text x="28" y="735" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">According to policy</text>
+<rect x="16" y="785" width="343" height="108" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
+<text x="28" y="809" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Audit</text>
+<text x="28" y="833" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#334963" text-anchor="start">Provider IDs and delivery evidence</text>
+<text x="28" y="851" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Webhooks deduplicated</text>
+<rect x="16" y="909" width="343" height="44" rx="8" fill="#1565C0" stroke="#1565C0" stroke-width="1" opacity="1"/>
+<text x="187.5" y="937" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">View diagnostics</text>
+<rect x="0" y="1102" width="375" height="62" rx="0" fill="#FFFFFF" stroke="#D9E1EB" stroke-width="1" opacity="1"/>
+<text x="62.5" y="1138" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#74839A" text-anchor="middle">Roster</text>
+<text x="187.5" y="1138" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="700" fill="#0B2343" text-anchor="middle">Events</text>
+<text x="312.5" y="1138" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#74839A" text-anchor="middle">Report</text>
+</svg>

@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="1416" viewBox="0 0 375 1416" role="img">
+<title>UX-21 Avery Fielding phone</title><desc>LAN-75, route /operate/roster/[membershipId], phone presentation All displayed people, contact details, statuses, responses, and attendance records are synthetic and do not correspond to real members.</desc>
+<defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#0B1F3A" flood-opacity="0.10"/></filter></defs>
+<rect x="0" y="0" width="375" height="1416" rx="0" fill="#F4F7FB" stroke="none" stroke-width="1" opacity="1"/>
+<rect x="0" y="0" width="375" height="58" rx="0" fill="#263238" stroke="none" stroke-width="1" opacity="1"/>
+<text x="14" y="22" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="700" fill="#FFFFFF" text-anchor="start">UX-21</text>
+<text x="361" y="22" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="600" fill="#BFD1E8" text-anchor="end">LAN-75  |  Phone</text>
+<text x="14" y="43" font-family="Inter, Arial, sans-serif" font-size="9" font-weight="500" fill="#FFFFFF" text-anchor="start">/operate/roster/[membershipId]</text>
+<rect x="0" y="58" width="375" height="58" rx="0" fill="#263238" stroke="none" stroke-width="1" opacity="1"/>
+<text x="18" y="94" font-family="Inter, Arial, sans-serif" font-size="17" font-weight="700" fill="#FFFFFF" text-anchor="start">LANCERS</text>
+<text x="357" y="94" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="700" fill="#FFFFFF" text-anchor="end">AM</text>
+<text x="16" y="150" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="800" fill="#0B2343" text-anchor="start">Avery Fielding</text>
+<text x="16" y="178" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="400" fill="#65758D" text-anchor="start">2026–27 membership · Returning · Confirmed</text>
+<rect x="16" y="203" width="343" height="90" rx="8" fill="#FFF7E6" stroke="#E7C56E" stroke-width="1" opacity="1"/>
+<rect x="28" y="216" width="7" height="7" rx="4" fill="#1565C0" stroke="none" stroke-width="1" opacity="1"/>
+<text x="44" y="226" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#6D4A00" text-anchor="start">Activation is available only to Exec/GM.</text>
+<text x="44" y="242" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#6D4A00" text-anchor="start">Outstanding required onboarding items</text>
+<text x="44" y="258" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#6D4A00" text-anchor="start">require an explicit recorded override;</text>
+<text x="44" y="274" font-family="Inter, Arial, sans-serif" font-size="12" font-weight="500" fill="#6D4A00" text-anchor="start">unpaid subscription is never a gate.</text>
+<rect x="16.0" y="305" width="166.5" height="66" rx="9" fill="#FFFFFF" stroke="#DCE4EE" stroke-width="1" opacity="1"/>
+<text x="30.0" y="333" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800" fill="#0B2343" text-anchor="start">Confirmed</text>
+<text x="30.0" y="355" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#63728A" text-anchor="start">Membership</text>
+<rect x="192.5" y="305" width="166.5" height="66" rx="9" fill="#FFFFFF" stroke="#DCE4EE" stroke-width="1" opacity="1"/>
+<text x="206.5" y="333" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800" fill="#0B2343" text-anchor="start">4 of 5</text>
+<text x="206.5" y="355" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#63728A" text-anchor="start">Onboarding items</text>
+<rect x="16.0" y="379" width="166.5" height="66" rx="9" fill="#FFFFFF" stroke="#DCE4EE" stroke-width="1" opacity="1"/>
+<text x="30.0" y="407" font-family="Inter, Arial, sans-serif" font-size="20" font-weight="800" fill="#0B2343" text-anchor="start">59%</text>
+<text x="30.0" y="429" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#63728A" text-anchor="start">Attendance</text>
+<rect x="16" y="453" width="343" height="108" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
+<text x="28" y="477" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Person</text>
+<text x="28" y="501" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#334963" text-anchor="start">Avery Fielding · known as Avery</text>
+<text x="28" y="519" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Person #P-1042</text>
+<rect x="16" y="569" width="343" height="108" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
+<text x="28" y="593" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Contact</text>
+<text x="28" y="617" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#334963" text-anchor="start">avery.fielding@example.invalid</text>
+<text x="28" y="635" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">+44 7700 900 101</text>
+<rect x="16" y="685" width="343" height="108" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
+<text x="28" y="709" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Code of conduct</text>
+<text x="28" y="733" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#334963" text-anchor="start">Complete</text>
+<text x="28" y="751" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">8 Aug · Morgan Pike</text>
+<rect x="16" y="801" width="343" height="108" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
+<text x="28" y="825" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Subscription</text>
+<text x="28" y="849" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#334963" text-anchor="start">Outstanding</text>
+<text x="28" y="867" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Never blocks activation</text>
+<rect x="16" y="917" width="343" height="108" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
+<text x="28" y="941" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Kit issue</text>
+<text x="28" y="965" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#334963" text-anchor="start">Waived</text>
+<text x="28" y="983" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Existing returner kit</text>
+<rect x="16" y="1033" width="343" height="108" rx="8" fill="#FFFFFF" stroke="#DDE5EE" stroke-width="1" opacity="1"/>
+<text x="28" y="1057" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="700" fill="#1B2D47" text-anchor="start">Status history</text>
+<text x="28" y="1081" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#334963" text-anchor="start">Carried forward → Confirmed</text>
+<text x="28" y="1099" font-family="Inter, Arial, sans-serif" font-size="10" font-weight="500" fill="#687891" text-anchor="start">Current season</text>
+<rect x="16" y="1157" width="343" height="44" rx="8" fill="#1565C0" stroke="#1565C0" stroke-width="1" opacity="1"/>
+<text x="187.5" y="1185" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">Activate membership</text>
+<rect x="16" y="1207" width="343" height="44" rx="8" fill="#FFFFFF" stroke="#B7C3D2" stroke-width="1" opacity="1"/>
+<text x="187.5" y="1235" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#243650" text-anchor="middle">Back to roster</text>
+<rect x="0" y="1354" width="375" height="62" rx="0" fill="#FFFFFF" stroke="#D9E1EB" stroke-width="1" opacity="1"/>
+<text x="62.5" y="1390" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="700" fill="#0B2343" text-anchor="middle">Roster</text>
+<text x="187.5" y="1390" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#74839A" text-anchor="middle">Events</text>
+<text x="312.5" y="1390" font-family="Inter, Arial, sans-serif" font-size="11" font-weight="500" fill="#74839A" text-anchor="middle">Report</text>
+</svg>
