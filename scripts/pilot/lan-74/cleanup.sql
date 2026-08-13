@@ -26,7 +26,20 @@
 -- mints `people.id` with `gen_random_uuid()`, so no script can know it in
 -- advance — and LAN-74 requires this cleanup to remove it anyway, which is why
 -- the test instructions in README.md tell the tester to type the sentinel into
--- the "Known as" field and to use an `example.invalid` address.
+-- the **Last name** field and to use an `example.invalid` address.
+--
+-- It was the "Known as" field until the intake form stopped collecting a
+-- nickname. A sweep keyed on a column the application never writes matches
+-- nothing — and silently: the preflight counter, the verification query at the
+-- foot of this file and README's "what was left behind" query would all have
+-- reported clean while the rows stayed in production. The marker has to live in
+-- a field the form actually has.
+--
+-- Both columns are still recognised. Scenario rows carry the sentinel in
+-- `known_as`, because setup.sql can set any column and person …0001 is
+-- deliberately first-name-only so it has no family name to carry one. Rows the
+-- interface creates carry it in `family_name`. `'PILOT-LAN-74' in (known_as,
+-- family_name)` matches either without a disjunction inside a delete.
 --
 -- That sweep is therefore keyed on the sentinel alone, and it is the one delete
 -- in this repository that is. It is fenced instead by refusing outright if the
@@ -74,7 +87,7 @@ select
   ) as scenario_people,
   (
     select count(*) from public.people
-     where known_as = 'PILOT-LAN-74'
+     where 'PILOT-LAN-74' in (known_as, family_name)
        and id not in (
          '00740074-0074-4074-8074-000000000001',
          '00740074-0074-4074-8074-000000000003'
@@ -148,12 +161,12 @@ begin
   select coalesce(array_agg(id), '{}')
     into swept
     from public.people
-   where known_as = sentinel
+   where sentinel in (known_as, family_name)
      and id <> all (scenario_people);
 
   -- Materialised so that the statements which DELETE use exactly the set that
   -- was VALIDATED. The SQL editor runs this transaction at READ COMMITTED, so
-  -- each statement takes its own snapshot: re-deriving `known_as = sentinel` at
+  -- each statement takes its own snapshot: re-deriving the sentinel match at
   -- delete time would remove a person created through the interface *after*
   -- these guards ran, having passed none of them. A temporary table is dropped
   -- with the session and adds no schema concept to the database.
@@ -390,7 +403,7 @@ delete from public.season_membership_status_events
    select m.id
      from public.season_memberships m
      join public.people p on p.id = m.person_id
-    where p.known_as = 'PILOT-LAN-74'
+    where 'PILOT-LAN-74' in (p.known_as, p.family_name)
       and m.person_id in (select person_id from pilot_lan_74_targets)
  );
 
@@ -403,7 +416,9 @@ delete from public.season_memberships
 -- README step 3's on scenario person …0003, and step 4's on the new returner.
 delete from public.season_memberships
  where person_id in (select person_id from pilot_lan_74_targets)
-   and person_id in (select id from public.people where known_as = 'PILOT-LAN-74');
+   and person_id in (
+     select id from public.people where 'PILOT-LAN-74' in (known_as, family_name)
+   );
 
 -- 3. Contact points. The scenario's own three by identifier and sentinel …
 delete from public.contact_points
@@ -417,13 +432,17 @@ delete from public.contact_points
 -- SENTINEL-SWEEP: … then anything the interface recorded against these people.
 delete from public.contact_points
  where person_id in (select person_id from pilot_lan_74_targets)
-   and person_id in (select id from public.people where known_as = 'PILOT-LAN-74');
+   and person_id in (
+     select id from public.people where 'PILOT-LAN-74' in (known_as, family_name)
+   );
 
 -- SENTINEL-SWEEP: aliases. The scenario writes none and the preflight refuses
 -- if one exists on a scenario person, so this reaches only swept people.
 delete from public.person_aliases
  where person_id in (select person_id from pilot_lan_74_targets)
-   and person_id in (select id from public.people where known_as = 'PILOT-LAN-74');
+   and person_id in (
+     select id from public.people where 'PILOT-LAN-74' in (known_as, family_name)
+   );
 
 -- 4. The people themselves, last. The scenario's two by identifier and
 --    sentinel …
@@ -434,10 +453,11 @@ delete from public.people
  )
    and known_as = 'PILOT-LAN-74';
 
--- SENTINEL-SWEEP: … then the returner created through the interface.
+-- SENTINEL-SWEEP: … then the returner created through the interface, whose
+-- sentinel is in the last name because that is a field the form still has.
 delete from public.people
  where id in (select person_id from pilot_lan_74_targets)
-   and known_as = 'PILOT-LAN-74';
+   and 'PILOT-LAN-74' in (known_as, family_name);
 
 -- ---------------------------------------------------------------------------
 -- Verification — read this before you commit
@@ -446,7 +466,7 @@ delete from public.people
 -- alongside so the "nothing else went with it" check needs no second query.
 select
   'people carrying the sentinel' as check,
-  count(*) filter (where known_as = 'PILOT-LAN-74') as remaining
+  count(*) filter (where 'PILOT-LAN-74' in (known_as, family_name)) as remaining
   from public.people
 union all
 select 'scenario contact_points', count(*) filter (where source = 'PILOT-LAN-74')

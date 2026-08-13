@@ -508,13 +508,21 @@ describe("the scenario scripts stay inside the conventions", () => {
     const results: { table: string; where: string; conjuncts: string[]; declared: boolean }[] = [];
 
     for (const segment of sql.split(";")) {
-      const withoutComments = segment.replace(/--[^\n]*/g, "");
+      // BOTH comment forms. Stripping only `--` left `delete /* … */ from` an
+      // unparseable segment, and the `continue` below then skipped it — taking
+      // the allow-list, the sentinel rule, the declaration rule and the
+      // no-disjunction rule with it. A `delete from public.audit_events`
+      // written that way passed the entire contract.
+      const withoutComments = segment.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--[^\n]*/g, "");
       if (!/\bdelete\s+from\b/i.test(withoutComments)) continue;
 
       const parsed = /\bdelete\s+from\s+([\w.]+)\s+where\s+([\s\S]+)$/i.exec(
         withoutComments.replace(/\s+/g, " ").trim(),
       );
-      if (!parsed) throw new Error(`A delete with no where clause: ${segment.trim()}`);
+      // An ERROR, never a silent skip: failing to parse must not read as "no
+      // rules apply". The count assertion below is the other half — it proves
+      // the gate above did not quietly pass over a delete either.
+      if (!parsed) throw new Error(`A delete this parser cannot read: ${segment.trim()}`);
 
       // The declaration is whatever run of comment lines sits directly above
       // the first line of this segment that carries actual statement text.
@@ -539,6 +547,32 @@ describe("the scenario scripts stay inside the conventions", () => {
 
     return results;
   }
+
+  it("accounts for every delete in every cleanup script", () => {
+    // The parser's coverage of the file, asserted separately from the rules it
+    // applies. A segment it fails to recognise is a segment none of the rules
+    // below ever see, so "how many did you find?" has to be checked against
+    // something independent of the finding.
+    const cleanups = filesUnder("scripts/pilot").filter((file) => file.endsWith("cleanup.sql"));
+
+    for (const file of cleanups) {
+      const content = read(file);
+      // Comments and single-quoted literals removed, so neither prose nor a
+      // `raise exception '… refusing to delete …'` inflates the count.
+      const keywordCount = (
+        content
+          .replace(/\/\*[\s\S]*?\*\//g, " ")
+          .replace(/--[^\n]*/g, "")
+          .replace(/'(?:[^']|'')*'/g, "''")
+          .match(/\bdelete\s+from\b/gi) ?? []
+      ).length;
+
+      expect(
+        parseDeletesWithDeclarations(content).length,
+        `${file}: the parser found a different number of deletes than the file contains`,
+      ).toBe(keywordCount);
+    }
+  });
 
   it("holds every pilot scenario to that shape, not just this one", () => {
     // Written generically because the runbook says this scenario is meant to be
@@ -624,6 +658,26 @@ describe("the scenario scripts stay inside the conventions", () => {
       expect(parsed).toHaveLength(1);
       expect(parsed[0].declared, `a trailing comment must not declare: ${spelling}`).toBe(false);
     }
+  });
+
+  it("refuses a delete it cannot parse rather than skipping it", () => {
+    // `delete /* quietly */ from public.audit_events` used to be invisible.
+    expect(() =>
+      parseDeletesWithDeclarations(
+        "delete /* quietly */ from public.audit_events where entity_id in (select 1);",
+      ),
+    ).not.toThrow();
+
+    const parsed = parseDeletesWithDeclarations(
+      "delete /* quietly */ from public.audit_events where entity_id in (select 1);",
+    );
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].table, "the block comment must not hide the table").toBe(
+      "public.audit_events",
+    );
+
+    // And a `delete from` with no `where` is an error, never a skip.
+    expect(() => parseDeletesWithDeclarations("delete from public.people;")).toThrow();
   });
 
   it("is not fooled by a comment that merely mentions a delete", () => {

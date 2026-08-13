@@ -71,12 +71,13 @@ Sign in as an approved pilot operator and open **`/operate/roster/new`**.
    name on record, and **Already a member**) and `Fenwold Pilotworth` (**No
    membership**). Nothing has been written at this point.
 2. **The membership refusal.** Select `Fenwold` — the one already a member —
-   and choose **Use selected person**. Expect UX-12, naming the open season and
-   stating that nothing was changed. Confirm on the roster that no second
-   membership appeared.
-3. **Selecting an existing person succeeds.** Choose **Back to candidate
-   review**, select `Fenwold Pilotworth`, and **Use selected person**. Expect
-   UX-13 and a membership `Confirmed`, entry `Returning`.
+   and choose **Use selected person**. Expect UX-12, naming the person and the
+   open season and stating that nothing was changed. Its actions are
+   **View Fenwold's roster entry** and **Go back**. Confirm on the roster that
+   no second membership appeared.
+3. **Selecting an existing person succeeds.** Choose **Go back**, select
+   `Fenwold Pilotworth`, and **Use selected person**. Expect UX-13 and a
+   membership `Confirmed`, entry `Returning`.
 4. **Creating a new person.** Return to `/operate/roster/new` and enter a
    person who is genuinely new. Choose **Check for matches**, then **Confirm
    this is a new person**. Expect UX-13.
@@ -86,16 +87,18 @@ Sign in as an approved pilot operator and open **`/operate/roster/new`**.
 `cleanup.sql` can only remove this person if the values identify them, so use
 these and nothing else:
 
-| Field          | Value                                                        |
-| -------------- | ------------------------------------------------------------ |
-| **Known as**   | exactly `PILOT-LAN-74` — this is the only handle cleanup has |
-| **Email**      | any address ending `@example.invalid`                        |
-| **Phone**      | leave blank, or a number in `07700 900000`–`07700 900999`    |
-| Family / Given | anything clearly synthetic                                   |
+| Field          | Value                                                                       |
+| -------------- | --------------------------------------------------------------------------- |
+| **Last name**  | exactly `PILOT-LAN-74` — this is the only handle cleanup has                |
+| **First name** | anything clearly synthetic                                                  |
+| **Email**      | any address ending `@example.invalid`                                       |
+| **Phone**      | leave blank, or `07700 900123` / `+44 7700 900123` — one space, no brackets |
 
 > **The application mints `people.id` itself**, so `cleanup.sql` cannot know it
-> in advance. `known_as` is the only handle. A returner created without the
-> sentinel has to be found and removed by hand.
+> in advance. The last name is the only handle. A returner created without the
+> sentinel has to be found and removed by hand — and nothing will tell you it is
+> there, because every count in the script and every query below keys on the
+> same sentinel you did not type.
 >
 > **The email and phone matter too.** Cleanup refuses to cascade-delete a
 > contact point it cannot account for, so a real-looking address or an ordinary
@@ -211,5 +214,9 @@ To find anything left behind by an interface-created returner:
 ```sql
 select id, given_name, family_name, known_as, created_at
   from public.people
- where known_as = 'PILOT-LAN-74';
+ where 'PILOT-LAN-74' in (known_as, family_name);
 ```
+
+Scenario rows carry the sentinel in `known_as`; anything created through the
+interface carries it in `family_name`, because the form has no nickname field.
+The query matches either.

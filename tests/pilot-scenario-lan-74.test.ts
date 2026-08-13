@@ -184,12 +184,24 @@ async function sparePerson(client: Client, tag: string, knownAs?: string): Promi
   return row.id;
 }
 
-/** A person carrying the sentinel, as the interface would leave one behind. */
+/**
+ * A person carrying the sentinel, **exactly as the interface leaves one behind**.
+ *
+ * This fixture is the one that has to stay honest, and it did not: it used to
+ * write `known_as = 'PILOT-LAN-74'` and a `person_aliases` row, neither of which
+ * the application can produce since the intake form dropped its nickname field.
+ * That made the whole end-to-end block green over a cleanup that would have
+ * matched nothing in production.
+ *
+ * So: the sentinel goes in `family_name`, `known_as` is null, and no alias is
+ * written — because that is what `enterReturningPlayer` does when the form
+ * sends it four fields.
+ */
 async function interfaceCreatedReturner(client: Client): Promise<string> {
   const row = await one<{ id: string }>(
     client,
     `insert into public.people (given_name, family_name, known_as)
-     values ('Fenwold', 'Typedbyhand', $1) returning id`,
+     values ('Fenwold', $1, null) returning id`,
     [SENTINEL],
   );
   // Email AND phone. UX-10 offers both fields and the wireframe shows both
@@ -201,15 +213,9 @@ async function interfaceCreatedReturner(client: Client): Promise<string> {
             ($1, 'phone', '07700 900177', true, 'operator intake')`,
     [row.id],
   );
-  // And the alias. README step 4 has the tester type `PILOT-LAN-74` into
-  // "Known as" against a different given name, and `enterReturningPlayer`
-  // records that as a `person_aliases` row. Without it the alias sweep is never
-  // exercised in the delete direction — and `person_aliases.person_id` is
-  // `on delete cascade`, so a broken sweep would be invisible in a snapshot.
-  await client.query(
-    "insert into public.person_aliases (person_id, alias, source) values ($1, $2, 'operator intake')",
-    [row.id, SENTINEL],
-  );
+  // No alias row. The form has no nickname field, so `insertAliasIfDistinct`
+  // is never reached from intake and the application writes none. Inventing one
+  // here would be the fixture lying about the application again.
   return row.id;
 }
 
@@ -739,9 +745,18 @@ describe("the documented test sequence, end to end", () => {
     // assertion in this file — including a whole-database snapshot — would
     // still pass, because the cascade cleans up behind it. So the order is
     // asserted directly against the script.
-    const aliasSweep = CLEANUP_FILE.indexOf("delete from public.person_aliases");
-    const peopleSweep = CLEANUP_FILE.lastIndexOf("delete from public.people");
+    // Comments stripped first. Searching the raw text meant one comment line
+    // mentioning `delete from public.person_aliases` moved the match earlier
+    // and made a genuinely reordered sweep pass — the same decoy that defeated
+    // the declaration parser two files over.
+    const statementsOnly = CLEANUP_FILE.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--[^\n]*/g, "");
 
+    const aliasSweep = statementsOnly.indexOf("delete from public.person_aliases");
+    const peopleSweep = statementsOnly.lastIndexOf("delete from public.people");
+
+    // Exactly one alias delete, so `indexOf` cannot be pointing at a different
+    // one from the sweep under test.
+    expect((statementsOnly.match(/delete from public\.person_aliases/g) ?? []).length).toBe(1);
     expect(aliasSweep).toBeGreaterThan(-1);
     expect(peopleSweep).toBeGreaterThan(-1);
     expect(
@@ -891,18 +906,42 @@ describe("the sweep of the returner created through the interface", () => {
     expect(after?.state).toEqual(before.state);
   });
 
-  it("is not fooled by a sentinel in the wrong column", async () => {
+  it("sweeps a person whose sentinel is in the last name, as the form produces", async () => {
+    // The regression that made this whole class of defect real: the form has no
+    // nickname field, so everything the application creates carries its marker
+    // in `family_name`. A sweep keyed only on `known_as` matches nothing, and
+    // says nothing while it does.
     await client.query(SETUP);
-    // The sentinel belongs in `known_as`. A person whose *family name* happens
-    // to contain it is not this scenario's, and must survive.
-    const lookalike = await sparePerson(client, SENTINEL);
+    const created = await interfaceCreatedReturner(client);
+
+    const stored = await one<{ known_as: string | null; family_name: string | null }>(
+      client,
+      "select known_as, family_name from public.people where id = $1",
+      [created],
+    );
+    expect(stored.known_as, "the form cannot set a nickname").toBeNull();
+    expect(stored.family_name).toBe(SENTINEL);
 
     await client.query(CLEANUP);
 
     const surviving = await one<{ n: string }>(
       client,
       "select count(*) as n from public.people where id = $1",
-      [lookalike],
+      [created],
+    );
+    expect(surviving.n).toBe("0");
+  });
+
+  it("leaves a person carrying the sentinel in neither name alone", async () => {
+    await client.query(SETUP);
+    const bystander = await sparePerson(client, "NotTheSentinel");
+
+    await client.query(CLEANUP);
+
+    const surviving = await one<{ n: string }>(
+      client,
+      "select count(*) as n from public.people where id = $1",
+      [bystander],
     );
     expect(surviving.n).toBe("1");
   });
