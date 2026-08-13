@@ -990,6 +990,31 @@ const SAVED_AUDIENCE: AudienceMember[] = [
   }),
 ];
 
+/**
+ * What "Everyone active" resolves to, as it would be **saved**: one row per
+ * person, so the two capacities Morgan Pike holds collapse to one.
+ */
+const SAVED_EVERYONE: AudienceMember[] = [
+  member(),
+  member({
+    anchorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+    personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp2",
+    displayName: "Samira Quinn",
+  }),
+  member({
+    anchorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+    personId: OVERLAP_PERSON,
+    displayName: "Morgan Pike",
+  }),
+  member({
+    capacity: "coach",
+    anchorId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
+    personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
+    displayName: "Casey North",
+    standing: "Head Coach",
+  }),
+];
+
 describe("UX-40 — building the audience", () => {
   async function openBuilder() {
     vi.mocked(readEvent).mockResolvedValue(detail());
@@ -1066,6 +1091,42 @@ describe("UX-40 — building the audience", () => {
       "false",
     );
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 2 selected");
+  });
+
+  it("stays lit when reopened from a saved audience", async () => {
+    // The bug this catches, found in the browser and by nothing else: a saved
+    // audience holds ONE key per person, and "Everyone active" spans several
+    // keys for anybody holding two capacities. Comparing keys rather than people
+    // left the button dark while every one of its people was already invited.
+    const everyone = SAVED_EVERYONE.map((member) => `${member.capacity}:${member.anchorId}`);
+    givenAudience(AUDIENCE, undefined, SAVED_EVERYONE);
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EventDetailPage(detailProps({ step: "audience" })));
+
+    expect(everyone).toHaveLength(4);
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
+    expect(screen.getByRole("button", { name: "Everyone active (4)" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("clears a lit group by person, not only by its own keys", async () => {
+    givenAudience(AUDIENCE, undefined, SAVED_EVERYONE);
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EventDetailPage(detailProps({ step: "audience" })));
+
+    fireEvent.click(screen.getByRole("button", { name: "Everyone active (4)" }));
+
+    // Morgan Pike was saved under `player`; "everyone active" claims them under
+    // `committee` too. Clearing the group has to remove them whichever capacity
+    // they are held under, or a dark button leaves its people behind.
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 0 selected");
+    for (const box of screen.getAllByRole("checkbox")) {
+      expect(box).not.toBeChecked();
+    }
   });
 
   it("counts one person holding two capacities once", async () => {

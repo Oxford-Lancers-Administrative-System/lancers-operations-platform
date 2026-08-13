@@ -944,14 +944,24 @@ describe("an audience proposed against a draft", () => {
     // read `event_audience_members`. If a draft's proposal leaked into either,
     // every unapproved event would show up as people the club failed to invite —
     // which is exactly the defect `uninvited_audience_members` exists to report.
-    const leaked = await observer.query<{ uninvited: string; queued: string }>(
+    const leaked = await observer.query<{ uninvited: string; queued: string; partition: string }>(
       `select
          (select count(*) from public.uninvited_audience_members where event_id = $1) as uninvited,
-         (select count(*) from public.nonresponse_queue where event_id = $1) as queued`,
+         (select count(*) from public.nonresponse_queue where event_id = $1) as queued,
+         (select count(*) from public.invitation_response_state
+           where event_id = $1 and response_state = 'never_invited') as partition`,
       [event.id],
     );
     expect(Number(leaked.rows[0].uninvited)).toBe(0);
     expect(Number(leaked.rows[0].queued)).toBe(0);
+
+    // And the honest other half, pinned rather than glossed: the raw P7
+    // partition *does* include a draft's proposal, because it spans every
+    // response-soliciting event whatever its status. That is literally true and
+    // operationally meaningless, nothing in the slice reads the view directly,
+    // and whether it should exclude drafts is a schema question for Brian —
+    // see docs/adr/0022-audience-proposed-then-frozen.md.
+    expect(Number(leaked.rows[0].partition)).toBe(3);
 
     // And invariant P1 still holds: a draft carries no invitations at all.
     expect(await countsFor(event.id)).toMatchObject({ audience: 3, invitations: 0, jobs: 0 });

@@ -234,8 +234,28 @@ describe.runIf(seeded)("the scenarios the schema ticket names", () => {
     );
     expect(neverInvited).toBeGreaterThan(0);
 
+    // Compared over the same population, which is not pedantry.
+    //
+    // `invitation_response_state` partitions the resolved audience of every
+    // response-soliciting event, whatever its status. `uninvited_audience_members`
+    // narrows that to approved, occurred and not-held — because only there is
+    // "never invited" a defect rather than a fact.
+    //
+    // Those two counts were equal while an audience could only exist on an
+    // approved event. LAN-77 stores a *proposed* audience against a draft, so a
+    // draft with forty people chosen and nothing sent now supplies forty
+    // perfectly correct `never_invited` rows to the wider view. Asserting plain
+    // equality would fail the moment anybody used the feature.
     const flagged = await count("select count(*) as count from public.uninvited_audience_members");
-    expect(flagged).toBe(neverInvited);
+    const reportable = await count(
+      `select count(*) as count
+         from public.invitation_response_state s
+         join public.events e on e.id = s.event_id
+        where s.response_state = 'never_invited'
+          and e.status in ('approved', 'occurred', 'not_held')`,
+    );
+    expect(flagged).toBe(reportable);
+    expect(flagged).toBeGreaterThan(0);
   });
 
   it("reports all five P7 states from the seeded season", async () => {

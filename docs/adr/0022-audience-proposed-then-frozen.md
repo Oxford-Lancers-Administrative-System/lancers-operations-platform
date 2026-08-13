@@ -63,9 +63,25 @@ enforce this: a player row's `person_id` is null and a committee row's
   Invariant P1 still forbids invitations before approval, so a proposed audience
   carries no obligation and reaches nobody.
 - `event_audience_members` rows now exist against events that may never be
-  approved. `uninvited_audience_members` is unaffected — it filters on
-  `event_status in ('approved', 'occurred', 'not_held')`, so a draft's proposal
-  is not an approval defect.
+  approved, and that changes what one view reports.
+
+  **The two operational surfaces are unaffected**, because both filter on event
+  status: `uninvited_audience_members` narrows to `approved, occurred, not_held`,
+  and `nonresponse_queue` to `approved, occurred`. A draft's proposal is
+  therefore never an approval defect and never a nonresponse to chase.
+
+  **`invitation_response_state` does change.** It partitions the audience of
+  every response-soliciting event whatever its status, so a draft with forty
+  people chosen supplies forty `never_invited` rows — literally true, and
+  operationally meaningless. Nothing in the slice reads that view directly; the
+  Monday report reads the two narrowed views above. Whether the partition should
+  exclude drafts is a **schema question reported to Brian rather than decided
+  here**, since changing it is a migration.
+
+  The seeded-data test that asserted these counts were equal now compares them
+  over the same event statuses, and `src/lib/services/event-approval.test.ts`
+  pins the behaviour in both directions.
+
 - Editing an approved event's audience is refused rather than absent. The
   amendment workflow, when somebody builds it, has a stated rule to change rather
   than a silence to interpret.

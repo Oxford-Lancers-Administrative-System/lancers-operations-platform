@@ -15,8 +15,8 @@ import Typography from "@mui/material/Typography";
 import {
   AUDIENCE_GROUPS,
   groupIsSelected,
-  groupSelectionKeys,
   groupSize,
+  toggleGroup,
   resolveSelection,
   type AudienceCandidate,
   type AudienceCapacity,
@@ -135,17 +135,8 @@ export function AudienceBuilder({
     });
   }
 
-  function toggleGroup(groupKey: string) {
-    const groupKeys = groupSelectionKeys(candidates, groupKey);
-    const alreadyIn = groupIsSelected(candidates, groupKey, selected);
-    setSelected((current) => {
-      const next = new Set(current);
-      for (const key of groupKeys) {
-        if (alreadyIn) next.delete(key);
-        else next.add(key);
-      }
-      return next;
-    });
+  function pressGroup(groupKey: string) {
+    setSelected((current) => toggleGroup(candidates, groupKey, current));
   }
 
   return (
@@ -175,7 +166,7 @@ export function AudienceBuilder({
                   size="small"
                   disabled={size === 0}
                   aria-pressed={on}
-                  onClick={() => toggleGroup(group.key)}
+                  onClick={() => pressGroup(group.key)}
                   sx={{ minHeight: 40 }}
                 >
                   {`${group.label} (${size})`}

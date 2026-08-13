@@ -67,6 +67,7 @@ export {
   groupIsSelected,
   groupSelectionKeys,
   groupSize,
+  toggleGroup,
   resolveSelection,
   selectionKey,
   UNKNOWN_SELECTION_MESSAGE,

@@ -250,20 +250,65 @@ export function groupSize(candidates: readonly AudienceCandidate[], groupKey: st
   return resolution.ok ? resolution.members.length : 0;
 }
 
+/** The people a set of selection keys resolves to, by person id. */
+function peopleIn(
+  candidates: readonly AudienceCandidate[],
+  keys: readonly string[],
+): ReadonlySet<string> {
+  const resolution = resolveSelection(candidates, keys);
+  return new Set(resolution.ok ? resolution.members.map((member) => member.personId) : []);
+}
+
 /**
- * Is every one of this group's people already selected?
+ * Is everybody this group would invite already invited?
  *
  * Drives the lit state of the group button, and therefore what pressing it does:
  * a lit group clears, an unlit one adds. Computed from the selection rather than
  * remembered as "which buttons were pressed", because the two disagree the
- * moment somebody unticks one person out of a group — and the button then has to
- * stop claiming the whole group is in.
+ * moment somebody unticks one person out of a group.
+ *
+ * It compares **people**, not keys, and that is not a refinement — it is the
+ * difference between working and not. "Everyone active" spans 45 keys for 34
+ * humans, and the audience saved on the draft holds one key each. Reloading the
+ * builder therefore restores 34 keys, and a key-wise comparison would find 11
+ * missing and leave the button dark while every one of its people was in.
  */
 export function groupIsSelected(
   candidates: readonly AudienceCandidate[],
   groupKey: string,
   selected: ReadonlySet<string>,
 ): boolean {
-  const keys = groupSelectionKeys(candidates, groupKey);
-  return keys.length > 0 && keys.every((key) => selected.has(key));
+  const wanted = peopleIn(candidates, groupSelectionKeys(candidates, groupKey));
+  if (wanted.size === 0) return false;
+  const held = peopleIn(candidates, [...selected]);
+  return [...wanted].every((personId) => held.has(personId));
+}
+
+/**
+ * The selection after pressing a group button.
+ *
+ * Adding is a union of keys. **Removing is by person**, for the same reason the
+ * lit state is: somebody selected as a player is still in "everyone active", and
+ * clearing that group has to remove them whichever capacity they are held under.
+ * Dropping only the group's own keys would leave a lit button's people behind.
+ */
+export function toggleGroup(
+  candidates: readonly AudienceCandidate[],
+  groupKey: string,
+  selected: ReadonlySet<string>,
+): Set<string> {
+  const groupKeys = groupSelectionKeys(candidates, groupKey);
+
+  if (!groupIsSelected(candidates, groupKey, selected)) {
+    return new Set([...selected, ...groupKeys]);
+  }
+
+  const leaving = peopleIn(candidates, groupKeys);
+  const byKey = new Map(candidates.map((candidate) => [candidate.key, candidate] as const));
+  return new Set(
+    [...selected].filter((key) => {
+      const candidate = byKey.get(key);
+      return candidate === undefined || !leaving.has(candidate.personId);
+    }),
+  );
 }
