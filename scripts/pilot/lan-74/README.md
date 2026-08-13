@@ -163,7 +163,7 @@ ADR 0019 makes each one pinned by value rather than permitted by category.
 it against production:**
 
 ```sql
-'PILOT-LAN-74' in (known_as, family_name)
+'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))
 ```
 
 Two columns, because two kinds of row carry the marker. `setup.sql` can write
@@ -172,17 +172,19 @@ any column, so its rows carry it in `known_as` — and they have to, since perso
 Anything created through the interface carries it in `family_name`, because the
 form has a Last name field and no nickname field.
 
-**So the sweep will delete any `people` row whose surname is exactly
-`PILOT-LAN-74`,** whoever created it and whenever. That is the intended
-behaviour — it is how a returner from an earlier testing round gets cleaned up
-too — but it is a wider net than a deterministic identifier, and it is the
-reason every refusal below exists.
+`upper(btrim(…))` because the marker is typed by a human into a form. A tester
+who enters `pilot-lan-74`, or leaves a trailing space, must still be swept —
+otherwise the rows stay in production and the counters below report clean.
+
+**So the sweep will delete any `people` row whose surname is `PILOT-LAN-74` in
+any casing, ignoring surrounding spaces** — whoever created it and whenever.
+That is the intended behaviour: it is how a returner from an earlier testing
+round gets cleaned up too. But it is a wider net than a deterministic
+identifier, and it is the reason every refusal below exists.
 
 Both columns are part of the pinned predicate, so widening the match to a third
 is an edit to `SENTINEL_ONLY_DELETES` — a line in a diff, and Brian's decision
-under ADR 0019. The comparison is `upper(btrim(…))`, so a sentinel typed in the
-wrong case or with a stray space still matches; without that, a typo would leave
-rows behind that every count in the script reports as absent.
+under ADR 0019.
 
 It is fenced by refusing outright, rather than by being narrow. `cleanup.sql`
 aborts if any person it would remove has an operator account, holds or granted
@@ -264,9 +266,12 @@ To find anything left behind by an interface-created returner:
 ```sql
 select id, given_name, family_name, known_as, created_at
   from public.people
- where 'PILOT-LAN-74' in (known_as, family_name);
+ where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)));
 ```
 
 Scenario rows carry the sentinel in `known_as`; anything created through the
 interface carries it in `family_name`, because the form has no nickname field.
-The query matches either.
+The query matches either, in any casing — **deliberately the same predicate the
+sweep uses**. A narrower query here would report clean on exactly the rows
+cleanup would have missed, which is the failure this whole marker scheme exists
+to avoid.

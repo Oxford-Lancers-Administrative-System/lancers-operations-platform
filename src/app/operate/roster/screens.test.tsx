@@ -235,6 +235,72 @@ describe("UX-10 — validation state", () => {
 
 // ---------------------------------------------------------------------------
 
+describe("UX-10 — the accessibility claims the ticket makes", () => {
+  // The UX-conformance checklist in docs/ux/tickets/LAN-74-returner-intake.md
+  // asserts three things: real labels, focus moved to the first invalid
+  // control, and a 44px minimum on the actions. Two of them were asserted by
+  // nothing — removing the focus call, or dropping the touch target to 1px,
+  // left the whole suite green. A checklist row that claims evidence has to
+  // have some.
+
+  it("moves focus to the first invalid control", async () => {
+    await renderIntakeAt({
+      step: "details",
+      values: { ...VALUES, givenName: "" },
+      errors: { givenName: "Enter a first name. It is the one name the club always has." },
+    });
+
+    expect(screen.getByLabelText("First name")).toHaveFocus();
+  });
+
+  it("focuses the field that is wrong, not simply the first field", async () => {
+    // A component that focused the top of the form would pass the test above.
+    await renderIntakeAt({
+      step: "details",
+      values: { ...VALUES, email: "no-at-sign" },
+      errors: { email: "This does not look like an email address." },
+    });
+
+    expect(screen.getByLabelText("Email")).toHaveFocus();
+    expect(screen.getByLabelText("First name")).not.toHaveFocus();
+  });
+
+  it("associates each error with its own field", async () => {
+    await renderIntakeAt({
+      step: "details",
+      values: { ...VALUES, email: "no-at-sign" },
+      errors: { email: "This does not look like an email address." },
+    });
+
+    const email = screen.getByLabelText("Email");
+    expect(email).toHaveAttribute("aria-invalid", "true");
+
+    // The message is reachable from the field, not merely present on the page.
+    const describedBy = email.getAttribute("aria-describedby");
+    expect(describedBy, "the invalid field must point at its message").toBeTruthy();
+    expect(document.getElementById(describedBy!)).toHaveTextContent(
+      "This does not look like an email address.",
+    );
+
+    // And a valid field is not marked invalid.
+    expect(screen.getByLabelText("First name")).toHaveAttribute("aria-invalid", "false");
+  });
+
+  it("gives every action a touch target big enough to hit on a phone", async () => {
+    await renderIntakeAt({
+      step: "details",
+      values: { givenName: "", familyName: "", email: "", phone: "" },
+      errors: {},
+    });
+
+    // jsdom does not lay out, so this reads the value the component asked for
+    // rather than a measured box. That is the honest limit of what it proves:
+    // it catches the target being dropped, not the layout being wrong.
+    const check = screen.getByRole("button", { name: "Check for matches" });
+    expect(check).toHaveStyle({ minHeight: "44px" });
+  });
+});
+
 describe("UX-11 — Review possible matches", () => {
   beforeEach(async () => {
     await renderIntakeAt({ step: "candidates", values: VALUES, candidates: CANDIDATES });

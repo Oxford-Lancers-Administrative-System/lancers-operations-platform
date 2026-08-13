@@ -303,38 +303,167 @@ describe("the scenario scripts stay inside the conventions", () => {
     expect(sql).not.toMatch(/\b(insert\s+into|update|delete\s+from)\s+storage\./i);
   });
 
+  /**
+   * A script reduced to its executable text: comments, string literals and
+   * dollar-quoted bodies replaced by whitespace.
+   *
+   * ## Why this is a scanner and not three regular expressions
+   *
+   * It was three regular expressions, and they were wrong in a way that hid
+   * real DDL. SQL comments in these files contain apostrophes — "the scenario's
+   * own rows" — and a regex string-stripper cannot tell that apostrophe from
+   * the start of a literal. `scripts/pilot/lan-76/setup.sql` has an **odd**
+   * number of `'` characters for exactly that reason, so the stripper ran out
+   * of phase over the whole file and swallowed everything after it. An injected
+   * `create table` in that region vanished, and the rule below passed it.
+   *
+   * Order cannot fix that: whichever of comments and literals you strip first,
+   * the other one's delimiters appear inside it. The only correct reading is
+   * left to right, one state at a time — which is what this does, including
+   * `''` escapes and `$tag$ … $tag$` bodies.
+   *
+   * Newlines are preserved so that line-oriented checks elsewhere still line up.
+   */
+  function statementsOnly(sql: string): string {
+    let out = "";
+    let i = 0;
+
+    const blank = (text: string) => text.replace(/[^\n]/g, " ");
+
+    while (i < sql.length) {
+      const rest = sql.slice(i);
+
+      if (rest.startsWith("--")) {
+        const end = sql.indexOf("\n", i);
+        const stop = end === -1 ? sql.length : end;
+        out += blank(sql.slice(i, stop));
+        i = stop;
+        continue;
+      }
+
+      if (rest.startsWith("/*")) {
+        const end = sql.indexOf("*/", i + 2);
+        const stop = end === -1 ? sql.length : end + 2;
+        out += blank(sql.slice(i, stop));
+        i = stop;
+        continue;
+      }
+
+      const dollar = /^\$([A-Za-z_]\w*)?\$/.exec(rest);
+      if (dollar) {
+        const tag = dollar[0];
+        const end = sql.indexOf(tag, i + tag.length);
+        const stop = end === -1 ? sql.length : end + tag.length;
+        out += blank(sql.slice(i, stop));
+        i = stop;
+        continue;
+      }
+
+      if (rest.startsWith("'")) {
+        let j = i + 1;
+        while (j < sql.length) {
+          if (sql[j] === "'") {
+            if (sql[j + 1] === "'") j += 2;
+            else {
+              j += 1;
+              break;
+            }
+          } else j += 1;
+        }
+        out += blank(sql.slice(i, j));
+        i = j;
+        continue;
+      }
+
+      out += sql[i];
+      i += 1;
+    }
+
+    return out;
+  }
+
+  it("reads a script left to right, so nothing hides inside anything else", () => {
+    // A `--` inside a literal must not eat the closing quote …
+    expect(statementsOnly("select 'a -- b';\ncreate table public.evil (id int);")).toMatch(
+      /create table public\.evil/i,
+    );
+    // … an apostrophe inside a comment must not open one …
+    expect(
+      statementsOnly("-- the scenario's own rows\ncreate table public.evil (id int);"),
+    ).toMatch(/create table public\.evil/i);
+    // … a quote inside a dollar-quoted body must not either …
+    expect(
+      statementsOnly(
+        "do $x$ begin raise notice 'it''s fine'; end $x$;\ncreate view public.v as select 1;",
+      ),
+    ).toMatch(/create view public\.v/i);
+    // … and genuine literals and comments are still removed.
+    expect(statementsOnly("select 'create table public.nope (id int)';")).not.toMatch(
+      /create table/i,
+    );
+    expect(statementsOnly("-- create table public.nope (id int)")).not.toMatch(/create table/i);
+  });
+
+  it("survives the real scripts without going out of phase", () => {
+    // The specific failure this replaced: `lan-76/setup.sql` has an odd number
+    // of `'` characters, because its comments contain apostrophes. A regex
+    // stripper lost phase there and blanked the rest of the file.
+    for (const [name, sql] of ALL_SCRIPTS) {
+      const code = statementsOnly(sql);
+      expect(code.length, `${name}: the scanner produced a different length`).toBe(sql.length);
+      expect(code, `${name}: the scanner blanked the whole script`).toMatch(/\bbegin\b/i);
+      expect(code, `${name}: the scanner blanked the whole script`).toMatch(/\bcommit\b/i);
+    }
+  });
+
   it.each(ALL_SCRIPTS)("%s is not a migration in disguise", (name, sql) => {
     // Permanent DDL is a migration's job. A TEMPORARY table is not — it lives
     // for the transaction, adds no schema concept, and LAN-74 uses one to hold
     // the set its preflight validated so the deletes cannot re-derive a wider
     // one. So the rule is: no permanent DDL, and a temp table must say so.
-    // Comments and string literals removed first: these scripts explain
-    // themselves at length, and prose about what a migration would "create" is
-    // not DDL. Matching raw text made every scenario fail on its own comments.
-    const code = sql
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/--[^\n]*/g, "")
-      .replace(/'(?:[^']|'')*'/g, "''");
+    const code = statementsOnly(sql);
 
-    const DDL = "table|type|schema|index|view|function|policy|extension|sequence|trigger|role";
+    const DDL =
+      "table|type|schema|index|view|function|procedure|policy|extension|sequence|trigger|role|" +
+      "database|domain|aggregate|operator|rule|server|publication|subscription";
 
+    // Modifiers may sit between `create` and the object keyword — `or replace`,
+    // `unlogged`, `unique`, `materialized`, `recursive`. Matching only
+    // `create <keyword>` let every one of them through, which injection
+    // confirmed: `create or replace view`, `create unlogged table` and
+    // `create unique index` were all invisible.
+    //
+    // `temporary`/`temp` is the one modifier that makes the statement legal, so
+    // it is the only one that stops the match.
+    const MODIFIERS = "(?:or\\s+replace|unlogged|unique|materialized|recursive|concurrently)";
     const permanentDdl = [
-      ...code.matchAll(new RegExp(`\\bcreate\\s+(?!temporary\\b)(?:${DDL})\\b`, "gi")),
-    ].map((match) => match[0]);
+      ...code.matchAll(
+        new RegExp(
+          `\\bcreate\\s+(?!(?:temporary|temp)\\b)(?:${MODIFIERS}\\s+)*(?:${DDL})\\b`,
+          "gi",
+        ),
+      ),
+    ].map((match) => match[0].replace(/\s+/g, " "));
     expect(permanentDdl, `${name} creates a permanent database object`).toEqual([]);
 
     expect(code, `${name} alters a database object`).not.toMatch(
       new RegExp(`\\balter\\s+(?:${DDL})\\b`, "i"),
     );
 
-    // `drop table if exists` is permitted only for a temporary table this
-    // script created itself, and must be schema-qualified so it cannot reach a
-    // permanent relation through `search_path`.
-    for (const drop of [...code.matchAll(/\bdrop\s+table\s+(?:if\s+exists\s+)?([\w.]+)/gi)]) {
-      expect(drop[1], `${name} drops "${drop[1]}", which is not a pg_temp relation`).toMatch(
-        /^pg_temp\./,
-      );
+    // Every `drop`, not just `drop table`: dropping a view, a function or a
+    // policy is as much a schema change as dropping a table. The one permitted
+    // form is a temporary relation this script created itself, and it must be
+    // `pg_temp.`-qualified so it cannot reach a permanent object through
+    // `search_path`.
+    for (const drop of [
+      ...code.matchAll(new RegExp(`\\bdrop\\s+(${DDL})\\s+(?:if\\s+exists\\s+)?([\\w.]+)`, "gi")),
+    ]) {
+      expect(
+        `${drop[1]} ${drop[2]}`,
+        `${name} drops "${drop[2]}", which is not a pg_temp relation`,
+      ).toMatch(/^table pg_temp\./i);
     }
+
     expect(code, `${name} grants or revokes`).not.toMatch(/\b(grant|revoke)\b/i);
   });
 

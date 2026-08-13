@@ -202,7 +202,8 @@ both marks at once — deterministic-key deletes for what the script wrote,
 sentinel-only deletes for what the application wrote. Its sentinel is matched
 against two columns (`known_as` for script-written rows, `family_name` for
 form-written ones, because the form has a Last name field and no nickname
-field), and both are pinned by value in the contract test.
+field), compared as `upper(btrim(…))` so a marker typed in the wrong case still
+matches, and pinned by value in the contract test.
 
 Be exact about what that is and is not. It is **not** equivalent to a
 deterministic key: a key names one pre-known row and the sentinel is then a
