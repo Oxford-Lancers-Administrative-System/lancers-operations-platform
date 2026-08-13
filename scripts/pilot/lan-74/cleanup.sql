@@ -43,8 +43,10 @@
 -- Both columns are still recognised. Scenario rows carry the sentinel in
 -- `known_as`, because setup.sql can set any column and person …0001 is
 -- deliberately first-name-only so it has no family name to carry one. Rows the
--- interface creates carry it in `family_name`. `'PILOT-LAN-74' in (known_as,
--- family_name)` matches either without a disjunction inside a delete.
+-- interface creates carry it in `family_name`. The predicate is
+-- `'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))`,
+-- which reads either column, forgives case and surrounding spaces, and puts no
+-- disjunction inside a delete.
 --
 -- Five of the deletes below are therefore keyed on the sentinel alone. That is
 -- the second ownership shape, governed by ADR 0019 — LAN-76 uses it too, so

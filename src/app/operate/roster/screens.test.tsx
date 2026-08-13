@@ -114,6 +114,27 @@ async function renderIntakeAt(state: IntakeState) {
   return result;
 }
 
+/**
+ * Asserts a 44px minimum on every named action currently on screen.
+ *
+ * Buttons and links are looked up separately because MUI renders an `href`
+ * action as an anchor, and a helper that only checked one role would silently
+ * skip every navigation action — which is most of them on UX-12 and UX-13.
+ */
+function expectTouchTargets(buttons: string[], links: string[] = []): void {
+  for (const name of buttons) {
+    expect(
+      screen.getByRole("button", { name }),
+      `"${name}" has no touch-target minimum`,
+    ).toHaveStyle({ minHeight: "44px" });
+  }
+  for (const name of links) {
+    expect(screen.getByRole("link", { name }), `"${name}" has no touch-target minimum`).toHaveStyle(
+      { minHeight: "44px" },
+    );
+  }
+}
+
 const CANDIDATES: PersonCandidate[] = [
   {
     personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -286,18 +307,20 @@ describe("UX-10 — the accessibility claims the ticket makes", () => {
     expect(screen.getByLabelText("First name")).toHaveAttribute("aria-invalid", "false");
   });
 
-  it("gives every action a touch target big enough to hit on a phone", async () => {
+  it("gives every action on UX-10 a touch target big enough to hit on a phone", async () => {
     await renderIntakeAt({
       step: "details",
       values: { givenName: "", familyName: "", email: "", phone: "" },
       errors: {},
     });
 
-    // jsdom does not lay out, so this reads the value the component asked for
-    // rather than a measured box. That is the honest limit of what it proves:
-    // it catches the target being dropped, not the layout being wrong.
-    const check = screen.getByRole("button", { name: "Check for matches" });
-    expect(check).toHaveStyle({ minHeight: "44px" });
+    // Every action, not one. Asserting a single button let the other six lose
+    // their target silently — which injection confirmed.
+    //
+    // jsdom does not lay out, so this reads the value each component asked for
+    // rather than a measured box. That is the honest limit: it catches the
+    // target being dropped, not the layout being wrong.
+    expectTouchTargets(["Check for matches"], ["Cancel"]);
   });
 });
 
@@ -348,6 +371,17 @@ describe("UX-11 — Review possible matches", () => {
     expect(within(candidates[1]).getByTestId("candidate-has-membership")).toHaveTextContent(
       "Already a member",
     );
+  });
+
+  it("gives every action and the candidate radio a usable touch target", () => {
+    expectTouchTargets(["Use selected person", "Confirm this is a new person", "Back to details"]);
+    // The radio is the primary selection control on this screen and had no
+    // minimum at all.
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio.closest("span"), "a candidate radio has no touch target").toHaveStyle({
+        minHeight: "44px",
+      });
+    }
   });
 
   it("says why each candidate surfaced", () => {
@@ -431,6 +465,10 @@ describe("UX-12 — already a member this season", () => {
     expect(
       screen.queryByRole("button", { name: "Back to candidate review" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("gives both recovery actions a usable touch target", () => {
+    expectTouchTargets(["Go back"], ["View Ari\u2019s roster entry"]);
   });
 
   it("shows a sentence an operator can act on, not a database error", () => {
@@ -528,6 +566,10 @@ describe("UX-13 — Returning player added", () => {
     const time = document.querySelector("time");
     expect(time).toHaveAttribute("dateTime", "2026-08-12T13:36:00.000Z");
     expect(time).toHaveTextContent("12 Aug 2026, 14:36");
+  });
+
+  it("gives its one exit a usable touch target", () => {
+    expectTouchTargets([], ["Back to roster"]);
   });
 
   it("offers exactly one exit", () => {

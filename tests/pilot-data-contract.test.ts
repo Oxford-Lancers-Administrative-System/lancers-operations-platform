@@ -327,6 +327,7 @@ describe("the scenario scripts stay inside the conventions", () => {
   function statementsOnly(sql: string): string {
     let out = "";
     let i = 0;
+    const dollarTags: string[] = [];
 
     const blank = (text: string) => text.replace(/[^\n]/g, " ");
 
@@ -349,13 +350,51 @@ describe("the scenario scripts stay inside the conventions", () => {
         continue;
       }
 
+      // A dollar-quoted body is NOT a literal to be blanked. `do $x$ … $x$`
+      // is PL/pgSQL that PostgreSQL executes, and PL/pgSQL runs DDL, `grant`,
+      // `drop` and `alter` directly. Blanking it hid the only DDL statement in
+      // any pilot script — and hid an injected `grant all on public.people to
+      // anon` that the previous, worse stripper had caught.
+      //
+      // So: blank the delimiters, keep scanning the contents. A dollar-quoted
+      // string used as data would be over-reported rather than under-reported,
+      // which is the direction to fail in.
       const dollar = /^\$([A-Za-z_]\w*)?\$/.exec(rest);
       if (dollar) {
         const tag = dollar[0];
-        const end = sql.indexOf(tag, i + tag.length);
-        const stop = end === -1 ? sql.length : end + tag.length;
-        out += blank(sql.slice(i, stop));
-        i = stop;
+        out += blank(tag);
+        i += tag.length;
+        dollarTags.push(tag);
+        continue;
+      }
+
+      // The closing delimiter of a body opened above.
+      const closing = dollarTags[dollarTags.length - 1];
+      if (closing && rest.startsWith(closing)) {
+        out += blank(closing);
+        i += closing.length;
+        dollarTags.pop();
+        continue;
+      }
+
+      // `E'…'` uses backslash escapes, so `\'` does not close it. Without this
+      // the scanner closes early and every subsequent literal is out of phase —
+      // which is how the version this replaced blanked the rest of a file.
+      const escapeString = /^[eE]'/.exec(rest);
+      if (escapeString) {
+        let j = i + 2;
+        while (j < sql.length) {
+          if (sql[j] === "\\") j += 2;
+          else if (sql[j] === "'") {
+            if (sql[j + 1] === "'") j += 2;
+            else {
+              j += 1;
+              break;
+            }
+          } else j += 1;
+        }
+        out += blank(sql.slice(i, j));
+        i = j;
         continue;
       }
 
@@ -380,6 +419,42 @@ describe("the scenario scripts stay inside the conventions", () => {
     }
 
     return out;
+  }
+
+  /**
+   * The same scan, but with dollar-quoted bodies blanked out as well.
+   *
+   * Exactly one rule needs this. `select … into <table> … from …` creates a
+   * permanent table without the word `create` appearing, but the identical
+   * syntax inside PL/pgSQL — `select count(*) into open_seasons from …` —
+   * assigns to a variable, and is how every preflight here reads a count. The
+   * distinction is positional and nothing else.
+   *
+   * Every other rule uses `statementsOnly`, which keeps body contents, because
+   * PL/pgSQL runs real DDL and hiding it there is exactly what went wrong.
+   */
+  function withoutPreflightBodies(sql: string): string {
+    // Re-scan the ORIGINAL text for the bodies, and blank those regions in the
+    // stripped output, so the result is "top level, comments and literals gone".
+    const code = statementsOnly(sql).split("");
+    const tag = /\$([A-Za-z_]\w*)?\$/g;
+    let match: RegExpExecArray | null;
+    let open: number | null = null;
+    let openTag = "";
+
+    while ((match = tag.exec(sql)) !== null) {
+      if (open === null) {
+        open = match.index;
+        openTag = match[0];
+      } else if (match[0] === openTag) {
+        for (let k = open; k < match.index + match[0].length; k += 1) {
+          if (code[k] !== "\n") code[k] = " ";
+        }
+        open = null;
+      }
+    }
+
+    return code.join("");
   }
 
   it("reads a script left to right, so nothing hides inside anything else", () => {
@@ -408,12 +483,38 @@ describe("the scenario scripts stay inside the conventions", () => {
     // The specific failure this replaced: `lan-76/setup.sql` has an odd number
     // of `'` characters, because its comments contain apostrophes. A regex
     // stripper lost phase there and blanked the rest of the file.
+    //
+    // Length preservation is NOT the check. `blank()` swaps each character for
+    // a space and the fallthrough appends one character, so equal length is
+    // structurally guaranteed on every input — it cannot fail, and in
+    // particular a total loss of phase does not change it. What proves phase is
+    // that specific known text survives and specific known text does not.
     for (const [name, sql] of ALL_SCRIPTS) {
       const code = statementsOnly(sql);
-      expect(code.length, `${name}: the scanner produced a different length`).toBe(sql.length);
-      expect(code, `${name}: the scanner blanked the whole script`).toMatch(/\bbegin\b/i);
-      expect(code, `${name}: the scanner blanked the whole script`).toMatch(/\bcommit\b/i);
+
+      // Executable text at the very end of the file must still be there. A
+      // scanner that lost phase anywhere earlier blanks everything after it.
+      expect(code, `${name}: nothing survives to the end of the script`).toMatch(/commit\s*;\s*$/i);
+
+      // Literal content must be gone — proving the scanner is doing its job at
+      // all, not merely returning its input.
+      expect(code, `${name}: string literals were not removed`).not.toMatch(/PILOT-LAN-\d+/);
     }
+  });
+
+  it("keeps the executable contents of a preflight body visible", () => {
+    // The regression this exists to prevent: `do $x$ … $x$` was treated as a
+    // literal and blanked, which hid every statement in every preflight —
+    // including the one `create temporary table` in the repository, and any
+    // `grant` or `drop` an edit put there.
+    const cleanup = read("scripts/pilot/lan-74/cleanup.sql");
+    const code = statementsOnly(cleanup);
+
+    expect(code, "the preflight's own statements must be visible").toMatch(
+      /create temporary table/i,
+    );
+    // …while the messages inside it are still removed.
+    expect(code).not.toMatch(/pilot cleanup refused/i);
   });
 
   it.each(ALL_SCRIPTS)("%s is not a migration in disguise", (name, sql) => {
@@ -425,7 +526,8 @@ describe("the scenario scripts stay inside the conventions", () => {
 
     const DDL =
       "table|type|schema|index|view|function|procedure|policy|extension|sequence|trigger|role|" +
-      "database|domain|aggregate|operator|rule|server|publication|subscription";
+      "user|group|database|domain|aggregate|operator|rule|server|publication|subscription|" +
+      "tablespace|collation|cast|statistics";
 
     // Modifiers may sit between `create` and the object keyword — `or replace`,
     // `unlogged`, `unique`, `materialized`, `recursive`. Matching only
@@ -435,7 +537,8 @@ describe("the scenario scripts stay inside the conventions", () => {
     //
     // `temporary`/`temp` is the one modifier that makes the statement legal, so
     // it is the only one that stops the match.
-    const MODIFIERS = "(?:or\\s+replace|unlogged|unique|materialized|recursive|concurrently)";
+    const MODIFIERS =
+      "(?:or\\s+replace|unlogged|unique|materialized|recursive|concurrently|foreign|global|local)";
     const permanentDdl = [
       ...code.matchAll(
         new RegExp(
@@ -447,7 +550,7 @@ describe("the scenario scripts stay inside the conventions", () => {
     expect(permanentDdl, `${name} creates a permanent database object`).toEqual([]);
 
     expect(code, `${name} alters a database object`).not.toMatch(
-      new RegExp(`\\balter\\s+(?:${DDL})\\b`, "i"),
+      new RegExp(`\\balter\\s+(?:${MODIFIERS}\\s+)*(?:${DDL})\\b`, "i"),
     );
 
     // Every `drop`, not just `drop table`: dropping a view, a function or a
@@ -456,7 +559,12 @@ describe("the scenario scripts stay inside the conventions", () => {
     // `pg_temp.`-qualified so it cannot reach a permanent object through
     // `search_path`.
     for (const drop of [
-      ...code.matchAll(new RegExp(`\\bdrop\\s+(${DDL})\\s+(?:if\\s+exists\\s+)?([\\w.]+)`, "gi")),
+      ...code.matchAll(
+        new RegExp(
+          `\\bdrop\\s+(?:${MODIFIERS}\\s+)*(${DDL})\\s+(?:if\\s+exists\\s+)?([\\w.]+)`,
+          "gi",
+        ),
+      ),
     ]) {
       expect(
         `${drop[1]} ${drop[2]}`,
@@ -465,6 +573,22 @@ describe("the scenario scripts stay inside the conventions", () => {
     }
 
     expect(code, `${name} grants or revokes`).not.toMatch(/\b(grant|revoke)\b/i);
+
+    // `truncate` is not DDL, and is the single most destructive statement a
+    // hand-run production script could contain. It has no undo and, until this
+    // line, no test in the repository mentioned it.
+    expect(code, `${name} truncates a table`).not.toMatch(/\btruncate\b/i);
+
+    // `select … into <table>` creates a permanent table without the word
+    // `create` appearing anywhere. Checked at TOP LEVEL only: the same syntax
+    // inside a PL/pgSQL body assigns to a variable, which every preflight here
+    // does to read a count.
+    expect(withoutPreflightBodies(sql), `${name} creates a table via SELECT INTO`).not.toMatch(
+      /\binto\s+(?!strict\b)[\w.]+\s+from\b/i,
+    );
+
+    // `drop owned by` / `reassign owned by` change role ownership wholesale.
+    expect(code, `${name} changes role ownership`).not.toMatch(/\b(drop|reassign)\s+owned\s+by\b/i);
   });
 
   it.each([

@@ -282,7 +282,15 @@ function CandidateRow({ candidate }: { candidate: PersonCandidate }) {
     <Paper variant="outlined" sx={{ px: 2, py: 1.5 }} data-testid="candidate">
       <FormControlLabel
         value={candidate.personId}
-        control={<Radio sx={{ alignSelf: "flex-start" }} />}
+        control={
+          <Radio
+            sx={{
+              alignSelf: "flex-start",
+              minHeight: MIN_TOUCH_TARGET,
+              minWidth: MIN_TOUCH_TARGET,
+            }}
+          />
+        }
         sx={{ alignItems: "flex-start", m: 0, width: "100%" }}
         label={
           <Box

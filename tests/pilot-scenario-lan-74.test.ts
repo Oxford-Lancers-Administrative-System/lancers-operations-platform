@@ -981,7 +981,7 @@ describe("the sweep of the returner created through the interface", () => {
   });
 
   it("does not read the sentinel out of any column but the two it owns", async () => {
-    // The sweep matches `'PILOT-LAN-74' in (known_as, family_name)`. Nothing
+    // The sweep matches the sentinel in `known_as` or `family_name`. Nothing
     // else. Without this test the predicate could be widened to `given_name` —
     // or to any other text column — and every test in the repository stayed
     // green, because no fixture ever put the sentinel anywhere unexpected.
