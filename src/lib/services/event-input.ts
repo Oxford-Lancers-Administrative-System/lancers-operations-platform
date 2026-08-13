@@ -84,7 +84,7 @@ export type EventStatus =
   | "withdrawn";
 
 /** The transitions LAN-76 owns, as data. Anything not listed is refused. */
-export type EventTransition = "submit" | "withdraw_submission" | "abandon";
+export type EventTransition = "abandon";
 
 interface TransitionRule {
   readonly from: EventStatus;
@@ -97,33 +97,38 @@ interface TransitionRule {
   readonly refusal: string;
 }
 
+/**
+ * ## Why there is no "submit for approval" here
+ *
+ * There was, and Brian removed it on 12 August 2026 after reading it on the
+ * screen. The frozen model's §2.3 has `draft → pending_approval` on submission,
+ * and the interface built from it asked a Secretary who had just typed in
+ * Wednesday's practice to then press "Submit for approval" — announcing to
+ * themselves that they were ready.
+ *
+ * That step models a proposer asking a gatekeeper for permission, and this club
+ * has no such relationship: only the four calendar roles can create an event at
+ * all, so there is no outsider to submit anything. In his words: "the intent of
+ * what you're doing makes it seem like any player on the team can submit an
+ * event, which is not the case."
+ *
+ * So a saved event is a **draft**, full stop, and a draft goes to approval when
+ * the club wants the automation to go out. Approval itself is unchanged and
+ * still exists — it is the second pair of eyes and the switch that releases
+ * invitations — and it is LAN-77's to build, now from `draft` rather than from
+ * `pending_approval`.
+ *
+ * `pending_approval` stays in the `event_status` enum: removing a value is a
+ * migration and a domain-model change, seeded rows use it, and nothing is
+ * gained by churning the schema. Nothing in the application produces it.
+ */
 export const EVENT_TRANSITIONS: Readonly<Record<EventTransition, TransitionRule>> = Object.freeze({
-  /** Model §2.3: `draft → pending_approval` on submission. */
-  submit: Object.freeze({
-    from: "draft",
-    to: "pending_approval",
-    action: "event.submitted_for_approval",
-    requiresReason: false,
-    refusal: "Only a draft can be submitted for approval.",
-  }),
-
   /**
-   * UX-33: "Withdrawal returns the event to draft." The operator who submitted
-   * too early takes it back; nothing was distributed, because a
-   * `pending_approval` event can carry no invitations (P1).
-   */
-  withdraw_submission: Object.freeze({
-    from: "pending_approval",
-    to: "draft",
-    action: "event.submission_withdrawn",
-    requiresReason: false,
-    refusal: "Only an event awaiting approval can have its submission withdrawn.",
-  }),
-
-  /**
-   * LAN-76 scope: `draft → withdrawn` for a candidate the owner abandons. A
-   * different thing from withdrawing a submission, which is why the two carry
-   * different labels on screen — this one ends the event.
+   * `draft → withdrawn` — a candidate the club abandons.
+   *
+   * The one transition this issue owns. Distinct from anything to do with
+   * approval: it ends an event that is never going to happen, and the schema
+   * requires it to say why.
    */
   abandon: Object.freeze({
     from: "draft",

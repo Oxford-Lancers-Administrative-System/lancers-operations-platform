@@ -35,8 +35,6 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
     readEvent: vi.fn(),
     createEventDraft: vi.fn(),
     updateEventDraft: vi.fn(),
-    submitEventForApproval: vi.fn(),
-    withdrawEventSubmission: vi.fn(),
     abandonEventDraft: vi.fn(),
   };
 });
@@ -498,12 +496,11 @@ describe("UX-32 — a draft event", () => {
     expect(audience).toContain("chosen and confirmed during the approval step");
   });
 
-  it("offers submit, edit and abandon, and no approval", async () => {
+  it("offers edit and abandon, and no approval", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.getByRole("button", { name: "Submit for approval" })).toBeEnabled();
     expect(screen.getByRole("link", { name: "Edit draft" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Abandon draft" })).toBeVisible();
     expect(screen.queryByRole("button", { name: /approve event/i })).toBeNull();
@@ -514,8 +511,8 @@ describe("UX-32 — a draft event", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.getByRole("button", { name: "Build audience" })).toBeDisabled();
-    expect(flatten(screen.getByTestId("audience-note").textContent)).toContain("LAN-77");
+    expect(screen.getByRole("button", { name: "Choose audience and send" })).toBeDisabled();
+    expect(flatten(screen.getByTestId("audience-note").textContent)).toContain("not built yet");
   });
 
   it("states both flags and the difference between them", async () => {
@@ -576,29 +573,20 @@ describe("UX-32 — a draft event", () => {
 // UX-33 and the pending event
 // ---------------------------------------------------------------------------
 
-describe("UX-33 — an event submitted for approval", () => {
-  it("confirms the submission and says nothing was distributed", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "pending_approval" }));
-
-    render(await EventDetailPage(detailProps({ submitted: "1" })));
-
-    expect(screen.getByRole("heading", { name: "Event submitted for approval" })).toBeVisible();
-    expect(flatten(screen.getByTestId("pending-boundary-note").textContent)).toBe(
-      "Pending approval still has no invitations, responses or attendance. Withdrawal returns " +
-        "the event to draft.",
-    );
-    expect(screen.getByRole("link", { name: "View pending event" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Withdraw submission" })).toBeVisible();
-  });
-
-  it("shows the event itself once the confirmation flag is gone", async () => {
+describe("an event awaiting approval, which nothing here creates", () => {
+  it("reads, and offers no action at all", async () => {
+    // `pending_approval` stays in the enum and seeded rows use it, so the screen
+    // still has to render one. Brian removed the step that produced it.
     vi.mocked(readEvent).mockResolvedValue(detail({ status: "pending_approval" }));
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.queryByRole("heading", { name: "Event submitted for approval" })).toBeNull();
     expect(screen.getByTestId("event-detail").dataset.status).toBe("pending_approval");
-    expect(screen.getByRole("button", { name: "Withdraw submission" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Withdraw submission" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Edit draft" })).toBeNull();
+    expect(flatten(screen.getByTestId("approval-note").textContent)).toContain(
+      "Approval is not built yet",
+    );
   });
 
   it("keeps the no-invitations statement while the event is pending", async () => {
@@ -608,24 +596,37 @@ describe("UX-33 — an event submitted for approval", () => {
 
     expect(screen.getByTestId("no-invitations-note")).toBeVisible();
   });
+});
 
-  it("offers neither edit nor submit while the event is pending", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "pending_approval" }));
+describe("a saved event is a draft, and there is nothing to submit", () => {
+  it("offers edit and abandon, and no submission", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.queryByRole("link", { name: "Edit draft" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Edit draft" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Abandon draft" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Submit for approval" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /submit/i })).toBeNull();
   });
 
-  it("does not claim a submission an approved event never made", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+  it("says the draft is on the calendar and nothing has been sent", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("audience-note").textContent)).toContain(
+      "on the club’s calendar and nothing has been sent",
+    );
+  });
+
+  it("has no confirmation screen for a submission that cannot happen", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "pending_approval" }));
 
     render(await EventDetailPage(detailProps({ submitted: "1" })));
 
     expect(screen.queryByRole("heading", { name: "Event submitted for approval" })).toBeNull();
-    expect(screen.getByTestId("event-detail").dataset.status).toBe("approved");
-    expect(screen.queryByTestId("no-invitations-note")).toBeNull();
+    expect(screen.getByTestId("event-detail")).toBeVisible();
   });
 });
 
@@ -733,20 +734,11 @@ describe("an operator without a calendar role reads the calendar and changes not
     const { container } = render(await EventDetailPage(detailProps()));
 
     expect(flatten(container.textContent)).toContain("Wednesday practice");
-    expect(screen.queryByRole("button", { name: "Submit for approval" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Edit draft" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Abandon draft" })).toBeNull();
     expect(flatten(screen.getByTestId("read-only-note").textContent)).toContain(
       "President, Vice-President, Secretary and General Manager",
     );
-  });
-
-  it("is offered no withdrawal on a pending event", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "pending_approval" }));
-
-    render(await EventDetailPage(detailProps()));
-
-    expect(screen.queryByRole("button", { name: "Withdraw submission" })).toBeNull();
   });
 
   it("is refused the editor outright, and told what it needs", async () => {
@@ -788,7 +780,6 @@ describe("each of the four calendar roles is offered the actions", () => {
       editor.unmount();
 
       render(await EventDetailPage(detailProps()));
-      expect(screen.getByRole("button", { name: "Submit for approval" })).toBeEnabled();
       expect(screen.getByRole("link", { name: "Edit draft" })).toBeVisible();
     },
   );

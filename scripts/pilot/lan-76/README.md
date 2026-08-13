@@ -85,10 +85,9 @@ result set, at least one active operator account, and
 | 7    | `/operate/events/new`          | Create **PILOT-LAN-76 Wednesday practice**, mandatory, response requested | Lands on the event. Status **Draft**, term and week derived, entered-by recorded, no invitations.           |
 | 8    | `/operate/events/[id]/edit`    | Change the venue and save                                                 | Back on the event, with the new venue.                                                                      |
 | 9    | `/operate/events/new`          | Create **PILOT-LAN-76 Second event**, same date as step 7                 | Accepted. Two events on one date is legal — invariant E4.                                                   |
-| 10   | the first event                | Submit for approval                                                       | "Event submitted for approval". Still no invitations.                                                       |
-| 11   | the same event                 | Withdraw submission                                                       | Back to **Draft**, editable again.                                                                          |
-| 12   | the second event               | Abandon draft, with a reason                                              | Status **Withdrawn**, the reason shown.                                                                     |
-| 13   | `/operate/events?status=draft` | Filter                                                                    | Only drafts. The withdrawn event is not among them.                                                         |
+| 10   | the first event                | Read its actions                                                          | **Edit draft** and **Abandon draft** only. There is no submit step — a saved event is a draft.              |
+| 11   | the second event               | Abandon draft, with a reason                                              | Status **Withdrawn**, the reason shown.                                                                     |
+| 12   | `/operate/events?status=draft` | Filter                                                                    | Only drafts. The withdrawn event is not among them.                                                         |
 
 **And the authorization half, which needs a second sign-in.** Signed in as an
 operator holding no calendar seat — a Treasurer, a coach, or an operator with no
@@ -97,7 +96,7 @@ is absent, an event's page offers none of its actions, and `/operate/events/new`
 refuses with a message naming the four roles it requires and never the roles the
 reader holds.
 
-Every one of steps 7 to 12 writes an `audit_events` row naming the operator.
+Every one of steps 7, 8, 9 and 11 writes an `audit_events` row naming the operator.
 Those rows are **not** removed by cleanup.
 
 ### 3. After testing — `cleanup.sql`

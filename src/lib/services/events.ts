@@ -55,12 +55,17 @@ import { readCurrentSeasonIn, type Season } from "./seasons";
  *     slice records neither, so the constraint is satisfied by never writing
  *     them; the flag is still an explicit operator choice, never a default.
  *
- * ## Approval is not here
+ * ## Approval is not here, and neither is submission
  *
  * `approved`, `rejected`, `cancelled`, `occurred` and `not_held` are LAN-77 and
  * later. A transition this module does not name is refused, which is why the
  * table is a whitelist: an unlisted pair is an `InvalidTransition`, not an
  * unhandled case.
+ *
+ * `draft → pending_approval` was here and is gone — Brian removed the step on
+ * 12 August 2026, because only calendar operators create events, so there is
+ * nobody to submit an event *to*. A saved event is a draft; approval takes it
+ * from there. See `EVENT_TRANSITIONS` in `./event-input` for the reasoning.
  */
 
 // ---------------------------------------------------------------------------
@@ -557,22 +562,6 @@ async function applyTransition(
 
     return readEventIn(tx, eventId);
   });
-}
-
-/** `draft → pending_approval`. Nothing is distributed; approval is LAN-77. */
-export async function submitEventForApproval(
-  actorPersonId: string,
-  eventId: string,
-): Promise<EventDetail> {
-  return applyTransition(actorPersonId, eventId, "submit", null);
-}
-
-/** `pending_approval → draft` — UX-33's "Withdraw submission". */
-export async function withdrawEventSubmission(
-  actorPersonId: string,
-  eventId: string,
-): Promise<EventDetail> {
-  return applyTransition(actorPersonId, eventId, "withdraw_submission", null);
 }
 
 /**

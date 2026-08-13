@@ -6,16 +6,16 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import {
-  abandonEventDraftAction,
-  submitEventAction,
-  withdrawEventSubmissionAction,
-} from "./actions";
+import { abandonEventDraftAction } from "./actions";
 import { EMPTY_TRANSITION_STATE } from "./form-state";
 
 /**
- * The three status changes an operator can make from the event detail — UX-32
- * and UX-33.
+ * The one status change an operator can make from the event detail.
+ *
+ * There were three. "Submit for approval" and "Withdraw submission" both went
+ * on 12 August 2026: they modelled a proposer asking a gatekeeper, and this
+ * club has no such relationship — only calendar operators create events at all.
+ * A saved event is a draft, and approval takes it from there.
  *
  * Each is a real `form` posting to a server action, not a link and not a
  * fetch. That matters beyond style: the action re-resolves the operator from
@@ -27,51 +27,6 @@ import { EMPTY_TRANSITION_STATE } from "./form-state";
  * pressed, and the event is re-read on the next render — nothing here caches a
  * status and nothing decides from one.
  */
-
-/** `draft → pending_approval`. */
-export function SubmitEventButton({ eventId }: { eventId: string }) {
-  const [state, formAction, pending] = useActionState(submitEventAction, EMPTY_TRANSITION_STATE);
-
-  return (
-    <Stack spacing={1}>
-      <Box component="form" action={formAction}>
-        <input type="hidden" name="eventId" value={eventId} />
-        <Button type="submit" variant="contained" disabled={pending} fullWidth>
-          {pending ? "Submitting…" : "Submit for approval"}
-        </Button>
-      </Box>
-      {state.error ? (
-        <Alert severity="error" data-testid="submit-error">
-          {state.error}
-        </Alert>
-      ) : null}
-    </Stack>
-  );
-}
-
-/** `pending_approval → draft` — UX-33's exact label. */
-export function WithdrawSubmissionButton({ eventId }: { eventId: string }) {
-  const [state, formAction, pending] = useActionState(
-    withdrawEventSubmissionAction,
-    EMPTY_TRANSITION_STATE,
-  );
-
-  return (
-    <Stack spacing={1}>
-      <Box component="form" action={formAction}>
-        <input type="hidden" name="eventId" value={eventId} />
-        <Button type="submit" variant="outlined" disabled={pending} fullWidth>
-          {pending ? "Withdrawing…" : "Withdraw submission"}
-        </Button>
-      </Box>
-      {state.error ? (
-        <Alert severity="error" data-testid="withdraw-error">
-          {state.error}
-        </Alert>
-      ) : null}
-    </Stack>
-  );
-}
 
 /**
  * `draft → withdrawn` — the candidate the owner abandons.

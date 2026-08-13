@@ -36,8 +36,6 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
     ...actual,
     createEventDraft: vi.fn(),
     updateEventDraft: vi.fn(),
-    submitEventForApproval: vi.fn(),
-    withdrawEventSubmission: vi.fn(),
     abandonEventDraft: vi.fn(),
   };
 });
@@ -48,20 +46,8 @@ import {
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
-import {
-  abandonEventDraft,
-  createEventDraft,
-  submitEventForApproval,
-  updateEventDraft,
-  withdrawEventSubmission,
-} from "@/lib/services/events";
-import {
-  abandonEventDraftAction,
-  createEventDraftAction,
-  submitEventAction,
-  updateEventDraftAction,
-  withdrawEventSubmissionAction,
-} from "./actions";
+import { abandonEventDraft, createEventDraft, updateEventDraft } from "@/lib/services/events";
+import { abandonEventDraftAction, createEventDraftAction, updateEventDraftAction } from "./actions";
 import { EMPTY_FORM_STATE, EMPTY_TRANSITION_STATE } from "./form-state";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
@@ -146,16 +132,6 @@ const ACTIONS = [
     service: updateEventDraft,
   },
   {
-    name: "submitEventAction",
-    call: () => submitEventAction(EMPTY_TRANSITION_STATE, transitionForm()),
-    service: submitEventForApproval,
-  },
-  {
-    name: "withdrawEventSubmissionAction",
-    call: () => withdrawEventSubmissionAction(EMPTY_TRANSITION_STATE, transitionForm()),
-    service: withdrawEventSubmission,
-  },
-  {
     name: "abandonEventDraftAction",
     call: () =>
       abandonEventDraftAction(EMPTY_TRANSITION_STATE, transitionForm({ reason: "Pitch gone" })),
@@ -167,8 +143,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(createEventDraft).mockResolvedValue({ id: EVENT_ID } as never);
   vi.mocked(updateEventDraft).mockResolvedValue({ id: EVENT_ID } as never);
-  vi.mocked(submitEventForApproval).mockResolvedValue({ id: EVENT_ID } as never);
-  vi.mocked(withdrawEventSubmission).mockResolvedValue({ id: EVENT_ID } as never);
   vi.mocked(abandonEventDraft).mockResolvedValue({ id: EVENT_ID } as never);
 });
 
@@ -273,7 +247,7 @@ describe("only the four calendar roles may manage the calendar", () => {
     givenAccess({ state: "active", operator: actor(["head_coach"]) });
 
     const error = await refusalFrom(() =>
-      submitEventAction(EMPTY_TRANSITION_STATE, transitionForm()),
+      abandonEventDraftAction(EMPTY_TRANSITION_STATE, transitionForm({ reason: "No" })),
     );
 
     expect(error.kind).toBe("not_permitted");
@@ -329,13 +303,16 @@ describe("a refusal from the service is shown, and an authorization refusal is n
   });
 
   it("returns an illegal transition as a sentence the operator can act on", async () => {
-    vi.mocked(submitEventForApproval).mockRejectedValue(
-      new InvalidTransition("Only a draft can be submitted for approval. This event is approved."),
+    vi.mocked(abandonEventDraft).mockRejectedValue(
+      new InvalidTransition("Only a draft can be abandoned. This event is approved."),
     );
 
-    const state = await submitEventAction(EMPTY_TRANSITION_STATE, transitionForm());
+    const state = await abandonEventDraftAction(
+      EMPTY_TRANSITION_STATE,
+      transitionForm({ reason: "No longer needed" }),
+    );
 
-    expect(state.error).toMatch(/Only a draft can be submitted/);
+    expect(state.error).toMatch(/Only a draft can be abandoned/);
   });
 
   it("keeps a form's entries when the service refuses the write", async () => {
@@ -359,9 +336,11 @@ describe("a refusal from the service is shown, and an authorization refusal is n
 
   it("lets an unexpected failure reach the error boundary as itself", async () => {
     const boom = new TypeError("something entirely different broke");
-    vi.mocked(submitEventForApproval).mockRejectedValue(boom);
+    vi.mocked(abandonEventDraft).mockRejectedValue(boom);
 
-    await expect(submitEventAction(EMPTY_TRANSITION_STATE, transitionForm())).rejects.toBe(boom);
+    await expect(
+      abandonEventDraftAction(EMPTY_TRANSITION_STATE, transitionForm({ reason: "No" })),
+    ).rejects.toBe(boom);
   });
 });
 
@@ -376,15 +355,17 @@ describe("where each action leaves the operator", () => {
     );
   });
 
-  it("sends a submitted event to the confirmation state — UX-33", async () => {
-    await expect(submitEventAction(EMPTY_TRANSITION_STATE, transitionForm())).rejects.toThrow(
-      `REDIRECT:/operate/events/${EVENT_ID}?submitted=1`,
-    );
+  it("sends an abandoned draft back to the event", async () => {
+    await expect(
+      abandonEventDraftAction(EMPTY_TRANSITION_STATE, transitionForm({ reason: "No pitch" })),
+    ).rejects.toThrow(`REDIRECT:/operate/events/${EVENT_ID}`);
   });
 
-  it("sends a withdrawn submission back to the event, with no confirmation flag", async () => {
-    await expect(
-      withdrawEventSubmissionAction(EMPTY_TRANSITION_STATE, transitionForm()),
-    ).rejects.toThrow(`REDIRECT:/operate/events/${EVENT_ID}`);
+  it("exports no action that submits an event for approval", async () => {
+    // The step Brian removed. A module-level assertion, so re-adding it is a
+    // deliberate act rather than something that creeps back with a screen.
+    const actions = await import("./actions");
+    expect(Object.keys(actions)).not.toContain("submitEventAction");
+    expect(Object.keys(actions)).not.toContain("withdrawEventSubmissionAction");
   });
 });

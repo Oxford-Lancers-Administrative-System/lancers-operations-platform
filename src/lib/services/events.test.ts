@@ -26,10 +26,9 @@ import {
   createEventDraft,
   listCurrentSeasonEvents,
   readEvent,
-  submitEventForApproval,
   updateEventDraft,
   validateEventDraft,
-  withdrawEventSubmission,
+  EVENT_TRANSITIONS,
   type EventDraftInput,
 } from "./events";
 import { readCurrentSeason } from "./seasons";
@@ -102,6 +101,36 @@ async function countDraftedAudits(): Promise<number> {
       where entity_table = 'events' and action = 'event.drafted'`,
   );
   return Number(result.rows[0].count);
+}
+
+/**
+ * Puts an event into a state this slice cannot reach, the way the schema
+ * requires.
+ *
+ * LAN-76 no longer moves an event out of `draft` except by abandoning it —
+ * Brian removed the submission step — so the tests that prove "this is refused
+ * once it is not a draft" have to arrange that state directly. Approval is
+ * LAN-77's, and invariant E1a requires a date, an approver and a confirmed
+ * audience, all of which are set here.
+ */
+async function forceStatus(eventId: string, status: string): Promise<void> {
+  await observer.query(
+    `update public.events
+        set status = $2::public.event_status,
+            approved_at = case when $2 in ('approved', 'occurred', 'not_held', 'cancelled')
+                               then now() end,
+            approved_by_person_id = case when $2 in ('approved', 'occurred', 'not_held', 'cancelled')
+                                         then $3::uuid end,
+            audience_confirmed_at = case when $2 in ('approved', 'occurred', 'not_held', 'cancelled')
+                                         then now() end,
+            audience_confirmed_by_person_id = case
+                                         when $2 in ('approved', 'occurred', 'not_held', 'cancelled')
+                                         then $3::uuid end,
+            decision_reason = case when $2 in ('rejected', 'cancelled', 'withdrawn')
+                                   then 'Arranged by a test' else decision_reason end
+      where id = $1`,
+    [eventId, status, actorPersonId],
+  );
 }
 
 async function statusOf(eventId: string): Promise<string> {
@@ -317,147 +346,29 @@ describe("row 3 — a draft can be edited, and only while it is a draft", () => 
 
   it("refuses to edit an event that is no longer a draft", async () => {
     const event = await createEventDraft(actorPersonId, draft());
-    await submitEventForApproval(actorPersonId, event.id);
+    await forceStatus(event.id, "approved");
 
     const error = await refusalFrom(() => updateEventDraft(actorPersonId, event.id, draft()));
 
     expect(error.kind).toBe("invalid_transition");
     expect(error.message).toMatch(/Only a draft can be edited/);
-    expect(error.message).toMatch(/awaiting approval/);
+    expect(error.message).toMatch(/approved/);
   });
 
   it("writes no audit row for a refused edit", async () => {
     const event = await createEventDraft(actorPersonId, draft());
-    await submitEventForApproval(actorPersonId, event.id);
+    await forceStatus(event.id, "approved");
 
     await refusalFrom(() => updateEventDraft(actorPersonId, event.id, draft()));
 
     const audit = await auditFor(event.id);
-    expect(audit.map((row) => row.action)).toEqual([
-      "event.drafted",
-      "event.submitted_for_approval",
-    ]);
+    expect(audit.map((row) => row.action)).toEqual(["event.drafted"]);
   });
 });
 
 // ---------------------------------------------------------------------------
 // Rows 4, 5, 6 — the three transitions
 // ---------------------------------------------------------------------------
-
-describe("row 4 — submitting a draft for approval", () => {
-  it("moves draft to pending_approval and audits it in the same transaction", async () => {
-    const event = await createEventDraft(actorPersonId, draft());
-
-    const submitted = await submitEventForApproval(actorPersonId, event.id);
-
-    expect(submitted.status).toBe("pending_approval");
-    expect(await statusOf(event.id)).toBe("pending_approval");
-
-    const audit = await auditFor(event.id);
-    expect(audit[1]).toMatchObject({
-      action: "event.submitted_for_approval",
-      from_state: "draft",
-      to_state: "pending_approval",
-      actor_person_id: actorPersonId,
-    });
-  });
-
-  it("submits a draft that has no date — approval is where E1a bites", async () => {
-    const event = await createEventDraft(actorPersonId, draft({ scheduledOn: null }));
-
-    const submitted = await submitEventForApproval(actorPersonId, event.id);
-
-    expect(submitted.status).toBe("pending_approval");
-    expect(submitted.scheduledOn).toBeNull();
-  });
-
-  it("still carries no invitations once pending", async () => {
-    const event = await createEventDraft(actorPersonId, draft());
-    const submitted = await submitEventForApproval(actorPersonId, event.id);
-
-    expect(submitted.invitationCount).toBe(0);
-    expect(submitted.audienceCount).toBe(0);
-  });
-
-  it("refuses to submit an event that is already awaiting approval", async () => {
-    const event = await createEventDraft(actorPersonId, draft());
-    await submitEventForApproval(actorPersonId, event.id);
-
-    const error = await refusalFrom(() => submitEventForApproval(actorPersonId, event.id));
-
-    expect(error.kind).toBe("invalid_transition");
-    expect(error.rule).toBe("event_transition:submit");
-    expect(error.message).toMatch(/Only a draft can be submitted for approval/);
-    expect(error.message).toMatch(/awaiting approval/);
-  });
-
-  it("refuses to submit an event that is already approved", async () => {
-    // An approved event, built the way approval will build one: date, approver
-    // and a confirmed audience, because E1a refuses anything less.
-    const event = await createEventDraft(actorPersonId, draft());
-    await observer.query(
-      `update public.events
-          set status = 'approved', approved_at = now(), approved_by_person_id = $2,
-              audience_confirmed_at = now(), audience_confirmed_by_person_id = $2
-        where id = $1`,
-      [event.id, actorPersonId],
-    );
-
-    const error = await refusalFrom(() => submitEventForApproval(actorPersonId, event.id));
-
-    expect(error.kind).toBe("invalid_transition");
-    expect(error.message).toMatch(/This event is approved/);
-    expect(await statusOf(event.id)).toBe("approved");
-  });
-
-  it("refuses to submit an event that does not exist", async () => {
-    const error = await refusalFrom(() =>
-      submitEventForApproval(actorPersonId, "00000000-0000-4000-8000-000000000000"),
-    );
-
-    expect(error.kind).toBe("not_found");
-  });
-});
-
-describe("row 5 — withdrawing a submission returns the event to draft", () => {
-  it("moves pending_approval back to draft and audits it", async () => {
-    const event = await createEventDraft(actorPersonId, draft());
-    await submitEventForApproval(actorPersonId, event.id);
-
-    const withdrawn = await withdrawEventSubmission(actorPersonId, event.id);
-
-    expect(withdrawn.status).toBe("draft");
-
-    const audit = await auditFor(event.id);
-    expect(audit[2]).toMatchObject({
-      action: "event.submission_withdrawn",
-      from_state: "pending_approval",
-      to_state: "draft",
-    });
-  });
-
-  it("leaves the event editable again", async () => {
-    const event = await createEventDraft(actorPersonId, draft());
-    await submitEventForApproval(actorPersonId, event.id);
-    await withdrawEventSubmission(actorPersonId, event.id);
-
-    const edited = await updateEventDraft(
-      actorPersonId,
-      event.id,
-      draft({ venue: "University Parks" }),
-    );
-    expect(edited.venue).toBe("University Parks");
-  });
-
-  it("refuses to withdraw a submission that was never made", async () => {
-    const event = await createEventDraft(actorPersonId, draft());
-
-    const error = await refusalFrom(() => withdrawEventSubmission(actorPersonId, event.id));
-
-    expect(error.kind).toBe("invalid_transition");
-    expect(error.message).toMatch(/awaiting approval can have its submission withdrawn/);
-  });
-});
 
 describe("row 6 — abandoning a draft ends it, and says why", () => {
   it("moves draft to withdrawn, stores the reason and audits it", async () => {
@@ -486,9 +397,9 @@ describe("row 6 — abandoning a draft ends it, and says why", () => {
     expect(await statusOf(event.id)).toBe("draft");
   });
 
-  it("refuses to abandon an event that is awaiting approval", async () => {
+  it("refuses to abandon an event that has been approved", async () => {
     const event = await createEventDraft(actorPersonId, draft());
-    await submitEventForApproval(actorPersonId, event.id);
+    await forceStatus(event.id, "approved");
 
     const error = await refusalFrom(() =>
       abandonEventDraft(actorPersonId, event.id, "Changed our minds"),
@@ -496,7 +407,7 @@ describe("row 6 — abandoning a draft ends it, and says why", () => {
 
     expect(error.kind).toBe("invalid_transition");
     expect(error.message).toMatch(/Only a draft can be abandoned/);
-    expect(await statusOf(event.id)).toBe("pending_approval");
+    expect(await statusOf(event.id)).toBe("approved");
   });
 });
 
@@ -599,20 +510,12 @@ describe("the calendar is the club's, not its typist's", () => {
     const edited = await updateEventDraft(other, event.id, draft({ venue: "University Parks" }));
     expect(edited.venue).toBe("University Parks");
 
-    await submitEventForApproval(other, event.id);
-    await withdrawEventSubmission(other, event.id);
     const abandoned = await abandonEventDraft(other, event.id, "Superseded");
     expect(abandoned.status).toBe("withdrawn");
 
     // And every one of those names whoever actually did it.
     const audit = await auditFor(event.id);
-    expect(audit.map((row) => row.actor_person_id)).toEqual([
-      actorPersonId,
-      other,
-      other,
-      other,
-      other,
-    ]);
+    expect(audit.map((row) => row.actor_person_id)).toEqual([actorPersonId, other, other]);
   });
 });
 
@@ -699,6 +602,36 @@ describe("the list can be sorted, and only by columns it knows", () => {
 // ---------------------------------------------------------------------------
 // Row 7 — invariant E4
 // ---------------------------------------------------------------------------
+
+describe("there is no submission step, and nothing can create one", () => {
+  it("names only the abandon transition", async () => {
+    // Brian removed `draft → pending_approval` on 12 August 2026: only calendar
+    // operators create events, so there is nobody to submit one to. This is
+    // what stops it coming back by accident.
+    expect(Object.keys(EVENT_TRANSITIONS)).toEqual(["abandon"]);
+  });
+
+  it("leaves a saved event as a draft, and nothing else", async () => {
+    const event = await createEventDraft(actorPersonId, draft());
+
+    expect(event.status).toBe("draft");
+    expect(await statusOf(event.id)).toBe("draft");
+
+    const audit = await auditFor(event.id);
+    expect(audit.map((row) => row.action)).toEqual(["event.drafted"]);
+  });
+
+  it("keeps reading an event that is already awaiting approval", async () => {
+    // The status stays in the enum and seeded rows use it, so the screens still
+    // have to render one. Nothing in the application produces it.
+    const event = await createEventDraft(actorPersonId, draft());
+    await forceStatus(event.id, "pending_approval");
+
+    const read = await readEvent(event.id);
+    expect(read.status).toBe("pending_approval");
+    expect(read.invitationCount).toBe(0);
+  });
+});
 
 describe("row 7 — two events on one date are both accepted (invariant E4)", () => {
   it("accepts a second event at the same date, time and venue", async () => {

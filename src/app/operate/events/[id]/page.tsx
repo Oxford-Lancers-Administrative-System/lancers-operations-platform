@@ -9,7 +9,7 @@ import { isServiceError } from "@/lib/db";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import { readEvent, type EventDetail } from "@/lib/services/events";
 import { gateShellPage } from "../../gate";
-import { AbandonDraftForm, SubmitEventButton, WithdrawSubmissionButton } from "../event-actions";
+import { AbandonDraftForm } from "../event-actions";
 import {
   AUDIENCE_COMES_LATER,
   describeAttendance,
@@ -71,17 +71,11 @@ import {
  * accountability and audit" actually lives. What went is the display, not the
  * record.
  */
-export default async function EventDetailPage({
-  params,
-  searchParams,
-}: PageProps<"/operate/events/[id]">) {
+export default async function EventDetailPage({ params }: PageProps<"/operate/events/[id]">) {
   const gate = await gateShellPage("/operate/events");
   if ("screen" in gate) return gate.screen;
 
   const { id } = await params;
-  const query = await searchParams;
-  const justSubmitted = query.submitted === "1";
-
   let event: EventDetail;
   try {
     event = await readEvent(id);
@@ -106,43 +100,7 @@ export default async function EventDetailPage({
 
   const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
 
-  if (justSubmitted && event.status === "pending_approval") {
-    return <SubmittedConfirmation event={event} mayManage={mayManage} />;
-  }
-
   return <EventDetailView event={event} mayManage={mayManage} />;
-}
-
-/** UX-33 — the confirmation immediately after `draft → pending_approval`. */
-function SubmittedConfirmation({ event, mayManage }: { event: EventDetail; mayManage: boolean }) {
-  return (
-    <Stack spacing={3} sx={{ maxWidth: 720 }} data-testid="event-submitted">
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          Event submitted for approval
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {`${event.name} · ${formatDetailWhen(event)}`}
-        </Typography>
-      </Box>
-
-      <Alert severity="info" data-testid="pending-boundary-note">
-        Pending approval still has no invitations, responses or attendance. Withdrawal returns the
-        event to draft.
-      </Alert>
-
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-        <Button variant="contained" href={`/operate/events/${event.id}`}>
-          View pending event
-        </Button>
-        {mayManage ? (
-          <Box sx={{ minWidth: { sm: 220 } }}>
-            <WithdrawSubmissionButton eventId={event.id} />
-          </Box>
-        ) : null}
-      </Stack>
-    </Stack>
-  );
 }
 
 /** One labelled fact. The same two-line shape the wireframe's cards use. */
@@ -246,29 +204,25 @@ function EventDetailView({ event, mayManage }: { event: EventDetail; mayManage: 
       <Stack spacing={2} sx={{ maxWidth: 420 }}>
         {mayManage && event.status === "draft" ? (
           <>
-            <SubmitEventButton eventId={event.id} />
-            <Button variant="outlined" href={`/operate/events/${event.id}/edit`} fullWidth>
+            <Button variant="contained" href={`/operate/events/${event.id}/edit`} fullWidth>
               Edit draft
             </Button>
             <Button variant="outlined" disabled fullWidth>
-              Build audience
+              Choose audience and send
             </Button>
             <Typography variant="body2" color="text.secondary" data-testid="audience-note">
-              Building the audience and approving the event are LAN-77. Approval is refused until an
-              audience has been explicitly confirmed.
+              This draft is on the club’s calendar and nothing has been sent. Choosing who it goes
+              to, approving it and sending it are the next step, and are not built yet.
             </Typography>
             <AbandonDraftForm eventId={event.id} />
           </>
         ) : null}
 
-        {mayManage && event.status === "pending_approval" ? (
-          <>
-            <WithdrawSubmissionButton eventId={event.id} />
-            <Typography variant="body2" color="text.secondary">
-              Withdrawal returns the event to draft. Approval is the designated approver’s decision,
-              and is built by LAN-77.
-            </Typography>
-          </>
+        {event.status === "pending_approval" ? (
+          <Typography variant="body2" color="text.secondary" data-testid="approval-note">
+            This event is awaiting approval. Approval is not built yet — when it is, the approver
+            confirms who the event goes to and it is sent from there.
+          </Typography>
         ) : null}
 
         {mayManage ? null : (

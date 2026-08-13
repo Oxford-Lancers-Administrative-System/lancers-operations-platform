@@ -7,10 +7,8 @@ import { isServiceError } from "@/lib/db";
 import {
   abandonEventDraft,
   createEventDraft,
-  submitEventForApproval,
   updateEventDraft,
   validateEventDraft,
-  withdrawEventSubmission,
 } from "@/lib/services/events";
 import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventFormState, EventTransitionState } from "./form-state";
@@ -36,8 +34,11 @@ import type { EventFormState, EventTransitionState } from "./form-state";
  * `src/lib/auth/capabilities.ts` and nowhere else, so no action here carries a
  * policy of its own.
  *
- * The privileged step *after* these is approval, which stays President-only and
- * is built by the next issue. Nothing here approves anything.
+ * The privileged step *after* these is approval, which is built by the next
+ * issue. Nothing here approves anything, and nothing here submits an event for
+ * approval either — Brian removed that step on 12 August 2026, because only
+ * calendar operators create events and so there is nobody to submit one to. A
+ * saved event is a draft; approval takes it from there.
  *
  * There is no ownership term in any of them. Any calendar operator may edit,
  * submit, withdraw or abandon any draft — the calendar is the club's, and
@@ -129,50 +130,6 @@ export async function updateEventDraftAction(
     await updateEventDraft(operator.personId, eventId, validation.value);
   } catch (error) {
     return { issues: [], error: messageFor(error), values: raw };
-  }
-
-  revalidatePath("/operate/events");
-  revalidatePath(`/operate/events/${eventId}`);
-  redirect(`/operate/events/${eventId}`);
-}
-
-/**
- * `draft → pending_approval`.
- *
- * Lands on the event with `submitted=1`, which is what makes UX-33 — the
- * "Event submitted for approval" confirmation — a state of the event route
- * rather than a fifth screen with a route of its own.
- */
-export async function submitEventAction(
-  _previous: EventTransitionState,
-  formData: FormData,
-): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_calendar_management");
-  const eventId = text(formData, "eventId");
-
-  try {
-    await submitEventForApproval(operator.personId, eventId);
-  } catch (error) {
-    return { error: messageFor(error) };
-  }
-
-  revalidatePath("/operate/events");
-  revalidatePath(`/operate/events/${eventId}`);
-  redirect(`/operate/events/${eventId}?submitted=1`);
-}
-
-/** `pending_approval → draft` — UX-33's "Withdraw submission". */
-export async function withdrawEventSubmissionAction(
-  _previous: EventTransitionState,
-  formData: FormData,
-): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_calendar_management");
-  const eventId = text(formData, "eventId");
-
-  try {
-    await withdrawEventSubmission(operator.personId, eventId);
-  } catch (error) {
-    return { error: messageFor(error) };
   }
 
   revalidatePath("/operate/events");
