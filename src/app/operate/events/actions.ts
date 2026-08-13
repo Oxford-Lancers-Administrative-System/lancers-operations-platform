@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireOperator } from "@/lib/auth/guards";
+import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   abandonEventDraft,
@@ -20,17 +20,29 @@ import type { EventFormState, EventTransitionState } from "./form-state";
  *
  * ## Authorization
  *
- * Every one of them opens with `requireOperator()`, which resolves the actor
- * from the **verified session** and refuses with `NotPermitted` when there is
- * no linked, active operator. None takes an actor argument, and none may: a
- * server action is a POST endpoint the browser can call directly, so an action
- * that accepted "who am I" would accept whatever was sent.
+ * Every one of them opens with `requireCapability("event_calendar_management")`,
+ * which resolves the actor from the **verified session** and refuses with
+ * `NotPermitted` unless they hold one of the four calendar roles. None takes an
+ * actor argument, and none may: a server action is a POST endpoint the browser
+ * can call directly, so an action that accepted "who am I" would accept
+ * whatever was sent.
  *
- * Drafting, editing, submitting, withdrawing and abandoning are **ordinary
- * operator work** — `slice-ux.md` § 8's first row, and LAN-73's "everything
- * else in the slice is ordinary operator work". The privileged step is
- * approval, which stays President-only in `src/lib/auth/capabilities.ts` and is
- * built by LAN-77. Nothing here widens that map, and nothing here reads a role.
+ * Brian's LAN-76 clarification is what put a capability here. The first
+ * implementation used `requireOperator()` — any linked, active operator — on
+ * the reading that drafting was ordinary operator work. It is not: "the club
+ * calendar is managed only by these four operator roles", and an operator who
+ * can reach another part of the application does not thereby get to move
+ * practices around. The capability's role list lives in
+ * `src/lib/auth/capabilities.ts` and nowhere else, so no action here carries a
+ * policy of its own.
+ *
+ * The privileged step *after* these is approval, which stays President-only and
+ * is built by the next issue. Nothing here approves anything.
+ *
+ * There is no ownership term in any of them. Any calendar operator may edit,
+ * submit, withdraw or abandon any draft — the calendar is the club's, and
+ * `owner_person_id` is recorded for the audit trail rather than consulted for
+ * permission.
  *
  * ## Why a refusal is never a form message
  *
@@ -51,13 +63,10 @@ function readDraft(formData: FormData): RawEventDraft {
   return {
     name: text(formData, "name"),
     eventType: text(formData, "eventType"),
-    origin: text(formData, "origin"),
     scheduledOn: text(formData, "scheduledOn"),
     startsAt: text(formData, "startsAt"),
     endsAt: text(formData, "endsAt"),
     venue: text(formData, "venue"),
-    termId: text(formData, "termId"),
-    weekNumber: text(formData, "weekNumber"),
     attendance: text(formData, "attendance"),
     solicitsResponse: text(formData, "solicitsResponse"),
   };
@@ -82,7 +91,7 @@ export async function createEventDraftAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const operator = await requireOperator();
+  const operator = await requireCapability("event_calendar_management");
   const raw = readDraft(formData);
 
   const validation = validateEventDraft(raw);
@@ -107,7 +116,7 @@ export async function updateEventDraftAction(
   _previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
-  const operator = await requireOperator();
+  const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
   const raw = readDraft(formData);
 
@@ -138,7 +147,7 @@ export async function submitEventAction(
   _previous: EventTransitionState,
   formData: FormData,
 ): Promise<EventTransitionState> {
-  const operator = await requireOperator();
+  const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
 
   try {
@@ -157,7 +166,7 @@ export async function withdrawEventSubmissionAction(
   _previous: EventTransitionState,
   formData: FormData,
 ): Promise<EventTransitionState> {
-  const operator = await requireOperator();
+  const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
 
   try {
@@ -176,7 +185,7 @@ export async function abandonEventDraftAction(
   _previous: EventTransitionState,
   formData: FormData,
 ): Promise<EventTransitionState> {
-  const operator = await requireOperator();
+  const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
   const reason = text(formData, "reason");
 

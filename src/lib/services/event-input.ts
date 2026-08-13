@@ -42,13 +42,35 @@ export const DRAFTABLE_EVENT_TYPES: readonly string[] = Object.freeze([
   "meeting",
 ]);
 
-/** `public.event_origin`, in full. Source Data Analysis §5.6. */
+/**
+ * `public.event_origin`, in full. Source Data Analysis §5.6 — not every event's
+ * schedule is the club's to set.
+ *
+ * The column stays, and so does every value in it: a BUCS fixture really is
+ * externally assigned, and that provenance is load-bearing for the schedule
+ * work in later issues. What went away in Brian's LAN-76 clarification is the
+ * *choice* — an operator creating an event on the club's own calendar was being
+ * asked to classify its provenance from four unexplained words. An event this
+ * form creates is by definition one the club scheduled, so the value is derived
+ * rather than asked for, and an event that came from elsewhere keeps whatever
+ * provenance it already had.
+ */
 export const EVENT_ORIGINS: readonly string[] = Object.freeze([
   "club_controlled",
   "externally_assigned",
   "externally_scheduled",
   "negotiated",
 ]);
+
+/**
+ * The origin of an event created through this form.
+ *
+ * An operator sitting in the club's own calendar, typing in a practice, is
+ * recording an event the club controls. There is no case in this slice where
+ * that is not true — fixtures, which are the externally-scheduled ones, are out
+ * of scope — so it is written rather than asked.
+ */
+export const OPERATOR_CREATED_ORIGIN = "club_controlled";
 
 /** The statuses a `draft`-side screen may present. */
 export type EventStatus =
@@ -116,34 +138,40 @@ export const EVENT_TRANSITIONS: Readonly<Record<EventTransition, TransitionRule>
 // Input, and the rules it has to satisfy
 // ---------------------------------------------------------------------------
 
-/** What an operator typed, before any of it has been believed. */
+/**
+ * What an operator typed, before any of it has been believed.
+ *
+ * Three fields the first implementation had are deliberately absent, per
+ * Brian's LAN-76 clarification:
+ *
+ *   * `origin` — derived, never asked (see `OPERATOR_CREATED_ORIGIN`);
+ *   * `termId` and `weekNumber` — **derived from the date**. The event's real
+ *     date and times are the operator-entered source of truth, and the Oxford
+ *     term and week are a coordinate computed from it. Letting all three be
+ *     typed independently let an operator record a date in Michaelmas and
+ *     label it Hilary week 4, and nothing would have disagreed with them.
+ */
 export interface RawEventDraft {
   name?: string | null;
   eventType?: string | null;
-  origin?: string | null;
   scheduledOn?: string | null;
   startsAt?: string | null;
   endsAt?: string | null;
   venue?: string | null;
-  termId?: string | null;
-  weekNumber?: string | null;
   /** `"mandatory"` or `"optional"`. Absent is unanswered, never a default. */
   attendance?: string | null;
   /** `"yes"` or `"no"`. Absent is unanswered, never a default. */
   solicitsResponse?: string | null;
 }
 
-/** The same values, checked. */
+/** The same values, checked. Term, week and origin are not among them. */
 export interface EventDraftInput {
   name: string;
   eventType: string;
-  origin: string;
   scheduledOn: string | null;
   startsAt: string | null;
   endsAt: string | null;
   venue: string | null;
-  termId: string | null;
-  weekNumber: number | null;
   isMandatory: boolean;
   solicitsResponse: boolean;
 }
@@ -193,11 +221,6 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     issues.push({ field: "eventType", message: "Choose the kind of event this is." });
   }
 
-  const origin = trimmed(raw.origin);
-  if (!EVENT_ORIGINS.includes(origin)) {
-    issues.push({ field: "origin", message: "Choose who controls this event's schedule." });
-  }
-
   const scheduledOn = optional(raw.scheduledOn);
   if (scheduledOn !== null && !DATE_PATTERN.test(scheduledOn)) {
     issues.push({ field: "scheduledOn", message: "Enter the date as a calendar date." });
@@ -226,25 +249,6 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     issues.push({ field: "endsAt", message: "The event has to end after it starts." });
   }
 
-  const termId = optional(raw.termId);
-  if (termId !== null && !UUID_PATTERN.test(termId)) {
-    issues.push({ field: "termId", message: "Choose a term from the list, or leave it blank." });
-  }
-
-  const weekText = optional(raw.weekNumber);
-  let weekNumber: number | null = null;
-  if (weekText !== null) {
-    const parsed = Number(weekText);
-    if (!Number.isInteger(parsed) || parsed < -1 || parsed > 8) {
-      issues.push({
-        field: "weekNumber",
-        message: "Oxford weeks run from −1 to 8. Leave it blank if the event is outside term.",
-      });
-    } else {
-      weekNumber = parsed;
-    }
-  }
-
   const attendance = trimmed(raw.attendance);
   if (attendance !== "mandatory" && attendance !== "optional") {
     issues.push({
@@ -268,17 +272,99 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     value: {
       name,
       eventType,
-      origin,
       scheduledOn,
       startsAt,
       endsAt,
       venue: optional(raw.venue),
-      termId,
-      weekNumber,
       isMandatory: attendance === "mandatory",
       solicitsResponse: solicits === "yes",
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// The term coordinate, derived from the date
+// ---------------------------------------------------------------------------
+
+/** The shape `deriveTermCoordinate` needs of a term. */
+export interface TermWindow {
+  id: string;
+  name: string;
+  academicYear: string;
+  /** `YYYY-MM-DD`. The first day of `firstWeek`. */
+  startsOn: string;
+  /** `YYYY-MM-DD`. Falls inside `lastWeek`. */
+  endsOn: string;
+  /** −1 for Michaelmas, 0 for Hilary and Trinity. */
+  firstWeek: number;
+  lastWeek: number;
+}
+
+/** Where a date falls in the Oxford calendar. Both `null` means outside term. */
+export interface TermCoordinate {
+  termId: string | null;
+  weekNumber: number | null;
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/** Midnight UTC for a `YYYY-MM-DD`, or `null` if it will not parse. */
+function dayMs(day: string): number | null {
+  if (!DATE_PATTERN.test(day)) return null;
+  const parsed = Date.parse(`${day}T00:00:00Z`);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+/**
+ * The Oxford term and week a date falls in.
+ *
+ * Brian's LAN-76 clarification: the event's real date is the source of truth,
+ * and the term coordinate is computed from it rather than typed beside it.
+ *
+ * The arithmetic follows from what `public.terms` actually stores, and it is
+ * worth writing down because it is not obvious from the column names.
+ * `starts_on` is the **first day of `first_week`**, not of week 1 — Michaelmas
+ * begins in week −1, Hilary and Trinity in 0th week. Weeks are seven days
+ * (Sunday to Saturday, Source Data Analysis §5.4), and the terms in the seeded
+ * dataset agree with this to the day: Michaelmas 2026-27 runs 27 September to
+ * 5 December, which is `−1 + floor(69 / 7) = 8`, exactly its `last_week`.
+ *
+ * So: `week = first_week + floor((date − starts_on) / 7 days)`.
+ *
+ * A date outside every term is a legitimate answer, not an error — a summer
+ * camp or a pre-season meeting has no Oxford week, and `events.term_id` and
+ * `events.week_number` are both nullable precisely for that case.
+ *
+ * Pure, and takes the terms as an argument, so the rule can be checked against
+ * a hand-built calendar with no database — and so the same function can run in
+ * the browser to show an operator the coordinate as they pick a date.
+ */
+export function deriveTermCoordinate(
+  scheduledOn: string | null,
+  terms: readonly TermWindow[],
+): TermCoordinate {
+  if (scheduledOn === null) return { termId: null, weekNumber: null };
+
+  const dateMs = dayMs(scheduledOn);
+  if (dateMs === null) return { termId: null, weekNumber: null };
+
+  for (const term of terms) {
+    const startMs = dayMs(term.startsOn);
+    const endMs = dayMs(term.endsOn);
+    if (startMs === null || endMs === null) continue;
+    if (dateMs < startMs || dateMs > endMs) continue;
+
+    const week = term.firstWeek + Math.floor((dateMs - startMs) / (7 * MS_PER_DAY));
+
+    // The schema permits −1 to 8 and nothing else. A term whose dates and week
+    // bounds disagree would otherwise produce a week the database refuses, and
+    // an event that cannot be saved is a worse answer than one outside term.
+    if (week < -1 || week > 8 || week > term.lastWeek) continue;
+
+    return { termId: term.id, weekNumber: week };
+  }
+
+  return { termId: null, weekNumber: null };
 }
 
 // ---------------------------------------------------------------------------

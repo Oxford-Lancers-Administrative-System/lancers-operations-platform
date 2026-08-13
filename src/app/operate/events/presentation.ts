@@ -1,3 +1,4 @@
+import type { TermCoordinate, TermWindow } from "@/lib/services/event-input";
 import type { EventListEntry } from "@/lib/services/events";
 
 /**
@@ -117,6 +118,30 @@ export function labelFor(labels: Readonly<Record<string, string>>, value: string
   return labels[value] ?? value;
 }
 
+/**
+ * The derived coordinate in the club's words — "Michaelmas 2026-27, Week 1", or
+ * "Outside term" for a date no Oxford term contains.
+ *
+ * Takes the terms rather than a label because it is fed by `deriveTermCoordinate`,
+ * which returns ids: the same function runs in the browser as the operator
+ * picks a date and on the server when the draft is saved, and both need to say
+ * the same sentence.
+ */
+export function describeTermCoordinate(
+  coordinate: TermCoordinate,
+  terms: readonly TermWindow[],
+): string {
+  if (coordinate.termId === null) {
+    return "Outside Oxford term — no term or week is recorded.";
+  }
+  const term = terms.find((candidate) => candidate.id === coordinate.termId);
+  if (!term) return "Outside Oxford term — no term or week is recorded.";
+
+  const name = labelFor(TERM_LABELS, term.name);
+  const week = coordinate.weekNumber === -1 ? "Week −1" : `Week ${coordinate.weekNumber}`;
+  return `${name} ${term.academicYear}, ${week}`;
+}
+
 /** "Michaelmas 2026-27 · Week 2", or the part of it that is known. */
 export function formatTermAndWeek(termLabel: string | null, weekNumber: number | null): string {
   const term = termLabel
@@ -128,34 +153,36 @@ export function formatTermAndWeek(termLabel: string | null, weekNumber: number |
 }
 
 /**
- * What the Audience column says — the wireframe's three cases, decided from
- * counts the database actually holds rather than from the status.
+ * What the Audience column says.
+ *
+ * Brian's LAN-76 clarification asks the list to "make it clear that response
+ * and audience information will not exist until the approval workflow is
+ * completed". "Not resolved" did not say that — it reads as an omission
+ * somebody should go and fix, when in fact there is nothing to fix and nothing
+ * to do until approval. So a pre-approval event says when the audience
+ * arrives, rather than that it is missing.
  */
 export function describeAudience(event: EventListEntry): string {
   if (event.invitationCount > 0) return `${event.invitationCount} invited`;
   if (event.audienceCount > 0) return `${event.audienceCount} selected`;
-  return "Not resolved";
+  if (isPreApproval(event.status)) return "Chosen at approval";
+  return "None recorded";
 }
 
-/** What the Responses column says. Never a count of people, only of answers. */
-export function describeResponses(event: EventListEntry): string {
-  if (event.invitationCount === 0) return "—";
-  return `${event.responseCount} responses`;
-}
+/**
+ * The sentence above the list, saying the same thing once rather than in every
+ * row.
+ */
+export const AUDIENCE_AND_RESPONSES_COME_LATER =
+  "A draft or pending event has no audience, no invitations and no responses, and cannot " +
+  "have any. The audience is chosen and confirmed during approval, which is when anything " +
+  "is sent at all.";
 
-/** What the Occurrence column says. Occurrence is an assertion — invariant E5. */
-export function describeOccurrence(event: EventListEntry): string {
-  switch (event.status) {
-    case "occurred":
-      return "Occurred";
-    case "not_held":
-      return "Not held";
-    case "approved":
-      return "Awaiting assertion";
-    default:
-      return "—";
-  }
-}
+/** The same statement, for the form and the event itself. */
+export const AUDIENCE_COMES_LATER =
+  "You are recording the event's operational facts. Who it goes to is chosen and confirmed " +
+  "during the approval step, and nothing is sent to anybody until an approver has completed " +
+  "it.";
 
 /**
  * The sentence a draft or pending event carries, stated as the structural fact

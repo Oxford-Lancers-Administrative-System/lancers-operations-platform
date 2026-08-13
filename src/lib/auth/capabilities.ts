@@ -51,6 +51,7 @@
 export type CapabilityKey =
   | "attendance_recorder"
   | "membership_activation"
+  | "event_calendar_management"
   | "event_approval"
   | "role_management"
   | "delivery_administration"
@@ -142,6 +143,46 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
       "Lead, 12 August 2026: 'Exec' = the four constitutional offices, plus the General " +
       "Manager, whom slice-ux.md § 8 names for this transition. Stated as an assumption " +
       "on LAN-73.",
+  }),
+
+  /**
+   * Managing the club calendar: creating, editing, submitting, withdrawing and
+   * abandoning event drafts.
+   *
+   * Brian's LAN-76 clarification, 12 August 2026: "The club calendar is managed
+   * only by these four operator roles — President, Vice President, Secretary,
+   * General Manager." It is deliberately **not** every linked operator, which
+   * is what LAN-76 assumed before the clarification and what a first
+   * implementation shipped; and it is deliberately not inferred from being able
+   * to reach another part of the application.
+   *
+   * Two things this capability is not:
+   *
+   *   * It is not *reading* the calendar. `/operate/events` stays an ordinary
+   *     operator surface — `slice-ux.md` § 3 and § 8, and LAN-73's destination
+   *     map, both make Events open to any linked active operator — so an
+   *     operator without this capability sees the club's events and is refused
+   *     every action on them. Hiding the list would be a change to an approved
+   *     contract; refusing the actions is what the clarification asks for.
+   *
+   *   * It is not approval. The four calendar roles prepare an event and submit
+   *     it for the pre-publication safety review; `event_approval` below is who
+   *     performs that review, and that is still the President alone.
+   *
+   * There is no ownership term anywhere in it. A calendar operator may edit or
+   * withdraw a draft another calendar operator created — the club calendar is
+   * the club's, not its typist's, and the creator is recorded for audit rather
+   * than for permission. That is the clarification's "do not describe the club
+   * calendar or event as personally owned by its creator", made concrete.
+   */
+  event_calendar_management: capability({
+    key: "event_calendar_management",
+    action: "create, edit, submit or withdraw an event draft",
+    roleCodes: ["president", "vice_president", "secretary", "general_manager"],
+    decision:
+      "Brian, 12 August 2026 (LAN-76 owner clarification): the club calendar is managed by " +
+      "the President, Vice-President, Secretary and General Manager only. The Treasurer is " +
+      "deliberately not included, and no coaching seat is.",
   }),
 
   /**

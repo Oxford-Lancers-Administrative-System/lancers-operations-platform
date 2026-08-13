@@ -1,6 +1,7 @@
 import "server-only";
 
 import { NotFound, withTransaction, type Tx } from "@/lib/db";
+import type { TermWindow } from "./event-input";
 
 /**
  * The season and term aggregate — the scheduling clocks an event hangs off.
@@ -124,6 +125,27 @@ function asDate(value: Date | string): string {
  */
 export async function listTerms(): Promise<Term[]> {
   return withTransaction(async (tx) => listTermsIn(tx));
+}
+
+/**
+ * The same terms, in the shape `deriveTermCoordinate` needs.
+ *
+ * The event form and the event service both derive the Oxford coordinate from
+ * a date, and both need the calendar to do it with. This is that calendar, and
+ * it is the shape the derivation takes rather than the shape the terms table
+ * has, so the pure function has no opinion about the database.
+ */
+export async function listTermWindows(): Promise<TermWindow[]> {
+  const terms = await listTerms();
+  return terms.map((term) => ({
+    id: term.id,
+    name: term.name,
+    academicYear: term.academicYear,
+    startsOn: term.startsOn,
+    endsOn: term.endsOn,
+    firstWeek: term.firstWeek,
+    lastWeek: term.lastWeek,
+  }));
 }
 
 /** The same read, inside a caller's transaction. */

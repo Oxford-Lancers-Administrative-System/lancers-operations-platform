@@ -6,10 +6,12 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
+import { operatorHasCapability } from "@/lib/auth/guards";
 import { readEvent, type EventDetail } from "@/lib/services/events";
 import { gateShellPage } from "../../gate";
 import { AbandonDraftForm, SubmitEventButton, WithdrawSubmissionButton } from "../event-actions";
 import {
+  AUDIENCE_COMES_LATER,
   describeAttendance,
   describeSolicitation,
   formatDetailWhen,
@@ -47,6 +49,18 @@ import {
  *   frozen model has no venue-confirmation concept, and adding a field to say
  *   a venue is confirmed would be a domain-model change no agent makes.
  *   Reported to Brian rather than invented.
+ *
+ * ## After Brian's LAN-76 clarification
+ *
+ * The actions are gated on `event_calendar_management` — the President,
+ * Vice-President, Secretary and General Manager. Any other linked operator can
+ * open this page and read the event, and is offered nothing to press; the
+ * actions guard themselves server-side regardless, so the hiding is a courtesy
+ * rather than the boundary.
+ *
+ * "Owner" is now "Entered by", and it is stated as an audit fact rather than as
+ * possession: the calendar belongs to the club, and any calendar operator may
+ * edit or withdraw any draft.
  */
 export default async function EventDetailPage({
   params,
@@ -81,15 +95,17 @@ export default async function EventDetailPage({
     );
   }
 
+  const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
+
   if (justSubmitted && event.status === "pending_approval") {
-    return <SubmittedConfirmation event={event} />;
+    return <SubmittedConfirmation event={event} mayManage={mayManage} />;
   }
 
-  return <EventDetailView event={event} />;
+  return <EventDetailView event={event} mayManage={mayManage} />;
 }
 
 /** UX-33 — the confirmation immediately after `draft → pending_approval`. */
-function SubmittedConfirmation({ event }: { event: EventDetail }) {
+function SubmittedConfirmation({ event, mayManage }: { event: EventDetail; mayManage: boolean }) {
   return (
     <Stack spacing={3} sx={{ maxWidth: 720 }} data-testid="event-submitted">
       <Box>
@@ -110,9 +126,11 @@ function SubmittedConfirmation({ event }: { event: EventDetail }) {
         <Button variant="contained" href={`/operate/events/${event.id}`}>
           View pending event
         </Button>
-        <Box sx={{ minWidth: { sm: 220 } }}>
-          <WithdrawSubmissionButton eventId={event.id} />
-        </Box>
+        {mayManage ? (
+          <Box sx={{ minWidth: { sm: 220 } }}>
+            <WithdrawSubmissionButton eventId={event.id} />
+          </Box>
+        ) : null}
       </Stack>
     </Stack>
   );
@@ -148,7 +166,7 @@ function Fact({
 }
 
 /** UX-32 — the event itself, in whatever state it is in. */
-function EventDetailView({ event }: { event: EventDetail }) {
+function EventDetailView({ event, mayManage }: { event: EventDetail; mayManage: boolean }) {
   const preApproval = isPreApproval(event.status);
 
   return (
@@ -179,8 +197,22 @@ function EventDetailView({ event }: { event: EventDetail }) {
           <Fact label="Type" value={labelFor(TYPE_LABELS, event.eventType)} />
           <Fact label="Venue" value={event.venue ?? "No venue yet"} />
           <Fact label="Term / week" value={formatTermAndWeek(event.termLabel, event.weekNumber)} />
-          <Fact label="Origin" value={labelFor(ORIGIN_LABELS, event.origin)} />
-          <Fact label="Owner" value={event.ownerName ?? "Not recorded"} />
+          <Fact
+            label="Who sets the date"
+            value={labelFor(ORIGIN_LABELS, event.origin)}
+            note={
+              event.origin === "club_controlled"
+                ? "The club schedules this event itself."
+                : "This event's schedule is set outside the club."
+            }
+            testId="origin-fact"
+          />
+          <Fact
+            label="Entered by"
+            value={event.createdByName ?? "Not recorded"}
+            note="Recorded for the audit trail. Any calendar operator may edit this draft."
+            testId="entered-by-fact"
+          />
           <Fact label="Attendance" value={describeAttendance(event.isMandatory)} />
           <Fact
             label="Response solicited"
@@ -199,9 +231,9 @@ function EventDetailView({ event }: { event: EventDetail }) {
           <Fact
             label="Audience"
             value={
-              event.audienceCount === 0 ? "Not yet resolved" : `${event.audienceCount} selected`
+              event.audienceCount === 0 ? "Chosen at approval" : `${event.audienceCount} selected`
             }
-            note="Required before approval"
+            note={AUDIENCE_COMES_LATER}
             testId="audience-fact"
           />
           <Divider />
@@ -219,7 +251,7 @@ function EventDetailView({ event }: { event: EventDetail }) {
       </Paper>
 
       <Stack spacing={2} sx={{ maxWidth: 420 }}>
-        {event.status === "draft" ? (
+        {mayManage && event.status === "draft" ? (
           <>
             <SubmitEventButton eventId={event.id} />
             <Button variant="outlined" href={`/operate/events/${event.id}/edit`} fullWidth>
@@ -236,7 +268,7 @@ function EventDetailView({ event }: { event: EventDetail }) {
           </>
         ) : null}
 
-        {event.status === "pending_approval" ? (
+        {mayManage && event.status === "pending_approval" ? (
           <>
             <WithdrawSubmissionButton eventId={event.id} />
             <Typography variant="body2" color="text.secondary">
@@ -245,6 +277,13 @@ function EventDetailView({ event }: { event: EventDetail }) {
             </Typography>
           </>
         ) : null}
+
+        {mayManage ? null : (
+          <Typography variant="body2" color="text.secondary" data-testid="read-only-note">
+            You can see the club calendar. Creating and changing events is done by the President,
+            Vice-President, Secretary and General Manager.
+          </Typography>
+        )}
 
         <Button variant="text" href="/operate/events">
           Back to events

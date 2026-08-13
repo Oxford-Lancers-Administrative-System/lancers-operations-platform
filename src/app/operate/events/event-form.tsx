@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -16,17 +16,19 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import {
+  deriveTermCoordinate,
   DRAFTABLE_EVENT_TYPES,
-  EVENT_ORIGINS,
   type RawEventDraft,
+  type TermWindow,
 } from "@/lib/services/event-input";
 import { createEventDraftAction, updateEventDraftAction } from "./actions";
 import { EMPTY_FORM_STATE, type EventFormState } from "./form-state";
 import {
+  AUDIENCE_COMES_LATER,
+  describeTermCoordinate,
+  formatLongDate,
   labelFor,
-  ORIGIN_LABELS,
   SOLICITS_RESPONSE_MEANING,
-  TERM_LABELS,
   TYPE_LABELS,
 } from "./presentation";
 
@@ -35,17 +37,34 @@ import {
  *
  * One component for create and edit because they are the same screen with the
  * same rules; the differences are the action it posts to, the heading above it
- * and whether the fields start empty. Two components would be two places for
- * the response-solicited radio to acquire a default.
+ * and whether the fields start empty.
+ *
+ * ## The date is the source of truth
+ *
+ * Brian's LAN-76 clarification: the operator enters the real date and times,
+ * and the Oxford term and week are **derived** from the date rather than chosen
+ * beside it. The three used to be independent fields, which let an operator
+ * record a date in Michaelmas and label it Hilary week 4 with nothing to
+ * disagree.
+ *
+ * The derivation runs twice, on purpose. Here, as the operator types, so the
+ * coordinate appears under the date as read-only context — the clarification's
+ * "may be displayed as read-only contextual information after the date is
+ * selected". And again in the service, inside the transaction, from the same
+ * pure function, because a value computed in a browser is a value the browser
+ * can change. What is shown is a courtesy; what is stored is derived
+ * server-side.
+ *
+ * Origin is gone from the form for the same reason and by the same
+ * instruction: an operator entering a practice on the club's own calendar was
+ * being asked to classify its provenance from four unexplained words. It is
+ * derived on create and left alone on edit.
  *
  * ## The two flags have no default, deliberately
  *
- * LAN-76: "The response-solicited flag is an explicit choice in the form, not a
- * silent default, and its meaning is stated on screen." So `Response requested`
- * starts unselected and the form refuses to save until it is answered, with
- * the meaning printed beside it rather than hidden in a tooltip. Attendance is
- * treated the same way — it costs one radio group and removes the other silent
- * default the wireframe's filled-in values would otherwise invite.
+ * LAN-76, reaffirmed by the clarification: the response-requested flag is "an
+ * explicit choice in the form, not a silent default, and its meaning is stated
+ * on screen". Attendance is treated the same way.
  *
  * ## Validation behaviour
  *
@@ -53,19 +72,10 @@ import {
  * identify the field, state the correction, focus the first invalid control".
  * The action returns exactly what was submitted plus a field-keyed list, this
  * component re-renders from those values, and the effect below moves focus to
- * the first named field. Nothing is retyped and nothing is guessed at.
+ * the first named field.
  */
 
 export type EventFormMode = "create" | "edit";
-
-export interface TermOption {
-  id: string;
-  name: string;
-  academicYear: string;
-}
-
-/** Oxford weeks. Michaelmas runs from −1; Hilary and Trinity from 0th. */
-const WEEK_NUMBERS = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8];
 
 function issueFor(state: EventFormState, field: keyof RawEventDraft): string | undefined {
   return state.issues.find((issue) => issue.field === field)?.message;
@@ -74,7 +84,7 @@ function issueFor(state: EventFormState, field: keyof RawEventDraft): string | u
 export default function EventForm({
   mode,
   eventId,
-  ownerName,
+  createdBy,
   terms,
   initial,
   cancelHref,
@@ -82,9 +92,10 @@ export default function EventForm({
   mode: EventFormMode;
   /** The draft being edited. Absent when creating. */
   eventId?: string;
-  /** Shown, not chosen: the owner is the operator who created the draft. */
-  ownerName: string;
-  terms: readonly TermOption[];
+  /** Recorded for accountability, and shown as such. Never a permission. */
+  createdBy: string;
+  /** The Oxford calendar, for deriving the coordinate as the operator types. */
+  terms: readonly TermWindow[];
   initial?: RawEventDraft;
   cancelHref: string;
 }) {
@@ -94,6 +105,22 @@ export default function EventForm({
   );
 
   const formRef = useRef<HTMLFormElement>(null);
+
+  // What was typed wins over what was loaded, so a rejected submission comes
+  // back with the operator's own words in it.
+  const values: RawEventDraft = state.values ?? initial ?? {};
+  const value = (field: keyof RawEventDraft): string => {
+    const raw = values[field];
+    return typeof raw === "string" ? raw : "";
+  };
+
+  // The date drives the term line, so it is the one field this component
+  // tracks. Everything else is uncontrolled and read from the form on submit.
+  const [scheduledOn, setScheduledOn] = useState(value("scheduledOn"));
+  const term = useMemo(
+    () => deriveTermCoordinate(scheduledOn === "" ? null : scheduledOn, terms),
+    [scheduledOn, terms],
+  );
 
   // Focus the first control the operator has to fix. The field name comes off
   // the returned issue rather than being tracked in the component, so the form
@@ -112,14 +139,6 @@ export default function EventForm({
     );
     (control ?? wrapper)?.focus();
   }, [state.issues]);
-
-  // What was typed wins over what was loaded, so a rejected submission comes
-  // back with the operator's own words in it.
-  const values: RawEventDraft = state.values ?? initial ?? {};
-  const value = (field: keyof RawEventDraft): string => {
-    const raw = values[field];
-    return typeof raw === "string" ? raw : "";
-  };
 
   const attendance = value("attendance");
   const solicits = value("solicitsResponse");
@@ -152,41 +171,22 @@ export default function EventForm({
               fullWidth
             />
 
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <TextField
-                select
-                label="Type"
-                name="eventType"
-                data-field="eventType"
-                defaultValue={value("eventType") || "practice"}
-                error={Boolean(issueFor(state, "eventType"))}
-                helperText={issueFor(state, "eventType")}
-                fullWidth
-              >
-                {DRAFTABLE_EVENT_TYPES.map((type) => (
-                  <MenuItem key={type} value={type}>
-                    {labelFor(TYPE_LABELS, type)}
-                  </MenuItem>
-                ))}
-              </TextField>
-
-              <TextField
-                select
-                label="Origin"
-                name="origin"
-                data-field="origin"
-                defaultValue={value("origin") || "club_controlled"}
-                error={Boolean(issueFor(state, "origin"))}
-                helperText={issueFor(state, "origin") ?? "Who controls when this event happens."}
-                fullWidth
-              >
-                {EVENT_ORIGINS.map((origin) => (
-                  <MenuItem key={origin} value={origin}>
-                    {labelFor(ORIGIN_LABELS, origin)}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Stack>
+            <TextField
+              select
+              label="Type"
+              name="eventType"
+              data-field="eventType"
+              defaultValue={value("eventType") || "practice"}
+              error={Boolean(issueFor(state, "eventType"))}
+              helperText={issueFor(state, "eventType")}
+              fullWidth
+            >
+              {DRAFTABLE_EVENT_TYPES.map((type) => (
+                <MenuItem key={type} value={type}>
+                  {labelFor(TYPE_LABELS, type)}
+                </MenuItem>
+              ))}
+            </TextField>
 
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
               <TextField
@@ -194,7 +194,8 @@ export default function EventForm({
                 name="scheduledOn"
                 data-field="scheduledOn"
                 type="date"
-                defaultValue={value("scheduledOn")}
+                value={scheduledOn}
+                onChange={(event) => setScheduledOn(event.target.value)}
                 error={Boolean(issueFor(state, "scheduledOn"))}
                 helperText={
                   issueFor(state, "scheduledOn") ??
@@ -210,7 +211,7 @@ export default function EventForm({
                 type="time"
                 defaultValue={value("startsAt")}
                 error={Boolean(issueFor(state, "startsAt"))}
-                helperText={issueFor(state, "startsAt")}
+                helperText={issueFor(state, "startsAt") ?? "24-hour clock, e.g. 20:00."}
                 slotProps={{ inputLabel: { shrink: true } }}
                 fullWidth
               />
@@ -221,11 +222,28 @@ export default function EventForm({
                 type="time"
                 defaultValue={value("endsAt")}
                 error={Boolean(issueFor(state, "endsAt"))}
-                helperText={issueFor(state, "endsAt")}
+                helperText={issueFor(state, "endsAt") ?? "Must be after the start."}
                 slotProps={{ inputLabel: { shrink: true } }}
                 fullWidth
               />
             </Stack>
+
+            {/*
+              Derived, and shown so the operator can see the derivation was
+              right — never an input. `aria-live` because it changes under them
+              in response to the date rather than to anything they focused.
+            */}
+            <Alert severity="info" icon={false} data-testid="derived-term" aria-live="polite">
+              {scheduledOn === "" ? (
+                "Choose a date and the Oxford term and week are worked out from it."
+              ) : (
+                <>
+                  <strong>{formatLongDate(scheduledOn)}</strong>
+                  {" — "}
+                  {describeTermCoordinate(term, terms)}
+                </>
+              )}
+            </Alert>
 
             <TextField
               label="Venue"
@@ -233,54 +251,17 @@ export default function EventForm({
               data-field="venue"
               defaultValue={value("venue")}
               error={Boolean(issueFor(state, "venue"))}
-              helperText={issueFor(state, "venue")}
+              helperText={
+                issueFor(state, "venue") ??
+                "Where it happens — a pitch, a room, or an address. Free text for now."
+              }
               fullWidth
             />
 
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <TextField
-                select
-                label="Term"
-                name="termId"
-                data-field="termId"
-                defaultValue={value("termId")}
-                error={Boolean(issueFor(state, "termId"))}
-                helperText={
-                  issueFor(state, "termId") ?? "Leave blank if the event is outside term."
-                }
-                fullWidth
-              >
-                <MenuItem value="">Outside term</MenuItem>
-                {terms.map((term) => (
-                  <MenuItem key={term.id} value={term.id}>
-                    {`${labelFor(TERM_LABELS, term.name)} ${term.academicYear}`}
-                  </MenuItem>
-                ))}
-              </TextField>
-
-              <TextField
-                select
-                label="Week"
-                name="weekNumber"
-                data-field="weekNumber"
-                defaultValue={value("weekNumber")}
-                error={Boolean(issueFor(state, "weekNumber"))}
-                helperText={issueFor(state, "weekNumber")}
-                fullWidth
-              >
-                <MenuItem value="">No week</MenuItem>
-                {WEEK_NUMBERS.map((week) => (
-                  <MenuItem key={week} value={String(week)}>
-                    {week === -1 ? "Week −1" : `Week ${week}`}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Stack>
-
             <TextField
-              label="Owner"
-              value={ownerName}
-              helperText="The operator who creates the event owns it."
+              label="Created by"
+              value={createdBy}
+              helperText="Recorded for the audit trail. The calendar belongs to the club, not to whoever entered the event."
               slotProps={{ input: { readOnly: true } }}
               fullWidth
             />
@@ -328,6 +309,10 @@ export default function EventForm({
             </Typography>
           </Stack>
         </Paper>
+
+        <Alert severity="info" data-testid="audience-comes-later">
+          {AUDIENCE_COMES_LATER}
+        </Alert>
 
         <Stack
           direction={{ xs: "column", sm: "row" }}

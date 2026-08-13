@@ -97,9 +97,7 @@ begin
       operating_seasons;
   end if;
 
-  -- (d) Somebody has to be able to sign in and press the buttons. Any linked,
-  --     active operator can draft an event — drafting is ordinary operator
-  --     work — so this asks for one and not for a particular seat.
+  -- (d) Somebody has to be able to sign in and press the buttons.
   if not exists (
     select 1
       from public.operator_accounts a
@@ -108,6 +106,30 @@ begin
   ) then
     raise exception
       'LAN-76 pilot setup refused: no active operator account is linked to a person. Provision a pilot identity first — docs/pilot-data-runbook.md § Provisioning a durable pilot identity.';
+  end if;
+
+  -- (e) And that somebody has to hold one of the four seats that manage the
+  --     club calendar. Brian's LAN-76 clarification: the calendar is the
+  --     President's, Vice-President's, Secretary's and General Manager's, and
+  --     nobody else's. An active operator without one of those seats can open
+  --     the events list and will be refused every action on it, so a test run
+  --     as one would prove only that the refusal works.
+  --
+  --     Effective-dating is applied here exactly as the application applies it:
+  --     a seat recorded to begin later is not held yet, and one whose last day
+  --     has passed is over.
+  if not exists (
+    select 1
+      from public.operator_accounts a
+      join public.role_assignments ra on ra.person_id = a.person_id
+      join public.roles r on r.id = ra.role_id
+     where a.is_active
+       and r.code in ('president', 'vice_president', 'secretary', 'general_manager')
+       and ra.effective_from <= current_date
+       and (ra.effective_to is null or ra.effective_to > current_date)
+  ) then
+    raise exception
+      'LAN-76 pilot setup refused: no active operator currently holds President, Vice-President, Secretary or General Manager. Those four roles manage the club calendar; without one of them, nothing on these screens can be exercised.';
   end if;
 
   raise notice 'LAN-76 pilot setup: preflight passed on database %.', current_database();
@@ -138,6 +160,16 @@ select
   (
     select count(*) from public.operator_accounts where is_active
   ) as active_operator_accounts,
+  (
+    select count(distinct a.person_id)
+      from public.operator_accounts a
+      join public.role_assignments ra on ra.person_id = a.person_id
+      join public.roles r on r.id = ra.role_id
+     where a.is_active
+       and r.code in ('president', 'vice_president', 'secretary', 'general_manager')
+       and ra.effective_from <= current_date
+       and (ra.effective_to is null or ra.effective_to > current_date)
+  ) as calendar_operators,
   (
     select count(*) from public.events where name like '%PILOT-LAN-76%'
   ) as scenario_events_present;

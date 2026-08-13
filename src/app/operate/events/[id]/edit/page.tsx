@@ -9,8 +9,9 @@ import {
   readEvent,
   type EventDetail,
   type RawEventDraft,
+  type TermWindow,
 } from "@/lib/services/events";
-import { listTerms, type Term } from "@/lib/services/seasons";
+import { listTermWindows } from "@/lib/services/seasons";
 import { gateShellPage } from "../../../gate";
 import EventForm from "../../event-form";
 
@@ -29,15 +30,15 @@ import EventForm from "../../event-form";
  * explain itself rather than present a form whose save will be refused.
  */
 export default async function EditEventPage({ params }: PageProps<"/operate/events/[id]/edit">) {
-  const gate = await gateShellPage("/operate/events");
+  const gate = await gateShellPage("/operate/events", "event_calendar_management");
   if ("screen" in gate) return gate.screen;
 
   const { id } = await params;
 
   let event: EventDetail;
-  let terms: Term[];
+  let terms: TermWindow[];
   try {
-    [event, terms] = await Promise.all([readEvent(id), listTerms()]);
+    [event, terms] = await Promise.all([readEvent(id), listTermWindows()]);
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return <Refusal message={error.message} />;
@@ -55,13 +56,10 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
   const initial: RawEventDraft = {
     name: event.name,
     eventType: event.eventType,
-    origin: event.origin,
     scheduledOn: event.scheduledOn ?? "",
     startsAt: event.startsAt ?? "",
     endsAt: event.endsAt ?? "",
     venue: event.venue ?? "",
-    termId: event.termId ?? "",
-    weekNumber: event.weekNumber === null ? "" : String(event.weekNumber),
     attendance: event.isMandatory ? "mandatory" : "optional",
     solicitsResponse: event.solicitsResponse ? "yes" : "no",
   };
@@ -80,7 +78,7 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
       <EventForm
         mode="edit"
         eventId={event.id}
-        ownerName={event.ownerName ?? gate.operator.displayName}
+        createdBy={event.createdByName ?? gate.operator.displayName}
         terms={terms}
         initial={initial}
         cancelHref={`/operate/events/${event.id}`}

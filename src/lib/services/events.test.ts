@@ -67,13 +67,10 @@ function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} Wednesday practice`,
     eventType: "practice",
-    origin: "club_controlled",
     scheduledOn: "2026-10-14",
     startsAt: "20:00",
     endsAt: "22:00",
     venue: "Iffley Road Astro",
-    termId: null,
-    weekNumber: 2,
     isMandatory: true,
     solicitsResponse: true,
     ...overrides,
@@ -142,7 +139,6 @@ describe("row 1 — an operator creates the Wednesday practice as a draft", () =
     expect(event.startsAt).toBe("20:00");
     expect(event.endsAt).toBe("22:00");
     expect(event.venue).toBe("Iffley Road Astro");
-    expect(event.weekNumber).toBe(2);
     expect(event.isMandatory).toBe(true);
     expect(event.solicitsResponse).toBe(true);
     expect(event.seasonId).toBe(season.id);
@@ -208,7 +204,7 @@ describe("row 1 — an operator creates the Wednesday practice as a draft", () =
   it("accepts a draft with no date, no time and no venue — invariant E1a", async () => {
     const event = await createEventDraft(
       actorPersonId,
-      draft({ scheduledOn: null, startsAt: null, endsAt: null, venue: null, weekNumber: null }),
+      draft({ scheduledOn: null, startsAt: null, endsAt: null, venue: null }),
     );
 
     expect(event.status).toBe("draft");
@@ -253,13 +249,12 @@ describe("row 2 — the audit row and the change commit together", () => {
   it("writes no audit row when the change itself is refused", async () => {
     const before = await countDraftedAudits();
 
-    // A term that does not exist. The insert reaches the database and is
-    // rejected by the foreign key, which is the case that matters: the audit
-    // row is written in the same transaction, so a broken rollback would leave
-    // a record asserting an event was drafted when none was.
-    await refusalFrom(() =>
-      createEventDraft(actorPersonId, draft({ termId: "00000000-0000-4000-8000-0000000000ff" })),
-    );
+    // A date that looks like one and is not. It passes every check this layer
+    // makes and is rejected by PostgreSQL itself, which is the case that
+    // matters: the audit row is written in the same transaction as the insert,
+    // so a broken rollback would leave a record asserting an event was drafted
+    // when none was.
+    await refusalFrom(() => createEventDraft(actorPersonId, draft({ scheduledOn: "2026-02-30" })));
 
     expect(await countDraftedAudits()).toBe(before);
 
@@ -310,12 +305,14 @@ describe("row 3 — a draft can be edited, and only while it is a draft", () => 
     const edited = await updateEventDraft(
       actorPersonId,
       event.id,
-      draft({ venue: null, weekNumber: null, endsAt: null }),
+      draft({ venue: null, endsAt: null, scheduledOn: null }),
     );
 
     expect(edited.venue).toBeNull();
-    expect(edited.weekNumber).toBeNull();
     expect(edited.endsAt).toBeNull();
+    // Cleared the date too, so the derived coordinate has to clear with it.
+    expect(edited.termId).toBeNull();
+    expect(edited.weekNumber).toBeNull();
   });
 
   it("refuses to edit an event that is no longer a draft", async () => {
@@ -504,6 +501,202 @@ describe("row 6 — abandoning a draft ends it, and says why", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Brian's clarification — the date decides the term, and the club owns the event
+// ---------------------------------------------------------------------------
+
+describe("the term and week are derived from the date, never chosen", () => {
+  it("stores the Oxford coordinate the date falls in", async () => {
+    // 14 October 2026 is Michaelmas week 1: term starts 27 September, which is
+    // the first day of week −1, and 14 October is seventeen days later.
+    const event = await createEventDraft(actorPersonId, draft());
+
+    const term = await observer.query<{ name: string; academic_year: string }>(
+      "select name::text as name, academic_year from public.terms where id = $1",
+      [event.termId],
+    );
+
+    expect(term.rows[0].name).toBe("michaelmas");
+    expect(term.rows[0].academic_year).toBe("2026-27");
+    expect(event.weekNumber).toBe(1);
+  });
+
+  it("records no term for a date outside every term", async () => {
+    const event = await createEventDraft(actorPersonId, draft({ scheduledOn: "2027-07-15" }));
+
+    expect(event.termId).toBeNull();
+    expect(event.weekNumber).toBeNull();
+  });
+
+  it("re-derives when an edit moves the date to another term", async () => {
+    const event = await createEventDraft(actorPersonId, draft());
+    expect(event.weekNumber).toBe(1);
+
+    // Into Hilary, 0th week.
+    const moved = await updateEventDraft(
+      actorPersonId,
+      event.id,
+      draft({ scheduledOn: "2027-01-10" }),
+    );
+
+    const term = await observer.query<{ name: string }>(
+      "select name::text as name from public.terms where id = $1",
+      [moved.termId],
+    );
+    expect(term.rows[0].name).toBe("hilary");
+    expect(moved.weekNumber).toBe(0);
+  });
+
+  it("clears the coordinate when an edit removes the date", async () => {
+    const event = await createEventDraft(actorPersonId, draft());
+
+    const cleared = await updateEventDraft(actorPersonId, event.id, draft({ scheduledOn: null }));
+
+    expect(cleared.termId).toBeNull();
+    expect(cleared.weekNumber).toBeNull();
+  });
+});
+
+describe("origin is derived on creation and preserved on edit", () => {
+  it("records an operator-created event as one the club controls", async () => {
+    const event = await createEventDraft(actorPersonId, draft());
+
+    expect(event.origin).toBe("club_controlled");
+  });
+
+  it("leaves an externally scheduled event's provenance alone when it is edited", async () => {
+    // The case the schema exists for, and the one an edit must not quietly
+    // reclassify: a fixture whose date somebody else sets. Nothing in this
+    // slice creates one, so it is arranged directly.
+    const event = await createEventDraft(actorPersonId, draft());
+    await observer.query("update public.events set origin = 'externally_assigned' where id = $1", [
+      event.id,
+    ]);
+
+    const edited = await updateEventDraft(
+      actorPersonId,
+      event.id,
+      draft({ name: `${NAME_MARKER} Renamed` }),
+    );
+
+    expect(edited.origin).toBe("externally_assigned");
+  });
+});
+
+describe("the calendar is the club's, not its typist's", () => {
+  it("lets a second operator edit, submit and withdraw a draft they did not create", async () => {
+    // Brian's clarification: the calendar is managed by four roles and is not
+    // personally owned by its creator. Who *may* do this is decided by the
+    // capability map at the action; the service records the actor and applies
+    // no ownership rule of its own, and this is what says so.
+    const second = await observer.query<{ id: string }>(
+      "select id from public.people where id <> $1 limit 1",
+      [actorPersonId],
+    );
+    const other = second.rows[0].id;
+
+    const event = await createEventDraft(actorPersonId, draft());
+
+    const edited = await updateEventDraft(other, event.id, draft({ venue: "University Parks" }));
+    expect(edited.venue).toBe("University Parks");
+
+    await submitEventForApproval(other, event.id);
+    await withdrawEventSubmission(other, event.id);
+    const abandoned = await abandonEventDraft(other, event.id, "Superseded");
+    expect(abandoned.status).toBe("withdrawn");
+
+    // And every one of those names whoever actually did it.
+    const audit = await auditFor(event.id);
+    expect(audit.map((row) => row.actor_person_id)).toEqual([
+      actorPersonId,
+      other,
+      other,
+      other,
+      other,
+    ]);
+  });
+});
+
+describe("the list can be sorted, and only by columns it knows", () => {
+  it("sorts by date, oldest first, when asked", async () => {
+    await createEventDraft(
+      actorPersonId,
+      draft({ name: `${NAME_MARKER} Later`, scheduledOn: "2026-11-04" }),
+    );
+    await createEventDraft(
+      actorPersonId,
+      draft({ name: `${NAME_MARKER} Earlier`, scheduledOn: "2026-10-07" }),
+    );
+
+    const list = await listCurrentSeasonEvents({
+      search: NAME_MARKER,
+      sort: "date",
+      direction: "asc",
+    });
+    const dates = list.events.map((row) => row.scheduledOn);
+
+    expect(dates).toEqual([...dates].sort());
+  });
+
+  it("sorts by venue and by name", async () => {
+    await createEventDraft(
+      actorPersonId,
+      draft({ name: `${NAME_MARKER} Beta`, venue: "Zulu field" }),
+    );
+    await createEventDraft(
+      actorPersonId,
+      draft({ name: `${NAME_MARKER} Alpha`, venue: "Alpha field" }),
+    );
+
+    const byVenue = await listCurrentSeasonEvents({
+      search: NAME_MARKER,
+      sort: "venue",
+      direction: "asc",
+    });
+    expect(byVenue.events[0].venue).toBe("Alpha field");
+
+    const byName = await listCurrentSeasonEvents({
+      search: NAME_MARKER,
+      sort: "name",
+      direction: "asc",
+    });
+    expect(byName.events[0].name).toBe(`${NAME_MARKER} Alpha`);
+  });
+
+  it("falls back to the date for a sort column it does not recognise", async () => {
+    await createEventDraft(actorPersonId, draft());
+
+    // The parameter arrives from a query string, so this is the shape of an
+    // attack as much as of a typo. Neither is interpolated into the statement.
+    const injected = await listCurrentSeasonEvents({
+      search: NAME_MARKER,
+      sort: "name; drop table public.events --",
+      direction: "sideways",
+    });
+    const byDate = await listCurrentSeasonEvents({ search: NAME_MARKER });
+
+    expect(injected.events.map((row) => row.id)).toEqual(byDate.events.map((row) => row.id));
+
+    const survived = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.events",
+    );
+    expect(Number(survived.rows[0].count)).toBeGreaterThan(0);
+  });
+
+  it("puts an event with no date last, whichever way it is sorted", async () => {
+    await createEventDraft(actorPersonId, draft({ name: `${NAME_MARKER} Dated` }));
+    await createEventDraft(
+      actorPersonId,
+      draft({ name: `${NAME_MARKER} Undated`, scheduledOn: null }),
+    );
+
+    for (const direction of ["asc", "desc"]) {
+      const list = await listCurrentSeasonEvents({ search: NAME_MARKER, sort: "date", direction });
+      expect(list.events.at(-1)?.scheduledOn, `sorted ${direction}`).toBeNull();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Row 7 — invariant E4
 // ---------------------------------------------------------------------------
 
@@ -544,13 +737,10 @@ describe("row 8 — the form's rules, checked without a database", () => {
   const complete = {
     name: "Wednesday practice",
     eventType: "practice",
-    origin: "club_controlled",
     scheduledOn: "2026-10-14",
     startsAt: "20:00",
     endsAt: "22:00",
     venue: "Iffley Road Astro",
-    termId: "",
-    weekNumber: "2",
     attendance: "mandatory",
     solicitsResponse: "yes",
   };
@@ -562,8 +752,6 @@ describe("row 8 — the form's rules, checked without a database", () => {
     if (!result.ok) return;
     expect(result.value.isMandatory).toBe(true);
     expect(result.value.solicitsResponse).toBe(true);
-    expect(result.value.weekNumber).toBe(2);
-    expect(result.value.termId).toBeNull();
   });
 
   it("refuses an unanswered response-solicited choice — no silent default", () => {
@@ -590,7 +778,7 @@ describe("row 8 — the form's rules, checked without a database", () => {
       ...complete,
       name: "  ",
       endsAt: "19:00",
-      weekNumber: "9",
+      attendance: "",
       solicitsResponse: "",
     });
 
@@ -599,7 +787,7 @@ describe("row 8 — the form's rules, checked without a database", () => {
     expect(result.issues.map((issue) => issue.field)).toEqual([
       "name",
       "endsAt",
-      "weekNumber",
+      "attendance",
       "solicitsResponse",
     ]);
   });
@@ -611,7 +799,6 @@ describe("row 8 — the form's rules, checked without a database", () => {
       startsAt: "",
       endsAt: "",
       venue: "",
-      weekNumber: "",
     });
 
     expect(result.ok).toBe(true);
@@ -619,15 +806,24 @@ describe("row 8 — the form's rules, checked without a database", () => {
     expect(result.value.scheduledOn).toBeNull();
     expect(result.value.startsAt).toBeNull();
     expect(result.value.venue).toBeNull();
-    expect(result.value.weekNumber).toBeNull();
   });
 
-  it("accepts week −1, the first Michaelmas week", () => {
-    const result = validateEventDraft({ ...complete, weekNumber: "-1" });
+  it("has no field for the term, the week or the origin", () => {
+    // All three are derived. A form that posted them would be ignored rather
+    // than believed, and this is what says so — Brian's LAN-76 clarification:
+    // "Do not allow operators to independently choose date, term and week."
+    const result = validateEventDraft({
+      ...complete,
+      termId: "not-a-uuid",
+      weekNumber: "9",
+      origin: "externally_assigned",
+    } as Parameters<typeof validateEventDraft>[0]);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.value.weekNumber).toBe(-1);
+    expect(result.value).not.toHaveProperty("termId");
+    expect(result.value).not.toHaveProperty("weekNumber");
+    expect(result.value).not.toHaveProperty("origin");
   });
 });
 

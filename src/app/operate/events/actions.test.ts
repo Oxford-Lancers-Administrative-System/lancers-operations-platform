@@ -67,7 +67,23 @@ import { EMPTY_FORM_STATE, EMPTY_TRANSITION_STATE } from "./form-state";
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 
-function actor(roleCodes: string[] = []): ResolvedOperator {
+/** The four roles Brian's clarification puts on the club calendar. */
+const CALENDAR_ROLES = ["president", "vice_president", "secretary", "general_manager"];
+
+/** Every catalogue seat that is not one of them. */
+const NON_CALENDAR_ROLES = [
+  "treasurer",
+  "social_secretary",
+  "gameday_secretary",
+  "kit_manager",
+  "media_secretary",
+  "it_officer",
+  "head_coach",
+  "offence_coach",
+  "defence_coach",
+];
+
+function actor(roleCodes: string[] = ["president"]): ResolvedOperator {
   return {
     authUserId: "11111111-1111-4111-8111-111111111111",
     personId: OPERATOR_PERSON_ID,
@@ -87,13 +103,10 @@ function draftForm(overrides: Record<string, string> = {}): FormData {
   const fields: Record<string, string> = {
     name: "Wednesday practice",
     eventType: "practice",
-    origin: "club_controlled",
     scheduledOn: "2026-10-14",
     startsAt: "20:00",
     endsAt: "22:00",
     venue: "Iffley Road Astro",
-    termId: "",
-    weekNumber: "2",
     attendance: "mandatory",
     solicitsResponse: "yes",
     ...overrides,
@@ -199,23 +212,75 @@ describe("every action refuses a caller with no operator profile", () => {
   });
 });
 
-describe("an active operator may draft, whatever seat they hold", () => {
+describe("only the four calendar roles may manage the calendar", () => {
+  // Brian's LAN-76 clarification, 12 August 2026: "The club calendar is managed
+  // only by these four operator roles." The first implementation let any linked
+  // operator do it, on the reading that drafting was ordinary operator work.
+  // These are what hold the corrected rule.
+
+  for (const role of CALENDAR_ROLES) {
+    it.each(ACTIONS)(
+      `$name reaches its service for a ${role}, with the session's actor`,
+      async ({ call, service }) => {
+        givenAccess({ state: "active", operator: actor([role]) });
+
+        await expect(call()).rejects.toThrow(/^REDIRECT:/);
+
+        expect(service).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(service).mock.calls[0][0]).toBe(OPERATOR_PERSON_ID);
+      },
+    );
+  }
+
+  for (const role of NON_CALENDAR_ROLES) {
+    it.each(ACTIONS)(`$name refuses a ${role}`, async ({ call, service }) => {
+      givenAccess({ state: "active", operator: actor([role]) });
+
+      const error = await refusalFrom(call);
+
+      expect(error.kind).toBe("not_permitted");
+      expect(service).not.toHaveBeenCalled();
+    });
+  }
+
   it.each(ACTIONS)(
-    "$name reaches its service with the session's actor",
+    "$name refuses an operator holding no seat at all",
     async ({ call, service }) => {
-      // No roles at all. Drafting is ordinary operator work — the privileged
-      // step is approval, which is LAN-77 and stays President-only.
       givenAccess({ state: "active", operator: actor([]) });
 
-      await expect(call()).rejects.toThrow(/^REDIRECT:/);
+      const error = await refusalFrom(call);
 
-      expect(service).toHaveBeenCalledTimes(1);
-      expect(vi.mocked(service).mock.calls[0][0]).toBe(OPERATOR_PERSON_ID);
+      expect(error.kind).toBe("not_permitted");
+      expect(service).not.toHaveBeenCalled();
     },
   );
 
+  it("names the roles the action needs, and never the ones the caller holds", async () => {
+    givenAccess({ state: "active", operator: actor(["treasurer", "it_officer"]) });
+
+    const error = await refusalFrom(() => createEventDraftAction(EMPTY_FORM_STATE, draftForm()));
+
+    expect(error.message).toContain("President");
+    expect(error.message).toContain("General Manager");
+    expect(error.message).not.toMatch(/treasurer|it officer/i);
+  });
+
+  it("refuses an attendance-recording coach, who reaches another part of the app", async () => {
+    // The clarification's "other roles must not receive these actions merely
+    // because they can access another part of the application", made concrete:
+    // a Head Coach holds LAN-110's attendance capability and must still be
+    // refused the calendar.
+    givenAccess({ state: "active", operator: actor(["head_coach"]) });
+
+    const error = await refusalFrom(() =>
+      submitEventAction(EMPTY_TRANSITION_STATE, transitionForm()),
+    );
+
+    expect(error.kind).toBe("not_permitted");
+  });
+
   it("ignores an actor supplied in the form body", async () => {
-    givenAccess({ state: "active", operator: actor([]) });
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
 
     const form = draftForm();
     form.set("actorPersonId", "99999999-9999-4999-8999-999999999999");
@@ -233,7 +298,7 @@ describe("an active operator may draft, whatever seat they hold", () => {
 
 describe("a validation failure comes back as fields, with the entries intact", () => {
   beforeEach(() => {
-    givenAccess({ state: "active", operator: actor([]) });
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
   });
 
   it("names the unanswered response-solicited choice and writes nothing", async () => {
@@ -260,7 +325,7 @@ describe("a validation failure comes back as fields, with the entries intact", (
 
 describe("a refusal from the service is shown, and an authorization refusal is not", () => {
   beforeEach(() => {
-    givenAccess({ state: "active", operator: actor([]) });
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
   });
 
   it("returns an illegal transition as a sentence the operator can act on", async () => {
@@ -302,7 +367,7 @@ describe("a refusal from the service is shown, and an authorization refusal is n
 
 describe("where each action leaves the operator", () => {
   beforeEach(() => {
-    givenAccess({ state: "active", operator: actor([]) });
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
   });
 
   it("sends a new draft to its own page", async () => {

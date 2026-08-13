@@ -4,7 +4,7 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
-import { listTerms } from "@/lib/services/seasons";
+import { listTermWindows } from "@/lib/services/seasons";
 import { gateShellPage } from "../../gate";
 import EventForm from "../event-form";
 
@@ -16,12 +16,12 @@ import EventForm from "../event-form";
  * rules.
  */
 export default async function NewEventPage() {
-  const gate = await gateShellPage("/operate/events");
+  const gate = await gateShellPage("/operate/events", "event_calendar_management");
   if ("screen" in gate) return gate.screen;
 
   let terms;
   try {
-    terms = await listTerms();
+    terms = await listTermWindows();
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
@@ -52,7 +52,7 @@ export default async function NewEventPage() {
 
       <EventForm
         mode="create"
-        ownerName={gate.operator.displayName}
+        createdBy={gate.operator.displayName}
         terms={terms}
         cancelHref="/operate/events"
       />

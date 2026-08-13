@@ -74,19 +74,30 @@ result set, at least one active operator account, and
 
 ### 2. The test itself, in the application
 
-| Step | Where                          | What to do                                                                | Expected                                                                         |
-| ---- | ------------------------------ | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 1    | `/operate/events`              | Read the list                                                             | The season is named. Existing events are listed; a new hosted database is empty. |
-| 2    | `/operate/events/new`          | Save with the response-requested question unanswered                      | Refused, with the correction beside that question. Nothing is created.           |
-| 3    | `/operate/events/new`          | Create **PILOT-LAN-76 Wednesday practice**, mandatory, response requested | Lands on the event. Status **Draft**. It states that no invitations exist.       |
-| 4    | `/operate/events/[id]/edit`    | Change the venue and save                                                 | Back on the event, with the new venue.                                           |
-| 5    | `/operate/events/new`          | Create **PILOT-LAN-76 Second event**, same date as step 3                 | Accepted. Two events on one date is legal — invariant E4.                        |
-| 6    | the first event                | Submit for approval                                                       | "Event submitted for approval". Still no invitations.                            |
-| 7    | the same event                 | Withdraw submission                                                       | Back to **Draft**, editable again.                                               |
-| 8    | the second event               | Abandon draft, with a reason                                              | Status **Withdrawn**, the reason shown.                                          |
-| 9    | `/operate/events?status=draft` | Filter                                                                    | Only drafts. The withdrawn event is not among them.                              |
+| Step | Where                          | What to do                                                                | Expected                                                                                                    |
+| ---- | ------------------------------ | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 1    | `/operate/events`              | Read the list                                                             | The season is named, and a note says the audience and responses arrive at approval. A new project is empty. |
+| 2    | `/operate/events`              | Change the **Status** filter                                              | The list reloads on the change. There is no Apply button.                                                   |
+| 3    | `/operate/events`              | Click **Date**, then **Venue**, then **Status** in the column headers     | Each sorts; clicking the active one flips the direction. The sort is in the URL.                            |
+| 4    | `/operate/events/new`          | Save with the response-requested question unanswered                      | Refused, with the correction beside that question. Nothing is created.                                      |
+| 5    | `/operate/events/new`          | Pick a date inside term                                                   | The line under the date names the Oxford term and week. There is no term or week to choose, and no Origin.  |
+| 6    | `/operate/events/new`          | Pick a date in the vacation                                               | The same line reads **Outside Oxford term**.                                                                |
+| 7    | `/operate/events/new`          | Create **PILOT-LAN-76 Wednesday practice**, mandatory, response requested | Lands on the event. Status **Draft**, term and week derived, entered-by recorded, no invitations.           |
+| 8    | `/operate/events/[id]/edit`    | Change the venue and save                                                 | Back on the event, with the new venue.                                                                      |
+| 9    | `/operate/events/new`          | Create **PILOT-LAN-76 Second event**, same date as step 7                 | Accepted. Two events on one date is legal — invariant E4.                                                   |
+| 10   | the first event                | Submit for approval                                                       | "Event submitted for approval". Still no invitations.                                                       |
+| 11   | the same event                 | Withdraw submission                                                       | Back to **Draft**, editable again.                                                                          |
+| 12   | the second event               | Abandon draft, with a reason                                              | Status **Withdrawn**, the reason shown.                                                                     |
+| 13   | `/operate/events?status=draft` | Filter                                                                    | Only drafts. The withdrawn event is not among them.                                                         |
 
-Every one of steps 3 to 8 writes an `audit_events` row naming the operator.
+**And the authorization half, which needs a second sign-in.** Signed in as an
+operator holding no calendar seat — a Treasurer, a coach, or an operator with no
+role at all — `/operate/events` still lists the club's events, **Create event**
+is absent, an event's page offers none of its actions, and `/operate/events/new`
+refuses with a message naming the four roles it requires and never the roles the
+reader holds.
+
+Every one of steps 7 to 12 writes an `audit_events` row naming the operator.
 Those rows are **not** removed by cleanup.
 
 ### 3. After testing — `cleanup.sql`

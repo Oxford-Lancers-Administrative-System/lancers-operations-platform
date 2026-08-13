@@ -191,24 +191,69 @@ async function createScenarioEvent(
  * `GUARD_CASES` uses for the negative cases.
  */
 async function ensureActiveOperator(client: Client): Promise<void> {
-  const existing = await one<{ n: string }>(
+  const account = await one<{ person_id: string | null }>(
+    client,
+    `select a.person_id
+       from public.operator_accounts a
+       join public.people p on p.id = a.person_id
+      where a.is_active
+      limit 1`,
+  );
+
+  let personId = account?.person_id ?? null;
+
+  if (personId === null) {
+    const user = await one<{ id: string }>(
+      client,
+      "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id",
+      ["lan-76-scenario-fixture@oxfordlancers.local"],
+    );
+    const person = await one<{ id: string }>(
+      client,
+      `insert into public.operator_accounts (auth_user_id, person_id)
+       values ($1, (select id from public.people limit 1))
+       returning person_id as id`,
+      [user.id],
+    );
+    personId = person.id;
+  }
+
+  // …and that operator has to hold one of the four calendar seats, which is
+  // what setup.sql's guard (e) asks for. A seeded stack usually does; a CI
+  // runner's does not, and neither will hosted until Brian provisions one.
+  const seated = await one<{ n: string }>(
     client,
     `select count(*) as n
        from public.operator_accounts a
-       join public.people p on p.id = a.person_id
-      where a.is_active`,
+       join public.role_assignments ra on ra.person_id = a.person_id
+       join public.roles r on r.id = ra.role_id
+      where a.is_active
+        and r.code in ('president', 'vice_president', 'secretary', 'general_manager')
+        and ra.effective_from <= current_date
+        and (ra.effective_to is null or ra.effective_to > current_date)`,
   );
-  if (Number(existing.n) > 0) return;
+  if (Number(seated.n) > 0) return;
 
-  const user = await one<{ id: string }>(
+  const role = await one<{ id: string; scope: string; is_constitutional_office: boolean }>(
     client,
-    "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id",
-    ["lan-76-scenario-fixture@oxfordlancers.local"],
+    `insert into public.roles (code, name, scope, is_constitutional_office)
+     values ('secretary', 'Secretary', 'committee_year', true)
+     on conflict (code) do update set name = excluded.name
+     returning id, scope, is_constitutional_office`,
   );
+
+  const committeeYear = await one<{ id: string }>(
+    client,
+    `select id from public.committee_years
+      where starts_on <= current_date and (ends_on is null or ends_on > current_date)
+      limit 1`,
+  );
+
   await client.query(
-    `insert into public.operator_accounts (auth_user_id, person_id)
-     values ($1, (select id from public.people limit 1))`,
-    [user.id],
+    `insert into public.role_assignments
+       (person_id, role_id, scope, is_constitutional_office, committee_year_id, effective_from)
+     values ($1, $2, $3, $4, $5, current_date - 1)`,
+    [personId, role.id, role.scope, role.is_constitutional_office, committeeYear?.id ?? null],
   );
 }
 
@@ -553,6 +598,25 @@ const GUARD_CASES: readonly GuardCase[] = [
         "update public.operator_accounts set is_active = false, disabled_at = now()",
       )),
   },
+  {
+    script: "setup",
+    message:
+      "no active operator currently holds President, Vice-President, Secretary or General Manager",
+    arrange: async (c) => {
+      // An operator with a seat, but not one of the four. Brian's LAN-76
+      // clarification is that reaching another part of the application is not
+      // a way onto the calendar, and this is the hosted half of that: a
+      // database where nobody can exercise the feature says so before a human
+      // spends an afternoon on it.
+      await ensureActiveOperator(c);
+      await c.query(
+        `delete from public.role_assignments ra
+          using public.roles r
+          where r.id = ra.role_id
+            and r.code in ('president', 'vice_president', 'secretary', 'general_manager')`,
+      );
+    },
+  },
 
   // --- cleanup.sql ---------------------------------------------------------
   {
@@ -703,7 +767,7 @@ describe("the refusals the scripts declare are the refusals this file exercises"
 
   it("finds every refusal in both scripts", () => {
     // A pass produced by a parser that found nothing is not a pass.
-    expect(declaredRefusals(SETUP_FILE).length).toBeGreaterThanOrEqual(5);
+    expect(declaredRefusals(SETUP_FILE).length).toBeGreaterThanOrEqual(6);
     expect(declaredRefusals(CLEANUP_FILE).length).toBeGreaterThanOrEqual(7);
   });
 

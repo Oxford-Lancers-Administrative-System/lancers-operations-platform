@@ -12,10 +12,14 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import TableSortLabel from "@mui/material/TableSortLabel";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
+import { operatorHasCapability } from "@/lib/auth/guards";
 import {
+  DEFAULT_EVENT_SORT,
   DRAFTABLE_EVENT_TYPES,
+  EVENT_SORT_COLUMNS,
   listCurrentSeasonEvents,
   type EventList,
   type EventListEntry,
@@ -23,10 +27,9 @@ import {
 import { gateShellPage } from "../gate";
 import EventFilters from "./event-filters";
 import {
+  AUDIENCE_AND_RESPONSES_COME_LATER,
   describeAttendance,
   describeAudience,
-  describeOccurrence,
-  describeResponses,
   describeSolicitation,
   formatListWhen,
   labelFor,
@@ -45,6 +48,21 @@ import {
  * heading names the season the club is operating. Which season that is comes
  * from `readCurrentSeason()`, and a club with none gets a refusal rather than
  * last year's events.
+ *
+ * ## What the columns are, after Brian's clarification
+ *
+ * **Occurrence is gone.** It read "Awaiting assertion" for every approved
+ * event, which is internal vocabulary for a decision this screen cannot make —
+ * asserting that an event happened is LAN-80's, on its own surface. A column
+ * that names a state and offers no action is a column an operator learns to
+ * ignore. **Responses is gone too**: RSVP counts are excluded from this
+ * correction pass, and the column said "—" for everything a calendar operator
+ * can currently create.
+ *
+ * **Audience stays, and says when it arrives** rather than that it is missing:
+ * the clarification asks the list to make clear that audience and response
+ * information does not exist until approval is complete, and "Not resolved"
+ * reads like an omission somebody should fix.
  *
  * ## Two empty states, not one
  *
@@ -94,11 +112,19 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
   const search = first(params.q);
   const status = first(params.status);
   const eventType = first(params.type);
+  const sort = first(params.sort) || DEFAULT_EVENT_SORT;
+  const direction = first(params.dir) || EVENT_SORT_COLUMNS[sort]?.default || "desc";
   const filtered = search !== "" || status !== "" || eventType !== "";
+
+  // Reading the calendar is open to any linked, active operator — Events is an
+  // ordinary operator surface in `slice-ux.md` § 3 and § 8. Changing it is what
+  // decides whether the actions are offered, and the actions guard themselves
+  // regardless: a hidden button is a courtesy, never a boundary.
+  const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
 
   let list: EventList;
   try {
-    list = await listCurrentSeasonEvents({ search, status, eventType });
+    list = await listCurrentSeasonEvents({ search, status, eventType, sort, direction });
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
@@ -128,24 +154,35 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
             {`Season ${list.season.label}`}
           </Typography>
         </Box>
-        <Button variant="contained" href="/operate/events/new">
-          Create event
-        </Button>
+        {mayManage ? (
+          <Button variant="contained" href="/operate/events/new">
+            Create event
+          </Button>
+        ) : null}
       </Stack>
 
       <EventFilters
         statuses={FILTERABLE_STATUSES}
         types={DRAFTABLE_EVENT_TYPES}
+        sortColumns={SORT_OPTIONS}
         search={search}
         status={status}
         eventType={eventType}
+        sort={sort}
+        direction={direction}
       />
+
+      <Alert severity="info" data-testid="audience-note">
+        {AUDIENCE_AND_RESPONSES_COME_LATER}
+      </Alert>
 
       {list.events.length === 0 ? (
         <Alert severity="info" data-testid={filtered ? "events-filter-empty" : "events-empty"}>
           {filtered
             ? "No event in this season matches those filters. Clear them to see the season’s events."
-            : "This season has no events yet. Create the first one."}
+            : mayManage
+              ? "This season has no events yet. Create the first one."
+              : "This season has no events yet."}
         </Alert>
       ) : (
         <>
@@ -158,14 +195,36 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
             <Table size="small" aria-label="Events">
               <TableHead>
                 <TableRow>
-                  <TableCell>Event</TableCell>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Venue</TableCell>
-                  <TableCell>Status</TableCell>
+                  <SortableHeader
+                    column="name"
+                    label="Event"
+                    sort={sort}
+                    direction={direction}
+                    query={params}
+                  />
+                  <SortableHeader
+                    column="date"
+                    label="Date"
+                    sort={sort}
+                    direction={direction}
+                    query={params}
+                  />
+                  <SortableHeader
+                    column="venue"
+                    label="Venue"
+                    sort={sort}
+                    direction={direction}
+                    query={params}
+                  />
+                  <SortableHeader
+                    column="status"
+                    label="Status"
+                    sort={sort}
+                    direction={direction}
+                    query={params}
+                  />
                   <TableCell>Response</TableCell>
                   <TableCell>Audience</TableCell>
-                  <TableCell>Responses</TableCell>
-                  <TableCell>Occurrence</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -193,8 +252,6 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
                     </TableCell>
                     <TableCell>{describeSolicitation(event.solicitsResponse)}</TableCell>
                     <TableCell>{describeAudience(event)}</TableCell>
-                    <TableCell>{describeResponses(event)}</TableCell>
-                    <TableCell>{describeOccurrence(event)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -210,6 +267,65 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
         </>
       )}
     </Stack>
+  );
+}
+
+/** The sort choices, as the phone control needs them. */
+const SORT_OPTIONS: readonly { value: string; label: string }[] = Object.freeze([
+  { value: "date", label: "Date" },
+  { value: "name", label: "Event name" },
+  { value: "venue", label: "Venue" },
+  { value: "status", label: "Status" },
+]);
+
+/**
+ * One sortable column header.
+ *
+ * A link rather than a button: sorting is a different view of the same list, so
+ * it belongs in the URL, works with the back button, and survives a page
+ * refresh. Clicking the active column flips its direction; clicking another
+ * takes that column's own default, because "newest first" and "A to Z" are
+ * both the useful starting point for their own column.
+ */
+function SortableHeader({
+  column,
+  label,
+  sort,
+  direction,
+  query,
+}: {
+  column: string;
+  label: string;
+  sort: string;
+  direction: string;
+  query: Record<string, string | string[] | undefined>;
+}) {
+  const active = sort === column;
+  const next = active
+    ? direction === "asc"
+      ? "desc"
+      : "asc"
+    : (EVENT_SORT_COLUMNS[column]?.default ?? "desc");
+
+  const params = new URLSearchParams();
+  for (const key of ["q", "status", "type"]) {
+    const value = first(query[key]);
+    if (value !== "") params.set(key, value);
+  }
+  params.set("sort", column);
+  params.set("dir", next);
+
+  return (
+    <TableCell sortDirection={active ? (direction === "asc" ? "asc" : "desc") : false}>
+      <TableSortLabel
+        active={active}
+        direction={active && direction === "asc" ? "asc" : "desc"}
+        href={`/operate/events?${params.toString()}`}
+        component="a"
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
   );
 }
 

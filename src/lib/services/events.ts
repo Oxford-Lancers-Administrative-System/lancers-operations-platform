@@ -8,9 +8,10 @@ import {
   type Tx,
 } from "@/lib/db";
 import {
+  deriveTermCoordinate,
   DRAFTABLE_EVENT_TYPES,
-  EVENT_ORIGINS,
   EVENT_TRANSITIONS,
+  OPERATOR_CREATED_ORIGIN,
   optional,
   toMinutePrecision,
   trimmed,
@@ -18,6 +19,7 @@ import {
   type EventDraftInput,
   type EventStatus,
   type EventTransition,
+  type TermWindow,
 } from "./event-input";
 import { recordAudit } from "./audit";
 import { readCurrentSeasonIn, type Season } from "./seasons";
@@ -71,9 +73,11 @@ import { readCurrentSeasonIn, type Season } from "./seasons";
  * to know the split exists; see that module's header for why it exists.
  */
 export {
+  deriveTermCoordinate,
   DRAFTABLE_EVENT_TYPES,
   EVENT_ORIGINS,
   EVENT_TRANSITIONS,
+  OPERATOR_CREATED_ORIGIN,
   validateEventDraft,
   type EventDraftInput,
   type EventDraftValidation,
@@ -81,6 +85,8 @@ export {
   type EventTransition,
   type FieldIssue,
   type RawEventDraft,
+  type TermCoordinate,
+  type TermWindow,
 } from "./event-input";
 
 // ---------------------------------------------------------------------------
@@ -113,7 +119,8 @@ export interface EventDetail extends EventListEntry {
   termId: string | null;
   termLabel: string | null;
   weekNumber: number | null;
-  ownerName: string | null;
+  /** Who entered the event, for the audit trail. Never a permission. */
+  createdByName: string | null;
   decisionReason: string | null;
   seasonId: string;
 }
@@ -125,6 +132,44 @@ export interface EventListFilters {
   status?: string | null;
   /** An `event_type` value, or `null` for all. */
   eventType?: string | null;
+  /** One of `EVENT_SORT_COLUMNS`. Anything else falls back to the date. */
+  sort?: string | null;
+  /** `"asc"` or `"desc"`. Anything else falls back to the column's default. */
+  direction?: string | null;
+}
+
+/**
+ * The columns an operator may sort the list by, and the SQL each one means.
+ *
+ * A whitelist rather than interpolation: `sort` arrives in the query string,
+ * and the only safe way to put a caller's word in an `order by` is to look it
+ * up in a list written here. An unrecognised value is the default, never an
+ * error and never the caller's text.
+ *
+ * `status` sorts by the lifecycle's own order rather than alphabetically —
+ * `event_status` is an enum, so PostgreSQL already sorts it draft, pending,
+ * approved, occurred, and an operator scanning for what needs attention wants
+ * that rather than "approved, cancelled, draft".
+ */
+export const EVENT_SORT_COLUMNS: Readonly<
+  Record<string, { sql: string; default: "asc" | "desc" }>
+> = Object.freeze({
+  date: Object.freeze({ sql: "e.scheduled_on", default: "desc" as const }),
+  name: Object.freeze({ sql: "e.name", default: "asc" as const }),
+  venue: Object.freeze({ sql: "e.venue", default: "asc" as const }),
+  status: Object.freeze({ sql: "e.status", default: "asc" as const }),
+});
+
+export const DEFAULT_EVENT_SORT = "date";
+
+/** The `order by` for a requested sort, resolved against the whitelist. */
+function orderBy(sort: string | null, direction: string | null): string {
+  const column = EVENT_SORT_COLUMNS[sort ?? ""] ?? EVENT_SORT_COLUMNS[DEFAULT_EVENT_SORT];
+  const dir = direction === "asc" || direction === "desc" ? direction : column.default;
+  // `nulls last` on both directions: an event with no date yet, or no venue, is
+  // incomplete rather than earliest, and burying it at the top of a descending
+  // list would put the least finished events in front of the operator first.
+  return `${column.sql} ${dir === "asc" ? "asc" : "desc"} nulls last, e.created_at desc`;
 }
 
 export interface EventList {
@@ -164,7 +209,7 @@ interface EventDetailRow extends EventRow {
   term_name: string | null;
   term_academic_year: string | null;
   week_number: number | null;
-  owner_name: string | null;
+  created_by_name: string | null;
   decision_reason: string | null;
   season_id: string;
 }
@@ -236,7 +281,7 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
                                 or coalesce(e.venue, '') ilike '%' || $2 || '%')
           and ($3::text is null or e.status::text = $3)
           and ($4::text is null or e.event_type::text = $4)
-        order by e.scheduled_on desc nulls first, e.created_at desc`,
+        order by ${orderBy(optional(filters.sort), optional(filters.direction))}`,
       [season.id, search, status, eventType],
     );
 
@@ -283,7 +328,7 @@ async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail> {
               when o.id is null then null
               when o.family_name is null then coalesce(nullif(btrim(o.known_as), ''), o.given_name)
               else coalesce(nullif(btrim(o.known_as), ''), o.given_name) || ' ' || o.family_name
-            end as owner_name,
+            end as created_by_name,
             ${COUNT_COLUMNS}
        from public.events e
        left join public.terms t on t.id = e.term_id
@@ -304,7 +349,7 @@ async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail> {
     termLabel:
       row.term_name && row.term_academic_year ? `${row.term_name} ${row.term_academic_year}` : null,
     weekNumber: row.week_number,
-    ownerName: row.owner_name,
+    createdByName: row.created_by_name,
     decisionReason: row.decision_reason,
     seasonId: row.season_id,
   };
@@ -331,6 +376,8 @@ export async function createEventDraft(
 
   return withTransaction(async (tx) => {
     const season = await readCurrentSeasonIn(tx);
+    // Derived, not chosen: the date the operator entered decides both.
+    const term = deriveTermCoordinate(input.scheduledOn, await listTermWindows(tx));
 
     const inserted = await tx.query<{ id: string }>(
       `insert into public.events
@@ -343,13 +390,13 @@ export async function createEventDraft(
         season.id,
         input.name,
         input.eventType,
-        input.origin,
+        OPERATOR_CREATED_ORIGIN,
         input.scheduledOn,
         input.startsAt,
         input.endsAt,
         input.venue,
-        input.termId,
-        input.weekNumber,
+        term.termId,
+        term.weekNumber,
         input.isMandatory,
         input.solicitsResponse,
         actorPersonId,
@@ -368,6 +415,8 @@ export async function createEventDraft(
         eventType: input.eventType,
         solicitsResponse: input.solicitsResponse,
         isMandatory: input.isMandatory,
+        origin: OPERATOR_CREATED_ORIGIN,
+        weekNumber: term.weekNumber,
       },
     });
 
@@ -396,12 +445,18 @@ export async function updateEventDraft(
 
   return withTransaction(async (tx) => {
     const before = await readEventIn(tx, eventId);
+    const term = deriveTermCoordinate(input.scheduledOn, await listTermWindows(tx));
 
+    // `origin` is deliberately absent from this statement. An event that came
+    // from somewhere else — a BUCS fixture, a negotiated slot — keeps the
+    // provenance it arrived with, and editing its name here must not quietly
+    // reclassify it as the club's own. Nothing in this slice creates such an
+    // event; the schema does, and later issues will.
     const updated = await tx.query<{ id: string }>(
       `update public.events
-          set name = $2, event_type = $3::public.event_type, origin = $4::public.event_origin,
-              scheduled_on = $5, starts_at = $6::time, ends_at = $7::time, venue = $8,
-              term_id = $9, week_number = $10, is_mandatory = $11, solicits_response = $12,
+          set name = $2, event_type = $3::public.event_type,
+              scheduled_on = $4, starts_at = $5::time, ends_at = $6::time, venue = $7,
+              term_id = $8, week_number = $9, is_mandatory = $10, solicits_response = $11,
               updated_at = now()
         where id = $1 and status = 'draft'
        returning id`,
@@ -409,13 +464,12 @@ export async function updateEventDraft(
         eventId,
         input.name,
         input.eventType,
-        input.origin,
         input.scheduledOn,
         input.startsAt,
         input.endsAt,
         input.venue,
-        input.termId,
-        input.weekNumber,
+        term.termId,
+        term.weekNumber,
         input.isMandatory,
         input.solicitsResponse,
       ],
@@ -438,6 +492,7 @@ export async function updateEventDraft(
         eventType: input.eventType,
         solicitsResponse: input.solicitsResponse,
         isMandatory: input.isMandatory,
+        weekNumber: term.weekNumber,
       },
     });
 
@@ -520,7 +575,14 @@ export async function withdrawEventSubmission(
   return applyTransition(actorPersonId, eventId, "withdraw_submission", null);
 }
 
-/** `draft → withdrawn` — the candidate the owner abandons. Needs a reason. */
+/**
+ * `draft → withdrawn` — a candidate the club abandons. Needs a reason.
+ *
+ * Any calendar operator may withdraw any draft, not only whoever typed it in.
+ * Brian's LAN-76 clarification: the club calendar is managed by four roles and
+ * is not personally owned by its creator, so `owner_person_id` is recorded for
+ * accountability and read for display, and never consulted for permission.
+ */
 export async function abandonEventDraft(
   actorPersonId: string,
   eventId: string,
@@ -549,6 +611,39 @@ function describeState(status: EventStatus): string {
   return `This event is ${STATE_NAMES[status] ?? status}.`;
 }
 
+/**
+ * Every term, in the shape the derivation needs.
+ *
+ * Read inside the caller's transaction so that a create and its derived
+ * coordinate see one consistent calendar — a term edited between the two would
+ * otherwise produce a week number that disagrees with the term it names.
+ */
+async function listTermWindows(tx: Tx): Promise<TermWindow[]> {
+  const result = await tx.query<{
+    id: string;
+    name: string;
+    academic_year: string;
+    starts_on: Date | string;
+    ends_on: Date | string;
+    first_week: number;
+    last_week: number;
+  }>(
+    `select id, name::text as name, academic_year, starts_on, ends_on, first_week, last_week
+       from public.terms
+      order by starts_on desc`,
+  );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    academicYear: row.academic_year,
+    startsOn: asDate(row.starts_on) ?? "",
+    endsOn: asDate(row.ends_on) ?? "",
+    firstWeek: row.first_week,
+    lastWeek: row.last_week,
+  }));
+}
+
 function requireActor(actorPersonId: string): void {
   if (trimmed(actorPersonId) === "") {
     throw new ConstraintViolated("An event change has to name the operator who made it.", {
@@ -572,11 +667,6 @@ function requireValid(input: EventDraftInput): void {
   if (!DRAFTABLE_EVENT_TYPES.includes(input.eventType)) {
     throw new ConstraintViolated("That is not an event type this form can record.", {
       rule: "event_type_not_draftable",
-    });
-  }
-  if (!EVENT_ORIGINS.includes(input.origin)) {
-    throw new ConstraintViolated("That is not a recorded event origin.", {
-      rule: "event_origin_unknown",
     });
   }
   if (input.startsAt !== null && input.endsAt !== null && input.endsAt <= input.startsAt) {

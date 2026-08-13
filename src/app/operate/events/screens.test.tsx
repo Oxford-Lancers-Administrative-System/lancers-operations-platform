@@ -40,7 +40,7 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
 });
 vi.mock("@/lib/services/seasons", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/seasons")>();
-  return { ...actual, listTerms: vi.fn(), readCurrentSeason: vi.fn() };
+  return { ...actual, listTerms: vi.fn(), listTermWindows: vi.fn(), readCurrentSeason: vi.fn() };
 });
 
 import { NotFound } from "@/lib/db";
@@ -51,7 +51,7 @@ import {
   type EventDetail,
   type EventListEntry,
 } from "@/lib/services/events";
-import { listTerms } from "@/lib/services/seasons";
+import { listTermWindows } from "@/lib/services/seasons";
 import EventsPage from "./page";
 import NewEventPage from "./new/page";
 import EventDetailPage from "./[id]/page";
@@ -59,14 +59,25 @@ import EditEventPage from "./[id]/edit/page";
 
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 
-function operator(): ResolvedOperator {
+/**
+ * A calendar operator — one of the four roles Brian's clarification names.
+ *
+ * `reader()` below is the other case that now matters: a linked, active
+ * operator who may see the club calendar and change nothing on it.
+ */
+function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
   return {
     authUserId: "11111111-1111-4111-8111-111111111111",
     personId: "22222222-2222-4222-8222-222222222222",
     displayName: "Rowan Ashdown",
-    roleCodes: [],
+    roleCodes,
     isActive: true,
   };
+}
+
+/** An operator with no calendar role. The Treasurer is deliberately one. */
+function reader(): ResolvedOperator {
+  return operator(["treasurer"]);
 }
 
 function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
@@ -95,7 +106,7 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     termId: null,
     termLabel: "michaelmas 2026-27",
     weekNumber: 2,
-    ownerName: "Rowan Ashdown",
+    createdByName: "Rowan Ashdown",
     decisionReason: null,
     seasonId: "44444444-4444-4444-8444-444444444444",
     ...overrides,
@@ -131,7 +142,7 @@ function flatten(text: string | null): string {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: operator() });
-  vi.mocked(listTerms).mockResolvedValue([
+  vi.mocked(listTermWindows).mockResolvedValue([
     {
       id: "55555555-5555-4555-8555-555555555555",
       name: "michaelmas",
@@ -188,32 +199,72 @@ describe("UX-30 — the current season's events", () => {
     expect(flatten(card.textContent)).toContain("Pending approval");
   });
 
-  it("reports a draft as having no audience and no responses", async () => {
+  it("says when a draft's audience arrives, rather than that it is missing", async () => {
     givenList([listEntry()]);
 
     const { container } = render(await EventsPage(listProps()));
     const text = flatten(container.textContent);
 
-    expect(text).toContain("Not resolved");
-    expect(text).toContain("—");
+    expect(text).toContain("Chosen at approval");
+    expect(text).not.toContain("Not resolved");
+    expect(flatten(screen.getByTestId("audience-note").textContent)).toContain(
+      "chosen and confirmed during approval",
+    );
   });
 
-  it("counts an approved event's invitations and answers", async () => {
-    givenList([
-      listEntry({
-        status: "approved",
-        audienceCount: 42,
-        invitationCount: 42,
-        responseCount: 34,
-      }),
-    ]);
+  it("counts an approved event's audience", async () => {
+    givenList([listEntry({ status: "approved", audienceCount: 42, invitationCount: 42 })]);
+
+    const { container } = render(await EventsPage(listProps()));
+
+    expect(flatten(container.textContent)).toContain("42 invited");
+  });
+
+  it("shows neither an occurrence column nor a response count", async () => {
+    // Both went in Brian's clarification: occurrence is internal vocabulary for
+    // a decision this screen cannot make, and RSVP counts are excluded from
+    // this pass.
+    givenList([listEntry({ status: "approved", invitationCount: 42, responseCount: 34 })]);
 
     const { container } = render(await EventsPage(listProps()));
     const text = flatten(container.textContent);
 
-    expect(text).toContain("42 invited");
-    expect(text).toContain("34 responses");
-    expect(text).toContain("Awaiting assertion");
+    expect(text).not.toContain("Occurrence");
+    expect(text).not.toContain("Awaiting assertion");
+    expect(text).not.toContain("34 responses");
+  });
+
+  it("offers sorting by date, event, venue and status, in the query string", async () => {
+    givenList([listEntry()]);
+
+    render(await EventsPage(listProps()));
+
+    for (const column of ["date", "name", "venue", "status"]) {
+      const header = screen
+        .getAllByRole("link")
+        .find((link) => link.getAttribute("href")?.includes(`sort=${column}`));
+      expect(header, `no sortable header for ${column}`).toBeDefined();
+    }
+  });
+
+  it("flips the direction of the column already sorted, and keeps the filter", async () => {
+    givenList([listEntry()]);
+
+    render(await EventsPage(listProps({ sort: "date", dir: "desc", q: "practice" })));
+
+    const dateHeader = screen
+      .getAllByRole("link")
+      .find((link) => link.getAttribute("href")?.includes("sort=date"));
+    expect(dateHeader?.getAttribute("href")).toContain("dir=asc");
+    expect(dateHeader?.getAttribute("href")).toContain("q=practice");
+  });
+
+  it("has no Apply button — a filter applies when it changes", async () => {
+    givenList([listEntry()]);
+
+    render(await EventsPage(listProps()));
+
+    expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
   });
 
   it("distinguishes a season with no events from a filter that matched none", async () => {
@@ -236,6 +287,8 @@ describe("UX-30 — the current season's events", () => {
       search: "practice",
       status: "draft",
       eventType: "practice",
+      sort: "date",
+      direction: "desc",
     });
   });
 
@@ -303,14 +356,35 @@ describe("UX-31 — creating an event", () => {
     expect(options).not.toContain("fixture");
   });
 
-  it("names the operator as the owner", async () => {
+  it("asks for no term, no week and no origin", async () => {
+    // All three are derived. Brian's clarification: "Do not allow operators to
+    // independently choose date, term and week", and "do not expose an
+    // unexplained Origin choice to the operator".
     const { container } = render(await NewEventPage());
 
-    const owner = [...container.querySelectorAll("input")].find(
+    expect(container.querySelector('[name="termId"]')).toBeNull();
+    expect(container.querySelector('[name="weekNumber"]')).toBeNull();
+    expect(container.querySelector('[name="origin"]')).toBeNull();
+  });
+
+  it("records who entered the event, without calling them its owner", async () => {
+    const { container } = render(await NewEventPage());
+
+    const createdBy = [...container.querySelectorAll("input")].find(
       (node) => node.value === "Rowan Ashdown",
     );
-    expect(owner).toBeDefined();
-    expect(owner?.readOnly).toBe(true);
+    expect(createdBy).toBeDefined();
+    expect(createdBy?.readOnly).toBe(true);
+    expect(flatten(container.textContent)).toContain("belongs to the club");
+    expect(flatten(container.textContent)).not.toContain("Owner");
+  });
+
+  it("says the audience is chosen during approval", async () => {
+    render(await NewEventPage());
+
+    expect(flatten(screen.getByTestId("audience-comes-later").textContent)).toContain(
+      "chosen and confirmed during the approval step",
+    );
   });
 });
 
@@ -342,8 +416,8 @@ describe("UX-32 — a draft event", () => {
     render(await EventDetailPage(detailProps()));
 
     const audience = flatten(screen.getByTestId("audience-fact").textContent);
-    expect(audience).toContain("Not yet resolved");
-    expect(audience).toContain("Required before approval");
+    expect(audience).toContain("Chosen at approval");
+    expect(audience).toContain("chosen and confirmed during the approval step");
   });
 
   it("offers submit, edit and abandon, and no approval", async () => {
@@ -389,8 +463,13 @@ describe("UX-32 — a draft event", () => {
       "Draft · Wednesday, 14 October · 20:00–22:00",
     );
     expect(text).toContain("Michaelmas 2026-27 · Week 2");
-    expect(text).toContain("Club");
-    expect(text).toContain("Rowan Ashdown");
+    expect(flatten(screen.getByTestId("entered-by-fact").textContent)).toContain("Rowan Ashdown");
+    expect(flatten(screen.getByTestId("entered-by-fact").textContent)).toContain(
+      "Any calendar operator may edit this draft",
+    );
+    expect(flatten(screen.getByTestId("origin-fact").textContent)).toContain(
+      "The club schedules this event itself",
+    );
   });
 
   it("says so plainly when the event has no date yet", async () => {
@@ -497,6 +576,20 @@ describe("the edit view — UX-31 against an existing draft", () => {
     ).toBe(true);
   });
 
+  it("shows the term and week derived from the draft's date", async () => {
+    // 14 October 2026 is Michaelmas week 1 — derived in the browser as the
+    // operator changes the date, and derived again server-side on save.
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    const { container } = render(await EditEventPage(editProps()));
+
+    expect(flatten(screen.getByTestId("derived-term").textContent)).toContain(
+      "Michaelmas 2026-27, Week 1",
+    );
+    expect(container.querySelector('[name="termId"]')).toBeNull();
+    expect(container.querySelector('[name="weekNumber"]')).toBeNull();
+  });
+
   it("carries the event id, so the edit cannot land on another event", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail());
 
@@ -517,6 +610,109 @@ describe("the edit view — UX-31 against an existing draft", () => {
     );
     expect(screen.queryByTestId("event-form")).toBeNull();
   });
+});
+
+// ---------------------------------------------------------------------------
+// Brian's clarification — who the calendar is managed by
+// ---------------------------------------------------------------------------
+
+describe("an operator without a calendar role reads the calendar and changes nothing", () => {
+  beforeEach(() => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: reader() });
+  });
+
+  it("still sees the club's events — Events is an ordinary operator surface", async () => {
+    givenList([listEntry()]);
+
+    const { container } = render(await EventsPage(listProps()));
+
+    expect(flatten(container.textContent)).toContain("Wednesday practice");
+    expect(screen.queryByTestId("operator-not-permitted")).toBeNull();
+  });
+
+  it("is offered no Create event action", async () => {
+    givenList([listEntry()]);
+
+    render(await EventsPage(listProps()));
+
+    expect(screen.queryByRole("link", { name: "Create event" })).toBeNull();
+  });
+
+  it("is not told to create the first event when the season is empty", async () => {
+    givenList([], 0);
+
+    render(await EventsPage(listProps()));
+
+    expect(flatten(screen.getByTestId("events-empty").textContent)).toBe(
+      "This season has no events yet.",
+    );
+  });
+
+  it("opens a draft and is offered none of its actions", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    const { container } = render(await EventDetailPage(detailProps()));
+
+    expect(flatten(container.textContent)).toContain("Wednesday practice");
+    expect(screen.queryByRole("button", { name: "Submit for approval" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Edit draft" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Abandon draft" })).toBeNull();
+    expect(flatten(screen.getByTestId("read-only-note").textContent)).toContain(
+      "President, Vice-President, Secretary and General Manager",
+    );
+  });
+
+  it("is offered no withdrawal on a pending event", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "pending_approval" }));
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByRole("button", { name: "Withdraw submission" })).toBeNull();
+  });
+
+  it("is refused the editor outright, and told what it needs", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EditEventPage(editProps()));
+
+    expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
+    expect(flatten(screen.getByTestId("required-role").textContent)).toContain("President");
+    expect(readEvent).not.toHaveBeenCalled();
+  });
+
+  it("is refused the create form, and told what it needs", async () => {
+    render(await NewEventPage());
+
+    expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
+    expect(flatten(screen.getByTestId("required-role").textContent)).toContain("General Manager");
+  });
+
+  it("is never told which roles it holds", async () => {
+    const { container } = render(await NewEventPage());
+
+    expect(container.innerHTML.toLowerCase()).not.toContain("treasurer");
+  });
+});
+
+describe("each of the four calendar roles is offered the actions", () => {
+  it.each(["president", "vice_president", "secretary", "general_manager"])(
+    "%s can reach the editor and the draft's actions",
+    async (role) => {
+      vi.mocked(resolveOperatorAccess).mockResolvedValue({
+        state: "active",
+        operator: operator([role]),
+      });
+      vi.mocked(readEvent).mockResolvedValue(detail());
+
+      const editor = render(await NewEventPage());
+      expect(editor.getByTestId("event-form")).toBeVisible();
+      editor.unmount();
+
+      render(await EventDetailPage(detailProps()));
+      expect(screen.getByRole("button", { name: "Submit for approval" })).toBeEnabled();
+      expect(screen.getByRole("link", { name: "Edit draft" })).toBeVisible();
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------
