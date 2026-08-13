@@ -77,7 +77,14 @@ decision into a migration.
 
 ## What is built, and what is not
 
-`events.ts` and `seasons.ts` are the first aggregates. `events.ts` implements
+`roster.ts`, `events.ts` and `seasons.ts` are the first aggregates.
+
+`roster.ts` is LAN-74's returner intake, and it is worth reading as the pattern
+for a workflow that must not act on a guess: the duplicate check is a separate,
+read-only call; the write takes an explicit operator and an explicit decision
+about who the person is; everything commits in one transaction; and the
+membership's two status transitions go to `season_membership_status_events`
+rather than being duplicated into `audit_events` (register D9). `events.ts` implements
 two of the rules `docs/architecture/data-model.md` § _Rules deliberately left to
 TypeScript_ names, and implements them the way that section describes:
 

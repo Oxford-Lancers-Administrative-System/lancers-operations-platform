@@ -158,6 +158,28 @@ The marker is a convention. **Adding a column, a table, or any other schema
 concept to label test data is a decision for Brian and is not taken by an
 agent.**
 
+### Contact values a scenario may use
+
+A scenario that exercises a contact-matching feature needs contact values, and
+this repository is public. Only values that standards bodies reserve so they can
+never belong to anybody are permitted:
+
+- email in an **RFC 2606** reserved domain — `example.invalid` preferred, or
+  `example.com` / `.org` / `.net`;
+- phone numbers in **Ofcom's drama range**, `07700 900000`–`07700 900999`, in
+  either national or `+44` form.
+
+Anything else is a real person's contact detail as far as this rule is
+concerned, and `tests/pilot-data-contract.test.ts` refuses it. The check is
+anchored at the end of the domain, so an address at a domain merely _starting_
+with a reserved label — anything ending `.invalid.co.uk`, say — is registrable,
+is **not** reserved, and is refused. (Described rather than written out: this
+file is itself scanned, and a routable example address in it is exactly what the
+scan exists to catch.)
+
+LAN-74 is the first scenario to need this — its duplicate check matches on
+contact points, so a scenario without them cannot exercise half the feature.
+
 #### The second shape: rows the application creates
 
 Some scenarios have no deterministic key to delete by, because the rows are not
@@ -172,6 +194,16 @@ half is replaced by a restriction that limits which of the sentinel's rows may
 be deleted at all — for LAN-76, `status in ('draft', 'pending_approval',
 'withdrawn')`, so the cleanup can never remove an event that reached approval
 and therefore carries invitations, responses or attendance.
+
+LAN-74 is the second, and it differs in a way worth noting: its setup script
+_does_ write rows with deterministic keys, and only the rows the **tester**
+creates through the intake form fall under this shape. So one scenario can use
+both marks at once — deterministic-key deletes for what the script wrote,
+sentinel-only deletes for what the application wrote. Its sentinel is matched
+against two columns (`known_as` for script-written rows, `family_name` for
+form-written ones, because the form has a Last name field and no nickname
+field), compared as `upper(btrim(…))` so a marker typed in the wrong case still
+matches, and pinned by value in the contract test.
 
 Be exact about what that is and is not. It is **not** equivalent to a
 deterministic key: a key names one pre-known row and the sentinel is then a
