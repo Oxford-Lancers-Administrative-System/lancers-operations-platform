@@ -945,6 +945,32 @@ describe("the sweep of the returner created through the interface", () => {
     );
     expect(surviving.n).toBe("1");
   });
+
+  it("does not read the sentinel out of any column but the two it owns", async () => {
+    // The sweep matches `'PILOT-LAN-74' in (known_as, family_name)`. Nothing
+    // else. Without this test the predicate could be widened to `given_name` —
+    // or to any other text column — and every test in the repository stayed
+    // green, because no fixture ever put the sentinel anywhere unexpected.
+    await client.query(SETUP);
+    const wrongColumn = await one<{ id: string }>(
+      client,
+      `insert into public.people (given_name, family_name, known_as)
+       values ($1, 'Realsurname', null) returning id`,
+      [SENTINEL],
+    );
+
+    await client.query(CLEANUP);
+
+    const surviving = await one<{ n: string }>(
+      client,
+      "select count(*) as n from public.people where id = $1",
+      [wrongColumn.id],
+    );
+    expect(
+      surviving.n,
+      "a person whose GIVEN name happens to be the sentinel is not this scenario's",
+    ).toBe("1");
+  });
 });
 
 // ---------------------------------------------------------------------------

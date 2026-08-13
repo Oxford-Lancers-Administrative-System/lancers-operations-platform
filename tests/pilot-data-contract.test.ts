@@ -466,6 +466,20 @@ describe("the scenario scripts stay inside the conventions", () => {
    * A scenario needing to sweep something else needs Brian to widen this list,
    * which is the point of it being a list.
    */
+  /**
+   * The only columns a sentinel-only sweep may test for ownership.
+   *
+   * Without this the sweep's *breadth* is ungoverned: the table allow-list says
+   * where it may delete from, and nothing said which rows it may match. Widening
+   * `'PILOT-LAN-74' in (known_as, family_name)` to include `given_name` — or any
+   * other text column — passed every test in this repository.
+   *
+   * `known_as` is where `setup.sql` puts the marker on rows it writes;
+   * `family_name` is where the intake form's Last name field puts it on rows the
+   * application writes. Those are the two, and a third is Brian's decision.
+   */
+  const OWNERSHIP_COLUMNS = ["known_as", "family_name"];
+
   const SWEEPABLE_TABLES = [
     "public.people",
     "public.person_aliases",
@@ -548,6 +562,44 @@ describe("the scenario scripts stay inside the conventions", () => {
     return results;
   }
 
+  /**
+   * Every column a predicate tests the sentinel against, in either permitted
+   * form: `col = '<SENTINEL>'` and `'<SENTINEL>' in (a, b)`.
+   *
+   * Table qualifiers are stripped (`p.known_as` → `known_as`) so that a
+   * qualified reference cannot slip past the allow-list.
+   */
+  function sentinelColumns(where: string, sentinel: RegExp): string[] {
+    const literal = sentinel.source.replace(/\\/g, "");
+    const columns: string[] = [];
+
+    for (const match of where.matchAll(new RegExp(`([\\w.]+)\\s*=\\s*'${literal}[^']*'`, "gi"))) {
+      columns.push(match[1]);
+    }
+    for (const match of where.matchAll(
+      new RegExp(`'${literal}[^']*'\\s+in\\s*\\(([^)]*)\\)`, "gi"),
+    )) {
+      columns.push(...match[1].split(",").map((part) => part.trim()));
+    }
+
+    return columns.map((column) => column.split(".").pop() ?? column).filter(Boolean);
+  }
+
+  it("recognises the columns a sentinel predicate tests", () => {
+    const sentinel = /PILOT-LAN-74/i;
+    expect(sentinelColumns("known_as = 'PILOT-LAN-74'", sentinel)).toEqual(["known_as"]);
+    expect(sentinelColumns("'PILOT-LAN-74' in (known_as, family_name)", sentinel)).toEqual([
+      "known_as",
+      "family_name",
+    ]);
+    // Qualified references are stripped to the bare column, so `p.given_name`
+    // cannot slip past the allow-list by being spelled with a table alias.
+    expect(sentinelColumns("'PILOT-LAN-74' in (p.known_as, p.given_name)", sentinel)).toEqual([
+      "known_as",
+      "given_name",
+    ]);
+  });
+
   it("accounts for every delete in every cleanup script", () => {
     // The parser's coverage of the file, asserted separately from the rules it
     // applies. A segment it fails to recognise is a segment none of the rules
@@ -621,11 +673,22 @@ describe("the scenario scripts stay inside the conventions", () => {
             `no '-- SENTINEL-SWEEP:' comment immediately above it`,
         ).toBe(true);
 
-        // … and it may only reach a table on the allow-list.
+        // … it may only reach a table on the allow-list …
         expect(
           SWEEPABLE_TABLES,
           `${file}: a sentinel-only sweep may not target ${statement.table}`,
         ).toContain(statement.table);
+
+        // … and every column it tests the sentinel against must be an
+        // ownership column. This is what stops the sweep being quietly widened
+        // to match on a name, a note, or anything else on the row.
+        for (const column of sentinelColumns(statement.where, sentinel)) {
+          expect(
+            OWNERSHIP_COLUMNS,
+            `${file}: ${statement.table} tests the sentinel against "${column}", ` +
+              `which is not an ownership column`,
+          ).toContain(column);
+        }
       }
     }
   });

@@ -82,7 +82,13 @@ Sign in as an approved pilot operator and open **`/operate/roster/new`**.
    person who is genuinely new. Choose **Check for matches**, then **Confirm
    this is a new person**. Expect UX-13.
 
-### What to type in step 4, exactly
+> **This applies from step 1, not only step 4.** Selecting an existing person
+> in step 3 also records whatever you typed into Email and Phone against _that_
+> person. A real address entered while searching in step 1 lands on scenario
+> person `…0003` and makes `cleanup.sql` refuse — it will not delete a contact
+> it cannot account for. Use the values below in every step.
+
+### What to type, exactly
 
 `cleanup.sql` can only remove this person if the values identify them, so use
 these and nothing else:
@@ -134,9 +140,32 @@ by default after a feature test.
 
 Every scenario row is removed by its primary key **and** the sentinel, as the
 runbook requires. The returner created through the interface in step 4 cannot
-be: its id was minted by `gen_random_uuid()`. That sweep is keyed on
-`known_as = 'PILOT-LAN-74'` alone, and it is the only delete in this repository
-that is.
+be: its id was minted by `gen_random_uuid()`. That sweep is keyed on the
+sentinel alone, and it is the only delete in this repository that is.
+
+**Exactly what it matches, because this is the paragraph to read before you run
+it against production:**
+
+```sql
+'PILOT-LAN-74' in (known_as, family_name)
+```
+
+Two columns, because two kinds of row carry the marker. `setup.sql` can write
+any column, so its rows carry it in `known_as` — and they have to, since person
+`…0001` is deliberately first-name-only and has no surname to put it in.
+Anything created through the interface carries it in `family_name`, because the
+form has a Last name field and no nickname field.
+
+**So the sweep will delete any `people` row whose surname is exactly
+`PILOT-LAN-74`,** whoever created it and whenever. That is the intended
+behaviour — it is how a returner from an earlier testing round gets cleaned up
+too — but it is a wider net than a deterministic identifier, and it is the
+reason every refusal below exists.
+
+The two columns are an allow-list, enforced by
+`tests/pilot-data-contract.test.ts`. A future scenario cannot quietly add a
+third: widening it is Brian's decision, and the test fails until the runbook
+and the list agree.
 
 It is fenced by refusing outright, rather than by being narrow. `cleanup.sql`
 aborts if any person it would remove has an operator account, holds or granted
@@ -149,8 +178,8 @@ refusals is exercised by
 
 The set the sweep deletes is resolved **once**, in the preflight, into a
 temporary table, and every guard and every delete then uses that same set. The
-Supabase SQL editor runs at READ COMMITTED, so re-deriving `known_as = 'PILOT-LAN-74'`
-at delete time could remove a person created through the interface _after_ the
+Supabase SQL editor runs at READ COMMITTED, so re-deriving the sentinel match at
+delete time could remove a person created through the interface _after_ the
 guards ran, having passed none of them.
 
 `tests/pilot-data-contract.test.ts` holds the general rule: a sentinel-only

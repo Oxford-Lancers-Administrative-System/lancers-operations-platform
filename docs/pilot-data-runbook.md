@@ -199,8 +199,18 @@ So a cleanup may contain deletes keyed on the sentinel alone, on these terms:
   `season_memberships` or `season_membership_status_events`. The list is an
   allow-list and `audit_events` is deliberately not on it: history must outlive
   its subject (invariant M2, review F13). Widening the list is Brian's decision;
-- the statement still contains no disjunction and still resolves through the
-  scenario's own sentinel;
+- the statement resolves through the scenario's own sentinel, and tests it in
+  **one of exactly two forms** — `<column> = '<SENTINEL>'`, or
+  `'<SENTINEL>' in (<columns>)` when the marker can legitimately live in more
+  than one place. The second form is a disjunction, and is permitted _only_ over
+  ownership columns; a disjunction anywhere else in the predicate — between the
+  identifier and the ownership test, above all — is still refused, and a bare
+  `or` is refused outright;
+- every column it tests is on the **ownership allow-list**: `known_as` and
+  `family_name`. Nothing else identifies a pilot row. A scenario that needs a
+  third has to widen the list, which is Brian's decision and which the contract
+  test refuses until the runbook and the list agree. Without this, a sweep can
+  be widened to any column on `people` and every test stays green;
 - the set it removes is resolved **once**, in the preflight, and every guard and
   every delete uses that same set. Re-deriving it at delete time would let a row
   created between the preflight and the delete be removed having passed no guard
