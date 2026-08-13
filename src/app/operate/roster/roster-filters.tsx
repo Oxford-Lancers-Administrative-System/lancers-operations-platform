@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -8,14 +8,14 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import { ENTRY_LABELS, labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
+import { SEARCH_DEBOUNCE_MS, useFilterSearch } from "../filter-search";
 
 /**
- * How long the search box waits before navigating.
- *
- * Exported so the test can advance timers by exactly this much rather than
- * guessing, and so the number lives in one place.
+ * Re-exported so this screen's tests can advance timers by exactly the debounce
+ * rather than guessing. The value, and the behaviour, now live in
+ * `../filter-search` — the events list needed the identical thing.
  */
-export const SEARCH_DEBOUNCE_MS = 250;
+export { SEARCH_DEBOUNCE_MS };
 
 /**
  * UX-20's search and filters.
@@ -65,67 +65,23 @@ export default function RosterFilters({
   const [showFilters, setShowFilters] = useState(false);
 
   /**
-   * The search box filters as you type.
-   *
-   * It used to rely on the browser's implicit form submission — type, then
-   * press Enter. Brian's verdict on the real screen was blunt and correct:
-   * "the search absolutely does not work. I cannot filter." A box that looks
-   * like a filter and only responds to a keypress nothing on screen mentions is
-   * a broken filter, whatever the HTML says.
-   *
-   * So the value is local state, and a change pushes the URL after a short
-   * pause. The pause matters: without it every keystroke is a server round trip
-   * and a re-render, and the roster reads 42 memberships each time.
-   *
-   * `typed` is seeded from the prop and re-seeded when the prop changes, so
-   * pressing Back or landing on a filtered link still shows what is filtering.
+   * The search box filters as you type. Shared with the events list, because
+   * that screen shipped the same broken Enter-only version and Brian found the
+   * defect twice — see `../filter-search` for the two corrections it carries.
    */
-  const [typed, setTyped] = useState(search);
-  /** What the URL last carried, as far as this component is concerned. */
-  const committed = useRef(search);
-
-  // `useCallback` so the debounce effect below can depend on it honestly rather
-  // than suppressing the dependency rule.
-  const withFilter = useCallback(
-    (patch: Record<string, string>): string => {
-      // `q` defaults to what is in the box, not to the committed prop. A filter
-      // chosen within the debounce window used to build its URL from the older
-      // prop and silently discard the text just typed — and the pending
-      // debounce would then fire with a stale status and discard the filter.
-      // One of the two was always lost. Independent review found it.
-      const next = { q: typed, status, entry, sort, dir: direction, ...patch };
-      const params = new URLSearchParams();
-      for (const [key, value] of Object.entries(next)) {
-        if (value !== "") params.set(key, value);
-      }
-      const query = params.toString();
-      return query === "" ? "/operate/roster" : `/operate/roster?${query}`;
-    },
-    [typed, status, entry, sort, direction],
-  );
+  const push = useCallback((href: string) => router.push(href), [router]);
+  const {
+    typed,
+    setTyped,
+    hrefFor: withFilter,
+  } = useFilterSearch({
+    search,
+    basePath: "/operate/roster",
+    filters: { status, entry, sort, dir: direction },
+    push,
+  });
 
   const apply = (patch: Record<string, string>) => router.push(withFilter(patch));
-  useEffect(() => {
-    // The URL is the source of truth — Back, Clear filters, a shared link.
-    //
-    // But only adopt it when it says something we did not just say ourselves.
-    // A navigation landing while the operator keeps typing used to re-seed the
-    // box from the older prop, jumping the caret and dropping the characters
-    // typed in that window. If what arrived is already what is in the box,
-    // there is nothing to adopt.
-    if (search === committed.current || search === typed) return;
-    committed.current = search;
-    setTyped(search);
-  }, [search, typed]);
-
-  useEffect(() => {
-    if (typed === committed.current) return;
-    const timer = setTimeout(() => {
-      committed.current = typed;
-      router.push(withFilter({ q: typed }));
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [typed, withFilter, router]);
 
   return (
     <Box

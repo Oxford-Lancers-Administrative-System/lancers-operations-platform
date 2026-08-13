@@ -1,12 +1,10 @@
 import "server-only";
 
-import { ConstraintViolated, type Tx } from "@/lib/db";
+import type { Tx } from "@/lib/db";
 import {
-  resolveSelection,
   type AudienceCandidate,
   type AudienceCapacity,
   type AudienceCatalogue,
-  type ResolvedAudienceMember,
 } from "./audience-selection";
 
 /**
@@ -66,7 +64,9 @@ export {
   CAPACITY_PRECEDENCE,
   EMPTY_AUDIENCE_MESSAGE,
   EMPTY_AUDIENCE_RULE,
+  groupIsSelected,
   groupSelectionKeys,
+  groupSize,
   resolveSelection,
   selectionKey,
   UNKNOWN_SELECTION_MESSAGE,
@@ -221,23 +221,4 @@ export async function listAudienceCatalogueIn(
       committee: candidates.filter((candidate) => candidate.capacity === "committee").length,
     },
   };
-}
-
-/**
- * `resolveSelection`, as a service call: the members, or the refusal.
- *
- * The pure function returns a result because it also runs in the browser. Every
- * server caller wants the refusal to be a `ServiceError` that stops the
- * transaction, so the translation happens once, here, rather than at each call
- * site remembering to check `ok`.
- */
-export function requireSelection(
-  catalogue: AudienceCatalogue,
-  keys: readonly string[],
-): ResolvedAudienceMember[] {
-  const resolution = resolveSelection(catalogue.candidates, keys);
-  if (!resolution.ok) {
-    throw new ConstraintViolated(resolution.message, { rule: resolution.rule });
-  }
-  return resolution.members;
 }

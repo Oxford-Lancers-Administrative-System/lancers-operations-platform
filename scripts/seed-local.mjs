@@ -1614,13 +1614,18 @@ makeEvent({
   starts: "19:00",
   owner: people[12],
 });
+// A draft, not `pending_approval`. The state still exists in the enum and in
+// the frozen model, but PR #18 removed the Submit step, so the application can
+// no longer put an event into it — and LAN-77's approval only accepts a draft.
+// A seeded `pending_approval` row was therefore an event nobody could act on:
+// staleness rather than realism. Brian found it on the real screen.
 makeEvent({
   name: "Alumni touch game (proposed)",
   type: "social",
   term: draftSlot.term,
   week: 6,
   date: addDays(weekOf("trinity", 6).sunday, 6),
-  status: "pending_approval",
+  status: "draft",
   starts: "13:00",
   ends: "16:00",
   venue: "Iffley Road Astro",
@@ -2237,6 +2242,10 @@ for (const event of events.filter((e) => e.approved_at).slice(0, 40)) {
     action: "event_approved",
     entity_table: "events",
     entity_id: event.id,
+    // Historical, and deliberately still `pending_approval`: these rows record
+    // approvals the club made before the Submit step was removed. Rewriting
+    // them to match today's workflow would be a lie about what happened, and
+    // invariant M2 makes an audit row immutable.
     from_state: "pending_approval",
     to_state: "approved",
     reason: null,

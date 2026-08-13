@@ -21,17 +21,21 @@ vi.mock("server-only", () => ({}));
 import type { Client } from "pg";
 
 import { closePool, isServiceError, withTransaction, type ServiceError } from "@/lib/db";
-import { approveEvent, readApprovalPreview } from "./event-approval";
+import {
+  approveEvent,
+  readApprovalPreview,
+  readEventAudience,
+  saveEventAudience,
+} from "./event-approval";
 import {
   EMPTY_AUDIENCE_MESSAGE,
   EMPTY_AUDIENCE_RULE,
   listAudienceCatalogueIn,
-  requireSelection,
   resolveSelection,
   selectionKey,
   type AudienceCatalogue,
 } from "./event-audience";
-import { createEventDraft, readEvent, type EventDraftInput } from "./events";
+import { createEventDraft, readEvent, updateEventDraft, type EventDraftInput } from "./events";
 import { responseDeadlineRule, RESPONSE_DEADLINE_RULES } from "./response-deadline";
 import { openObserver } from "../../../tests/helpers/service-layer";
 
@@ -197,6 +201,19 @@ async function keysFor(
     .map((candidate) => candidate.key);
 }
 
+/**
+ * Propose an audience and approve it — the two steps the screen performs.
+ *
+ * They are separate service calls now that the audience is stored against the
+ * draft, and almost every test here cares about the pair rather than about the
+ * seam between them. The tests that *do* care about the seam call the two
+ * functions directly.
+ */
+async function approve(eventId: string, keys: readonly string[]) {
+  await saveEventAudience(actorPersonId, eventId, keys);
+  return approveEvent(actorPersonId, eventId);
+}
+
 async function countsFor(eventId: string) {
   const row = await observer.query<{
     audience: string;
@@ -238,7 +255,7 @@ describe("an empty audience is refused by the service layer", () => {
   it("refuses to approve, and the database would not have", async () => {
     const event = await newDraft();
 
-    const error = await caught(() => approveEvent(actorPersonId, event.id, []));
+    const error = await caught(() => approve(event.id, []));
 
     expect(error.kind).toBe("constraint_violated");
     expect(error.rule).toBe(EMPTY_AUDIENCE_RULE);
@@ -259,22 +276,58 @@ describe("an empty audience is refused by the service layer", () => {
     });
   });
 
-  it("reports the refusal identically to the browser and to the server", () => {
+  it("reports the same refusal to the browser as the service does", () => {
     const catalogue: AudienceCatalogue = {
       candidates: [],
       counts: { player: 0, coach: 0, committee: 0 },
     };
 
-    // The builder screen reads the result form, so it can render UX-42 without
-    // a round trip; the service reads the throwing form, so an approval that
-    // skipped the screen is still refused. Both have to be the same sentence,
-    // or the operator gets one message on screen and another in the log.
+    // The builder reads the result form, so it can count people without a round
+    // trip; the service throws. Both have to carry the same sentence, or the
+    // operator gets one message on screen and another in the log.
     const pure = resolveSelection(catalogue.candidates, []);
     expect(pure.ok).toBe(false);
     expect(pure.ok === false && pure.failure).toBe("empty");
     expect(pure.ok === false && pure.message).toBe(EMPTY_AUDIENCE_MESSAGE);
+  });
 
-    expect(() => requireSelection(catalogue, [])).toThrowError(EMPTY_AUDIENCE_MESSAGE);
+  it("saves an empty audience on a draft, and refuses to approve it", async () => {
+    const event = await newDraft();
+
+    // Clearing a selection is a thing an operator has to be able to do, so the
+    // proposal accepts nothing. Invariant E1b is about *approving*, and that is
+    // where it bites.
+    await expect(saveEventAudience(actorPersonId, event.id, [])).resolves.toEqual([]);
+
+    const error = await caught(() => approveEvent(actorPersonId, event.id));
+    expect(error.rule).toBe(EMPTY_AUDIENCE_RULE);
+    expect((await readEvent(event.id)).status).toBe("draft");
+  });
+
+  it("refuses to change the audience once the event is approved", async () => {
+    const event = await newDraft();
+    const keys = await keysFor(event, "player", 2);
+    await approve(event.id, keys);
+
+    // The freeze, as a refusal rather than as an absent button. Both write
+    // paths guard on `status = 'draft'`.
+    const error = await caught(() => saveEventAudience(actorPersonId, event.id, keys));
+    expect(error.kind).toBe("invalid_transition");
+    expect(error.message).toMatch(/Only a draft's audience can be changed/);
+  });
+
+  it("keeps a proposed audience when the draft is edited", async () => {
+    const event = await newDraft();
+    const keys = await keysFor(event, "player", 3);
+    await saveEventAudience(actorPersonId, event.id, keys);
+
+    // The whole point of storing it: editing the event must not lose forty
+    // people because somebody fixed a typo in the venue.
+    await updateEventDraft(actorPersonId, event.id, draft({ venue: "A different pitch" }));
+
+    const audience = await readEventAudience(event.id);
+    expect(audience).toHaveLength(3);
+    expect((await readEvent(event.id)).venue).toBe("A different pitch");
   });
 });
 
@@ -287,7 +340,7 @@ describe("a successful approval", () => {
     const event = await newDraft();
     const keys = await keysFor(event, "player", 4);
 
-    const outcome = await approveEvent(actorPersonId, event.id, keys);
+    const outcome = await approve(event.id, keys);
 
     expect(outcome.members).toHaveLength(4);
     expect(outcome.invitationCount).toBe(4);
@@ -326,7 +379,7 @@ describe("a successful approval", () => {
     const event = await newDraft();
     const keys = await keysFor(event, "player", 2);
 
-    await approveEvent(actorPersonId, event.id, keys);
+    await approve(event.id, keys);
 
     const rows = await observer.query<{
       capacity: string;
@@ -350,7 +403,7 @@ describe("a successful approval", () => {
     const keys = await keysFor(event, "committee", 2);
     expect(keys.length).toBeGreaterThan(0);
 
-    await approveEvent(actorPersonId, event.id, keys);
+    await approve(event.id, keys);
 
     const rows = await observer.query<{
       capacity: string;
@@ -372,7 +425,7 @@ describe("a successful approval", () => {
     const event = await newDraft();
     const keys = await keysFor(event, "player", 5);
 
-    await approveEvent(actorPersonId, event.id, keys);
+    await approve(event.id, keys);
 
     const jobs = await observer.query<{
       idempotency_key: string;
@@ -421,7 +474,7 @@ describe("a successful approval", () => {
     const event = await newDraft();
     const keys = await keysFor(event, "player", 3);
 
-    await approveEvent(actorPersonId, event.id, keys);
+    await approve(event.id, keys);
 
     const audit = await observer.query<{
       action: string;
@@ -458,7 +511,7 @@ describe("a successful approval", () => {
 // ---------------------------------------------------------------------------
 
 describe("a failure inside the transaction leaves the event untouched", () => {
-  it("rolls back the audience, the approval and the invitations when the jobs collide", async () => {
+  it("rolls back the approval and the invitations when the jobs collide", async () => {
     const event = await newDraft();
     const keys = await keysFor(event, "player", 3);
 
@@ -476,16 +529,19 @@ describe("a failure inside the transaction leaves the event untouched", () => {
       [collidingKey, event.id],
     );
 
-    const error = await caught(() => approveEvent(actorPersonId, event.id, keys));
+    const error = await caught(() => approve(event.id, keys));
     expect(error.kind).toBe("conflict");
 
     const after = await readEvent(event.id);
     expect(after.status).toBe("draft");
 
     const counts = await countsFor(event.id);
-    expect(counts.audience).toBe(0);
+    // The audience survives, and should: it was committed as a *proposal* in an
+    // earlier transaction, and the operator has not lost the forty people they
+    // picked because the approval failed. What rolled back is the approval.
+    expect(counts.audience).toBe(3);
     expect(counts.invitations).toBe(0);
-    // Only the row this test planted survives; the approval created none.
+    // Only the row this test planted; the approval created none.
     expect(counts.jobs).toBe(1);
 
     const audit = await observer.query<{ action: string }>(
@@ -505,10 +561,13 @@ describe("approving twice", () => {
     const event = await newDraft();
     const keys = await keysFor(event, "player", 3);
 
-    await approveEvent(actorPersonId, event.id, keys);
+    await approve(event.id, keys);
     const before = await countsFor(event.id);
 
-    const error = await caught(() => approveEvent(actorPersonId, event.id, keys));
+    // The second press approves again; it does not re-propose. Re-proposing is
+    // separately refused — an approved event's audience is frozen — and that is
+    // asserted in its own test below.
+    const error = await caught(() => approveEvent(actorPersonId, event.id));
     expect(error.kind).toBe("invalid_transition");
     expect(error.message).toMatch(/Only a draft can be approved/);
     expect(error.message).toMatch(/already approved/);
@@ -520,9 +579,11 @@ describe("approving twice", () => {
     const event = await newDraft();
     const keys = await keysFor(event, "player", 3);
 
+    await saveEventAudience(actorPersonId, event.id, keys);
+
     const results = await Promise.allSettled([
-      approveEvent(actorPersonId, event.id, keys),
-      approveEvent(actorPersonId, event.id, keys),
+      approveEvent(actorPersonId, event.id),
+      approveEvent(actorPersonId, event.id),
     ]);
 
     const fulfilled = results.filter((result) => result.status === "fulfilled");
@@ -546,7 +607,7 @@ describe("invariant E6 — deadlines exist only where a response was asked for",
     const event = await newDraft({ eventType: "practice", scheduledOn: "2026-10-18" });
     const keys = await keysFor(event, "player", 2);
 
-    const outcome = await approveEvent(actorPersonId, event.id, keys);
+    const outcome = await approve(event.id, keys);
     expect(outcome.deadline).not.toBeNull();
     expect(outcome.deadline?.clamped).toBe(false);
     expect(outcome.deadline?.rule).toEqual(RESPONSE_DEADLINE_RULES.practice);
@@ -572,7 +633,7 @@ describe("invariant E6 — deadlines exist only where a response was asked for",
     const event = await newDraft({ solicitsResponse: false });
     const keys = await keysFor(event, "player", 2);
 
-    const outcome = await approveEvent(actorPersonId, event.id, keys);
+    const outcome = await approve(event.id, keys);
     expect(outcome.deadline).toBeNull();
 
     const rows = await observer.query<{ expires_at: Date | null; deadline: Date | null }>(
@@ -622,7 +683,7 @@ describe("the configured response deadlines", () => {
     });
     const keys = await keysFor(event, "player", 1);
 
-    const outcome = await approveEvent(actorPersonId, event.id, keys);
+    const outcome = await approve(event.id, keys);
 
     expect(outcome.deadline?.rule.daysBefore).toBe(7);
     expect(outcome.deadline?.at.toISOString()).toBe("2026-10-11T17:00:00.000Z");
@@ -634,7 +695,7 @@ describe("the configured response deadlines", () => {
     const event = await newDraft({ scheduledOn: tomorrow });
     const keys = await keysFor(event, "player", 1);
 
-    const outcome = await approveEvent(actorPersonId, event.id, keys);
+    const outcome = await approve(event.id, keys);
 
     expect(outcome.deadline?.clamped).toBe(true);
     expect(outcome.deadline?.configuredAt.getTime()).toBeLessThan(outcome.deadline!.at.getTime());
@@ -658,7 +719,7 @@ describe("overlapping selections", () => {
     const event = await newDraft();
     const keys = await keysFor(event, "player", 2);
 
-    const outcome = await approveEvent(actorPersonId, event.id, [...keys, ...keys]);
+    const outcome = await approve(event.id, [...keys, ...keys]);
 
     expect(outcome.members).toHaveLength(2);
     expect(await countsFor(event.id)).toMatchObject({ audience: 2, invitations: 2, jobs: 2 });
@@ -681,7 +742,7 @@ describe("overlapping selections", () => {
     expect(overlap, "the seeded club should contain a player who also holds a role").toBeDefined();
 
     const playerKey = players.get(overlap!.personId)!.key;
-    const outcome = await approveEvent(actorPersonId, event.id, [playerKey, overlap!.key]);
+    const outcome = await approve(event.id, [playerKey, overlap!.key]);
 
     expect(outcome.members).toHaveLength(1);
     // Player wins, per CAPACITY_PRECEDENCE, and the anchor follows the capacity.
@@ -705,7 +766,7 @@ describe("a stale or forged selection", () => {
     // so it never reaches the database's anchor check.
     const forged = selectionKey("player", committee!.anchorId);
 
-    const error = await caught(() => approveEvent(actorPersonId, event.id, [forged]));
+    const error = await caught(() => approve(event.id, [forged]));
     expect(error.kind).toBe("constraint_violated");
     expect(error.message).toMatch(/no longer selectable/);
 
@@ -717,10 +778,7 @@ describe("a stale or forged selection", () => {
     const keys = await keysFor(event, "player", 2);
 
     const error = await caught(() =>
-      approveEvent(actorPersonId, event.id, [
-        ...keys,
-        "player:00000000-0000-0000-0000-000000000000",
-      ]),
+      approve(event.id, [...keys, "player:00000000-0000-0000-0000-000000000000"]),
     );
 
     expect(error.message).toMatch(/no longer selectable/);
@@ -801,7 +859,7 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     });
     const keys = await keysFor(event, "player", 1);
 
-    const outcome = await approveEvent(actorPersonId, event.id, keys);
+    const outcome = await approve(event.id, keys);
 
     expect(outcome.deadline?.at.toISOString()).toBe(expiresAt);
     expect(outcome.deadline?.clamped).toBe(false);
@@ -826,7 +884,7 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     });
     const keys = await keysFor(event, "player", 1);
 
-    const outcome = await approveEvent(actorPersonId, event.id, keys);
+    const outcome = await approve(event.id, keys);
 
     expect(outcome.deadline?.at.toISOString()).toBe("2026-10-16T17:00:00.000Z");
 
@@ -854,16 +912,8 @@ describe("every event type in the enum gets the deadline Brian configured", () =
       scheduledOn: "2027-01-20",
     });
 
-    const summerOutcome = await approveEvent(
-      actorPersonId,
-      summer.id,
-      await keysFor(summer, "player", 1),
-    );
-    const winterOutcome = await approveEvent(
-      actorPersonId,
-      winter.id,
-      await keysFor(winter, "player", 1),
-    );
+    const summerOutcome = await approve(summer.id, await keysFor(summer, "player", 1));
+    const winterOutcome = await approve(winter.id, await keysFor(winter, "player", 1));
 
     expect(summerOutcome.deadline?.at.toISOString()).toBe("2026-10-16T17:00:00.000Z");
     expect(winterOutcome.deadline?.at.toISOString()).toBe("2027-01-18T18:00:00.000Z");
@@ -876,5 +926,53 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     expect(() => responseDeadlineRule("kit_collection")).toThrowError(
       /No response deadline has been agreed/,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A proposed audience must not look like a defect
+// ---------------------------------------------------------------------------
+
+describe("an audience proposed against a draft", () => {
+  it("does not appear as an approval defect or in the nonresponse queue", async () => {
+    const event = await newDraft();
+    const keys = await keysFor(event, "player", 3);
+
+    await saveEventAudience(actorPersonId, event.id, keys);
+
+    // Storing an audience before approval is new, and the two operational views
+    // read `event_audience_members`. If a draft's proposal leaked into either,
+    // every unapproved event would show up as people the club failed to invite —
+    // which is exactly the defect `uninvited_audience_members` exists to report.
+    const leaked = await observer.query<{ uninvited: string; queued: string }>(
+      `select
+         (select count(*) from public.uninvited_audience_members where event_id = $1) as uninvited,
+         (select count(*) from public.nonresponse_queue where event_id = $1) as queued`,
+      [event.id],
+    );
+    expect(Number(leaked.rows[0].uninvited)).toBe(0);
+    expect(Number(leaked.rows[0].queued)).toBe(0);
+
+    // And invariant P1 still holds: a draft carries no invitations at all.
+    expect(await countsFor(event.id)).toMatchObject({ audience: 3, invitations: 0, jobs: 0 });
+  });
+
+  it("becomes reportable the moment it is approved, and reports nothing wrong", async () => {
+    const event = await newDraft();
+    const keys = await keysFor(event, "player", 3);
+
+    await approve(event.id, keys);
+
+    expect(await countsFor(event.id)).toMatchObject({ audience: 3, invitations: 3, uninvited: 0 });
+
+    // Every audience member is now an invitee awaiting a response — P7's
+    // five-way partition, with nobody in `never_invited`.
+    const states = await observer.query<{ response_state: string; count: string }>(
+      `select response_state, count(*)::text as count
+         from public.invitation_response_state where event_id = $1
+        group by 1`,
+      [event.id],
+    );
+    expect(states.rows).toEqual([{ response_state: "awaiting_response", count: "3" }]);
   });
 });

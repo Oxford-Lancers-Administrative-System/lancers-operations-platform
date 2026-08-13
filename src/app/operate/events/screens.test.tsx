@@ -44,7 +44,13 @@ vi.mock("@/lib/services/seasons", async (importOriginal) => {
 });
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-approval")>();
-  return { ...actual, readApprovalPreview: vi.fn(), approveEvent: vi.fn() };
+  return {
+    ...actual,
+    readApprovalPreview: vi.fn(),
+    readEventAudience: vi.fn(),
+    approveEvent: vi.fn(),
+    saveEventAudience: vi.fn(),
+  };
 });
 
 import { NotFound } from "@/lib/db";
@@ -56,7 +62,11 @@ import {
   type EventListEntry,
 } from "@/lib/services/events";
 import { listTermWindows } from "@/lib/services/seasons";
-import { readApprovalPreview } from "@/lib/services/event-approval";
+import {
+  readApprovalPreview,
+  readEventAudience,
+  type AudienceMember,
+} from "@/lib/services/event-approval";
 import type { AudienceCandidate } from "@/lib/services/audience-selection";
 import EventsPage from "./page";
 import NewEventPage from "./new/page";
@@ -236,9 +246,13 @@ function givenAudience(
     configuredAt: new Date("2026-10-12T17:00:00Z"),
     clamped: false,
   },
+  /** The audience already stored against the draft. Empty until one is saved. */
+  audience: AudienceMember[] = [],
 ) {
+  vi.mocked(readEventAudience).mockResolvedValue(audience);
   vi.mocked(readApprovalPreview).mockResolvedValue({
     event: detail(),
+    audience,
     catalogue: {
       candidates,
       counts: {
@@ -598,7 +612,7 @@ describe("UX-32 — a draft event", () => {
 
     expect(screen.getByRole("link", { name: "Edit draft" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Abandon draft" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Choose audience and approve" })).toBeEnabled();
+    expect(screen.getByRole("link", { name: "Choose audience and approve" })).toBeVisible();
 
     // Approval itself is still two deliberate steps away: the audience has to
     // be built and then confirmed. Nothing on the first screen approves.
@@ -614,7 +628,7 @@ describe("UX-32 — a draft event", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.queryByRole("button", { name: "Choose audience and approve" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Choose audience and approve" })).toBeNull();
     expect(screen.queryByTestId("audience-builder")).toBeNull();
   });
 
@@ -687,9 +701,9 @@ describe("an event awaiting approval, which nothing here creates", () => {
     expect(screen.getByTestId("event-detail").dataset.status).toBe("pending_approval");
     expect(screen.queryByRole("button", { name: "Withdraw submission" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Edit draft" })).toBeNull();
-    expect(flatten(screen.getByTestId("approval-note").textContent)).toContain(
-      "Approval is not built yet",
-    );
+    // Approval accepts a draft and nothing else, so an event stranded in this
+    // state offers no way forward — which is why the seed no longer creates one.
+    expect(screen.queryByRole("link", { name: /approve/i })).toBeNull();
   });
 
   it("keeps the no-invitations statement while the event is pending", async () => {
@@ -734,7 +748,7 @@ describe("a saved event is a draft, and there is nothing to submit", () => {
     expect(flatten(screen.getByTestId("no-invitations-note").textContent)).toContain(
       "Nothing is sent until the designated approver approves it",
     );
-    expect(screen.queryByRole("button", { name: "Choose audience and approve" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Choose audience and approve" })).toBeNull();
   });
 
   it("has no confirmation screen for a submission that cannot happen", async () => {
@@ -941,22 +955,48 @@ describe("every event route guards itself", () => {
 // UX-40, UX-41, UX-42 and UX-43 — LAN-77
 // ---------------------------------------------------------------------------
 
-/** Opens the builder from the event detail, as an approver would. */
-async function openBuilder() {
-  vi.mocked(readEvent).mockResolvedValue(detail());
-  const view = render(await EventDetailPage(detailProps()));
-  fireEvent.click(screen.getByRole("button", { name: "Choose audience and approve" }));
-  return view;
+/**
+ * Every approval screen is now a `?step=` of the event route, rendered from the
+ * audience **stored against the draft** rather than from client state. So these
+ * tests drive the step rather than clicking through one component, which is also
+ * how the real screens behave after `Edit draft` and back.
+ */
+function member(overrides: Partial<AudienceMember> = {}): AudienceMember {
+  return {
+    id: `member-${overrides.anchorId ?? "1"}`,
+    capacity: "player",
+    anchorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+    personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp1",
+    displayName: "Avery Fielding",
+    standing: "Active",
+    stillSelectable: true,
+    ...overrides,
+  };
 }
 
-function selectionKeys(): string[] {
-  return [...document.querySelectorAll('input[name="audienceKey"]')].map(
-    (input) => (input as HTMLInputElement).value,
-  );
-}
+const SAVED_AUDIENCE: AudienceMember[] = [
+  member(),
+  member({
+    anchorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+    personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp2",
+    displayName: "Samira Quinn",
+  }),
+  member({
+    capacity: "coach",
+    anchorId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
+    personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
+    displayName: "Casey North",
+    standing: "Head Coach",
+  }),
+];
 
 describe("UX-40 — building the audience", () => {
-  it("opens with nothing selected and no group applied", async () => {
+  async function openBuilder() {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    return render(await EventDetailPage(detailProps({ step: "audience" })));
+  }
+
+  it("opens with nothing selected when the draft has no audience yet", async () => {
     await openBuilder();
 
     expect(screen.getByTestId("audience-builder")).toBeVisible();
@@ -968,47 +1008,95 @@ describe("UX-40 — building the audience", () => {
     }
   });
 
-  it("offers the derived groups with the number each one adds", async () => {
+  it("re-opens with the audience already saved on the draft", async () => {
+    givenAudience(AUDIENCE, undefined, SAVED_AUDIENCE);
     await openBuilder();
 
-    expect(screen.getByRole("button", { name: "All active players (3)" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "All active coaches (1)" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "All active committee (1)" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Everyone active (5)" })).toBeEnabled();
+    // The whole point of storing it: Edit draft and back must not lose it.
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
+    expect(
+      screen.getAllByRole("checkbox").filter((box) => (box as HTMLInputElement).checked),
+    ).toHaveLength(3);
   });
 
-  it("selects a whole group on one press, and clears it again", async () => {
+  it("offers everyone-active first, and counts people rather than rows", async () => {
     await openBuilder();
 
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
-    expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
+    const groups = screen
+      .getAllByRole("button")
+      .map((button) => button.textContent)
+      .filter((label) => label?.includes("active"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    // Brian asked for everyone first, and for the counts to be people: the
+    // fixture holds five rows for four humans, and the button says four.
+    expect(groups[0]).toBe("Everyone active (4)");
+    expect(groups).toContain("All active players (3)");
+    expect(groups).toContain("All active coaches (1)");
+    expect(groups).toContain("All active committee (1)");
+  });
+
+  it("lights a group when its people are all in, and clears it when pressed again", async () => {
+    await openBuilder();
+
+    const everyone = screen.getByRole("button", { name: "Everyone active (4)" });
+    expect(everyone).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(everyone);
+    expect(everyone).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
+
+    fireEvent.click(everyone);
+    expect(everyone).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 0 selected");
   });
 
-  it("counts one person holding two capacities once, and says why", async () => {
-    await openBuilder();
-
-    // Morgan Pike is an active player and the Secretary. Both groups include
-    // them; one invitation is what the club will send.
-    fireEvent.click(screen.getByRole("button", { name: "Everyone active (5)" }));
-
-    expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
-    expect(flatten(screen.getByTestId("dedupe-note").textContent)).toBe(
-      "5 selections resolve to 4 people — somebody holds more than one capacity and is invited once.",
-    );
-  });
-
-  it("adds an individual to a group without duplicating anybody", async () => {
+  it("stops claiming a group is in when one of its people is unticked", async () => {
     await openBuilder();
 
     fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
-    // Already inside the group — ticking them again must not add a second row.
-    fireEvent.click(screen.getByRole("checkbox", { name: "Include Avery Fielding as Player" }));
+    expect(screen.getByRole("button", { name: "All active players (3)" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
     fireEvent.click(screen.getByRole("checkbox", { name: "Include Avery Fielding as Player" }));
 
-    expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
+    expect(screen.getByRole("button", { name: "All active players (3)" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 2 selected");
+  });
+
+  it("counts one person holding two capacities once", async () => {
+    await openBuilder();
+
+    // Morgan Pike is an active player and the Secretary. One invitation.
+    fireEvent.click(screen.getByRole("button", { name: "Everyone active (4)" }));
+
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
+    // And no sentence explaining the arithmetic — Brian removed it.
+    expect(screen.queryByTestId("dedupe-note")).toBeNull();
+    expect(flatten(screen.getByTestId("audience-builder").textContent)).not.toContain(
+      "selections resolve to",
+    );
+  });
+
+  it("sorts the chosen people to the top", async () => {
+    await openBuilder();
+
+    const names = () =>
+      screen
+        .getAllByRole("checkbox")
+        .map((box) => box.getAttribute("aria-label") ?? "")
+        .map((label) => label.replace(/^Include /, "").replace(/ as .*$/, ""));
+
+    expect(names()[0]).toBe("Avery Fielding");
+
+    // Ticking somebody further down moves them to the front, which is both the
+    // review order Brian asked for and the feedback that the tick registered.
+    fireEvent.click(screen.getByRole("checkbox", { name: "Include Samira Quinn as Player" }));
+    expect(names()[0]).toBe("Samira Quinn");
   });
 
   it("searches by name, role and contact", async () => {
@@ -1029,13 +1117,30 @@ describe("UX-40 — building the audience", () => {
     });
     expect(screen.getByTestId("no-candidates")).toBeVisible();
   });
+
+  it("posts exactly the ticked people to be saved", async () => {
+    await openBuilder();
+    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+
+    const posted = [...document.querySelectorAll('input[name="audienceKey"]')].map(
+      (input) => (input as HTMLInputElement).value,
+    );
+    expect(posted.sort()).toEqual(
+      [
+        "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+        "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+      ].sort(),
+    );
+  });
 });
 
 describe("UX-42 — an empty audience is refused before anything is written", () => {
   it("shows the refusal rather than the confirmation", async () => {
-    await openBuilder();
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    givenAudience(AUDIENCE, undefined, []);
 
-    fireEvent.click(screen.getByTestId("review-selection"));
+    render(await EventDetailPage(detailProps({ step: "review" })));
 
     const refusal = screen.getByTestId("empty-audience-refusal");
     expect(flatten(refusal.textContent)).toContain("The resolved audience is empty");
@@ -1044,22 +1149,18 @@ describe("UX-42 — an empty audience is refused before anything is written", ()
       "Approval is refused on the server even if this screen is bypassed",
     );
     expect(screen.queryByRole("button", { name: "Approve event" })).toBeNull();
-  });
-
-  it("offers a way back to building", async () => {
-    await openBuilder();
-    fireEvent.click(screen.getByTestId("review-selection"));
-
-    fireEvent.click(screen.getByRole("button", { name: "Build audience" }));
-    expect(screen.getByTestId("audience-builder")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Build audience" })).toBeVisible();
   });
 });
 
 describe("UX-41 — confirming exactly who will be asked", () => {
-  async function reachReview() {
-    await openBuilder();
-    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
-    fireEvent.click(screen.getByTestId("review-selection"));
+  async function reachReview(
+    audience: AudienceMember[] = SAVED_AUDIENCE,
+    deadline?: Parameters<typeof givenAudience>[1],
+  ) {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    givenAudience(AUDIENCE, deadline, audience);
+    return render(await EventDetailPage(detailProps({ step: "review" })));
   }
 
   it("names every invitee, with the capacity each is invited in", async () => {
@@ -1068,11 +1169,11 @@ describe("UX-41 — confirming exactly who will be asked", () => {
     const list = within(screen.getByTestId("resolved-audience"));
     expect(list.getByText("Avery Fielding")).toBeVisible();
     expect(list.getByText("Samira Quinn")).toBeVisible();
-    expect(list.getByText("Morgan Pike")).toBeVisible();
-    expect(list.getAllByText("Player")).toHaveLength(3);
+    expect(list.getByText("Casey North")).toBeVisible();
+    expect(list.getAllByText("Player")).toHaveLength(2);
+    expect(list.getAllByText("Coach")).toHaveLength(1);
 
     expect(flatten(screen.getByTestId("audience-total").textContent)).toBe("3Confirmed audience");
-    expect(flatten(screen.getByTestId("audience-defects").textContent)).toBe("0Audience defects");
   });
 
   it("shows the deadline the club's rule produces, in Oxford's own time", async () => {
@@ -1086,12 +1187,11 @@ describe("UX-41 — confirming exactly who will be asked", () => {
   });
 
   it("warns that responses are due immediately when the deadline has passed", async () => {
-    givenAudience(AUDIENCE, {
+    await reachReview(SAVED_AUDIENCE, {
       at: new Date("2026-10-17T09:00:00Z"),
       configuredAt: new Date("2026-10-16T17:00:00Z"),
       clamped: true,
     });
-    await reachReview();
 
     const deadline = flatten(screen.getByTestId("deadline-fact").textContent);
     expect(deadline).toContain("Due immediately");
@@ -1099,12 +1199,32 @@ describe("UX-41 — confirming exactly who will be asked", () => {
   });
 
   it("shows no deadline at all for an event that asks for no response", async () => {
-    givenAudience(AUDIENCE, null);
-    await reachReview();
+    await reachReview(SAVED_AUDIENCE, null);
 
     const deadline = flatten(screen.getByTestId("deadline-fact").textContent);
     expect(deadline).toContain("No deadline");
     expect(deadline).toContain("nothing expires");
+  });
+
+  it("says somebody has gone inactive, and that they will still be invited", async () => {
+    await reachReview([
+      ...SAVED_AUDIENCE,
+      member({
+        anchorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa9",
+        personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp9",
+        displayName: "Gone Away",
+        standing: "No longer listed",
+        stillSelectable: false,
+      }),
+    ]);
+
+    // Brian's ruling: the confirmed list is honoured as-is. So this is
+    // information, not an obstacle — and the approve button stays.
+    expect(flatten(screen.getByTestId("stale-audience-note").textContent)).toContain(
+      "no longer active. They will still be invited",
+    );
+    expect(flatten(screen.getByTestId("audience-defects").textContent)).toBe("1No longer active");
+    expect(screen.getByRole("button", { name: "Approve event" })).toBeEnabled();
   });
 
   it("says delivery is automated and begins only after approval", async () => {
@@ -1127,66 +1247,94 @@ describe("UX-41 — confirming exactly who will be asked", () => {
     );
   });
 
-  it("posts the confirmed selection, and only that", async () => {
+  it("posts the event and no audience at all", async () => {
     await reachReview();
 
+    // The audience is already stored, so there is no list for a browser to
+    // alter between confirming and approving.
     expect(screen.getByRole("button", { name: "Approve event" })).toBeEnabled();
-    expect(selectionKeys().sort()).toEqual(
-      [
-        "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
-        "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
-        "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
-      ].sort(),
-    );
+    expect(document.querySelectorAll('input[name="audienceKey"]')).toHaveLength(0);
+    expect(
+      within(screen.getByTestId("approve-form")).getByDisplayValue(EVENT_ID),
+    ).toBeInTheDocument();
   });
 
-  it("goes back to the builder without losing the selection", async () => {
+  it("offers a way back to the builder", async () => {
     await reachReview();
 
-    fireEvent.click(screen.getByRole("button", { name: "Back to audience" }));
-
-    expect(screen.getByTestId("audience-builder")).toBeVisible();
-    expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
+    expect(screen.getByRole("link", { name: "Back to audience" })).toHaveAttribute(
+      "href",
+      `/operate/events/${EVENT_ID}?step=audience`,
+    );
   });
 });
 
 describe("UX-43 — the event is approved", () => {
   function approved() {
-    return detail({ status: "approved", audienceCount: 42, invitationCount: 42 });
+    return detail({ status: "approved", audienceCount: 3, invitationCount: 3 });
   }
 
   it("reports what now exists, and that none of it has been delivered", async () => {
     vi.mocked(readEvent).mockResolvedValue(approved());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
 
     render(await EventDetailPage(detailProps({ approved: "1" })));
 
     const note = flatten(screen.getByTestId("event-approved-note").textContent);
-    expect(note).toContain("Event approved — 42 invitations created");
+    expect(note).toContain("Event approved — 3 invitations created");
     expect(note).toContain("queued job waiting for automated delivery");
 
-    expect(flatten(screen.getByTestId("audience-fact").textContent)).toContain("42 confirmed");
+    expect(flatten(screen.getByTestId("audience-fact").textContent)).toContain("3 confirmed");
     expect(flatten(screen.getByTestId("distribution-fact").textContent)).toContain(
       "nothing delivered yet",
     );
   });
 
+  it("names who was invited, which is the question an approved event raises", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approved());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+
+    render(await EventDetailPage(detailProps()));
+
+    const list = within(screen.getByTestId("event-audience"));
+    expect(list.getByText("Avery Fielding")).toBeVisible();
+    expect(list.getByText("Casey North")).toBeVisible();
+  });
+
   it("offers no way to change the audience afterwards", async () => {
     vi.mocked(readEvent).mockResolvedValue(approved());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
 
     render(await EventDetailPage(detailProps({ approved: "1" })));
 
     // The freeze, as an absence rather than as a sentence: LAN-77 ships no
     // post-approval audience edit, no late addition and no resend.
-    expect(screen.queryByRole("button", { name: "Choose audience and approve" })).toBeNull();
+    expect(screen.queryByRole("link", { name: /audience/i })).toBeNull();
     expect(screen.queryByTestId("audience-builder")).toBeNull();
     expect(readApprovalPreview).not.toHaveBeenCalled();
   });
 
   it("does not congratulate somebody merely visiting an approved event", async () => {
     vi.mocked(readEvent).mockResolvedValue(approved());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
 
     render(await EventDetailPage(detailProps()));
 
     expect(screen.queryByTestId("event-approved-note")).toBeNull();
+  });
+});
+
+describe("a draft that already carries an audience", () => {
+  it("shows who it is for, and that nothing has been sent", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("audience-fact").textContent)).toContain(
+      "3 chosen, not yet approved",
+    );
+    expect(within(screen.getByTestId("event-audience")).getByText("Avery Fielding")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Review audience and approve" })).toBeVisible();
   });
 });

@@ -132,14 +132,16 @@ describe.runIf(seeded)("synthetic dataset properties (SDA §11.5)", () => {
   });
 
   it("has events that were proposed and never happened", async () => {
-    for (const status of [
-      "draft",
-      "pending_approval",
-      "rejected",
-      "withdrawn",
-      "not_held",
-      "cancelled",
-    ]) {
+    // `pending_approval` is deliberately absent, on Brian's decision of
+    // 13 August 2026. PR #18 removed the Submit step, so the application can no
+    // longer put an event into that state, and LAN-77's approval accepts only a
+    // draft — a seeded row was therefore an event nobody could act on, which he
+    // hit on the real screen and read as polluted test data.
+    //
+    // The state itself remains in the enum, in the frozen model, and in the
+    // historical audit rows the seed still writes with `from_state =
+    // 'pending_approval'`. What went is the live row, not the vocabulary.
+    for (const status of ["draft", "rejected", "withdrawn", "not_held", "cancelled"]) {
       expect(
         await count("select count(*) as count from public.events where status = $1", [status]),
         `no event in the ${status} state`,

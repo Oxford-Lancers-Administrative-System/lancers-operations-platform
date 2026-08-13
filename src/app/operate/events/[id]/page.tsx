@@ -1,6 +1,7 @@
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
@@ -8,18 +9,33 @@ import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import { readEvent, type EventDetail } from "@/lib/services/events";
-import { readApprovalPreview } from "@/lib/services/event-approval";
-import type { AudienceCandidate, AudienceCapacity } from "@/lib/services/audience-selection";
-import { gateShellPage } from "../../gate";
-import { AbandonDraftForm } from "../event-actions";
-import { ApprovalWorkflow } from "./approval-workflow";
 import {
+  readApprovalPreview,
+  readEventAudience,
+  type AudienceMember,
+} from "@/lib/services/event-approval";
+import { gateShellPage } from "../../gate";
+import { AbandonDraftForm, ApproveEventForm } from "../event-actions";
+import { AudienceBuilder } from "./audience-builder";
+import {
+  APPROVAL_DETAIL,
+  APPROVAL_HEADLINE_PREFIX,
   APPROVED_HEADLINE,
   APPROVED_NOTHING_SENT_YET,
   AUDIENCE_COMES_LATER,
   AUDIENCE_FROZEN_AT_APPROVAL,
+  CAPACITY_LABELS,
+  DEADLINE_DUE_IMMEDIATELY,
+  DEADLINE_DUE_IMMEDIATELY_DETAIL,
+  DEADLINE_NONE,
+  DEADLINE_NONE_DETAIL,
   describeAttendance,
   describeSolicitation,
+  DISTRIBUTION_AUTOMATED,
+  DISTRIBUTION_BEGINS_AFTER_APPROVAL,
+  EMPTY_AUDIENCE_DETAIL,
+  EMPTY_AUDIENCE_HEADLINE,
+  EMPTY_AUDIENCE_SERVER_NOTE,
   formatDeadline,
   formatDetailWhen,
   formatTermAndWeek,
@@ -35,49 +51,38 @@ import {
 } from "../presentation";
 
 /**
- * UX-32 and UX-33 — one event, in the two presentations LAN-76 owns.
+ * One event, in every presentation this route owns — UX-32, UX-33, and LAN-77's
+ * UX-40, UX-41, UX-42 and UX-43.
  *
- * UX-33 ("Event submitted for approval") is a *state of this route*, reached by
- * `?submitted=1` immediately after the transition, rather than a fifth screen
- * with a route of its own — the screen registry gives both UX-32 and UX-33 the
- * same `/operate/events/[id]`, and its "View pending event" action is the link
- * back to this page without the flag.
+ * ## Why they are all one route
  *
- * ## Deviations from the wireframe, and why
+ * The screen registry gives every one of them `/operate/events/[id]`, and that
+ * is not an oversight in the contract: they are states of one record. `?step=`
+ * selects between the audience builder and the confirmation; `?approved=1`
+ * reports the transition that just happened. The same device LAN-76 used for
+ * UX-33.
  *
- * * **"Submit for approval" is enabled on a draft.** UX-32 notes that it is
- *   "enabled only after an explicit audience is resolved". Audience resolution
- *   is LAN-77 and does not exist yet, while submitting a draft is LAN-76's own
- *   acceptance criterion — and live Linear outranks the SVG (`slice-ux.md`
- *   § 1). The boundary the note protects is untouched: approval still requires
- *   a confirmed audience, and the database refuses one without it (E1a).
+ * ## Every step renders from stored rows
  *
- * * **The venue carries no "Confirmed" chip.** The wireframe shows one; the
- *   frozen model has no venue-confirmation concept, and adding a field to say
- *   a venue is confirmed would be a domain-model change no agent makes.
- *   Reported to Brian rather than invented.
+ * The audience is saved against the draft before the confirmation is shown, so
+ * the confirmation reads it back out of the database rather than receiving it
+ * from the browser. That is what makes it survive **Edit draft**, a refresh, a
+ * closed tab and a second operator — and it is why the only client component
+ * here is the tick list itself.
  *
  * ## After Brian's LAN-76 clarification
  *
- * The actions are gated on `event_calendar_management` — the President,
- * Vice-President, Secretary and General Manager. Any other linked operator can
- * open this page and read the event, and is offered nothing to press; the
- * actions guard themselves server-side regardless, so the hiding is a courtesy
- * rather than the boundary.
+ * Draft actions are gated on `event_calendar_management` and approval on
+ * `event_approval`. Any other linked operator can open this page and read the
+ * event, and is offered nothing to press; the actions guard themselves
+ * server-side regardless, so the hiding is a courtesy rather than the boundary.
  *
  * ## What this screen deliberately does not show
  *
  * Neither who entered the event nor where its schedule comes from. Brian read
- * both on the real screen and they answered questions nobody was asking: the
- * calendar is the club's, every operator on it is equally entitled to change a
- * draft, and an event a club operator typed in is one the club schedules by
- * definition.
- *
- * **Both are still recorded.** `events.owner_person_id` is written on create
- * and `events.origin` on every row, and every transition names its actor in
- * `audit_events` — which is where "preserve creator information for
- * accountability and audit" actually lives. What went is the display, not the
- * record.
+ * both on the real screen and they answered questions nobody was asking. Both
+ * are still recorded — `events.owner_person_id`, `events.origin`, and every
+ * transition's actor in `audit_events`. What went is the display, not the record.
  */
 export default async function EventDetailPage({
   params,
@@ -88,6 +93,7 @@ export default async function EventDetailPage({
 
   const { id } = await params;
   const query = await searchParams;
+  const step = typeof query.step === "string" ? query.step : "";
   const justApproved = query.approved === "1";
 
   let event: EventDetail;
@@ -114,37 +120,271 @@ export default async function EventDetailPage({
 
   const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
   const mayApprove = operatorHasCapability(gate.operator, "event_approval");
+  const canWorkOnAudience = mayApprove && event.status === "draft";
 
-  /**
-   * The catalogue is read only for the one operator, on the one event, who can
-   * actually act on it. Every other reader — an operator without the capability,
-   * an approved or withdrawn event — gets the detail and no audience data at
-   * all, so the roster and the club's contact details are not in a payload
-   * nobody on that path is entitled to.
-   */
-  const approval =
-    mayApprove && event.status === "draft" ? await readApprovalPreview(event.id) : null;
+  // UX-40 and UX-41 are read-heavy and only reachable by an approver working on
+  // a draft. Everybody else — and every other status — gets the detail without
+  // the roster and its contact details in the payload at all.
+  if (canWorkOnAudience && (step === "audience" || step === "review")) {
+    const preview = await readApprovalPreview(event.id);
+
+    if (step === "audience") {
+      return (
+        <ApprovalLayout event={event}>
+          <AudienceBuilder
+            eventId={event.id}
+            candidates={preview.catalogue.candidates}
+            counts={preview.catalogue.counts}
+            initialKeys={preview.audience.map((member) => `${member.capacity}:${member.anchorId}`)}
+          />
+        </ApprovalLayout>
+      );
+    }
+
+    return (
+      <ApprovalLayout event={event}>
+        {preview.audience.length === 0 ? (
+          <EmptyAudienceRefusal eventId={event.id} />
+        ) : (
+          <ApprovalReview
+            event={event}
+            audience={preview.audience}
+            deadline={
+              preview.deadline
+                ? {
+                    label: formatDeadline(preview.deadline.at),
+                    clamped: preview.deadline.clamped,
+                  }
+                : null
+            }
+          />
+        )}
+      </ApprovalLayout>
+    );
+  }
+
+  // The audience is shown on the detail from the moment one is proposed, so a
+  // draft carrying forty people says so rather than looking untouched — and an
+  // approved event answers "who was actually invited?" without a second screen.
+  const audience = event.audienceCount > 0 ? await readEventAudience(event.id) : [];
 
   return (
     <EventDetailView
       event={event}
       mayManage={mayManage}
+      mayApprove={mayApprove}
       justApproved={justApproved}
-      approval={
-        approval
-          ? {
-              candidates: approval.catalogue.candidates,
-              counts: approval.catalogue.counts,
-              deadline: approval.deadline
-                ? {
-                    label: formatDeadline(approval.deadline.at),
-                    clamped: approval.deadline.clamped,
-                  }
-                : null,
-            }
-          : null
-      }
+      audience={audience}
     />
+  );
+}
+
+/** The heading every approval step sits under, so the event never leaves view. */
+function ApprovalLayout({ event, children }: { event: EventDetail; children: React.ReactNode }) {
+  return (
+    <Stack spacing={3} sx={{ maxWidth: 900 }} data-testid="approval-step">
+      <Box>
+        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+          {event.name}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {`${labelFor(STATUS_LABELS, event.status)} · ${formatDetailWhen(event)}`}
+        </Typography>
+      </Box>
+      {children}
+      <Box>
+        <Button variant="text" href={`/operate/events/${event.id}`}>
+          Back to event
+        </Button>
+      </Box>
+    </Stack>
+  );
+}
+
+/** UX-42 — refused before anything is written, and said as a screen. */
+function EmptyAudienceRefusal({ eventId }: { eventId: string }) {
+  return (
+    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="empty-audience-refusal">
+      <Stack spacing={2}>
+        <Typography variant="h6" component="h2">
+          {EMPTY_AUDIENCE_HEADLINE}
+        </Typography>
+        <Alert severity="warning">{EMPTY_AUDIENCE_DETAIL}</Alert>
+        <Typography variant="body2" color="text.secondary">
+          {EMPTY_AUDIENCE_SERVER_NOTE}
+        </Typography>
+        <Box>
+          <Button
+            variant="contained"
+            href={`/operate/events/${eventId}?step=audience`}
+            sx={{ minHeight: 44 }}
+          >
+            Build audience
+          </Button>
+        </Box>
+      </Stack>
+    </Paper>
+  );
+}
+
+/** UX-41 — the exact list, and what approving it will do. */
+function ApprovalReview({
+  event,
+  audience,
+  deadline,
+}: {
+  event: EventDetail;
+  audience: AudienceMember[];
+  deadline: { label: string; clamped: boolean } | null;
+}) {
+  const stale = audience.filter((member) => !member.stillSelectable).length;
+
+  return (
+    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="approval-review">
+      <Stack spacing={3}>
+        <Typography variant="h6" component="h2">
+          {`${APPROVAL_HEADLINE_PREFIX} ${event.name}`}
+        </Typography>
+
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(2, minmax(0, 160px))" },
+          }}
+        >
+          <Metric
+            value={String(audience.length)}
+            label="Confirmed audience"
+            testId="audience-total"
+          />
+          <Metric value={String(stale)} label="No longer active" testId="audience-defects" />
+        </Box>
+
+        {stale > 0 ? (
+          // Approval honours the confirmed list as-is, so this is information
+          // rather than an obstacle — but an approver should not discover it
+          // afterwards in the Monday report.
+          <Alert severity="info" data-testid="stale-audience-note">
+            {stale === 1
+              ? "One person in this audience is no longer active. They will still be invited."
+              : `${stale} people in this audience are no longer active. They will still be invited.`}
+          </Alert>
+        ) : null}
+
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+          }}
+        >
+          <Fact
+            label="Event"
+            value={`${labelFor(TYPE_LABELS, event.eventType)} · ${event.venue ?? "No venue yet"}`}
+            note={`${describeAttendance(event.isMandatory)} · ${describeSolicitation(
+              event.solicitsResponse,
+            ).toLowerCase()}`}
+          />
+          <Fact
+            label="Audience"
+            value={`${audience.length} named ${audience.length === 1 ? "invitee" : "invitees"}`}
+            note="Explicitly resolved"
+          />
+          <Fact
+            label="RSVP deadline"
+            value={
+              deadline
+                ? deadline.clamped
+                  ? DEADLINE_DUE_IMMEDIATELY
+                  : deadline.label
+                : DEADLINE_NONE
+            }
+            note={
+              deadline
+                ? deadline.clamped
+                  ? DEADLINE_DUE_IMMEDIATELY_DETAIL
+                  : "Set from the club's rule for this kind of event"
+                : DEADLINE_NONE_DETAIL
+            }
+            testId="deadline-fact"
+          />
+          <Fact
+            label="Distribution"
+            value={DISTRIBUTION_AUTOMATED}
+            note={DISTRIBUTION_BEGINS_AFTER_APPROVAL}
+          />
+        </Box>
+
+        <AudienceList audience={audience} heading="Who will be asked" testId="resolved-audience" />
+
+        <Typography variant="body2" color="text.secondary">
+          {APPROVAL_DETAIL}
+        </Typography>
+
+        <ApproveEventForm eventId={event.id} />
+      </Stack>
+    </Paper>
+  );
+}
+
+/** The named list, used by the confirmation and by the event detail alike. */
+function AudienceList({
+  audience,
+  heading,
+  testId,
+}: {
+  audience: AudienceMember[];
+  heading: string;
+  testId: string;
+}) {
+  return (
+    <Box>
+      <Typography variant="overline" color="text.secondary" component="p">
+        {heading}
+      </Typography>
+      <Stack component="ul" spacing={0} sx={{ listStyle: "none", p: 0, m: 0 }} data-testid={testId}>
+        {audience.map((member) => (
+          <Box
+            component="li"
+            key={member.id}
+            sx={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 1,
+              alignItems: "center",
+              justifyContent: "space-between",
+              py: 1,
+              borderBottom: 1,
+              borderColor: "divider",
+            }}
+          >
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {member.displayName}
+            </Typography>
+            <Stack direction="row" spacing={1}>
+              {member.stillSelectable ? null : (
+                <Chip size="small" color="warning" label="No longer active" />
+              )}
+              <Chip size="small" label={labelFor(CAPACITY_LABELS, member.capacity)} />
+            </Stack>
+          </Box>
+        ))}
+      </Stack>
+    </Box>
+  );
+}
+
+function Metric({ value, label, testId }: { value: string; label: string; testId?: string }) {
+  return (
+    <Paper variant="outlined" sx={{ p: 2 }} data-testid={testId}>
+      <Typography variant="h5" component="p" sx={{ fontWeight: 700 }}>
+        {value}
+      </Typography>
+      <Typography variant="body2" color="text.secondary">
+        {label}
+      </Typography>
+    </Paper>
   );
 }
 
@@ -177,25 +417,22 @@ function Fact({
   );
 }
 
-interface ApprovalProps {
-  candidates: AudienceCandidate[];
-  counts: Record<AudienceCapacity, number>;
-  deadline: { label: string; clamped: boolean } | null;
-}
-
 /** UX-32 — the event itself, in whatever state it is in. */
 function EventDetailView({
   event,
   mayManage,
+  mayApprove,
   justApproved,
-  approval,
+  audience,
 }: {
   event: EventDetail;
   mayManage: boolean;
+  mayApprove: boolean;
   justApproved: boolean;
-  approval: ApprovalProps | null;
+  audience: AudienceMember[];
 }) {
   const preApproval = isPreApproval(event.status);
+  const proposed = event.status === "draft" && audience.length > 0;
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 900 }} data-testid="event-detail" data-status={event.status}>
@@ -209,8 +446,6 @@ function EventDetailView({
       </Box>
 
       {justApproved && event.status === "approved" ? (
-        // UX-43. A state of this route rather than a fifth screen, the same
-        // device LAN-76 used for UX-33 — the registry gives it this route.
         <Alert severity="success" data-testid="event-approved-note">
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             {`${APPROVED_HEADLINE} — ${event.invitationCount} ${
@@ -256,9 +491,19 @@ function EventDetailView({
           <Fact
             label="Audience"
             value={
-              event.audienceCount === 0 ? "Chosen at approval" : `${event.audienceCount} confirmed`
+              event.audienceCount === 0
+                ? "Chosen at approval"
+                : proposed
+                  ? `${event.audienceCount} chosen, not yet approved`
+                  : `${event.audienceCount} confirmed`
             }
-            note={event.audienceCount === 0 ? AUDIENCE_COMES_LATER : AUDIENCE_FROZEN_AT_APPROVAL}
+            note={
+              event.audienceCount === 0
+                ? AUDIENCE_COMES_LATER
+                : proposed
+                  ? "Saved against this draft. Nothing is sent until it is approved."
+                  : AUDIENCE_FROZEN_AT_APPROVAL
+            }
             testId="audience-fact"
           />
           <Divider />
@@ -268,32 +513,37 @@ function EventDetailView({
             note={
               event.invitationCount === 0
                 ? NO_DISTRIBUTION_DETAIL
-                : // Until LAN-78 dispatches the jobs, "created" is the whole
-                  // truth and the screen has to say so rather than implying
-                  // anybody has been contacted.
-                  `${event.invitationCount} invitations · ${event.responseCount} responses · ${NOTHING_DELIVERED_YET}`
+                : `${event.invitationCount} invitations · ${event.responseCount} responses · ${NOTHING_DELIVERED_YET}`
             }
             testId="distribution-fact"
           />
+          {audience.length > 0 ? (
+            <AudienceList
+              audience={audience}
+              heading={proposed ? "Who this is for" : "Who was invited"}
+              testId="event-audience"
+            />
+          ) : null}
         </Stack>
       </Paper>
 
-      {approval && event.status === "draft" ? (
-        <ApprovalWorkflow
-          eventId={event.id}
-          eventName={event.name}
-          eventWhen={formatDetailWhen(event)}
-          eventFacts={`${labelFor(TYPE_LABELS, event.eventType)} · ${event.venue ?? "No venue yet"}`}
-          eventExpectation={`${describeAttendance(event.isMandatory)} · ${describeSolicitation(
-            event.solicitsResponse,
-          ).toLowerCase()}`}
-          candidates={approval.candidates}
-          counts={approval.counts}
-          deadline={approval.deadline}
-        />
-      ) : null}
-
       <Stack spacing={2} sx={{ maxWidth: 420 }}>
+        {mayApprove && event.status === "draft" ? (
+          <Stack spacing={1}>
+            <Button
+              variant="contained"
+              href={`/operate/events/${event.id}?step=${audience.length > 0 ? "review" : "audience"}`}
+              fullWidth
+              sx={{ minHeight: 44 }}
+            >
+              {audience.length > 0 ? "Review audience and approve" : "Choose audience and approve"}
+            </Button>
+            <Typography variant="body2" color="text.secondary">
+              Nothing is sent until you have chosen who this event is for and approved it.
+            </Typography>
+          </Stack>
+        ) : null}
+
         {mayManage && event.status === "draft" ? (
           <>
             <Button variant="contained" href={`/operate/events/${event.id}/edit`} fullWidth>
@@ -301,13 +551,6 @@ function EventDetailView({
             </Button>
             <AbandonDraftForm eventId={event.id} />
           </>
-        ) : null}
-
-        {event.status === "pending_approval" ? (
-          <Typography variant="body2" color="text.secondary" data-testid="approval-note">
-            This event is awaiting approval. Approval is not built yet — when it is, the approver
-            confirms who the event goes to and it is sent from there.
-          </Typography>
         ) : null}
 
         {mayManage ? null : (

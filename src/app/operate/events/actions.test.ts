@@ -41,7 +41,12 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
 });
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-approval")>();
-  return { ...actual, approveEvent: vi.fn(), readApprovalPreview: vi.fn() };
+  return {
+    ...actual,
+    approveEvent: vi.fn(),
+    saveEventAudience: vi.fn(),
+    readApprovalPreview: vi.fn(),
+  };
 });
 
 import {
@@ -57,12 +62,13 @@ import {
   type ResolvedOperator,
 } from "@/lib/auth/operator";
 import { abandonEventDraft, createEventDraft, updateEventDraft } from "@/lib/services/events";
-import { approveEvent } from "@/lib/services/event-approval";
+import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import { EMPTY_AUDIENCE_MESSAGE } from "@/lib/services/audience-selection";
 import {
   abandonEventDraftAction,
   approveEventAction,
   createEventDraftAction,
+  saveEventAudienceAction,
   updateEventDraftAction,
 } from "./actions";
 import { EMPTY_FORM_STATE, EMPTY_TRANSITION_STATE } from "./form-state";
@@ -178,6 +184,7 @@ beforeEach(() => {
   vi.mocked(updateEventDraft).mockResolvedValue({ id: EVENT_ID } as never);
   vi.mocked(abandonEventDraft).mockResolvedValue({ id: EVENT_ID } as never);
   vi.mocked(approveEvent).mockResolvedValue({ event: { id: EVENT_ID } } as never);
+  vi.mocked(saveEventAudience).mockResolvedValue([] as never);
 });
 
 // ---------------------------------------------------------------------------
@@ -456,27 +463,23 @@ describe("approveEventAction is the authorization boundary for releasing invitat
 
     // The approver recorded against the invitations is the session's person,
     // never anything the browser sent.
-    expect(approveEvent).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, [
-      PLAYER_KEY,
-      COACH_KEY,
-    ]);
+    expect(approveEvent).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID);
   });
 
-  it("passes the posted audience through unchanged, and resolves nothing itself", async () => {
+  it("sends no audience at all — it is already stored on the draft", async () => {
     givenAccess({ state: "active", operator: actor(["secretary"]) });
 
-    const keys = [COACH_KEY, PLAYER_KEY, PLAYER_KEY];
-    await expect(approveEventAction(EMPTY_TRANSITION_STATE, approvalForm(keys))).rejects.toThrow(
-      "REDIRECT:",
-    );
+    // Even when a client posts a list, approval ignores it. There is therefore
+    // no window in which a browser can widen the audience between the
+    // confirmation screen and the write.
+    await expect(
+      approveEventAction(EMPTY_TRANSITION_STATE, approvalForm([PLAYER_KEY, COACH_KEY])),
+    ).rejects.toThrow("REDIRECT:");
 
-    // Duplicates included: de-duplication is the service's job, done against a
-    // catalogue read inside the transaction. An action that filtered here would
-    // be a second implementation of the rule.
-    expect(approveEvent).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, keys);
+    expect(approveEvent).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID);
   });
 
-  it("still calls the service when nothing was selected, so E1b refuses it there", async () => {
+  it("surfaces E1b's refusal when the stored audience is empty", async () => {
     givenAccess({ state: "active", operator: actor(["president"]) });
     vi.mocked(approveEvent).mockRejectedValue(
       new ConstraintViolated(EMPTY_AUDIENCE_MESSAGE, { rule: "event_audience_is_non_empty" }),
@@ -484,11 +487,76 @@ describe("approveEventAction is the authorization boundary for releasing invitat
 
     const state = await approveEventAction(EMPTY_TRANSITION_STATE, approvalForm([]));
 
-    // The screen refuses an empty audience first (UX-42). That refusal is a
-    // courtesy, and this proves it is not the boundary: a client that skips the
-    // screen reaches the service and is refused by invariant E1b.
-    expect(approveEvent).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, []);
+    // The confirmation screen shows UX-42 first. That is a courtesy, and this
+    // proves it is not the boundary: a client that skips the screen reaches the
+    // service and is refused by invariant E1b.
     expect(state.error).toBe(EMPTY_AUDIENCE_MESSAGE);
+  });
+});
+
+describe("saveEventAudienceAction stores the proposal, and guards it the same way", () => {
+  it.each(CALENDAR_ROLES)("admits %s", async (code) => {
+    givenAccess({ state: "active", operator: actor([code]) });
+
+    await expect(saveEventAudienceAction(EMPTY_TRANSITION_STATE, approvalForm())).rejects.toThrow(
+      `REDIRECT:/operate/events/${EVENT_ID}?step=review`,
+    );
+
+    expect(saveEventAudience).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, [
+      PLAYER_KEY,
+      COACH_KEY,
+    ]);
+  });
+
+  it.each(NON_CALENDAR_ROLES)("refuses %s in the action", async (code) => {
+    givenAccess({ state: "active", operator: actor([code]) });
+
+    const error = await refusalFrom(() =>
+      saveEventAudienceAction(EMPTY_TRANSITION_STATE, approvalForm()),
+    );
+
+    expect(error).toBeInstanceOf(NotPermitted);
+    expect(error.rule).toBe("capability:event_approval");
+    expect(saveEventAudience).not.toHaveBeenCalled();
+  });
+
+  it("passes the posted selection through unchanged, and resolves nothing itself", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+
+    const keys = [COACH_KEY, PLAYER_KEY, PLAYER_KEY];
+    await expect(
+      saveEventAudienceAction(EMPTY_TRANSITION_STATE, approvalForm(keys)),
+    ).rejects.toThrow("REDIRECT:");
+
+    // Duplicates included: de-duplication is the service's job, done against a
+    // catalogue read inside the transaction. An action that filtered here would
+    // be a second implementation of the rule.
+    expect(saveEventAudience).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, keys);
+  });
+
+  it("saves an empty selection rather than refusing it", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+
+    // Clearing an audience is a thing an operator has to be able to do. E1b
+    // bites at approval, not here.
+    await expect(saveEventAudienceAction(EMPTY_TRANSITION_STATE, approvalForm([]))).rejects.toThrow(
+      "REDIRECT:",
+    );
+
+    expect(saveEventAudience).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, []);
+  });
+
+  it("shows a refusal to change an approved event's audience as a sentence", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+    vi.mocked(saveEventAudience).mockRejectedValue(
+      new InvalidTransition("Only a draft's audience can be changed.", {
+        rule: "event_audience_requires_draft",
+      }),
+    );
+
+    const state = await saveEventAudienceAction(EMPTY_TRANSITION_STATE, approvalForm());
+
+    expect(state.error).toBe("Only a draft's audience can be changed.");
   });
 
   it("shows a refused double submission as a sentence rather than a crash", async () => {

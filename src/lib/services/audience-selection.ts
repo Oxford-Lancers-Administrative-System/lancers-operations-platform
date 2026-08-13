@@ -72,6 +72,14 @@ export interface AudienceGroup {
  * the derived groups prove insufficient".
  */
 export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
+  // Everyone first, on Brian's instruction: it is the common case, and the
+  // narrower groups then read as refinements of it rather than as a list you
+  // have to assemble. The order here is the order on screen.
+  Object.freeze({
+    key: "everyone_active",
+    label: "Everyone active",
+    capacities: Object.freeze(["player" as const, "coach" as const, "committee" as const]),
+  }),
   Object.freeze({
     key: "active_players",
     label: "All active players",
@@ -86,11 +94,6 @@ export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
     key: "active_committee",
     label: "All active committee",
     capacities: Object.freeze(["committee" as const]),
-  }),
-  Object.freeze({
-    key: "everyone_active",
-    label: "Everyone active",
-    capacities: Object.freeze(["player" as const, "coach" as const, "committee" as const]),
   }),
 ]);
 
@@ -229,4 +232,38 @@ export function groupSelectionKeys(
   return candidates
     .filter((candidate) => group.capacities.includes(candidate.capacity))
     .map((candidate) => candidate.key);
+}
+
+/**
+ * How many **people** a group invites — not how many rows it selects.
+ *
+ * "Everyone active" spans three capacities, and the club's coaches and committee
+ * are mostly also players, so the row count and the human count differ by a
+ * dozen. The first version showed the row count and explained the discrepancy in
+ * a sentence under the button. Brian's response was that the club knows what
+ * "everyone active" means and should not be taught arithmetic about its own
+ * roster — so the button now says what it will actually do, and there is nothing
+ * left to explain.
+ */
+export function groupSize(candidates: readonly AudienceCandidate[], groupKey: string): number {
+  const resolution = resolveSelection(candidates, groupSelectionKeys(candidates, groupKey));
+  return resolution.ok ? resolution.members.length : 0;
+}
+
+/**
+ * Is every one of this group's people already selected?
+ *
+ * Drives the lit state of the group button, and therefore what pressing it does:
+ * a lit group clears, an unlit one adds. Computed from the selection rather than
+ * remembered as "which buttons were pressed", because the two disagree the
+ * moment somebody unticks one person out of a group — and the button then has to
+ * stop claiming the whole group is in.
+ */
+export function groupIsSelected(
+  candidates: readonly AudienceCandidate[],
+  groupKey: string,
+  selected: ReadonlySet<string>,
+): boolean {
+  const keys = groupSelectionKeys(candidates, groupKey);
+  return keys.length > 0 && keys.every((key) => selected.has(key));
 }

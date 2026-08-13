@@ -10,7 +10,7 @@ import {
   updateEventDraft,
   validateEventDraft,
 } from "@/lib/services/events";
-import { approveEvent } from "@/lib/services/event-approval";
+import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventFormState, EventTransitionState } from "./form-state";
 
@@ -160,19 +160,51 @@ export async function updateEventDraftAction(
  * Brian may add later; when he does, it narrows one list in `capabilities.ts`
  * and this action changes not at all.
  *
- * **The audience arrives as opaque keys.** Not capacities, not membership ids,
- * not "invite everyone" — a list of tokens the service resolves against a
- * catalogue it reads itself, inside the transaction. A browser cannot therefore
- * name somebody who is not selectable, cannot pair a person with the wrong
- * capacity, and cannot widen its own selection between the confirmation screen
- * and the write.
+ * **It carries no audience at all.** The audience is already stored against the
+ * draft by `saveEventAudienceAction`, so the only thing this posts is which
+ * event. A browser therefore cannot widen the list between the confirmation
+ * screen and the write, because it is not sending a list.
  *
- * **An empty submission still reaches the service.** The screen refuses one
- * first (UX-42), and that refusal is a courtesy: this action does not check the
- * count, so a client that skips the screen entirely gets invariant E1b's refusal
- * from the service layer rather than an approval nobody would receive.
+ * **It does not check the count.** The confirmation screen shows UX-42 when the
+ * stored audience is empty, and that is a courtesy: a client skipping the screen
+ * entirely still reaches invariant E1b's refusal in the service layer rather
+ * than producing an approval nobody would receive.
  */
 export async function approveEventAction(
+  _previous: EventTransitionState,
+  formData: FormData,
+): Promise<EventTransitionState> {
+  const operator = await requireCapability("event_approval");
+  const eventId = text(formData, "eventId");
+
+  try {
+    await approveEvent(operator.personId, eventId);
+  } catch (error) {
+    return { error: messageFor(error) };
+  }
+
+  revalidatePath("/operate/events");
+  revalidatePath(`/operate/events/${eventId}`);
+  redirect(`/operate/events/${eventId}?approved=1`);
+}
+
+/**
+ * Saves the audience proposed against a draft, and moves to the confirmation.
+ *
+ * Separate from approval because the audience is now stored on the draft rather
+ * than assembled at the moment of approval — Brian's decision, after the first
+ * implementation lost a forty-person audience when he pressed **Edit draft**.
+ *
+ * It redirects rather than returning the saved list, so the confirmation screen
+ * renders from the database rather than from whatever the browser last held.
+ * That is what makes the audience survive an edit, a refresh, a closed tab and a
+ * second operator — the screen has no private copy to lose.
+ *
+ * An empty selection is saved, not refused. Clearing an audience is a thing an
+ * operator must be able to do; the confirmation screen then shows UX-42 and
+ * approval refuses it under invariant E1b.
+ */
+export async function saveEventAudienceAction(
   _previous: EventTransitionState,
   formData: FormData,
 ): Promise<EventTransitionState> {
@@ -183,14 +215,13 @@ export async function approveEventAction(
     .filter((key): key is string => typeof key === "string");
 
   try {
-    await approveEvent(operator.personId, eventId, keys);
+    await saveEventAudience(operator.personId, eventId, keys);
   } catch (error) {
     return { error: messageFor(error) };
   }
 
-  revalidatePath("/operate/events");
   revalidatePath(`/operate/events/${eventId}`);
-  redirect(`/operate/events/${eventId}?approved=1`);
+  redirect(`/operate/events/${eventId}?step=review`);
 }
 
 /** `draft → withdrawn`. The reason is required, by the club and by the schema. */
