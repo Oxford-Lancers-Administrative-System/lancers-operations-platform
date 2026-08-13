@@ -349,6 +349,8 @@ describe("local Supabase workflow contract", () => {
     expect(account).toContain("brian.daniel.schuster@gmail.com");
     expect(account).toMatch(/coordinatorPaths/);
     expect(account).toMatch(/mode: 0o600/);
+    expect(account).toMatch(/ensureLocalReviewAccount/);
+    expect(command).toMatch(/ensureLocalReviewAccount/);
     expect(command).toMatch(/operation === "start"[\s\S]*provisionReviewState/);
     expect(command).toMatch(/operation === "reset"[\s\S]*provisionReviewState/);
     expect(command).not.toMatch(/randomBytes/);

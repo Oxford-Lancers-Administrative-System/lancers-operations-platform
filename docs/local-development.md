@@ -32,6 +32,12 @@ account, and its one operator link. The password is read from mode-0600
 machine-local coordinator state shared across worktrees and both slots; it is
 never printed or stored in the repository. Then:
 
+On a clean machine, the issue agent initializes that shared file from the
+owner-approved credential in its private task context through the bootstrap's
+`LANCERS_LOCAL_REVIEW_PASSWORD` process environment. The value is never placed
+in a shell command or durable handoff and is removed from the process environment
+after initialization. This is agent-owned setup; Brian is not given a command.
+
 Local GoTrue accepts passwords of at least eight characters so it can restore
 the owner-approved fixed review credential idempotently. This setting belongs to
 the local Supabase configuration only and does not configure hosted Auth.

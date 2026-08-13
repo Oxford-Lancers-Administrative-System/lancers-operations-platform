@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { readSession, updateLease } from "./lib/local-supabase-coordinator.mjs";
-import { readLocalReviewAccount } from "./lib/local-review-account.mjs";
+import { ensureLocalReviewAccount, readLocalReviewAccount } from "./lib/local-review-account.mjs";
 
 const repoPath = process.cwd();
 const operation = process.argv[2];
@@ -54,7 +54,7 @@ try {
   const cliArgs = (command, extra = []) => [command, ...extra, "--workdir", lease.runtimeRoot];
 
   if (operation === "start") {
-    const reviewAccount = readLocalReviewAccount(repoPath);
+    const reviewAccount = ensureLocalReviewAccount(repoPath);
     run(cli, cliArgs("start"), cliEnv, false);
     const raw = run(cli, cliArgs("status", ["-o", "json"]), cliEnv, false);
     const status = JSON.parse(raw);
@@ -74,7 +74,7 @@ try {
     console.log(`Started ${lease.slot} local Supabase stack on API port ${lease.ports.api}.`);
   } else if (operation === "stop") run(cli, cliArgs("stop", ["--no-backup"]), cliEnv);
   else if (operation === "reset") {
-    const reviewAccount = readLocalReviewAccount(repoPath);
+    const reviewAccount = ensureLocalReviewAccount(repoPath);
     run(cli, cliArgs("db", ["reset", "--local", "--yes"]), cliEnv);
     provisionReviewState(lease, reviewAccount);
   } else if (operation === "status") {

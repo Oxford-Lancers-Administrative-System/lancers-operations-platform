@@ -148,6 +148,13 @@ fixed review account is `brian.daniel.schuster@gmail.com`; its approved password
 comes only from protected machine-local coordinator state shared by all
 worktrees and both slots. Never print or copy it into Git, Linear, PR text,
 screenshots, test output, logs, tracked examples, or hosted configuration.
+If that state is absent on a clean machine, initialize it through the guarded
+bootstrap's private `LANCERS_LOCAL_REVIEW_PASSWORD` process environment from the
+owner-approved credential already supplied in the agent's private task context.
+Never put that value in a shell command, durable record, or owner instruction;
+after initialization, remove it from the process environment and use the shared
+mode-0600 state. A missing private value is agent setup to restore, not a command
+for Brian.
 
 Before contacting Brian, use a browser to open the supplied URL, sign in through
 the real application login, visit every review route and state, confirm seeded

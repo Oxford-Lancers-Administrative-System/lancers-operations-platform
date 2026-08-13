@@ -24,9 +24,25 @@ export function readLocalReviewAccount(repoPath, env = process.env) {
   if (account.email !== LOCAL_REVIEW_EMAIL || typeof account.password !== "string")
     throw new Error("The protected machine-local review account is invalid.");
   const mode = fs.statSync(credentialPath).mode & 0o777;
-  if (mode & 0o077)
-    throw new Error("The protected machine-local review account has unsafe permissions.");
+  if (mode !== 0o600)
+    throw new Error("The protected machine-local review account must have mode 0600.");
   return account;
+}
+
+export function ensureLocalReviewAccount(repoPath, env = process.env) {
+  try {
+    return readLocalReviewAccount(repoPath, env);
+  } catch (error) {
+    if (!/not initialized/.test(error.message)) throw error;
+  }
+  const password = env.LANCERS_LOCAL_REVIEW_PASSWORD;
+  if (!password)
+    throw new Error(
+      "The protected machine-local review account is not initialized. The issue agent must restore it from its private owner-approved credential context; do not ask Brian to run a command.",
+    );
+  writeLocalReviewAccount(repoPath, password, env);
+  delete env.LANCERS_LOCAL_REVIEW_PASSWORD;
+  return readLocalReviewAccount(repoPath, env);
 }
 
 export function writeLocalReviewAccount(repoPath, password, env = process.env) {
