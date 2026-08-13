@@ -328,6 +328,44 @@ describe("the scenario scripts stay inside the conventions", () => {
     }
   });
 
+  /**
+   * The second legitimate ownership shape, pinned scenario by scenario.
+   *
+   * A scenario whose rows are created by the **application** — a human pressing
+   * Save in the deployed product — has no deterministic key to delete by,
+   * because PostgreSQL generates it at insert time. LAN-76 is the first such
+   * scenario, and the owner's locked handoff on that issue directs exactly this
+   * shape: an assertion-only setup, and a cleanup keyed on the sentinel.
+   *
+   * It is pinned here the same way `EXPECTED_DELETES` pins the worked example —
+   * the table, and the exact conjuncts, written out — rather than described by
+   * a rule the assertion then tries to recognise. The first draft of this test
+   * did the latter, requiring only "the sentinel plus one further conjunct",
+   * and independent review demonstrated two ways through it: LAN-76's status
+   * restriction could be replaced with `created_at is not null` and the test
+   * stayed green, and a new scenario could delete from `public.people` by
+   * sentinel and `id is not null`. A predicate cannot be told from a *narrowing*
+   * predicate by pattern-matching, so the predicate itself is the contract.
+   *
+   * Adding a scenario here is therefore a deliberate line in a diff, naming the
+   * table it may delete from and every condition it may delete by. That is the
+   * point: relaxing the runbook's ownership marker is Brian's decision, and
+   * this list is where each such decision is recorded.
+   */
+  const SENTINEL_ONLY_DELETES: Readonly<
+    Record<string, readonly (readonly [table: string, conjuncts: readonly string[]])[]>
+  > = {
+    "lan-76": [
+      [
+        "public.events",
+        ["name like '%PILOT-LAN-76%'", "status in ('draft', 'pending_approval', 'withdrawn')"],
+      ],
+    ],
+  };
+
+  /** The heading a scenario must carry to use the shape at all. */
+  const SENTINEL_ONLY_HEADING = "## Ownership marker: sentinel only";
+
   it("holds every pilot scenario to that shape, not just this one", () => {
     // Written generically because the runbook says this scenario is meant to be
     // copied: a future `scripts/pilot/<issue>/cleanup.sql` inherits the rule.
@@ -335,17 +373,51 @@ describe("the scenario scripts stay inside the conventions", () => {
     expect(cleanups.length).toBeGreaterThanOrEqual(1);
 
     for (const file of cleanups) {
-      const sentinel = new RegExp(`PILOT-${path.basename(path.dirname(file))}`, "i");
+      const scenario = path.basename(path.dirname(file));
+      const sentinel = new RegExp(`PILOT-${scenario}`, "i");
+      const pinned = SENTINEL_ONLY_DELETES[scenario];
 
       for (const statement of parseDeletes(read(file))) {
         expect(statement.where, `${file}: ${statement.table}`).not.toMatch(/\bor\b/i);
         expect(statement.conjuncts.length, `${file}: ${statement.table}`).toBeGreaterThanOrEqual(2);
 
-        // One conjunct pins the row by its deterministic identifier …
-        expect(
-          statement.conjuncts.some((part) => /^id = '[0-9a-f-]{36}'$/i.test(part)),
-          `${file}: ${statement.table} must be keyed on a deterministic id`,
-        ).toBe(true);
+        const keyed = statement.conjuncts.some((part) => /^id = '[0-9a-f-]{36}'$/i.test(part));
+
+        if (!keyed) {
+          // Two independent permissions, and both are required. The list above
+          // says which table and which conditions; the scenario's own README
+          // says it knows it is using the shape. Either one alone would be a
+          // way in — the list without the heading hides the relaxation from
+          // whoever reads the scenario, and the heading without the list is the
+          // pattern-match that review got through twice.
+          expect(
+            pinned,
+            `${file}: ${statement.table} is not keyed on a deterministic id, and ${scenario} ` +
+              `has no entry in SENTINEL_ONLY_DELETES. Adding one is an owner decision.`,
+          ).toBeDefined();
+          expect(
+            read(`scripts/pilot/${scenario}/README.md`),
+            `scripts/pilot/${scenario}/README.md does not declare the sentinel-only shape`,
+          ).toContain(SENTINEL_ONLY_HEADING);
+
+          const match = (pinned ?? []).find(([table]) => table === statement.table);
+          expect(
+            match,
+            `${file}: ${statement.table} is not a table ${scenario} may delete from`,
+          ).toBeDefined();
+          expect(
+            statement.conjuncts,
+            `${file}: ${statement.table}: unexpected delete predicate`,
+          ).toEqual([...(match?.[1] ?? [])]);
+
+          // And the pinned predicate itself still has to prove ownership, so a
+          // future edit to the list cannot quietly drop the sentinel half.
+          expect(
+            statement.conjuncts.filter((part) => sentinel.test(part)).length,
+            `${file}: ${statement.table} must be qualified by the ${scenario} sentinel`,
+          ).toBe(1);
+          continue;
+        }
 
         // … and the rest prove ownership, by the sentinel or by the scenario's
         // own parent identifiers.
@@ -355,6 +427,27 @@ describe("the scenario scripts stay inside the conventions", () => {
           `${file}: ${statement.table} has a conjunct that proves nothing`,
         ).toBe(true);
       }
+    }
+  });
+
+  it("pins no scenario that does not exist, and none that is keyed anyway", () => {
+    // A stale entry is worse than none: it would sit here permitting a
+    // sentinel-only delete for a scenario that has since been rewritten, or
+    // removed, and nothing would say so.
+    for (const scenario of Object.keys(SENTINEL_ONLY_DELETES)) {
+      const cleanup = `scripts/pilot/${scenario}/cleanup.sql`;
+      expect(filesUnder("scripts/pilot"), `${scenario} is pinned but has no cleanup`).toContain(
+        cleanup,
+      );
+      expect(read(`scripts/pilot/${scenario}/README.md`)).toContain(SENTINEL_ONLY_HEADING);
+
+      const unkeyed = parseDeletes(read(cleanup)).filter(
+        (statement) => !statement.conjuncts.some((part) => /^id = '[0-9a-f-]{36}'$/i.test(part)),
+      );
+      expect(
+        unkeyed.length,
+        `${scenario} is pinned for the sentinel-only shape but every delete is keyed`,
+      ).toBeGreaterThanOrEqual(1);
     }
   });
 
@@ -432,7 +525,34 @@ describe("the scenario scripts stay inside the conventions", () => {
     return { blocks, looseRaises };
   }
 
-  const PREFLIGHTS = [["setup.sql", setup, 10] as const, ["cleanup.sql", cleanup, 17] as const];
+  /**
+   * Every preflight in the repository, and the smallest number of guard blocks
+   * it is allowed to shrink to.
+   *
+   * Enumerated rather than hard-coded to the worked example: the runbook says a
+   * scenario is meant to be copied, and a copy whose preflight was gutted would
+   * otherwise be checked by nothing. The minimum is per file because these
+   * scripts are not the same size — LAN-93 creates six rows and guards each of
+   * them; LAN-76 writes nothing and guards the state of the database it is
+   * about to be tested against. Lowering one of these numbers is the change a
+   * reviewer has to see.
+   */
+  const PREFLIGHTS = [
+    ["lan-93/setup.sql", setup, 10] as const,
+    ["lan-93/cleanup.sql", cleanup, 17] as const,
+    ["lan-76/setup.sql", read("scripts/pilot/lan-76/setup.sql"), 5] as const,
+    ["lan-76/cleanup.sql", read("scripts/pilot/lan-76/cleanup.sql"), 6] as const,
+  ];
+
+  it("checks the preflight of every scenario in the repository", () => {
+    const scenarios = new Set(
+      filesUnder("scripts/pilot")
+        .filter((file) => file.endsWith(".sql"))
+        .map((file) => file.replace(/^scripts\/pilot\//, "")),
+    );
+
+    expect(new Set(PREFLIGHTS.map(([name]) => name))).toEqual(scenarios);
+  });
 
   it.each(PREFLIGHTS)("%s carries a preflight of guard blocks, parsed", (_name, sql, minimum) => {
     const { blocks } = parsePreflight(sql);

@@ -29,8 +29,23 @@ vi.mock("next/navigation", () => ({
     throw new Error(`REDIRECT:${url}`);
   }),
   usePathname: () => "/operate/roster",
+  // The events list's filter bar navigates rather than submitting a form; it is
+  // rendered here only as part of the destination.
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
+// LAN-76 filled the Events destination in. These assertions are about the
+// shell — the gate, the account states and the navigation — so the list's data
+// access is stubbed rather than exercised here; `src/app/operate/events/` owns
+// its own suites, against the real database.
+vi.mock("@/lib/services/events", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/events")>()),
+  listCurrentSeasonEvents: vi.fn(async () => ({
+    season: { id: "season", label: "2026-27", status: "active" },
+    events: [],
+    totalInSeason: 0,
+  })),
+}));
 vi.mock("../login/actions", () => ({ signOut: vi.fn() }));
 
 import {
@@ -86,6 +101,14 @@ function givenAccess(access: OperatorAccess) {
 
 function layoutProps(children: React.ReactNode) {
   return { children } as unknown as LayoutProps<"/operate">;
+}
+
+/** The events list reads its filters from the query string; here there are none. */
+function eventsProps() {
+  return {
+    params: Promise.resolve({}),
+    searchParams: Promise.resolve({}),
+  } as unknown as PageProps<"/operate/events">;
 }
 
 /** Text with runs of whitespace collapsed, so wrapping cannot break a match. */
@@ -235,7 +258,7 @@ describe("row 4 — neither account state leaks anything", () => {
     const atRoster = render(await RosterPage()).container.innerHTML;
 
     givenAccess({ state: "inactive" });
-    const atEvents = render(await EventsPage()).container.innerHTML;
+    const atEvents = render(await EventsPage(eventsProps())).container.innerHTML;
 
     expect(atRoster).toBe(atEvents);
   });
@@ -295,12 +318,12 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     expect(container.innerHTML.toLowerCase()).not.toContain("president");
   });
 
-  it("renders the empty destinations for any active operator", async () => {
+  it("renders each destination for any active operator", async () => {
     givenAccess({ state: "active", operator: actor([]) });
     expect(render(await RosterPage()).container.textContent).toContain("Roster");
 
     givenAccess({ state: "active", operator: actor([]) });
-    expect(render(await EventsPage()).container.textContent).toContain("Events");
+    expect(render(await EventsPage(eventsProps())).container.textContent).toContain("Events");
   });
 });
 
@@ -368,9 +391,9 @@ describe("row 1 — no session reaches nothing, from the layout or from any page
   });
 
   it.each([
-    [RosterPage, "%2Foperate%2Froster"],
-    [EventsPage, "%2Foperate%2Fevents"],
-    [ReportPage, "%2Foperate%2Freport"],
+    [() => RosterPage(), "%2Foperate%2Froster"],
+    [() => EventsPage(eventsProps()), "%2Foperate%2Fevents"],
+    [() => ReportPage(), "%2Foperate%2Freport"],
   ])("redirects a page to the login page, keeping where it was going", async (page, encoded) => {
     givenAccess({ state: "no_session" });
 

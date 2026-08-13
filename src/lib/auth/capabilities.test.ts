@@ -81,6 +81,17 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "offence_coach",
     "defence_coach",
   ],
+  event_calendar_management: [
+    "treasurer",
+    "social_secretary",
+    "gameday_secretary",
+    "kit_manager",
+    "media_secretary",
+    "it_officer",
+    "head_coach",
+    "offence_coach",
+    "defence_coach",
+  ],
   event_approval: [
     "vice_president",
     "secretary",
@@ -154,6 +165,35 @@ describe("row 11 — the membership-activation grant is Exec plus the General Ma
   });
 });
 
+describe("the calendar-management grant is the four roles Brian named", () => {
+  const CALENDAR = ["general_manager", "president", "secretary", "vice_president"];
+
+  it("permits exactly those four", () => {
+    expect(permittedSet("event_calendar_management")).toEqual(CALENDAR);
+  });
+
+  it.each(CALENDAR)("permits %s on its own", (code) => {
+    expect(roleCodesPermit([code], "event_calendar_management")).toBe(true);
+  });
+
+  it.each(MUST_REFUSE.event_calendar_management)("refuses %s", (code) => {
+    expect(roleCodesPermit([code], "event_calendar_management")).toBe(false);
+  });
+
+  it("refuses the Treasurer, who is Exec but not on the calendar", () => {
+    // The one seat most likely to be added by mistake: the Treasurer holds
+    // membership activation and is a constitutional office, so a reader
+    // pattern-matching on "Exec" would include them. Brian's clarification
+    // names four roles and the Treasurer is not among them.
+    expect(roleCodesPermit(["treasurer"], "event_calendar_management")).toBe(false);
+    expect(roleCodesPermit(["treasurer"], "membership_activation")).toBe(true);
+  });
+
+  it("refuses an operator holding no role at all", () => {
+    expect(roleCodesPermit([], "event_calendar_management")).toBe(false);
+  });
+});
+
 describe("row 12 — event approval is the President and nobody else", () => {
   it("permits exactly president", () => {
     expect(permittedSet("event_approval")).toEqual(["president"]);
@@ -207,6 +247,7 @@ describe("row 8 — the map is the single source of truth, and is not editable a
         "attendance_recorder",
         "delivery_administration",
         "event_approval",
+        "event_calendar_management",
         "leadership_report",
         "membership_activation",
         "role_management",
