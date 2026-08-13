@@ -96,6 +96,12 @@ carries both halves.
 
 ## Ownership marker: sentinel only
 
+**Approved by Brian on 13 August 2026**, for this scenario, as the runbook
+requires. `AGENTS.md` reserves this shape to him — "each such scenario is pinned
+individually, and adding one is Brian's decision" — and ADR 0019, which covers
+the shape in general, remains Proposed. His decision here is about LAN-77's seven
+statements and nothing wider.
+
 The rows the **application** creates when the scenario event is approved — the
 resolved audience, the invitations, their notification jobs, and the approval's
 own audit rows — have keys PostgreSQL generated inside the approval transaction.
