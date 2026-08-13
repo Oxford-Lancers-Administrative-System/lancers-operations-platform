@@ -265,7 +265,7 @@ describe("UX-20 — Roster", () => {
   });
 
   it("offers the one primary action the wireframe carries", () => {
-    expect(screen.getByRole("link", { name: "Add returning player" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Add player" })).toHaveAttribute(
       "href",
       "/operate/roster/new",
     );
@@ -368,7 +368,7 @@ describe("UX-23 — No memberships match these filters", () => {
       "href",
       "/operate/roster",
     );
-    expect(screen.getByRole("link", { name: "Add returning player" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add player" })).toBeInTheDocument();
   });
 
   /**

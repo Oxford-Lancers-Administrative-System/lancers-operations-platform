@@ -158,6 +158,21 @@ export const RESOLVED_ITEM_STATUSES: readonly OnboardingItemStatus[] = Object.fr
   "not_applicable",
 ]) as readonly OnboardingItemStatus[];
 
+/**
+ * The club's words for an item's state, for refusals the operator reads.
+ *
+ * Deliberately here rather than imported from the presentation layer: a service
+ * refusal has to be readable wherever it surfaces, including in a log or a test
+ * name, and the service must not depend on a screen.
+ */
+const ONBOARDING_STATUS_WORDS: Readonly<Record<string, string>> = Object.freeze({
+  pending: "pending",
+  invited: "invited",
+  complete: "complete",
+  waived: "waived",
+  not_applicable: "not applicable",
+});
+
 /** The resolutions an operator may set from the membership detail screen. */
 export const OPERATOR_ITEM_RESOLUTIONS: readonly OnboardingItemStatus[] = Object.freeze([
   "complete",
@@ -1082,6 +1097,28 @@ export async function resolveOnboardingItem(params: {
       throw new NotFound("That onboarding item is not on this membership.", {
         rule: "onboarding_items_not_found",
       });
+    }
+
+    /**
+     * Saving the status an item already has is not a change, and must not be
+     * recorded as one.
+     *
+     * Without this it wrote a fresh audit row whose `from_state` and
+     * `to_state` were identical, and re-dated `completed_on` to today — so an
+     * item completed in September silently claimed to have been completed
+     * again in August, and the history filled with events in which nothing
+     * happened. Owner review caught it: "if I change to say it's completed and
+     * the status didn't change, it should not change again."
+     *
+     * Refused rather than silently ignored, so the operator learns why the
+     * screen did not move. The message names the item and the state it is
+     * already in, which is the same shape every other refusal here uses.
+     */
+    if (item.status === params.status) {
+      throw new InvalidTransition(
+        `${item.label} is already ${ONBOARDING_STATUS_WORDS[params.status] ?? params.status}.`,
+        { rule: "onboarding_item_already_in_that_state" },
+      );
     }
 
     await tx.query(

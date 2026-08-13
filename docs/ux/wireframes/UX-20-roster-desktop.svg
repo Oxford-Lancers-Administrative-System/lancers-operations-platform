@@ -18,7 +18,7 @@
 <text x="274" y="84" font-family="Inter, Arial, sans-serif" font-size="30" font-weight="800" fill="#0B2343" text-anchor="start">Roster</text>
 <text x="274" y="114" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="400" fill="#66768D" text-anchor="start">Michaelmas 2026 · 42 current-season memberships</text>
 <rect x="1200" y="66" width="192" height="44" rx="8" fill="#1565C0" stroke="#1565C0" stroke-width="1" opacity="1"/>
-<text x="1296.0" y="94" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">Add returning player</text>
+<text x="1296.0" y="94" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">Add player</text>
 <rect x="274" y="148" width="1118" height="60" rx="8" fill="#FFF7E6" stroke="#E7C56E" stroke-width="1" opacity="1"/>
 <rect x="286" y="161" width="7" height="7" rx="4" fill="#1565C0" stroke="none" stroke-width="1" opacity="1"/>
 <text x="302" y="171" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="500" fill="#6D4A00" text-anchor="start">Desktop is the wide command view. Phone is a concise search-and-lookup surface, not a</text>

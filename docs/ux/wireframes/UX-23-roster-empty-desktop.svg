@@ -23,5 +23,5 @@
 <rect x="274" y="206" width="136" height="44" rx="8" fill="#1565C0" stroke="#1565C0" stroke-width="1" opacity="1"/>
 <text x="342.0" y="234" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">Clear filters</text>
 <rect x="422" y="206" width="192" height="44" rx="8" fill="#FFFFFF" stroke="#B7C3D2" stroke-width="1" opacity="1"/>
-<text x="518.0" y="234" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#243650" text-anchor="middle">Add returning player</text>
+<text x="518.0" y="234" font-family="Inter, Arial, sans-serif" font-size="14" font-weight="700" fill="#243650" text-anchor="middle">Add player</text>
 </svg>

@@ -805,6 +805,62 @@ describe("resolveOnboardingItem", () => {
     expect(updated.completedOn).toBeNull();
   });
 
+  /**
+   * Owner review, on the running screen: "if I change to say it's completed and
+   * the status didn't change, it should not change again if it's already been
+   * completed."
+   *
+   * Before this, saving the same status wrote an audit row whose `from_state`
+   * and `to_state` were identical and re-dated `completed_on` to today — an
+   * item completed in September silently claiming to have been completed again
+   * in August.
+   */
+  it("refuses a resolution the item already has, and changes nothing", async () => {
+    const membershipId = await givenMembership("confirmed");
+    const item = await firstItem(membershipId);
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "complete",
+    });
+    const auditBefore = (await auditRows(item.id)).length;
+
+    const failure = await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "complete",
+    }).catch((error: unknown) => error);
+
+    expect(isServiceError(failure) && failure.rule).toBe("onboarding_item_already_in_that_state");
+    expect(isServiceError(failure) && failure.message).toContain("is already complete");
+    // Nothing written: no second audit row, and the completion date is untouched.
+    expect((await auditRows(item.id)).length).toBe(auditBefore);
+  });
+
+  it("still allows moving an item to a different resolution", async () => {
+    const membershipId = await givenMembership("confirmed");
+    const item = await firstItem(membershipId);
+    await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "complete",
+    });
+
+    const membership = await resolveOnboardingItem({
+      actorPersonId,
+      membershipId,
+      itemId: item.id,
+      status: "not_applicable",
+    });
+
+    expect(membership.onboardingItems.find((each) => each.id === item.id)?.status).toBe(
+      "not_applicable",
+    );
+  });
+
   it("refuses a status this screen does not offer", async () => {
     const membershipId = await givenMembership("confirmed");
     const item = await firstItem(membershipId);

@@ -140,7 +140,7 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
         */}
         {roster.entries.length > 0 ? (
           <Button variant="contained" href="/operate/roster/new" sx={{ minHeight: 44 }}>
-            Add returning player
+            Add player
           </Button>
         ) : null}
       </Stack>
@@ -291,7 +291,7 @@ function EmptyRoster({ filtered }: { filtered: boolean }) {
             </Button>
           ) : null}
           <Button variant="contained" href="/operate/roster/new" sx={{ minHeight: 44 }}>
-            Add returning player
+            Add player
           </Button>
         </Stack>
       </Stack>
