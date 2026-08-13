@@ -32,7 +32,7 @@ import {
   type AudienceCatalogue,
 } from "./event-audience";
 import { createEventDraft, readEvent, type EventDraftInput } from "./events";
-import { RESPONSE_DEADLINE_RULES } from "./response-deadline";
+import { responseDeadlineRule, RESPONSE_DEADLINE_RULES } from "./response-deadline";
 import { openObserver } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN77ApprovalSuite";
@@ -130,17 +130,27 @@ async function insertDraftDirectly(input: {
   name: string;
   eventType: string;
   scheduledOn: string;
+  /** `null` for the confirmed-date-but-no-kick-off case, which is legal. */
+  startsAt?: string | null;
 }): Promise<{ id: string; seasonId: string; scheduledOn: string }> {
   const season = await observer.query<{ id: string }>(
     "select id from public.seasons where status = 'active' order by starts_on desc limit 1",
   );
   const inserted = await observer.query<{ id: string }>(
     `insert into public.events
-       (season_id, name, event_type, origin, status, scheduled_on,
+       (season_id, name, event_type, origin, status, scheduled_on, starts_at,
         is_mandatory, solicits_response, owner_person_id)
-     values ($1, $2, $3::public.event_type, 'club_controlled', 'draft', $4, true, true, $5)
+     values ($1, $2, $3::public.event_type, 'club_controlled', 'draft', $4, $6::time,
+             true, true, $5)
      returning id`,
-    [season.rows[0].id, input.name, input.eventType, input.scheduledOn, actorPersonId],
+    [
+      season.rows[0].id,
+      input.name,
+      input.eventType,
+      input.scheduledOn,
+      actorPersonId,
+      input.startsAt === undefined ? "19:00" : input.startsAt,
+    ],
   );
   return {
     id: inserted.rows[0].id,
@@ -739,5 +749,132 @@ describe("the approval preview", () => {
     const event = await newDraft({ solicitsResponse: false });
     const preview = await readApprovalPreview(event.id);
     expect(preview.deadline).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Every configured event type, and the two anchoring cases
+// ---------------------------------------------------------------------------
+
+describe("every event type in the enum gets the deadline Brian configured", () => {
+  /**
+   * The whole table, not a sample. `RESPONSE_DEADLINE_RULES` is complete over
+   * `public.event_type` on purpose — there is no default arm — so proving it
+   * type by type is what stops a future enum value being added with no rule and
+   * silently inheriting two days from somebody's `??`.
+   *
+   * The event date is fixed at 18 October 2026, inside British Summer Time, so
+   * every expectation below is 17:00Z for an 18:00 local deadline. A rule that
+   * subtracted a fixed offset instead of resolving the wall clock would pass a
+   * winter test and fail all ten of these.
+   */
+  const EXPECTED: ReadonlyArray<readonly [type: string, expiresAt: string]> = [
+    ["practice", "2026-10-16T17:00:00.000Z"],
+    ["strength_and_conditioning", "2026-10-16T17:00:00.000Z"],
+    ["chalk", "2026-10-16T17:00:00.000Z"],
+    ["fixture", "2026-10-11T17:00:00.000Z"],
+    ["social", "2026-10-13T17:00:00.000Z"],
+    ["recruitment", "2026-10-16T17:00:00.000Z"],
+    ["camp", "2026-10-11T17:00:00.000Z"],
+    ["varsity", "2026-10-11T17:00:00.000Z"],
+    ["meeting", "2026-10-16T17:00:00.000Z"],
+    ["other", "2026-10-16T17:00:00.000Z"],
+  ];
+
+  it("covers the enum exactly, with no type left untested", async () => {
+    const declared = await observer.query<{ value: string }>(
+      `select unnest(enum_range(null::public.event_type))::text as value order by 1`,
+    );
+    expect(declared.rows.map((row) => row.value).sort()).toEqual(
+      EXPECTED.map(([type]) => type).sort(),
+    );
+    expect(Object.keys(RESPONSE_DEADLINE_RULES).sort()).toEqual(
+      EXPECTED.map(([type]) => type).sort(),
+    );
+  });
+
+  it.each(EXPECTED)("a %s deadline lands at %s", async (eventType, expiresAt) => {
+    const event = await insertDraftDirectly({
+      name: `${NAME_MARKER} ${eventType}`,
+      eventType,
+      scheduledOn: "2026-10-18",
+    });
+    const keys = await keysFor(event, "player", 1);
+
+    const outcome = await approveEvent(actorPersonId, event.id, keys);
+
+    expect(outcome.deadline?.at.toISOString()).toBe(expiresAt);
+    expect(outcome.deadline?.clamped).toBe(false);
+
+    const stored = await observer.query<{ expires_at: Date }>(
+      "select expires_at from public.invitations where event_id = $1",
+      [event.id],
+    );
+    expect(stored.rows[0].expires_at.toISOString()).toBe(expiresAt);
+  });
+
+  it("anchors to the date alone, so an event with no start time still gets one", async () => {
+    // `events.starts_at` is nullable and the club relies on it: a confirmed
+    // fixture date routinely arrives long before a kick-off time. A deadline
+    // rule expressed relative to the start would have nothing to subtract from
+    // here; this one never reads `starts_at` at all.
+    const event = await insertDraftDirectly({
+      name: `${NAME_MARKER} Dateless kickoff`,
+      eventType: "practice",
+      scheduledOn: "2026-10-18",
+      startsAt: null,
+    });
+    const keys = await keysFor(event, "player", 1);
+
+    const outcome = await approveEvent(actorPersonId, event.id, keys);
+
+    expect(outcome.deadline?.at.toISOString()).toBe("2026-10-16T17:00:00.000Z");
+
+    const stored = await observer.query<{ starts_at: string | null; expires_at: Date }>(
+      `select e.starts_at::text as starts_at, i.expires_at
+         from public.events e join public.invitations i on i.event_id = e.id
+        where e.id = $1`,
+      [event.id],
+    );
+    expect(stored.rows[0].starts_at).toBeNull();
+    expect(stored.rows[0].expires_at.toISOString()).toBe("2026-10-16T17:00:00.000Z");
+  });
+
+  it("resolves the wall clock either side of a British Summer Time change", async () => {
+    // 18:00 local is 17:00Z in October and 18:00Z in January. One rule, two
+    // offsets — which is why the arithmetic is PostgreSQL's and not a constant.
+    const summer = await insertDraftDirectly({
+      name: `${NAME_MARKER} Summer time`,
+      eventType: "practice",
+      scheduledOn: "2026-10-18",
+    });
+    const winter = await insertDraftDirectly({
+      name: `${NAME_MARKER} Winter time`,
+      eventType: "practice",
+      scheduledOn: "2027-01-20",
+    });
+
+    const summerOutcome = await approveEvent(
+      actorPersonId,
+      summer.id,
+      await keysFor(summer, "player", 1),
+    );
+    const winterOutcome = await approveEvent(
+      actorPersonId,
+      winter.id,
+      await keysFor(winter, "player", 1),
+    );
+
+    expect(summerOutcome.deadline?.at.toISOString()).toBe("2026-10-16T17:00:00.000Z");
+    expect(winterOutcome.deadline?.at.toISOString()).toBe("2027-01-18T18:00:00.000Z");
+  });
+
+  it("refuses an event type nobody has agreed a deadline for", () => {
+    // The absence of a default arm, as a behaviour rather than as a code
+    // reading. Widening `public.event_type` without deciding its deadline makes
+    // approval fail loudly here instead of inheriting two days.
+    expect(() => responseDeadlineRule("kit_collection")).toThrowError(
+      /No response deadline has been agreed/,
+    );
   });
 });
