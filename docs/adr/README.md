@@ -27,5 +27,6 @@ accident. Routine implementation choices do not need an ADR.
 | [0015](0015-graded-review-levels.md)             | Review is graded into four levels, keyed on reachability                                 | Superseded by 0018     |
 | [0016](0016-controlled-production-pilot-data.md) | Production may hold controlled pilot data before staging exists                          | Accepted               |
 | [0017](0017-batched-fast-lane.md)                | A batched fast lane, merged by a workflow that re-derives eligibility                    | Accepted               |
-| [0018](0018-single-issue-agent-development.md)   | Single-issue agent development with fenced local concurrency                             | Accepted               |
+| [0018](0018-single-issue-agent-development.md)   | Single-issue agent development with fenced local concurrency                             | Superseded by 0020     |
 | [0019](0019-application-created-pilot-rows.md)   | Pilot rows the application creates carry a sentinel-only ownership marker                | Proposed — Brian       |
+| [0020](0020-zero-command-visual-review.md)       | Zero-command visual acceptance precedes final review                                     | Accepted               |

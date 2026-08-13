@@ -1,6 +1,6 @@
 # 0018 — Single-issue agent development with fenced local concurrency
 
-**Status:** Accepted · **Date:** 2026-08-12 · **Supersedes
+**Status:** Superseded by [0020](0020-zero-command-visual-review.md) · **Date:** 2026-08-12 · **Supersedes
 [0013](0013-supervised-agent-development.md) and
 [0015](0015-graded-review-levels.md)**
 

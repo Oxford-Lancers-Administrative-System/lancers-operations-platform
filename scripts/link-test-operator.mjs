@@ -29,11 +29,12 @@ import { config } from "dotenv";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { connectLocal, resolveLocalDatabaseUrl } from "./lib/local-db.mjs";
+import { LOCAL_REVIEW_EMAIL } from "./lib/local-review-account.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: resolve(root, ".env.local"), quiet: true });
 
-const email = process.env.TEST_USER_EMAIL ?? "test.user@oxfordlancers.local";
+const email = process.env.TEST_USER_EMAIL ?? LOCAL_REVIEW_EMAIL;
 
 function fail(message, hint) {
   console.error(message);

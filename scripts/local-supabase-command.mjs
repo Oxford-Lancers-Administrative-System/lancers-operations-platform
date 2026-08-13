@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { readSession, updateLease } from "./lib/local-supabase-coordinator.mjs";
+import { ensureLocalReviewAccount, readLocalReviewAccount } from "./lib/local-review-account.mjs";
 
 const repoPath = process.cwd();
 const operation = process.argv[2];
@@ -21,6 +21,27 @@ function run(command, args, env = process.env, echo = true) {
   return result.stdout;
 }
 
+function localEnvironment(lease, account) {
+  return {
+    ...process.env,
+    SUPABASE_DB_URL: `postgresql://postgres:postgres@127.0.0.1:${lease.ports.db}/postgres`,
+    NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${lease.ports.api}`,
+    SUPABASE_WORKDIR: lease.runtimeRoot,
+    PORT: String(lease.applicationPort),
+    ...(account ? { TEST_USER_EMAIL: account.email, TEST_USER_PASSWORD: account.password } : {}),
+  };
+}
+
+function provisionReviewState(lease, account) {
+  const env = localEnvironment(lease, account);
+  for (const script of [
+    "scripts/seed-local.mjs",
+    "scripts/create-test-user.mjs",
+    "scripts/link-test-operator.mjs",
+  ])
+    run(process.execPath, [script], env);
+}
+
 try {
   const session = readSession(repoPath);
   const lease = await updateLease({ repoPath, token: session.token });
@@ -33,11 +54,10 @@ try {
   const cliArgs = (command, extra = []) => [command, ...extra, "--workdir", lease.runtimeRoot];
 
   if (operation === "start") {
+    const reviewAccount = ensureLocalReviewAccount(repoPath);
     run(cli, cliArgs("start"), cliEnv, false);
     const raw = run(cli, cliArgs("status", ["-o", "json"]), cliEnv, false);
     const status = JSON.parse(raw);
-    const reviewEmail = "operator@lancers.local.example";
-    const reviewPassword = crypto.randomBytes(24).toString("base64url");
     const envFile = [
       `NEXT_PUBLIC_SUPABASE_URL=${status.API_URL}`,
       `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${status.PUBLISHABLE_KEY}`,
@@ -46,20 +66,18 @@ try {
       `SUPABASE_SERVICE_ROLE_KEY=${status.SERVICE_ROLE_KEY}`,
       `SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:${lease.ports.db}/postgres`,
       `PORT=${lease.applicationPort}`,
-      `TEST_USER_EMAIL=${reviewEmail}`,
-      `TEST_USER_PASSWORD=${reviewPassword}`,
+      `TEST_USER_EMAIL=${reviewAccount.email}`,
       "",
     ].join("\n");
     fs.writeFileSync(path.join(repoPath, ".env.local"), envFile, { mode: 0o600 });
-    fs.writeFileSync(
-      path.join(repoPath, ".lancers-runtime", "review-credentials"),
-      `Email: ${reviewEmail}\nPassword: ${reviewPassword}\n`,
-      { mode: 0o600 },
-    );
+    provisionReviewState(lease, reviewAccount);
     console.log(`Started ${lease.slot} local Supabase stack on API port ${lease.ports.api}.`);
   } else if (operation === "stop") run(cli, cliArgs("stop", ["--no-backup"]), cliEnv);
-  else if (operation === "reset") run(cli, cliArgs("db", ["reset", "--local", "--yes"]), cliEnv);
-  else if (operation === "status") {
+  else if (operation === "reset") {
+    const reviewAccount = ensureLocalReviewAccount(repoPath);
+    run(cli, cliArgs("db", ["reset", "--local", "--yes"]), cliEnv);
+    provisionReviewState(lease, reviewAccount);
+  } else if (operation === "status") {
     const raw = run(cli, cliArgs("status", ["-o", "json"]), cliEnv, false);
     const status = JSON.parse(raw);
     console.log(
@@ -78,13 +96,9 @@ try {
       "link-operator": "scripts/link-test-operator.mjs",
       "types-generate": "scripts/generate-types.mjs",
     };
-    const env = {
-      ...process.env,
-      SUPABASE_DB_URL: `postgresql://postgres:postgres@127.0.0.1:${lease.ports.db}/postgres`,
-      NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${lease.ports.api}`,
-      SUPABASE_WORKDIR: lease.runtimeRoot,
-      PORT: String(lease.applicationPort),
-    };
+    const env = ["seed-user", "link-operator"].includes(operation)
+      ? localEnvironment(lease, readLocalReviewAccount(repoPath))
+      : localEnvironment(lease);
     run(process.execPath, [scripts[operation]], env);
   } else throw new Error("Unknown guarded database operation.");
 } catch (error) {

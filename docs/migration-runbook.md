@@ -59,9 +59,7 @@ In the **development clone** — the unlinked one, and the only place local
 Supabase runs. The full loop, and what each step proves:
 
 ```bash
-npm run db:reset          # every migration applies to an EMPTY database
-npm run db:seed           # the deterministic synthetic dataset loads
-npm run db:seed-user      # the one local auth user (db:reset wipes it)
+npm run db:reset          # migrations, synthetic seed, fixed review account/link
 npm run types:generate    # regenerate src/lib/supabase/database.types.ts
 npm run check:rls         # no table created without RLS in the same migration
 npm run test              # constraints, lifecycle, security, seed properties

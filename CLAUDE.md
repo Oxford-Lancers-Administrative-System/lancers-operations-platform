@@ -15,6 +15,10 @@ Only genuinely Claude-specific notes belong in this file.
   independent review. See `docs/adr/0018-single-issue-agent-development.md`.
 - **`/start-issue` is user-invoked.** It is not model-invocable, never selects a
   second issue, and never delegates implementation.
+- **Visual acceptance is a mid-workflow gate.** UI-affecting work stops only
+  after a complete agent browser preflight and before final correctness review;
+  nonvisual work does not stop. Brian receives a live, protected environment and
+  runs no setup commands.
 - **Keep shared guidance in `AGENTS.md`.** If a rule would apply equally to
   Codex or any other coding agent, it belongs there, not here. The role
   definitions under `.claude/` are the exception only because the file format

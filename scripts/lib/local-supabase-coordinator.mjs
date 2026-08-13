@@ -249,9 +249,16 @@ export async function acquireLease({
     }
     let slot;
     for (const candidate of SLOT_DEFINITIONS) {
-      if (!reclaimable(registry.slots[candidate.name], now, probe)) continue;
-      const occupied = await Promise.all(Object.values(candidate.ports).map(portProbe));
-      if (occupied.some(Boolean)) continue;
+      const previous = registry.slots[candidate.name];
+      if (!reclaimable(previous, now, probe)) continue;
+      // A released slot may deliberately leave its known local containers
+      // running. Re-fence it to the next owner, who resets it before use. For a
+      // never-allocated or stale slot, occupied ports remain ambiguous and fail
+      // closed rather than risking an unrelated process.
+      if (previous?.state !== "released") {
+        const occupied = await Promise.all(Object.values(candidate.ports).map(portProbe));
+        if (occupied.some(Boolean)) continue;
+      }
       slot = candidate;
       break;
     }

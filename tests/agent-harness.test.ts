@@ -26,6 +26,10 @@ const reviewerPath = path.join(agents, "code-reviewer.md");
 const skill = frontMatter(skillPath);
 const reviewer = frontMatter(reviewerPath);
 const agreement = readFileSync(path.join(root, "AGENTS.md"), "utf8");
+const pullRequestTemplate = readFileSync(
+  path.join(root, ".github", "PULL_REQUEST_TEMPLATE.md"),
+  "utf8",
+);
 const settings = JSON.parse(readFileSync(path.join(root, ".claude", "settings.json"), "utf8"));
 
 describe("single-issue Claude workflow", () => {
@@ -123,6 +127,49 @@ describe("graded review routing", () => {
       /Never stage, commit, push, or leave an injected defect behind/i,
     );
     expect(flat(reviewer.body)).toMatch(/Do not repair anything/i);
+  });
+});
+
+describe("zero-command visual acceptance", () => {
+  const body = flat(skill.body);
+
+  it("classifies UI, nonvisual, and mixed work without adding a visual stop to nonvisual work", () => {
+    expect(body).toMatch(/classify the issue as `UI-affecting`, `nonvisual`, or `mixed`/i);
+    expect(body).toMatch(/Mixed work uses the visual gate only for its user-visible portion/i);
+    expect(body).toMatch(/Nonvisual work skips this checkpoint entirely/i);
+  });
+
+  it("places owner visual acceptance before final current-commit independent review", () => {
+    expect(body).toMatch(/before final verification and independent correctness review/i);
+    expect(body).toMatch(/Do not launch final independent review/i);
+    expect(body).toMatch(/Once Brian approves, run final verification at the current commit/i);
+    expect(body).toMatch(/Independent correctness review is final/i);
+  });
+
+  it("keeps visual-pending work draft and not PR-ready", () => {
+    expect(body).toMatch(/draft PR remains draft/i);
+    expect(body).toMatch(/visual-pending, not complete or PR-ready/i);
+  });
+
+  it("requires browser-proven URL, login, seeded states, viewports, and protected lease", () => {
+    expect(body).toMatch(/use a browser to open the supplied URL, sign in/i);
+    expect(body).toMatch(/working URL, real login, seeded states, desktop and 375px evidence/i);
+    expect(body).toMatch(/mark the slot `review-ready`/i);
+    expect(body).toMatch(/Do not claim readiness from scripts or HTTP probes alone/i);
+    expect(body).toMatch(/db:review-ready.*validates that record and fails closed/i);
+  });
+
+  it("gives Brian no commands or setup actions", () => {
+    for (const source of [skill.body, pullRequestTemplate]) {
+      expect(flat(source)).toContain("Commands Brian must run: None");
+      expect(flat(source)).toContain("Database/setup actions Brian must perform: None");
+      expect(flat(source)).toContain("Production actions Brian must perform: None");
+      expect(source).not.toMatch(/credential-retrieval|retrieval command|sed -n '1,2p'/i);
+    }
+    expect(body).toMatch(/continue troubleshooting/i);
+    expect(body).toMatch(
+      /genuine missing-access, external-service, permission, or owner-decision/i,
+    );
   });
 });
 
@@ -290,6 +337,38 @@ describe("local Supabase workflow contract", () => {
     expect(adr).toMatch(/Two-slot local Supabase coordinator/i);
     expect(readFileSync(path.join(root, "docs", "adr", "README.md"), "utf8")).toContain(
       "0018-single-issue-agent-development.md",
+    );
+  });
+
+  it("keeps the fixed review credential in shared protected state and provisions on start/reset", () => {
+    const command = readFileSync(path.join(root, "scripts", "local-supabase-command.mjs"), "utf8");
+    const account = readFileSync(
+      path.join(root, "scripts", "lib", "local-review-account.mjs"),
+      "utf8",
+    );
+    expect(account).toContain("brian.daniel.schuster@gmail.com");
+    expect(account).toMatch(/coordinatorPaths/);
+    expect(account).toMatch(/mode: 0o600/);
+    expect(account).toMatch(/ensureLocalReviewAccount/);
+    expect(command).toMatch(/ensureLocalReviewAccount/);
+    expect(command).toMatch(/operation === "start"[\s\S]*provisionReviewState/);
+    expect(command).toMatch(/operation === "reset"[\s\S]*provisionReviewState/);
+    expect(command).not.toMatch(/randomBytes/);
+    expect(command).not.toMatch(/review-credentials/);
+    expect(command).not.toMatch(/`TEST_USER_PASSWORD=\$\{reviewAccount\.password\}`/);
+    expect(readFileSync(path.join(root, "supabase", "config.toml"), "utf8")).toMatch(
+      /minimum_password_length = 8/,
+    );
+  });
+
+  it("makes the existing review-ready command validate browser evidence", () => {
+    const coordinator = readFileSync(
+      path.join(root, "scripts", "local-supabase-coordinator.mjs"),
+      "utf8",
+    );
+    expect(coordinator).toMatch(/requireVisualReviewReadiness/);
+    expect(coordinator.indexOf("requireVisualReviewReadiness")).toBeLessThan(
+      coordinator.lastIndexOf('state: "review-ready"'),
     );
   });
 });

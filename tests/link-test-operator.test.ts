@@ -93,16 +93,29 @@ describe.runIf(configured)("linking the local test user", () => {
 
     const client = await openLocalClient();
     try {
-      const { rows } = await client.query<{ count: string; is_active: boolean }>(
-        `select count(*) as count, bool_and(oa.is_active) as is_active
+      const { rows } = await client.query<{
+        auth_count: string;
+        operator_count: string;
+        person_count: string;
+        is_active: boolean;
+        email_confirmed: boolean;
+      }>(
+        `select count(distinct u.id) as auth_count,
+                count(distinct oa.id) as operator_count,
+                count(distinct oa.person_id) as person_count,
+                bool_and(oa.is_active) as is_active,
+                bool_and(u.email_confirmed_at is not null) as email_confirmed
            from public.operator_accounts oa
            join auth.users u on u.id = oa.auth_user_id
           where lower(u.email) = lower($1)`,
         [email],
       );
 
-      expect(Number(rows[0].count), "the second run created a duplicate link").toBe(1);
+      expect(Number(rows[0].auth_count), "the review login is duplicated").toBe(1);
+      expect(Number(rows[0].operator_count), "the second run created a duplicate link").toBe(1);
+      expect(Number(rows[0].person_count), "the login is linked to multiple people").toBe(1);
       expect(rows[0].is_active).toBe(true);
+      expect(rows[0].email_confirmed).toBe(true);
     } finally {
       await client.end();
     }
