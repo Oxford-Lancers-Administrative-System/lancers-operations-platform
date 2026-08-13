@@ -71,10 +71,13 @@ export async function submitReturnerIntake(
     return { step: "details", values, errors };
   }
 
+  // No `knownAs`: intake no longer collects a nickname (Brian, 12 August 2026 —
+  // "that's not a good way to talk about it"). The service still accepts one,
+  // because `person_aliases` is how an import matches a name form to a person,
+  // but this form never supplies it and therefore never writes an alias.
   const input = {
     givenName: values.givenName,
     familyName: values.familyName,
-    knownAs: values.knownAs,
     email: values.email,
     phone: values.phone,
   };
@@ -153,6 +156,7 @@ async function buildFailureState(
         personName: person
           ? personLabel(person)
           : personLabel({ givenName: values.givenName, familyName: values.familyName || null }),
+        personGivenName: person ? person.givenName : values.givenName.trim(),
         seasonLabel: person?.currentMembership?.seasonLabel ?? null,
         membershipId: person?.currentMembership?.id ?? null,
       },

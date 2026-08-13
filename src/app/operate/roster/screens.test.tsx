@@ -143,9 +143,8 @@ const CANDIDATES: PersonCandidate[] = [
 ];
 
 const VALUES = {
-  familyName: "Fielding",
   givenName: "Avery",
-  knownAs: "Avery",
+  familyName: "Fielding",
   email: "avery.fielding@example.invalid",
   phone: "+44 7700 900101",
 };
@@ -161,7 +160,7 @@ describe("UX-10 — Add returning player", () => {
   beforeEach(async () => {
     await renderIntakeAt({
       step: "details",
-      values: { familyName: "", givenName: "", knownAs: "", email: "", phone: "" },
+      values: { givenName: "", familyName: "", email: "", phone: "" },
       errors: {},
     });
   });
@@ -175,24 +174,38 @@ describe("UX-10 — Add returning player", () => {
     ).toBeInTheDocument();
   });
 
-  it("carries the promise that nothing is written yet", () => {
-    expect(screen.getByTestId("no-write-promise")).toHaveTextContent(
-      "No person or membership is created until a candidate is selected or the operator " +
-        "explicitly confirms this is a new person.",
-    );
+  it("does not lecture the operator about when writes happen", () => {
+    // The wireframe's info strip is deliberately gone (Brian, 12 August 2026).
+    // The behaviour it described is still true and still enforced — see
+    // `actions.test.ts`, which proves no write happens before an explicit
+    // decision — but it is not narrated on screen.
+    expect(screen.queryByTestId("no-write-promise")).not.toBeInTheDocument();
+    expect(screen.queryByText(/No person or membership is created until/)).not.toBeInTheDocument();
   });
 
-  it("has all five fields, each with a real label", () => {
-    for (const label of ["Family name", "Given name", "Known as", "Email", "Phone"]) {
-      expect(screen.getByLabelText(label)).toBeInTheDocument();
-    }
+  it("has exactly four fields, in the approved order", () => {
+    const labels = ["First name", "Last name", "Email", "Phone"];
+    for (const label of labels) expect(screen.getByLabelText(label)).toBeInTheDocument();
+
+    // Order is part of the decision, not an accident of the markup.
+    const rendered = screen.getAllByRole("textbox").map((input) => input.getAttribute("name"));
+    expect(rendered).toEqual(["givenName", "familyName", "email", "phone"]);
   });
 
-  it("fixes the entry marker to Returning", () => {
-    expect(screen.getByTestId("entry-marker")).toHaveTextContent("Returning (fixed)");
-    // Not a control: the operator does not get to choose the entry marker in
-    // this slice, so there is nothing to change it with.
-    expect(screen.queryByLabelText("Entry marker")).not.toBeInTheDocument();
+  it("does not ask for a nickname", () => {
+    // Removed on Brian's instruction: "not a good way to talk about it". The
+    // service still accepts a `knownAs` for imports; this form never sends one,
+    // so intake writes no `person_aliases` row.
+    expect(screen.queryByLabelText("Known as")).not.toBeInTheDocument();
+  });
+
+  it("shows no entry-marker chip", () => {
+    // "Entry marker: Returning (fixed)" named an internal value the operator
+    // could neither change nor interpret. The membership is still written with
+    // `entry = 'returning'` — proved in `roster.test.ts` — and UX-13 states it
+    // in words. Brian, 12 August 2026.
+    expect(screen.queryByTestId("entry-marker")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Entry marker/)).not.toBeInTheDocument();
   });
 
   it("uses the approved action labels", () => {
@@ -206,16 +219,16 @@ describe("UX-10 — validation state", () => {
     await renderIntakeAt({
       step: "details",
       values: { ...VALUES, givenName: "" },
-      errors: { givenName: "Enter a given name. It is the one name the club always has." },
+      errors: { givenName: "Enter a first name. It is the one name the club always has." },
     });
 
-    const givenName = screen.getByLabelText("Given name");
+    const givenName = screen.getByLabelText("First name");
     expect(givenName).toHaveAttribute("aria-invalid", "true");
     expect(
-      screen.getByText("Enter a given name. It is the one name the club always has."),
+      screen.getByText("Enter a first name. It is the one name the club always has."),
     ).toBeInTheDocument();
     // Nothing else the operator typed was thrown away.
-    expect(screen.getByLabelText("Family name")).toHaveValue("Fielding");
+    expect(screen.getByLabelText("Last name")).toHaveValue("Fielding");
     expect(screen.getByLabelText("Email")).toHaveValue("avery.fielding@example.invalid");
   });
 });
@@ -315,6 +328,7 @@ describe("UX-12 — already a member this season", () => {
           "This person already has a membership for the 2026-27 season. " +
           "No duplicate membership was created, and nothing else was changed.",
         personName: "Ari Fielding",
+        personGivenName: "Ari",
         seasonLabel: "2026-27",
         membershipId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
       },
@@ -333,19 +347,24 @@ describe("UX-12 — already a member this season", () => {
       "Ari Fielding is already a member for the 2026-27 season. " +
         "No duplicate membership was created.",
     );
+    // The wireframe's warning strip is gone: the heading and sentence already
+    // say it, and an alert made a normal outcome look like a fault.
     expect(
-      screen.getByText(
+      screen.queryByText(
         "The write is refused before any person, contact method or membership is changed.",
       ),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
   });
 
-  it("offers both approved recovery actions", () => {
-    expect(screen.getByRole("link", { name: "Open current membership" })).toHaveAttribute(
+  it("names the person in the action that goes to them, and offers a plain way back", () => {
+    expect(screen.getByRole("link", { name: "View Ari’s roster entry" })).toHaveAttribute(
       "href",
       "/operate/roster/cccccccc-cccc-4ccc-8ccc-cccccccccccc",
     );
-    expect(screen.getByRole("button", { name: "Back to candidate review" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Go back" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Back to candidate review" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a sentence an operator can act on, not a database error", () => {
@@ -368,6 +387,7 @@ describe("UX-12 — when the refused person is no longer a candidate", () => {
       refusal: {
         message: "This person already has a membership for the 2026-27 season.",
         personName: "Ari Fielding",
+        personGivenName: "Ari",
         seasonLabel: null,
         membershipId: null,
       },
@@ -377,8 +397,8 @@ describe("UX-12 — when the refused person is no longer a candidate", () => {
       "This person already has a membership for the 2026-27 season.",
     );
     // With no membership to open, that action is not offered at all.
-    expect(screen.queryByRole("link", { name: "Open current membership" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Back to candidate review" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /roster entry/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Go back" })).toBeInTheDocument();
   });
 });
 
@@ -444,15 +464,14 @@ describe("UX-13 — Returning player added", () => {
     expect(time).toHaveTextContent("12 Aug 2026, 14:36");
   });
 
-  it("uses the approved action labels", () => {
-    expect(screen.getByRole("link", { name: "View membership" })).toHaveAttribute(
-      "href",
-      `/operate/roster/${SUMMARY.membershipId}`,
-    );
+  it("offers exactly one exit", () => {
+    // "View membership" led to this same page with the banner dismissed, which
+    // is nowhere the operator could tell. Brian, 12 August 2026.
     expect(screen.getByRole("link", { name: "Back to roster" })).toHaveAttribute(
       "href",
       "/operate/roster",
     );
+    expect(screen.queryByRole("link", { name: "View membership" })).not.toBeInTheDocument();
   });
 });
 
@@ -462,7 +481,6 @@ describe("the membership route without the confirmation", () => {
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Avery Fielding");
     expect(screen.queryByTestId("created-summary")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "View membership" })).not.toBeInTheDocument();
   });
 
   it("says when a supplied contact did not become the preferred one", async () => {
@@ -491,11 +509,10 @@ describe("an operator who may not be here", () => {
       // The account-state screen has a sign-out form of its own, so the
       // assertion is that none of the *intake* controls exist — not that no
       // form does.
-      for (const label of ["Family name", "Given name", "Known as", "Email", "Phone"]) {
+      for (const label of ["First name", "Last name", "Email", "Phone"]) {
         expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
       }
       expect(screen.queryByRole("button", { name: "Check for matches" })).not.toBeInTheDocument();
-      expect(screen.queryByTestId("entry-marker")).not.toBeInTheDocument();
     });
 
     it(`shows ${label} no membership record at all`, async () => {

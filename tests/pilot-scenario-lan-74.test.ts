@@ -709,25 +709,45 @@ describe("the documented test sequence, end to end", () => {
     expect(await scenarioRowCount(client)).toBe(0);
   });
 
-  it("removes the alias the interface records for a step-4 Known as", async () => {
+  it("leaves the alias of a person it does not sweep completely alone", async () => {
+    // The alias of a *swept* person disappears whether or not the alias sweep
+    // ran, because `person_aliases.person_id` is `on delete cascade` and the
+    // person goes last — so asserting that proves nothing about the sweep. What
+    // does prove something is the sweep's `where`: an alias on a person outside
+    // the swept set must survive.
     await client.query(SETUP);
-    const { created } = await walkReadmeSteps(client, durable.personId);
-
-    const before = await one<{ n: string }>(
-      client,
-      "select count(*) as n from public.person_aliases where person_id = $1",
-      [created],
+    await walkReadmeSteps(client, durable.personId);
+    const bystander = await sparePerson(client, "AliasBystander");
+    await client.query(
+      "insert into public.person_aliases (person_id, alias, source) values ($1, 'Bys', 'operator intake')",
+      [bystander],
     );
-    expect(before.n).toBe("1");
 
     await client.query(CLEANUP);
 
-    const after = await one<{ n: string }>(
+    const surviving = await one<{ n: string }>(
       client,
       "select count(*) as n from public.person_aliases where person_id = $1",
-      [created],
+      [bystander],
     );
-    expect(after.n).toBe("0");
+    expect(surviving.n).toBe("1");
+  });
+
+  it("deletes aliases before the people they hang off", async () => {
+    // The ordering is what makes the alias sweep do any work at all. Moved
+    // after the `people` sweep it would delete nothing, and every other
+    // assertion in this file — including a whole-database snapshot — would
+    // still pass, because the cascade cleans up behind it. So the order is
+    // asserted directly against the script.
+    const aliasSweep = CLEANUP_FILE.indexOf("delete from public.person_aliases");
+    const peopleSweep = CLEANUP_FILE.lastIndexOf("delete from public.people");
+
+    expect(aliasSweep).toBeGreaterThan(-1);
+    expect(peopleSweep).toBeGreaterThan(-1);
+    expect(
+      aliasSweep,
+      "the alias sweep must run before the people sweep, or it deletes nothing and the cascade hides it",
+    ).toBeLessThan(peopleSweep);
   });
 
   it("accepts a routable domain that merely starts with the reserved one — by refusing", async () => {
@@ -745,7 +765,7 @@ describe("the documented test sequence, end to end", () => {
     await expectRejected(client, CLEANUP, [], "contact_points that this scenario did not create");
   });
 
-  it("accepts every phone spelling README step 4 permits", async () => {
+  it("accepts both phone spellings README step 4 permits", async () => {
     await client.query(SETUP);
     const { created } = await walkReadmeSteps(client, durable.personId);
     await client.query("delete from public.contact_points where person_id = $1", [created]);
@@ -758,6 +778,35 @@ describe("the documented test sequence, end to end", () => {
 
     await client.query(CLEANUP);
     expect(await scenarioRowCount(client)).toBe(0);
+  });
+
+  it("refuses a value that carries a real contact alongside a reserved one", async () => {
+    // `raw_value` is free text. Anchoring only the reserved token would permit
+    // a value that also contains somebody's real address, and cascade-delete it
+    // with the person. The whole value must be the reserved contact.
+    await client.query(SETUP);
+    const { created } = await walkReadmeSteps(client, durable.personId);
+    await client.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1, 'email', 'Contact him on his work address instead: alias@example.invalid', false, 'operator intake')`,
+      [created],
+    );
+
+    await expectRejected(client, CLEANUP, [], "contact_points that this scenario did not create");
+  });
+
+  it("does not let the phone permit exempt an email", async () => {
+    // Unscoped by kind, an address beginning with the drama range would have
+    // been permitted by the phone pattern.
+    await client.query(SETUP);
+    const { created } = await walkReadmeSteps(client, durable.personId);
+    await client.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+       values ($1, 'email', '07700900123@gateway.example.com', false, 'operator intake')`,
+      [created],
+    );
+
+    await expectRejected(client, CLEANUP, [], "contact_points that this scenario did not create");
   });
 
   it("still refuses a contact value that is neither reserved nor its own", async () => {

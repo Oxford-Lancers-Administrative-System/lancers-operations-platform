@@ -239,12 +239,15 @@ begin
   --     number — is not this scenario's, and stops the script rather than
   --     being cascade-deleted with the person.
   --
-  --     Both patterns are ANCHORED, and both are permits: matching means the
-  --     guard does not fire. A substring test would have accepted an address at
-  --     a domain ending `.invalid.co.uk` — which anybody can register — for
-  --     exactly the reason UNROUTABLE_EMAIL in the contract test may not end in
-  --     a word boundary. The address must END at the reserved domain, and the
-  --     number must not merely be embedded in a longer run of digits.
+  --     Both patterns anchor the WHOLE value and are scoped BY KIND, and both
+  --     are permits: matching means the guard does not fire.
+  --
+  --     `raw_value` is deliberately unvalidated free text, so anchoring only
+  --     the reserved token is not enough. Anchored at one end alone, a value
+  --     carrying a real address and a reserved one together would be permitted
+  --     and cascade-deleted with its person; unscoped by kind, the phone
+  --     pattern would permit an email that merely began with the drama range.
+  --     The value must be the reserved contact and nothing else.
   --
   --     (Deliberately described rather than exemplified: this file is scanned
   --     by tests/pilot-data-contract.test.ts, and a routable example address
@@ -253,8 +256,14 @@ begin
     select 1 from public.contact_points
      where person_id in (select person_id from pilot_lan_74_targets)
        and source is distinct from sentinel
-       and raw_value !~* '@([a-z0-9-]+\.)*example\.invalid[[:space:]]*$'
-       and raw_value !~ '(^|[^0-9])(\+44 ?|0)7700 ?900[0-9]{3}([^0-9]|$)'
+       and not (
+         kind = 'email'
+         and raw_value ~* '^[[:space:]]*[^[:space:]@]+@([a-z0-9-]+\.)*example\.invalid[[:space:]]*$'
+       )
+       and not (
+         kind = 'phone'
+         and raw_value ~ '^[[:space:]]*(\+44[[:space:]]?|0)7700[[:space:]]?900[0-9]{3}[[:space:]]*$'
+       )
   ) then
     raise exception 'LAN-74 pilot cleanup refused: contact_points that this scenario did not create hang off a person it would delete, and would be cascade-deleted.';
   end if;

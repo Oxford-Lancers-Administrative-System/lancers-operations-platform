@@ -105,6 +105,12 @@ beforeAll(async () => {
  * Removes everything this suite could have committed, in reverse dependency
  * order. It deletes by this suite's marker only, and it also releases the
  * seeded person it may have given a membership to.
+ *
+ * The marker is matched as `%MARKER%`, not `MARKER%`. One test deliberately
+ * stores a name with **leading** whitespace — that is the whole point of it —
+ * and a prefix match silently left those rows behind in a database every other
+ * suite shares. Anchoring the pattern to the start is the kind of cleanup bug
+ * that only shows up as somebody else's baffling failure.
  */
 async function cleanUp(): Promise<void> {
   await observer.query(
@@ -112,7 +118,7 @@ async function cleanUp(): Promise<void> {
       where context ->> 'issue' = 'LAN-74'
         and (context ->> 'test_marker' = $1 or entity_id in (
               select id from public.people where given_name like $2))`,
-    [MARKER, `${MARKER}%`],
+    [MARKER, `%${MARKER}%`],
   );
   await observer.query(
     `delete from public.season_membership_status_events
@@ -120,7 +126,7 @@ async function cleanUp(): Promise<void> {
         select m.id from public.season_memberships m
         left join public.people p on p.id = m.person_id
         where p.given_name like $1 or (m.person_id = $2::uuid and m.season_id = $3::uuid))`,
-    [`${MARKER}%`, withoutMembership.id, openSeasonId],
+    [`%${MARKER}%`, withoutMembership.id, openSeasonId],
   );
   await observer.query(
     `delete from public.audit_events
@@ -128,13 +134,13 @@ async function cleanUp(): Promise<void> {
         select m.id from public.season_memberships m
         left join public.people p on p.id = m.person_id
         where p.given_name like $1 or (m.person_id = $2::uuid and m.season_id = $3::uuid))`,
-    [`${MARKER}%`, withoutMembership.id, openSeasonId],
+    [`%${MARKER}%`, withoutMembership.id, openSeasonId],
   );
   await observer.query(
     `delete from public.season_memberships
       where person_id in (select id from public.people where given_name like $1)
          or (person_id = $2::uuid and season_id = $3::uuid)`,
-    [`${MARKER}%`, withoutMembership.id, openSeasonId],
+    [`%${MARKER}%`, withoutMembership.id, openSeasonId],
   );
   // Scoped to this suite's own people. `source = 'operator intake'` alone would
   // reach rows another suite committed against the same database — vitest runs
@@ -149,16 +155,16 @@ async function cleanUp(): Promise<void> {
     // suite wrote through the service is removed. Deleting all of their
     // contacts would strip the preferred email two tests depend on, one test
     // earlier than the test that needs it.
-    [`${MARKER}%`, withoutMembership.id],
+    [`%${MARKER}%`, withoutMembership.id],
   );
   await observer.query(
     `delete from public.person_aliases
       where source = 'operator intake'
         and (person_id in (select id from public.people where given_name like $1)
              or person_id = $2::uuid)`,
-    [`${MARKER}%`, withoutMembership.id],
+    [`%${MARKER}%`, withoutMembership.id],
   );
-  await observer.query("delete from public.people where given_name like $1", [`${MARKER}%`]);
+  await observer.query("delete from public.people where given_name like $1", [`%${MARKER}%`]);
 }
 
 afterEach(cleanUp);

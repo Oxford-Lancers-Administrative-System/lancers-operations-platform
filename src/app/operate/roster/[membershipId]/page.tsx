@@ -133,25 +133,16 @@ export default async function MembershipPage({
         Activation, onboarding and the rest of the membership record are added by LAN-75.
       </Alert>
 
+      {/* One exit, not two. The wireframe's "View membership" primary action
+          led to this same page with the confirmation dismissed — you are
+          already looking at the membership, so it went nowhere the operator
+          could tell. Brian, 12 August 2026. */}
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={2}
         sx={{ alignItems: { sm: "center" } }}
       >
-        {justCreated ? (
-          <Button
-            href={`/operate/roster/${summary.membershipId}`}
-            variant="contained"
-            sx={{ minHeight: 44 }}
-          >
-            View membership
-          </Button>
-        ) : null}
-        <Button
-          href="/operate/roster"
-          variant={justCreated ? "outlined" : "contained"}
-          sx={{ minHeight: 44 }}
-        >
+        <Button href="/operate/roster" variant="contained" sx={{ minHeight: 44 }}>
           Back to roster
         </Button>
       </Stack>

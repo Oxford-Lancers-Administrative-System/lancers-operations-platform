@@ -113,32 +113,25 @@ function DetailsStep({
 
       {state.formError ? <Alert severity="error">{state.formError}</Alert> : null}
 
-      <Alert severity="info" data-testid="no-write-promise">
-        No person or membership is created until a candidate is selected or the operator explicitly
-        confirms this is a new person.
-      </Alert>
-
+      {/* Four fields, in this order, and no others. All four departures from
+          the approved wireframe are Brian's, taken while reviewing this screen
+          on 12 August 2026:
+            * "First name" / "Last name" rather than "Given name" / "Family
+              name" — the club's words. The columns keep the model's names;
+              this is presentation only and the two must not be conflated.
+            * first name before last name, because that is the order a person
+              says them in.
+            * no "Known as" — "not a good way to talk about it". The service
+              still accepts one for imports; this form never sends it.
+            * no "Entry marker: Returning (fixed)" chip — it named an internal
+              value the operator cannot change and could not interpret. The
+              entry is still recorded as `returning`, and the confirmation
+              screen states it in words. */}
       <Stack spacing={2.5}>
-        {field("familyName", "Family name", { autoComplete: "off" })}
-        {field("givenName", "Given name", { autoComplete: "off" })}
-        {field("knownAs", "Known as", { autoComplete: "off" })}
+        {field("givenName", "First name", { autoComplete: "off" })}
+        {field("familyName", "Last name", { autoComplete: "off" })}
         {field("email", "Email", { type: "email", autoComplete: "off" })}
         {field("phone", "Phone", { type: "tel", autoComplete: "off" })}
-
-        {/* Fixed for this slice: the operator-entered path is the returner
-            path, and the entry marker is not theirs to choose. Rendered as
-            text plus a hidden value so it is visible and unalterable. */}
-        <Box>
-          <Typography variant="body2" color="text.secondary" component="p" id="entry-marker-label">
-            Entry marker
-          </Typography>
-          <Chip
-            label="Returning (fixed)"
-            variant="outlined"
-            sx={{ mt: 0.5 }}
-            data-testid="entry-marker"
-          />
-        </Box>
       </Stack>
 
       <Stack
@@ -402,10 +395,10 @@ function MembershipRefusedStep({
         </Typography>
       </Box>
 
-      <Alert severity="warning">
-        The write is refused before any person, contact method or membership is changed.
-      </Alert>
-
+      {/* The wireframe's warning strip is gone: the heading and the sentence
+          above already say the write was refused and nothing was changed, and
+          repeating it in an alert read as an error the operator had to act on
+          when in fact there is nothing wrong. Brian, 12 August 2026. */}
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={2}
@@ -417,7 +410,7 @@ function MembershipRefusedStep({
             variant="contained"
             sx={{ minHeight: MIN_TOUCH_TARGET }}
           >
-            Open current membership
+            View {refusal.personGivenName}&rsquo;s roster entry
           </Button>
         ) : null}
         <Button
@@ -428,7 +421,7 @@ function MembershipRefusedStep({
           disabled={pending}
           sx={{ minHeight: MIN_TOUCH_TARGET }}
         >
-          Back to candidate review
+          Go back
         </Button>
       </Stack>
     </Stack>

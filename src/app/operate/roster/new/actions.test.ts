@@ -74,9 +74,8 @@ function form(fields: Record<string, string>): FormData {
 }
 
 const VALID_DETAILS = {
-  familyName: "Fielding",
   givenName: "Avery",
-  knownAs: "Ave",
+  familyName: "Fielding",
   email: "avery.fielding@example.invalid",
   phone: "+44 7700 900101",
 };
@@ -320,6 +319,7 @@ describe("the write, and how it ends", () => {
       step: "membership_refused",
       refusal: {
         personName: "Avery Fielding",
+        personGivenName: "Avery",
         // Carried so UX-12 can render its approved sentence naming both the
         // person and the season, which the service's message cannot do.
         seasonLabel: "2026-27",

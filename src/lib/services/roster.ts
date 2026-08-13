@@ -79,8 +79,10 @@ export interface PersonCandidate {
   familyName: string | null;
   knownAs: string | null;
   /**
-   * A current email to show on UX-11: the preferred one if there is one, else
-   * the most recently recorded. `null` when the person has none.
+   * An email to show on UX-11: of the person's **current** emails (those with
+   * no `valid_until`), the preferred one if there is one, else the most
+   * recently recorded. `null` when they have no current email at all — a
+   * superseded college address does not appear here.
    *
    * Not strictly "the preferred one" — this module records a supplied contact
    * as *not* preferred when the person already has one of that kind, and a
@@ -88,7 +90,7 @@ export interface PersonCandidate {
    * decision most depends on.
    */
   email: string | null;
-  /** A current phone, on the same rule as `email`. `null` when none. */
+  /** A current phone, on exactly the same rule as `email`. */
   phone: string | null;
   /**
    * Their membership in the open season, when they already hold one.
@@ -167,7 +169,7 @@ function normaliseInput(input: ReturnerIntakeInput): NormalisedInput {
   const givenName = trimmedOrNull(input.givenName);
   if (!givenName) {
     throw new ConstraintViolated(
-      "A given name is required — it is the one name the club always has.",
+      "A first name is required — it is the one name the club always has.",
       {
         rule: "people_given_name_not_blank",
       },

@@ -24,9 +24,8 @@
  */
 
 export interface IntakeFormValues {
-  familyName: string;
   givenName: string;
-  knownAs: string;
+  familyName: string;
   email: string;
   phone: string;
 }
@@ -35,15 +34,17 @@ export interface IntakeFormValues {
 export type IntakeFieldErrors = Partial<Record<keyof IntakeFormValues, string>>;
 
 export const EMPTY_VALUES: IntakeFormValues = {
-  familyName: "",
   givenName: "",
-  knownAs: "",
+  familyName: "",
   email: "",
   phone: "",
 };
 
 /** The one field the club always has, and the database's only name constraint. */
-export const GIVEN_NAME_REQUIRED = "Enter a given name. It is the one name the club always has.";
+// "First name" matches the label on screen (Brian, reviewing UX-10). The field
+// and the column stay `givenName` / `given_name` — the model's vocabulary is
+// not the operator's, and conflating them is how a rename reaches the schema.
+export const GIVEN_NAME_REQUIRED = "Enter a first name. It is the one name the club always has.";
 
 export const EMAIL_SHAPE =
   "This does not look like an email address. Enter it as it was given, including the @, " +
@@ -54,9 +55,8 @@ export const PHONE_SHAPE =
 
 /** The order fields are focused in, matching the order they appear on screen. */
 export const FIELD_ORDER: readonly (keyof IntakeFormValues)[] = [
-  "familyName",
   "givenName",
-  "knownAs",
+  "familyName",
   "email",
   "phone",
 ];
@@ -101,7 +101,7 @@ export function firstInvalidField(errors: IntakeFieldErrors): keyof IntakeFormVa
   return FIELD_ORDER.find((field) => errors[field] !== undefined) ?? null;
 }
 
-/** Reads the five fields out of a submitted form, without altering them. */
+/** Reads the four fields out of a submitted form, without altering them. */
 export function readIntakeValues(formData: FormData): IntakeFormValues {
   const read = (name: keyof IntakeFormValues): string => {
     const value = formData.get(name);
@@ -109,9 +109,8 @@ export function readIntakeValues(formData: FormData): IntakeFormValues {
   };
 
   return {
-    familyName: read("familyName"),
     givenName: read("givenName"),
-    knownAs: read("knownAs"),
+    familyName: read("familyName"),
     email: read("email"),
     phone: read("phone"),
   };

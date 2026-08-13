@@ -40,6 +40,8 @@ export type IntakeState =
         /** The service's own sentence. Shown when the composed one cannot be. */
         message: string;
         personName: string;
+        /** Just the first name, for the action label that names them. */
+        personGivenName: string;
         /** The open season's label, when the refused person is still a candidate. */
         seasonLabel: string | null;
         membershipId: string | null;

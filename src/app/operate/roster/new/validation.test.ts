@@ -28,7 +28,7 @@ function values(overrides: Partial<IntakeFormValues> = {}): IntakeFormValues {
   return { ...EMPTY_VALUES, givenName: "Avery", ...overrides };
 }
 
-describe("the given name", () => {
+describe("the first name", () => {
   it("is required", () => {
     expect(validateIntake(values({ givenName: "" }))).toEqual({
       givenName: GIVEN_NAME_REQUIRED,
@@ -104,7 +104,7 @@ describe("the phone", () => {
 describe("firstInvalidField", () => {
   it("returns the first invalid field in screen order, not object order", () => {
     const errors = validateIntake(values({ givenName: "", email: "nope" }));
-    // Family name, given name, known as, email, phone — given name comes first.
+    // First name, last name, email, phone — the first name comes first.
     expect(firstInvalidField(errors)).toBe("givenName");
   });
 
@@ -114,7 +114,7 @@ describe("firstInvalidField", () => {
 });
 
 describe("readIntakeValues", () => {
-  it("reads the five fields without altering them", () => {
+  it("reads the four fields without altering them", () => {
     const data = new FormData();
     data.append("familyName", " Fielding ");
     data.append("givenName", "Avery");
@@ -124,9 +124,8 @@ describe("readIntakeValues", () => {
     expect(readIntakeValues(data)).toEqual({
       // Preserved exactly, including the spaces. Storing what was typed is the
       // whole point; trimming happens only inside a comparison.
-      familyName: " Fielding ",
       givenName: "Avery",
-      knownAs: "",
+      familyName: " Fielding ",
       email: "avery@example.invalid ",
       phone: "",
     });

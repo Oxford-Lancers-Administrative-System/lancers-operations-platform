@@ -476,59 +476,68 @@ describe("the scenario scripts stay inside the conventions", () => {
 
   /**
    * Every delete, paired with whether a sweep declaration sits **immediately**
-   * above it.
+   * above it — parsed in ONE pass over the raw text.
    *
-   * Adjacency is the whole mechanism. Counting declarations across the file —
-   * which is what this did first — lets one stray comment in a header license
-   * an identifier-less delete three hundred lines below, which is precisely the
-   * careless edit the declaration exists to catch.
+   * ## Why this does not re-find statements
+   *
+   * Two earlier versions of this function parsed the statements from
+   * comment-stripped SQL and then searched the **raw** SQL to discover what
+   * preceded them. Both failed, in the same class, twice:
+   *
+   *   * `indexOf("delete from " + table)` missed any spelling that was not
+   *     exactly one space, returned -1 unchecked, and read the declaration from
+   *     the END of the file — so a trailing comment licensed any sweep;
+   *   * a whitespace-tolerant regex over the raw text matched a **comment**
+   *     that merely mentioned `delete from public.x` in preference to the real
+   *     statement — so ordinary documentation prose licensed any sweep.
+   *
+   * The defect was never the search; it was searching a different string from
+   * the one that was parsed. So there is no search. Each `;`-delimited segment
+   * carries its own preceding comment lines, and the declaration is read from
+   * the same segment the statement was parsed from. A comment can no longer be
+   * mistaken for a statement, and an inline comment *inside* a statement can no
+   * longer break the parse.
    *
    * "Immediately above" means the unbroken run of comment lines directly
-   * preceding the statement, so a declaration may explain itself over two or
-   * three lines. A blank line ends the run: a header block separated from the
-   * statement by whitespace is not attached to it.
+   * preceding the statement. A blank line ends the run, so a header block
+   * separated from the statement by whitespace is attached to nothing.
    */
   function parseDeletesWithDeclarations(
     sql: string,
   ): { table: string; where: string; conjuncts: string[]; declared: boolean }[] {
-    let cursor = 0;
-    return parseDeletes(sql).map((statement) => {
-      // Whitespace-tolerant, and it **throws** when it finds nothing.
-      //
-      // `parseDeletes` collapses whitespace before capturing the table name, so
-      // locating the statement again with `indexOf("delete from " + table)`
-      // missed any spelling that is not exactly one space — `delete  from`, a
-      // line break after `from`, upper case. That returned -1, `slice(0, -1)`
-      // then read almost the whole file, and the "comment run directly above"
-      // was taken from the END of the file: a trailing comment anywhere could
-      // license an undeclared sweep. Failing to locate a statement is a broken
-      // parser, and a broken parser must not read as "no declaration needed".
-      const pattern = new RegExp(
-        `delete\\s+from\\s+${statement.table.replace(/\./g, "\\.")}\\b`,
-        "gi",
+    const results: { table: string; where: string; conjuncts: string[]; declared: boolean }[] = [];
+
+    for (const segment of sql.split(";")) {
+      const withoutComments = segment.replace(/--[^\n]*/g, "");
+      if (!/\bdelete\s+from\b/i.test(withoutComments)) continue;
+
+      const parsed = /\bdelete\s+from\s+([\w.]+)\s+where\s+([\s\S]+)$/i.exec(
+        withoutComments.replace(/\s+/g, " ").trim(),
       );
-      pattern.lastIndex = cursor;
-      const match = pattern.exec(sql);
-      if (!match) {
-        throw new Error(
-          `could not locate 'delete from ${statement.table}' in the source after index ${cursor}`,
-        );
-      }
-      const at = match.index;
-      cursor = at + 1;
+      if (!parsed) throw new Error(`A delete with no where clause: ${segment.trim()}`);
 
-      const above = sql.slice(0, at).split("\n").reverse();
-      // Drop the partial line the statement starts on, then take the unbroken
-      // comment run. `takeWhile` semantics: the first line that is not a
-      // comment stops it, blank included.
+      // The declaration is whatever run of comment lines sits directly above
+      // the first line of this segment that carries actual statement text.
+      const lines = segment.split("\n");
+      const firstStatementLine = lines.findIndex((line) => line.replace(/--.*$/, "").trim() !== "");
       const block: string[] = [];
-      for (const line of above.slice(1)) {
-        if (!line.trim().startsWith("--")) break;
-        block.push(line);
+      for (let i = firstStatementLine - 1; i >= 0; i -= 1) {
+        if (!lines[i].trim().startsWith("--")) break;
+        block.push(lines[i]);
       }
 
-      return { ...statement, declared: block.some((line) => SWEEP_DECLARATION.test(line)) };
-    });
+      results.push({
+        table: parsed[1],
+        where: parsed[2].trim(),
+        conjuncts: parsed[2]
+          .split(/\s+and\s+/i)
+          .map((part) => part.trim())
+          .filter(Boolean),
+        declared: block.some((line) => SWEEP_DECLARATION.test(line)),
+      });
+    }
+
+    return results;
   }
 
   it("holds every pilot scenario to that shape, not just this one", () => {
@@ -617,12 +626,40 @@ describe("the scenario scripts stay inside the conventions", () => {
     }
   });
 
-  it("refuses to guess when it cannot locate a statement it just parsed", () => {
-    // Fail loudly rather than fall back to "undeclared is fine". A parser that
-    // cannot find its own statement knows nothing about what precedes it.
-    const parseable = { table: "public.people", where: "x", conjuncts: ["x"] };
-    expect(parseable.table).toBe("public.people");
-    expect(() => parseDeletesWithDeclarations("delete from public.people where x;")).not.toThrow();
+  it("is not fooled by a comment that merely mentions a delete", () => {
+    // The defect this replaced: the statements were parsed from
+    // comment-stripped SQL and then re-found in the RAW text, so a comment
+    // naming `delete from public.x` was matched in preference to the real
+    // statement — and ordinary documentation prose licensed any sweep.
+    //
+    // This is the case that must never regress, so it is asserted against a
+    // decoy rather than trusted to the one-pass design.
+    const decoyed =
+      "-- SENTINEL-SWEEP: aliases, explained up here where it reads well.\n" +
+      "-- The statement further down is `delete from public.person_aliases where ...`.\n" +
+      "\n" +
+      "-- An ordinary numbered step, carrying no declaration at all.\n" +
+      "delete from public.person_aliases where person_id in " +
+      "(select id from public.people where known_as = 'PILOT-LAN-74');\n";
+
+    const parsed = parseDeletesWithDeclarations(decoyed);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].table).toBe("public.person_aliases");
+    expect(parsed[0].declared, "a comment mentioning a delete must not declare one").toBe(false);
+  });
+
+  it("reads the declaration from the statement's own segment, not a neighbour's", () => {
+    // Two deletes, the first declared and the second not. If the parser ever
+    // shares a comment run between segments, the second inherits the first's
+    // declaration and an undeclared sweep passes.
+    const two =
+      "-- SENTINEL-SWEEP: the first one, properly declared.\n" +
+      "delete from public.contact_points where source = 'PILOT-LAN-74';\n" +
+      "\n" +
+      "delete from public.person_aliases where source = 'PILOT-LAN-74';\n";
+
+    const parsed = parseDeletesWithDeclarations(two);
+    expect(parsed.map((statement) => statement.declared)).toEqual([true, false]);
   });
 
   it("names audit_events as a table no scenario may sweep", () => {
