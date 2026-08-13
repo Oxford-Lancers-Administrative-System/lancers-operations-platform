@@ -354,6 +354,9 @@ describe("local Supabase workflow contract", () => {
     expect(command).not.toMatch(/randomBytes/);
     expect(command).not.toMatch(/review-credentials/);
     expect(command).not.toMatch(/`TEST_USER_PASSWORD=\$\{reviewAccount\.password\}`/);
+    expect(readFileSync(path.join(root, "supabase", "config.toml"), "utf8")).toMatch(
+      /minimum_password_length = 8/,
+    );
   });
 
   it("makes the existing review-ready command validate browser evidence", () => {
