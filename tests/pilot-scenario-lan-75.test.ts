@@ -200,6 +200,37 @@ async function linkOperatorAccountTo(client: Client, personId: string): Promise<
   );
 }
 
+/**
+ * Generates onboarding items the way the application does — one row for **every**
+ * item type configured on the season, not just this scenario's three.
+ *
+ * A copy of `generateOnboardingItems`'s predicate rather than a call to it,
+ * because that function requires the service layer's `Tx` and this suite runs
+ * raw SQL on its own rolled-back client. The `onConflict` clause matches too.
+ * Kept deliberately close to the original: an earlier version of this test
+ * filtered to the pilot types, and that difference is precisely what hid a
+ * foreign-key abort in `cleanup.sql` from the whole suite.
+ */
+async function generateItemsAsTheApplicationDoes(
+  client: Client,
+  membershipId: string,
+  seasonId: string,
+): Promise<number> {
+  const result = await client.query(
+    `insert into public.onboarding_items (season_membership_id, season_id, item_type_id, status)
+     select $1::uuid, t.season_id, t.id, 'pending'::public.onboarding_item_status
+       from public.onboarding_item_types t
+      where t.season_id = $2::uuid
+     on conflict (season_membership_id, item_type_id) do nothing`,
+    [membershipId, seasonId],
+  );
+  // `on conflict do nothing`, so a membership that already carries the season's
+  // seeded items gains only the scenario's three. The caller asserts the
+  // stronger property where it holds.
+  expect(result.rowCount ?? 0).toBeGreaterThan(0);
+  return result.rowCount ?? 0;
+}
+
 let client: Client;
 
 beforeEach(async () => {
@@ -618,14 +649,20 @@ describe("cleanup.sql", () => {
        values ($1::uuid, null, 'carried_forward', (select id from public.people where id <> $2::uuid limit 1))`,
       [membership.id, person.id],
     );
-    // The items the application generates on confirmation, from the pilot types.
-    await client.query(
-      `insert into public.onboarding_items (season_membership_id, season_id, item_type_id, status)
-       select $1::uuid, $2::uuid, t.id, 'pending'
-         from public.onboarding_item_types t
-        where t.id::text like $3`,
-      [membership.id, seasonId, `${ID_PREFIX}%`],
-    );
+    // The items the application generates on confirmation — from EVERY type
+    // configured on the season, which is what `generateOnboardingItems` does.
+    //
+    // This used to filter to the pilot types, and that mock concealed a real
+    // failure: the club's own items stayed on the membership, `cleanup.sql` did
+    // not reach them, and deleting the membership aborted the whole script on
+    // `onboarding_items_membership_season`. Independent review found it by
+    // running the real predicate. The helper is shared with the bystander test
+    // below so the two cannot drift apart again.
+    const generated = await generateItemsAsTheApplicationDoes(client, membership.id, seasonId);
+    // The whole point: a returner created through the interface carries the
+    // club's own items as well as this scenario's three. If that stops being
+    // true, this test stops covering the foreign-key abort it exists for.
+    expect(generated, "the season configures no item types beyond the pilot's").toBeGreaterThan(3);
     await client.query(
       `insert into public.audit_events (actor_person_id, action, entity_table, entity_id)
        values ((select id from public.people where id <> $1::uuid limit 1), 'returner_membership_confirmed', 'season_memberships', $2::uuid)`,
@@ -655,13 +692,7 @@ describe("cleanup.sql", () => {
         order by m.id limit 1`,
       [seasonId, MEMBERSHIP_ID],
     );
-    await client.query(
-      `insert into public.onboarding_items (season_membership_id, season_id, item_type_id, status)
-       select $1::uuid, $2::uuid, t.id, 'pending'
-         from public.onboarding_item_types t
-        where t.id::text like $3`,
-      [bystander.id, seasonId, `${ID_PREFIX}%`],
-    );
+    await generateItemsAsTheApplicationDoes(client, bystander.id, seasonId);
 
     await client.query(CLEANUP);
 

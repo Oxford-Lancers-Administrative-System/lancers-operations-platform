@@ -297,6 +297,31 @@ delete from public.onboarding_items
  where item_type_id in (select id from public.onboarding_item_types where id in ('00750075-0075-4075-8075-000000000001', '00750075-0075-4075-8075-000000000002', '00750075-0075-4075-8075-000000000003'))
    and item_type_id in (select id from public.onboarding_item_types where label like '%PILOT-LAN-75%');
 
+-- 1b. Every OTHER onboarding item on a membership this script is about to
+--     delete — the ones generated from the club's own item types rather than
+--     this scenario's.
+--
+--     `generateOnboardingItems` inserts one row for **every** type configured
+--     on the season, not just the pilot's three. So a returner created through
+--     the interface while the scenario is installed carries the club's items
+--     too, statement 1 above does not reach them, and deleting their membership
+--     at statement 3 hit `onboarding_items_membership_season` — a foreign key
+--     with no `on delete` clause — and aborted the whole script with a raw
+--     integrity error.
+--
+--     Independent review found this by running the real generation predicate
+--     rather than the one the scenario test had been hand-rolling. It fails
+--     closed (one transaction, nothing deleted) and cannot fire on a hosted
+--     project with no item types of its own — but setup.sql explicitly permits
+--     the club to have some, which makes it reachable, and the scenario would
+--     then be uncleanable by its own script.
+--
+--     Scoped to the target memberships, so it cannot reach an item belonging to
+--     anybody this script is not already removing entirely.
+delete from public.onboarding_items
+ where season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_75_targets))
+   and season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name)))));
+
 -- 2. Status history — the scenario's own two rows, everything the application
 --    wrote against the scenario membership while it was exercised, and the
 --    history of the returner created through the interface. All three are one

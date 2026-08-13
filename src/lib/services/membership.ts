@@ -231,6 +231,26 @@ function outstandingFrom(items: readonly OnboardingItem[]): OnboardingItem[] {
   );
 }
 
+/**
+ * The same rule, in SQL, for the roster list's `required_outstanding` count.
+ *
+ * It has to exist twice — once in TypeScript for the record, once in SQL so the
+ * roster can count across 42 memberships in one query rather than reading every
+ * item of every one of them. Two copies of a rule is how a rule rots, and
+ * independent review demonstrated exactly that: deleting `and not
+ * t.is_subscription` from the SQL copy left the whole suite green while UX-20's
+ * Onboarding column began reporting an unpaid subscription as "1 outstanding" —
+ * the precise lesson about this club that register D10 says must never be
+ * taught, on the screen an operator scans first.
+ *
+ * So the SQL is a named constant rather than inline text, and
+ * `membership.test.ts` asserts the two copies **agree** against a membership
+ * whose only unresolved item is the subscription. Editing one and not the other
+ * now fails.
+ */
+const GATING_ITEM_PREDICATE = `t.is_required and not t.is_subscription
+      and i.status not in ('complete', 'waived', 'not_applicable')`;
+
 async function readOnboardingItems(tx: Tx, membershipId: string): Promise<OnboardingItem[]> {
   const result = await tx.query<{
     id: string;
@@ -339,7 +359,17 @@ export const ROSTER_SORT_COLUMNS: Readonly<
 export const DEFAULT_ROSTER_SORT = "name";
 
 function rosterOrderBy(sort: string | null, direction: string | null): string {
-  const column = ROSTER_SORT_COLUMNS[sort ?? ""] ?? ROSTER_SORT_COLUMNS[DEFAULT_ROSTER_SORT];
+  // `Object.hasOwn`, not a plain lookup. `ROSTER_SORT_COLUMNS["toString"]`
+  // resolves through `Object.prototype` to a function, which is truthy — so
+  // `??` never falls back, `column.sql` is `undefined`, and the query becomes
+  // `order by undefined`, which the database refuses and the screen renders as
+  // "the roster is unavailable". `?sort=toString` is a URL anybody can type;
+  // `constructor`, `valueOf` and `hasOwnProperty` do the same. Not injection —
+  // the whitelist still holds and nothing of the caller's text reaches the SQL
+  // — but a denial of service on a screen, found by independent review.
+  const column = Object.hasOwn(ROSTER_SORT_COLUMNS, sort ?? "")
+    ? ROSTER_SORT_COLUMNS[sort as string]
+    : ROSTER_SORT_COLUMNS[DEFAULT_ROSTER_SORT];
   const dir = direction === "asc" || direction === "desc" ? direction : column.default;
   // A stable tie-break on the name, so two operators sorting by status see the
   // same list rather than whatever order the rows came back in.
@@ -398,8 +428,7 @@ const ITEM_COUNT_COLUMNS = `
   (select count(*) from public.onboarding_items i
      join public.onboarding_item_types t on t.id = i.item_type_id
     where i.season_membership_id = m.id
-      and t.is_required and not t.is_subscription
-      and i.status not in ('complete', 'waived', 'not_applicable')) as required_outstanding`;
+      and ${GATING_ITEM_PREDICATE}) as required_outstanding`;
 
 interface RosterRow {
   membership_id: string;
@@ -806,9 +835,17 @@ export async function activateMembership(params: {
       });
     }
 
+    // Keyed on what was actually outstanding, not on whether a reason arrived.
+    // The dialog only appears when something is outstanding, but a direct POST
+    // can carry a reason regardless — and a history that says "activated with
+    // outstanding required onboarding" beside an empty
+    // `proceeded_over_outstanding` is a record asserting something that did not
+    // happen. Found by independent review.
     const reason =
-      overrideReason === null
-        ? "Operator declared the player operationally ready."
+      outstanding.length === 0
+        ? overrideReason === null
+          ? "Operator declared the player operationally ready."
+          : `Operator declared the player operationally ready: ${overrideReason}`
         : `Activated with outstanding required onboarding: ${overrideReason}`;
 
     await recordStatusEvent(tx, {

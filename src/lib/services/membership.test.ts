@@ -33,7 +33,7 @@ import {
   setMembershipInactive,
   type MembershipStatus,
 } from "./membership";
-import { resolveOpenSeason } from "./roster";
+import { enterReturningPlayer, resolveOpenSeason } from "./roster";
 
 /** This suite's namespace. Never shared — parallel suites share one database. */
 const MARKER = "LAN75Membership";
@@ -292,6 +292,58 @@ describe("generateOnboardingItems", () => {
     expect(membership.onboardingItems.every((item) => item.status === "pending")).toBe(true);
   });
 
+  /**
+   * Acceptance criterion 1, on the path that actually produces a confirmed
+   * membership in this application.
+   *
+   * The three tests around this one call `generateOnboardingItems` themselves,
+   * so all of them stayed green when independent review deleted the call from
+   * `enterReturningPlayer` — the entire wiring of "confirming a membership
+   * generates its onboarding items" was one unprotected line. This is the test
+   * that fails when it goes.
+   */
+  it("is what confirming a returner does, not just a function this suite calls", async () => {
+    const givenName = `${MARKER}Intake${counter++}`;
+    const result = await enterReturningPlayer({
+      actorPersonId,
+      input: { givenName, familyName: "Testcase", email: "intake@example.invalid" },
+      decision: { kind: "new", confirmed: true },
+    });
+
+    const membership = await readMembership(result.membershipId);
+
+    expect(membership.status).toBe("confirmed");
+    expect(membership.onboardingItems.map((item) => item.code).sort()).toEqual(
+      seasonTypes.map((type) => type.code).sort(),
+    );
+    expect(membership.onboardingItems.every((item) => item.status === "pending")).toBe(true);
+  });
+
+  it("generates them inside the intake transaction, so a failed intake leaves none", async () => {
+    const givenName = `${MARKER}Rollback${counter++}`;
+
+    await expect(
+      withTransaction(async () => {
+        await enterReturningPlayer({
+          actorPersonId,
+          input: { givenName, familyName: "Testcase" },
+          decision: { kind: "new", confirmed: true },
+        });
+        throw new Error("the caller failed after the intake succeeded");
+      }),
+    ).rejects.toThrow("the caller failed after the intake succeeded");
+
+    // Read from outside: no membership, and therefore no orphan items.
+    const orphans = await observer.query(
+      `select 1 from public.onboarding_items i
+         join public.season_memberships m on m.id = i.season_membership_id
+         join public.people p on p.id = m.person_id
+        where p.given_name = $1`,
+      [givenName],
+    );
+    expect(orphans.rowCount).toBe(0);
+  });
+
   it("is idempotent — a second call writes nothing and is not an error", async () => {
     const membershipId = await givenMembership("confirmed");
 
@@ -475,6 +527,23 @@ describe("activateMembership — outstanding required items", () => {
     try {
       const membership = await readMembership(membershipId);
       expect(membership.outstandingRequired).toHaveLength(0);
+
+      /**
+       * The rule lives twice — `outstandingFrom()` in TypeScript and
+       * `GATING_ITEM_PREDICATE` in SQL for the roster's count — and independent
+       * review deleted the SQL half with the whole suite staying green, while
+       * UX-20's Onboarding column started reading "1 outstanding" for exactly
+       * this member. So the two copies are asserted to agree, here, on the same
+       * fixture and inside the same mutation window: this is the only test that
+       * makes the seeded subscription type required, and doing it twice raced
+       * the pilot suite's repeatable-read snapshot.
+       */
+      const roster = await listCurrentSeasonRoster({ search: MARKER });
+      const entry = roster.entries.find((each) => each.membershipId === membershipId)!;
+      expect(entry.requiredOutstanding).toBe(0);
+      expect(entry.requiredOutstanding).toBe(membership.outstandingRequired.length);
+      // The subscription really is unresolved — otherwise this passes vacuously.
+      expect(entry.itemsResolved).toBeLessThan(entry.itemsTotal);
 
       // No override reason, and it still goes through.
       const outcome = await activateMembership({ actorPersonId, membershipId });
@@ -839,6 +908,48 @@ describe("listCurrentSeasonRoster", () => {
     expect(entry.itemsTotal).toBe(seasonTypes.length);
     expect(entry.requiredOutstanding).toBe(0);
     expect(entry.itemsResolved).toBeGreaterThan(0);
+  });
+
+  /**
+   * Register D10 on the roster list, which is a **second** copy of the rule —
+   * `GATING_ITEM_PREDICATE` in SQL, `outstandingFrom()` in TypeScript.
+   *
+   * Independent review deleted `and not t.is_subscription` from the SQL copy
+   * and the whole suite stayed green, while UX-20's Onboarding column began
+   * reading "1 outstanding" for a member whose only unresolved item was the
+   * unpaid subscription. That is the lesson about this club that D10 says must
+   * never be taught, on the screen an operator scans first.
+   *
+   * So this asserts the two copies agree, on a membership constructed to make
+   * them disagree if either is edited alone.
+   */
+  it("counts a genuinely outstanding required item, so the check above is not vacuous", async () => {
+    const membershipId = await givenMembership("onboarding");
+    const required = seasonTypes.find((type) => type.isRequired && !type.isSubscription)!;
+    await settleRequiredItems(membershipId);
+    await setItemStatus(membershipId, required.code, "pending");
+
+    const roster = await listCurrentSeasonRoster({ search: MARKER });
+    const entry = roster.entries.find((each) => each.membershipId === membershipId)!;
+    const record = await readMembership(membershipId);
+
+    expect(entry.requiredOutstanding).toBe(1);
+    expect(entry.requiredOutstanding).toBe(record.outstandingRequired.length);
+  });
+
+  it("resolves an inherited Object.prototype key to the default sort, not a crash", async () => {
+    // `ROSTER_SORT_COLUMNS["toString"]` is a function — truthy — so a plain
+    // lookup with `??` never fell back and the query became `order by
+    // undefined`, which the database refuses and the screen renders as "the
+    // roster is unavailable". `?sort=toString` is a URL anybody can type.
+    const byName = await listCurrentSeasonRoster({ sort: "name" });
+
+    for (const inherited of ["toString", "constructor", "valueOf", "hasOwnProperty"]) {
+      const roster = await listCurrentSeasonRoster({ sort: inherited });
+      expect(roster.entries.map((entry) => entry.membershipId)).toEqual(
+        byName.entries.map((entry) => entry.membershipId),
+      );
+    }
   });
 
   it("falls back to the default sort for a column that is not on the whitelist", async () => {

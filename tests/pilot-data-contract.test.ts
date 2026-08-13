@@ -878,6 +878,21 @@ describe("the scenario scripts stay inside the conventions", () => {
           "item_type_id in (select id from public.onboarding_item_types where label like '%PILOT-LAN-75%')",
         ],
       ],
+      // The second onboarding-items delete: every OTHER item on a membership
+      // this scenario is about to remove entirely. `generateOnboardingItems`
+      // inserts one row per item type configured on the season, not just this
+      // scenario's three, so a returner created through the interface carries
+      // the club's items too — and without this the membership delete aborts on
+      // `onboarding_items_membership_season`. Scoped to the target memberships,
+      // so it cannot reach an item belonging to anybody not already being
+      // removed whole.
+      [
+        "public.onboarding_items",
+        [
+          "season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_75_targets))",
+          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-75' in (upper(btrim(known_as)), upper(btrim(family_name)))))",
+        ],
+      ],
       [
         "public.season_membership_status_events",
         [
@@ -929,6 +944,7 @@ describe("the scenario scripts stay inside the conventions", () => {
       const scenario = path.basename(path.dirname(file));
       const sentinel = new RegExp(`PILOT-${scenario}`, "i");
       const pinned = SENTINEL_ONLY_DELETES[scenario];
+      const usedPins = new Set<string>();
 
       for (const statement of parseDeletes(read(file))) {
         expect(statement.where, `${file}: ${statement.table}`).not.toMatch(/\bor\b/i);
@@ -953,15 +969,41 @@ describe("the scenario scripts stay inside the conventions", () => {
             `scripts/pilot/${scenario}/README.md does not declare the sentinel-only shape`,
           ).toContain(SENTINEL_ONLY_HEADING);
 
-          const match = (pinned ?? []).find(([table]) => table === statement.table);
+          // Every pinned predicate for this table, not just the first.
+          //
+          // A scenario may legitimately need two deletes against one table with
+          // different predicates — LAN-75 removes onboarding items twice, once
+          // by item type (which reaches memberships that are not scenario data)
+          // and once by target membership (which reaches items of types that
+          // are not the scenario's). `find` matched only the first entry, so
+          // the second statement could never be pinned at all.
+          //
+          // This is not a relaxation: the statement must still equal one of the
+          // pinned predicate sets **exactly**, and `usedPins` below requires
+          // every pinned entry to be matched by a real statement, so an unused
+          // entry cannot sit here quietly permitting something.
+          const candidates = (pinned ?? []).filter(([table]) => table === statement.table);
           expect(
-            match,
+            candidates.length,
             `${file}: ${statement.table} is not a table ${scenario} may delete from`,
-          ).toBeDefined();
+          ).toBeGreaterThan(0);
+
+          const matchIndex = candidates.findIndex(
+            ([, conjuncts]) =>
+              conjuncts.length === statement.conjuncts.length &&
+              conjuncts.every((part, at) => part === statement.conjuncts[at]),
+          );
           expect(
-            statement.conjuncts,
-            `${file}: ${statement.table}: unexpected delete predicate`,
-          ).toEqual([...(match?.[1] ?? [])]);
+            matchIndex,
+            `${file}: ${statement.table}: unexpected delete predicate\n` +
+              `  got:      ${JSON.stringify(statement.conjuncts, null, 2)}\n` +
+              `  pinned:   ${JSON.stringify(
+                candidates.map(([, c]) => c),
+                null,
+                2,
+              )}`,
+          ).toBeGreaterThanOrEqual(0);
+          usedPins.add(`${statement.table}#${matchIndex}`);
 
           // And the pinned predicate itself still has to prove ownership, so a
           // future edit to the list cannot quietly drop the sentinel half.
@@ -978,6 +1020,21 @@ describe("the scenario scripts stay inside the conventions", () => {
         expect(
           ownership.every((part) => sentinel.test(part) || /'[0-9a-f-]{36}'/i.test(part)),
           `${file}: ${statement.table} has a conjunct that proves nothing`,
+        ).toBe(true);
+      }
+
+      // Every pinned predicate must be used by a real statement. Without this,
+      // allowing more than one entry per table would let a stale or speculative
+      // predicate sit in the list permitting a delete nothing performs — which
+      // is exactly the "a stale entry is worse than none" failure the next test
+      // guards against at scenario granularity, one level finer.
+      for (const [index, [table]] of (pinned ?? []).entries()) {
+        const key = `${table}#${(pinned ?? [])
+          .filter(([each]) => each === table)
+          .findIndex((entry) => entry === (pinned ?? [])[index])}`;
+        expect(
+          usedPins.has(key),
+          `${scenario}: the pinned ${table} predicate at index ${index} matches no delete in ${file}`,
         ).toBe(true);
       }
     }

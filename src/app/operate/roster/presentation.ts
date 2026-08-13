@@ -114,8 +114,14 @@ export function describeOnboarding(entry: RosterEntry): string {
     return `${entry.requiredOutstanding} outstanding`;
   }
   if (entry.itemsResolved === entry.itemsTotal) return "Complete";
-  const optional = entry.itemsTotal - entry.itemsResolved;
-  return `${optional} optional outstanding`;
+  // "none blocking", not "optional". An unpaid subscription is very often
+  // marked `is_required` — the pilot scenario marks it so deliberately — and
+  // calling it optional would be false about the item while trying to be true
+  // about the gate. This says only what the count means: nothing here stands
+  // between this member and activation. Independent review caught the earlier
+  // wording.
+  const remaining = entry.itemsTotal - entry.itemsResolved;
+  return `${remaining} outstanding, none blocking`;
 }
 
 /**

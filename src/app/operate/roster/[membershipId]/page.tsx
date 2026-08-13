@@ -12,6 +12,7 @@ import { operatorHasCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   readMembership,
+  RESOLVED_ITEM_STATUSES,
   type MembershipRecord,
   type MembershipStatusEvent,
   type OnboardingItem,
@@ -133,7 +134,10 @@ export default async function MembershipPage({
           colour={membershipStatusColour(status)}
         />
         <Headline
-          value={`${membership.onboardingItems.filter((item) => item.status !== "pending" && item.status !== "invited").length} of ${membership.onboardingItems.length}`}
+          // `RESOLVED_ITEM_STATUSES` rather than naming the two unresolved ones:
+          // a fifth unresolved status added to the enum later would otherwise
+          // start counting as resolved here and nowhere else.
+          value={`${membership.onboardingItems.filter((item) => RESOLVED_ITEM_STATUSES.includes(item.status)).length} of ${membership.onboardingItems.length}`}
           label="Onboarding items resolved"
         />
         <Headline value={labelFor(ENTRY_LABELS, membership.entry)} label="Entry" />
@@ -449,7 +453,11 @@ function CreatedBy({ membership }: { membership: MembershipRecord }) {
         <time dateTime={first.occurredAt.toISOString()}>{formatWhen(first.occurredAt)}</time>
       </Typography>
       {membership.confirmedOn ? (
-        <Chip size="small" variant="outlined" label={`Confirmed ${membership.confirmedOn}`} />
+        <Chip
+          size="small"
+          variant="outlined"
+          label={`Confirmed ${formatDay(membership.confirmedOn)}`}
+        />
       ) : null}
     </>
   );
