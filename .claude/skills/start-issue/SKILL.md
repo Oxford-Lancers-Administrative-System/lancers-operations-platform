@@ -124,28 +124,87 @@ reuse. Otherwise stop it and release the lease when finished. Never run a
 coordinator command against hosted Supabase; every existing loopback and
 non-hosted guard remains authoritative.
 
-## 7. Verify and prepare review evidence
+## 7. Classify the visual gate
+
+Before implementation, classify the issue as `UI-affecting`, `nonvisual`, or
+`mixed` from its acceptance criteria and the rendered behavior it changes.
+UI-affecting means presentation or usability that genuinely needs human visual
+judgment; backend, schema, integration, infrastructure, security, and other
+objectively testable behavior is nonvisual. Mixed work uses the visual gate only
+for its user-visible portion. Record the classification in the internal matrix.
+
+## 8. Objective verification and visual preflight
 
 Run the complete repository-required verification and inspect the actual
 result. If migrations changed, also run the migration verification required by
 `AGENTS.md`. A reported pass means the command was run and observed to pass.
 
-For authenticated or visual work, start the assigned stack and app, seed the
-synthetic state, create and link the local operator, establish the closest
-possible one-action authenticated state, and capture required desktop and 375px
-evidence. Never place credentials in Git, Linear, a PR, or logs; if manual local
-credentials are unavoidable, provide a safe local retrieval command.
+For authenticated or UI-affecting work, own the complete local environment:
+install dependencies; acquire and start the assigned Supabase slot; reset and
+migrate it; seed deterministic review states; automatically create, confirm and
+link the fixed machine-local review account; configure and start the application;
+resolve ports and process conflicts; and troubleshoot ordinary failures. The
+fixed review account is `brian.daniel.schuster@gmail.com`; its approved password
+comes only from protected machine-local coordinator state shared by all
+worktrees and both slots. Never print or copy it into Git, Linear, PR text,
+screenshots, test output, logs, tracked examples, or hosted configuration.
+
+Before contacting Brian, use a browser to open the supplied URL, sign in through
+the real application login, visit every review route and state, confirm seeded
+data, check desktop and 375px layouts, and fix ordinary setup, runtime, and visual
+defects. Record evidence that URL response, authentication, required states, both
+viewports, and the protected coordinator lease were personally verified. Do not
+claim readiness from scripts or HTTP probes alone. After completing those checks,
+write their non-secret result to the ignored
+`.lancers-runtime/visual-review.json`; the existing `db:review-ready` command
+validates that record and fails closed if any fact is absent or the URL does not
+match the assigned loopback application port.
 
 Commit and push the issue branch. Open or update a normal **draft** PR against
 `main`; never use the fast lane, auto-merge, merge, un-draft, deploy, or migrate
 hosted Supabase. Fill every Production handoff line in the PR template,
 including explicit `No` and `None` answers.
 
+### UI-affecting and mixed checkpoint
+
+After objective verification and agent visual preflight, but before final
+verification and independent correctness review, mark the slot `review-ready`.
+Only after the working URL, real login, seeded states, desktop and 375px evidence,
+and protected lease are all verified may the issue move to In Review and the
+session report `Awaiting owner visual review`.
+
+The visual handoff supplies one clickable URL, the fixed email and password, the
+exact routes/workflow, a short numbered list of concrete visual judgments, known
+visual limitations, and a request to approve presentation or identify
+corrections. It must state exactly:
+
+- `Commands Brian must run: None`
+- `Database/setup actions Brian must perform: None`
+- `Production actions Brian must perform: None`
+
+Never ask Brian to repeat automated checks or inspect invisible behavior. If
+any readiness fact is false, continue troubleshooting; report `Visual review
+environment not ready` only for a genuine missing-access, external-service,
+permission, or owner-decision blocker, without delegating setup commands.
+
+Stop at this checkpoint. The draft PR remains draft and must be described as
+visual-pending, not complete or PR-ready. Do not launch final independent review.
+
+After Brian responds, apply requested corrections. Repeat browser preflight and
+the human checkpoint when presentation or flow changed materially. Once Brian
+approves, run final verification at the current commit and continue to final
+independent review. Nonvisual work skips this checkpoint entirely.
+
 Inspect GitHub Actions for the current PR head SHA. Read the actual job
 conclusions and failed logs, not merely a green badge or another agent's report.
 CI for an older SHA is not evidence.
 
-## 8. Route independent review
+## 9. Route final independent review
+
+Independent correctness review is final: for UI-affecting or mixed work it runs
+only after owner visual approval and any corrections, and it is pinned to the
+current verified commit. Visual approval never substitutes for tests, security
+validation, CI, or this review.
 
 For Low risk, read the complete diff and verification evidence yourself and
 record why independent review is not required.
@@ -162,14 +221,16 @@ new head, and launch a fresh reviewer to review the corrected head. Do not ask
 the original reviewer to bless its stale result. Continue until the required
 review is clear or a genuine blocker remains.
 
-## 9. Final handoff
+## 10. Final handoff
 
 Add the draft PR link to the Linear issue. Then add exactly one final Linear
 evidence/handoff comment covering completed implementation, automated
 verification, reviewed head SHA and independent-review result, visual/human
 review required, exact local URL and route, authentication method, remaining
 Brian actions, post-merge database/production actions, and known limitations.
-Use explicit `None` where no action remains.
+Use explicit `None` where no action remains. Do not set In Review unless human
+visual acceptance is genuinely pending and the complete review environment has
+been personally verified in a browser.
 
 Return the same concise evidence to Brian. Do not set In Review unless human or
 visual acceptance is genuinely pending. Leave the draft PR, worktree, branch,

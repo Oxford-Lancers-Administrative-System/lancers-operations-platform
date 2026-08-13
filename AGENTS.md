@@ -108,12 +108,12 @@ npm run start              # serve the production build
 
 # Database (local Supabase only)
 npm run db:acquire -- LAN-### # claim primary, or overflow when primary is occupied
-npm run db:start           # start the stack; first run pulls images
+npm run db:start           # start stack and restore synthetic review state/login
 npm run db:stop
 npm run db:status          # prints URL and keys
-npm run db:reset           # drop and re-apply every migration from empty
+npm run db:reset           # reset, seed, and restore the fixed review login
 npm run db:seed            # load the deterministic synthetic dataset (local only)
-npm run db:seed-user       # create/update the one local test user
+npm run db:seed-user       # create/update the fixed local review user
 npm run db:heartbeat
 npm run db:review-ready
 npm run db:release
@@ -470,9 +470,9 @@ Exactly one user-invoked workflow and one review subagent are approved:
 
 The top-level session reads the complete issue, confirms dependencies and human
 gates, enters or safely resumes one issue-specific worktree from current
-`main`, writes an internal acceptance/test matrix, implements directly, verifies
-actual results, routes graded review, corrects findings, and hands back one
-normal draft pull request. It never launches an implementation subagent, selects
+`main`, writes an internal acceptance/test matrix, implements directly, and
+classifies the issue as UI-affecting, nonvisual, or mixed. It never launches an
+implementation subagent, selects
 a second issue, starts a wave, uses the fast lane, merges, un-drafts, deploys,
 migrates hosted Supabase, or writes to production.
 
@@ -490,6 +490,20 @@ migrates hosted Supabase, or writes to production.
   production-affecting workflows, and the agent harness. A correction at
   Highest risk requires a fresh re-review of the corrected head. An unspecified
   grade resolves to Normal.
+- **Visual acceptance precedes final correctness review.** After objective
+  verification, UI-affecting work receives agent browser preflight at desktop
+  and 375px, then stops with a live protected `review-ready` environment for
+  Brian's presentation judgment. Mixed work stops only for that visible portion;
+  nonvisual work never introduces a human visual stop. After approval or visual
+  corrections, final verification and graded independent review run at the
+  current commit. The normal pull request remains draft throughout.
+- **Brian's visual handoff is zero-command.** The agent installs dependencies,
+  starts and repairs local services, resets and seeds the database, provisions
+  the fixed local review login through the real auth flow, starts the app, and
+  personally verifies every route/state in a browser. The handoff supplies one
+  URL, the fixed login, exact review path, concrete visual judgments and known
+  limitations, and explicitly says commands, database/setup actions, and
+  production actions for Brian are all `None`.
 - **Ambiguity escalates; routine engineering does not.** Stop only for a genuine
   owner decision, irreconcilable authoritative conflict, missing access or
   credential, or an unsafe technical blocker. Resolve ordinary implementation
@@ -507,7 +521,7 @@ migrates hosted Supabase, or writes to production.
 Linear recordkeeping is limited to In Progress at start, the draft PR link, and
 one final evidence/handoff comment. Use In Review only for genuine human or
 visual acceptance. See
-[`docs/adr/0018-single-issue-agent-development.md`](docs/adr/0018-single-issue-agent-development.md).
+[`docs/adr/0020-zero-command-visual-review.md`](docs/adr/0020-zero-command-visual-review.md).
 
 Every issue returns one draft pull request, and Brian merges it. **No agent
 merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to

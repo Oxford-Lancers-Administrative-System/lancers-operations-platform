@@ -9,6 +9,7 @@ import {
   releaseLease,
   updateLease,
 } from "./lib/local-supabase-coordinator.mjs";
+import { requireVisualReviewReadiness } from "./lib/visual-review-readiness.mjs";
 
 const repoPath = process.cwd();
 const [operation, argument] = process.argv.slice(2);
@@ -42,6 +43,8 @@ try {
     console.log(`Heartbeat recorded for ${lease.slot}.`);
   } else if (operation === "review-ready") {
     const session = readSession(repoPath);
+    const current = await updateLease({ repoPath, token: session.token });
+    requireVisualReviewReadiness(repoPath, current.applicationPort);
     const lease = await updateLease({ repoPath, token: session.token, state: "review-ready" });
     console.log(`${lease.slot} is protected as review-ready.`);
   } else if (operation === "release") {

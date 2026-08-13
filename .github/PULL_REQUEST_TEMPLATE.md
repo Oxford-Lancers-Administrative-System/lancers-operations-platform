@@ -27,6 +27,17 @@ if migrations changed. "Should pass" is not verification.
 
 ```
 
+## Visual acceptance
+
+- **Classification:** UI-affecting / nonvisual / mixed
+- **Status:** Not required / Awaiting owner visual review / Approved
+- **Verified review URL and routes:** None for nonvisual work
+- **Agent browser preflight:** URL, real login, seeded states, desktop, 375px,
+  and protected `review-ready` lease verified / Not applicable
+- **Commands Brian must run:** None
+- **Database/setup actions Brian must perform:** None
+- **Production actions Brian must perform:** None
+
 ## Fast lane
 
 <!--

@@ -21,23 +21,30 @@ import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { LOCAL_REVIEW_EMAIL } from "./lib/local-review-account.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: resolve(root, ".env.local"), quiet: true });
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const secretKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-const email = process.env.TEST_USER_EMAIL ?? "test.user@oxfordlancers.local";
+const email = process.env.TEST_USER_EMAIL ?? LOCAL_REVIEW_EMAIL;
 const password = process.env.TEST_USER_PASSWORD;
 
 if (!url || !secretKey) {
-  console.error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY. Copy .env.example to .env.local\nand fill it from `npm run db:status`.",
-  );
+  console.error("Missing local Supabase configuration or TEST_USER_EMAIL.");
   process.exit(1);
 }
 
-const isLocal = /^https?:\/\/(127\.0\.0\.1|localhost|host\.docker\.internal|kong)(:\d+)?/.test(url);
+let isLocal = false;
+try {
+  const target = new URL(url);
+  isLocal =
+    ["http:", "https:"].includes(target.protocol) &&
+    ["127.0.0.1", "localhost", "::1"].includes(target.hostname);
+} catch {
+  isLocal = false;
+}
 if (!isLocal) {
   console.error(`Refusing to run: ${url} is not a local Supabase URL.`);
   console.error("This script provisions users with a privileged key and is local-only by design.");

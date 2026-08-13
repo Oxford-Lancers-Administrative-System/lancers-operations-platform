@@ -10,12 +10,20 @@
  */
 import { describe, expect, it } from "vitest";
 import { createClient } from "@supabase/supabase-js";
+import path from "node:path";
+import {
+  LOCAL_REVIEW_EMAIL,
+  readLocalReviewAccount,
+} from "../scripts/lib/local-review-account.mjs";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const publishableKey =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const email = process.env.TEST_USER_EMAIL ?? "test.user@oxfordlancers.local";
-const password = process.env.TEST_USER_PASSWORD;
+const email = process.env.TEST_USER_EMAIL ?? LOCAL_REVIEW_EMAIL;
+let password = process.env.TEST_USER_PASSWORD;
+if (!password && url && ["127.0.0.1", "localhost", "::1"].includes(new URL(url).hostname)) {
+  password = readLocalReviewAccount(path.resolve(import.meta.dirname, "..")).password;
+}
 
 const configured = Boolean(url && publishableKey && password);
 
