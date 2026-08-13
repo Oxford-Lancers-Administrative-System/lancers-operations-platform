@@ -1499,51 +1499,16 @@ describe("the cleanup's cascade enumeration is complete against the live schema"
   });
 });
 
-describe("every scenario delete is keyed on an identifier and the sentinel", () => {
-  /**
-   * The runbook's rule, asserted as a parsed predicate rather than by reading
-   * the file: one `and` becoming an `or` is the whole distance between the
-   * narrowest possible delete and an arbitrary one.
-   *
-   * The sweep is deliberately excluded and asserted separately below — it
-   * cannot carry a deterministic identifier, and pretending otherwise by
-   * loosening this test is exactly the failure this test exists to catch.
-   */
-  const SCENARIO_IDS = Object.values(ID);
-
-  const deletes = CLEANUP_FILE.split(/\n(?=delete from)/)
-    .filter((statement) => statement.trimStart().startsWith("delete from"))
-    .map((statement) => statement.split(";")[0]);
-
-  it("finds every delete statement in cleanup.sql", () => {
-    expect(deletes.length).toBe(9);
-  });
-
-  it("keys each scenario delete on a deterministic identifier AND a sentinel", () => {
-    const scenarioDeletes = deletes.filter((statement) =>
-      SCENARIO_IDS.some((id) => statement.includes(id)),
-    );
-    expect(scenarioDeletes).toHaveLength(4);
-
-    for (const statement of scenarioDeletes) {
-      expect(statement, `not conjoined: ${statement}`).toMatch(/\band\b/);
-      expect(statement).not.toMatch(/\bor\b/);
-      expect(
-        statement.includes(SENTINEL) || statement.includes(ID.personFirstNameOnly),
-        `no sentinel half: ${statement}`,
-      ).toBe(true);
-    }
-  });
-
-  it("confines the sentinel-only sweep to exactly the five statements that need it", () => {
-    const sweep = deletes.filter((statement) => !SCENARIO_IDS.some((id) => statement.includes(id)));
-    expect(sweep).toHaveLength(5);
-
-    for (const statement of sweep) {
-      // Every sweep statement resolves its targets through the sentinel, and
-      // none of them widens to "every person" or "every membership".
-      expect(statement, `sweep without a sentinel: ${statement}`).toContain(SENTINEL);
-      expect(statement).not.toMatch(/\bor\b/);
-    }
-  });
-});
+/**
+ * The delete predicates themselves are governed by ADR 0019 and pinned by value
+ * in `SENTINEL_ONLY_DELETES` in `tests/pilot-data-contract.test.ts` — which is a
+ * stricter mechanism than the one that used to live here, and a repository-wide
+ * one rather than this scenario's private copy.
+ *
+ * That block asserted the shape of each delete by parsing the file: how many
+ * there were, that each conjoined an identifier with a sentinel, and that the
+ * sweeps carried a declaration comment. Every one of those checks is now done
+ * for every scenario, by value rather than by pattern, so keeping a parallel
+ * version here would be two rules that can disagree — and the weaker of the two
+ * is the one an author would satisfy by accident.
+ */

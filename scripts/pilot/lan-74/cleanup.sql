@@ -385,76 +385,74 @@ $preflight$;
 -- (`on delete restrict`) the moment a tester had followed README step 3, which
 -- creates a membership for scenario person …0003 through the interface.
 --
--- Scenario rows carry their deterministic identifier AND the sentinel. The
--- five sweep statements cannot, and each is declared; see the header.
+-- Two shapes, per ADR 0019. Rows setup.sql wrote are deleted by their own
+-- deterministic identifier AND the sentinel — one statement per identifier, so
+-- each predicate is exactly the `id = '…'` pair the contract test pins. Rows
+-- the APPLICATION wrote have no identifier any script can know, and are deleted
+-- by the sentinel alone; those five statements are pinned by value in
+-- `SENTINEL_ONLY_DELETES`, and adding them there is Brian's decision.
 
--- 1. Status history. The scenario's own two rows by identifier and sentinel …
+-- 1. Status history — the scenario's own two rows, one statement each.
 delete from public.season_membership_status_events
- where id in (
-   '00740074-0074-4074-8074-000000000007',
-   '00740074-0074-4074-8074-000000000008'
- )
+ where id = '00740074-0074-4074-8074-000000000007'
    and actor_label = 'PILOT-LAN-74 setup script';
 
--- SENTINEL-SWEEP: … then every transition of every membership held by a person
--- this script is removing, including the ones the application wrote.
 delete from public.season_membership_status_events
- where season_membership_id in (
-   select m.id
-     from public.season_memberships m
-     join public.people p on p.id = m.person_id
-    where 'PILOT-LAN-74' in (p.known_as, p.family_name)
-      and m.person_id in (select person_id from pilot_lan_74_targets)
- );
+ where id = '00740074-0074-4074-8074-000000000008'
+   and actor_label = 'PILOT-LAN-74 setup script';
 
--- 2. Memberships. The scenario's own row by identifier and person …
+-- … then every transition of every membership held by a person this script is
+-- removing, including the ones the application wrote.
+delete from public.season_membership_status_events
+ where season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_74_targets))
+   and season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name)));
+
+-- 2. Memberships — the scenario's own row, then the ones created through the
+--    interface: README step 3's on scenario person …0003, and step 4's on the
+--    new returner.
 delete from public.season_memberships
  where id = '00740074-0074-4074-8074-000000000006'
    and person_id = '00740074-0074-4074-8074-000000000001';
 
--- SENTINEL-SWEEP: … then the memberships created through the interface —
--- README step 3's on scenario person …0003, and step 4's on the new returner.
 delete from public.season_memberships
  where person_id in (select person_id from pilot_lan_74_targets)
-   and person_id in (
-     select id from public.people where 'PILOT-LAN-74' in (known_as, family_name)
-   );
+   and person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name));
 
--- 3. Contact points. The scenario's own three by identifier and sentinel …
+-- 3. Contact points — the scenario's own three, one statement each, then
+--    anything the interface recorded against these people.
 delete from public.contact_points
- where id in (
-   '00740074-0074-4074-8074-000000000002',
-   '00740074-0074-4074-8074-000000000004',
-   '00740074-0074-4074-8074-000000000005'
- )
+ where id = '00740074-0074-4074-8074-000000000002'
    and source = 'PILOT-LAN-74';
 
--- SENTINEL-SWEEP: … then anything the interface recorded against these people.
+delete from public.contact_points
+ where id = '00740074-0074-4074-8074-000000000004'
+   and source = 'PILOT-LAN-74';
+
+delete from public.contact_points
+ where id = '00740074-0074-4074-8074-000000000005'
+   and source = 'PILOT-LAN-74';
+
 delete from public.contact_points
  where person_id in (select person_id from pilot_lan_74_targets)
-   and person_id in (
-     select id from public.people where 'PILOT-LAN-74' in (known_as, family_name)
-   );
+   and person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name));
 
--- SENTINEL-SWEEP: aliases. The scenario writes none and the preflight refuses
--- if one exists on a scenario person, so this reaches only swept people.
+-- Aliases. The scenario writes none and the preflight refuses if one exists on
+-- a scenario person, so this reaches only swept people.
 delete from public.person_aliases
  where person_id in (select person_id from pilot_lan_74_targets)
-   and person_id in (
-     select id from public.people where 'PILOT-LAN-74' in (known_as, family_name)
-   );
+   and person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name));
 
--- 4. The people themselves, last. The scenario's two by identifier and
---    sentinel …
+-- 4. The people themselves, last — the scenario's two by identifier and
+--    sentinel, then the returner created through the interface, whose sentinel
+--    is in the last name because that is the field the form has.
 delete from public.people
- where id in (
-   '00740074-0074-4074-8074-000000000001',
-   '00740074-0074-4074-8074-000000000003'
- )
+ where id = '00740074-0074-4074-8074-000000000001'
    and known_as = 'PILOT-LAN-74';
 
--- SENTINEL-SWEEP: … then the returner created through the interface, whose
--- sentinel is in the last name because that is a field the form still has.
+delete from public.people
+ where id = '00740074-0074-4074-8074-000000000003'
+   and known_as = 'PILOT-LAN-74';
+
 delete from public.people
  where id in (select person_id from pilot_lan_74_targets)
    and 'PILOT-LAN-74' in (known_as, family_name);

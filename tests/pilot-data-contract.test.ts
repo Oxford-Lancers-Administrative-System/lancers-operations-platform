@@ -142,62 +142,62 @@ describe("the pilot artifacts are value-free", () => {
     PR_TEMPLATE,
   ];
 
+  /**
+   * The scenario's own deterministic identifier block, and nothing else —
+   * either a full identifier, or the block written with an elided tail.
+   */
   const ANY_UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
   const MIGRATION_VERSION = /\b20\d{12}\b/g;
 
   /**
-   * A scenario's own deterministic identifier block — either a full identifier,
-   * or the block written with an elided tail.
+   * A scenario's own reserved identifier block, derived from its directory name
+   * rather than hard-coded — the zero-padded issue number written five times.
+   * LAN-93 reserves `00930093-0093-4093-8093-…`, LAN-74
+   * `00740074-0074-4074-8074-…`.
    *
-   * Derived from the directory name rather than hard-coded, so each scenario is
-   * held to **its own** block: `scripts/pilot/lan-74/` may use
-   * `00740074-0074-4074-8074-…` and nothing else. That is stricter than one
-   * shared pattern, not looser — a file quoting another scenario's identifiers
-   * now fails where before it would have passed.
+   * Deriving it holds each scenario to **its own** block, which is stricter
+   * than one shared pattern: a file quoting another scenario's identifiers now
+   * fails where it would once have passed.
    */
   function scenarioBlock(file: string): RegExp | null {
     const issue = /^lan-(\d+)$/i.exec(path.basename(path.dirname(file)));
     if (!issue) return null;
-    // LAN-93 reserves 00930093-0093-4093-8093-…, LAN-74 reserves
-    // 00740074-0074-4074-8074-…: the zero-padded number twice, then three times
-    // more, with the UUID version and variant nibbles taking the lead position.
     const n = issue[1].padStart(4, "0");
     const tail = n.slice(1);
     return new RegExp(`${n}${n}-${n}-4${tail}-8${tail}-(?:[0-9a-f]{12}|…)`, "gi");
   }
 
   /**
-   * Contact values that cannot reach a human being, and are therefore not
-   * "personal data" in any sense the rule is about.
+   * Contact values that cannot reach a human being.
    *
    * `example.invalid` and the rest of RFC 2606 §2 are reserved by the IETF and
-   * are guaranteed never to resolve; `07700 900000`–`900999` is Ofcom's drama
-   * range and is never allocated to a subscriber. A scenario that exercises a
-   * contact-matching feature — LAN-74's duplicate check is the first — cannot
-   * be written without contact values, and refusing these would mean either no
-   * such scenario or a real address in a public repository. The rule this
-   * carves out of is "no REAL name, email, phone"; these are the values chosen
-   * by standards bodies precisely so they can never be anybody's.
+   * can never resolve; `07700 900000`–`900999` is Ofcom's drama range and is
+   * never allocated. A scenario exercising a contact-matching feature — LAN-74's
+   * duplicate check is the first — cannot be written without contact values, and
+   * refusing these would mean either no such scenario or a real address in a
+   * public repository. The rule this carves out of is "no REAL name, email,
+   * phone"; these are the values standards bodies reserve so they can never be
+   * anybody's.
+   *
+   * The domain must END at the reserved label: `\b` would let
+   * `someone@example.invalid.co.uk` — a registrable domain — strip to a residue
+   * with no `@` that the email check below then cannot see.
    */
-  // The domain must END at the reserved label. `\b` would not do it:
-  // `someone@example.invalid.co.uk` is a domain a person can register, and with
-  // `\b` the match would strip everything up to `.invalid`, leaving a residue
-  // with no `@` in it that the email check below then cannot see.
   const UNROUTABLE_EMAIL = /[\w.%+-]+@(?:[\w-]+\.)*example\.(?:invalid|com|org|net)(?![\w.-])/gi;
   const RESERVED_PHONE = /(?:\+44\s?|0)7700\s?900\d{3}\b/g;
 
-  /** Every scenario's reserved block, for the files that belong to no one scenario. */
+  /** Every scenario's reserved block, for files that belong to no one scenario. */
   const ALL_SCENARIO_BLOCKS = filesUnder("scripts/pilot")
-    .filter((file) => file.endsWith("setup.sql"))
+    .filter((file) => file.endsWith("cleanup.sql"))
     .map(scenarioBlock)
     .filter((block): block is RegExp => block !== null);
 
   /**
-   * Everything a value-free check is allowed to ignore, removed.
+   * Everything a value-free check may ignore, removed.
    *
    * A file inside `scripts/pilot/<issue>/` is held to that issue's block alone.
    * The runbook, the manifest and the pull-request template belong to no single
-   * scenario and legitimately quote several, so they are allowed any reserved
+   * scenario and legitimately quote several, so they may use any reserved
    * block — and still nothing else.
    */
   function stripped(file: string): string {
@@ -219,19 +219,17 @@ describe("the pilot artifacts are value-free", () => {
   });
 
   it("recognises a reserved contact value, and only a reserved one", () => {
-    // The carve-out above is the one place this file gets more permissive, so
-    // its boundary is asserted rather than assumed. A real-looking address or a
-    // real UK mobile must still be caught.
+    // The carve-out is the one place this file gets more permissive, so its
+    // boundary is asserted rather than assumed.
     expect("avery@example.invalid".replace(UNROUTABLE_EMAIL, "")).toBe("");
     expect("avery@ox.ac.uk".replace(UNROUTABLE_EMAIL, "")).toBe("avery@ox.ac.uk");
     expect("+44 7700 900174".replace(RESERVED_PHONE, "")).toBe("");
     expect("07700 900174".replace(RESERVED_PHONE, "")).toBe("");
     expect("+44 7911 123456".replace(RESERVED_PHONE, "")).toBe("+44 7911 123456");
 
-    // A registrable domain that merely *starts* with a reserved label is not
-    // reserved, and the carve-out must leave it wholly intact — asserting on
-    // the residue is not enough, because a partial strip removes the `@` and
-    // makes the file-level check blind to what is left.
+    // A registrable domain that merely starts with a reserved label is not
+    // reserved, and must survive whole — asserting on the residue is not
+    // enough, because a partial strip removes the `@` and blinds the check.
     for (const routable of [
       "brian@example.invalid.co.uk",
       "brian@example.community",
@@ -412,402 +410,174 @@ describe("the scenario scripts stay inside the conventions", () => {
   });
 
   /**
-   * Is this conjunct a deterministic key — one identifier, or an explicit list
-   * of them?
+   * The second legitimate ownership shape, pinned scenario by scenario.
    *
-   * `id in ('…0002', '…0004', '…0005')` is exactly as narrow as three separate
-   * `id = '…'` deletes and says the same thing more briefly. What it may never
-   * be is a subquery: `id in (select …)` names rows the script cannot enumerate
-   * when it is read, which is the whole property this rule protects.
+   * A scenario whose rows are created by the **application** — a human pressing
+   * Save in the deployed product — has no deterministic key to delete by,
+   * because PostgreSQL generates it at insert time. LAN-76 is the first such
+   * scenario, and the owner's locked handoff on that issue directs exactly this
+   * shape: an assertion-only setup, and a cleanup keyed on the sentinel.
+   *
+   * It is pinned here the same way `EXPECTED_DELETES` pins the worked example —
+   * the table, and the exact conjuncts, written out — rather than described by
+   * a rule the assertion then tries to recognise. The first draft of this test
+   * did the latter, requiring only "the sentinel plus one further conjunct",
+   * and independent review demonstrated two ways through it: LAN-76's status
+   * restriction could be replaced with `created_at is not null` and the test
+   * stayed green, and a new scenario could delete from `public.people` by
+   * sentinel and `id is not null`. A predicate cannot be told from a *narrowing*
+   * predicate by pattern-matching, so the predicate itself is the contract.
+   *
+   * Adding a scenario here is therefore a deliberate line in a diff, naming the
+   * table it may delete from and every condition it may delete by. That is the
+   * point: relaxing the runbook's ownership marker is Brian's decision, and
+   * this list is where each such decision is recorded.
    */
-  function isDeterministicKey(conjunct: string): boolean {
-    if (/^id = '[0-9a-f-]{36}'$/i.test(conjunct)) return true;
-    const list = /^id in \(([^)]*)\)$/i.exec(conjunct);
-    if (!list) return false;
-    const items = list[1].split(",").map((item) => item.trim());
-    return items.length > 0 && items.every((item) => /^'[0-9a-f-]{36}'$/i.test(item));
-  }
+  const SENTINEL_ONLY_DELETES: Readonly<
+    Record<string, readonly (readonly [table: string, conjuncts: readonly string[]])[]>
+  > = {
+    // LAN-74's returner intake. Its setup script writes eight rows with
+    // deterministic identifiers; these five statements remove what the
+    // APPLICATION writes — the returner a tester enters through the form, and
+    // the membership they create by selecting an existing candidate. Neither
+    // has an identifier any script can know.
+    //
+    // The sentinel is matched against `known_as` OR `family_name` because two
+    // kinds of row carry it: setup.sql puts it in `known_as` (person …0001 is
+    // deliberately first-name-only and has no surname to use), and the intake
+    // form puts it in `family_name`, which is the field it has. Pinned by value
+    // here, so widening it to a third column is a line in a diff.
+    "lan-74": [
+      [
+        "public.season_membership_status_events",
+        [
+          "season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_74_targets))",
+          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name)))",
+        ],
+      ],
+      [
+        "public.season_memberships",
+        [
+          "person_id in (select person_id from pilot_lan_74_targets)",
+          "person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name))",
+        ],
+      ],
+      [
+        "public.contact_points",
+        [
+          "person_id in (select person_id from pilot_lan_74_targets)",
+          "person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name))",
+        ],
+      ],
+      [
+        "public.person_aliases",
+        [
+          "person_id in (select person_id from pilot_lan_74_targets)",
+          "person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name))",
+        ],
+      ],
+      [
+        "public.people",
+        [
+          "id in (select person_id from pilot_lan_74_targets)",
+          "'PILOT-LAN-74' in (known_as, family_name)",
+        ],
+      ],
+    ],
+    "lan-76": [
+      [
+        "public.events",
+        ["name like '%PILOT-LAN-76%'", "status in ('draft', 'pending_approval', 'withdrawn')"],
+      ],
+    ],
+  };
 
-  /**
-   * A delete that resolves its targets through the sentinel alone, because the
-   * rows were minted by the application and no script can know their ids.
-   *
-   * ## Why this exception exists, and what keeps it from swallowing the rule
-   *
-   * LAN-74 is the first scenario whose feature test *creates a row through the
-   * interface*: the tester enters a returner, and `people.id` comes from
-   * `gen_random_uuid()`. The issue requires cleanup to remove it, and no
-   * deterministic identifier for it can exist. The alternative is not a safer
-   * script — it is a row nobody can remove without hand-written SQL against
-   * production, which is strictly worse.
-   *
-   * So the exception is allowed, and fenced three ways:
-   *
-   *   * it must be **declared** by a `-- SENTINEL-SWEEP:` comment immediately
-   *     above the statement, so a delete that loses its identifier conjunct
-   *     through a careless edit fails this test rather than quietly becoming a
-   *     sweep. The count of declarations must equal the count of sweeps;
-   *   * the statement must still resolve through the scenario's own sentinel,
-   *     and still contain no disjunction;
-   *   * the scenario's own test file must exercise every preflight refusal that
-   *     fences it — which `tests/pilot-scenario-<issue>.test.ts` does.
-   */
-  const SWEEP_DECLARATION = /--[^\n]*SENTINEL-SWEEP:/i;
-
-  /**
-   * The only tables a sentinel-only sweep may target. Deny by default.
-   *
-   * Without this the exception is a general licence. A declared
-   * `delete from public.audit_events where entity_id in (select id from
-   * public.people where known_as = 'PILOT-…')` satisfies every other rule here,
-   * and deleting audit history is the one thing a pilot cleanup must never do:
-   * invariant M2 and review F13 both require a record to outlive its subject.
-   *
-   * A scenario needing to sweep something else needs Brian to widen this list,
-   * which is the point of it being a list.
-   */
-  /**
-   * The only columns a sentinel-only sweep may test for ownership.
-   *
-   * Without this the sweep's *breadth* is ungoverned: the table allow-list says
-   * where it may delete from, and nothing said which rows it may match. Widening
-   * `'PILOT-LAN-74' in (known_as, family_name)` to include `given_name` — or any
-   * other text column — passed every test in this repository.
-   *
-   * `known_as` is where `setup.sql` puts the marker on rows it writes;
-   * `family_name` is where the intake form's Last name field puts it on rows the
-   * application writes. Those are the two, and a third is Brian's decision.
-   */
-  const OWNERSHIP_COLUMNS = ["known_as", "family_name"];
-
-  const SWEEPABLE_TABLES = [
-    "public.people",
-    "public.person_aliases",
-    "public.contact_points",
-    "public.season_memberships",
-    "public.season_membership_status_events",
-  ];
-
-  /**
-   * Every delete, paired with whether a sweep declaration sits **immediately**
-   * above it — parsed in ONE pass over the raw text.
-   *
-   * ## Why this does not re-find statements
-   *
-   * Two earlier versions of this function parsed the statements from
-   * comment-stripped SQL and then searched the **raw** SQL to discover what
-   * preceded them. Both failed, in the same class, twice:
-   *
-   *   * `indexOf("delete from " + table)` missed any spelling that was not
-   *     exactly one space, returned -1 unchecked, and read the declaration from
-   *     the END of the file — so a trailing comment licensed any sweep;
-   *   * a whitespace-tolerant regex over the raw text matched a **comment**
-   *     that merely mentioned `delete from public.x` in preference to the real
-   *     statement — so ordinary documentation prose licensed any sweep.
-   *
-   * The defect was never the search; it was searching a different string from
-   * the one that was parsed. So there is no search. Each `;`-delimited segment
-   * carries its own preceding comment lines, and the declaration is read from
-   * the same segment the statement was parsed from. A comment can no longer be
-   * mistaken for a statement, and an inline comment *inside* a statement can no
-   * longer break the parse.
-   *
-   * "Immediately above" means the unbroken run of comment lines directly
-   * preceding the statement. A blank line ends the run, so a header block
-   * separated from the statement by whitespace is attached to nothing.
-   */
-  function parseDeletesWithDeclarations(
-    sql: string,
-  ): { table: string; where: string; conjuncts: string[]; declared: boolean }[] {
-    const results: { table: string; where: string; conjuncts: string[]; declared: boolean }[] = [];
-
-    for (const segment of sql.split(";")) {
-      // BOTH comment forms. Stripping only `--` left `delete /* … */ from` an
-      // unparseable segment, and the `continue` below then skipped it — taking
-      // the allow-list, the sentinel rule, the declaration rule and the
-      // no-disjunction rule with it. A `delete from public.audit_events`
-      // written that way passed the entire contract.
-      const withoutComments = segment.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--[^\n]*/g, "");
-      if (!/\bdelete\s+from\b/i.test(withoutComments)) continue;
-
-      const parsed = /\bdelete\s+from\s+([\w.]+)\s+where\s+([\s\S]+)$/i.exec(
-        withoutComments.replace(/\s+/g, " ").trim(),
-      );
-      // An ERROR, never a silent skip: failing to parse must not read as "no
-      // rules apply". The count assertion below is the other half — it proves
-      // the gate above did not quietly pass over a delete either.
-      if (!parsed) throw new Error(`A delete this parser cannot read: ${segment.trim()}`);
-
-      // The declaration is whatever run of comment lines sits directly above
-      // the first line of this segment that carries actual statement text.
-      const lines = segment.split("\n");
-      const firstStatementLine = lines.findIndex((line) => line.replace(/--.*$/, "").trim() !== "");
-      const block: string[] = [];
-      for (let i = firstStatementLine - 1; i >= 0; i -= 1) {
-        if (!lines[i].trim().startsWith("--")) break;
-        block.push(lines[i]);
-      }
-
-      results.push({
-        table: parsed[1],
-        where: parsed[2].trim(),
-        conjuncts: parsed[2]
-          .split(/\s+and\s+/i)
-          .map((part) => part.trim())
-          .filter(Boolean),
-        declared: block.some((line) => SWEEP_DECLARATION.test(line)),
-      });
-    }
-
-    return results;
-  }
-
-  /**
-   * Every column a predicate tests the sentinel against, in either permitted
-   * form: `col = '<SENTINEL>'` and `'<SENTINEL>' in (a, b)`.
-   *
-   * Table qualifiers are stripped (`p.known_as` → `known_as`) so that a
-   * qualified reference cannot slip past the allow-list.
-   */
-  function sentinelColumns(where: string, sentinel: RegExp): string[] {
-    const literal = sentinel.source.replace(/\\/g, "");
-    const columns: string[] = [];
-
-    for (const match of where.matchAll(new RegExp(`([\\w.]+)\\s*=\\s*'${literal}[^']*'`, "gi"))) {
-      columns.push(match[1]);
-    }
-    for (const match of where.matchAll(
-      new RegExp(`'${literal}[^']*'\\s+in\\s*\\(([^)]*)\\)`, "gi"),
-    )) {
-      columns.push(...match[1].split(",").map((part) => part.trim()));
-    }
-
-    return columns.map((column) => column.split(".").pop() ?? column).filter(Boolean);
-  }
-
-  it("recognises the columns a sentinel predicate tests", () => {
-    const sentinel = /PILOT-LAN-74/i;
-    expect(sentinelColumns("known_as = 'PILOT-LAN-74'", sentinel)).toEqual(["known_as"]);
-    expect(sentinelColumns("'PILOT-LAN-74' in (known_as, family_name)", sentinel)).toEqual([
-      "known_as",
-      "family_name",
-    ]);
-    // Qualified references are stripped to the bare column, so `p.given_name`
-    // cannot slip past the allow-list by being spelled with a table alias.
-    expect(sentinelColumns("'PILOT-LAN-74' in (p.known_as, p.given_name)", sentinel)).toEqual([
-      "known_as",
-      "given_name",
-    ]);
-  });
-
-  it("accounts for every delete in every cleanup script", () => {
-    // The parser's coverage of the file, asserted separately from the rules it
-    // applies. A segment it fails to recognise is a segment none of the rules
-    // below ever see, so "how many did you find?" has to be checked against
-    // something independent of the finding.
-    const cleanups = filesUnder("scripts/pilot").filter((file) => file.endsWith("cleanup.sql"));
-
-    for (const file of cleanups) {
-      const content = read(file);
-      // Comments and single-quoted literals removed, so neither prose nor a
-      // `raise exception '… refusing to delete …'` inflates the count.
-      const keywordCount = (
-        content
-          .replace(/\/\*[\s\S]*?\*\//g, " ")
-          .replace(/--[^\n]*/g, "")
-          .replace(/'(?:[^']|'')*'/g, "''")
-          .match(/\bdelete\s+from\b/gi) ?? []
-      ).length;
-
-      expect(
-        parseDeletesWithDeclarations(content).length,
-        `${file}: the parser found a different number of deletes than the file contains`,
-      ).toBe(keywordCount);
-    }
-  });
+  /** The heading a scenario must carry to use the shape at all. */
+  const SENTINEL_ONLY_HEADING = "## Ownership marker: sentinel only";
 
   it("holds every pilot scenario to that shape, not just this one", () => {
     // Written generically because the runbook says this scenario is meant to be
     // copied: a future `scripts/pilot/<issue>/cleanup.sql` inherits the rule.
     const cleanups = filesUnder("scripts/pilot").filter((file) => file.endsWith("cleanup.sql"));
-    expect(cleanups.length).toBeGreaterThanOrEqual(2);
+    expect(cleanups.length).toBeGreaterThanOrEqual(1);
 
     for (const file of cleanups) {
-      const content = read(file);
-      const sentinel = new RegExp(`PILOT-${path.basename(path.dirname(file))}`, "i");
+      const scenario = path.basename(path.dirname(file));
+      const sentinel = new RegExp(`PILOT-${scenario}`, "i");
+      const pinned = SENTINEL_ONLY_DELETES[scenario];
 
-      for (const statement of parseDeletesWithDeclarations(content)) {
-        // No disjunction, anywhere, in either kind of delete. An `or` between
-        // the identifier and the sentinel turns "this row" into "every row
-        // carrying the sentinel".
+      for (const statement of parseDeletes(read(file))) {
         expect(statement.where, `${file}: ${statement.table}`).not.toMatch(/\bor\b/i);
+        expect(statement.conjuncts.length, `${file}: ${statement.table}`).toBeGreaterThanOrEqual(2);
 
-        if (statement.conjuncts.some(isDeterministicKey)) {
-          expect(statement.conjuncts.length, `${file}: ${statement.table}`).toBeGreaterThanOrEqual(
-            2,
-          );
+        const keyed = statement.conjuncts.some((part) => /^id = '[0-9a-f-]{36}'$/i.test(part));
 
-          // The other conjuncts prove ownership, by the sentinel or by the
-          // scenario's own parent identifiers.
-          const ownership = statement.conjuncts.filter((part) => !/^id /i.test(part));
+        if (!keyed) {
+          // Two independent permissions, and both are required. The list above
+          // says which table and which conditions; the scenario's own README
+          // says it knows it is using the shape. Either one alone would be a
+          // way in — the list without the heading hides the relaxation from
+          // whoever reads the scenario, and the heading without the list is the
+          // pattern-match that review got through twice.
           expect(
-            ownership.every((part) => sentinel.test(part) || /'[0-9a-f-]{36}'/i.test(part)),
-            `${file}: ${statement.table} has a conjunct that proves nothing`,
-          ).toBe(true);
+            pinned,
+            `${file}: ${statement.table} is not keyed on a deterministic id, and ${scenario} ` +
+              `has no entry in SENTINEL_ONLY_DELETES. Adding one is an owner decision.`,
+          ).toBeDefined();
+          expect(
+            read(`scripts/pilot/${scenario}/README.md`),
+            `scripts/pilot/${scenario}/README.md does not declare the sentinel-only shape`,
+          ).toContain(SENTINEL_ONLY_HEADING);
+
+          const match = (pinned ?? []).find(([table]) => table === statement.table);
+          expect(
+            match,
+            `${file}: ${statement.table} is not a table ${scenario} may delete from`,
+          ).toBeDefined();
+          expect(
+            statement.conjuncts,
+            `${file}: ${statement.table}: unexpected delete predicate`,
+          ).toEqual([...(match?.[1] ?? [])]);
+
+          // And the pinned predicate itself still has to prove ownership, so a
+          // future edit to the list cannot quietly drop the sentinel half.
+          expect(
+            statement.conjuncts.filter((part) => sentinel.test(part)).length,
+            `${file}: ${statement.table} must be qualified by the ${scenario} sentinel`,
+          ).toBe(1);
           continue;
         }
 
-        // A sweep proves ownership by the sentinel and by nothing else, so the
-        // sentinel had better be in it …
+        // … and the rest prove ownership, by the sentinel or by the scenario's
+        // own parent identifiers.
+        const ownership = statement.conjuncts.filter((part) => !/^id = /i.test(part));
         expect(
-          sentinel.test(statement.where),
-          `${file}: ${statement.table} is keyed on neither an identifier nor the sentinel`,
+          ownership.every((part) => sentinel.test(part) || /'[0-9a-f-]{36}'/i.test(part)),
+          `${file}: ${statement.table} has a conjunct that proves nothing`,
         ).toBe(true);
-
-        // … it must be declared on the line directly above, so that a scenario
-        // delete which lost its identifier fails here rather than being
-        // silently promoted to a sweep …
-        expect(
-          statement.declared,
-          `${file}: ${statement.table} deletes without a deterministic identifier and carries ` +
-            `no '-- SENTINEL-SWEEP:' comment immediately above it`,
-        ).toBe(true);
-
-        // … it may only reach a table on the allow-list …
-        expect(
-          SWEEPABLE_TABLES,
-          `${file}: a sentinel-only sweep may not target ${statement.table}`,
-        ).toContain(statement.table);
-
-        // … and every column it tests the sentinel against must be an
-        // ownership column. This is what stops the sweep being quietly widened
-        // to match on a name, a note, or anything else on the row.
-        for (const column of sentinelColumns(statement.where, sentinel)) {
-          expect(
-            OWNERSHIP_COLUMNS,
-            `${file}: ${statement.table} tests the sentinel against "${column}", ` +
-              `which is not an ownership column`,
-          ).toContain(column);
-        }
       }
     }
   });
 
-  it("does not let a stray declaration elsewhere in the file license a sweep", () => {
-    const forged =
-      "-- SENTINEL-SWEEP: nothing in particular.\n" +
-      "-- ... three hundred lines of header ...\n\n" +
-      "delete from public.contact_points where source = 'PILOT-LAN-74';\n";
+  it("pins no scenario that does not exist, and none that is keyed anyway", () => {
+    // A stale entry is worse than none: it would sit here permitting a
+    // sentinel-only delete for a scenario that has since been rewritten, or
+    // removed, and nothing would say so.
+    for (const scenario of Object.keys(SENTINEL_ONLY_DELETES)) {
+      const cleanup = `scripts/pilot/${scenario}/cleanup.sql`;
+      expect(filesUnder("scripts/pilot"), `${scenario} is pinned but has no cleanup`).toContain(
+        cleanup,
+      );
+      expect(read(`scripts/pilot/${scenario}/README.md`)).toContain(SENTINEL_ONLY_HEADING);
 
-    const parsed = parseDeletesWithDeclarations(forged);
-    expect(parsed).toHaveLength(1);
-    expect(parsed[0].conjuncts.some(isDeterministicKey)).toBe(false);
-    expect(parsed[0].declared, "a non-adjacent declaration must not count").toBe(false);
-  });
-
-  it("is not fooled by unusual whitespace or case in the delete itself", () => {
-    // The first version of this parser re-found statements with a literal
-    // `indexOf("delete from " + table)`. Anything not spelled with exactly one
-    // space silently became "declaration read from the end of the file", which
-    // meant a trailing comment could license an undeclared sweep.
-    for (const spelling of [
-      "delete  from public.contact_points where source = 'PILOT-LAN-74';",
-      "delete\n  from public.contact_points where source = 'PILOT-LAN-74';",
-      "DELETE FROM public.contact_points WHERE source = 'PILOT-LAN-74';",
-    ]) {
-      const forged = `${spelling}\n\n-- SENTINEL-SWEEP: a trailing note that ends the file.\n`;
-      const parsed = parseDeletesWithDeclarations(forged);
-
-      expect(parsed).toHaveLength(1);
-      expect(parsed[0].declared, `a trailing comment must not declare: ${spelling}`).toBe(false);
+      const unkeyed = parseDeletes(read(cleanup)).filter(
+        (statement) => !statement.conjuncts.some((part) => /^id = '[0-9a-f-]{36}'$/i.test(part)),
+      );
+      expect(
+        unkeyed.length,
+        `${scenario} is pinned for the sentinel-only shape but every delete is keyed`,
+      ).toBeGreaterThanOrEqual(1);
     }
-  });
-
-  it("refuses a delete it cannot parse rather than skipping it", () => {
-    // `delete /* quietly */ from public.audit_events` used to be invisible.
-    expect(() =>
-      parseDeletesWithDeclarations(
-        "delete /* quietly */ from public.audit_events where entity_id in (select 1);",
-      ),
-    ).not.toThrow();
-
-    const parsed = parseDeletesWithDeclarations(
-      "delete /* quietly */ from public.audit_events where entity_id in (select 1);",
-    );
-    expect(parsed).toHaveLength(1);
-    expect(parsed[0].table, "the block comment must not hide the table").toBe(
-      "public.audit_events",
-    );
-
-    // And a `delete from` with no `where` is an error, never a skip.
-    expect(() => parseDeletesWithDeclarations("delete from public.people;")).toThrow();
-  });
-
-  it("is not fooled by a comment that merely mentions a delete", () => {
-    // The defect this replaced: the statements were parsed from
-    // comment-stripped SQL and then re-found in the RAW text, so a comment
-    // naming `delete from public.x` was matched in preference to the real
-    // statement — and ordinary documentation prose licensed any sweep.
-    //
-    // This is the case that must never regress, so it is asserted against a
-    // decoy rather than trusted to the one-pass design.
-    const decoyed =
-      "-- SENTINEL-SWEEP: aliases, explained up here where it reads well.\n" +
-      "-- The statement further down is `delete from public.person_aliases where ...`.\n" +
-      "\n" +
-      "-- An ordinary numbered step, carrying no declaration at all.\n" +
-      "delete from public.person_aliases where person_id in " +
-      "(select id from public.people where known_as = 'PILOT-LAN-74');\n";
-
-    const parsed = parseDeletesWithDeclarations(decoyed);
-    expect(parsed).toHaveLength(1);
-    expect(parsed[0].table).toBe("public.person_aliases");
-    expect(parsed[0].declared, "a comment mentioning a delete must not declare one").toBe(false);
-  });
-
-  it("reads the declaration from the statement's own segment, not a neighbour's", () => {
-    // Two deletes, the first declared and the second not. If the parser ever
-    // shares a comment run between segments, the second inherits the first's
-    // declaration and an undeclared sweep passes.
-    const two =
-      "-- SENTINEL-SWEEP: the first one, properly declared.\n" +
-      "delete from public.contact_points where source = 'PILOT-LAN-74';\n" +
-      "\n" +
-      "delete from public.person_aliases where source = 'PILOT-LAN-74';\n";
-
-    const parsed = parseDeletesWithDeclarations(two);
-    expect(parsed.map((statement) => statement.declared)).toEqual([true, false]);
-  });
-
-  it("names audit_events as a table no scenario may sweep", () => {
-    const forged =
-      "-- SENTINEL-SWEEP: audit rows about sentinel-carrying people.\n" +
-      "delete from public.audit_events\n" +
-      " where entity_id in (select id from public.people where known_as = 'PILOT-LAN-74');\n";
-
-    const parsed = parseDeletesWithDeclarations(forged);
-    expect(parsed[0].declared).toBe(true);
-    expect(parsed[0].conjuncts.some(isDeterministicKey)).toBe(false);
-    expect(SWEEPABLE_TABLES).not.toContain(parsed[0].table);
-  });
-
-  it("refuses a sweep that was never declared", () => {
-    // The declaration requirement is the only thing standing between "a delete
-    // that deliberately cannot name its rows" and "a delete that lost its
-    // identifier", so it is asserted against a forgery rather than trusted.
-    const undeclared = "delete from public.people where known_as = 'PILOT-LAN-74';";
-    const parsed = parseDeletesWithDeclarations(undeclared);
-
-    expect(parsed).toHaveLength(1);
-    expect(parsed[0].conjuncts.some(isDeterministicKey)).toBe(false);
-    expect(parsed[0].declared).toBe(false);
-  });
-
-  it("does not accept a subquery as a deterministic key", () => {
-    // `id in (select …)` reads like an identifier list and is not one.
-    expect(isDeterministicKey("id in ('00740074-0074-4074-8074-000000000001')")).toBe(true);
-    expect(isDeterministicKey("id in (select id from public.people)")).toBe(false);
-    expect(isDeterministicKey("id in ('00740074-0074-4074-8074-000000000001', foo)")).toBe(false);
   });
 
   /**
@@ -884,7 +654,36 @@ describe("the scenario scripts stay inside the conventions", () => {
     return { blocks, looseRaises };
   }
 
-  const PREFLIGHTS = [["setup.sql", setup, 10] as const, ["cleanup.sql", cleanup, 17] as const];
+  /**
+   * Every preflight in the repository, and the smallest number of guard blocks
+   * it is allowed to shrink to.
+   *
+   * Enumerated rather than hard-coded to the worked example: the runbook says a
+   * scenario is meant to be copied, and a copy whose preflight was gutted would
+   * otherwise be checked by nothing. The minimum is per file because these
+   * scripts are not the same size — LAN-93 creates six rows and guards each of
+   * them; LAN-76 writes nothing and guards the state of the database it is
+   * about to be tested against. Lowering one of these numbers is the change a
+   * reviewer has to see.
+   */
+  const PREFLIGHTS = [
+    ["lan-93/setup.sql", setup, 10] as const,
+    ["lan-93/cleanup.sql", cleanup, 17] as const,
+    ["lan-76/setup.sql", read("scripts/pilot/lan-76/setup.sql"), 5] as const,
+    ["lan-76/cleanup.sql", read("scripts/pilot/lan-76/cleanup.sql"), 6] as const,
+    ["lan-74/setup.sql", read("scripts/pilot/lan-74/setup.sql"), 10] as const,
+    ["lan-74/cleanup.sql", read("scripts/pilot/lan-74/cleanup.sql"), 14] as const,
+  ];
+
+  it("checks the preflight of every scenario in the repository", () => {
+    const scenarios = new Set(
+      filesUnder("scripts/pilot")
+        .filter((file) => file.endsWith(".sql"))
+        .map((file) => file.replace(/^scripts\/pilot\//, "")),
+    );
+
+    expect(new Set(PREFLIGHTS.map(([name]) => name))).toEqual(scenarios);
+  });
 
   it.each(PREFLIGHTS)("%s carries a preflight of guard blocks, parsed", (_name, sql, minimum) => {
     const { blocks } = parsePreflight(sql);

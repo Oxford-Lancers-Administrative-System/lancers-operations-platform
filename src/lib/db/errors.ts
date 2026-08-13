@@ -205,6 +205,32 @@ const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
       { rule: "events_approval_requires_date_and_audience", context },
     ),
 
+  // LAN-76. The service layer refuses all three of these before the statement
+  // is sent, with the message beside the field that caused them. These mappings
+  // are the backstop for the paths that do not go through a form — another
+  // service, a script, a later issue building on `events` — and they exist so
+  // that such a caller gets the club's sentence rather than "breaks one of the
+  // club's recorded rules".
+  events_times_ordered: (context) =>
+    new ConstraintViolated("An event has to end after it starts.", {
+      rule: "events_times_ordered",
+      context,
+    }),
+
+  events_name_not_blank: (context) =>
+    new ConstraintViolated("An event has to have a name. Give it one and try again.", {
+      rule: "events_name_not_blank",
+      context,
+    }),
+
+  // The frozen model's rule that a withdrawal, rejection or cancellation is
+  // always explained. An unexplained one is a decision nobody can review later.
+  events_negative_decisions_are_explained: (context) =>
+    new ConstraintViolated(
+      "Withdrawing, rejecting or cancelling an event has to say why. Record the reason and try again.",
+      { rule: "events_negative_decisions_are_explained", context },
+    ),
+
   // Invariant P5, as revised by review F03.
   attendance_records_require_an_occurred_event: (context) =>
     new InvalidTransition(

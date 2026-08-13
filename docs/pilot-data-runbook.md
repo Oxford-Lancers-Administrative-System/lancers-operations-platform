@@ -130,19 +130,19 @@ the worked example, and it is meant to be copied.
 
 Every scenario satisfies all of the following. They are not stylistic.
 
-| Requirement                          | Why                                                                                                             |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| **Transactional**                    | `begin;` … `commit;`. A half-applied scenario in a database with no staging is the bad case                     |
-| **Visible preflight**                | A first result set naming the database and the connected user, before anything is written                       |
-| **Fails closed**                     | Prerequisites `raise exception`. Never warn and continue                                                        |
-| **Repeatable**                       | `insert … on conflict (id) do nothing`. **Never `do update`** — nothing is silently rewritten                   |
-| **Reviewable ownership**             | Deterministic primary keys **and** a `PILOT-<ISSUE-ID>` sentinel in a text column                               |
-| **Narrow cleanup**                   | Deletes by deterministic id, qualified by the sentinel, in reverse dependency order                             |
-| **Refuses to widen**                 | Aborts if a foreign row hangs off a scenario row — especially where a foreign key would `cascade` or `set null` |
-| **Preserves the foundation**         | Never deletes from `auth.users`, `operator_accounts`, `role_assignments`, `roles` or `audit_events`             |
-| **Verification query**               | A final `select` a human can read, repeated in the scenario README                                              |
-| **No new database concept**          | The ownership marker is a naming convention, never a new column and never a new table                           |
-| **Nothing personal, nothing secret** | No real name, email, phone, password or identifier. This repository is public                                   |
+| Requirement                          | Why                                                                                                                                                                   |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Transactional**                    | `begin;` … `commit;`. A half-applied scenario in a database with no staging is the bad case                                                                           |
+| **Visible preflight**                | A first result set naming the database and the connected user, before anything is written                                                                             |
+| **Fails closed**                     | Prerequisites `raise exception`. Never warn and continue                                                                                                              |
+| **Repeatable**                       | `insert … on conflict (id) do nothing`. **Never `do update`** — nothing is silently rewritten                                                                         |
+| **Reviewable ownership**             | Deterministic primary keys **and** a `PILOT-<ISSUE-ID>` sentinel in a text column — or, for a scenario whose rows the **application** creates, the second shape below |
+| **Narrow cleanup**                   | Deletes by deterministic id, qualified by the sentinel, in reverse dependency order                                                                                   |
+| **Refuses to widen**                 | Aborts if a foreign row hangs off a scenario row — especially where a foreign key would `cascade` or `set null`                                                       |
+| **Preserves the foundation**         | Never deletes from `auth.users`, `operator_accounts`, `role_assignments`, `roles` or `audit_events`                                                                   |
+| **Verification query**               | A final `select` a human can read, repeated in the scenario README                                                                                                    |
+| **No new database concept**          | The ownership marker is a naming convention, never a new column and never a new table                                                                                 |
+| **Nothing personal, nothing secret** | No real name, email, phone, password or identifier. This repository is public                                                                                         |
 
 ### The ownership marker
 
@@ -153,15 +153,6 @@ Two halves, and cleanup requires both:
 - the sentinel **`PILOT-<ISSUE-ID>`** in a text column, so a human scanning a
   table can see what the row is, and so a cleanup whose id block was copied
   carelessly still refuses.
-
-The reserved block for `LAN-<n>` is the zero-padded number written five times —
-LAN-93 has `00930093-0093-4093-8093-…`, LAN-74 has `00740074-0074-4074-8074-…` —
-and a scenario may use no block but its own.
-
-A delete may key on `id = '<uuid>'` or on an explicit list,
-`id in ('<uuid>', '<uuid>')`. It may never key on `id in (select …)`: a subquery
-names rows that cannot be enumerated by reading the script, which is the whole
-property this rule protects.
 
 The marker is a convention. **Adding a column, a table, or any other schema
 concept to label test data is a decision for Brian and is not taken by an
@@ -179,57 +170,62 @@ never belong to anybody are permitted:
   either national or `+44` form.
 
 Anything else is a real person's contact detail as far as this rule is
-concerned, and `tests/pilot-data-contract.test.ts` refuses it.
+concerned, and `tests/pilot-data-contract.test.ts` refuses it. The check is
+anchored at the end of the domain, so an address at a domain merely _starting_
+with a reserved label — anything ending `.invalid.co.uk`, say — is registrable,
+is **not** reserved, and is refused. (Described rather than written out: this
+file is itself scanned, and a routable example address in it is exactly what the
+scan exists to catch.)
 
-### The one delete that may be keyed on the sentinel alone
+LAN-74 is the first scenario to need this — its duplicate check matches on
+contact points, so a scenario without them cannot exercise half the feature.
 
-A feature test that creates a row **through the application** produces a row
-whose `people.id` came from `gen_random_uuid()`. No script can know it in
-advance, and leaving it behind means a row only hand-written SQL against
-production can remove — which is worse than the exception.
+#### The second shape: rows the application creates
 
-So a cleanup may contain deletes keyed on the sentinel alone, on these terms:
+Some scenarios have no deterministic key to delete by, because the rows are not
+created by their setup script. LAN-76 is the first: its feature test is a human
+signing in to the deployed application and creating events through it, so
+PostgreSQL generates the identifier at insert time, and a setup script that
+manufactured the rows instead would prove the application works against data a
+script arranged rather than against hosted's own.
 
-- each one carries a `-- SENTINEL-SWEEP:` comment **in the unbroken run of
-  comment lines directly above it**, saying what it removes. A blank line ends
-  that run, so a declaration in a file header attaches to nothing — a scenario
-  delete that loses its identifier through a careless edit fails a test instead
-  of being silently promoted to a sweep;
-- it may only target `people`, `person_aliases`, `contact_points`,
-  `season_memberships` or `season_membership_status_events`. The list is an
-  allow-list and `audit_events` is deliberately not on it: history must outlive
-  its subject (invariant M2, review F13). Widening the list is Brian's decision;
-- the statement resolves through the scenario's own sentinel, and tests it in
-  **one of exactly two forms** — `<column> = '<SENTINEL>'`, or
-  `'<SENTINEL>' in (<columns>)` when the marker can legitimately live in more
-  than one place. The second form is a disjunction, and is permitted _only_ over
-  ownership columns; a disjunction anywhere else in the predicate — between the
-  identifier and the ownership test, above all — is still refused, and a bare
-  `or` is refused outright;
-- every column it tests is on the **ownership allow-list**: `known_as` and
-  `family_name`. Nothing else identifies a pilot row. A scenario that needs a
-  third has to widen the list, which is Brian's decision and which the contract
-  test refuses until the runbook and the list agree. Without this, a sweep can
-  be widened to any column on `people` and every test stays green;
-- the set it removes is resolved **once**, in the preflight, and every guard and
-  every delete uses that same set. Re-deriving it at delete time would let a row
-  created between the preflight and the delete be removed having passed no guard
-  at all — these scripts run at READ COMMITTED in the SQL editor;
-- the script's preflight refuses outright if any row the sweep would remove has
-  become anything other than disposable scenario data — an operator account, a
-  role assignment, an actor in `audit_events` or in a status history, a merged
-  identity, or a row with dependents;
-- every one of those refusals is exercised by the scenario's own test.
+For such a scenario, and **only** for such a scenario, the deterministic-key
+half is replaced by a restriction that limits which of the sentinel's rows may
+be deleted at all — for LAN-76, `status in ('draft', 'pending_approval',
+'withdrawn')`, so the cleanup can never remove an event that reached approval
+and therefore carries invitations, responses or attendance.
 
-**Deletes run in dependency order, not in "scenario rows first" order.** A
-scenario whose feature test creates rows through the interface will have
-children hanging off its own parents — a membership on a scenario person, say —
-and deleting the parents first aborts on `on delete restrict`. Order by what
-references what, and let both kinds of row be removed at each level together.
+LAN-74 is the second, and it differs in a way worth noting: its setup script
+_does_ write rows with deterministic keys, and only the rows the **tester**
+creates through the intake form fall under this shape. So one scenario can use
+both marks at once — deterministic-key deletes for what the script wrote,
+sentinel-only deletes for what the application wrote. Its sentinel is matched
+against two columns (`known_as` for script-written rows, `family_name` for
+form-written ones, because the form has a Last name field and no nickname
+field), and both are pinned by value in the contract test.
 
-[`scripts/pilot/lan-74/`](../scripts/pilot/lan-74/) is the worked example.
-**A sweep is narrow because it is guarded, never because nobody tried to widen
-it.** If a scenario can avoid needing one, it should.
+Be exact about what that is and is not. It is **not** equivalent to a
+deterministic key: a key names one pre-known row and the sentinel is then a
+second, independent proof of ownership, whereas a `like` on an operator-typed
+column plus a status restriction proves the row was made for the test and bounds
+the blast radius, without ever proving who created it. It is the narrowest
+honest predicate available when the identifier is not the script's to choose.
+
+Three conditions, all required, and all machine-checked by
+[`tests/pilot-data-contract.test.ts`](../tests/pilot-data-contract.test.ts):
+
+1. the scenario's `README.md` declares the shape under the exact heading
+   `## Ownership marker: sentinel only`, so a reader of the scenario sees it;
+2. the scenario, the table it may delete from, and the **exact** conjuncts of
+   its `where` clause are pinned in that test's `SENTINEL_ONLY_DELETES` list, so
+   adding or loosening one is a line in a diff rather than a pattern an
+   assertion might or might not recognise;
+3. the sentinel is still one of those conjuncts.
+
+**Adding a scenario to that list is Brian's decision, not a lead's.** It relaxes
+the marker for writes against the one production database, and the reasoning
+belongs in the pull request that adds it. See
+[ADR 0019](adr/0019-application-created-pilot-rows.md).
 
 ### The scenario test checklist
 
@@ -264,7 +260,10 @@ Supabase, that:
       turning a refusal into a cascade;
 - [ ] every delete's `where` clause conjoins the deterministic identifier with
       the sentinel, asserted as a parsed predicate — one `and` becoming `or` is
-      the whole distance between the narrowest delete and an arbitrary one;
+      the whole distance between the narrowest delete and an arbitrary one; a
+      scenario using the second shape above instead has its table and its exact
+      conjuncts pinned in `SENTINEL_ONLY_DELETES`, which is asserted the same
+      way;
 - [ ] the durable pilot foundation is byte-identical afterwards.
 
 [`tests/pilot-scenario-lan-93.test.ts`](../tests/pilot-scenario-lan-93.test.ts)

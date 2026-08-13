@@ -75,25 +75,27 @@ rule sits where, and why, is the invariant enforcement matrix in
 Do not re-implement a database constraint here, and do not push a policy
 decision into a migration.
 
-## What is built
+## What is built, and what is not
 
-| Module      | Aggregate                                                      | Issue  |
-| ----------- | -------------------------------------------------------------- | ------ |
-| `audit.ts`  | `audit_events`                                                 | LAN-72 |
-| `roster.ts` | Returner intake — person, contact points and season membership | LAN-74 |
+`roster.ts`, `events.ts` and `seasons.ts` are the first aggregates.
 
-`roster.ts` is the first module to carry a workflow rule, and it is worth
-reading as the pattern the rest follow: the duplicate check is a separate
-read-only call, the write takes an explicit operator and an explicit decision,
-everything commits in one transaction, and the membership's two status
-transitions go to `season_membership_status_events` rather than being duplicated
-into `audit_events` (register D9).
+`roster.ts` is LAN-74's returner intake, and it is worth reading as the pattern
+for a workflow that must not act on a guess: the duplicate check is a separate,
+read-only call; the write takes an explicit operator and an explicit decision
+about who the person is; everything commits in one transaction; and the
+membership's two status transitions go to `season_membership_status_events`
+rather than being duplicated into `audit_events` (register D9). `events.ts` implements
+two of the rules `docs/architecture/data-model.md` § _Rules deliberately left to
+TypeScript_ names, and implements them the way that section describes:
 
-## What is not built yet
+- **Legal state transitions** — as a table of `{ from, to }` in
+  `EVENT_TRANSITIONS`, covering the three LAN-76 owns. A pair not in the table
+  is refused, so the whitelist is the rule rather than a fallback. `approved`,
+  `rejected`, `cancelled`, `occurred` and `not_held` belong to LAN-77 and later.
+- **Writing the audit record** (M2) — every transition calls `recordAudit` with
+  the same `Tx` as the status change.
 
-Most of it. The rules `docs/architecture/data-model.md` § _Rules deliberately
-left to TypeScript_ names — the non-empty confirmed audience (E1b), sequential
-report-version allocation (M5), the remaining state transitions and who may
-trigger them, atomic job claiming (M1), material-change detection (E2),
-archived-season immutability (M3) — are **not implemented**, and each has its
-own issue. Nothing in the application enforces them today.
+Still **not implemented**, each with its own issue: the non-empty confirmed
+audience (E1b), sequential report-version allocation (M5), atomic job claiming
+(M1), material-change detection (E2) and archived-season immutability (M3).
+Nothing in the application enforces those today.

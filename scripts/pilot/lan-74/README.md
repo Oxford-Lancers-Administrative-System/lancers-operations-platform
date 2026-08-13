@@ -136,7 +136,21 @@ The full sequence, the authorization boundary and the retention policy are in
 Cleanup is the same, in reverse, and — per the retention policy — is **not** run
 by default after a feature test.
 
-## The one delete that is not keyed on a deterministic identifier
+## Ownership marker: sentinel only
+
+This scenario uses **both** ownership shapes, and the second one is the
+relaxation [ADR 0019](../../../docs/adr/0019-application-created-pilot-rows.md)
+governs.
+
+The eight rows `setup.sql` writes carry a deterministic identifier **and** the
+sentinel, and are deleted by both. But the point of the hosted test is that a
+human creates a returner _through the application_, and `people.id` comes from
+`gen_random_uuid()` — so five of the deletes in `cleanup.sql` have no identifier
+to key on and are qualified by the sentinel alone. Every one of them is pinned
+by value in `SENTINEL_ONLY_DELETES` in
+[`tests/pilot-data-contract.test.ts`](../../../tests/pilot-data-contract.test.ts).
+
+## What the sentinel-only deletes match
 
 Every scenario row is removed by its primary key **and** the sentinel, as the
 runbook requires. The returner created through the interface in step 4 cannot

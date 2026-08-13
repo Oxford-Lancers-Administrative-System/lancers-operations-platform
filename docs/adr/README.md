@@ -28,3 +28,4 @@ accident. Routine implementation choices do not need an ADR.
 | [0016](0016-controlled-production-pilot-data.md) | Production may hold controlled pilot data before staging exists                          | Accepted               |
 | [0017](0017-batched-fast-lane.md)                | A batched fast lane, merged by a workflow that re-derives eligibility                    | Accepted               |
 | [0018](0018-single-issue-agent-development.md)   | Single-issue agent development with fenced local concurrency                             | Accepted               |
+| [0019](0019-application-created-pilot-rows.md)   | Pilot rows the application creates carry a sentinel-only ownership marker                | Proposed — Brian       |
