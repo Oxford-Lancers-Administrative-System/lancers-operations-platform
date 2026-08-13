@@ -30,3 +30,5 @@ accident. Routine implementation choices do not need an ADR.
 | [0018](0018-single-issue-agent-development.md)   | Single-issue agent development with fenced local concurrency                             | Superseded by 0020     |
 | [0019](0019-application-created-pilot-rows.md)   | Pilot rows the application creates carry a sentinel-only ownership marker                | Proposed — Brian       |
 | [0020](0020-zero-command-visual-review.md)       | Zero-command visual acceptance precedes final review                                     | Accepted               |
+| [0021](0021-response-deadline-configuration.md)  | RSVP response deadlines are central configuration, not per-event input                   | Accepted               |
+| [0022](0022-audience-proposed-then-frozen.md)    | An event's audience is proposed on the draft and frozen at approval                      | Accepted               |

@@ -318,7 +318,14 @@ export async function readEvent(eventId: string): Promise<EventDetail> {
   return withTransaction(async (tx) => readEventIn(tx, eventId));
 }
 
-async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail> {
+/**
+ * The same read, inside a caller's transaction.
+ *
+ * Exported for `./event-approval`, which has to read the event, resolve an
+ * audience and write all five tables as one unit — reading through `readEvent`
+ * would open a second transaction and defeat the point.
+ */
+export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail> {
   if (!UUID_PATTERN.test(eventId)) {
     throw new NotFound(EVENT_NOT_FOUND_MESSAGE, { rule: "event_not_found" });
   }

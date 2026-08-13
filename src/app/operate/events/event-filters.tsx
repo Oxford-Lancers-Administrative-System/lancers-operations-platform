@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -8,6 +8,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import { labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
+import { useFilterSearch } from "../filter-search";
 
 /**
  * UX-30's search and filters.
@@ -35,9 +36,10 @@ import { labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
  * narrow together — "the practices that are in draft" is one list, not the
  * second filter replacing the first.
  *
- * The search box keeps a real `GET` form so Enter submits it natively, with the
- * other filters mirrored as hidden inputs so a search never silently drops
- * them.
+ * The search box filters as you type — see `../filter-search`. It keeps a real
+ * `GET` form around it so Enter still works and a filtered list is still a
+ * shareable link, with the other filters mirrored as hidden inputs so a native
+ * submit never silently drops them.
  */
 export default function EventFilters({
   statuses,
@@ -61,16 +63,26 @@ export default function EventFilters({
   const router = useRouter();
   const [showFilters, setShowFilters] = useState(false);
 
-  /** The current filter, with one key changed, as a URL. */
-  const withFilter = (patch: Record<string, string>): string => {
-    const next = { q: search, status, type: eventType, sort, dir: direction, ...patch };
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(next)) {
-      if (value !== "") params.set(key, value);
-    }
-    const query = params.toString();
-    return query === "" ? "/operate/events" : `/operate/events?${query}`;
-  };
+  /**
+   * The search box filters as you type.
+   *
+   * It used to rely on the browser's implicit form submission, which is exactly
+   * the defect Brian had already reported on the roster — "the search absolutely
+   * does not work. I cannot filter." This screen shipped with the same broken
+   * shape and he found it a second time, so both now share one implementation in
+   * `../filter-search` and the correction cannot be lost again on the next list.
+   */
+  const push = useCallback((href: string) => router.push(href), [router]);
+  const {
+    typed,
+    setTyped,
+    hrefFor: withFilter,
+  } = useFilterSearch({
+    search,
+    basePath: "/operate/events",
+    filters: { status, type: eventType, sort, dir: direction },
+    push,
+  });
 
   const apply = (patch: Record<string, string>) => router.push(withFilter(patch));
 
@@ -96,7 +108,8 @@ export default function EventFilters({
         <TextField
           label="Search events"
           name="q"
-          defaultValue={search}
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
           size="small"
           placeholder="Name or venue"
           sx={{ flexGrow: 1, minWidth: { md: 220 } }}

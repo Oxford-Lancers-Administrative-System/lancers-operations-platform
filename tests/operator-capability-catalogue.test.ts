@@ -95,11 +95,32 @@ describe.runIf(configured)("the capability map against public.roles", () => {
     );
   });
 
-  it("grants event approval to a single constitutional office", () => {
-    expect(CAPABILITIES.event_approval.roleCodes).toEqual(["president"]);
+  it("grants event approval to the four calendar roles, and to no coaching seat", () => {
+    // Was President-only, as a lead assumption LAN-73 recorded and deferred.
+    // Brian settled it on LAN-77: the same four roles that manage the calendar.
+    expect([...CAPABILITIES.event_approval.roleCodes].sort()).toEqual([
+      "general_manager",
+      "president",
+      "secretary",
+      "vice_president",
+    ]);
 
-    const president = catalogue.find((role) => role.code === "president");
-    expect(president?.is_constitutional_office).toBe(true);
+    // Three offices plus the General Manager, who is deliberately not one —
+    // checked against the real catalogue rather than against a list in a test,
+    // so that a code renamed in the seed fails here.
+    for (const code of CAPABILITIES.event_approval.roleCodes) {
+      const role = catalogue.find((candidate) => candidate.code === code);
+      expect(role, `${code} is not in public.roles`).toBeDefined();
+    }
+    expect(
+      catalogue.find((role) => role.code === "general_manager")?.is_constitutional_office,
+    ).toBe(false);
+
+    // The Treasurer is an office and is not an approver; no coaching seat is.
+    expect(CAPABILITIES.event_approval.roleCodes).not.toContain("treasurer");
+    for (const code of ["head_coach", "offence_coach", "defence_coach"]) {
+      expect(CAPABILITIES.event_approval.roleCodes).not.toContain(code);
+    }
   });
 
   it("leaves no undecided capability holding a code by accident", () => {

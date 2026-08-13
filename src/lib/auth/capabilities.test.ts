@@ -27,6 +27,12 @@ import {
 /** The three coaching seats, per Brian's 12 August 2026 decision. */
 const COACHES = ["head_coach", "offence_coach", "defence_coach"];
 
+/**
+ * The four roles Brian named for the club calendar, sorted, and now also the
+ * approvers — LAN-76's clarification for the first, LAN-77's for the second.
+ */
+const CALENDAR = ["general_manager", "president", "secretary", "vice_president"];
+
 /** Every role code in the catalogue, mirroring `scripts/seed-local.mjs`. */
 const CATALOGUE = [
   "president",
@@ -93,15 +99,12 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "defence_coach",
   ],
   event_approval: [
-    "vice_president",
-    "secretary",
     "treasurer",
     "social_secretary",
     "gameday_secretary",
     "kit_manager",
     "media_secretary",
     "it_officer",
-    "general_manager",
     "head_coach",
     "offence_coach",
     "defence_coach",
@@ -166,8 +169,6 @@ describe("row 11 — the membership-activation grant is Exec plus the General Ma
 });
 
 describe("the calendar-management grant is the four roles Brian named", () => {
-  const CALENDAR = ["general_manager", "president", "secretary", "vice_president"];
-
   it("permits exactly those four", () => {
     expect(permittedSet("event_calendar_management")).toEqual(CALENDAR);
   });
@@ -194,20 +195,44 @@ describe("the calendar-management grant is the four roles Brian named", () => {
   });
 });
 
-describe("row 12 — event approval is the President and nobody else", () => {
-  it("permits exactly president", () => {
-    expect(permittedSet("event_approval")).toEqual(["president"]);
+describe("row 12 — event approval is the four calendar roles", () => {
+  /**
+   * This was `["president"]` — a lead assumption that recorded the gap and
+   * deferred it to LAN-77, because `slice-ux.md` said "normally President or
+   * delegated lead" and delegation is unrepresentable in the frozen model.
+   *
+   * Brian answered it in LAN-77's owner clarification: the President,
+   * Vice-President, Secretary and General Manager are each authorized, and any
+   * one of them may approve their own draft. The exact-set assertion is
+   * unchanged in strength; only the recorded decision it encodes has moved.
+   */
+  it("permits exactly the four calendar roles", () => {
+    expect(permittedSet("event_approval")).toEqual(CALENDAR);
   });
 
   it.each(MUST_REFUSE.event_approval)("refuses %s", (code) => {
     expect(roleCodesPermit([code], "event_approval")).toBe(false);
   });
 
-  it("has no delegation of any kind", () => {
-    // "Delegated lead" is unrepresentable in the frozen model. If a second code
-    // appears here, somebody invented a delegation concept — which is a
-    // domain-model change and Brian's decision, not a code change.
-    expect(capabilityRoleCodes("event_approval")).toHaveLength(1);
+  it("refuses the Treasurer, who is an Office but not a calendar role", () => {
+    // The one result most likely to be "corrected" by somebody reading
+    // "the four constitutional offices" and assuming this is that set. It is
+    // not: the General Manager is in and the Treasurer is out.
+    expect(roleCodesPermit(["treasurer"], "event_approval")).toBe(false);
+    expect(roleCodesPermit(["general_manager"], "event_approval")).toBe(true);
+  });
+
+  it("refuses every coaching seat", () => {
+    for (const code of COACHES) {
+      expect(roleCodesPermit([code], "event_approval")).toBe(false);
+    }
+  });
+
+  it("grants nothing that calendar management does not also grant", () => {
+    // The two are separate capabilities that currently agree. If approval ever
+    // widens past the people who may edit the event, that is a decision rather
+    // than a refactor, and this is where it surfaces.
+    expect(permittedSet("event_approval")).toEqual(permittedSet("event_calendar_management"));
   });
 });
 
@@ -265,7 +290,7 @@ describe("row 8 — the map is the single source of truth, and is not editable a
   it("refuses a mutation of a grant at runtime", () => {
     const codes = capabilityRoleCodes("event_approval") as string[];
     expect(() => codes.push("it_officer")).toThrow();
-    expect(capabilityRoleCodes("event_approval")).toEqual(["president"]);
+    expect([...capabilityRoleCodes("event_approval")].sort()).toEqual(CALENDAR);
   });
 
   it("refuses a replacement of a whole capability at runtime", () => {
@@ -273,14 +298,24 @@ describe("row 8 — the map is the single source of truth, and is not editable a
     expect(() => {
       map.event_approval = { key: "event_approval", roleCodes: ["it_officer"] };
     }).toThrow();
-    expect(capabilityRoleCodes("event_approval")).toEqual(["president"]);
+    expect([...capabilityRoleCodes("event_approval")].sort()).toEqual(CALENDAR);
   });
 });
 
 describe("row 6 — a requirement sentence names the action's need, never the actor's holdings", () => {
   it("names one role in the singular", () => {
+    // Tested through the pure function rather than through a capability,
+    // because no capability grants exactly one role any more — LAN-77 widened
+    // event approval from President-only to the four calendar roles. The
+    // singular branch is still reachable the moment any grant narrows to one,
+    // so it keeps its coverage rather than losing it to that change.
+    expect(describeRoleRequirement(["president"])).toBe("This action requires the President role.");
+  });
+
+  it("names the approvers as the list they now are", () => {
     expect(capabilityRequirement("event_approval")).toBe(
-      "This action requires the President role.",
+      "This action requires one of these roles: President, Vice-President, Secretary " +
+        "or General Manager.",
     );
   });
 

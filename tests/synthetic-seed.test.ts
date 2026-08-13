@@ -132,14 +132,16 @@ describe.runIf(seeded)("synthetic dataset properties (SDA §11.5)", () => {
   });
 
   it("has events that were proposed and never happened", async () => {
-    for (const status of [
-      "draft",
-      "pending_approval",
-      "rejected",
-      "withdrawn",
-      "not_held",
-      "cancelled",
-    ]) {
+    // `pending_approval` is deliberately absent, on Brian's decision of
+    // 13 August 2026. PR #18 removed the Submit step, so the application can no
+    // longer put an event into that state, and LAN-77's approval accepts only a
+    // draft — a seeded row was therefore an event nobody could act on, which he
+    // hit on the real screen and read as polluted test data.
+    //
+    // The state itself remains in the enum, in the frozen model, and in the
+    // historical audit rows the seed still writes with `from_state =
+    // 'pending_approval'`. What went is the live row, not the vocabulary.
+    for (const status of ["draft", "rejected", "withdrawn", "not_held", "cancelled"]) {
       expect(
         await count("select count(*) as count from public.events where status = $1", [status]),
         `no event in the ${status} state`,
@@ -232,8 +234,28 @@ describe.runIf(seeded)("the scenarios the schema ticket names", () => {
     );
     expect(neverInvited).toBeGreaterThan(0);
 
+    // Compared over the same population, which is not pedantry.
+    //
+    // `invitation_response_state` partitions the resolved audience of every
+    // response-soliciting event, whatever its status. `uninvited_audience_members`
+    // narrows that to approved, occurred and not-held — because only there is
+    // "never invited" a defect rather than a fact.
+    //
+    // Those two counts were equal while an audience could only exist on an
+    // approved event. LAN-77 stores a *proposed* audience against a draft, so a
+    // draft with forty people chosen and nothing sent now supplies forty
+    // perfectly correct `never_invited` rows to the wider view. Asserting plain
+    // equality would fail the moment anybody used the feature.
     const flagged = await count("select count(*) as count from public.uninvited_audience_members");
-    expect(flagged).toBe(neverInvited);
+    const reportable = await count(
+      `select count(*) as count
+         from public.invitation_response_state s
+         join public.events e on e.id = s.event_id
+        where s.response_state = 'never_invited'
+          and e.status in ('approved', 'occurred', 'not_held')`,
+    );
+    expect(flagged).toBe(reportable);
+    expect(flagged).toBeGreaterThan(0);
   });
 
   it("reports all five P7 states from the seeded season", async () => {

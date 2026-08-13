@@ -62,3 +62,79 @@ The current live LAN-77 issue, comments, relationships and recorded owner decisi
 - Keyboard focus, labels, status meaning, error association, and touch targets are accessible.
 - No inaccessible data is present in the DOM or response payload for an unauthorized role.
 - The implementation review shows no unrecorded deviation from [`../slice-ux.md`](../slice-ux.md).
+
+## Accepted deviations from this contract — Brian, 13 August 2026
+
+Recorded here because this file is where an implementer or a project manager
+looks for what the approval screens are supposed to do. Each was decided on the
+real screen during LAN-77's visual review, and each supersedes the wireframe it
+contradicts. Nothing here changes a frozen domain invariant.
+
+### The audience is saved on the draft, not assembled at approval
+
+The wireframes imply the audience is built and approved in one sitting. It is
+not: choosing an audience saves it against the draft, and approval confirms what
+is already stored. **Edit draft** and back, a refresh, a closed tab and a second
+operator all keep it.
+
+Consequences worth knowing:
+
+- The builder re-opens with the saved audience already ticked. That is not a
+  default audience — ADR 0012's rule is that the _system_ never implies one —
+  it is the operator's own saved work.
+- The event detail shows the audience from the moment one is proposed, so a
+  draft carrying forty people says so rather than looking untouched.
+- A draft may carry an **empty** audience. Clearing a selection is a legitimate
+  thing to do; invariant E1b bites at approval, not before it.
+- The audience is frozen the instant the event is approved. Both write paths
+  guard on `status = 'draft'`, so the freeze is structural rather than a control
+  that happens not to be rendered.
+
+### Approval honours the confirmed list exactly
+
+If somebody goes inactive between being proposed and the event being approved,
+they are **still invited**. A human chose them and the screen showed their name;
+dropping them would mean approving a different list from the one confirmed. The
+confirmation screen says how many are no longer active and still lets the
+approval proceed, and the audit row records the count.
+
+### One person, one invitation
+
+A person can qualify in more than one capacity — the frozen model is explicit
+that the President is also a player, and eleven people in the synthetic club hold
+both a membership and a role. They are invited **once**, as a player before a
+coach before a committee member, and the resolved capacity is shown against
+their name.
+
+The database cannot see this collision: a player row's `person_id` is null and a
+committee row's `season_membership_id` is null, so the two unique indexes never
+meet. Left alone it would send one person two WhatsApp messages about one
+practice.
+
+### The group buttons
+
+- **Everyone active is first**, and the narrower groups read as refinements of
+  it.
+- Each button is a **toggle**: lit when every one of its people is selected,
+  and pressing it again clears them. Unticking one person unlights the group.
+- Each count is **people, not rows**. An earlier version showed the row count
+  and explained the difference in a sentence underneath; the club knows what
+  "everyone active" means and the screen does not explain its own arithmetic.
+- Selected people **sort to the top** of the list, so an audience of forty built
+  from a roster of forty-five is reviewable.
+
+### Additional derived groups
+
+The four groups here are what current domain data defines authoritatively.
+Further groups — by unit, by year, by anything the club actually asks for — are
+follow-on work and need the team to define them. They are not covered by this
+ticket and are not the post-MVP configuration administration in LAN-106 either.
+
+## Where the rules live
+
+| Rule                                                   | Source of truth                                                                                          |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| RSVP deadline per event type, and the clamp            | [`../../adr/0021-response-deadline-configuration.md`](../../adr/0021-response-deadline-configuration.md) |
+| Audience proposed on the draft, frozen at approval     | [`../../adr/0022-audience-proposed-then-frozen.md`](../../adr/0022-audience-proposed-then-frozen.md)     |
+| The audience must be non-empty (E1b), and who enforces | [`../../adr/0012-explicit-event-audience.md`](../../adr/0012-explicit-event-audience.md)                 |
+| Who may approve                                        | `src/lib/auth/capabilities.ts` — one file, no inline role lists                                          |

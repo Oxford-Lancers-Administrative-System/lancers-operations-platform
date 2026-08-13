@@ -6,7 +6,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import { abandonEventDraftAction } from "./actions";
+import { abandonEventDraftAction, approveEventAction } from "./actions";
 import { EMPTY_TRANSITION_STATE } from "./form-state";
 
 /**
@@ -78,6 +78,49 @@ export function AbandonDraftForm({ eventId }: { eventId: string }) {
           </Button>
           <Button variant="outlined" onClick={() => setOpen(false)} disabled={pending}>
             Keep the draft
+          </Button>
+        </Stack>
+      </Stack>
+    </Box>
+  );
+}
+
+/**
+ * The approve button, and only the button.
+ *
+ * A client component because it needs `useActionState` for the pending state and
+ * the refusal, and nothing else on the confirmation screen does — the audience,
+ * the count and the deadline are all server-rendered from stored rows. Keeping
+ * the client boundary this small is what stops the confirmation screen holding a
+ * private copy of the audience that could disagree with the database.
+ *
+ * It posts the event id and nothing else. The audience was saved before this
+ * screen rendered, so there is no list to send, and therefore no list a browser
+ * could alter between confirming and approving.
+ */
+export function ApproveEventForm({ eventId }: { eventId: string }) {
+  const [state, formAction, pending] = useActionState(approveEventAction, EMPTY_TRANSITION_STATE);
+
+  return (
+    <Box component="form" action={formAction} data-testid="approve-form">
+      <Stack spacing={2}>
+        <input type="hidden" name="eventId" value={eventId} />
+        {state.error ? (
+          <Alert severity="error" data-testid="approval-error">
+            {state.error}
+          </Alert>
+        ) : null}
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+          <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
+            {pending ? "Approving…" : "Approve event"}
+          </Button>
+          <Button
+            variant="outlined"
+            href={`/operate/events/${eventId}?step=audience`}
+            disabled={pending}
+            sx={{ minHeight: 44 }}
+          >
+            Back to audience
           </Button>
         </Stack>
       </Stack>

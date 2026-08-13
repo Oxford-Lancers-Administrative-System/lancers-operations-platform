@@ -46,7 +46,17 @@ export async function activateMembership(): Promise<never> {
   notImplemented("LAN-75", "activate a season membership");
 }
 
-/** Approve an event and release its invitations. President only. Behaviour: LAN-77. */
+/**
+ * Approve an event and release its invitations. The four calendar roles.
+ *
+ * The behaviour shipped in LAN-77 and lives in
+ * `src/app/operate/events/actions.ts`, beside the screen that posts to it —
+ * same as `activateMembership` above, whose body shipped in LAN-75. These
+ * entry points stay because they are the guard-parity harness LAN-73 built:
+ * `actions.test.ts` calls each one directly with an under-privileged actor, so
+ * a capability quietly widened or a guard quietly deleted fails a test here
+ * rather than being discovered on a screen.
+ */
 export async function approveEvent(): Promise<never> {
   await requireCapability("event_approval");
   notImplemented("LAN-77", "approve an event and release its invitations");

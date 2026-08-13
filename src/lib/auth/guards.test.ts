@@ -205,15 +205,31 @@ describe("rows 9 to 12 — requireCapability() over the map", () => {
     await expect(requireCapability("event_approval")).resolves.toBe(operator);
   });
 
-  it("refuses the Secretary the event approval, naming the President", async () => {
-    givenSession({ state: "active", operator: actor(["secretary"]) });
+  it("refuses the Treasurer the event approval, naming what it needs", async () => {
+    // The Secretary used to be the refused actor here, and is now an approver
+    // (LAN-77's owner clarification). The Treasurer replaces them as the case
+    // worth testing: a constitutional office, permitted to activate a
+    // membership, and deliberately not permitted to approve an event.
+    givenSession({ state: "active", operator: actor(["treasurer"]) });
 
     const refusal = await refusalFrom(() => requireCapability("event_approval"));
 
     expect(refusal.rule).toBe(capabilityRule("event_approval"));
     expect(refusal.message).toContain("President");
-    expect(refusal.message).not.toContain("Secretary");
+    // The requirement, never the holdings — the refused operator's own role
+    // must not appear in what they are shown.
+    expect(refusal.message).not.toContain("Treasurer");
   });
+
+  it.each(["president", "vice_president", "secretary", "general_manager"])(
+    "lets %s approve an event",
+    async (code) => {
+      const operator = actor([code]);
+      givenSession({ state: "active", operator });
+
+      await expect(requireCapability("event_approval")).resolves.toBe(operator);
+    },
+  );
 
   it.each(["president", "vice_president", "secretary", "treasurer", "general_manager"])(
     "lets %s activate a membership",
