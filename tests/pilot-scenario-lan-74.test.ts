@@ -19,9 +19,10 @@
  *
  * Its cleanup removes a row **it did not create and cannot name**: the returner
  * a tester enters through the interface, whose `people.id` the application
- * minted with `gen_random_uuid()`. That sweep is keyed on the `PILOT-LAN-74`
- * sentinel alone, and it is the only delete in this repository that is not
- * keyed on a deterministic identifier as well.
+ * minted with `gen_random_uuid()`. Five of `cleanup.sql`'s deletes are therefore
+ * keyed on the `PILOT-LAN-74` sentinel alone — the second ownership shape,
+ * governed by ADR 0019 and pinned by value in `SENTINEL_ONLY_DELETES`. LAN-76
+ * uses it too.
  *
  * So the sweep gets its own section below, and it is tested harder than
  * anything else here: a person carrying the sentinel who has become anything
@@ -944,6 +945,39 @@ describe("the sweep of the returner created through the interface", () => {
       [bystander],
     );
     expect(surviving.n).toBe("1");
+  });
+
+  it("sweeps a sentinel typed in the wrong case or with stray spaces", async () => {
+    // The marker is typed by a human into a form. An exact-match sweep would
+    // miss `pilot-lan-74`, and miss it *silently* — the preflight counter, the
+    // script's verification query and README's "what was left behind" query all
+    // use the same predicate, so every one of them would report clean while the
+    // rows sat in production. Same failure class as keying on a column the form
+    // cannot write.
+    await client.query(SETUP);
+
+    const spellings = ["pilot-lan-74", " PILOT-LAN-74 ", "Pilot-Lan-74"];
+    const created: string[] = [];
+    for (const spelling of spellings) {
+      const person = await one<{ id: string }>(
+        client,
+        `insert into public.people (given_name, family_name, known_as)
+         values ('Fenwold', $1, null) returning id`,
+        [spelling],
+      );
+      created.push(person.id);
+    }
+
+    await client.query(CLEANUP);
+
+    for (const [index, id] of created.entries()) {
+      const surviving = await one<{ n: string }>(
+        client,
+        "select count(*) as n from public.people where id = $1",
+        [id],
+      );
+      expect(surviving.n, `"${spellings[index]}" was not swept`).toBe("0");
+    }
   });
 
   it("does not read the sentinel out of any column but the two it owns", async () => {

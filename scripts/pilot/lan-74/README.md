@@ -95,7 +95,7 @@ these and nothing else:
 
 | Field          | Value                                                                       |
 | -------------- | --------------------------------------------------------------------------- |
-| **Last name**  | exactly `PILOT-LAN-74` — this is the only handle cleanup has                |
+| **Last name**  | `PILOT-LAN-74` — the only handle cleanup has. Case and spacing are forgiven |
 | **First name** | anything clearly synthetic                                                  |
 | **Email**      | any address ending `@example.invalid`                                       |
 | **Phone**      | leave blank, or `07700 900123` / `+44 7700 900123` — one space, no brackets |
@@ -154,8 +154,10 @@ by value in `SENTINEL_ONLY_DELETES` in
 
 Every scenario row is removed by its primary key **and** the sentinel, as the
 runbook requires. The returner created through the interface in step 4 cannot
-be: its id was minted by `gen_random_uuid()`. That sweep is keyed on the
-sentinel alone, and it is the only delete in this repository that is.
+be: its id was minted by `gen_random_uuid()`. Five of the deletes in
+`cleanup.sql` are therefore keyed on the sentinel alone. LAN-76 uses the same
+shape, so these are not the only such deletes in the repository — which is why
+ADR 0019 makes each one pinned by value rather than permitted by category.
 
 **Exactly what it matches, because this is the paragraph to read before you run
 it against production:**
@@ -176,10 +178,11 @@ behaviour — it is how a returner from an earlier testing round gets cleaned up
 too — but it is a wider net than a deterministic identifier, and it is the
 reason every refusal below exists.
 
-The two columns are an allow-list, enforced by
-`tests/pilot-data-contract.test.ts`. A future scenario cannot quietly add a
-third: widening it is Brian's decision, and the test fails until the runbook
-and the list agree.
+Both columns are part of the pinned predicate, so widening the match to a third
+is an edit to `SENTINEL_ONLY_DELETES` — a line in a diff, and Brian's decision
+under ADR 0019. The comparison is `upper(btrim(…))`, so a sentinel typed in the
+wrong case or with a stray space still matches; without that, a typo would leave
+rows behind that every count in the script reports as absent.
 
 It is fenced by refusing outright, rather than by being narrow. `cleanup.sql`
 aborts if any person it would remove has an operator account, holds or granted
@@ -196,11 +199,15 @@ Supabase SQL editor runs at READ COMMITTED, so re-deriving the sentinel match at
 delete time could remove a person created through the interface _after_ the
 guards ran, having passed none of them.
 
-`tests/pilot-data-contract.test.ts` holds the general rule: a sentinel-only
-delete must be declared on the comment lines directly above it, and may only
-target `people`, `person_aliases`, `contact_points`, `season_memberships` or
-`season_membership_status_events`. `audit_events` is not on that list and never
-will be.
+The general rule is
+[ADR 0019](../../../docs/adr/0019-application-created-pilot-rows.md), and it is
+enforced by `SENTINEL_ONLY_DELETES` in
+[`tests/pilot-data-contract.test.ts`](../../../tests/pilot-data-contract.test.ts):
+each sentinel-only delete is pinned **by value**, this scenario declares the
+shape under the heading above, and the sentinel must be one of the pinned
+conjuncts. A delete this scenario has not pinned — against `audit_events`, or
+anything else — is refused because it has no entry, not because a table sits on
+a deny-list.
 
 `audit_events` is never deleted. The rows LAN-74 wrote about these people
 survive cleanup by design — `audit_events` is deliberately not foreign-keyed to

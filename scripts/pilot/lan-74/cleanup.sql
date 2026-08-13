@@ -35,14 +35,32 @@
 -- reported clean while the rows stayed in production. The marker has to live in
 -- a field the form actually has.
 --
+-- The same argument applies to how it is spelled, which is why every comparison
+-- here is `upper(btrim(…))`. A tester who types `pilot-lan-74`, or leaves a
+-- trailing space, would otherwise leave rows behind that every count in this
+-- file reports as absent.
+--
+-- The same argument applies to how it is spelled, which is why every comparison
+-- here is `upper(btrim(…))`. A tester who types `pilot-lan-74`, or leaves a
+-- trailing space, would otherwise leave rows behind that every count in this
+-- file reports as absent.
+--
+-- The same argument applies to how it is spelled, which is why every comparison
+-- here is `upper(btrim(…))`. A tester who types `pilot-lan-74`, or leaves a
+-- trailing space, would otherwise leave rows behind that every count in this
+-- file reports as absent.
+--
 -- Both columns are still recognised. Scenario rows carry the sentinel in
 -- `known_as`, because setup.sql can set any column and person …0001 is
 -- deliberately first-name-only so it has no family name to carry one. Rows the
 -- interface creates carry it in `family_name`. `'PILOT-LAN-74' in (known_as,
 -- family_name)` matches either without a disjunction inside a delete.
 --
--- That sweep is therefore keyed on the sentinel alone, and it is the one delete
--- in this repository that is. It is fenced instead by refusing outright if the
+-- Five of the deletes below are therefore keyed on the sentinel alone. That is
+-- the second ownership shape, governed by ADR 0019 — LAN-76 uses it too, so
+-- this is not the only such delete in the repository, and each of these five is
+-- pinned by value in SENTINEL_ONLY_DELETES in tests/pilot-data-contract.test.ts.
+-- They are fenced by refusing outright if the
 -- person it would remove has become anything other than scenario data: an
 -- operator account, a role assignment, an actor in the audit trail, an alias,
 -- or a membership in a season this scenario has nothing to do with. Each of
@@ -87,7 +105,7 @@ select
   ) as scenario_people,
   (
     select count(*) from public.people
-     where 'PILOT-LAN-74' in (known_as, family_name)
+     where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))
        and id not in (
          '00740074-0074-4074-8074-000000000001',
          '00740074-0074-4074-8074-000000000003'
@@ -161,7 +179,7 @@ begin
   select coalesce(array_agg(id), '{}')
     into swept
     from public.people
-   where sentinel in (known_as, family_name)
+   where sentinel in (upper(btrim(known_as)), upper(btrim(family_name)))
      and id <> all (scenario_people);
 
   -- Materialised so that the statements which DELETE use exactly the set that
@@ -173,7 +191,11 @@ begin
   -- Dropped first as well as `on commit drop`: the latter only fires at
   -- COMMIT, so running this script twice inside one editor session — or inside
   -- a test's own transaction — would otherwise collide on the second run.
-  drop table if exists pilot_lan_74_targets;
+  -- `pg_temp.`-qualified deliberately. Unqualified, the name resolves through
+  -- `search_path`, and on the first run of a session — when no temp table
+  -- exists yet — that is `public`. A permanent table of the same name would be
+  -- dropped inside a transaction that then commits.
+  drop table if exists pg_temp.pilot_lan_74_targets;
   create temporary table pilot_lan_74_targets on commit drop as
   select unnest(scenario_people || swept) as person_id;
 
@@ -405,7 +427,7 @@ delete from public.season_membership_status_events
 -- removing, including the ones the application wrote.
 delete from public.season_membership_status_events
  where season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_74_targets))
-   and season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name)));
+   and season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))));
 
 -- 2. Memberships — the scenario's own row, then the ones created through the
 --    interface: README step 3's on scenario person …0003, and step 4's on the
@@ -416,7 +438,7 @@ delete from public.season_memberships
 
 delete from public.season_memberships
  where person_id in (select person_id from pilot_lan_74_targets)
-   and person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name));
+   and person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name))));
 
 -- 3. Contact points — the scenario's own three, one statement each, then
 --    anything the interface recorded against these people.
@@ -434,13 +456,13 @@ delete from public.contact_points
 
 delete from public.contact_points
  where person_id in (select person_id from pilot_lan_74_targets)
-   and person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name));
+   and person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name))));
 
 -- Aliases. The scenario writes none and the preflight refuses if one exists on
 -- a scenario person, so this reaches only swept people.
 delete from public.person_aliases
  where person_id in (select person_id from pilot_lan_74_targets)
-   and person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name));
+   and person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name))));
 
 -- 4. The people themselves, last — the scenario's two by identifier and
 --    sentinel, then the returner created through the interface, whose sentinel
@@ -455,7 +477,7 @@ delete from public.people
 
 delete from public.people
  where id in (select person_id from pilot_lan_74_targets)
-   and 'PILOT-LAN-74' in (known_as, family_name);
+   and 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)));
 
 -- ---------------------------------------------------------------------------
 -- Verification — read this before you commit
@@ -464,7 +486,7 @@ delete from public.people
 -- alongside so the "nothing else went with it" check needs no second query.
 select
   'people carrying the sentinel' as check,
-  count(*) filter (where 'PILOT-LAN-74' in (known_as, family_name)) as remaining
+  count(*) filter (where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))) as remaining
   from public.people
 union all
 select 'scenario contact_points', count(*) filter (where source = 'PILOT-LAN-74')

@@ -275,6 +275,69 @@ describe("the scenario scripts stay inside the conventions", () => {
   const setup = read(`${SCENARIO_DIR}/setup.sql`);
   const cleanup = read(`${SCENARIO_DIR}/cleanup.sql`);
 
+  /**
+   * Every pilot script in the repository, not just the worked example's.
+   *
+   * These rules were scoped to LAN-93 and were therefore asserted against one
+   * scenario while claiming to be conventions. That mattered the moment
+   * LAN-74's cleanup became the first pilot script to contain DDL at all
+   * (`create temporary table`) — the exact construct "is not a migration in
+   * disguise" exists to adjudicate, adjudicated by nothing.
+   */
+  const ALL_SCRIPTS: readonly (readonly [name: string, sql: string])[] = filesUnder("scripts/pilot")
+    .filter((file) => file.endsWith(".sql"))
+    .map((file) => [file.replace(/^scripts\/pilot\//, ""), read(file)] as const);
+
+  it("covers every pilot script in the repository", () => {
+    // A list that silently stops growing is the way this rule fails.
+    expect(ALL_SCRIPTS.length).toBeGreaterThanOrEqual(6);
+    for (const scenario of ["lan-93", "lan-76", "lan-74"]) {
+      expect(ALL_SCRIPTS.map(([name]) => name)).toContain(`${scenario}/cleanup.sql`);
+    }
+  });
+
+  it.each(ALL_SCRIPTS)("%s never writes to auth or storage", (_name, sql) => {
+    expect(sql).not.toMatch(/\binsert\s+into\s+auth\./i);
+    expect(sql).not.toMatch(/\bupdate\s+auth\./i);
+    expect(sql).not.toMatch(/\bdelete\s+from\s+auth\./i);
+    expect(sql).not.toMatch(/\b(insert\s+into|update|delete\s+from)\s+storage\./i);
+  });
+
+  it.each(ALL_SCRIPTS)("%s is not a migration in disguise", (name, sql) => {
+    // Permanent DDL is a migration's job. A TEMPORARY table is not — it lives
+    // for the transaction, adds no schema concept, and LAN-74 uses one to hold
+    // the set its preflight validated so the deletes cannot re-derive a wider
+    // one. So the rule is: no permanent DDL, and a temp table must say so.
+    // Comments and string literals removed first: these scripts explain
+    // themselves at length, and prose about what a migration would "create" is
+    // not DDL. Matching raw text made every scenario fail on its own comments.
+    const code = sql
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/--[^\n]*/g, "")
+      .replace(/'(?:[^']|'')*'/g, "''");
+
+    const DDL = "table|type|schema|index|view|function|policy|extension|sequence|trigger|role";
+
+    const permanentDdl = [
+      ...code.matchAll(new RegExp(`\\bcreate\\s+(?!temporary\\b)(?:${DDL})\\b`, "gi")),
+    ].map((match) => match[0]);
+    expect(permanentDdl, `${name} creates a permanent database object`).toEqual([]);
+
+    expect(code, `${name} alters a database object`).not.toMatch(
+      new RegExp(`\\balter\\s+(?:${DDL})\\b`, "i"),
+    );
+
+    // `drop table if exists` is permitted only for a temporary table this
+    // script created itself, and must be schema-qualified so it cannot reach a
+    // permanent relation through `search_path`.
+    for (const drop of [...code.matchAll(/\bdrop\s+table\s+(?:if\s+exists\s+)?([\w.]+)/gi)]) {
+      expect(drop[1], `${name} drops "${drop[1]}", which is not a pg_temp relation`).toMatch(
+        /^pg_temp\./,
+      );
+    }
+    expect(code, `${name} grants or revokes`).not.toMatch(/\b(grant|revoke)\b/i);
+  });
+
   it.each([
     ["setup.sql", setup],
     ["cleanup.sql", cleanup],
@@ -452,35 +515,35 @@ describe("the scenario scripts stay inside the conventions", () => {
         "public.season_membership_status_events",
         [
           "season_membership_id in (select id from public.season_memberships where person_id in (select person_id from pilot_lan_74_targets))",
-          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name)))",
+          "season_membership_id in (select id from public.season_memberships where person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))))",
         ],
       ],
       [
         "public.season_memberships",
         [
           "person_id in (select person_id from pilot_lan_74_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name))",
+          "person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name))))",
         ],
       ],
       [
         "public.contact_points",
         [
           "person_id in (select person_id from pilot_lan_74_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name))",
+          "person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name))))",
         ],
       ],
       [
         "public.person_aliases",
         [
           "person_id in (select person_id from pilot_lan_74_targets)",
-          "person_id in (select id from public.people where 'PILOT-LAN-74' in (known_as, family_name))",
+          "person_id in (select id from public.people where 'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name))))",
         ],
       ],
       [
         "public.people",
         [
           "id in (select person_id from pilot_lan_74_targets)",
-          "'PILOT-LAN-74' in (known_as, family_name)",
+          "'PILOT-LAN-74' in (upper(btrim(known_as)), upper(btrim(family_name)))",
         ],
       ],
     ],
