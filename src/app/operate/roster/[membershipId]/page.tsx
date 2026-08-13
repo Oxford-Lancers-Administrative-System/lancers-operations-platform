@@ -123,11 +123,17 @@ export default async function MembershipPage({
       ) : null}
 
       {/* The three facts UX-21 leads with, before any detail. */}
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        divider={<Divider orientation="vertical" flexItem />}
-      >
+      {/*
+        No `divider` prop on this Stack, and none on the onboarding list below.
+        MUI v9's Stack renders that prop through something this project's server
+        build resolves to `undefined`, so every full server render of this page
+        threw "Element type is invalid ... got: undefined" and returned 500 —
+        while clicking through from the roster worked, because client-side
+        navigation renders in the browser instead. That is why it looked
+        intermittent and why nothing else broke: this is the only page in the
+        repository that used `divider`. Separators are drawn explicitly now.
+      */}
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
         <Headline
           value={labelFor(MEMBERSHIP_STATUS_LABELS, status)}
           label="Membership"
@@ -231,9 +237,12 @@ export default async function MembershipPage({
             This season has no onboarding items configured, so this membership has none.
           </Typography>
         ) : (
-          <Stack spacing={2} sx={{ mt: 2 }} divider={<Divider flexItem />}>
-            {membership.onboardingItems.map((item) => (
-              <OnboardingRow key={item.id} item={item} membershipId={membership.membershipId} />
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            {membership.onboardingItems.map((item, index) => (
+              <Box key={item.id}>
+                {index > 0 ? <Divider sx={{ mb: 2 }} /> : null}
+                <OnboardingRow item={item} membershipId={membership.membershipId} />
+              </Box>
             ))}
           </Stack>
         )}

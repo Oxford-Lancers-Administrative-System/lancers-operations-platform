@@ -49,6 +49,9 @@ vi.mock("@/lib/services/membership", async (importOriginal) => {
   return { ...actual, listCurrentSeasonRoster: vi.fn(), readMembership: vi.fn() };
 });
 
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import path from "node:path";
+
 import { NotFound } from "@/lib/db";
 import {
   resolveOperatorAccess,
@@ -656,5 +659,43 @@ describe("an operator who may not be here at all", () => {
     await expect(RosterPage(rosterProps())).rejects.toThrow(
       "REDIRECT:/login?redirectTo=%2Foperate%2Froster",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+/**
+ * The one defect in this issue that no rendering test could have caught.
+ *
+ * `<Stack divider={<Divider />}>` renders correctly in jsdom and in the
+ * browser, and throws "Element type is invalid ... got: undefined" during a
+ * **full server render** on this project's MUI/Next combination. So every
+ * direct hit or hard refresh of the membership record returned 500, while
+ * clicking through to it from the roster worked — which is exactly why it
+ * looked random, and why it survived a full suite, a passing CI run and an
+ * independent review.
+ *
+ * Nothing about the rendered output distinguishes the broken form from the
+ * working one, so the guard is on the source: no component under `src/` uses
+ * Stack's `divider` prop. Separators are drawn explicitly instead.
+ */
+describe("the Stack divider prop, which breaks server rendering here", () => {
+  function filesUnder(dir: string): string[] {
+    const root = path.resolve(import.meta.dirname, "../../..");
+    const absolute = path.join(root, dir);
+    return readdirSync(absolute, { recursive: true, encoding: "utf8" })
+      .map((entry) => path.join(absolute, entry))
+      .filter((entry) => statSync(entry).isFile())
+      .filter((entry) => entry.endsWith(".tsx") && !entry.endsWith(".test.tsx"));
+  }
+
+  const components = filesUnder("app").concat(filesUnder("lib").filter((f) => f.endsWith(".tsx")));
+
+  it("checks a non-trivial set of components", () => {
+    expect(components.length).toBeGreaterThan(10);
+  });
+
+  it.each(components)("%s does not pass a divider to Stack", (file) => {
+    expect(readFileSync(file, "utf8")).not.toMatch(/divider=\{/);
   });
 });
