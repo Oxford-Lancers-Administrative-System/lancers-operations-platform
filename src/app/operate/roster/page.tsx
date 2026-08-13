@@ -224,11 +224,6 @@ export default async function RosterPage({ searchParams }: PageProps<"/operate/r
                       >
                         {member.displayName}
                       </Button>
-                      {member.knownAs ? (
-                        <Typography variant="caption" component="p" color="text.secondary">
-                          Known as {member.knownAs}
-                        </Typography>
-                      ) : null}
                     </TableCell>
                     <TableCell>
                       <Chip
@@ -368,11 +363,6 @@ function MemberCard({ member }: { member: RosterEntry }) {
           <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
             {member.displayName}
           </Typography>
-          {member.knownAs ? (
-            <Typography variant="body2" color="text.secondary">
-              Known as {member.knownAs}
-            </Typography>
-          ) : null}
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
             <Chip
               size="small"

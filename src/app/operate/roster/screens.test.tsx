@@ -184,7 +184,7 @@ beforeEach(() => {
 
 // ---------------------------------------------------------------------------
 
-describe("UX-10 — Add returning player", () => {
+describe("UX-10 — Add player", () => {
   beforeEach(async () => {
     await renderIntakeAt({
       step: "details",
@@ -194,10 +194,10 @@ describe("UX-10 — Add returning player", () => {
   });
 
   it("shows the approved heading and body", () => {
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Add returning player");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Add player");
     expect(
       screen.getByText(
-        "Enter the returning person’s details. A duplicate check runs before anything is written.",
+        "Enter the person’s details. A duplicate check runs before anything is written.",
       ),
     ).toBeInTheDocument();
   });

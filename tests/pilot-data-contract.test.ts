@@ -1154,7 +1154,7 @@ describe("the scenario scripts stay inside the conventions", () => {
     ["lan-76/cleanup.sql", read("scripts/pilot/lan-76/cleanup.sql"), 6] as const,
     ["lan-74/setup.sql", read("scripts/pilot/lan-74/setup.sql"), 10] as const,
     ["lan-74/cleanup.sql", read("scripts/pilot/lan-74/cleanup.sql"), 14] as const,
-    ["lan-75/setup.sql", read("scripts/pilot/lan-75/setup.sql"), 9] as const,
+    ["lan-75/setup.sql", read("scripts/pilot/lan-75/setup.sql"), 8] as const,
     ["lan-75/cleanup.sql", read("scripts/pilot/lan-75/cleanup.sql"), 12] as const,
   ];
 

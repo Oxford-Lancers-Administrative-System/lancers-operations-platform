@@ -143,24 +143,6 @@ async function openSeasonId(client: Client): Promise<string> {
 }
 
 /**
- * Makes the open season look like hosted: no subscription item type of its own.
- *
- * `setup.sql` refuses to add a second, and the seed configures one. Cleared
- * rather than deleted, because deleting it would cascade into every seeded
- * membership's onboarding items and change the very baseline these tests
- * compare against.
- */
-async function withoutSeasonSubscriptionType(client: Client): Promise<void> {
-  const seasonId = await openSeasonId(client);
-  await client.query(
-    `update public.onboarding_item_types
-        set is_subscription = false
-      where season_id = $1::uuid and is_subscription`,
-    [seasonId],
-  );
-}
-
-/**
  * Makes `personId` a linked operator, so the preflight that refuses to delete a
  * durable identity has something to refuse.
  *
@@ -349,11 +331,12 @@ describe("the scenario files", () => {
 
 describe("setup.sql", () => {
   it("installs the whole scenario", async () => {
-    await withoutSeasonSubscriptionType(client);
     await client.query(SETUP);
 
     const seasonId = await openSeasonId(client);
 
+    // Two required items always; the subscription type only when the season
+    // had none of its own, because a season may hold at most one.
     expect(
       await count(
         client,
@@ -361,7 +344,7 @@ describe("setup.sql", () => {
           where id::text like $1 and season_id = $2::uuid and position($3 in label) > 0`,
         [`${ID_PREFIX}%`, seasonId, SENTINEL],
       ),
-    ).toBe(3);
+    ).toBeGreaterThanOrEqual(2);
 
     const person = await one<{ known_as: string; family_name: string }>(
       client,
@@ -381,13 +364,22 @@ describe("setup.sql", () => {
     expect(membership.entry).toBe("returning");
     expect(membership.season_id).toBe(seasonId);
 
+    // Two or three, depending on whether this season already had a
+    // subscription item type of its own. Asserted against what the script
+    // actually created rather than a fixed number, so the assertion means the
+    // same thing on hosted (no types at all) and locally (a seeded set).
+    const pilotTypes = await count(
+      client,
+      "select count(*) as n from public.onboarding_item_types where label like '%PILOT-LAN-75%'",
+    );
+    expect(pilotTypes).toBeGreaterThanOrEqual(2);
     expect(
       await count(
         client,
         "select count(*) as n from public.onboarding_items where season_membership_id = $1::uuid and status = 'pending'",
         [MEMBERSHIP_ID],
       ),
-    ).toBe(3);
+    ).toBe(pilotTypes);
 
     expect(
       await count(
@@ -398,8 +390,7 @@ describe("setup.sql", () => {
     ).toBe(2);
   });
 
-  it("gives the scenario exactly one required-and-outstanding item, plus the subscription", async () => {
-    await withoutSeasonSubscriptionType(client);
+  it("gives the scenario two required items, and never a second subscription type", async () => {
     await client.query(SETUP);
 
     const required = await count(
@@ -410,24 +401,23 @@ describe("setup.sql", () => {
         where i.season_membership_id = $1::uuid and t.is_required and not t.is_subscription`,
       [MEMBERSHIP_ID],
     );
-    // Two required non-subscription items: one to waive, one to leave
-    // outstanding so the override path is reachable.
+    // One to waive, one to leave outstanding so the override path is reachable.
     expect(required).toBe(2);
 
-    const subscription = await one<{ is_required: boolean }>(
-      client,
-      `select t.is_required
-         from public.onboarding_items i
-         join public.onboarding_item_types t on t.id = i.item_type_id
-        where i.season_membership_id = $1::uuid and t.is_subscription`,
-      [MEMBERSHIP_ID],
-    );
-    // Marked required as well — deliberately the worst case for register D10.
-    expect(subscription.is_required).toBe(true);
+    // A season may hold at most one subscription type, and this script adopts
+    // the club's rather than refusing. Either way there is exactly one, which
+    // is what register D10 is exercised against.
+    const seasonId = await openSeasonId(client);
+    expect(
+      await count(
+        client,
+        "select count(*) as n from public.onboarding_item_types where season_id = $1::uuid and is_subscription",
+        [seasonId],
+      ),
+    ).toBe(1);
   });
 
   it("contacts nobody — every value is on a reserved, unroutable domain", async () => {
-    await withoutSeasonSubscriptionType(client);
     await client.query(SETUP);
 
     const { rows } = await client.query<{ raw_value: string; kind: string }>(
@@ -443,8 +433,6 @@ describe("setup.sql", () => {
   });
 
   it("is repeatable — running it twice leaves what running it once leaves", async () => {
-    await withoutSeasonSubscriptionType(client);
-
     await client.query(SETUP);
     const afterOnce = await snapshot(client);
 
@@ -455,7 +443,6 @@ describe("setup.sql", () => {
   });
 
   it("names a script rather than a person as the author of its history", async () => {
-    await withoutSeasonSubscriptionType(client);
     await client.query(SETUP);
 
     const { rows } = await client.query<{
@@ -475,14 +462,7 @@ describe("setup.sql", () => {
 });
 
 describe("setup.sql refuses rather than guessing", () => {
-  it("refuses when the season already has its own subscription item type", async () => {
-    // The seeded state, untouched — which is what a club that has configured
-    // its own onboarding looks like.
-    await expect(client.query(SETUP)).rejects.toThrow(/already has its own subscription item type/);
-  });
-
   it("refuses when a scenario identifier belongs to somebody else", async () => {
-    await withoutSeasonSubscriptionType(client);
     await client.query(
       "insert into public.people (id, given_name, known_as) values ($1::uuid, 'Somebody', 'Real')",
       [PERSON_ID],
@@ -492,7 +472,6 @@ describe("setup.sql refuses rather than guessing", () => {
   });
 
   it("refuses when the scenario identifier has become a durable identity", async () => {
-    await withoutSeasonSubscriptionType(client);
     await client.query(
       "insert into public.people (id, given_name, family_name, known_as) values ($1::uuid, 'Thelbrook', 'Pilotcase', $2)",
       [PERSON_ID, SENTINEL],
@@ -503,7 +482,6 @@ describe("setup.sql refuses rather than guessing", () => {
   });
 
   it("refuses when no season is open or active", async () => {
-    await withoutSeasonSubscriptionType(client);
     // Onboarding items and item types point at the season; the scenario cannot
     // run without one, and neither can the feature.
     //
@@ -518,7 +496,6 @@ describe("setup.sql refuses rather than guessing", () => {
   });
 
   it("refuses when more than one season is open", async () => {
-    await withoutSeasonSubscriptionType(client);
     await client.query(
       `update public.seasons set status = 'open'
         where id <> (select id from public.seasons where status in ('open', 'active') limit 1)`,
@@ -534,7 +511,6 @@ describe("setup.sql refuses rather than guessing", () => {
 
 describe("cleanup.sql", () => {
   it("removes the scenario and nothing else, byte for byte", async () => {
-    await withoutSeasonSubscriptionType(client);
     const before = await snapshot(client);
 
     await client.query(SETUP);
@@ -544,7 +520,6 @@ describe("cleanup.sql", () => {
   });
 
   it("is repeatable — a second run removes nothing", async () => {
-    await withoutSeasonSubscriptionType(client);
     await client.query(SETUP);
 
     await client.query(CLEANUP);
@@ -567,7 +542,6 @@ describe("cleanup.sql", () => {
    * their link to the scenario's own identifiers.
    */
   it("removes what the application wrote against the scenario, and keeps the audit", async () => {
-    await withoutSeasonSubscriptionType(client);
     const before = await snapshot(client);
     const auditBefore = await count(client, "select count(*) as n from public.audit_events");
     await client.query(SETUP);
@@ -618,7 +592,6 @@ describe("cleanup.sql", () => {
    * README tells them to mark it.
    */
   it("removes the returner created by hand, and its generated items", async () => {
-    await withoutSeasonSubscriptionType(client);
     const before = await snapshot(client);
     await client.query(SETUP);
 
@@ -680,7 +653,6 @@ describe("cleanup.sql", () => {
    * items and leave that membership completely alone.
    */
   it("takes its items off an unrelated membership without touching the membership", async () => {
-    await withoutSeasonSubscriptionType(client);
     const before = await snapshot(client);
     await client.query(SETUP);
 
@@ -735,7 +707,6 @@ describe("cleanup.sql refuses rather than widening", () => {
   });
 
   it("refuses when a sentinel person holds a role assignment", async () => {
-    await withoutSeasonSubscriptionType(client);
     await client.query(SETUP);
 
     // A non-constitutional seat. `role_assignments_one_holder_per_office`

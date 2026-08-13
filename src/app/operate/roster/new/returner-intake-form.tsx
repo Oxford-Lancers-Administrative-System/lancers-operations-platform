@@ -64,7 +64,12 @@ export default function ReturnerIntakeForm() {
 }
 
 // ---------------------------------------------------------------------------
-// UX-10 — Add returning player
+// UX-10 — Add player
+//
+// Brian, on the running screen: the intake heading reads "Add player" too.
+// That supersedes the earlier instruction to leave UX-10 alone. The workflow
+// underneath is unchanged — this still enters a returning player, still fixes
+// Returning, and still dedupes before writing; only the words changed.
 // ---------------------------------------------------------------------------
 
 function DetailsStep({
@@ -103,11 +108,10 @@ function DetailsStep({
     <Stack spacing={3}>
       <Box>
         <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          Add returning player
+          Add player
         </Typography>
         <Typography color="text.secondary" sx={{ mt: 1 }}>
-          Enter the returning person&rsquo;s details. A duplicate check runs before anything is
-          written.
+          Enter the person&rsquo;s details. A duplicate check runs before anything is written.
         </Typography>
       </Box>
 

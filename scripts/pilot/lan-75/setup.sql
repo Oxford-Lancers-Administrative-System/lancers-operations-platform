@@ -102,7 +102,6 @@ declare
   sentinel constant text := 'PILOT-LAN-75';
   scenario_person constant uuid := '00750075-0075-4075-8075-000000000010';
   scenario_membership constant uuid := '00750075-0075-4075-8075-000000000020';
-  subs_type_id constant uuid := '00750075-0075-4075-8075-000000000003';
   open_seasons integer;
   open_season uuid;
   missing text;
@@ -163,20 +162,7 @@ begin
   select id into open_season
     from public.seasons where status in ('open', 'active');
 
-  -- (d) The season may have at most one subscription item type, and this
-  --     scenario supplies one. If the club has already configured its own,
-  --     abort rather than colliding with the partial unique index — and say so,
-  --     because register D10 can then be exercised against the real one and
-  --     this scenario's subscription type is simply not needed.
-  if exists (
-    select 1 from public.onboarding_item_types
-     where season_id = open_season and is_subscription and id <> subs_type_id
-  ) then
-    raise exception
-      'LAN-75 pilot setup refused: the open season already has its own subscription item type. Exercise register D10 against that one; this scenario must not add a second.';
-  end if;
-
-  -- (e) Each deterministic identifier is either free, or already carries this
+  -- (d) Each deterministic identifier is either free, or already carries this
   --     scenario's sentinel. Anything else means the identifier is occupied by
   --     a row this script does not own.
   if exists (
@@ -227,14 +213,14 @@ begin
     raise exception 'LAN-75 pilot setup refused: a season_membership_status_events row in this scenario''s identifier block is not this scenario''s.';
   end if;
 
-  -- (f) Never adopt an identifier that has become a durable identity. A person
+  -- (e) Never adopt an identifier that has become a durable identity. A person
   --     with an operator account is somebody who can sign in, and this script
   --     must not treat one as scenario data it may rewrite or later remove.
   if exists (select 1 from public.operator_accounts oa where oa.person_id = scenario_person) then
     raise exception 'LAN-75 pilot setup refused: the scenario identifier is linked to an operator account. That is a durable identity, not scenario data.';
   end if;
 
-  -- (g) Invariant I2: one membership per person per season. If the scenario's
+  -- (f) Invariant I2: one membership per person per season. If the scenario's
   --     person already holds a membership in the open season under some other
   --     id, this script must not create a second.
   if exists (
@@ -297,6 +283,19 @@ from public.seasons s
 where s.status in ('open', 'active')
 on conflict (id) do nothing;
 
+-- The subscription item, and the one row this script creates conditionally.
+--
+-- A season may hold at most one subscription type
+-- (`onboarding_item_types_one_subscription_per_season`). Hosted has none, so
+-- the scenario supplies one. A club that has configured its own keeps it, and
+-- register D10 is exercised against the real thing — which is better evidence
+-- than a synthetic copy, and means this script never has to refuse.
+--
+-- It used to refuse instead, and that refusal had a cost nobody saw coming:
+-- the test proving this script had to clear the seeded flag first, which
+-- mutated shared season configuration and intermittently raced the returner
+-- intake suite. Adopting rather than refusing removed the mutation, the race
+-- and a guard, all at once.
 insert into public.onboarding_item_types
   (id, season_id, code, label, is_required, is_subscription, sort_order)
 select
@@ -309,6 +308,12 @@ select
   3
 from public.seasons s
 where s.status in ('open', 'active')
+  and not exists (
+    select 1
+      from public.onboarding_item_types t
+     where t.season_id = s.id
+       and t.is_subscription
+       and t.id <> '00750075-0075-4075-8075-000000000003')
 on conflict (id) do nothing;
 
 -- 2. The synthetic person. `known_as` carries the sentinel, which is also what
@@ -411,6 +416,15 @@ cross join (values
   ('00750075-0075-4075-8075-000000000033'::uuid, '00750075-0075-4075-8075-000000000003'::uuid)
 ) as v(id, item_type_id)
 where s.status in ('open', 'active')
+  -- Only for the types this scenario actually created. The subscription type
+  -- above is conditional — a club that already has its own keeps it — so
+  -- naming all three unconditionally inserted a row pointing at a type that
+  -- was never created, and `onboarding_items_type_same_season` refused it.
+  and exists (
+    select 1
+      from public.onboarding_item_types t
+     where t.id = v.item_type_id
+       and t.season_id = s.id)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
@@ -449,14 +463,21 @@ select
      where season_membership_id = '00750075-0075-4075-8075-000000000020'
   ) as all_items_pending,
   (
-    select count(*) = 3
+    select count(*) >= 2
       from public.onboarding_item_types
      where id in (
        '00750075-0075-4075-8075-000000000001',
-       '00750075-0075-4075-8075-000000000002',
-       '00750075-0075-4075-8075-000000000003'
+       '00750075-0075-4075-8075-000000000002'
      )
-  ) as installed;
+  ) as installed,
+  -- Two when the club already had its own subscription type, three when this
+  -- script supplied one. Both are correct; this says which happened.
+  (
+    select count(*) from public.onboarding_item_types
+     where season_id = (select id from public.seasons where status in ('open', 'active'))
+       and is_subscription
+       and label like '%PILOT-LAN-75%'
+  ) as pilot_supplied_the_subscription_item;
 
 -- Read both result sets. If either is not what you expected, `rollback;` before
 -- this file's own `commit` runs — or run the statements one at a time rather
