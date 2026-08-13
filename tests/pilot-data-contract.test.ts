@@ -304,8 +304,29 @@ describe("the scenario scripts stay inside the conventions", () => {
   });
 
   /**
-   * A script reduced to its executable text: comments, string literals and
-   * dollar-quoted bodies replaced by whitespace.
+   * A script reduced to its executable text: comments and string literals
+   * replaced by whitespace, dollar-quoted **delimiters** blanked and their
+   * bodies kept.
+   *
+   * ## READ THIS BEFORE TRUSTING ANYTHING BELOW
+   *
+   * This is a **fast pre-filter, not a security boundary.** It is a
+   * hand-written approximation of PostgreSQL's lexer, and four consecutive
+   * independent reviews defeated it — each through a different corner of SQL
+   * it does not model, and each time the fix opened the next hole. Known gaps
+   * that remain: double-quoted identifiers containing an apostrophe,
+   * `U&'…'` strings, and anything `standard_conforming_strings` changes.
+   *
+   * **The authoritative check is elsewhere.** `tests/pilot-scenario-lan-74.test.ts`
+   * § "what the scripts actually execute, according to PostgreSQL" installs
+   * event triggers and watches the scripts run, so no spelling can hide a DDL,
+   * a grant or a drop. Nothing may cite the rules below as evidence that a
+   * pilot script is safe.
+   *
+   * What the rules below are still worth: they run without a database, they
+   * catch the obvious mistake early, and they cover the three things event
+   * triggers cannot see — `truncate`, role/database/tablespace statements, and
+   * `copy … from program` — because PostgreSQL fires no event for those.
    *
    * ## Why this is a scanner and not three regular expressions
    *
@@ -350,30 +371,31 @@ describe("the scenario scripts stay inside the conventions", () => {
         continue;
       }
 
-      // A dollar-quoted body is NOT a literal to be blanked. `do $x$ … $x$`
-      // is PL/pgSQL that PostgreSQL executes, and PL/pgSQL runs DDL, `grant`,
+      // Closing FIRST. The opening pattern matches any `$tag$`, including the
+      // one already open, so checking it first meant the closing branch was
+      // never reached and the stack only ever grew — dead code that a reviewer
+      // spotted and the fail-closed check above then proved.
+      const closing = dollarTags[dollarTags.length - 1];
+      if (closing && rest.startsWith(closing)) {
+        out += blank(closing);
+        i += closing.length;
+        dollarTags.pop();
+        continue;
+      }
+
+      // A dollar-quoted body is NOT a literal to be blanked. `do $x$ … $x$` is
+      // PL/pgSQL that PostgreSQL executes, and PL/pgSQL runs DDL, `grant`,
       // `drop` and `alter` directly. Blanking it hid the only DDL statement in
-      // any pilot script — and hid an injected `grant all on public.people to
-      // anon` that the previous, worse stripper had caught.
+      // any pilot script, and hid an injected `grant all on public.people to
+      // anon` that a worse stripper had caught.
       //
-      // So: blank the delimiters, keep scanning the contents. A dollar-quoted
-      // string used as data would be over-reported rather than under-reported,
-      // which is the direction to fail in.
+      // So: blank the delimiters, keep scanning the contents.
       const dollar = /^\$([A-Za-z_]\w*)?\$/.exec(rest);
       if (dollar) {
         const tag = dollar[0];
         out += blank(tag);
         i += tag.length;
         dollarTags.push(tag);
-        continue;
-      }
-
-      // The closing delimiter of a body opened above.
-      const closing = dollarTags[dollarTags.length - 1];
-      if (closing && rest.startsWith(closing)) {
-        out += blank(closing);
-        i += closing.length;
-        dollarTags.pop();
         continue;
       }
 
@@ -416,6 +438,15 @@ describe("the scenario scripts stay inside the conventions", () => {
 
       out += sql[i];
       i += 1;
+    }
+
+    // Fail closed. An unterminated literal, comment or dollar body means the
+    // scan ran to end of file blanking everything, and a blanked file passes
+    // every rule below. That must be an error, not a pass.
+    if (dollarTags.length > 0) {
+      throw new Error(
+        `unterminated ${dollarTags[dollarTags.length - 1]} body — scan is unreliable`,
+      );
     }
 
     return out;
@@ -573,6 +604,18 @@ describe("the scenario scripts stay inside the conventions", () => {
     }
 
     expect(code, `${name} grants or revokes`).not.toMatch(/\b(grant|revoke)\b/i);
+
+    // The three classes PostgreSQL fires NO event trigger for, so this textual
+    // rule is their only cover anywhere in the repository. Probed and
+    // confirmed: `truncate` raised no event, and shared objects — roles,
+    // databases, tablespaces — are documented as exempt.
+    expect(code, `${name} executes COPY … FROM/TO PROGRAM`).not.toMatch(
+      /\bcopy\b[\s\S]{0,200}?\bprogram\b/i,
+    );
+    expect(code, `${name} changes a role, database or tablespace`).not.toMatch(
+      /\b(create|alter|drop)\s+(role|user|group|database|tablespace)\b/i,
+    );
+    expect(code, `${name} changes cluster configuration`).not.toMatch(/\balter\s+system\b/i);
 
     // `truncate` is not DDL, and is the single most destructive statement a
     // hand-run production script could contain. It has no undo and, until this

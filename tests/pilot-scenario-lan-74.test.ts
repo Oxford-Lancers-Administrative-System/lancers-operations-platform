@@ -366,6 +366,169 @@ afterEach(async () => {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * What the scripts actually executed, according to PostgreSQL.
+ *
+ * ## Why this exists, and what it replaces
+ *
+ * `tests/pilot-data-contract.test.ts` reads these scripts as text and refuses
+ * DDL, grants and drops. Four consecutive reviews defeated that check, each
+ * time through a different corner of SQL lexing the hand-written scanner did
+ * not model — an apostrophe in a comment, a `--` inside a literal, a
+ * dollar-quoted body, an `E'…'` escape, a quoted identifier. Every fix added a
+ * state and the next state interacted with it.
+ *
+ * The mistake was reading the text at all. The database has already parsed the
+ * script; asking it what ran cannot be evaded by any spelling, because there is
+ * no spelling left to get wrong. So these triggers watch the scripts execute.
+ *
+ * ## What this covers, and what it does not
+ *
+ * **Authoritative here:** every schema DDL (create/alter/drop of tables, views,
+ * functions, types, indexes, policies), `grant`, `revoke`, `select … into` and
+ * `drop owned by`. A pilot script that does any of those to anything outside
+ * `pg_temp` fails, whatever it looks like.
+ *
+ * **NOT covered, and the textual rules remain the only cover:** `truncate`, and
+ * anything touching a role, database or tablespace. PostgreSQL does not fire
+ * event triggers for those — shared objects are documented as exempt, and
+ * `truncate` raised no event in this version when probed. That split is stated
+ * here rather than assumed, because a guard whose boundary is unknown is a
+ * guard nobody can rely on.
+ */
+const PILOT_GUARD = `
+create or replace function pilot_guard_start() returns event_trigger
+language plpgsql as $fn$
+begin
+  if tg_tag in ('GRANT', 'REVOKE', 'ALTER SYSTEM', 'DROP OWNED', 'REASSIGN OWNED') then
+    raise exception 'PILOT-GUARD: the script executed %', tg_tag;
+  end if;
+end
+$fn$;
+
+create or replace function pilot_guard_end() returns event_trigger
+language plpgsql as $fn$
+declare cmd record;
+begin
+  for cmd in select * from pg_event_trigger_ddl_commands() loop
+    if cmd.schema_name is distinct from 'pg_temp' then
+      raise exception 'PILOT-GUARD: the script executed % on %',
+        tg_tag, coalesce(cmd.object_identity, cmd.schema_name, '?');
+    end if;
+  end loop;
+end
+$fn$;
+
+create or replace function pilot_guard_drop() returns event_trigger
+language plpgsql as $fn$
+declare obj record;
+begin
+  for obj in select * from pg_event_trigger_dropped_objects() loop
+    if obj.schema_name is distinct from 'pg_temp' and not obj.is_temporary then
+      raise exception 'PILOT-GUARD: the script dropped %',
+        coalesce(obj.object_identity, obj.object_type);
+    end if;
+  end loop;
+end
+$fn$;
+
+create event trigger pilot_guard_s on ddl_command_start execute function pilot_guard_start();
+create event trigger pilot_guard_e on ddl_command_end   execute function pilot_guard_end();
+create event trigger pilot_guard_d on sql_drop          execute function pilot_guard_drop();
+`;
+
+const PILOT_GUARD_OFF = `
+drop event trigger if exists pilot_guard_s;
+drop event trigger if exists pilot_guard_e;
+drop event trigger if exists pilot_guard_d;
+`;
+
+/**
+ * Opt-in, and here is the trade-off, stated so nobody has to rediscover it.
+ *
+ * An event trigger is a **database-global** catalog object. Creating one takes a
+ * lock that blocks DDL in every other session, and vitest runs test files in
+ * parallel against one shared local database — so with these enabled by
+ * default, four unrelated schema suites started failing on lock timeouts.
+ * Measured, not guessed: without them the suite is 1679/1680; with them it was
+ * 1683/1687 with four *different* suites failing each run.
+ *
+ * Making them default therefore means serialising the whole test run, which is
+ * a repository-wide decision about CI time that LAN-74 should not take on its
+ * own. So the check lives here, is proved to work, and runs on request:
+ *
+ *     PILOT_GUARD_CHECK=1 npx vitest run tests/pilot-scenario-lan-74.test.ts
+ *
+ * **This is the authoritative check on what these scripts execute**, and the
+ * textual rules in `tests/pilot-data-contract.test.ts` say so and defer to it.
+ * That it is opt-in is a real weakening, and it is the open question in the
+ * pull request rather than something settled here.
+ */
+const GUARD_CHECK = process.env.PILOT_GUARD_CHECK === "1";
+
+describe.skipIf(!GUARD_CHECK)("what the scripts actually execute, according to PostgreSQL", () => {
+  /**
+   * Runs `sql` with the guard installed.
+   *
+   * No teardown: when the guard fires, the transaction is aborted and any
+   * further statement returns "current transaction is aborted" — which would
+   * mask the guard's own message and make every negative test below assert
+   * nothing. The suite's `afterEach` rollback removes the triggers either way,
+   * because creating an event trigger is itself transactional.
+   */
+  async function underGuard(sql: string): Promise<void> {
+    await client.query(PILOT_GUARD);
+    await client.query(sql);
+    await client.query(PILOT_GUARD_OFF);
+  }
+
+  it("setup.sql performs no DDL, grant or drop outside pg_temp", async () => {
+    await underGuard(SETUP);
+  });
+
+  it("cleanup.sql performs none either, beyond its own temporary table", async () => {
+    await client.query(SETUP);
+    await underGuard(CLEANUP);
+  });
+
+  // The guard has to be shown to fire, or "the scripts are clean" is
+  // indistinguishable from "the guard is broken". Each of these is a payload a
+  // textual check was defeated by in review.
+
+  it("catches a grant no textual check could see", async () => {
+    await expect(
+      underGuard(`do $g$ begin
+         perform $m$don't panic$m$;
+         execute 'grant all on public.people to anon';
+       end $g$;`),
+    ).rejects.toThrow(/PILOT-GUARD: the script executed GRANT/);
+  });
+
+  it("catches a permanent table created inside a preflight body", async () => {
+    await expect(
+      underGuard("do $g$ begin execute 'create table public.evil (id int)'; end $g$;"),
+    ).rejects.toThrow(/PILOT-GUARD: the script executed CREATE TABLE/);
+  });
+
+  it("catches a drop hidden behind a quoted identifier", async () => {
+    await expect(
+      underGuard(`select 1 as "it's"; drop table public.contact_points;`),
+    ).rejects.toThrow(/PILOT-GUARD: the script dropped/);
+  });
+
+  it("catches select … into with no from, which the textual rule missed", async () => {
+    await expect(underGuard("select 1 into public.evil_into;")).rejects.toThrow(
+      /PILOT-GUARD: the script executed SELECT INTO/,
+    );
+  });
+
+  it("still allows the temporary table cleanup legitimately creates", async () => {
+    await underGuard(
+      "create temporary table pilot_probe on commit drop as select 1 as x; drop table pilot_probe;",
+    );
+  });
+});
+
 describe("the local-only guard this suite depends on", () => {
   it("refuses a hosted target, so these scripts can never reach production from here", () => {
     expect(() =>
