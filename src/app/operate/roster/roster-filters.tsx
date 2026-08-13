@@ -1,0 +1,246 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import MenuItem from "@mui/material/MenuItem";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import { ENTRY_LABELS, labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
+
+/**
+ * How long the search box waits before navigating.
+ *
+ * Exported so the test can advance timers by exactly this much rather than
+ * guessing, and so the number lives in one place.
+ */
+export const SEARCH_DEBOUNCE_MS = 250;
+
+/**
+ * UX-20's search and filters.
+ *
+ * Everything is in the query string, so a filtered roster is a link an operator
+ * can send to somebody, the back button does what it looks like it does, and a
+ * refresh keeps the view.
+ *
+ * ## Why the selects navigate rather than submitting the form
+ *
+ * The same trap `event-filters.tsx` documents, and it is worth restating
+ * because the fix is not obvious from the failure: MUI's `TextField select` is
+ * not a native `<select>`, it is a combobox backed by a hidden input, and React
+ * writes the new value into that input on the *next* render — after the change
+ * handler returns. Calling `requestSubmit()` inside the handler therefore posts
+ * the previous value, so choosing a status appears to clear the selection. The
+ * value is taken straight off the change event and pushed to the router
+ * instead, so there is no window in which the DOM and the intent disagree.
+ *
+ * ## Filters combine
+ *
+ * Each control patches one key and carries the rest through, so Status and
+ * Entry narrow together rather than replacing one another. The search box keeps
+ * a real `GET` form so Enter submits it natively, with the other filters
+ * mirrored as hidden inputs so a search never silently drops them.
+ */
+export default function RosterFilters({
+  statuses,
+  entries,
+  sortColumns,
+  search,
+  status,
+  entry,
+  sort,
+  direction,
+}: {
+  statuses: readonly string[];
+  entries: readonly string[];
+  sortColumns: readonly { value: string; label: string }[];
+  search: string;
+  status: string;
+  entry: string;
+  sort: string;
+  direction: string;
+}) {
+  const router = useRouter();
+  const [showFilters, setShowFilters] = useState(false);
+
+  /**
+   * The search box filters as you type.
+   *
+   * It used to rely on the browser's implicit form submission — type, then
+   * press Enter. Brian's verdict on the real screen was blunt and correct:
+   * "the search absolutely does not work. I cannot filter." A box that looks
+   * like a filter and only responds to a keypress nothing on screen mentions is
+   * a broken filter, whatever the HTML says.
+   *
+   * So the value is local state, and a change pushes the URL after a short
+   * pause. The pause matters: without it every keystroke is a server round trip
+   * and a re-render, and the roster reads 42 memberships each time.
+   *
+   * `typed` is seeded from the prop and re-seeded when the prop changes, so
+   * pressing Back or landing on a filtered link still shows what is filtering.
+   */
+  const [typed, setTyped] = useState(search);
+  /** What the URL last carried, as far as this component is concerned. */
+  const committed = useRef(search);
+
+  // `useCallback` so the debounce effect below can depend on it honestly rather
+  // than suppressing the dependency rule.
+  const withFilter = useCallback(
+    (patch: Record<string, string>): string => {
+      // `q` defaults to what is in the box, not to the committed prop. A filter
+      // chosen within the debounce window used to build its URL from the older
+      // prop and silently discard the text just typed — and the pending
+      // debounce would then fire with a stale status and discard the filter.
+      // One of the two was always lost. Independent review found it.
+      const next = { q: typed, status, entry, sort, dir: direction, ...patch };
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(next)) {
+        if (value !== "") params.set(key, value);
+      }
+      const query = params.toString();
+      return query === "" ? "/operate/roster" : `/operate/roster?${query}`;
+    },
+    [typed, status, entry, sort, direction],
+  );
+
+  const apply = (patch: Record<string, string>) => router.push(withFilter(patch));
+  useEffect(() => {
+    // The URL is the source of truth — Back, Clear filters, a shared link.
+    //
+    // But only adopt it when it says something we did not just say ourselves.
+    // A navigation landing while the operator keeps typing used to re-seed the
+    // box from the older prop, jumping the caret and dropping the characters
+    // typed in that window. If what arrived is already what is in the box,
+    // there is nothing to adopt.
+    if (search === committed.current || search === typed) return;
+    committed.current = search;
+    setTyped(search);
+  }, [search, typed]);
+
+  useEffect(() => {
+    if (typed === committed.current) return;
+    const timer = setTimeout(() => {
+      committed.current = typed;
+      router.push(withFilter({ q: typed }));
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [typed, withFilter, router]);
+
+  return (
+    <Box
+      component="form"
+      method="get"
+      action="/operate/roster"
+      data-testid="roster-filters"
+      sx={{ width: "100%" }}
+    >
+      {/* So a native search submit carries the filters rather than clearing them. */}
+      <input type="hidden" name="status" value={status} />
+      <input type="hidden" name="entry" value={entry} />
+      <input type="hidden" name="sort" value={sort} />
+      <input type="hidden" name="dir" value={direction} />
+
+      <Stack
+        direction={{ xs: "column", md: "row" }}
+        spacing={2}
+        sx={{ alignItems: { md: "center" } }}
+      >
+        <TextField
+          label="Search name or contact"
+          name="q"
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
+          size="small"
+          placeholder="Name, email or phone"
+          sx={{ flexGrow: 1, minWidth: { md: 240 } }}
+        />
+
+        <Button
+          variant="outlined"
+          onClick={() => setShowFilters((open) => !open)}
+          aria-expanded={showFilters}
+          aria-controls="roster-filter-fields"
+          sx={{
+            display: { xs: "inline-flex", md: "none" },
+            alignSelf: "flex-start",
+            minHeight: 44,
+          }}
+        >
+          Filters
+        </Button>
+
+        <Stack
+          id="roster-filter-fields"
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          sx={{ display: { xs: showFilters ? "flex" : "none", md: "flex" }, alignItems: "center" }}
+        >
+          <TextField
+            select
+            label="Status"
+            size="small"
+            value={status}
+            onChange={(event) => apply({ status: event.target.value })}
+            sx={{ minWidth: 170 }}
+          >
+            <MenuItem value="">All statuses</MenuItem>
+            {statuses.map((value) => (
+              <MenuItem key={value} value={value}>
+                {labelFor(MEMBERSHIP_STATUS_LABELS, value)}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            label="Entry"
+            size="small"
+            value={entry}
+            onChange={(event) => apply({ entry: event.target.value })}
+            sx={{ minWidth: 150 }}
+          >
+            <MenuItem value="">All entries</MenuItem>
+            {entries.map((value) => (
+              <MenuItem key={value} value={value}>
+                {labelFor(ENTRY_LABELS, value)}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          {/*
+            Sorting lives in the column headers, which is where an operator
+            looks for it — so these are phone-only, where there is no table and
+            therefore no header to click.
+          */}
+          <TextField
+            select
+            label="Sort by"
+            size="small"
+            value={sort}
+            onChange={(event) => apply({ sort: event.target.value })}
+            sx={{ display: { xs: "flex", md: "none" }, minWidth: 150 }}
+          >
+            {sortColumns.map((column) => (
+              <MenuItem key={column.value} value={column.value}>
+                {column.label}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            select
+            label="Order"
+            size="small"
+            value={direction}
+            onChange={(event) => apply({ dir: event.target.value })}
+            sx={{ display: { xs: "flex", md: "none" }, minWidth: 150 }}
+          >
+            <MenuItem value="asc">A to Z</MenuItem>
+            <MenuItem value="desc">Z to A</MenuItem>
+          </TextField>
+        </Stack>
+      </Stack>
+    </Box>
+  );
+}

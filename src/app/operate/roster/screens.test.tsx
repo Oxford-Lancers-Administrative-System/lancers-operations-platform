@@ -44,25 +44,32 @@ vi.mock("next/navigation", () => ({
     throw new Error("NOT_FOUND");
   }),
   usePathname: () => "/operate/roster/new",
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("@/lib/services/roster", () => ({
-  findMembershipSummary: vi.fn(),
   findPersonCandidates: vi.fn(),
   enterReturningPlayer: vi.fn(),
 }));
+// LAN-75 moved the membership record onto its own service. UX-13 is still the
+// same screen at the same route; only where it reads from has changed.
+vi.mock("@/lib/services/membership", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/services/membership")>(
+    "@/lib/services/membership",
+  );
+  return { ...actual, readMembership: vi.fn() };
+});
 vi.mock("../login/actions", () => ({ signOut: vi.fn() }));
 vi.mock("./new/actions", async () => {
   const actual = await vi.importActual<typeof import("./new/actions")>("./new/actions");
   return { ...actual, submitReturnerIntake: vi.fn() };
 });
 
+import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type OperatorAccess } from "@/lib/auth/operator";
-import {
-  findMembershipSummary,
-  type MembershipSummary,
-  type PersonCandidate,
-} from "@/lib/services/roster";
+import { type PersonCandidate } from "@/lib/services/roster";
+import { readMembership, type MembershipRecord } from "@/lib/services/membership";
 import { submitReturnerIntake } from "./new/actions";
 import type { IntakeState } from "./new/intake-state";
 import NewReturnerPage from "./new/page";
@@ -177,7 +184,7 @@ beforeEach(() => {
 
 // ---------------------------------------------------------------------------
 
-describe("UX-10 — Add returning player", () => {
+describe("UX-10 — Add player", () => {
   beforeEach(async () => {
     await renderIntakeAt({
       step: "details",
@@ -187,10 +194,10 @@ describe("UX-10 — Add returning player", () => {
   });
 
   it("shows the approved heading and body", () => {
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Add returning player");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Add player");
     expect(
       screen.getByText(
-        "Enter the returning person’s details. A duplicate check runs before anything is written.",
+        "Enter the person’s details. A duplicate check runs before anything is written.",
       ),
     ).toBeInTheDocument();
   });
@@ -506,28 +513,60 @@ describe("UX-12 — when the refused person is no longer a candidate", () => {
   });
 });
 
-const SUMMARY: MembershipSummary = {
+/**
+ * The membership UX-13 confirms, as the record service returns it.
+ *
+ * LAN-75 replaced `findMembershipSummary` with `readMembership`, which returns
+ * the whole record rather than the confirmation's slice of it. "Created by" now
+ * comes from the first row of the typed status history rather than a separate
+ * lateral join — the same fact, read from the table that owns it.
+ */
+const MEMBERSHIP: MembershipRecord = {
   membershipId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
   personId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   givenName: "Avery",
   familyName: "Fielding",
   knownAs: "Avery",
+  displayName: "Avery Fielding",
   status: "confirmed",
   entry: "returning",
+  seasonId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
   seasonLabel: "2026-27",
   confirmedOn: "2026-08-12",
+  activatedOn: null,
+  inactivityLabel: null,
   contacts: [
     { kind: "email", rawValue: "avery.fielding@example.invalid", isPreferred: true },
     { kind: "phone", rawValue: "+44 7700 900101", isPreferred: true },
   ],
-  createdBy: { name: "Morgan Pike", occurredAt: new Date("2026-08-12T13:36:00Z") },
+  onboardingItems: [],
+  outstandingRequired: [],
+  statusHistory: [
+    {
+      fromStatus: null,
+      toStatus: "carried_forward",
+      occurredAt: new Date("2026-08-12T13:36:00Z"),
+      actorName: "Morgan Pike",
+      actorLabel: null,
+      reason: null,
+    },
+  ],
 };
 
-async function renderMembership(created: boolean, summary: MembershipSummary | null = SUMMARY) {
-  vi.mocked(findMembershipSummary).mockResolvedValue(summary);
+async function renderMembership(
+  created: boolean,
+  membership: MembershipRecord | null = MEMBERSHIP,
+) {
+  if (membership === null) {
+    vi.mocked(readMembership).mockRejectedValue(
+      new NotFound("That membership no longer exists.", { rule: "season_memberships_not_found" }),
+    );
+  } else {
+    vi.mocked(readMembership).mockResolvedValue(membership);
+  }
   return render(
     await MembershipPage({
-      params: Promise.resolve({ membershipId: SUMMARY.membershipId }),
+      params: Promise.resolve({ membershipId: MEMBERSHIP.membershipId }),
       searchParams: Promise.resolve(created ? { created: "1" } : {}),
     } as Parameters<typeof MembershipPage>[0]),
   );
@@ -550,7 +589,14 @@ describe("UX-13 — Returning player added", () => {
     expect(screen.getByText("Known as Avery")).toBeInTheDocument();
     expect(screen.getByText("2026-27 · Confirmed")).toBeInTheDocument();
     expect(screen.getByText("Entry: Returning")).toBeInTheDocument();
-    expect(screen.getByText("Created by Morgan Pike")).toBeInTheDocument();
+    // The actor is still named, in the status-history panel rather than in a
+    // second "Audit" block beside the membership. Brian's verdict on the real
+    // screen was that audit appeared twice and belonged at the bottom only, so
+    // the duplicate went and this assertion follows it rather than being
+    // dropped — UX-13 still has to say who created the membership.
+    expect(
+      within(screen.getByTestId("status-history")).getByText(/Morgan Pike/),
+    ).toBeInTheDocument();
   });
 
   it("shows contact values exactly as they were recorded", () => {
@@ -593,7 +639,7 @@ describe("the membership route without the confirmation", () => {
 
   it("says when a supplied contact did not become the preferred one", async () => {
     await renderMembership(false, {
-      ...SUMMARY,
+      ...MEMBERSHIP,
       contacts: [{ kind: "phone", rawValue: "07700 900999", isPreferred: false }],
     });
 
@@ -625,11 +671,11 @@ describe("an operator who may not be here", () => {
 
     it(`shows ${label} no membership record at all`, async () => {
       signedInAs(access);
-      vi.mocked(findMembershipSummary).mockResolvedValue(SUMMARY);
+      vi.mocked(readMembership).mockResolvedValue(MEMBERSHIP);
 
       const { container } = render(
         await MembershipPage({
-          params: Promise.resolve({ membershipId: SUMMARY.membershipId }),
+          params: Promise.resolve({ membershipId: MEMBERSHIP.membershipId }),
           searchParams: Promise.resolve({ created: "1" }),
         } as Parameters<typeof MembershipPage>[0]),
       );
@@ -640,12 +686,12 @@ describe("an operator who may not be here", () => {
         "Fielding",
         "avery.fielding@example.invalid",
         "+44 7700 900101",
-        SUMMARY.personId,
+        MEMBERSHIP.personId,
       ]) {
         expect(container.innerHTML).not.toContain(secret);
       }
       // And the record was never even read.
-      expect(findMembershipSummary).not.toHaveBeenCalled();
+      expect(readMembership).not.toHaveBeenCalled();
     });
   }
 
