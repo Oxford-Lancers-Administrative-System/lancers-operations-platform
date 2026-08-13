@@ -8,12 +8,19 @@ import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import { readEvent, type EventDetail } from "@/lib/services/events";
+import { readApprovalPreview } from "@/lib/services/event-approval";
+import type { AudienceCandidate, AudienceCapacity } from "@/lib/services/audience-selection";
 import { gateShellPage } from "../../gate";
 import { AbandonDraftForm } from "../event-actions";
+import { ApprovalWorkflow } from "./approval-workflow";
 import {
+  APPROVED_HEADLINE,
+  APPROVED_NOTHING_SENT_YET,
   AUDIENCE_COMES_LATER,
+  AUDIENCE_FROZEN_AT_APPROVAL,
   describeAttendance,
   describeSolicitation,
+  formatDeadline,
   formatDetailWhen,
   formatTermAndWeek,
   isPreApproval,
@@ -21,6 +28,7 @@ import {
   NO_DISTRIBUTION_DETAIL,
   NO_DISTRIBUTION_HEADLINE,
   NO_DISTRIBUTION_RULE,
+  NOTHING_DELIVERED_YET,
   SOLICITS_RESPONSE_MEANING,
   STATUS_LABELS,
   TYPE_LABELS,
@@ -71,11 +79,17 @@ import {
  * accountability and audit" actually lives. What went is the display, not the
  * record.
  */
-export default async function EventDetailPage({ params }: PageProps<"/operate/events/[id]">) {
+export default async function EventDetailPage({
+  params,
+  searchParams,
+}: PageProps<"/operate/events/[id]">) {
   const gate = await gateShellPage("/operate/events");
   if ("screen" in gate) return gate.screen;
 
   const { id } = await params;
+  const query = await searchParams;
+  const justApproved = query.approved === "1";
+
   let event: EventDetail;
   try {
     event = await readEvent(id);
@@ -99,8 +113,39 @@ export default async function EventDetailPage({ params }: PageProps<"/operate/ev
   }
 
   const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
+  const mayApprove = operatorHasCapability(gate.operator, "event_approval");
 
-  return <EventDetailView event={event} mayManage={mayManage} />;
+  /**
+   * The catalogue is read only for the one operator, on the one event, who can
+   * actually act on it. Every other reader — an operator without the capability,
+   * an approved or withdrawn event — gets the detail and no audience data at
+   * all, so the roster and the club's contact details are not in a payload
+   * nobody on that path is entitled to.
+   */
+  const approval =
+    mayApprove && event.status === "draft" ? await readApprovalPreview(event.id) : null;
+
+  return (
+    <EventDetailView
+      event={event}
+      mayManage={mayManage}
+      justApproved={justApproved}
+      approval={
+        approval
+          ? {
+              candidates: approval.catalogue.candidates,
+              counts: approval.catalogue.counts,
+              deadline: approval.deadline
+                ? {
+                    label: formatDeadline(approval.deadline.at),
+                    clamped: approval.deadline.clamped,
+                  }
+                : null,
+            }
+          : null
+      }
+    />
+  );
 }
 
 /** One labelled fact. The same two-line shape the wireframe's cards use. */
@@ -132,8 +177,24 @@ function Fact({
   );
 }
 
+interface ApprovalProps {
+  candidates: AudienceCandidate[];
+  counts: Record<AudienceCapacity, number>;
+  deadline: { label: string; clamped: boolean } | null;
+}
+
 /** UX-32 — the event itself, in whatever state it is in. */
-function EventDetailView({ event, mayManage }: { event: EventDetail; mayManage: boolean }) {
+function EventDetailView({
+  event,
+  mayManage,
+  justApproved,
+  approval,
+}: {
+  event: EventDetail;
+  mayManage: boolean;
+  justApproved: boolean;
+  approval: ApprovalProps | null;
+}) {
   const preApproval = isPreApproval(event.status);
 
   return (
@@ -146,6 +207,19 @@ function EventDetailView({ event, mayManage }: { event: EventDetail; mayManage: 
           {`${labelFor(STATUS_LABELS, event.status)} · ${formatDetailWhen(event)}`}
         </Typography>
       </Box>
+
+      {justApproved && event.status === "approved" ? (
+        // UX-43. A state of this route rather than a fifth screen, the same
+        // device LAN-76 used for UX-33 — the registry gives it this route.
+        <Alert severity="success" data-testid="event-approved-note">
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {`${APPROVED_HEADLINE} — ${event.invitationCount} ${
+              event.invitationCount === 1 ? "invitation" : "invitations"
+            } created`}
+          </Typography>
+          <Typography variant="body2">{APPROVED_NOTHING_SENT_YET}</Typography>
+        </Alert>
+      ) : null}
 
       {preApproval ? (
         <Alert severity="info" data-testid="no-invitations-note">
@@ -182,24 +256,42 @@ function EventDetailView({ event, mayManage }: { event: EventDetail; mayManage: 
           <Fact
             label="Audience"
             value={
-              event.audienceCount === 0 ? "Chosen at approval" : `${event.audienceCount} selected`
+              event.audienceCount === 0 ? "Chosen at approval" : `${event.audienceCount} confirmed`
             }
-            note={AUDIENCE_COMES_LATER}
+            note={event.audienceCount === 0 ? AUDIENCE_COMES_LATER : AUDIENCE_FROZEN_AT_APPROVAL}
             testId="audience-fact"
           />
           <Divider />
           <Fact
             label="Distribution"
-            value={event.invitationCount === 0 ? NO_DISTRIBUTION_HEADLINE : "Invitations issued"}
+            value={event.invitationCount === 0 ? NO_DISTRIBUTION_HEADLINE : "Invitations created"}
             note={
               event.invitationCount === 0
                 ? NO_DISTRIBUTION_DETAIL
-                : `${event.invitationCount} invitations · ${event.responseCount} responses`
+                : // Until LAN-78 dispatches the jobs, "created" is the whole
+                  // truth and the screen has to say so rather than implying
+                  // anybody has been contacted.
+                  `${event.invitationCount} invitations · ${event.responseCount} responses · ${NOTHING_DELIVERED_YET}`
             }
             testId="distribution-fact"
           />
         </Stack>
       </Paper>
+
+      {approval && event.status === "draft" ? (
+        <ApprovalWorkflow
+          eventId={event.id}
+          eventName={event.name}
+          eventWhen={formatDetailWhen(event)}
+          eventFacts={`${labelFor(TYPE_LABELS, event.eventType)} · ${event.venue ?? "No venue yet"}`}
+          eventExpectation={`${describeAttendance(event.isMandatory)} · ${describeSolicitation(
+            event.solicitsResponse,
+          ).toLowerCase()}`}
+          candidates={approval.candidates}
+          counts={approval.counts}
+          deadline={approval.deadline}
+        />
+      ) : null}
 
       <Stack spacing={2} sx={{ maxWidth: 420 }}>
         {mayManage && event.status === "draft" ? (
@@ -207,13 +299,6 @@ function EventDetailView({ event, mayManage }: { event: EventDetail; mayManage: 
             <Button variant="contained" href={`/operate/events/${event.id}/edit`} fullWidth>
               Edit draft
             </Button>
-            <Button variant="outlined" disabled fullWidth>
-              Choose audience and send
-            </Button>
-            <Typography variant="body2" color="text.secondary" data-testid="audience-note">
-              This draft is on the club’s calendar and nothing has been sent. Choosing who it goes
-              to, approving it and sending it are the next step, and are not built yet.
-            </Typography>
             <AbandonDraftForm eventId={event.id} />
           </>
         ) : null}

@@ -10,40 +10,50 @@ import {
   updateEventDraft,
   validateEventDraft,
 } from "@/lib/services/events";
+import { approveEvent } from "@/lib/services/event-approval";
 import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventFormState, EventTransitionState } from "./form-state";
 
 /**
- * The event workflow's server actions — LAN-76.
+ * The event workflow's server actions — LAN-76, and the approval LAN-77 added.
  *
  * ## Authorization
  *
- * Every one of them opens with `requireCapability("event_calendar_management")`,
- * which resolves the actor from the **verified session** and refuses with
- * `NotPermitted` unless they hold one of the four calendar roles. None takes an
- * actor argument, and none may: a server action is a POST endpoint the browser
- * can call directly, so an action that accepted "who am I" would accept
- * whatever was sent.
+ * Every one of them opens with `requireCapability(…)`, which resolves the actor
+ * from the **verified session** and refuses with `NotPermitted` unless they hold
+ * a permitted role. None takes an actor argument, and none may: a server action
+ * is a POST endpoint the browser can call directly, so an action that accepted
+ * "who am I" would accept whatever was sent.
  *
- * Brian's LAN-76 clarification is what put a capability here. The first
+ * Two capabilities are in play, and which one an action names matters:
+ *
+ *   * `event_calendar_management` — creating, editing and abandoning a draft.
+ *   * `event_approval` — approving one, which is the only action here that
+ *     creates invitations and queues messages to real people.
+ *
+ * They currently name the same four roles, so the distinction has no effect
+ * today. It is still not a duplication to collapse: separation of duties is
+ * something Brian may add later, and when he does it narrows one list in
+ * `capabilities.ts` rather than needing the approval path disentangled from the
+ * drafting path across several screens.
+ *
+ * Brian's LAN-76 clarification is what put a capability here at all. The first
  * implementation used `requireOperator()` — any linked, active operator — on
  * the reading that drafting was ordinary operator work. It is not: "the club
  * calendar is managed only by these four operator roles", and an operator who
  * can reach another part of the application does not thereby get to move
- * practices around. The capability's role list lives in
- * `src/lib/auth/capabilities.ts` and nowhere else, so no action here carries a
- * policy of its own.
+ * practices around. The role lists live in `src/lib/auth/capabilities.ts` and
+ * nowhere else, so no action here carries a policy of its own.
  *
- * The privileged step *after* these is approval, which is built by the next
- * issue. Nothing here approves anything, and nothing here submits an event for
- * approval either — Brian removed that step on 12 August 2026, because only
- * calendar operators create events and so there is nobody to submit one to. A
- * saved event is a draft; approval takes it from there.
+ * Nothing here submits an event for approval — Brian removed that step on 12
+ * August 2026, because only calendar operators create events and so there is
+ * nobody to submit one to. A saved event is a draft, and approval takes it
+ * straight from there.
  *
  * There is no ownership term in any of them. Any calendar operator may edit,
- * submit, withdraw or abandon any draft — the calendar is the club's, and
- * `owner_person_id` is recorded for the audit trail rather than consulted for
- * permission.
+ * withdraw or abandon any draft, and any approver may approve their own —
+ * the calendar is the club's, and `owner_person_id` is recorded for the audit
+ * trail rather than consulted for permission.
  *
  * ## Why a refusal is never a form message
  *
@@ -135,6 +145,52 @@ export async function updateEventDraftAction(
   revalidatePath("/operate/events");
   revalidatePath(`/operate/events/${eventId}`);
   redirect(`/operate/events/${eventId}`);
+}
+
+/**
+ * `draft → approved` — the one action in this slice that sends anything to a
+ * real person. LAN-77.
+ *
+ * Three things about it are deliberate.
+ *
+ * **It guards on `event_approval`, not on `event_calendar_management`.** The two
+ * capabilities currently name the same four roles, so today the check is
+ * equivalent — and it is still the wrong one to reuse. Approval is the gate that
+ * releases automated messages, and separation of duties is explicitly something
+ * Brian may add later; when he does, it narrows one list in `capabilities.ts`
+ * and this action changes not at all.
+ *
+ * **The audience arrives as opaque keys.** Not capacities, not membership ids,
+ * not "invite everyone" — a list of tokens the service resolves against a
+ * catalogue it reads itself, inside the transaction. A browser cannot therefore
+ * name somebody who is not selectable, cannot pair a person with the wrong
+ * capacity, and cannot widen its own selection between the confirmation screen
+ * and the write.
+ *
+ * **An empty submission still reaches the service.** The screen refuses one
+ * first (UX-42), and that refusal is a courtesy: this action does not check the
+ * count, so a client that skips the screen entirely gets invariant E1b's refusal
+ * from the service layer rather than an approval nobody would receive.
+ */
+export async function approveEventAction(
+  _previous: EventTransitionState,
+  formData: FormData,
+): Promise<EventTransitionState> {
+  const operator = await requireCapability("event_approval");
+  const eventId = text(formData, "eventId");
+  const keys = formData
+    .getAll("audienceKey")
+    .filter((key): key is string => typeof key === "string");
+
+  try {
+    await approveEvent(operator.personId, eventId, keys);
+  } catch (error) {
+    return { error: messageFor(error) };
+  }
+
+  revalidatePath("/operate/events");
+  revalidatePath(`/operate/events/${eventId}`);
+  redirect(`/operate/events/${eventId}?approved=1`);
 }
 
 /** `draft → withdrawn`. The reason is required, by the club and by the schema. */

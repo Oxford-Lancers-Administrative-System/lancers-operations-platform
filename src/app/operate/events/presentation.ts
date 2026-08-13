@@ -225,3 +225,106 @@ export function describeSolicitation(solicitsResponse: boolean): string {
 export function describeAttendance(isMandatory: boolean): string {
   return isMandatory ? "Mandatory" : "Optional";
 }
+
+// ---------------------------------------------------------------------------
+// Approval — UX-40, UX-41, UX-42 and UX-43
+// ---------------------------------------------------------------------------
+
+/**
+ * The RSVP deadline, in the club's own zone — "Friday, 16 October 2026 at 18:00".
+ *
+ * The only value on these screens that is a genuine **instant** rather than a
+ * bare date or time, so unlike everything above it, it is formatted in
+ * `Europe/London` rather than UTC. Rendering it at UTC would show an October
+ * deadline an hour early for the whole of British Summer Time, which is most of
+ * the first half of a season.
+ */
+export function formatDeadline(at: Date | string): string {
+  const instant = at instanceof Date ? at : new Date(at);
+  const parts = (options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "Europe/London" }).format(instant);
+
+  const weekday = parts({ weekday: "long" });
+  const day = parts({ day: "numeric" });
+  const month = parts({ month: "long" });
+  const year = parts({ year: "numeric" });
+  const time = parts({ hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${weekday}, ${day} ${month} ${year} at ${time}`;
+}
+
+/** `invitation_capacity`, in the club's words. UX-40's Capacity column. */
+export const CAPACITY_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  player: "Player",
+  coach: "Coach",
+  committee: "Committee",
+  guest: "Guest",
+  recruit: "Recruit",
+});
+
+/** UX-40's heading, and the sentence under it. */
+export const AUDIENCE_BUILDER_HEADLINE = "Build event audience";
+
+export const AUDIENCE_BUILDER_DETAIL =
+  "Select current active memberships and any eligible coaching or committee capacities. " +
+  "Nothing is selected to begin with, and there is no whole-roster default: the audience " +
+  "is stored as the explicit list you confirm here.";
+
+/** UX-42 — the empty-audience refusal, which is a screen rather than a toast. */
+export const EMPTY_AUDIENCE_HEADLINE = "This event cannot be approved";
+
+export const EMPTY_AUDIENCE_DETAIL =
+  "The resolved audience is empty. No invitations or notification jobs were created.";
+
+export const EMPTY_AUDIENCE_SERVER_NOTE =
+  "Approval is refused on the server even if this screen is bypassed.";
+
+/** UX-41 — what approval will do, said before it is done. */
+export const APPROVAL_HEADLINE_PREFIX = "Approve";
+
+export const APPROVAL_DETAIL =
+  "Approval is limited to the designated approver. It confirms this exact list of people, " +
+  "creates their invitations and queues automated delivery. The audience is frozen once " +
+  "approved — this workflow has no way to add, remove or re-send afterwards.";
+
+export const DISTRIBUTION_AUTOMATED = "Automated 1:1 WhatsApp";
+
+export const DISTRIBUTION_BEGINS_AFTER_APPROVAL = "Begins only after approval";
+
+/**
+ * What a clamped deadline says. Brian's rule: approval is never refused for
+ * being late, and the approver is told that responses are due at once.
+ */
+export const DEADLINE_DUE_IMMEDIATELY = "Due immediately";
+
+export const DEADLINE_DUE_IMMEDIATELY_DETAIL =
+  "The usual deadline for this kind of event has already passed, so anyone who has not " +
+  "answered will appear as an outstanding response straight away.";
+
+export const DEADLINE_NONE = "No deadline";
+
+export const DEADLINE_NONE_DETAIL = "This event asks for no response, so nothing expires.";
+
+/** UX-43 — approved, and what exists now that did not before. */
+export const APPROVED_HEADLINE = "Event approved";
+
+export const APPROVED_NOTHING_SENT_YET =
+  "Nothing has been delivered yet. Each invitation has a queued job waiting for automated " +
+  "delivery, and delivery status will follow from the results of those jobs.";
+
+/**
+ * What the Audience fact says once there is one.
+ *
+ * Brian's clarification freezes the audience at approval — no late additions,
+ * no removals, no re-resolution — so the screen states that rather than leaving
+ * an operator to discover it by looking for an edit control that does not exist.
+ */
+export const AUDIENCE_FROZEN_AT_APPROVAL =
+  "Confirmed at approval and fixed for this event. Adding or removing someone afterwards " +
+  "is deliberately not possible in this workflow.";
+
+/**
+ * The half of the Distribution fact that stops "invitations created" being read
+ * as "invitations sent". Until LAN-78 dispatches the queued jobs, nothing has
+ * reached anybody, and the screen has to say so rather than implying contact.
+ */
+export const NOTHING_DELIVERED_YET = "nothing delivered yet";

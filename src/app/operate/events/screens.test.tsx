@@ -42,6 +42,10 @@ vi.mock("@/lib/services/seasons", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/seasons")>();
   return { ...actual, listTerms: vi.fn(), listTermWindows: vi.fn(), readCurrentSeason: vi.fn() };
 });
+vi.mock("@/lib/services/event-approval", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/event-approval")>();
+  return { ...actual, readApprovalPreview: vi.fn(), approveEvent: vi.fn() };
+});
 
 import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
@@ -52,6 +56,8 @@ import {
   type EventListEntry,
 } from "@/lib/services/events";
 import { listTermWindows } from "@/lib/services/seasons";
+import { readApprovalPreview } from "@/lib/services/event-approval";
+import type { AudienceCandidate } from "@/lib/services/audience-selection";
 import EventsPage from "./page";
 import NewEventPage from "./new/page";
 import EventDetailPage from "./[id]/page";
@@ -154,7 +160,96 @@ beforeEach(() => {
       lastWeek: 8,
     },
   ]);
+  givenAudience();
 });
+
+/**
+ * Three people the audience builder can offer — a player, a coach, and somebody
+ * who is both a player and on the committee.
+ *
+ * The overlap is not decoration: it is the case the resolved count exists to
+ * make visible, and a fixture without it would let a screen that forgot to
+ * de-duplicate pass.
+ */
+function candidate(overrides: Partial<AudienceCandidate> = {}): AudienceCandidate {
+  const capacity = overrides.capacity ?? "player";
+  const anchorId = overrides.anchorId ?? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1";
+  return {
+    key: `${capacity}:${anchorId}`,
+    capacity,
+    anchorId,
+    personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp1",
+    displayName: "Avery Fielding",
+    standing: "Active",
+    unit: "Both",
+    contact: "+44 7700 900101",
+    ...overrides,
+    // Recomputed last: an override of capacity or anchor has to move the key
+    // with it, or the fixture would carry a key the resolver cannot match.
+    ...(overrides.key ? { key: overrides.key } : {}),
+  };
+}
+
+const OVERLAP_PERSON = "pppppppp-pppp-4ppp-8ppp-ppppppppppp3";
+
+const AUDIENCE: AudienceCandidate[] = [
+  candidate(),
+  candidate({
+    anchorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+    personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp2",
+    displayName: "Samira Quinn",
+    unit: "Offence",
+    key: "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+  }),
+  candidate({
+    anchorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+    personId: OVERLAP_PERSON,
+    displayName: "Morgan Pike",
+    unit: "Defence",
+    key: "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+  }),
+  candidate({
+    capacity: "coach",
+    anchorId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
+    personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
+    displayName: "Casey North",
+    standing: "Head Coach",
+    unit: null,
+    contact: "casey.north@example.invalid",
+    key: "coach:pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
+  }),
+  candidate({
+    capacity: "committee",
+    anchorId: OVERLAP_PERSON,
+    personId: OVERLAP_PERSON,
+    displayName: "Morgan Pike",
+    standing: "Secretary",
+    unit: null,
+    key: `committee:${OVERLAP_PERSON}`,
+  }),
+];
+
+function givenAudience(
+  candidates: AudienceCandidate[] = AUDIENCE,
+  deadline: { at: Date; configuredAt: Date; clamped: boolean } | null = {
+    at: new Date("2026-10-12T17:00:00Z"),
+    configuredAt: new Date("2026-10-12T17:00:00Z"),
+    clamped: false,
+  },
+) {
+  vi.mocked(readApprovalPreview).mockResolvedValue({
+    event: detail(),
+    catalogue: {
+      candidates,
+      counts: {
+        player: candidates.filter((entry) => entry.capacity === "player").length,
+        coach: candidates.filter((entry) => entry.capacity === "coach").length,
+        committee: candidates.filter((entry) => entry.capacity === "committee").length,
+      },
+    },
+    deadline: deadline ? { ...deadline, rule: { daysBefore: 2, atTime: "18:00" } } : null,
+  });
+}
 
 function givenList(events: EventListEntry[], totalInSeason = events.length) {
   vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
@@ -496,23 +591,31 @@ describe("UX-32 — a draft event", () => {
     expect(audience).toContain("chosen and confirmed during the approval step");
   });
 
-  it("offers edit and abandon, and no approval", async () => {
+  it("offers edit, abandon and the way in to approval", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps()));
 
     expect(screen.getByRole("link", { name: "Edit draft" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Abandon draft" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: /approve event/i })).toBeNull();
+    expect(screen.getByRole("button", { name: "Choose audience and approve" })).toBeEnabled();
+
+    // Approval itself is still two deliberate steps away: the audience has to
+    // be built and then confirmed. Nothing on the first screen approves.
+    expect(screen.queryByRole("button", { name: /^approve event$/i })).toBeNull();
   });
 
-  it("shows the audience action as the unbuilt thing it is", async () => {
+  it("tells an operator who cannot approve who can, and offers them nothing", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator(["treasurer"]),
+    });
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.getByRole("button", { name: "Choose audience and send" })).toBeDisabled();
-    expect(flatten(screen.getByTestId("audience-note").textContent)).toContain("not built yet");
+    expect(screen.queryByRole("button", { name: "Choose audience and approve" })).toBeNull();
+    expect(screen.queryByTestId("audience-builder")).toBeNull();
   });
 
   it("states both flags and the difference between them", async () => {
@@ -610,14 +713,28 @@ describe("a saved event is a draft, and there is nothing to submit", () => {
     expect(screen.queryByRole("button", { name: /submit/i })).toBeNull();
   });
 
-  it("says the draft is on the calendar and nothing has been sent", async () => {
+  it("says nothing has been sent, to an approver and to an operator who is not one", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail());
 
-    render(await EventDetailPage(detailProps()));
-
-    expect(flatten(screen.getByTestId("audience-note").textContent)).toContain(
-      "on the club’s calendar and nothing has been sent",
+    // The approver reads it under the action they are about to take.
+    const approver = render(await EventDetailPage(detailProps()));
+    expect(flatten(approver.container.textContent)).toContain(
+      "Nothing is sent until you have chosen who this event is for and approved it.",
     );
+    approver.unmount();
+
+    // Everybody else reads the structural rule, which is on the page for every
+    // pre-approval event regardless of role. LAN-76's criterion — a draft states
+    // plainly that nothing has gone out — holds for both readers.
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator(["treasurer"]),
+    });
+    render(await EventDetailPage(detailProps()));
+    expect(flatten(screen.getByTestId("no-invitations-note").textContent)).toContain(
+      "Nothing is sent until the designated approver approves it",
+    );
+    expect(screen.queryByRole("button", { name: "Choose audience and approve" })).toBeNull();
   });
 
   it("has no confirmation screen for a submission that cannot happen", async () => {
@@ -817,5 +934,259 @@ describe("every event route guards itself", () => {
     expect(container.textContent).not.toContain("Wednesday practice");
     expect(readEvent).not.toHaveBeenCalled();
     expect(listCurrentSeasonEvents).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// UX-40, UX-41, UX-42 and UX-43 — LAN-77
+// ---------------------------------------------------------------------------
+
+/** Opens the builder from the event detail, as an approver would. */
+async function openBuilder() {
+  vi.mocked(readEvent).mockResolvedValue(detail());
+  const view = render(await EventDetailPage(detailProps()));
+  fireEvent.click(screen.getByRole("button", { name: "Choose audience and approve" }));
+  return view;
+}
+
+function selectionKeys(): string[] {
+  return [...document.querySelectorAll('input[name="audienceKey"]')].map(
+    (input) => (input as HTMLInputElement).value,
+  );
+}
+
+describe("UX-40 — building the audience", () => {
+  it("opens with nothing selected and no group applied", async () => {
+    await openBuilder();
+
+    expect(screen.getByTestId("audience-builder")).toBeVisible();
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 0 selected");
+
+    // The rule this screen exists to keep: no default, no silent whole roster.
+    for (const box of screen.getAllByRole("checkbox")) {
+      expect(box).not.toBeChecked();
+    }
+  });
+
+  it("offers the derived groups with the number each one adds", async () => {
+    await openBuilder();
+
+    expect(screen.getByRole("button", { name: "All active players (3)" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "All active coaches (1)" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "All active committee (1)" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Everyone active (5)" })).toBeEnabled();
+  });
+
+  it("selects a whole group on one press, and clears it again", async () => {
+    await openBuilder();
+
+    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 0 selected");
+  });
+
+  it("counts one person holding two capacities once, and says why", async () => {
+    await openBuilder();
+
+    // Morgan Pike is an active player and the Secretary. Both groups include
+    // them; one invitation is what the club will send.
+    fireEvent.click(screen.getByRole("button", { name: "Everyone active (5)" }));
+
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 4 selected");
+    expect(flatten(screen.getByTestId("dedupe-note").textContent)).toBe(
+      "5 selections resolve to 4 people — somebody holds more than one capacity and is invited once.",
+    );
+  });
+
+  it("adds an individual to a group without duplicating anybody", async () => {
+    await openBuilder();
+
+    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    // Already inside the group — ticking them again must not add a second row.
+    fireEvent.click(screen.getByRole("checkbox", { name: "Include Avery Fielding as Player" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Include Avery Fielding as Player" }));
+
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
+  });
+
+  it("searches by name, role and contact", async () => {
+    await openBuilder();
+
+    fireEvent.change(screen.getByLabelText("Search name, role or contact"), {
+      target: { value: "casey" },
+    });
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+
+    fireEvent.change(screen.getByLabelText("Search name, role or contact"), {
+      target: { value: "Head Coach" },
+    });
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+
+    fireEvent.change(screen.getByLabelText("Search name, role or contact"), {
+      target: { value: "nobody at all" },
+    });
+    expect(screen.getByTestId("no-candidates")).toBeVisible();
+  });
+});
+
+describe("UX-42 — an empty audience is refused before anything is written", () => {
+  it("shows the refusal rather than the confirmation", async () => {
+    await openBuilder();
+
+    fireEvent.click(screen.getByTestId("review-selection"));
+
+    const refusal = screen.getByTestId("empty-audience-refusal");
+    expect(flatten(refusal.textContent)).toContain("The resolved audience is empty");
+    expect(flatten(refusal.textContent)).toContain("No invitations or notification jobs");
+    expect(flatten(refusal.textContent)).toContain(
+      "Approval is refused on the server even if this screen is bypassed",
+    );
+    expect(screen.queryByRole("button", { name: "Approve event" })).toBeNull();
+  });
+
+  it("offers a way back to building", async () => {
+    await openBuilder();
+    fireEvent.click(screen.getByTestId("review-selection"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Build audience" }));
+    expect(screen.getByTestId("audience-builder")).toBeVisible();
+  });
+});
+
+describe("UX-41 — confirming exactly who will be asked", () => {
+  async function reachReview() {
+    await openBuilder();
+    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    fireEvent.click(screen.getByTestId("review-selection"));
+  }
+
+  it("names every invitee, with the capacity each is invited in", async () => {
+    await reachReview();
+
+    const list = within(screen.getByTestId("resolved-audience"));
+    expect(list.getByText("Avery Fielding")).toBeVisible();
+    expect(list.getByText("Samira Quinn")).toBeVisible();
+    expect(list.getByText("Morgan Pike")).toBeVisible();
+    expect(list.getAllByText("Player")).toHaveLength(3);
+
+    expect(flatten(screen.getByTestId("audience-total").textContent)).toBe("3Confirmed audience");
+    expect(flatten(screen.getByTestId("audience-defects").textContent)).toBe("0Audience defects");
+  });
+
+  it("shows the deadline the club's rule produces, in Oxford's own time", async () => {
+    await reachReview();
+
+    // 12 October 2026 at 17:00Z is 18:00 in British Summer Time — the case a
+    // UTC-rendered deadline would show an hour early for half a season.
+    expect(flatten(screen.getByTestId("deadline-fact").textContent)).toContain(
+      "Monday, 12 October 2026 at 18:00",
+    );
+  });
+
+  it("warns that responses are due immediately when the deadline has passed", async () => {
+    givenAudience(AUDIENCE, {
+      at: new Date("2026-10-17T09:00:00Z"),
+      configuredAt: new Date("2026-10-16T17:00:00Z"),
+      clamped: true,
+    });
+    await reachReview();
+
+    const deadline = flatten(screen.getByTestId("deadline-fact").textContent);
+    expect(deadline).toContain("Due immediately");
+    expect(deadline).toContain("has already passed");
+  });
+
+  it("shows no deadline at all for an event that asks for no response", async () => {
+    givenAudience(AUDIENCE, null);
+    await reachReview();
+
+    const deadline = flatten(screen.getByTestId("deadline-fact").textContent);
+    expect(deadline).toContain("No deadline");
+    expect(deadline).toContain("nothing expires");
+  });
+
+  it("says delivery is automated and begins only after approval", async () => {
+    await reachReview();
+
+    const text = flatten(screen.getByTestId("approval-review").textContent);
+    expect(text).toContain("Automated 1:1 WhatsApp");
+    expect(text).toContain("Begins only after approval");
+    // Manual posting is never this slice's delivery path, and the screen must
+    // not offer it as one.
+    expect(text.toLowerCase()).not.toContain("copy");
+    expect(text.toLowerCase()).not.toContain("paste");
+  });
+
+  it("states that the audience is frozen by approval", async () => {
+    await reachReview();
+
+    expect(flatten(screen.getByTestId("approval-review").textContent)).toContain(
+      "The audience is frozen once approved",
+    );
+  });
+
+  it("posts the confirmed selection, and only that", async () => {
+    await reachReview();
+
+    expect(screen.getByRole("button", { name: "Approve event" })).toBeEnabled();
+    expect(selectionKeys().sort()).toEqual(
+      [
+        "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+        "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+        "player:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3",
+      ].sort(),
+    );
+  });
+
+  it("goes back to the builder without losing the selection", async () => {
+    await reachReview();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back to audience" }));
+
+    expect(screen.getByTestId("audience-builder")).toBeVisible();
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
+  });
+});
+
+describe("UX-43 — the event is approved", () => {
+  function approved() {
+    return detail({ status: "approved", audienceCount: 42, invitationCount: 42 });
+  }
+
+  it("reports what now exists, and that none of it has been delivered", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approved());
+
+    render(await EventDetailPage(detailProps({ approved: "1" })));
+
+    const note = flatten(screen.getByTestId("event-approved-note").textContent);
+    expect(note).toContain("Event approved — 42 invitations created");
+    expect(note).toContain("queued job waiting for automated delivery");
+
+    expect(flatten(screen.getByTestId("audience-fact").textContent)).toContain("42 confirmed");
+    expect(flatten(screen.getByTestId("distribution-fact").textContent)).toContain(
+      "nothing delivered yet",
+    );
+  });
+
+  it("offers no way to change the audience afterwards", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approved());
+
+    render(await EventDetailPage(detailProps({ approved: "1" })));
+
+    // The freeze, as an absence rather than as a sentence: LAN-77 ships no
+    // post-approval audience edit, no late addition and no resend.
+    expect(screen.queryByRole("button", { name: "Choose audience and approve" })).toBeNull();
+    expect(screen.queryByTestId("audience-builder")).toBeNull();
+    expect(readApprovalPreview).not.toHaveBeenCalled();
+  });
+
+  it("does not congratulate somebody merely visiting an approved event", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approved());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("event-approved-note")).toBeNull();
   });
 });
