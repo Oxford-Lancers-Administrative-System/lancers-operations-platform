@@ -46,6 +46,16 @@ vi.mock("@/lib/services/events", async (importOriginal) => ({
     totalInSeason: 0,
   })),
 }));
+// LAN-75 filled the Roster destination in, on the same terms.
+vi.mock("@/lib/services/membership", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/membership")>()),
+  listCurrentSeasonRoster: vi.fn(async () => ({
+    season: { id: "season", label: "2026-27", status: "active" },
+    entries: [],
+    totalInSeason: 0,
+  })),
+}));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("../login/actions", () => ({ signOut: vi.fn() }));
 
 import {
@@ -111,6 +121,13 @@ function eventsProps() {
   } as unknown as PageProps<"/operate/events">;
 }
 
+function rosterProps() {
+  return {
+    params: Promise.resolve({}),
+    searchParams: Promise.resolve({}),
+  } as unknown as PageProps<"/operate/roster">;
+}
+
 /** Text with runs of whitespace collapsed, so wrapping cannot break a match. */
 function flatten(text: string | null): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
@@ -154,7 +171,7 @@ describe("row 2 — the unlinked account state (UX-03)", () => {
   it("is reached from a deep destination too, not only from /operate", async () => {
     givenAccess({ state: "unlinked" });
 
-    const { container } = render(await RosterPage());
+    const { container } = render(await RosterPage(rosterProps()));
 
     expect(flatten(container.textContent)).toContain(UNLINKED_COPY);
     expect(container.textContent).not.toContain("not built yet");
@@ -255,7 +272,7 @@ describe("row 4 — neither account state leaks anything", () => {
 
   it("says the same thing whichever page the person asked for", async () => {
     givenAccess({ state: "inactive" });
-    const atRoster = render(await RosterPage()).container.innerHTML;
+    const atRoster = render(await RosterPage(rosterProps())).container.innerHTML;
 
     givenAccess({ state: "inactive" });
     const atEvents = render(await EventsPage(eventsProps())).container.innerHTML;
@@ -320,7 +337,7 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
 
   it("renders each destination for any active operator", async () => {
     givenAccess({ state: "active", operator: actor([]) });
-    expect(render(await RosterPage()).container.textContent).toContain("Roster");
+    expect(render(await RosterPage(rosterProps())).container.textContent).toContain("Roster");
 
     givenAccess({ state: "active", operator: actor([]) });
     expect(render(await EventsPage(eventsProps())).container.textContent).toContain("Events");
@@ -391,7 +408,7 @@ describe("row 1 — no session reaches nothing, from the layout or from any page
   });
 
   it.each([
-    [() => RosterPage(), "%2Foperate%2Froster"],
+    [() => RosterPage(rosterProps()), "%2Foperate%2Froster"],
     [() => EventsPage(eventsProps()), "%2Foperate%2Fevents"],
     [() => ReportPage(), "%2Foperate%2Freport"],
   ])("redirects a page to the login page, keeping where it was going", async (page, encoded) => {

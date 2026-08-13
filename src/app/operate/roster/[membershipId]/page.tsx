@@ -3,37 +3,71 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
-import { findMembershipSummary, type MembershipSummary } from "@/lib/services/roster";
+import { operatorHasCapability } from "@/lib/auth/guards";
+import { isServiceError } from "@/lib/db";
+import {
+  readMembership,
+  type MembershipRecord,
+  type MembershipStatusEvent,
+  type OnboardingItem,
+} from "@/lib/services/membership";
 import { gateShellPage } from "../../gate";
+import {
+  ActivateMembershipForm,
+  DeactivateMembershipForm,
+  OnboardingItemForm,
+  ReactivateMembershipForm,
+} from "../membership-actions";
+import {
+  ENTRY_LABELS,
+  formatDay,
+  formatWhen,
+  labelFor,
+  MEMBERSHIP_STATUS_LABELS,
+  membershipStatusColour,
+  ONBOARDING_ITEM_LABELS,
+} from "../presentation";
 
 /**
- * `/operate/roster/[membershipId]` — UX-13, "Returning player added". LAN-74.
+ * `/operate/roster/[membershipId]` — UX-21, the membership record, with UX-13's
+ * confirmation still on it and UX-22 reached from its primary action.
  *
- * ## What this page is, and what it is not yet
+ * ## Three screens, one route, and why that is right
  *
- * The approved screen registry puts UX-13 at this route, and LAN-75 puts the
- * full membership detail (UX-21) and its authorized transitions at the same
- * one. This issue builds the confirmation and a truthful summary of what was
- * written; it deliberately does not build activation, onboarding resolution,
- * position or jersey, or any transition control. Those are LAN-75's, and
- * inventing a thinner version of them here would be a screen a later issue has
- * to unpick.
+ * The approved registry puts UX-13 ("Returning player added"), UX-21 (the
+ * record) and UX-22 (activation with outstanding onboarding) at this same
+ * route. They are not three pages: UX-13 is this record with a confirmation
+ * banner, and UX-22 is a decision taken from it. LAN-74 built the first;
+ * LAN-75 builds the record underneath it and the transition out of it, and
+ * keeps UX-13's behaviour exactly as it was accepted.
  *
- * ## Why the confirmation is a query parameter rather than a flash message
- *
- * `?created=1` makes the success state a real, linkable, refreshable page
+ * `?created=1` keeps the success state a real, linkable, refreshable page
  * rather than a message that vanishes on reload — which matters because the
- * operator's next action is often to show somebody the screen. "View
- * membership" simply drops the parameter, which is what the wireframe's
- * primary action means at a route that is already the membership.
+ * operator's next action is often to show somebody the screen.
  *
  * Every value shown is read back from the database, not carried over from the
  * submission. A confirmation that echoes what was typed can tell you a write
  * succeeded when it did not.
+ *
+ * ## Who sees the transition controls
+ *
+ * Reading a membership is ordinary operator work, so the page gates on nothing
+ * beyond a linked, active operator. Activation is Exec/GM, so the activation
+ * and inactivity controls render only for an operator holding
+ * `membership_activation` — and that is presentation only. The actions behind
+ * them call `requireCapability` themselves, so a request that never rendered
+ * this page is refused identically. A hidden button is a courtesy; the boundary
+ * is in the action.
+ *
+ * Resolving an onboarding item is deliberately not privileged. UX-21's audience
+ * is "Authorized roster operator" and only UX-22's is "Exec or GM": marking the
+ * kit sorted is roster work, and only the declaration of operational readiness
+ * is the Exec's to make.
  */
 export default async function MembershipPage({
   params,
@@ -45,25 +79,39 @@ export default async function MembershipPage({
   const gate = await gateShellPage(`/operate/roster/${membershipId}`);
   if ("screen" in gate) return gate.screen;
 
-  const summary = await findMembershipSummary(membershipId).catch(() => null);
-  if (!summary) notFound();
+  let membership: MembershipRecord;
+  try {
+    membership = await readMembership(membershipId);
+  } catch (error) {
+    // A membership that is not there is a 404, whatever the service called it.
+    // Anything that is not a service error is a fault, and belongs in the error
+    // boundary as itself rather than dressed up as a missing record.
+    if (!isServiceError(error)) throw error;
+    notFound();
+  }
 
   const justCreated = query.created === "1";
-  const name = summary.familyName
-    ? `${summary.givenName} ${summary.familyName}`
-    : summary.givenName;
+  const mayActivate = operatorHasCapability(gate.operator, "membership_activation");
+  const { status } = membership;
 
   return (
-    <Stack spacing={3} sx={{ maxWidth: 880 }}>
+    <Stack spacing={3} sx={{ maxWidth: 1080 }}>
       <Box>
         <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {justCreated ? "Returning player added" : name}
+          {justCreated ? "Returning player added" : membership.displayName}
         </Typography>
         {justCreated ? (
           <Typography color="text.secondary" sx={{ mt: 1 }} data-testid="created-summary">
-            Person and {summary.seasonLabel} membership were created together.
+            Person and {membership.seasonLabel} membership were created together.
           </Typography>
-        ) : null}
+        ) : (
+          <Typography color="text.secondary" sx={{ mt: 1 }} data-testid="membership-subtitle">
+            {`${membership.seasonLabel} membership · ${labelFor(ENTRY_LABELS, membership.entry)} · ${labelFor(
+              MEMBERSHIP_STATUS_LABELS,
+              status,
+            )}`}
+          </Typography>
+        )}
       </Box>
 
       {justCreated ? (
@@ -72,6 +120,24 @@ export default async function MembershipPage({
           retained as entered.
         </Alert>
       ) : null}
+
+      {/* The three facts UX-21 leads with, before any detail. */}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={2}
+        divider={<Divider orientation="vertical" flexItem />}
+      >
+        <Headline
+          value={labelFor(MEMBERSHIP_STATUS_LABELS, status)}
+          label="Membership"
+          colour={membershipStatusColour(status)}
+        />
+        <Headline
+          value={`${membership.onboardingItems.filter((item) => item.status !== "pending" && item.status !== "invited").length} of ${membership.onboardingItems.length}`}
+          label="Onboarding items resolved"
+        />
+        <Headline value={labelFor(ENTRY_LABELS, membership.entry)} label="Entry" />
+      </Stack>
 
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
         <Box
@@ -82,21 +148,21 @@ export default async function MembershipPage({
           }}
         >
           <Section title="Person">
-            <Typography sx={{ fontWeight: 600 }}>{name}</Typography>
-            {summary.knownAs ? (
+            <Typography sx={{ fontWeight: 600 }}>{membership.displayName}</Typography>
+            {membership.knownAs ? (
               <Typography variant="body2" color="text.secondary">
-                Known as {summary.knownAs}
+                Known as {membership.knownAs}
               </Typography>
             ) : null}
           </Section>
 
           <Section title="Contact">
-            {summary.contacts.length === 0 ? (
+            {membership.contacts.length === 0 ? (
               <Typography variant="body2" color="text.secondary">
                 No contact detail recorded.
               </Typography>
             ) : (
-              summary.contacts.map((contact) => (
+              membership.contacts.map((contact) => (
                 <Typography
                   key={`${contact.kind}-${contact.rawValue}`}
                   variant="body2"
@@ -116,27 +182,124 @@ export default async function MembershipPage({
 
           <Section title="Membership">
             <Typography sx={{ fontWeight: 600 }}>
-              {summary.seasonLabel} · {titleCase(summary.status)}
+              {membership.seasonLabel} · {labelFor(MEMBERSHIP_STATUS_LABELS, status)}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Entry: {titleCase(summary.entry)}
+              Entry: {labelFor(ENTRY_LABELS, membership.entry)}
             </Typography>
+            {membership.confirmedOn ? (
+              <Typography variant="body2" color="text.secondary">
+                Confirmed {formatDay(membership.confirmedOn)}
+              </Typography>
+            ) : null}
+            {membership.activatedOn ? (
+              <Typography variant="body2" color="text.secondary">
+                Activated {formatDay(membership.activatedOn)}
+              </Typography>
+            ) : null}
+            {membership.inactivityLabel ? (
+              <Typography variant="body2" color="text.secondary">
+                Inactive: {membership.inactivityLabel}
+              </Typography>
+            ) : null}
           </Section>
 
           <Section title="Audit">
-            <CreatedBy summary={summary} />
+            <CreatedBy membership={membership} />
           </Section>
         </Box>
       </Paper>
 
-      <Alert severity="info">
-        Activation, onboarding and the rest of the membership record are added by LAN-75.
-      </Alert>
+      {/* Onboarding — the state activation asks about. */}
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="onboarding-panel">
+        <Typography variant="overline" color="text.secondary" component="h2">
+          Onboarding items
+        </Typography>
 
-      {/* One exit, not two. The wireframe's "View membership" primary action
-          led to this same page with the confirmation dismissed — you are
-          already looking at the membership, so it went nowhere the operator
-          could tell. Brian, 12 August 2026. */}
+        {membership.onboardingItems.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This season has no onboarding items configured, so this membership has none.
+          </Typography>
+        ) : (
+          <Stack spacing={2} sx={{ mt: 2 }} divider={<Divider flexItem />}>
+            {membership.onboardingItems.map((item) => (
+              <OnboardingRow key={item.id} item={item} membershipId={membership.membershipId} />
+            ))}
+          </Stack>
+        )}
+
+        {membership.outstandingRequired.length > 0 ? (
+          <Alert severity="info" sx={{ mt: 2 }} data-testid="outstanding-note">
+            {`${membership.outstandingRequired.length === 1 ? "One required item is" : `${membership.outstandingRequired.length} required items are`} still outstanding. Activation is still possible — the reason for proceeding is recorded.`}
+          </Alert>
+        ) : null}
+      </Paper>
+
+      {/* The transitions this record offers, and why it offers no others. */}
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="transitions-panel">
+        <Typography variant="overline" color="text.secondary" component="h2">
+          Membership status
+        </Typography>
+
+        {mayActivate ? (
+          <Stack spacing={2} sx={{ mt: 2, maxWidth: 480 }}>
+            {status === "confirmed" || status === "onboarding" ? (
+              <>
+                <Typography variant="body2" color="text.secondary">
+                  Activation is available only to Exec/GM. Outstanding required onboarding items
+                  require an explicit recorded override; unpaid subscription is never a gate.
+                </Typography>
+                <ActivateMembershipForm
+                  membershipId={membership.membershipId}
+                  displayName={membership.displayName}
+                  outstanding={membership.outstandingRequired}
+                />
+              </>
+            ) : null}
+
+            {status === "active" ? (
+              <DeactivateMembershipForm membershipId={membership.membershipId} />
+            ) : null}
+
+            {status === "inactive" ? (
+              <ReactivateMembershipForm membershipId={membership.membershipId} />
+            ) : null}
+
+            {!["confirmed", "onboarding", "active", "inactive"].includes(status) ? (
+              <Alert severity="info" data-testid="no-transition">
+                {`This membership is ${labelFor(MEMBERSHIP_STATUS_LABELS, status).toLowerCase()}. Season close, departure and reinstatement are outside this slice.`}
+              </Alert>
+            ) : null}
+          </Stack>
+        ) : (
+          <Alert severity="info" sx={{ mt: 2 }} data-testid="activation-not-permitted">
+            Changing a membership&rsquo;s status is available only to the Exec and the General
+            Manager.
+          </Alert>
+        )}
+      </Paper>
+
+      {/* Status history — the typed record, read rather than summarised. */}
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="status-history">
+        <Typography variant="overline" color="text.secondary" component="h2">
+          Status history
+        </Typography>
+        {membership.statusHistory.length === 0 ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            No recorded transition for this membership.
+          </Typography>
+        ) : (
+          <Stack spacing={1.5} sx={{ mt: 2 }}>
+            {membership.statusHistory.map((event) => (
+              <HistoryRow
+                key={`${event.toStatus}-${event.occurredAt.toISOString()}`}
+                event={event}
+              />
+            ))}
+          </Stack>
+        )}
+      </Paper>
+
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={2}
@@ -147,6 +310,31 @@ export default async function MembershipPage({
         </Button>
       </Stack>
     </Stack>
+  );
+}
+
+function Headline({
+  value,
+  label,
+  colour,
+}: {
+  value: string;
+  label: string;
+  colour?: "default" | "info" | "success" | "warning";
+}) {
+  return (
+    <Box>
+      {colour ? (
+        <Chip label={value} color={colour} />
+      ) : (
+        <Typography variant="h6" component="p" sx={{ fontWeight: 700 }}>
+          {value}
+        </Typography>
+      )}
+      <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5 }}>
+        {label}
+      </Typography>
+    </Box>
   );
 }
 
@@ -163,8 +351,88 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function CreatedBy({ summary }: { summary: MembershipSummary }) {
-  if (!summary.createdBy) {
+/**
+ * One onboarding item: what it is, where it stands, and how to move it.
+ *
+ * The subscription item says in words that it never gates activation, because
+ * register D10 is a rule an operator has to be able to *see* — "subs paid,
+ * outstanding" beside a blocked Activate button would teach exactly the wrong
+ * lesson about how this club works.
+ */
+function OnboardingRow({ item, membershipId }: { item: OnboardingItem; membershipId: string }) {
+  return (
+    <Box data-testid="onboarding-item">
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1}
+        sx={{ justifyContent: "space-between", alignItems: { sm: "baseline" } }}
+      >
+        <Box>
+          <Typography sx={{ fontWeight: 600 }}>{item.label}</Typography>
+          <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.5 }}>
+            <Chip size="small" label={labelFor(ONBOARDING_ITEM_LABELS, item.status)} />
+            {item.isRequired ? <Chip size="small" variant="outlined" label="Required" /> : null}
+            {item.isSubscription ? (
+              <Chip size="small" variant="outlined" label="Never blocks activation" />
+            ) : null}
+          </Stack>
+        </Box>
+        <Box sx={{ minWidth: { sm: 320 } }}>
+          <OnboardingItemForm membershipId={membershipId} item={item} />
+        </Box>
+      </Stack>
+
+      {item.completedOn ? (
+        <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5 }}>
+          Completed {formatDay(item.completedOn)}
+        </Typography>
+      ) : null}
+      {item.waivedReason ? (
+        <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 0.5 }}>
+          Waived by {item.waivedByName ?? "an operator"} — {item.waivedReason}
+        </Typography>
+      ) : null}
+    </Box>
+  );
+}
+
+/** One transition, in the club's words, naming who caused it. */
+function HistoryRow({ event }: { event: MembershipStatusEvent }) {
+  const from = event.fromStatus
+    ? labelFor(MEMBERSHIP_STATUS_LABELS, event.fromStatus)
+    : "Created as";
+  const to = labelFor(MEMBERSHIP_STATUS_LABELS, event.toStatus);
+
+  return (
+    <Box>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+        {event.fromStatus ? `${from} → ${to}` : `${from} ${to.toLowerCase()}`}
+      </Typography>
+      <Typography variant="caption" color="text.secondary" component="p">
+        <time dateTime={event.occurredAt.toISOString()}>{formatWhen(event.occurredAt)}</time>
+        {" · "}
+        {event.actorName ?? event.actorLabel ?? "a named process"}
+      </Typography>
+      {event.reason ? (
+        <Typography variant="caption" color="text.secondary" component="p">
+          {event.reason}
+        </Typography>
+      ) : null}
+    </Box>
+  );
+}
+
+/**
+ * Who minted this membership, from the first row of its typed status history.
+ *
+ * Read rather than stored: `season_membership_status_events` is the record of
+ * how the membership came to exist, so the earliest event is the answer, and
+ * there is no second copy of it to fall out of step.
+ */
+function CreatedBy({ membership }: { membership: MembershipRecord }) {
+  const first = membership.statusHistory[0];
+
+  if (!first) {
     return (
       <Typography variant="body2" color="text.secondary">
         No recorded transition for this membership.
@@ -175,37 +443,14 @@ function CreatedBy({ summary }: { summary: MembershipSummary }) {
   return (
     <>
       <Typography variant="body2">
-        Created by {summary.createdBy.name ?? "a named process"}
+        Created by {first.actorName ?? first.actorLabel ?? "a named process"}
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        <time dateTime={summary.createdBy.occurredAt.toISOString()}>
-          {formatWhen(summary.createdBy.occurredAt)}
-        </time>
+        <time dateTime={first.occurredAt.toISOString()}>{formatWhen(first.occurredAt)}</time>
       </Typography>
-      {summary.confirmedOn ? (
-        <Chip size="small" variant="outlined" label={`Confirmed ${summary.confirmedOn}`} />
+      {membership.confirmedOn ? (
+        <Chip size="small" variant="outlined" label={`Confirmed ${membership.confirmedOn}`} />
       ) : null}
     </>
   );
-}
-
-/**
- * A fixed, explicit locale and time zone.
- *
- * Server and browser render this string, and `toLocaleString()` with neither
- * argument uses whatever each of them happens to be configured with — which is
- * a hydration mismatch on any machine that is not set to en-GB/London, and a
- * date that reads as American to a club in Oxford.
- */
-function formatWhen(value: Date): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Europe/London",
-  }).format(value);
-}
-
-function titleCase(value: string): string {
-  const spaced = value.replace(/_/g, " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }

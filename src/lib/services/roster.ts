@@ -2,6 +2,7 @@ import "server-only";
 
 import { Conflict, ConstraintViolated, NotFound, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
+import { generateOnboardingItems } from "./membership";
 
 /**
  * Returner intake — the slice's first roster path. LAN-74.
@@ -503,6 +504,17 @@ export async function enterReturningPlayer(params: {
       "Returner verification completed (operator entry)",
     );
 
+    // Frozen model §2.1: confirmation is what generates the season's onboarding
+    // items. LAN-75 owns the rule and the function; the call belongs here
+    // because this is the only place in the application where a membership
+    // becomes `confirmed`, and generating them one screen later would leave the
+    // operator activating a membership whose items they never got to resolve.
+    //
+    // In the same transaction as the confirmation it describes, so a rolled-back
+    // intake cannot leave orphan items behind. Idempotent, so a season with no
+    // configured types is a no-op rather than a failure.
+    await generateOnboardingItems(tx, membershipId, season.id);
+
     if (personCreated) {
       await recordAudit(tx, {
         actorPersonId,
@@ -757,109 +769,4 @@ async function recordStatusEvent(
      values ($1::uuid, $2::public.membership_status, $3::public.membership_status, $4::uuid, $5)`,
     [membershipId, fromStatus, toStatus, actorPersonId, reason],
   );
-}
-
-// ---------------------------------------------------------------------------
-// Reading back what was written — UX-13
-// ---------------------------------------------------------------------------
-
-export interface MembershipSummary {
-  membershipId: string;
-  personId: string;
-  givenName: string;
-  familyName: string | null;
-  knownAs: string | null;
-  status: string;
-  entry: string;
-  seasonLabel: string;
-  confirmedOn: string | null;
-  contacts: { kind: string; rawValue: string; isPreferred: boolean }[];
-  createdBy: { name: string | null; occurredAt: Date } | null;
-}
-
-/**
- * One membership, for the confirmation screen.
- *
- * Deliberately narrow: the person, their recorded contact points, the
- * membership's own facts and who confirmed it. LAN-75 owns the full membership
- * detail (UX-21) and every transition that can be performed from it.
- */
-export async function findMembershipSummary(
-  membershipId: string,
-): Promise<MembershipSummary | null> {
-  return withTransaction(async (tx) => {
-    const result = await tx.query<{
-      membership_id: string;
-      person_id: string;
-      given_name: string;
-      family_name: string | null;
-      known_as: string | null;
-      status: string;
-      entry: string;
-      season_label: string;
-      confirmed_on: string | null;
-      created_by_name: string | null;
-      created_at: Date | null;
-    }>(
-      `select
-         m.id                                   as membership_id,
-         p.id                                   as person_id,
-         p.given_name,
-         p.family_name,
-         p.known_as,
-         m.status::text                         as status,
-         m.entry::text                          as entry,
-         s.label                                as season_label,
-         to_char(m.confirmed_on, 'YYYY-MM-DD')  as confirmed_on,
-         actor.given_name || coalesce(' ' || actor.family_name, '') as created_by_name,
-         first_event.occurred_at                as created_at
-       from public.season_memberships m
-       join public.people p  on p.id = m.person_id
-       join public.seasons s on s.id = m.season_id
-       left join lateral (
-         select e.occurred_at, e.actor_person_id
-           from public.season_membership_status_events e
-          where e.season_membership_id = m.id
-          order by e.occurred_at, e.from_status nulls first
-          limit 1
-       ) first_event on true
-       left join public.people actor on actor.id = first_event.actor_person_id
-      where m.id = $1::uuid`,
-      [membershipId],
-    );
-
-    const row = result.rows[0];
-    if (!row) return null;
-
-    const contacts = await tx.query<{
-      kind: string;
-      raw_value: string;
-      is_preferred: boolean;
-    }>(
-      `select kind::text as kind, raw_value, is_preferred
-         from public.contact_points
-        where person_id = $1::uuid and valid_until is null
-        order by kind, is_preferred desc, created_at`,
-      [row.person_id],
-    );
-
-    return {
-      membershipId: row.membership_id,
-      personId: row.person_id,
-      givenName: row.given_name,
-      familyName: row.family_name,
-      knownAs: row.known_as,
-      status: row.status,
-      entry: row.entry,
-      seasonLabel: row.season_label,
-      confirmedOn: row.confirmed_on,
-      contacts: contacts.rows.map((contact) => ({
-        kind: contact.kind,
-        rawValue: contact.raw_value,
-        isPreferred: contact.is_preferred,
-      })),
-      createdBy:
-        row.created_at === null ? null : { name: row.created_by_name, occurredAt: row.created_at },
-    };
-  });
 }

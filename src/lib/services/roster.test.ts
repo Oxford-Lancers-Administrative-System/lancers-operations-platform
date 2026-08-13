@@ -21,12 +21,7 @@ import type { Client } from "pg";
 
 import { closePool, isServiceError, withTransaction } from "@/lib/db";
 import { openObserver } from "../../../tests/helpers/service-layer";
-import {
-  enterReturningPlayer,
-  findMembershipSummary,
-  findPersonCandidates,
-  resolveOpenSeason,
-} from "./roster";
+import { enterReturningPlayer, findPersonCandidates, resolveOpenSeason } from "./roster";
 
 /** This suite's namespace. Never shared — parallel suites share one database. */
 const MARKER = "LAN74Intake";
@@ -131,6 +126,19 @@ async function cleanUp(): Promise<void> {
   await observer.query(
     `delete from public.audit_events
       where entity_id in (
+        select m.id from public.season_memberships m
+        left join public.people p on p.id = m.person_id
+        where p.given_name like $1 or (m.person_id = $2::uuid and m.season_id = $3::uuid))`,
+    [`%${MARKER}%`, withoutMembership.id, openSeasonId],
+  );
+  // LAN-75: confirmation now generates the season's onboarding items, so a
+  // membership this suite created has children, and
+  // `onboarding_items_membership_season` refuses to let it go while they exist.
+  // Deleted before the membership, in the same reverse-dependency order as
+  // everything else here.
+  await observer.query(
+    `delete from public.onboarding_items
+      where season_membership_id in (
         select m.id from public.season_memberships m
         left join public.people p on p.id = m.person_id
         where p.given_name like $1 or (m.person_id = $2::uuid and m.season_id = $3::uuid))`,
@@ -786,46 +794,5 @@ describe("enterReturningPlayer — a failure part-way through", () => {
       givenName,
     ]);
     expect(people.rowCount).toBe(0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-
-describe("findMembershipSummary", () => {
-  it("returns the person, contacts, membership and who confirmed it", async () => {
-    const givenName = unique("Summary");
-    const result = await enterReturningPlayer({
-      actorPersonId,
-      input: {
-        givenName,
-        familyName: "Fielding",
-        knownAs: "Ave",
-        email: "summary@example.invalid",
-        phone: "07700 900102",
-      },
-      decision: { kind: "new", confirmed: true },
-    });
-
-    const summary = await findMembershipSummary(result.membershipId);
-
-    expect(summary).not.toBeNull();
-    expect(summary).toMatchObject({
-      membershipId: result.membershipId,
-      personId: result.personId,
-      givenName,
-      familyName: "Fielding",
-      knownAs: "Ave",
-      status: "confirmed",
-      entry: "returning",
-      seasonLabel: openSeasonLabel,
-    });
-    expect(summary?.contacts.map((contact) => contact.rawValue)).toEqual(
-      expect.arrayContaining(["summary@example.invalid", "07700 900102"]),
-    );
-    expect(summary?.createdBy?.occurredAt).toBeInstanceOf(Date);
-  });
-
-  it("returns null for a membership that does not exist", async () => {
-    expect(await findMembershipSummary("00000000-0000-4000-8000-000000000000")).toBeNull();
   });
 });
