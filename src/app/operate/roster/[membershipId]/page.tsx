@@ -208,9 +208,15 @@ export default async function MembershipPage({
             ) : null}
           </Section>
 
-          <Section title="Audit">
-            <CreatedBy membership={membership} />
-          </Section>
+          {/*
+            No "Audit" section here.
+
+            It said the same thing the Status history panel says at the foot of
+            the page — who created the membership and when — and Brian's verdict
+            on the real screen was that audit appeared twice and belonged at the
+            bottom only. The history panel is the record; this grid is the
+            person and the membership.
+          */}
         </Box>
       </Paper>
 
@@ -423,42 +429,5 @@ function HistoryRow({ event }: { event: MembershipStatusEvent }) {
         </Typography>
       ) : null}
     </Box>
-  );
-}
-
-/**
- * Who minted this membership, from the first row of its typed status history.
- *
- * Read rather than stored: `season_membership_status_events` is the record of
- * how the membership came to exist, so the earliest event is the answer, and
- * there is no second copy of it to fall out of step.
- */
-function CreatedBy({ membership }: { membership: MembershipRecord }) {
-  const first = membership.statusHistory[0];
-
-  if (!first) {
-    return (
-      <Typography variant="body2" color="text.secondary">
-        No recorded transition for this membership.
-      </Typography>
-    );
-  }
-
-  return (
-    <>
-      <Typography variant="body2">
-        Created by {first.actorName ?? first.actorLabel ?? "a named process"}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        <time dateTime={first.occurredAt.toISOString()}>{formatWhen(first.occurredAt)}</time>
-      </Typography>
-      {membership.confirmedOn ? (
-        <Chip
-          size="small"
-          variant="outlined"
-          label={`Confirmed ${formatDay(membership.confirmedOn)}`}
-        />
-      ) : null}
-    </>
   );
 }

@@ -589,7 +589,14 @@ describe("UX-13 — Returning player added", () => {
     expect(screen.getByText("Known as Avery")).toBeInTheDocument();
     expect(screen.getByText("2026-27 · Confirmed")).toBeInTheDocument();
     expect(screen.getByText("Entry: Returning")).toBeInTheDocument();
-    expect(screen.getByText("Created by Morgan Pike")).toBeInTheDocument();
+    // The actor is still named, in the status-history panel rather than in a
+    // second "Audit" block beside the membership. Brian's verdict on the real
+    // screen was that audit appeared twice and belonged at the bottom only, so
+    // the duplicate went and this assertion follows it rather than being
+    // dropped — UX-13 still has to say who created the membership.
+    expect(
+      within(screen.getByTestId("status-history")).getByText(/Morgan Pike/),
+    ).toBeInTheDocument();
   });
 
   it("shows contact values exactly as they were recorded", () => {

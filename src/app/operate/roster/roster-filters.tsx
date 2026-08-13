@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -56,17 +56,59 @@ export default function RosterFilters({
   const router = useRouter();
   const [showFilters, setShowFilters] = useState(false);
 
-  const withFilter = (patch: Record<string, string>): string => {
-    const next = { q: search, status, entry, sort, dir: direction, ...patch };
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(next)) {
-      if (value !== "") params.set(key, value);
-    }
-    const query = params.toString();
-    return query === "" ? "/operate/roster" : `/operate/roster?${query}`;
-  };
+  // `useCallback` so the debounce effect below can depend on it honestly rather
+  // than suppressing the dependency rule.
+  const withFilter = useCallback(
+    (patch: Record<string, string>): string => {
+      const next = { q: search, status, entry, sort, dir: direction, ...patch };
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(next)) {
+        if (value !== "") params.set(key, value);
+      }
+      const query = params.toString();
+      return query === "" ? "/operate/roster" : `/operate/roster?${query}`;
+    },
+    [search, status, entry, sort, direction],
+  );
 
   const apply = (patch: Record<string, string>) => router.push(withFilter(patch));
+
+  /**
+   * The search box filters as you type.
+   *
+   * It used to rely on the browser's implicit form submission — type, then
+   * press Enter. Brian's verdict on the real screen was blunt and correct:
+   * "the search absolutely does not work. I cannot filter." A box that looks
+   * like a filter and only responds to a keypress nothing on screen mentions is
+   * a broken filter, whatever the HTML says.
+   *
+   * So the value is local state, and a change pushes the URL after a short
+   * pause. The pause matters: without it every keystroke is a server round trip
+   * and a re-render, and the roster reads 42 memberships each time.
+   *
+   * `typed` is seeded from the prop and re-seeded when the prop changes, so
+   * pressing Back or landing on a filtered link still shows what is filtering.
+   */
+  const [typed, setTyped] = useState(search);
+  const committed = useRef(search);
+
+  useEffect(() => {
+    // The URL is the source of truth. When it changes underneath us — Back,
+    // Clear filters, a shared link — adopt it rather than fight it.
+    if (search !== committed.current) {
+      committed.current = search;
+      setTyped(search);
+    }
+  }, [search]);
+
+  useEffect(() => {
+    if (typed === committed.current) return;
+    const timer = setTimeout(() => {
+      committed.current = typed;
+      router.push(withFilter({ q: typed }));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [typed, withFilter, router]);
 
   return (
     <Box
@@ -90,7 +132,8 @@ export default function RosterFilters({
         <TextField
           label="Search name or contact"
           name="q"
-          defaultValue={search}
+          value={typed}
+          onChange={(event) => setTyped(event.target.value)}
           size="small"
           placeholder="Name, email or phone"
           sx={{ flexGrow: 1, minWidth: { md: 240 } }}
