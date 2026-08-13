@@ -929,6 +929,72 @@ describe("the scenario scripts stay inside the conventions", () => {
         ],
       ],
     ],
+    // LAN-77's approval transaction. Its setup script writes twenty-two rows
+    // with deterministic identifiers, and cleanup removes every one of those by
+    // id. These seven statements remove what the APPLICATION writes when Brian
+    // approves the scenario event — the resolved audience, one invitation per
+    // invitee, their notification jobs, any delivery result or response those
+    // later acquire, and the approval's own audit rows. None of them has an
+    // identifier any script can know, because PostgreSQL generates it inside
+    // the approval transaction.
+    //
+    // Every statement is pinned to the same two conjuncts: the scenario's two
+    // deterministic event ids, and the scenario's sentinel in `events.name`.
+    // Neither alone would be enough — the id block alone would delete a real
+    // event that happened to collide, and the sentinel alone would delete any
+    // event somebody named after this scenario — so a row survives unless its
+    // event satisfies both.
+    "lan-77": [
+      [
+        "public.delivery_results",
+        [
+          "notification_job_id in (select id from public.notification_jobs where event_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051'))",
+          "notification_job_id in (select id from public.notification_jobs where event_id in (select id from public.events where name like '%PILOT-LAN-77%'))",
+        ],
+      ],
+      [
+        "public.notification_jobs",
+        [
+          "event_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051')",
+          "event_id in (select id from public.events where name like '%PILOT-LAN-77%')",
+        ],
+      ],
+      [
+        "public.question_responses",
+        [
+          "invitation_id in (select id from public.invitations where event_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051'))",
+          "invitation_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-77%'))",
+        ],
+      ],
+      [
+        "public.rsvp_responses",
+        [
+          "invitation_id in (select id from public.invitations where event_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051'))",
+          "invitation_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-77%'))",
+        ],
+      ],
+      [
+        "public.invitations",
+        [
+          "event_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051')",
+          "event_id in (select id from public.events where name like '%PILOT-LAN-77%')",
+        ],
+      ],
+      [
+        "public.event_audience_members",
+        [
+          "event_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051')",
+          "event_id in (select id from public.events where name like '%PILOT-LAN-77%')",
+        ],
+      ],
+      [
+        "public.audit_events",
+        [
+          "entity_id in ('00770077-0077-4077-8077-000000000050', '00770077-0077-4077-8077-000000000051')",
+          "entity_id in (select id from public.events where name like '%PILOT-LAN-77%')",
+        ],
+      ],
+    ],
   };
 
   /** The heading a scenario must carry to use the shape at all. */
@@ -1156,6 +1222,8 @@ describe("the scenario scripts stay inside the conventions", () => {
     ["lan-74/cleanup.sql", read("scripts/pilot/lan-74/cleanup.sql"), 14] as const,
     ["lan-75/setup.sql", read("scripts/pilot/lan-75/setup.sql"), 8] as const,
     ["lan-75/cleanup.sql", read("scripts/pilot/lan-75/cleanup.sql"), 12] as const,
+    ["lan-77/setup.sql", read("scripts/pilot/lan-77/setup.sql"), 5] as const,
+    ["lan-77/cleanup.sql", read("scripts/pilot/lan-77/cleanup.sql"), 5] as const,
   ];
 
   it("checks the preflight of every scenario in the repository", () => {
