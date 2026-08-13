@@ -30,14 +30,25 @@ alone. Three things about it only exist in hosted:
 
 ## What setup.sql adds
 
-| Rows                                         | Where                                                                                                                                   | Why                                                       |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| 3 `onboarding_item_types` on the open season | `pilot_lan75_kit`, `pilot_lan75_conduct` (both required), `pilot_lan75_subs` (the subscription item, deliberately also marked required) | So generation, waiver and register D10 are all reachable  |
-| 1 `people` row                               | `Thelbrook Pilotcase`, known as `PILOT-LAN-75`                                                                                          | The synthetic member                                      |
-| 2 `contact_points`                           | `…@example.invalid`, `+44 7700 900175`                                                                                                  | A reserved TLD that can never resolve                     |
-| 1 `season_memberships` row                   | `confirmed`, `entry = 'returning'`, open season                                                                                         | The state UX-21 shows and activation starts from          |
-| 2 `season_membership_status_events`          | `null → carried_forward → confirmed`                                                                                                    | Truthful history, authored by `PILOT-LAN-75 setup script` |
-| 3 `onboarding_items`                         | all `pending`                                                                                                                           | What confirmation would have generated                    |
+| Rows                                              | Where                                                                                                                                   | Why                                                       |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 2 or 3 `onboarding_item_types` on the open season | `pilot_lan75_kit`, `pilot_lan75_conduct` (both required), `pilot_lan75_subs` (the subscription item, deliberately also marked required) | So generation, waiver and register D10 are all reachable  |
+| 1 `people` row                                    | `Thelbrook Pilotcase`, known as `PILOT-LAN-75`                                                                                          | The synthetic member                                      |
+| 2 `contact_points`                                | `…@example.invalid`, `+44 7700 900175`                                                                                                  | A reserved TLD that can never resolve                     |
+| 1 `season_memberships` row                        | `confirmed`, `entry = 'returning'`, open season                                                                                         | The state UX-21 shows and activation starts from          |
+| 2 `season_membership_status_events`               | `null → carried_forward → confirmed`                                                                                                    | Truthful history, authored by `PILOT-LAN-75 setup script` |
+| 2 or 3 `onboarding_items`                         | all `pending`                                                                                                                           | What confirmation would have generated                    |
+
+**A season may hold only one subscription item type.** Hosted has none, so this
+script supplies one and all three types are created. A season that already has
+its own — the seeded local stack does — keeps it, and this script creates only
+the two required types and their two items. `setup.sql`'s verification block
+reports which happened, in `pilot_supplied_the_subscription_item`, so a count of
+2 is a correct install rather than a failed one.
+
+On that adopt path the scenario membership carries **no subscription item**, so
+matrix row 9 demonstrates register D10 only when this script supplied the
+subscription type. Against hosted — which is where the matrix is run — it does.
 
 It adds **no** season, auth user, operator account, role assignment, event,
 invitation or audit row.
@@ -46,14 +57,14 @@ invitation or audit row.
 
 `onboarding_item_types` belongs to a **season**, not to a membership. While this
 scenario is installed, every membership confirmed through the application
-receives the three pilot items — including any that are not scenario data.
+receives the pilot items — including any that are not scenario data.
 
 That is exactly how item generation gets tested (step 2 below). It is also why
 `cleanup.sql` deletes every `onboarding_items` row pointing at a pilot type
 wherever it landed, and why the retention answer is "run cleanup once the
 scenario has served its purpose". Nothing else about an affected membership is
 touched: the membership, its person, its history and its audit trail all survive,
-and only the three pilot items disappear from it.
+and only the pilot items disappear from it.
 
 ## Ownership marker
 
@@ -64,7 +75,7 @@ Both halves, on every row `setup.sql` writes:
   `known_as` on a person, `source` on a contact point, `actor_label` on a status
   event
 
-The three `onboarding_items` rows are the one exception: on a `pending` row the
+The `onboarding_items` rows are the one exception: on a `pending` row the
 table has no free text column. They carry the deterministic id **and** belong to
 this scenario's membership **and** point at this scenario's item types — a chain
 no unrelated row satisfies, and cleanup checks all three.
@@ -115,8 +126,6 @@ Setup refuses, rather than guessing, when:
 
 - the migrations it was written against are not applied;
 - no season is open or active, or more than one is;
-- the open season already has its own subscription item type (exercise D10
-  against that one instead — a season may only have one);
 - any scenario identifier is occupied by a row that is not this scenario's;
 - the scenario person is linked to an operator account;
 - the scenario person already holds a different membership in the open season.

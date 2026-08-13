@@ -1059,6 +1059,37 @@ describe("atomicity", () => {
     expect(await auditRows(membershipId)).toHaveLength(0);
   });
 
+  /**
+   * The `for update` row lock in `lockMembership`, which nothing held to its
+   * claim until independent review removed it and watched the whole suite stay
+   * green — while two concurrent activations wrote two `onboarding → active`
+   * events and two audit rows for a transition that happened once.
+   *
+   * `season_membership_status_events` has no unique constraint to fall back on,
+   * so the lock is the only thing standing between two Exec/GM operators — or
+   * one operator with two tabs — and a corrupted audit history.
+   */
+  it("records one activation, not two, when two operators activate at once", async () => {
+    const membershipId = await givenMembership("onboarding");
+    await settleRequiredItems(membershipId);
+
+    const outcomes = await Promise.allSettled([
+      activateMembership({ actorPersonId, membershipId }),
+      activateMembership({ actorPersonId, membershipId }),
+    ]);
+
+    // Exactly one wins; the loser reads `active` and is refused by the rule
+    // that already exists.
+    expect(outcomes.filter((each) => each.status === "fulfilled")).toHaveLength(1);
+    expect(await currentStatus(membershipId)).toBe("active");
+
+    const events = await statusEvents(membershipId);
+    expect(events.filter((event) => event.to_status === "active")).toHaveLength(1);
+    expect(
+      (await auditRows(membershipId)).filter((row) => row.action === "season_membership_activated"),
+    ).toHaveLength(1);
+  });
+
   it("is undone by a caller's own transaction rolling back", async () => {
     const membershipId = await givenMembership("onboarding");
     await settleRequiredItems(membershipId);

@@ -10,6 +10,14 @@ import TextField from "@mui/material/TextField";
 import { ENTRY_LABELS, labelFor, MEMBERSHIP_STATUS_LABELS } from "./presentation";
 
 /**
+ * How long the search box waits before navigating.
+ *
+ * Exported so the test can advance timers by exactly this much rather than
+ * guessing, and so the number lives in one place.
+ */
+export const SEARCH_DEBOUNCE_MS = 250;
+
+/**
  * UX-20's search and filters.
  *
  * Everything is in the query string, so a filtered roster is a link an operator
@@ -56,23 +64,6 @@ export default function RosterFilters({
   const router = useRouter();
   const [showFilters, setShowFilters] = useState(false);
 
-  // `useCallback` so the debounce effect below can depend on it honestly rather
-  // than suppressing the dependency rule.
-  const withFilter = useCallback(
-    (patch: Record<string, string>): string => {
-      const next = { q: search, status, entry, sort, dir: direction, ...patch };
-      const params = new URLSearchParams();
-      for (const [key, value] of Object.entries(next)) {
-        if (value !== "") params.set(key, value);
-      }
-      const query = params.toString();
-      return query === "" ? "/operate/roster" : `/operate/roster?${query}`;
-    },
-    [search, status, entry, sort, direction],
-  );
-
-  const apply = (patch: Record<string, string>) => router.push(withFilter(patch));
-
   /**
    * The search box filters as you type.
    *
@@ -90,23 +81,49 @@ export default function RosterFilters({
    * pressing Back or landing on a filtered link still shows what is filtering.
    */
   const [typed, setTyped] = useState(search);
+  /** What the URL last carried, as far as this component is concerned. */
   const committed = useRef(search);
 
+  // `useCallback` so the debounce effect below can depend on it honestly rather
+  // than suppressing the dependency rule.
+  const withFilter = useCallback(
+    (patch: Record<string, string>): string => {
+      // `q` defaults to what is in the box, not to the committed prop. A filter
+      // chosen within the debounce window used to build its URL from the older
+      // prop and silently discard the text just typed — and the pending
+      // debounce would then fire with a stale status and discard the filter.
+      // One of the two was always lost. Independent review found it.
+      const next = { q: typed, status, entry, sort, dir: direction, ...patch };
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(next)) {
+        if (value !== "") params.set(key, value);
+      }
+      const query = params.toString();
+      return query === "" ? "/operate/roster" : `/operate/roster?${query}`;
+    },
+    [typed, status, entry, sort, direction],
+  );
+
+  const apply = (patch: Record<string, string>) => router.push(withFilter(patch));
   useEffect(() => {
-    // The URL is the source of truth. When it changes underneath us — Back,
-    // Clear filters, a shared link — adopt it rather than fight it.
-    if (search !== committed.current) {
-      committed.current = search;
-      setTyped(search);
-    }
-  }, [search]);
+    // The URL is the source of truth — Back, Clear filters, a shared link.
+    //
+    // But only adopt it when it says something we did not just say ourselves.
+    // A navigation landing while the operator keeps typing used to re-seed the
+    // box from the older prop, jumping the caret and dropping the characters
+    // typed in that window. If what arrived is already what is in the box,
+    // there is nothing to adopt.
+    if (search === committed.current || search === typed) return;
+    committed.current = search;
+    setTyped(search);
+  }, [search, typed]);
 
   useEffect(() => {
     if (typed === committed.current) return;
     const timer = setTimeout(() => {
       committed.current = typed;
       router.push(withFilter({ q: typed }));
-    }, 250);
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [typed, withFilter, router]);
 

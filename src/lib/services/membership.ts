@@ -1083,8 +1083,13 @@ export async function resolveOnboardingItem(params: {
     // Scoped to the membership as well as the item: the item id arrives from a
     // form, and reading it alone would let a crafted request resolve an item
     // belonging to somebody else's membership.
-    const existing = await tx.query<{ status: OnboardingItemStatus; label: string; code: string }>(
-      `select i.status::text as status, t.label, t.code
+    const existing = await tx.query<{
+      status: OnboardingItemStatus;
+      label: string;
+      code: string;
+      waived_reason: string | null;
+    }>(
+      `select i.status::text as status, t.label, t.code, i.waived_reason
          from public.onboarding_items i
          join public.onboarding_item_types t on t.id = i.item_type_id
         where i.id = $1::uuid and i.season_membership_id = $2::uuid
@@ -1114,7 +1119,12 @@ export async function resolveOnboardingItem(params: {
      * screen did not move. The message names the item and the state it is
      * already in, which is the same shape every other refusal here uses.
      */
-    if (item.status === params.status) {
+    // A waiver whose *reason* changed is a real correction, not a no-op — an
+    // operator who typo'd one has to be able to fix it without routing through
+    // another status and writing audit rows for changes that did not happen.
+    const sameReason =
+      params.status !== "waived" || (item.waived_reason ?? null) === (reason ?? null);
+    if (item.status === params.status && sameReason) {
       throw new InvalidTransition(
         `${item.label} is already ${ONBOARDING_STATUS_WORDS[params.status] ?? params.status}.`,
         { rule: "onboarding_item_already_in_that_state" },

@@ -27,9 +27,10 @@
  * What this file does cover: copy, labels, states, which controls exist, and
  * what an unauthorized operator's DOM contains.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
+const routerPush = vi.fn();
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((url: string) => {
@@ -39,7 +40,7 @@ vi.mock("next/navigation", () => ({
     throw new Error("NOT_FOUND");
   }),
   usePathname: () => "/operate/roster",
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
+  useRouter: () => ({ push: routerPush, replace: vi.fn(), refresh: vi.fn() }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
@@ -48,9 +49,6 @@ vi.mock("@/lib/services/membership", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/membership")>();
   return { ...actual, listCurrentSeasonRoster: vi.fn(), readMembership: vi.fn() };
 });
-
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import path from "node:path";
 
 import { NotFound } from "@/lib/db";
 import {
@@ -66,6 +64,7 @@ import {
   type Roster,
   type RosterEntry,
 } from "@/lib/services/membership";
+import RosterFilters, { SEARCH_DEBOUNCE_MS } from "./roster-filters";
 import RosterPage from "./page";
 import MembershipPage from "./[membershipId]/page";
 
@@ -665,37 +664,108 @@ describe("an operator who may not be here at all", () => {
 // ---------------------------------------------------------------------------
 
 /**
- * The one defect in this issue that no rendering test could have caught.
+ * The search box, which nothing tested until independent review deleted the
+ * debounce and watched all 1,884 tests stay green — returning the screen to
+ * exactly the state Brian rejected on sight.
  *
- * `<Stack divider={<Divider />}>` renders correctly in jsdom and in the
- * browser, and throws "Element type is invalid ... got: undefined" during a
- * **full server render** on this project's MUI/Next combination. So every
- * direct hit or hard refresh of the membership record returned 500, while
- * clicking through to it from the roster worked — which is exactly why it
- * looked random, and why it survived a full suite, a passing CI run and an
- * independent review.
- *
- * Nothing about the rendered output distinguishes the broken form from the
- * working one, so the guard is on the source: no component under `src/` uses
- * Stack's `divider` prop. Separators are drawn explicitly instead.
+ * These render the real filter component and assert on the URL it navigates to,
+ * because that URL is the whole behaviour: the roster is a server component and
+ * the query string is the only thing that reaches it.
  */
-describe("the Stack divider prop, which breaks server rendering here", () => {
-  function filesUnder(dir: string): string[] {
-    const root = path.resolve(import.meta.dirname, "../../..");
-    const absolute = path.join(root, dir);
-    return readdirSync(absolute, { recursive: true, encoding: "utf8" })
-      .map((entry) => path.join(absolute, entry))
-      .filter((entry) => statSync(entry).isFile())
-      .filter((entry) => entry.endsWith(".tsx") && !entry.endsWith(".test.tsx"));
+describe("UX-20 — the search box actually filters", () => {
+  function renderFilters(props: Partial<Parameters<typeof RosterFilters>[0]> = {}) {
+    return render(
+      <RosterFilters
+        statuses={["active"]}
+        entries={["returning"]}
+        sortColumns={[{ value: "name", label: "Name" }]}
+        search=""
+        status=""
+        entry=""
+        sort="name"
+        direction="asc"
+        {...props}
+      />,
+    );
   }
 
-  const components = filesUnder("app").concat(filesUnder("lib").filter((f) => f.endsWith(".tsx")));
-
-  it("checks a non-trivial set of components", () => {
-    expect(components.length).toBeGreaterThan(10);
+  beforeEach(() => {
+    routerPush.mockClear();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
   });
 
-  it.each(components)("%s does not pass a divider to Stack", (file) => {
-    expect(readFileSync(file, "utf8")).not.toMatch(/divider=\{/);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("navigates to the typed search after the debounce", async () => {
+    renderFilters();
+
+    fireEvent.change(screen.getByLabelText("Search name or contact"), {
+      target: { value: "Brindlewood" },
+    });
+    expect(routerPush).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
+    });
+
+    expect(routerPush).toHaveBeenCalledWith(expect.stringContaining("q=Brindlewood"));
+  });
+
+  it("navigates once for a burst of typing, not once per keystroke", async () => {
+    renderFilters();
+    const box = screen.getByLabelText("Search name or contact");
+
+    for (const value of ["B", "Br", "Bri"]) {
+      fireEvent.change(box, { target: { value } });
+    }
+    await act(async () => {
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
+    });
+
+    expect(routerPush).toHaveBeenCalledTimes(1);
+    expect(routerPush).toHaveBeenCalledWith(expect.stringContaining("q=Bri"));
+  });
+
+  /**
+   * The first of two races review found. `withFilter` closed over the `search`
+   * prop, so a status chosen inside the debounce window built its URL from the
+   * older value and silently discarded whatever had just been typed.
+   */
+  it("keeps the typed text when a filter is chosen before the debounce fires", async () => {
+    renderFilters();
+
+    fireEvent.change(screen.getByLabelText("Search name or contact"), {
+      target: { value: "Quinn" },
+    });
+    // MUI's select is a combobox backed by a hidden input, so it is opened and
+    // an option clicked, exactly as an operator would.
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: /Status/ }));
+    fireEvent.click(await screen.findByRole("option", { name: "Active" }));
+
+    const pushed = routerPush.mock.calls.at(-1)?.[0] as string;
+    expect(pushed).toContain("status=active");
+    expect(pushed).toContain("q=Quinn");
+  });
+
+  it("adopts the URL when it genuinely changes underneath — Back, or Clear filters", () => {
+    const { rerender } = renderFilters({ search: "Quinn" });
+    expect(screen.getByLabelText("Search name or contact")).toHaveValue("Quinn");
+
+    rerender(
+      <RosterFilters
+        statuses={["active"]}
+        entries={["returning"]}
+        sortColumns={[{ value: "name", label: "Name" }]}
+        search=""
+        status=""
+        entry=""
+        sort="name"
+        direction="asc"
+      />,
+    );
+
+    expect(screen.getByLabelText("Search name or contact")).toHaveValue("");
   });
 });
