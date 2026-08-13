@@ -49,9 +49,12 @@ describe("protected local review account", () => {
   it("initializes clean shared state from private process context without returning the path", () => {
     const { repo, env } = fixture();
     const password = "local-test-password-123";
-    expect(
-      ensureLocalReviewAccount(repo, { ...env, LANCERS_LOCAL_REVIEW_PASSWORD: password }),
-    ).toEqual({ email: LOCAL_REVIEW_EMAIL, password });
+    const privateEnv = { ...env, LANCERS_LOCAL_REVIEW_PASSWORD: password };
+    expect(ensureLocalReviewAccount(repo, privateEnv)).toEqual({
+      email: LOCAL_REVIEW_EMAIL,
+      password,
+    });
+    expect(privateEnv).not.toHaveProperty("LANCERS_LOCAL_REVIEW_PASSWORD");
     expect(fs.statSync(reviewAccountPath(repo, env)).mode & 0o777).toBe(0o600);
   });
 

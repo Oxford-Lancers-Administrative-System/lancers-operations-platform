@@ -38,6 +38,42 @@ describe("visual review readiness", () => {
     expect(() => requireVisualReviewReadiness(root, 3010)).toThrow(/375px/i);
   });
 
+  it.each([
+    ["loginVerified", "working fixed-account login"],
+    ["seededStatesVerified", "seeded review states"],
+    ["desktopVerified", "desktop browser review"],
+    ["phone375Verified", "375px browser review"],
+  ])("refuses when %s is false", (field, message) => {
+    const root = fixture();
+    const evidence = {
+      url: "http://localhost:3010/login",
+      loginVerified: true,
+      seededStatesVerified: true,
+      desktopVerified: true,
+      phone375Verified: true,
+      routes: ["/login"],
+      [field]: false,
+    };
+    fs.writeFileSync(reviewEvidencePath(root), JSON.stringify(evidence));
+    expect(() => requireVisualReviewReadiness(root, 3010)).toThrow(message);
+  });
+
+  it("refuses an empty review-route list", () => {
+    const root = fixture();
+    fs.writeFileSync(
+      reviewEvidencePath(root),
+      JSON.stringify({
+        url: "http://localhost:3010/login",
+        loginVerified: true,
+        seededStatesVerified: true,
+        desktopVerified: true,
+        phone375Verified: true,
+        routes: [],
+      }),
+    );
+    expect(() => requireVisualReviewReadiness(root, 3010)).toThrow(/review routes/i);
+  });
+
   it("accepts complete loopback evidence for the assigned application port", () => {
     const root = fixture();
     const evidence = {
