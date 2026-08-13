@@ -31,22 +31,30 @@ function part(scheduledOn: string, options: Intl.DateTimeFormatOptions): string 
   );
 }
 
-/** "Wed 14 Oct" — the list's date column. */
+/**
+ * "Wed 14 Oct 2026" — the list's date column.
+ *
+ * The year is not decoration. A season runs from September to June, so a list
+ * of one season's events spans two calendar years, and "Wed 16 Jun" does not
+ * say which one — which is exactly what Brian hit reading the list.
+ */
 export function formatShortDate(scheduledOn: string | null): string {
   if (!scheduledOn) return "No date yet";
   const weekday = part(scheduledOn, { weekday: "short" });
   const day = part(scheduledOn, { day: "numeric" });
   const month = part(scheduledOn, { month: "short" });
-  return `${weekday} ${day} ${month}`;
+  const year = part(scheduledOn, { year: "numeric" });
+  return `${weekday} ${day} ${month} ${year}`;
 }
 
-/** "Sunday, 18 October" — the detail heading. */
+/** "Sunday, 18 October 2026" — the detail heading. Year, for the same reason. */
 export function formatLongDate(scheduledOn: string | null): string {
   if (!scheduledOn) return "No date yet";
   const weekday = part(scheduledOn, { weekday: "long" });
   const day = part(scheduledOn, { day: "numeric" });
   const month = part(scheduledOn, { month: "long" });
-  return `${weekday}, ${day} ${month}`;
+  const year = part(scheduledOn, { year: "numeric" });
+  return `${weekday}, ${day} ${month} ${year}`;
 }
 
 /** "20:00–22:00", "from 20:00", "until 22:00", or nothing at all. */

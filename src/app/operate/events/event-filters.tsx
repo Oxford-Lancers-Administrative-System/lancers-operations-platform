@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
@@ -9,27 +10,34 @@ import TextField from "@mui/material/TextField";
 import { labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
 
 /**
- * UX-30's search, filters and sort.
+ * UX-30's search and filters.
  *
- * A `GET` form, so the filter is in the query string: a filtered list is a link
- * an operator can send to somebody, and the back button does what it looks like
- * it does.
+ * Every filter is in the query string, so a filtered list is a link an operator
+ * can send to somebody and the back button does what it looks like it does.
  *
- * ## No Apply button
+ * ## Why this navigates rather than submitting the form
  *
- * Brian's LAN-76 clarification: "Apply filters immediately when a selection
- * changes. Remove the separate Apply action." So every select submits the form
- * on change, and the search box submits on Enter and on leaving the field. The
- * only reason an Apply button existed was to make the no-JavaScript path work,
- * and it did not even do that — MUI's `TextField select` is a non-native
- * combobox that needs JavaScript at every width, so the button was buying
- * nothing while costing a click on every filter change.
+ * The first version called `form.requestSubmit()` from the select's `onChange`,
+ * and it did not work: MUI's `TextField select` is not a native `<select>`, it
+ * is a combobox backed by a **hidden input**, and React writes the new value
+ * into that input on the next render — after the handler returns. Submitting
+ * inside the handler therefore posted the *previous* value, so choosing a
+ * status navigated to `?status=` and the selection appeared to clear itself.
+ * Brian found that on the real screen; no render test could, because none of
+ * them submits a form.
  *
- * The selects fold behind a `Filters` toggle at phone width, which
- * `slice-ux.md` § 7 asks for: "a single search/filter entry point". Folded, not
- * duplicated — one set of controls laid out two ways by CSS. A phone copy and a
- * desktop copy would put every control in the accessibility tree twice, which
- * is the mistake `ShellNav` avoids for the same reason.
+ * So the value comes straight off the change event and the router is pushed
+ * with it. There is no window in which the DOM and the intent disagree.
+ *
+ * ## Filters combine
+ *
+ * Each control patches one key and carries the rest through, so Status and Type
+ * narrow together — "the practices that are in draft" is one list, not the
+ * second filter replacing the first.
+ *
+ * The search box keeps a real `GET` form so Enter submits it natively, with the
+ * other filters mirrored as hidden inputs so a search never silently drops
+ * them.
  */
 export default function EventFilters({
   statuses,
@@ -50,21 +58,36 @@ export default function EventFilters({
   sort: string;
   direction: string;
 }) {
+  const router = useRouter();
   const [showFilters, setShowFilters] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
 
-  // `requestSubmit` rather than `submit`: it runs the form's own submit
-  // handling, which is what a `GET` form needs to build the query string.
-  const applyNow = () => formRef.current?.requestSubmit();
+  /** The current filter, with one key changed, as a URL. */
+  const withFilter = (patch: Record<string, string>): string => {
+    const next = { q: search, status, type: eventType, sort, dir: direction, ...patch };
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(next)) {
+      if (value !== "") params.set(key, value);
+    }
+    const query = params.toString();
+    return query === "" ? "/operate/events" : `/operate/events?${query}`;
+  };
+
+  const apply = (patch: Record<string, string>) => router.push(withFilter(patch));
 
   return (
     <Box
       component="form"
       method="get"
       action="/operate/events"
-      ref={formRef}
       data-testid="event-filters"
+      sx={{ width: "100%" }}
     >
+      {/* So a native search submit carries the filters rather than clearing them. */}
+      <input type="hidden" name="status" value={status} />
+      <input type="hidden" name="type" value={eventType} />
+      <input type="hidden" name="sort" value={sort} />
+      <input type="hidden" name="dir" value={direction} />
+
       <Stack
         direction={{ xs: "column", md: "row" }}
         spacing={2}
@@ -75,8 +98,7 @@ export default function EventFilters({
           name="q"
           defaultValue={search}
           size="small"
-          onBlur={applyNow}
-          helperText="Name or venue. Press Enter to search."
+          placeholder="Name or venue"
           sx={{ flexGrow: 1, minWidth: { md: 220 } }}
         />
 
@@ -94,15 +116,14 @@ export default function EventFilters({
           id="event-filter-fields"
           direction={{ xs: "column", sm: "row" }}
           spacing={2}
-          sx={{ display: { xs: showFilters ? "flex" : "none", md: "flex" } }}
+          sx={{ display: { xs: showFilters ? "flex" : "none", md: "flex" }, alignItems: "center" }}
         >
           <TextField
             select
             label="Status"
-            name="status"
-            defaultValue={status}
             size="small"
-            onChange={applyNow}
+            value={status}
+            onChange={(event) => apply({ status: event.target.value })}
             sx={{ minWidth: 170 }}
           >
             <MenuItem value="">All statuses</MenuItem>
@@ -116,10 +137,9 @@ export default function EventFilters({
           <TextField
             select
             label="Type"
-            name="type"
-            defaultValue={eventType}
             size="small"
-            onChange={applyNow}
+            value={eventType}
+            onChange={(event) => apply({ type: event.target.value })}
             sx={{ minWidth: 170 }}
           >
             <MenuItem value="">All types</MenuItem>
@@ -131,17 +151,18 @@ export default function EventFilters({
           </TextField>
 
           {/*
-            The same sort the desktop column headers set, reachable on a phone
-            where there are no column headers to click.
+            Sorting lives in the column headers, which is where an operator
+            looks for it — so these are phone-only, where there is no table and
+            therefore no header to click. Showing them on the desktop as well
+            was a second way to do the same thing in the same eyeline.
           */}
           <TextField
             select
             label="Sort by"
-            name="sort"
-            defaultValue={sort}
             size="small"
-            onChange={applyNow}
-            sx={{ minWidth: 150 }}
+            value={sort}
+            onChange={(event) => apply({ sort: event.target.value })}
+            sx={{ display: { xs: "flex", md: "none" }, minWidth: 150 }}
           >
             {sortColumns.map((column) => (
               <MenuItem key={column.value} value={column.value}>
@@ -153,14 +174,13 @@ export default function EventFilters({
           <TextField
             select
             label="Order"
-            name="dir"
-            defaultValue={direction}
             size="small"
-            onChange={applyNow}
-            sx={{ minWidth: 150 }}
+            value={direction}
+            onChange={(event) => apply({ dir: event.target.value })}
+            sx={{ display: { xs: "flex", md: "none" }, minWidth: 150 }}
           >
-            <MenuItem value="desc">Newest / Z–A first</MenuItem>
-            <MenuItem value="asc">Oldest / A–Z first</MenuItem>
+            <MenuItem value="desc">Newest first</MenuItem>
+            <MenuItem value="asc">Oldest first</MenuItem>
           </TextField>
         </Stack>
       </Stack>

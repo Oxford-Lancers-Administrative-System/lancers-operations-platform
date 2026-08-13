@@ -78,7 +78,6 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
       <EventForm
         mode="edit"
         eventId={event.id}
-        createdBy={event.createdByName ?? gate.operator.displayName}
         terms={terms}
         initial={initial}
         cancelHref={`/operate/events/${event.id}`}

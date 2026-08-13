@@ -13,14 +13,16 @@
  * test gets to reading the screen.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
+const routerPush = vi.fn();
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((url: string) => {
     throw new Error(`REDIRECT:${url}`);
   }),
   usePathname: () => "/operate/events",
+  useRouter: () => ({ push: routerPush, replace: vi.fn(), refresh: vi.fn() }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
@@ -141,6 +143,7 @@ function flatten(text: string | null): string {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  routerPush.mockClear();
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: operator() });
   vi.mocked(listTermWindows).mockResolvedValue([
     {
@@ -183,7 +186,7 @@ describe("UX-30 — the current season's events", () => {
     const text = flatten(container.textContent);
 
     expect(text).toContain("Wednesday practice");
-    expect(text).toContain("Wed 14 Oct, 20:00");
+    expect(text).toContain("Wed 14 Oct 2026, 20:00");
     expect(text).toContain("Iffley Road Astro");
     expect(text).toContain("Draft");
     expect(text).toContain("Practice");
@@ -265,6 +268,81 @@ describe("UX-30 — the current season's events", () => {
     render(await EventsPage(listProps()));
 
     expect(screen.queryByRole("button", { name: "Apply" })).toBeNull();
+  });
+
+  /**
+   * The defect Brian found on the real screen, and the reason these exist.
+   *
+   * The first version submitted the surrounding form from the select's
+   * `onChange`. MUI's select is a combobox backed by a hidden input that React
+   * writes on the *next* render, so the submit carried the previous value and
+   * choosing a status navigated to `?status=` — the selection appeared to clear
+   * itself and nothing filtered. No render test caught it because none of them
+   * changed a filter.
+   */
+  describe("choosing a filter", () => {
+    /** Opens a MUI select and clicks one of its options. */
+    function choose(label: string, option: string) {
+      fireEvent.mouseDown(screen.getByRole("combobox", { name: label }));
+      const listbox = screen.getByRole("listbox");
+      fireEvent.click(within(listbox).getByRole("option", { name: option }));
+    }
+
+    it("navigates with the value that was chosen, not the one before it", async () => {
+      givenList([listEntry()]);
+      render(await EventsPage(listProps()));
+
+      choose("Status", "Occurred");
+
+      expect(routerPush).toHaveBeenCalledTimes(1);
+      const url = routerPush.mock.calls[0][0] as string;
+      expect(url).toContain("status=occurred");
+      expect(url).not.toContain("status=&");
+    });
+
+    it("keeps the filters already applied, so they narrow together", async () => {
+      givenList([listEntry()]);
+      render(await EventsPage(listProps({ status: "draft", q: "practice" })));
+
+      choose("Type", "Practice");
+
+      const url = routerPush.mock.calls[0][0] as string;
+      expect(url).toContain("type=practice");
+      expect(url).toContain("status=draft");
+      expect(url).toContain("q=practice");
+    });
+
+    it("keeps the sort when a filter changes", async () => {
+      givenList([listEntry()]);
+      render(await EventsPage(listProps({ sort: "venue", dir: "asc" })));
+
+      choose("Status", "Draft");
+
+      const url = routerPush.mock.calls[0][0] as string;
+      expect(url).toContain("sort=venue");
+      expect(url).toContain("dir=asc");
+    });
+
+    it("clears a filter back to all, without dropping the others", async () => {
+      givenList([listEntry()]);
+      render(await EventsPage(listProps({ status: "draft", type: "practice" })));
+
+      choose("Status", "All statuses");
+
+      const url = routerPush.mock.calls[0][0] as string;
+      expect(url).not.toContain("status=");
+      expect(url).toContain("type=practice");
+    });
+
+    it("mirrors the current filters into the search form, so Enter keeps them", async () => {
+      givenList([listEntry()]);
+      const { container } = render(await EventsPage(listProps({ status: "draft" })));
+
+      const hidden = container.querySelector<HTMLInputElement>(
+        'input[type="hidden"][name="status"]',
+      );
+      expect(hidden?.value).toBe("draft");
+    });
   });
 
   it("distinguishes a season with no events from a filter that matched none", async () => {
@@ -367,16 +445,16 @@ describe("UX-31 — creating an event", () => {
     expect(container.querySelector('[name="origin"]')).toBeNull();
   });
 
-  it("records who entered the event, without calling them its owner", async () => {
+  it("does not print the operator's own name back at them", async () => {
     const { container } = render(await NewEventPage());
+    const text = flatten(container.textContent);
 
-    const createdBy = [...container.querySelectorAll("input")].find(
-      (node) => node.value === "Rowan Ashdown",
+    expect(text).not.toContain("Owner");
+    expect(text).not.toContain("Entered by");
+    expect(text).not.toContain("Created by");
+    expect([...container.querySelectorAll("input")].map((node) => node.value)).not.toContain(
+      "Rowan Ashdown",
     );
-    expect(createdBy).toBeDefined();
-    expect(createdBy?.readOnly).toBe(true);
-    expect(flatten(container.textContent)).toContain("belongs to the club");
-    expect(flatten(container.textContent)).not.toContain("Owner");
   });
 
   it("says the audience is chosen during approval", async () => {
@@ -460,16 +538,17 @@ describe("UX-32 — a draft event", () => {
     const text = flatten(container.textContent);
 
     expect(flatten(screen.getByTestId("event-subtitle").textContent)).toBe(
-      "Draft · Wednesday, 14 October · 20:00–22:00",
+      "Draft · Wednesday, 14 October 2026 · 20:00–22:00",
     );
     expect(text).toContain("Michaelmas 2026-27 · Week 2");
-    expect(flatten(screen.getByTestId("entered-by-fact").textContent)).toContain("Rowan Ashdown");
-    expect(flatten(screen.getByTestId("entered-by-fact").textContent)).toContain(
-      "Any calendar operator may edit this draft",
-    );
-    expect(flatten(screen.getByTestId("origin-fact").textContent)).toContain(
-      "The club schedules this event itself",
-    );
+
+    // Neither who entered it nor where its schedule comes from. Both answer a
+    // question nobody asked, and both are still recorded — in
+    // `owner_person_id`, `origin` and every audit row.
+    expect(screen.queryByTestId("entered-by-fact")).toBeNull();
+    expect(screen.queryByTestId("origin-fact")).toBeNull();
+    expect(text).not.toContain("Entered by");
+    expect(text).not.toContain("Who sets the date");
   });
 
   it("says so plainly when the event has no date yet", async () => {

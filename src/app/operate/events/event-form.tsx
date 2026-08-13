@@ -60,6 +60,10 @@ import {
  * being asked to classify its provenance from four unexplained words. It is
  * derived on create and left alone on edit.
  *
+ * The creator is not shown either. It is written to `owner_person_id` and named
+ * in every audit row, which is where accountability lives; printing the
+ * operator's own name back at them while they type was noise.
+ *
  * ## The two flags have no default, deliberately
  *
  * LAN-76, reaffirmed by the clarification: the response-requested flag is "an
@@ -84,7 +88,6 @@ function issueFor(state: EventFormState, field: keyof RawEventDraft): string | u
 export default function EventForm({
   mode,
   eventId,
-  createdBy,
   terms,
   initial,
   cancelHref,
@@ -92,8 +95,6 @@ export default function EventForm({
   mode: EventFormMode;
   /** The draft being edited. Absent when creating. */
   eventId?: string;
-  /** Recorded for accountability, and shown as such. Never a permission. */
-  createdBy: string;
   /** The Oxford calendar, for deriving the coordinate as the operator types. */
   terms: readonly TermWindow[];
   initial?: RawEventDraft;
@@ -255,14 +256,6 @@ export default function EventForm({
                 issueFor(state, "venue") ??
                 "Where it happens — a pitch, a room, or an address. Free text for now."
               }
-              fullWidth
-            />
-
-            <TextField
-              label="Created by"
-              value={createdBy}
-              helperText="Recorded for the audit trail. The calendar belongs to the club, not to whoever entered the event."
-              slotProps={{ input: { readOnly: true } }}
               fullWidth
             />
           </Stack>

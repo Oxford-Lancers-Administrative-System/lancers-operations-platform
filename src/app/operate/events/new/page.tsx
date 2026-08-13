@@ -50,12 +50,7 @@ export default async function NewEventPage() {
         </Typography>
       </Box>
 
-      <EventForm
-        mode="create"
-        createdBy={gate.operator.displayName}
-        terms={terms}
-        cancelHref="/operate/events"
-      />
+      <EventForm mode="create" terms={terms} cancelHref="/operate/events" />
     </Stack>
   );
 }

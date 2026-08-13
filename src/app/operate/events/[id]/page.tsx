@@ -21,7 +21,6 @@ import {
   NO_DISTRIBUTION_DETAIL,
   NO_DISTRIBUTION_HEADLINE,
   NO_DISTRIBUTION_RULE,
-  ORIGIN_LABELS,
   SOLICITS_RESPONSE_MEANING,
   STATUS_LABELS,
   TYPE_LABELS,
@@ -58,9 +57,19 @@ import {
  * actions guard themselves server-side regardless, so the hiding is a courtesy
  * rather than the boundary.
  *
- * "Owner" is now "Entered by", and it is stated as an audit fact rather than as
- * possession: the calendar belongs to the club, and any calendar operator may
- * edit or withdraw any draft.
+ * ## What this screen deliberately does not show
+ *
+ * Neither who entered the event nor where its schedule comes from. Brian read
+ * both on the real screen and they answered questions nobody was asking: the
+ * calendar is the club's, every operator on it is equally entitled to change a
+ * draft, and an event a club operator typed in is one the club schedules by
+ * definition.
+ *
+ * **Both are still recorded.** `events.owner_person_id` is written on create
+ * and `events.origin` on every row, and every transition names its actor in
+ * `audit_events` — which is where "preserve creator information for
+ * accountability and audit" actually lives. What went is the display, not the
+ * record.
  */
 export default async function EventDetailPage({
   params,
@@ -197,22 +206,6 @@ function EventDetailView({ event, mayManage }: { event: EventDetail; mayManage: 
           <Fact label="Type" value={labelFor(TYPE_LABELS, event.eventType)} />
           <Fact label="Venue" value={event.venue ?? "No venue yet"} />
           <Fact label="Term / week" value={formatTermAndWeek(event.termLabel, event.weekNumber)} />
-          <Fact
-            label="Who sets the date"
-            value={labelFor(ORIGIN_LABELS, event.origin)}
-            note={
-              event.origin === "club_controlled"
-                ? "The club schedules this event itself."
-                : "This event's schedule is set outside the club."
-            }
-            testId="origin-fact"
-          />
-          <Fact
-            label="Entered by"
-            value={event.createdByName ?? "Not recorded"}
-            note="Recorded for the audit trail. Any calendar operator may edit this draft."
-            testId="entered-by-fact"
-          />
           <Fact label="Attendance" value={describeAttendance(event.isMandatory)} />
           <Fact
             label="Response solicited"

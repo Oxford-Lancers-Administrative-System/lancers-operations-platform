@@ -29,6 +29,9 @@ vi.mock("next/navigation", () => ({
     throw new Error(`REDIRECT:${url}`);
   }),
   usePathname: () => "/operate/roster",
+  // The events list's filter bar navigates rather than submitting a form; it is
+  // rendered here only as part of the destination.
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 // LAN-76 filled the Events destination in. These assertions are about the
