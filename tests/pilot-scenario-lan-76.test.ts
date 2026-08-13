@@ -191,69 +191,94 @@ async function createScenarioEvent(
  * `GUARD_CASES` uses for the negative cases.
  */
 async function ensureActiveOperator(client: Client): Promise<void> {
-  const account = await one<{ person_id: string | null }>(
-    client,
-    `select a.person_id
-       from public.operator_accounts a
-       join public.people p on p.id = a.person_id
-      where a.is_active
-      limit 1`,
-  );
+  const CALENDAR_ROLES = ["president", "vice_president", "secretary", "general_manager"];
 
-  let personId = account?.person_id ?? null;
-
-  if (personId === null) {
-    const user = await one<{ id: string }>(
-      client,
-      "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id",
-      ["lan-76-scenario-fixture@oxfordlancers.local"],
-    );
-    const person = await one<{ id: string }>(
-      client,
-      `insert into public.operator_accounts (auth_user_id, person_id)
-       values ($1, (select id from public.people limit 1))
-       returning person_id as id`,
-      [user.id],
-    );
-    personId = person.id;
-  }
-
-  // …and that operator has to hold one of the four calendar seats, which is
-  // what setup.sql's guard (e) asks for. A seeded stack usually does; a CI
-  // runner's does not, and neither will hosted until Brian provisions one.
-  const seated = await one<{ n: string }>(
+  const already = await one<{ n: string }>(
     client,
     `select count(*) as n
        from public.operator_accounts a
        join public.role_assignments ra on ra.person_id = a.person_id
        join public.roles r on r.id = ra.role_id
       where a.is_active
-        and r.code in ('president', 'vice_president', 'secretary', 'general_manager')
+        and r.code = any($1)
         and ra.effective_from <= current_date
         and (ra.effective_to is null or ra.effective_to > current_date)`,
+    [CALENDAR_ROLES],
   );
-  if (Number(seated.n) > 0) return;
+  if (Number(already.n) > 0) return;
 
-  const role = await one<{ id: string; scope: string; is_constitutional_office: boolean }>(
+  // Prefer somebody who already holds one of the four seats, and give *them*
+  // the operator account. Granting a seat instead would collide with invariant
+  // I3 — `role_assignments_one_holder_per_office` permits one holder of a
+  // constitutional office at a time, and the seeded club already has a
+  // Secretary. That is exactly what broke this suite in CI once.
+  const holder = await one<{ person_id: string | null }>(
     client,
-    `insert into public.roles (code, name, scope, is_constitutional_office)
-     values ('secretary', 'Secretary', 'committee_year', true)
-     on conflict (code) do update set name = excluded.name
-     returning id, scope, is_constitutional_office`,
-  );
-
-  const committeeYear = await one<{ id: string }>(
-    client,
-    `select id from public.committee_years
-      where starts_on <= current_date and (ends_on is null or ends_on > current_date)
+    `select ra.person_id
+       from public.role_assignments ra
+       join public.roles r on r.id = ra.role_id
+      where r.code = any($1)
+        and ra.effective_from <= current_date
+        and (ra.effective_to is null or ra.effective_to > current_date)
       limit 1`,
+    [CALENDAR_ROLES],
   );
 
+  let personId = holder?.person_id ?? null;
+
+  if (personId === null) {
+    // A database with no calendar seat at all — which is what hosted looks
+    // like today, since `public.roles` is created by the local-only seed. The
+    // General Manager is the one calendar role that is *not* a constitutional
+    // office, so granting it cannot collide with an existing holder.
+    const person = await one<{ id: string }>(client, "select id from public.people limit 1");
+    personId = person.id;
+
+    const role = await one<{ id: string; scope: string; is_constitutional_office: boolean }>(
+      client,
+      `insert into public.roles (code, name, scope, is_constitutional_office)
+       values ('general_manager', 'General Manager', 'committee_year', false)
+       on conflict (code) do update set name = excluded.name
+       returning id, scope, is_constitutional_office`,
+    );
+
+    const committeeYear = await one<{ id: string }>(
+      client,
+      `select id from public.committee_years
+        where starts_on <= current_date and (ends_on is null or ends_on > current_date)
+        limit 1`,
+    );
+
+    await client.query(
+      `insert into public.role_assignments
+         (person_id, role_id, scope, is_constitutional_office, committee_year_id, effective_from)
+       values ($1, $2, $3, $4, $5, current_date - 1)`,
+      [personId, role.id, role.scope, role.is_constitutional_office, committeeYear?.id ?? null],
+    );
+  }
+
+  const account = await one<{ id: string }>(
+    client,
+    "select id from public.operator_accounts where person_id = $1",
+    [personId],
+  );
+
+  if (account) {
+    await client.query(
+      "update public.operator_accounts set is_active = true, disabled_at = null where id = $1",
+      [account.id],
+    );
+    return;
+  }
+
+  const user = await one<{ id: string }>(
+    client,
+    "insert into auth.users (id, email) values (gen_random_uuid(), $1) returning id",
+    ["lan-76-scenario-fixture@oxfordlancers.local"],
+  );
   await client.query(
-    `insert into public.role_assignments
-       (person_id, role_id, scope, is_constitutional_office, committee_year_id, effective_from)
-     values ($1, $2, $3, $4, $5, current_date - 1)`,
-    [personId, role.id, role.scope, role.is_constitutional_office, committeeYear?.id ?? null],
+    "insert into public.operator_accounts (auth_user_id, person_id) values ($1, $2)",
+    [user.id, personId],
   );
 }
 
