@@ -21,9 +21,10 @@ type AcquireInput = {
   now?: number;
   env?: NodeJS.ProcessEnv;
   probe?: (pid: number, signal: number) => unknown;
+  portProbe?: (port: number) => Promise<boolean>;
 };
 const acquireLease = (input: AcquireInput) =>
-  acquireLeaseRaw({ ...input, portProbe: async () => false });
+  acquireLeaseRaw({ portProbe: async () => false, ...input });
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "lancers-coordinator-"));
@@ -229,6 +230,26 @@ describe("two-slot local Supabase coordinator", () => {
     expect(second?.slot).toBe("overflow");
     expect(coordinatorStatus(repo, env).slots.primary.state).toBe("review-ready");
     await releaseLease({ repoPath: repo, token: lease!.token, env });
+  });
+
+  it("re-fences a released slot even when its known local containers are still running", async () => {
+    const { repo, env } = fixture();
+    const first = await acquireLease({ issueId: "LAN-1", repoPath: repo, pid: 101, env });
+    await releaseLease({ repoPath: repo, token: first!.token, env });
+
+    const second = await acquireLease({
+      issueId: "LAN-2",
+      repoPath: repo,
+      pid: 102,
+      env,
+      portProbe: async () => true,
+    });
+
+    expect(second?.slot).toBe("primary");
+    expect(second?.token).not.toBe(first?.token);
+    await expect(updateLease({ repoPath: repo, token: first!.token, env })).rejects.toThrow(
+      /missing, invalid, or stale/i,
+    );
   });
 
   it("refuses missing and invalid ownership tokens before mutation", async () => {

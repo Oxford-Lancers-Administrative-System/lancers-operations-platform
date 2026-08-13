@@ -99,6 +99,10 @@ ignored. Every lifecycle or mutating database command validates that token.
 Primary keeps the familiar ports; overflow receives a distinct project ID,
 complete service-port set, and application port automatically. Do not edit the
 tracked `supabase/config.toml` to make a second stack.
+If a released slot's own containers are still running, the next claim rotates
+the fencing token and adopts that slot; its mandatory reset removes the prior
+worktree's schema and data. Occupied ports on a never-allocated or stale slot
+still fail closed as ambiguous.
 
 For UI work, the issue agent records its completed browser preflight in ignored
 `.lancers-runtime/visual-review.json`. `db:review-ready` refuses to protect the
