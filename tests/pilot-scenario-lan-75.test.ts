@@ -161,14 +161,25 @@ async function withoutSeasonSubscriptionType(client: Client): Promise<void> {
 }
 
 /**
- * Points the local stack's one operator account at `personId`.
+ * Makes `personId` a linked operator, so the preflight that refuses to delete a
+ * durable identity has something to refuse.
  *
- * `operator_accounts_auth_user_key` makes one auth user reachable by exactly
- * one row, and the seeded stack already has that row — so an `insert … on
- * conflict do nothing` here silently does nothing, and the refusal it was meant
- * to provoke never fires. Re-pointing the existing row is what actually
- * produces the state the preflight is supposed to refuse. Rolled back with the
- * rest of the transaction.
+ * Two paths, because the two machines this runs on differ, and the difference
+ * is exactly what `tests/pilot-scenario-lan-76.test.ts` warns about. A
+ * developer's stack already has an operator account, because `AGENTS.md`'s
+ * first-run sequence ends in `npm run db:link-operator`; a CI runner does not —
+ * `.github/workflows/ci.yml` seeds the data and the auth user and stops there.
+ * A helper that assumed one existed passed locally and failed in CI, which is
+ * how this comment came to be written.
+ *
+ * So: re-point the existing row where there is one, and create one where there
+ * is not. Re-pointing rather than inserting a second is not optional on the
+ * developer's path — `operator_accounts_auth_user_key` makes one auth user
+ * reachable by exactly one row, so an insert would collide and, with
+ * `on conflict do nothing`, would silently do nothing at all and the refusal
+ * would never fire.
+ *
+ * Rolled back with the rest of the transaction either way.
  */
 async function linkOperatorAccountTo(client: Client, personId: string): Promise<void> {
   const updated = await client.query(
@@ -177,7 +188,16 @@ async function linkOperatorAccountTo(client: Client, personId: string): Promise<
       where id = (select id from public.operator_accounts order by created_at limit 1)`,
     [personId],
   );
-  expect(updated.rowCount, "the local stack has no operator account to re-point").toBe(1);
+  if (updated.rowCount === 1) return;
+
+  const authUser = await client.query<{ id: string }>("select id from auth.users limit 1");
+  expect(authUser.rows[0], "no auth user on this stack — run `npm run db:seed-user`").toBeDefined();
+
+  await client.query(
+    `insert into public.operator_accounts (auth_user_id, person_id, is_active)
+     values ($1::uuid, $2::uuid, true)`,
+    [authUser.rows[0].id, personId],
+  );
 }
 
 let client: Client;
