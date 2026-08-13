@@ -62,7 +62,7 @@ const ACTIONS: ReadonlyArray<{
     name: "approveEvent",
     action: approveEvent,
     capability: "event_approval",
-    permitted: ["president"],
+    permitted: ["president", "vice_president", "secretary", "general_manager"],
   },
   {
     name: "recordAttendance",
@@ -165,7 +165,9 @@ describe("row 7 — enforcement lives in the action, not in the page", () => {
   });
 
   it("refuses on every attempt, not only the first", async () => {
-    givenCaller({ state: "active", operator: actor(["secretary"]) });
+    // The Treasurer, not the Secretary: LAN-77's owner clarification made the
+    // Secretary an approver, so they no longer demonstrate a refusal at all.
+    givenCaller({ state: "active", operator: actor(["treasurer"]) });
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
       expect((await refusalFrom(approveEvent)).kind).toBe("not_permitted");

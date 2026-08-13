@@ -35,16 +35,17 @@
  * here against the real seeded `public.roles` table, so a typo fails a test
  * rather than silently denying a legitimate operator forever.
  *
- * ## The three grants, and who decided them
+ * ## The grants, and who decided them
  *
- * | Capability            | Roles                                          | Decided by         |
- * | --------------------- | ---------------------------------------------- | ------------------ |
- * | Attendance recorder   | `head_coach`, `offence_coach`, `defence_coach` | Brian, 12 Aug 2026 |
- * | Membership activation | the four offices, plus `general_manager`       | Lead, 12 Aug 2026  |
- * | Event approval        | `president`                                    | Lead, 12 Aug 2026  |
+ * | Capability                | Roles                                          | Decided by         |
+ * | ------------------------- | ---------------------------------------------- | ------------------ |
+ * | Attendance recorder       | `head_coach`, `offence_coach`, `defence_coach` | Brian, 12 Aug 2026 |
+ * | Membership activation     | the four offices, plus `general_manager`       | Lead, 12 Aug 2026  |
+ * | Event calendar management | President, VP, Secretary, General Manager      | Brian, 12 Aug 2026 |
+ * | Event approval            | President, VP, Secretary, General Manager      | Brian, 12 Aug 2026 |
  *
- * None of the three is re-derived here, and none may be re-derived by a later
- * implementer: they are recorded owner and lead decisions on LAN-73.
+ * None of them is re-derived here, and none may be re-derived by a later
+ * implementer: they are recorded owner and lead decisions on LAN-73 and LAN-77.
  */
 
 /** The privileged actions this slice knows about. */
@@ -188,20 +189,35 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   /**
    * Event approval — the designated approver.
    *
-   * `slice-ux.md` § 8 says "normally President or delegated lead". Delegation
-   * has no representation in the frozen domain model, and inventing one would
-   * be a domain-model change, which no agent makes. So this is the President
-   * and nobody else, and the gap is recorded: LAN-77 raises delegation when it
-   * builds approval. The residual risk is real and stated in the pull request —
-   * if the President is unavailable, no event can be approved.
+   * This entry previously read `["president"]`, as a lead assumption that
+   * recorded the gap and deferred it to LAN-77. LAN-77 is where Brian answered
+   * it, and this is that answer: the same four calendar roles that may create,
+   * edit and abandon an event may also approve one, and "for the MVP, any one
+   * of those four authorized operators may approve an event they created."
+   *
+   * So approval and calendar management now carry the **same** role list, which
+   * invites the obvious question of why they are still two capabilities. They
+   * stay separate because they are two different decisions that merely agree
+   * today: approval is the pre-invitation safety gate and is the only action in
+   * the slice that releases automated messages to real people. Separation of
+   * duties — an approver who is not the author — is explicitly named as
+   * something that "may be added later", and adding it means narrowing this one
+   * list rather than disentangling approval from drafting across five screens.
+   *
+   * What this closes is the residual risk the previous entry carried: with a
+   * President-only grant, the club could not approve anything while the
+   * President was unavailable, which for a student club between terms is not a
+   * hypothetical.
    */
   event_approval: capability({
     key: "event_approval",
     action: "approve an event and release its invitations",
-    roleCodes: ["president"],
+    roleCodes: ["president", "vice_president", "secretary", "general_manager"],
     decision:
-      "Lead, 12 August 2026: President only. 'Delegated lead' is unrepresentable in the " +
-      "frozen model; deferred to LAN-77 rather than invented here.",
+      "Brian, 12 August 2026 (LAN-77 owner clarification): the President, Vice-President, " +
+      "Secretary and General Manager are each authorized for the approval workflow, and an " +
+      "authorized operator may approve their own draft in the MVP. Supersedes the lead's " +
+      "President-only assumption recorded on LAN-73.",
   }),
 
   /**

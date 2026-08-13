@@ -184,9 +184,8 @@ type Mapping = (context: DatabaseErrorContext) => ServiceError;
  * off in the interface. Adding a row here is how a new club rule gets a human
  * message — no other layer should be reading constraint names.
  *
- * Note the taxonomy has five members and this table has four rows, so two of
- * them necessarily share a class. That is not a collision: they stay
- * distinguishable by `rule` and by message, which is what a caller and an
+ * Several rows share a `ServiceError` class, and that is not a collision: they
+ * stay distinguishable by `rule` and by message, which is what a caller and an
  * operator respectively need. Matching on class alone was never the contract.
  */
 const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
@@ -237,6 +236,50 @@ const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
       "Attendance can only be recorded against an event that has happened. " +
         "Mark the event as occurred first.",
       { rule: "attendance_records_require_an_occurred_event", context },
+    ),
+
+  // Invariant P8, on all three tables that carry it. Player capacity anchors to
+  // the season membership; coach, committee, guest and recruit anchor to the
+  // durable person. LAN-77 resolves both the capacity and the anchor from one
+  // catalogue entry, so an approval built through the audience screen cannot
+  // reach these. They are the backstop for every other caller — a later issue
+  // adding a late invitee, a correction script, a test — and they matter because
+  // the failure is otherwise indistinguishable from a bug: the anchor columns
+  // are both nullable and both plausible.
+  event_audience_members_anchor_matches_capacity: (context) =>
+    new ConstraintViolated(
+      "A player has to be added to an audience through their season membership, and a " +
+        "coach or committee member through the person who holds the role. One of these " +
+        "was added the other way round.",
+      { rule: "event_audience_members_anchor_matches_capacity", context },
+    ),
+
+  invitations_anchor_matches_capacity: (context) =>
+    new ConstraintViolated(
+      "A player is invited through their season membership, and a coach or committee " +
+        "member through the person who holds the role. One of these invitations was " +
+        "created the other way round.",
+      { rule: "invitations_anchor_matches_capacity", context },
+    ),
+
+  // Invariant M1. The key is derived from the event, the capacity and the
+  // participant, so a duplicate means this invitee already has a job for this
+  // event — which is the collision the key exists to cause rather than a fault
+  // to work around. A second delivery is the thing being prevented.
+  notification_jobs_idempotency_key_unique: (context) =>
+    new Conflict(
+      "A message has already been queued for one of these invitees for this event. " +
+        "Nothing was sent twice, and nothing further was created.",
+      { rule: "notification_jobs_idempotency_key_unique", context },
+    ),
+
+  // Invariant P1. An invitation cannot hang off an event that is not approved,
+  // and the composite foreign key cascades the event's status into the row, so
+  // this fires if an approval is ever attempted out of order.
+  invitations_require_an_approved_event: (context) =>
+    new InvalidTransition(
+      "Invitations can only exist for an approved event. Approve the event first.",
+      { rule: "invitations_require_an_approved_event", context },
     ),
 
   // Invariant I2 / register D1.
