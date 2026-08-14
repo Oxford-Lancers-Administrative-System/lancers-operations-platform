@@ -109,6 +109,28 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "offence_coach",
     "defence_coach",
   ],
+  // LAN-80. The two capabilities that issue settled, listed here so the
+  // whole-catalogue check above covers them: a grant that leaves a code
+  // unasserted fails, and widening either one fails twice.
+  event_occurrence_assertion: [
+    "treasurer",
+    "social_secretary",
+    "gameday_secretary",
+    "kit_manager",
+    "media_secretary",
+    "it_officer",
+    "head_coach",
+    "offence_coach",
+    "defence_coach",
+  ],
+  attendance_recording: [
+    "treasurer",
+    "social_secretary",
+    "gameday_secretary",
+    "kit_manager",
+    "media_secretary",
+    "it_officer",
+  ],
 };
 
 it("checks every catalogue code against every settled capability", () => {
@@ -142,6 +164,65 @@ describe("row 9 — the attendance-recorder grant is exactly the three coaching 
     expect(roleCodesPermit(["coach"], "attendance_recorder")).toBe(false);
     expect(roleCodesPermit(["assistant_coach"], "attendance_recorder")).toBe(false);
     expect(roleCodesPermit(["offensive_coordinator"], "attendance_recorder")).toBe(false);
+  });
+});
+
+describe("LAN-80 — occurrence assertion is the four calendar roles, and no coach", () => {
+  it("permits exactly those four", () => {
+    expect(permittedSet("event_occurrence_assertion")).toEqual(CALENDAR);
+  });
+
+  it.each(MUST_REFUSE.event_occurrence_assertion)("refuses %s", (code) => {
+    expect(roleCodesPermit([code], "event_occurrence_assertion")).toBe(false);
+  });
+
+  it("refuses all three coaching seats — slice-ux.md § 8 and LAN-110's boundary", () => {
+    // "not implied by attendance-recorder capability", stated as an exact-set
+    // assertion rather than trusted to the array above staying as it is.
+    for (const code of COACHES) {
+      expect(roleCodesPermit([code], "event_occurrence_assertion")).toBe(false);
+    }
+  });
+});
+
+describe("LAN-80 — attendance recording is the calendar roles plus the coaching seats", () => {
+  /**
+   * The union, and the criterion that produced it.
+   *
+   * The first implementation had no capability here at all: the board admitted
+   * any linked operator. Brian's 12 August 2026 coach decision requires that
+   * "an unauthorized coach and ordinary player are refused at the service
+   * boundary", and an ordinary player holding an operator account is not
+   * refused by that floor. The four calendar roles keep the Exec on their own
+   * screen; the three coaching seats are on it because the same decision puts
+   * them there.
+   */
+  it("permits exactly the seven", () => {
+    expect(permittedSet("attendance_recording")).toEqual([...CALENDAR, ...COACHES].sort());
+  });
+
+  it.each([...CALENDAR, ...COACHES])("permits %s on its own", (code) => {
+    expect(roleCodesPermit([code], "attendance_recording")).toBe(true);
+  });
+
+  it.each(MUST_REFUSE.attendance_recording)("refuses %s", (code) => {
+    expect(roleCodesPermit([code], "attendance_recording")).toBe(false);
+  });
+
+  it("refuses an operator holding no role at all — the ordinary player", () => {
+    // The exact case the first implementation admitted.
+    expect(roleCodesPermit([], "attendance_recording")).toBe(false);
+  });
+
+  it("does not widen the narrow coaching grant it sits beside", () => {
+    // Two capabilities, two questions. `attendance_recorder` stays exactly the
+    // three seats, because LAN-110 uses it to decide who gets the constrained
+    // screen — a Secretary records attendance and must not get that one.
+    expect(permittedSet("attendance_recorder")).toEqual([...COACHES].sort());
+    for (const code of CALENDAR) {
+      expect(roleCodesPermit([code], "attendance_recorder")).toBe(false);
+      expect(roleCodesPermit([code], "attendance_recording")).toBe(true);
+    }
   });
 });
 
@@ -302,9 +383,11 @@ describe("row 8 — the map is the single source of truth, and is not editable a
     expect([...CAPABILITY_KEYS].sort()).toEqual(
       [
         "attendance_recorder",
+        "attendance_recording",
         "delivery_administration",
         "event_approval",
         "event_calendar_management",
+        "event_occurrence_assertion",
         "leadership_report",
         "membership_activation",
         "role_management",

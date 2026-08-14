@@ -1048,6 +1048,64 @@ describe("the scenario scripts stay inside the conventions", () => {
         ],
       ],
     ],
+    // LAN-80's occurrence assertion and attendance. Its setup script writes
+    // twenty rows with deterministic identifiers; these five statements remove
+    // what the APPLICATION writes when the matrix is worked through — the
+    // attendance itself, the audit rows the assertion and every attendance
+    // press produce, and the person a walk-up who is not on the roster brings
+    // into existence, together with any contact point typed for them.
+    //
+    // The `people` and `contact_points` entries are keyed on a temporary table
+    // built at the top of cleanup.sql from the attendance rows themselves,
+    // because attendance is the only thing that connects a typed-in walk-up to
+    // this scenario and it is deleted below them. The sentinel is matched
+    // against `given_name` OR `known_as`: setup.sql puts it in `known_as`, and
+    // the walk-up form splits the typed name on its first space, which puts it
+    // in `given_name`. Written as an `in (…)` rather than a disjunction so the
+    // predicate cannot widen, and `coalesce` because `known_as` is nullable and
+    // `upper(btrim(null))` would make the whole comparison unknown.
+    //
+    // A walk-up person WITHOUT the sentinel is not deleted by any of this: the
+    // cleanup's preflight aborts on one, because it might be a real member.
+    "lan-80": [
+      [
+        "public.audit_events",
+        [
+          "entity_table = 'attendance_records'",
+          "entity_id in (select id from public.attendance_records where event_id in ('00800080-0080-4080-8080-000000000021', '00800080-0080-4080-8080-000000000022'))",
+          "entity_id in (select id from public.attendance_records where event_id in (select id from public.events where name like '%PILOT-LAN-80%'))",
+        ],
+      ],
+      [
+        "public.audit_events",
+        [
+          "entity_table = 'events'",
+          "entity_id in ('00800080-0080-4080-8080-000000000021', '00800080-0080-4080-8080-000000000022')",
+          "entity_id in (select id from public.events where name like '%PILOT-LAN-80%')",
+        ],
+      ],
+      [
+        "public.attendance_records",
+        [
+          "event_id in ('00800080-0080-4080-8080-000000000021', '00800080-0080-4080-8080-000000000022')",
+          "event_id in (select id from public.events where name like '%PILOT-LAN-80%')",
+        ],
+      ],
+      [
+        "public.contact_points",
+        [
+          "person_id in (select person_id from pilot_lan_80_walk_ups)",
+          "person_id in (select id from public.people where 'PILOT-LAN-80' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))))",
+        ],
+      ],
+      [
+        "public.people",
+        [
+          "id in (select person_id from pilot_lan_80_walk_ups)",
+          "'PILOT-LAN-80' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, ''))))",
+        ],
+      ],
+    ],
     "lan-77": [
       [
         "public.delivery_results",
@@ -1339,6 +1397,11 @@ describe("the scenario scripts stay inside the conventions", () => {
     // instead of on an instruction.
     ["lan-79/setup.sql", read("scripts/pilot/lan-79/setup.sql"), 6] as const,
     ["lan-79/cleanup.sql", read("scripts/pilot/lan-79/cleanup.sql"), 6] as const,
+    ["lan-80/setup.sql", read("scripts/pilot/lan-80/setup.sql"), 6] as const,
+    // One more than the others, and it is the one that matters most: a walk-up
+    // this scenario cannot prove is synthetic stops the script rather than
+    // being deleted on a guess.
+    ["lan-80/cleanup.sql", read("scripts/pilot/lan-80/cleanup.sql"), 6] as const,
   ];
 
   it("checks the preflight of every scenario in the repository", () => {

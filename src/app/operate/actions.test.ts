@@ -67,8 +67,22 @@ const ACTIONS: ReadonlyArray<{
   {
     name: "recordAttendance",
     action: recordAttendance,
-    capability: "attendance_recorder",
-    permitted: ["head_coach", "offence_coach", "defence_coach"],
+    // LAN-80 shipped the behaviour and the capability changed with it: this
+    // entry point declared `attendance_recorder` ("HC/OC/DC only") while the
+    // real board guarded on any linked operator, so the repository stated two
+    // answers and neither was the decision. Both now name
+    // `attendance_recording` — the four calendar roles, so the Exec keep their
+    // own screen, plus the three coaching seats Brian put on the workflow.
+    capability: "attendance_recording",
+    permitted: [
+      "president",
+      "vice_president",
+      "secretary",
+      "general_manager",
+      "head_coach",
+      "offence_coach",
+      "defence_coach",
+    ],
   },
   { name: "manageRoles", action: manageRoles, capability: "role_management", permitted: [] },
   {
@@ -196,7 +210,7 @@ describe("a permitted caller gets past the guard — which is how we know it ran
 
 describe("row 10 — an attendance recorder is refused every other action", () => {
   const coaches = ["head_coach", "offence_coach", "defence_coach"];
-  const others = ACTIONS.filter((entry) => entry.capability !== "attendance_recorder");
+  const others = ACTIONS.filter((entry) => entry.capability !== "attendance_recording");
 
   for (const coach of coaches) {
     it.each(others)(`a ${coach} is refused $name`, async ({ action, capability }) => {

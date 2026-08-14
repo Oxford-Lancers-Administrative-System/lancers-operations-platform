@@ -37,6 +37,9 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
     createEventDraft: vi.fn(),
     updateEventDraft: vi.fn(),
     abandonEventDraft: vi.fn(),
+    markEventOccurred: vi.fn(),
+    markEventNotHeld: vi.fn(),
+    correctOccurrenceAssertion: vi.fn(),
   };
 });
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
@@ -65,12 +68,21 @@ import {
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
-import { abandonEventDraft, createEventDraft, updateEventDraft } from "@/lib/services/events";
+import {
+  abandonEventDraft,
+  correctOccurrenceAssertion,
+  createEventDraft,
+  markEventNotHeld,
+  markEventOccurred,
+  updateEventDraft,
+} from "@/lib/services/events";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import { EMPTY_AUDIENCE_MESSAGE } from "@/lib/services/audience-selection";
 import {
   abandonEventDraftAction,
   approveEventAction,
+  assertEventOutcomeAction,
+  correctEventOutcomeAction,
   createEventDraftAction,
   saveEventAudienceAction,
   updateEventDraftAction,
@@ -146,6 +158,26 @@ async function refusalFrom(attempt: () => Promise<unknown>): Promise<ServiceErro
     throw error;
   }
   throw new Error("Expected the action to refuse this, but it returned.");
+}
+
+/**
+ * Runs an action expected to succeed, and returns the redirect it threw.
+ *
+ * A successful action here ends in `redirect()`, which the mock turns into a
+ * thrown `REDIRECT:` — so "it worked" and "it threw" are the same observation,
+ * and a helper that returns the destination keeps the assertion about the
+ * destination rather than about the throw. A returned form state means the
+ * action refused, which is a failure the message names.
+ */
+async function refusalOrRedirect(attempt: () => Promise<unknown>): Promise<string> {
+  try {
+    const state = await attempt();
+    throw new Error(`Expected the action to redirect, but it returned: ${JSON.stringify(state)}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.startsWith("REDIRECT:")) throw error;
+    return message;
+  }
 }
 
 /** Every action in this workflow, and a valid call to it. */
@@ -667,5 +699,180 @@ describe("saveEventAudienceAction stores the proposal, and guards it the same wa
       approveEventAction(EMPTY_TRANSITION_STATE, approvalForm()),
     );
     expect(error).toBeInstanceOf(NotPermitted);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-80 — the occurrence assertion
+// ---------------------------------------------------------------------------
+
+describe("assertEventOutcomeAction", () => {
+  function outcomeForm(outcome: string): FormData {
+    return transitionForm({ outcome });
+  }
+
+  it("marks an approved event as occurred, naming the operator from the session", async () => {
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
+
+    const redirect = await refusalOrRedirect(() =>
+      assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("occurred")),
+    );
+
+    expect(markEventOccurred).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID);
+    expect(redirect).toBe(`REDIRECT:/operate/events/${EVENT_ID}?outcome=occurred`);
+    expect(revalidatePath).toHaveBeenCalledWith(`/operate/events/${EVENT_ID}/attendance`);
+  });
+
+  it("marks an approved event as not held", async () => {
+    givenAccess({ state: "active", operator: actor(["general_manager"]) });
+
+    await refusalOrRedirect(() =>
+      assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("not_held")),
+    );
+
+    expect(markEventNotHeld).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID);
+  });
+
+  it("permits each of the four calendar roles", async () => {
+    for (const role of CALENDAR_ROLES) {
+      vi.mocked(markEventOccurred).mockClear();
+      givenAccess({ state: "active", operator: actor([role]) });
+
+      await refusalOrRedirect(() =>
+        assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("occurred")),
+      );
+
+      expect(markEventOccurred, `${role} should be able to assert occurrence`).toHaveBeenCalled();
+    }
+  });
+
+  /**
+   * The boundary LAN-110 depends on, tested from the direction that matters.
+   *
+   * `slice-ux.md` § 8: occurrence is "not implied by attendance-recorder
+   * capability". A Head Coach may record who turned up and may not decide that
+   * there was anything to turn up to — so the three coaching seats are refused
+   * here specifically, not merely absent from a list.
+   */
+  it("refuses every seat that is not a calendar role, including the three coaches", async () => {
+    for (const role of NON_CALENDAR_ROLES) {
+      vi.mocked(markEventOccurred).mockClear();
+      givenAccess({ state: "active", operator: actor([role]) });
+
+      const error = await refusalFrom(() =>
+        assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("occurred")),
+      );
+
+      expect(error, `${role} must be refused`).toBeInstanceOf(NotPermitted);
+      expect(markEventOccurred).not.toHaveBeenCalled();
+    }
+  });
+
+  it("refuses an operator holding no role at all", async () => {
+    givenAccess({ state: "active", operator: actor([]) });
+
+    const error = await refusalFrom(() =>
+      assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("occurred")),
+    );
+    expect(error).toBeInstanceOf(NotPermitted);
+    expect(markEventOccurred).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unlinked and an inactive account without saying which", async () => {
+    for (const state of ["unlinked", "inactive"] as const) {
+      vi.mocked(markEventOccurred).mockClear();
+      givenAccess({ state });
+
+      const error = await refusalFrom(() =>
+        assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("occurred")),
+      );
+      expect(error).toBeInstanceOf(NotPermitted);
+      expect(markEventOccurred).not.toHaveBeenCalled();
+    }
+  });
+
+  it("takes no actor from the form, whatever the form says", async () => {
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
+    const form = outcomeForm("occurred");
+    form.set("actorPersonId", "99999999-9999-4999-8999-999999999999");
+    form.set("personId", "99999999-9999-4999-8999-999999999999");
+
+    await refusalOrRedirect(() => assertEventOutcomeAction(EMPTY_TRANSITION_STATE, form));
+
+    expect(markEventOccurred).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID);
+  });
+
+  it("refuses an outcome that is neither of the two the club has words for", async () => {
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
+
+    const state = await assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("cancelled"));
+
+    expect(state.error).toBe("Choose whether this event occurred or was not held.");
+    expect(markEventOccurred).not.toHaveBeenCalled();
+    expect(markEventNotHeld).not.toHaveBeenCalled();
+  });
+
+  it("shows a refused second assertion as a sentence", async () => {
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
+    vi.mocked(markEventOccurred).mockRejectedValue(
+      new InvalidTransition(
+        "Only an approved event can be marked as occurred. This event is recorded as having happened.",
+        { rule: "event_transition:mark_occurred" },
+      ),
+    );
+
+    const state = await assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("occurred"));
+
+    expect(state.error).toContain("recorded as having happened");
+  });
+});
+
+describe("correctEventOutcomeAction", () => {
+  it("passes the reason and never the direction", async () => {
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
+
+    await refusalOrRedirect(() =>
+      correctEventOutcomeAction(
+        EMPTY_TRANSITION_STATE,
+        transitionForm({ reason: "Wrong Wednesday.", outcome: "occurred", status: "occurred" }),
+      ),
+    );
+
+    // The form's `outcome` and `status` are ignored: the service derives the
+    // direction from the event, so this action cannot be used to set a status.
+    expect(correctOccurrenceAssertion).toHaveBeenCalledWith(
+      OPERATOR_PERSON_ID,
+      EVENT_ID,
+      "Wrong Wednesday.",
+    );
+  });
+
+  it("is refused to a coach", async () => {
+    givenAccess({ state: "active", operator: actor(["head_coach"]) });
+
+    const error = await refusalFrom(() =>
+      correctEventOutcomeAction(EMPTY_TRANSITION_STATE, transitionForm({ reason: "No." })),
+    );
+
+    expect(error).toBeInstanceOf(NotPermitted);
+    expect(correctOccurrenceAssertion).not.toHaveBeenCalled();
+  });
+
+  it("shows the attendance refusal as a sentence rather than a crash", async () => {
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
+    vi.mocked(correctOccurrenceAssertion).mockRejectedValue(
+      new InvalidTransition(
+        "This event still has 4 attendance records against it. Remove them before changing " +
+          "what happened at the event.",
+        { rule: "event_occurrence_locked_by_attendance" },
+      ),
+    );
+
+    const state = await correctEventOutcomeAction(
+      EMPTY_TRANSITION_STATE,
+      transitionForm({ reason: "Wrong event." }),
+    );
+
+    expect(state.error).toContain("4 attendance records");
   });
 });

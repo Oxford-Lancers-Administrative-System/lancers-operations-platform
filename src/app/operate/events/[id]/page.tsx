@@ -15,7 +15,12 @@ import {
   type AudienceMember,
 } from "@/lib/services/event-approval";
 import { gateShellPage } from "../../gate";
-import { AbandonDraftForm, ApproveEventForm } from "../event-actions";
+import {
+  AbandonDraftForm,
+  ApproveEventForm,
+  CorrectOccurrenceForm,
+  OccurrenceDecisionForm,
+} from "../event-actions";
 import { AudienceBuilder } from "./audience-builder";
 import {
   APPROVAL_DETAIL,
@@ -49,6 +54,16 @@ import {
   STATUS_LABELS,
   TYPE_LABELS,
 } from "../presentation";
+import {
+  ATTENDANCE_OPENS_AFTER,
+  ATTENDANCE_UNAVAILABLE,
+  NOT_HELD_DETAIL,
+  NOT_HELD_HEADLINE,
+  OCCURRENCE_DETAIL,
+  OCCURRENCE_HEADLINE,
+  OCCURRENCE_NEVER_INFERRED,
+  OCCURRENCE_NOT_ASSERTED,
+} from "./attendance/presentation";
 
 /**
  * One event, in every presentation this route owns — UX-32, UX-33, and LAN-77's
@@ -121,6 +136,7 @@ export default async function EventDetailPage({
   const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
   const mayApprove = operatorHasCapability(gate.operator, "event_approval");
   const mayAdministerDelivery = operatorHasCapability(gate.operator, "delivery_administration");
+  const mayAssertOccurrence = operatorHasCapability(gate.operator, "event_occurrence_assertion");
   const canWorkOnAudience = mayApprove && event.status === "draft";
 
   // UX-40 and UX-41 are read-heavy and only reachable by an approver working on
@@ -175,6 +191,7 @@ export default async function EventDetailPage({
       mayManage={mayManage}
       mayApprove={mayApprove}
       mayAdministerDelivery={mayAdministerDelivery}
+      mayAssertOccurrence={mayAssertOccurrence}
       justApproved={justApproved}
       audience={audience}
     />
@@ -419,12 +436,157 @@ function Fact({
   );
 }
 
+/**
+ * UX-70 — **Confirm what happened**. LAN-80.
+ *
+ * ## Why it is offered whatever the clock says
+ *
+ * The wireframe showed "Start time has passed" beside the two buttons. Brian
+ * removed it on 14 August 2026 — "not useful, they know they're there" — so
+ * nothing here mentions the clock at all.
+ *
+ * The rule it was decorating is untouched, and it is why the decision is
+ * offered without a time condition. Invariant E5 says "the passage of time
+ * never equals occurrence", and that cuts both ways: time does not make an
+ * event occurred, and it does not license the interface to decide when somebody
+ * may say what happened. The two real cases settle it — a practice abandoned at
+ * 19:55 because the pitch flooded is **not held** before its own start time,
+ * and last Wednesday's practice is still waiting to be recorded on Friday.
+ * Refusing either would be a rule this repository invented.
+ *
+ * ## Why an operator without the capability still sees it
+ *
+ * They see the three facts and no buttons, because the point of the panel is
+ * that this event is waiting on a decision — which is true regardless of who is
+ * looking. The action guards itself server-side; hiding the buttons is the
+ * courtesy that stops somebody pressing one to find out.
+ */
+function OccurrencePanel({
+  event,
+  mayAssertOccurrence,
+}: {
+  event: EventDetail;
+  mayAssertOccurrence: boolean;
+}) {
+  return (
+    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="occurrence-decision">
+      <Stack spacing={3}>
+        <Box>
+          <Typography variant="h6" component="h2">
+            {OCCURRENCE_HEADLINE}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {OCCURRENCE_DETAIL}
+          </Typography>
+        </Box>
+
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+          }}
+        >
+          {/*
+            No "start time has passed" line. The wireframe had one and Brian
+            removed it on the real screen: an operator standing in front of this
+            decision was at the event, or knows perfectly well that it has been
+            and gone, so a computed restatement of the date above adds nothing.
+            Nothing decided from it either — invariant E5 kept time out of the
+            assertion — so the whole computation went with the caption.
+          */}
+          <Fact
+            label="Event status"
+            value={labelFor(STATUS_LABELS, event.status)}
+            testId="occurrence-status-fact"
+          />
+          <Fact
+            label="Occurrence"
+            value={OCCURRENCE_NOT_ASSERTED}
+            note={OCCURRENCE_NEVER_INFERRED}
+            testId="occurrence-fact"
+          />
+          <Fact
+            label="Attendance"
+            value={ATTENDANCE_UNAVAILABLE}
+            note={ATTENDANCE_OPENS_AFTER}
+            testId="occurrence-attendance-fact"
+          />
+        </Box>
+
+        {mayAssertOccurrence ? (
+          <OccurrenceDecisionForm eventId={event.id} />
+        ) : (
+          <Typography variant="body2" color="text.secondary" data-testid="occurrence-read-only">
+            Recording what happened is done by the President, Vice-President, Secretary and General
+            Manager.
+          </Typography>
+        )}
+      </Stack>
+    </Paper>
+  );
+}
+
+/**
+ * What the event looks like once somebody has said what happened — UX-75 for
+ * `not_held`, and the way through to the board for `occurred`.
+ *
+ * Both carry the correction, because § 9 requires a completed state to offer
+ * "any permitted correction" and because an assertion made against the wrong
+ * event in a list is the mistake this whole panel is one press away from.
+ */
+function OutcomePanel({
+  event,
+  mayAssertOccurrence,
+}: {
+  event: EventDetail;
+  mayAssertOccurrence: boolean;
+}) {
+  const notHeld = event.status === "not_held";
+
+  return (
+    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="outcome-panel">
+      <Stack spacing={2}>
+        <Typography variant="h6" component="h2">
+          {notHeld ? NOT_HELD_HEADLINE : "Attendance is open"}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {notHeld
+            ? NOT_HELD_DETAIL
+            : "This event is recorded as having happened, so attendance can be recorded against it."}
+        </Typography>
+
+        {notHeld ? null : (
+          <Box>
+            <Button
+              variant="contained"
+              href={`/operate/events/${event.id}/attendance`}
+              sx={{ minHeight: 44 }}
+              data-testid="open-attendance"
+            >
+              Attendance
+            </Button>
+          </Box>
+        )}
+
+        {mayAssertOccurrence ? (
+          <CorrectOccurrenceForm
+            eventId={event.id}
+            currentStatus={notHeld ? "not_held" : "occurred"}
+          />
+        ) : null}
+      </Stack>
+    </Paper>
+  );
+}
+
 /** UX-32 — the event itself, in whatever state it is in. */
 function EventDetailView({
   event,
   mayManage,
   mayApprove,
   mayAdministerDelivery,
+  mayAssertOccurrence,
   justApproved,
   audience,
 }: {
@@ -432,11 +594,13 @@ function EventDetailView({
   mayManage: boolean;
   mayApprove: boolean;
   mayAdministerDelivery: boolean;
+  mayAssertOccurrence: boolean;
   justApproved: boolean;
   audience: AudienceMember[];
 }) {
   const preApproval = isPreApproval(event.status);
   const proposed = event.status === "draft" && audience.length > 0;
+  const asserted = event.status === "occurred" || event.status === "not_held";
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 900 }} data-testid="event-detail" data-status={event.status}>
@@ -465,6 +629,12 @@ function EventDetailView({
           {NO_DISTRIBUTION_RULE}
         </Alert>
       ) : null}
+
+      {event.status === "approved" ? (
+        <OccurrencePanel event={event} mayAssertOccurrence={mayAssertOccurrence} />
+      ) : null}
+
+      {asserted ? <OutcomePanel event={event} mayAssertOccurrence={mayAssertOccurrence} /> : null}
 
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
         <Box

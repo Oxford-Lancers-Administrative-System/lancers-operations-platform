@@ -40,9 +40,11 @@
  * | Capability                | Roles                                          | Decided by         |
  * | ------------------------- | ---------------------------------------------- | ------------------ |
  * | Attendance recorder       | `head_coach`, `offence_coach`, `defence_coach` | Brian, 12 Aug 2026 |
+ * | Attendance recording      | the four calendar roles, plus those three seats | Lead, 14 Aug 2026  |
  * | Membership activation     | the four offices, plus `general_manager`       | Lead, 12 Aug 2026  |
  * | Event calendar management | President, VP, Secretary, General Manager      | Brian, 12 Aug 2026 |
  * | Event approval            | President, VP, Secretary, General Manager      | Brian, 12 Aug 2026 |
+ * | Occurrence assertion      | President, VP, Secretary, General Manager      | Lead, 14 Aug 2026  |
  * | Delivery administration   | President, VP, Secretary, General Manager      | Lead, 13 Aug 2026  |
  *
  * None of them is re-derived here, and none may be re-derived by a later
@@ -56,6 +58,8 @@ export type CapabilityKey =
   | "membership_activation"
   | "event_calendar_management"
   | "event_approval"
+  | "event_occurrence_assertion"
+  | "attendance_recording"
   | "role_management"
   | "delivery_administration"
   | "leadership_report";
@@ -220,6 +224,112 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
       "Secretary and General Manager are each authorized for the approval workflow, and an " +
       "authorized operator may approve their own draft in the MVP. Supersedes the lead's " +
       "President-only assumption recorded on LAN-73.",
+  }),
+
+  /**
+   * Recording attendance for an event that has occurred — the general path.
+   * LAN-80.
+   *
+   * ## Why this exists, when `attendance_recorder` already did
+   *
+   * They are two different grants for two different surfaces, and LAN-73 said
+   * so before either was built: `attendance_recorder` above is LAN-110's narrow
+   * coaching grant, and its note records that the general path "resolves to
+   * 'authorized operator', not to role codes, and LAN-80 owns it".
+   *
+   * LAN-80 owning it means deciding it, and the first implementation did not —
+   * it used `requireOperator()`, the ordinary-operator floor. That was wrong in
+   * a way independent review caught: LAN-80's own acceptance criteria, from
+   * Brian's 12 August 2026 coach decision, require that "an unauthorized coach
+   * and ordinary player are refused at the service boundary, including direct
+   * action calls". An ordinary player who holds an operator account is not
+   * refused by a floor that admits every linked operator, so the floor failed a
+   * criterion rather than merely being generous.
+   *
+   * ## The grant, and why it is a union
+   *
+   * The four calendar roles, plus the three coaching seats:
+   *
+   *   * **The four** because `docs/ux/slice-ux.md` § 8 lists General attendance
+   *     as an authorized-operator action, and because gating it on the coaching
+   *     grant alone would lock the Exec out of their own attendance screen —
+   *     which is exactly what `attendance_recorder`'s note warns against.
+   *   * **The three coaching seats** because Brian's 12 August decision puts
+   *     them on this workflow explicitly: "an authorized coach may set and
+   *     correct Present, Absent, Late or Excused".
+   *
+   * The Treasurer is excluded, for the same reason they are excluded from
+   * `event_calendar_management`, `event_approval` and `delivery_administration`:
+   * nothing about attendance distinguishes it from those, and no recorded
+   * decision puts them on the club's event workflow.
+   *
+   * ## What it is not
+   *
+   * It is not a replacement for `attendance_recorder`, and it does not widen it.
+   * That capability stays exactly the three coaching seats, because LAN-110
+   * uses it to decide who gets the **narrow** surface — a Secretary holds this
+   * one and not that one, and should get the operator's board rather than the
+   * coach's. Two grants, two questions: "may you record at all", and "is the
+   * constrained screen yours".
+   *
+   * A lead derivation, like the two below it, and narrowed by editing one array.
+   */
+  attendance_recording: capability({
+    key: "attendance_recording",
+    action: "record attendance for an event that has occurred",
+    roleCodes: [
+      "president",
+      "vice_president",
+      "secretary",
+      "general_manager",
+      "head_coach",
+      "offence_coach",
+      "defence_coach",
+    ],
+    decision:
+      "Lead, 14 August 2026 (LAN-80), after independent review: the union of the four " +
+      "calendar roles — so the Exec is not locked out of their own screen — and the three " +
+      "coaching seats Brian's 12 August 2026 decision put on this workflow. Replaces an " +
+      "any-linked-operator floor that failed LAN-80's criterion that an ordinary player is " +
+      "refused at the service boundary. Recorded as an assumption on LAN-80.",
+  }),
+
+  /**
+   * The occurrence assertion — **Mark occurred** and **Mark not held**, and the
+   * correction of either. LAN-80.
+   *
+   * It is its own capability rather than a reuse of `event_calendar_management`
+   * because `docs/ux/slice-ux.md` § 8 lists it as its own row in the
+   * authorization contract, and because it is the one thing the contract says
+   * explicitly is *not* implied by something else: "Authorized operator only;
+   * not implied by attendance-recorder capability". A coach who may record
+   * attendance may not decide that there was anything to record.
+   *
+   * The grant is a lead derivation from two recorded decisions, not a new one:
+   *
+   *   * Brian's LAN-77 clarification — "only active President, Vice President,
+   *     Secretary, and General Manager role holders may create, edit, abandon,
+   *     or approve calendar events". Asserting what happened to an event is a
+   *     change to the club's calendar record of it, and it is the gate that
+   *     opens attendance.
+   *
+   *   * LAN-110's fixed boundary — "Coaches cannot mark an event occurred or
+   *     not held unless a separate authorization rule explicitly grants that
+   *     action". No coaching seat is listed here, and none may be added without
+   *     that separate rule.
+   *
+   * Like every other derivation in this file it is cheap to narrow: separation
+   * of duties, or restricting the assertion to the approver, is an edit to one
+   * array. Flagged as an assumption on LAN-80's pull request.
+   */
+  event_occurrence_assertion: capability({
+    key: "event_occurrence_assertion",
+    action: "assert that an event occurred or was not held",
+    roleCodes: ["president", "vice_president", "secretary", "general_manager"],
+    decision:
+      "Lead, 14 August 2026 (LAN-80): derived from Brian's LAN-77 event-workflow authority " +
+      "and from LAN-110's boundary that no coaching seat may assert occurrence. Recorded as " +
+      "an assumption on LAN-80 and narrowed by editing this list.",
   }),
 
   /**

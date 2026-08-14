@@ -83,18 +83,47 @@ export type EventStatus =
   | "rejected"
   | "withdrawn";
 
-/** The transitions LAN-76 owns, as data. Anything not listed is refused. */
-export type EventTransition = "abandon";
+/**
+ * The transitions the slice owns, as data. Anything not listed is refused.
+ *
+ * `abandon` is LAN-76's. The four occurrence transitions are LAN-80's: the two
+ * assertions an operator makes about a past event, and the correction of each.
+ */
+export type EventTransition =
+  "abandon" | "mark_occurred" | "mark_not_held" | "correct_to_not_held" | "correct_to_occurred";
 
 interface TransitionRule {
   readonly from: EventStatus;
   readonly to: EventStatus;
   /** `audit_events.action`, in the club's language. */
   readonly action: string;
-  /** Does `events_negative_decisions_are_explained` require a reason? */
+  /** Does this transition have to say why? */
   readonly requiresReason: boolean;
+  /**
+   * What a missing reason is called and what the operator is told.
+   *
+   * Two different rules want a reason, for two different transitions. The three
+   * negative decisions are required to explain themselves by
+   * `events_negative_decisions_are_explained`, a durable database constraint. A
+   * **correction** is required to explain itself by the frozen model's audit
+   * rule, which the database does not carry — so its refusal names a service
+   * rule and says so honestly rather than borrowing a constraint name that did
+   * not fire.
+   */
+  readonly reasonRule?: string;
+  readonly reasonRefusal?: string;
   /** What an operator is told when the event is in some other state. */
   readonly refusal: string;
+  /**
+   * Does this transition record `outcome_recorded_at` and
+   * `outcome_recorded_by_person_id`?
+   *
+   * Invariant E5: `occurred` and `not_held` are assertions somebody makes, and
+   * `events_outcome_is_asserted` refuses either state without an author. The
+   * flag is here rather than inferred from `to` so that the rule is stated once
+   * beside the transition it belongs to.
+   */
+  readonly recordsOutcome?: boolean;
 }
 
 /**
@@ -135,7 +164,89 @@ export const EVENT_TRANSITIONS: Readonly<Record<EventTransition, TransitionRule>
     to: "withdrawn",
     action: "event.draft_abandoned",
     requiresReason: true,
+    reasonRule: "events_negative_decisions_are_explained",
+    reasonRefusal: "Say why this event is being abandoned.",
     refusal: "Only a draft can be abandoned.",
+  }),
+
+  /**
+   * `approved → occurred` — LAN-80's whole point, and invariant E5's.
+   *
+   * "The passage of time never equals occurrence." There is no timer, no
+   * scheduled job and no derivation from `scheduled_on` anywhere in this
+   * repository that produces this transition: a person asserts it, and the row
+   * records which person and when. The frozen model permits a policy auto-mark
+   * with a correction window; this slice deliberately does not build one.
+   *
+   * It is what opens attendance. `attendance_records` carries a copy of the
+   * event's status behind a cascading composite foreign key and a
+   * `check (event_status = 'occurred')`, so nothing can be recorded against an
+   * event until this transition has been made by somebody.
+   */
+  mark_occurred: Object.freeze({
+    from: "approved",
+    to: "occurred",
+    action: "event.marked_occurred",
+    requiresReason: false,
+    refusal: "Only an approved event can be marked as occurred.",
+    recordsOutcome: true,
+  }),
+
+  /**
+   * `approved → not_held` — the other half of the same human assertion.
+   *
+   * Not a cancellation: a cancellation is a decision taken *before* the event
+   * about an event that will not happen, and `events_negative_decisions_are_explained`
+   * requires it to say why. This is a report about a date that has passed and
+   * on which nothing took place, so it needs no reason — and attendance stays
+   * permanently unavailable for it, which is UX-75.
+   */
+  mark_not_held: Object.freeze({
+    from: "approved",
+    to: "not_held",
+    action: "event.marked_not_held",
+    requiresReason: false,
+    refusal: "Only an approved event can be marked as not held.",
+    recordsOutcome: true,
+  }),
+
+  /**
+   * `occurred → not_held` — correcting an assertion somebody got wrong.
+   *
+   * The reason these two exist at all: the assertion is a human judgement made
+   * at the pitch, sometimes on a phone, sometimes about the wrong event in the
+   * list. `docs/ux/slice-ux.md` § 9 requires a completed state to show "any
+   * permitted correction", and without one an operator who pressed the wrong
+   * button has no route back at all.
+   *
+   * A reason is required — not by the database, which asks for one only on the
+   * three negative decisions, but by the frozen model's rule that a
+   * **correction** records why. `services/events.ts` refuses this transition
+   * outright while any attendance row exists, before the statement is sent, so
+   * that the operator gets a sentence naming the attendance rather than the
+   * cascade breaking `attendance_records_require_an_occurred_event`.
+   */
+  correct_to_not_held: Object.freeze({
+    from: "occurred",
+    to: "not_held",
+    action: "event.occurrence_corrected",
+    requiresReason: true,
+    reasonRule: "event_occurrence_correction_is_explained",
+    reasonRefusal: "Say why this event is being corrected to not held.",
+    refusal: "Only an event recorded as having happened can be corrected to not held.",
+    recordsOutcome: true,
+  }),
+
+  /** `not_held → occurred` — the same correction in the other direction. */
+  correct_to_occurred: Object.freeze({
+    from: "not_held",
+    to: "occurred",
+    action: "event.occurrence_corrected",
+    requiresReason: true,
+    reasonRule: "event_occurrence_correction_is_explained",
+    reasonRefusal: "Say why this event is being corrected to occurred.",
+    refusal: "Only an event recorded as not held can be corrected to occurred.",
+    recordsOutcome: true,
   }),
 });
 

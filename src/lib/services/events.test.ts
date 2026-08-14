@@ -647,11 +647,31 @@ describe("the list can be sorted, and only by columns it knows", () => {
 // ---------------------------------------------------------------------------
 
 describe("there is no submission step, and nothing can create one", () => {
-  it("names only the abandon transition", async () => {
+  it("names no transition that submits an event to anybody", async () => {
     // Brian removed `draft → pending_approval` on 12 August 2026: only calendar
     // operators create events, so there is nobody to submit one to. This is
     // what stops it coming back by accident.
-    expect(Object.keys(EVENT_TRANSITIONS)).toEqual(["abandon"]);
+    //
+    // It used to read `toEqual(["abandon"])`, which was the same guard while
+    // `abandon` was the only transition and became a false one the moment
+    // LAN-80 added the four occurrence transitions — a list that has to be
+    // edited by every legitimate addition is a tripwire against doing correct
+    // work. What it actually protects is that **nothing produces
+    // `pending_approval`**, so that is what it now says, and the assertion no
+    // longer needs touching when a later issue adds cancellation or amendment.
+    for (const [name, rule] of Object.entries(EVENT_TRANSITIONS)) {
+      expect(rule.to, `${name} must not submit an event for approval`).not.toBe("pending_approval");
+    }
+
+    // And the whole set is still small and named, so an accidental addition is
+    // visible in a diff rather than absorbed silently.
+    expect(Object.keys(EVENT_TRANSITIONS).sort()).toEqual([
+      "abandon",
+      "correct_to_not_held",
+      "correct_to_occurred",
+      "mark_not_held",
+      "mark_occurred",
+    ]);
   });
 
   it("leaves a saved event as a draft, and nothing else", async () => {
