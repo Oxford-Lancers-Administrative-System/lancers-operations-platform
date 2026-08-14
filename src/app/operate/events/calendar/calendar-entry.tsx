@@ -2,32 +2,36 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import type { CalendarEvent } from "@/lib/services/calendar";
 import { labelFor, STATUS_LABELS, TYPE_LABELS } from "../presentation";
-import { formatCellDate } from "./presentation";
+import { formatCellDate, typeColour } from "./presentation";
 
 /**
  * One event, inside a calendar cell. LAN-114.
  *
- * ## Status is shown when it tells you something
+ * ## Colour is type; words are status
  *
- * Every tile used to print its status. Brian's review on 14 August 2026: "if an
- * event is in draft, I think it's important. If it happened in the past, that's
- * fine, we don't need to see that." He was right — a term card of sixty
- * occurred practices repeats the word "Occurred" sixty times and says nothing.
+ * Brian's reviews on 14 August 2026 settled both halves, and they fit together
+ * because they answer different questions.
  *
- * So the two statuses that mean *this is proceeding normally* — `approved` for
- * something ahead, `occurred` for something behind — are silent on the tile.
- * Everything else is a state somebody may need to act on, and says so:
- * draft, pending approval, cancelled, not held, rejected, withdrawn.
+ * **Type has the colour.** The club's term cards colour by what the event is,
+ * and ours rendered everything grey — "every event is grey versus by type". So
+ * the tile is tinted and edged by `event_type`, and nothing else on it is
+ * distinguished by hue. The type is also printed in words, so a reader who
+ * cannot separate two hues loses nothing.
  *
- * The two quiet statuses also share one neutral accent, deliberately. Colour
- * may never be the only carrier (the issue is explicit), so a status with no
- * word must not have a colour of its own either — otherwise the grid would be
- * distinguishing approved from occurred by hue alone. The statuses that keep a
- * distinct accent are exactly the ones that keep a word.
+ * **Status has the words, when it has anything.** "If an event is in draft, I
+ * think it's important. If it happened in the past, that's fine, we don't need
+ * to see that." A card of sixty occurred practices repeating "Occurred" says
+ * nothing. So `approved` and `occurred` — the two states that mean *this is
+ * proceeding normally* — are silent, and the rest say so.
  *
- * The **accessible name always carries the full status**, including the quiet
- * ones. Hiding a word from the eye to reduce noise is a presentation choice;
- * hiding it from a screen reader would be a loss of information.
+ * The states that mean the event **did not or will not happen** get the one
+ * non-colour treatment on the tile: the name is struck through. That reads at a
+ * glance without competing with the type palette, and it survives being printed
+ * in black and white.
+ *
+ * The **accessible name always carries everything** — date, time, status, type,
+ * venue — including the status the tile stays quiet about. Quieting a tile is a
+ * presentation choice; hiding it from a screen reader would be a loss.
  *
  * ## A link, to the one detail record
  *
@@ -36,17 +40,6 @@ import { formatCellDate } from "./presentation";
  * destination in all three presentations" is true by construction rather than
  * by three routes that happen to agree.
  */
-const STATUS_ACCENTS: Readonly<Record<string, string>> = Object.freeze({
-  draft: "info.main",
-  pending_approval: "warning.main",
-  not_held: "text.disabled",
-  cancelled: "error.main",
-  rejected: "error.dark",
-  withdrawn: "text.disabled",
-});
-
-/** The accent for a status with no label — one neutral tone, carrying nothing. */
-const QUIET_ACCENT = "divider";
 
 /**
  * The statuses a tile stays quiet about: the event is proceeding normally, and
@@ -56,6 +49,18 @@ const QUIET_STATUSES: readonly string[] = Object.freeze(["approved", "occurred"]
 
 export function isQuietStatus(status: string): boolean {
   return QUIET_STATUSES.includes(status);
+}
+
+/** The statuses that mean the event did not, or will not, take place. */
+const STRUCK_STATUSES: readonly string[] = Object.freeze([
+  "cancelled",
+  "not_held",
+  "withdrawn",
+  "rejected",
+]);
+
+export function isStruckStatus(status: string): boolean {
+  return STRUCK_STATUSES.includes(status);
 }
 
 export default function CalendarEntry({
@@ -70,16 +75,20 @@ export default function CalendarEntry({
   const type = labelFor(TYPE_LABELS, event.eventType);
   const when = event.scheduledOn ? formatCellDate(event.scheduledOn) : "No date yet";
   const time = event.startsAt ?? "";
+  const colour = typeColour(event.eventType);
   const quiet = isQuietStatus(event.status);
+  const struck = isStruckStatus(event.status);
 
   // The accessible name states the status whether or not the tile shows it.
   const description = [event.name, when, time, status, type, event.venue ?? ""]
     .filter((piece) => piece !== "")
     .join(", ");
 
+  // Type is always here, so the colour is never the only thing carrying it.
   const secondLine = [
     quiet ? "" : status,
     showDate && event.scheduledOn ? when : "",
+    type,
     event.venue ?? "",
   ]
     .filter((piece) => piece !== "")
@@ -92,21 +101,30 @@ export default function CalendarEntry({
       aria-label={description}
       data-testid="calendar-entry"
       data-event-id={event.id}
+      data-event-type={event.eventType}
       sx={{
         display: "block",
         textDecoration: "none",
         color: "text.primary",
         borderLeft: 3,
-        borderLeftColor: quiet ? QUIET_ACCENT : (STATUS_ACCENTS[event.status] ?? "text.disabled"),
+        borderLeftColor: colour.accent,
         borderRadius: 0.5,
-        bgcolor: "action.hover",
+        bgcolor: colour.tint,
         px: 0.75,
         py: 0.5,
-        "&:hover": { bgcolor: "action.selected" },
+        "&:hover": { filter: "brightness(0.96)" },
         "&:focus-visible": { outline: 2, outlineColor: "primary.main", outlineOffset: 2 },
       }}
     >
-      <Typography variant="caption" component="span" sx={{ display: "block", fontWeight: 700 }}>
+      <Typography
+        variant="caption"
+        component="span"
+        sx={{
+          display: "block",
+          fontWeight: 700,
+          textDecoration: struck ? "line-through" : "none",
+        }}
+      >
         {time ? `${time} ` : ""}
         {event.name}
       </Typography>

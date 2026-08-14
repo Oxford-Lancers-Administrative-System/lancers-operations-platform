@@ -523,6 +523,65 @@ describe("what a calendar tile states", () => {
     expect(text).not.toContain("Occurred ·");
   });
 
+  it("names the event's type on every tile, so colour is never alone", async () => {
+    // Brian's 14 August 2026 review asked for the club's own colour-by-type.
+    // The word is what stops the colour being the only carrier of it.
+    givenEvents([
+      listEntry({ name: "Team Practice", eventType: "practice", scheduledOn: "2026-10-11" }),
+      listEntry({ name: "Rookie Curry", eventType: "social", scheduledOn: "2026-10-12" }),
+      listEntry({ name: "vs Elmswell", eventType: "fixture", scheduledOn: "2026-10-13" }),
+    ]);
+
+    const { container } = render(await EventCalendarPage(calendarProps()));
+    const text = flatten(within(container).getByTestId("gregorian-grid").textContent);
+
+    expect(text).toContain("Practice");
+    expect(text).toContain("Social");
+    expect(text).toContain("Fixture");
+
+    // Scoped to the desktop grid: the phone agenda renders the same events
+    // again, which is the point of it.
+    const tiles = within(within(container).getByTestId("gregorian-grid")).getAllByTestId(
+      "calendar-entry",
+    );
+    expect(tiles.map((tile) => tile.getAttribute("data-event-type"))).toEqual([
+      "practice",
+      "social",
+      "fixture",
+    ]);
+  });
+
+  it("explains the colours it is using, and only those", async () => {
+    givenEvents([
+      listEntry({ eventType: "practice", scheduledOn: "2026-10-11" }),
+      listEntry({ eventType: "social", scheduledOn: "2026-10-12" }),
+      listEntry({ eventType: "practice", scheduledOn: "2026-10-13" }),
+    ]);
+
+    const { container } = render(await EventCalendarPage(calendarProps()));
+    const legend = within(container).getByTestId("type-legend");
+    const items = within(legend).getAllByTestId("type-legend-item");
+
+    // Two types are in view, so the legend names two — not all ten.
+    expect(items.map((item) => item.getAttribute("data-event-type"))).toEqual([
+      "practice",
+      "social",
+    ]);
+    expect(flatten(legend.textContent)).toContain("Practice");
+    expect(flatten(legend.textContent)).toContain("Social");
+    expect(legend).toHaveAttribute("aria-label", "What the calendar colours mean");
+  });
+
+  it("shows the same legend on the term card", async () => {
+    givenEvents([listEntry({ eventType: "camp", scheduledOn: "2026-10-14" })]);
+    const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
+
+    const items = within(within(container).getByTestId("type-legend")).getAllByTestId(
+      "type-legend-item",
+    );
+    expect(items.map((item) => item.getAttribute("data-event-type"))).toEqual(["camp"]);
+  });
+
   it("still gives a screen reader the status it does not print", async () => {
     // Quieting the tile is a presentation choice. Dropping the status from the
     // accessible name would be a loss of information.

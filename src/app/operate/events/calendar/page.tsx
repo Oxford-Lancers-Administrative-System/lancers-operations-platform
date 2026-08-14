@@ -27,6 +27,7 @@ import CalendarEntry from "./calendar-entry";
 import { GregorianControls, OxfordControls, type TermChoice } from "./calendar-controls";
 import GregorianMonth from "./gregorian-month";
 import TermCard from "./term-card";
+import TypeLegend from "./type-legend";
 import {
   CALENDAR_READ_ONLY_NOTE,
   CALENDAR_SOURCE_NOTE,
@@ -249,6 +250,8 @@ function GregorianView({
         </Alert>
       ) : null}
 
+      <TypeLegend events={events} />
+
       <GregorianMonth grid={grid} />
 
       <LeftOver
@@ -310,6 +313,8 @@ function OxfordView({
           {TERM_CARD_EMPTY}
         </Alert>
       ) : null}
+
+      <TypeLegend events={events} />
 
       <TermCard card={card} />
 

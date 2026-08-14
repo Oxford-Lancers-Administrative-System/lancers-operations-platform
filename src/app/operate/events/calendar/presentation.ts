@@ -121,6 +121,65 @@ export function formatCellDate(day: string): string {
   return `${weekday} ${dayNumber} ${month} ${year}`;
 }
 
+// ---------------------------------------------------------------------------
+// Colour, by event type
+// ---------------------------------------------------------------------------
+
+/**
+ * One colour per `event_type`, for the calendars.
+ *
+ * ## Why type, and not status
+ *
+ * The club's own term cards colour their cells by what the event *is*, and
+ * Brian's review on 14 August 2026 asked for the same: "I really like the type
+ * colour coding here… every event is grey versus by type." Scanning a term card
+ * is looking for the shape of a week — two practices, a chalk, a fixture,
+ * something social — and type is what carries that. Status answers a different
+ * question and is carried in words on the tile.
+ *
+ * So colour means type, and only type. Nothing else on a calendar tile is
+ * distinguished by hue, which is what keeps the palette readable.
+ *
+ * ## Colour is never the only carrier
+ *
+ * Every tile also prints its type in words, and a legend above the calendar
+ * names each colour in view. That is the issue's accessibility rule applied to
+ * type rather than only to status: a reader who cannot separate the teal from
+ * the green loses nothing, because the word is on the tile.
+ *
+ * ## Not the spreadsheet's palette
+ *
+ * Deliberately. The issue puts "reproducing the term-card spreadsheet's
+ * branding or colors pixel for pixel" out of scope, so these are chosen for
+ * separation and for legible dark text on the tint, not sampled from the
+ * source. `src/theme.ts` is still a neutral placeholder with no branded
+ * palette, so there is nothing there to draw from either.
+ */
+export interface TypeColour {
+  /** The saturated edge. Strong enough to read at 3px against the tint. */
+  readonly accent: string;
+  /** The tile's background. Light enough for the body text colour on top. */
+  readonly tint: string;
+}
+
+export const EVENT_TYPE_COLOURS: Readonly<Record<string, TypeColour>> = Object.freeze({
+  practice: Object.freeze({ accent: "#1565c0", tint: "#e8f1fb" }),
+  strength_and_conditioning: Object.freeze({ accent: "#00796b", tint: "#e2f1ef" }),
+  chalk: Object.freeze({ accent: "#4527a0", tint: "#ece7f7" }),
+  fixture: Object.freeze({ accent: "#c62828", tint: "#fbe9e9" }),
+  varsity: Object.freeze({ accent: "#ad1457", tint: "#fbe6ee" }),
+  social: Object.freeze({ accent: "#ef6c00", tint: "#fdf0e2" }),
+  recruitment: Object.freeze({ accent: "#2e7d32", tint: "#e8f3e9" }),
+  camp: Object.freeze({ accent: "#5d4037", tint: "#efeae8" }),
+  meeting: Object.freeze({ accent: "#455a64", tint: "#eceff1" }),
+  other: Object.freeze({ accent: "#616161", tint: "#f2f2f2" }),
+});
+
+/** The colour for a type, falling back to the neutral one for an unknown value. */
+export function typeColour(eventType: string): TypeColour {
+  return EVENT_TYPE_COLOURS[eventType] ?? EVENT_TYPE_COLOURS.other;
+}
+
 /** The heading above each calendar, saying what it is showing and from where. */
 export const CALENDAR_SOURCE_NOTE =
   "The list, the Gregorian calendar and the Oxford term card show the same events on the " +

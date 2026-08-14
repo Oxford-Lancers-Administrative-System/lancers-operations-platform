@@ -12,13 +12,15 @@
 import { describe, expect, it } from "vitest";
 
 import type { TermWindow } from "@/lib/services/event-input";
-import { formatShortDate, shortMonthOf, SHORT_MONTHS } from "../presentation";
+import { formatShortDate, shortMonthOf, SHORT_MONTHS, TYPE_LABELS } from "../presentation";
 import {
+  EVENT_TYPE_COLOURS,
   formatCellDate,
   formatMonthLabel,
   formatOxfordWeek,
   formatTermName,
   formatWeekRange,
+  typeColour,
 } from "./presentation";
 
 const MICHAELMAS: TermWindow = {
@@ -82,6 +84,49 @@ describe("formatOxfordWeek", () => {
     expect(formatOxfordWeek(8)).toBe("8th week");
   });
 });
+
+describe("colour by event type", () => {
+  it("gives every event type in the club's vocabulary its own colour", () => {
+    // Every value of `event_type` the interface names must resolve to a colour
+    // of its own; a type added later without one would silently render grey.
+    const types = Object.keys(TYPE_LABELS);
+    expect(types.length).toBeGreaterThan(0);
+
+    for (const type of types) {
+      expect(EVENT_TYPE_COLOURS[type], `no colour for ${type}`).toBeDefined();
+    }
+  });
+
+  it("keeps the colours distinguishable from one another", () => {
+    const accents = Object.values(EVENT_TYPE_COLOURS).map((colour) => colour.accent);
+    expect(new Set(accents).size).toBe(accents.length);
+
+    const tints = Object.values(EVENT_TYPE_COLOURS).map((colour) => colour.tint);
+    expect(new Set(tints).size).toBe(tints.length);
+  });
+
+  it("falls back to the neutral colour rather than nothing", () => {
+    expect(typeColour("practice")).toBe(EVENT_TYPE_COLOURS.practice);
+    expect(typeColour("a_type_nobody_has_defined")).toBe(EVENT_TYPE_COLOURS.other);
+  });
+
+  it("keeps every tint light enough for dark text to sit on it", () => {
+    // Relative luminance, sRGB. A tile prints `text.primary` on the tint, so a
+    // tint that drifted dark would fail contrast without anybody noticing.
+    for (const [type, colour] of Object.entries(EVENT_TYPE_COLOURS)) {
+      expect(luminance(colour.tint), `${type} tint is too dark`).toBeGreaterThan(0.75);
+      expect(luminance(colour.accent), `${type} accent is too light`).toBeLessThan(0.4);
+    }
+  });
+});
+
+function luminance(hex: string): number {
+  const channel = (offset: number) => {
+    const value = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+}
 
 describe("naming a term and a month", () => {
   it("names a term as the club does, from its configuration", () => {

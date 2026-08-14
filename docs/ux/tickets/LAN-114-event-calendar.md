@@ -106,21 +106,39 @@ views.
 - **Phone (below `md`):** the same weeks become sections, each listing its seven
   days. Every week, day and event the desktop card shows is present.
 
-## Status, and colour
+## Colour is type; words are status
 
-A tile prints its status **when the status needs acting on** — Draft, Pending
-approval, Cancelled, Not held, Rejected, Withdrawn. The two statuses that mean
+The two carry different questions, which is why they do not compete.
+
+**Colour means `event_type`, and nothing else.** The club's own term cards
+colour by what the event is, and the first implementation rendered every tile
+grey. Owner review, 14 August 2026: _"I really like the type colour coding here
+… every event is grey versus by type."_ Each type has a tint and a saturated
+left edge (`EVENT_TYPE_COLOURS`), and every tile also **prints its type in
+words**, so nothing depends on separating two hues. A legend above each calendar
+names the colours — and only the types actually in view, so it stays short and
+does not reshuffle between months.
+
+The palette is chosen for separation and for legible dark text on the tint, not
+sampled from the spreadsheet: reproducing the source's colours pixel for pixel
+is out of scope, and `src/theme.ts` is still a neutral placeholder with no
+branded palette to draw from. A test asserts every type in the club's vocabulary
+has a distinct colour and that every tint stays light enough for body text.
+
+**Status is words, when it has anything to say.** A tile prints Draft, Pending
+approval, Cancelled, Not held, Rejected or Withdrawn. The two statuses meaning
 _this is proceeding normally_ — `approved` ahead of us, `occurred` behind us —
-are silent, and share one neutral accent. That pairing is deliberate: colour may
-never be the only carrier, so a status with no word must not have a colour of
-its own either.
+are silent. Owner review, same day: _"if an event is in draft, I think it's
+important. If it happened in the past, that's fine. We don't need to see that."_
 
-Each tile's **accessible name always carries the full status**, including the
-quiet ones, along with the date and time. Quieting the tile is a presentation
-choice; hiding the status from a screen reader would be a loss of information.
+The four statuses meaning the event **did not or will not happen** also strike
+the name through. That is the one non-colour visual treatment on a tile, so it
+neither competes with the type palette nor disappears in black and white.
 
-Owner review, 14 August 2026: "if an event is in draft, I think it's important.
-If it happened in the past, that's fine. We don't need to see that."
+Each tile's **accessible name always carries everything** — date, time, status,
+type and venue — including the status the tile stays quiet about. Quieting a
+tile is a presentation choice; hiding it from a screen reader would be a loss of
+information.
 
 ## Date authority
 
