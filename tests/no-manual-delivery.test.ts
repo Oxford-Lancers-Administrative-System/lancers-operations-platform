@@ -1,0 +1,182 @@
+// @vitest-environment node
+/**
+ * "No screen, code path, fixture or runbook treats manual WhatsApp sending as
+ * completion." LAN-78's acceptance criterion, as a test rather than as a
+ * promise.
+ *
+ * ## What this forbids, and what it deliberately does not
+ *
+ * It forbids an operator being *offered* a way to send an invitation by hand —
+ * a copy-link control, a send-message button, a post-to-group action, a
+ * mark-as-sent transition — and it forbids any of those being described as a
+ * fallback in a document a human follows.
+ *
+ * It does **not** forbid the word "manual", and it does not forbid
+ * `delivery_outcome`'s `manual` value. That value is the frozen model's, it
+ * predates this issue, and it records something different and legitimate: that
+ * a human contacted somebody, with their name against it. The seeded dataset
+ * contains such rows on purpose. Recording that a person did something is not
+ * the same as the system offering that as its delivery path, and a test that
+ * conflated them would have to be weakened the first time somebody needed the
+ * former.
+ *
+ * The structural half of this guarantee is in the schema, not here:
+ * `delivery_attempts_are_never_manual` refuses the channel outright, so an
+ * attempt this system makes can never be a manual one whatever any screen says.
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+const root = path.resolve(__dirname, "..");
+
+function filesUnder(directory: string, extensions: readonly string[]): string[] {
+  const absolute = path.join(root, directory);
+  if (!fs.existsSync(absolute)) return [];
+
+  const found: string[] = [];
+  for (const entry of fs.readdirSync(absolute, { withFileTypes: true })) {
+    if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+    const relative = path.join(directory, entry.name);
+    if (entry.isDirectory()) found.push(...filesUnder(relative, extensions));
+    else if (extensions.some((extension) => entry.name.endsWith(extension))) found.push(relative);
+  }
+  return found;
+}
+
+const read = (file: string) => fs.readFileSync(path.join(root, file), "utf8");
+
+/**
+ * Control labels and action names that would each be a manual send.
+ *
+ * Written as the words that would appear on a button or in an instruction,
+ * because that is what an operator acts on. A comment saying "there is no
+ * copy-link control" must not trip them, so every pattern requires the shape of
+ * an affordance — a JSX label, a string constant, a Markdown instruction — and
+ * the test that proves the patterns still bite is at the bottom.
+ */
+const FORBIDDEN_AFFORDANCES: readonly { name: string; pattern: RegExp }[] = [
+  { name: "a copy-link control", pattern: /\b(copy (the )?(rsvp )?link|copyLink|copy_link)\b/i },
+  {
+    name: "a send-by-hand control",
+    pattern: /\b(send (it )?manually|manual send|sendManually)\b/i,
+  },
+  {
+    name: "a post-to-group control",
+    pattern: /\b(post to (the )?group|postToGroup|post_to_group)\b/i,
+  },
+  { name: "a mark-as-sent transition", pattern: /\b(mark as sent|markAsSent|mark_as_sent)\b/i },
+  { name: "a mark-as-delivered transition", pattern: /\b(mark as delivered|markAsDelivered)\b/i },
+];
+
+/** Files that may legitimately discuss the ban, and so are read for it instead. */
+const EXPLAINS_THE_BAN: readonly string[] = [
+  "tests/no-manual-delivery.test.ts",
+  "src/app/operate/events/[id]/delivery/presentation.ts",
+  "src/app/operate/events/[id]/delivery/actions.ts",
+  "src/lib/services/delivery.ts",
+  "supabase/migrations/20260813120000_domain_rsvp_delivery.sql",
+];
+
+describe("no manual delivery path exists in the application", () => {
+  const sources = filesUnder("src", [".ts", ".tsx"]).filter(
+    (file) => !EXPLAINS_THE_BAN.includes(file),
+  );
+
+  it("reads a non-trivial number of source files", () => {
+    // A scan that silently stops finding files is how this rule dies.
+    expect(sources.length).toBeGreaterThan(40);
+  });
+
+  it.each(FORBIDDEN_AFFORDANCES)("offers nothing resembling $name", ({ pattern }) => {
+    const offenders = sources.filter((file) => pattern.test(read(file)));
+    expect(offenders).toEqual([]);
+  });
+
+  it("exports no service function that would perform one", () => {
+    const delivery = read("src/lib/services/delivery.ts");
+    const exported = [...delivery.matchAll(/export async function (\w+)/g)].map(
+      (match) => match[1],
+    );
+
+    expect(exported.length).toBeGreaterThan(3);
+    for (const name of exported) {
+      expect(name).not.toMatch(/manual|copy|markSent|markDelivered/i);
+    }
+  });
+
+  it("never writes a manual channel or a manual outcome", () => {
+    // The service records `delivered`, `failed` and `rejected`, and nothing else.
+    const delivery = read("src/lib/services/delivery.ts");
+    expect(delivery).not.toMatch(/'manual'/);
+    expect(delivery).not.toMatch(/"manual"/);
+  });
+
+  it("keeps the refusal in the schema, where no code can talk its way around it", () => {
+    const migration = read("supabase/migrations/20260813120000_domain_rsvp_delivery.sql");
+    expect(migration).toContain("delivery_attempts_are_never_manual");
+    expect(migration).toMatch(/check\s*\(\s*channel\s*<>\s*'manual'\s*\)/);
+  });
+});
+
+describe("no runbook or fixture presents one as a fallback", () => {
+  const documents = [
+    ...filesUnder("docs", [".md"]),
+    ...filesUnder("scripts/pilot", [".md", ".sql"]),
+  ].filter((file) => !EXPLAINS_THE_BAN.includes(file));
+
+  it("reads a non-trivial number of documents", () => {
+    expect(documents.length).toBeGreaterThan(15);
+  });
+
+  it.each(FORBIDDEN_AFFORDANCES)("instructs nobody to use $name", ({ pattern }) => {
+    const offenders = documents.filter((file) => {
+      const text = read(file);
+      if (!pattern.test(text)) return false;
+      // A document is allowed to say the thing is forbidden. It is not allowed
+      // to tell somebody to do it.
+      return !/\b(never|not|no|without|forbid|prohibit|refus)/i.test(
+        text.slice(Math.max(0, text.search(pattern) - 220), text.search(pattern) + 220),
+      );
+    });
+    expect(offenders).toEqual([]);
+  });
+
+  it("states the ban where an implementer reads it", () => {
+    expect(read("docs/ux/slice-ux.md")).toMatch(/no manual send or post control/i);
+    expect(read("docs/ux/tickets/LAN-78-delivery.md")).toMatch(
+      /Manual copying, sending or posting/i,
+    );
+  });
+});
+
+describe("the rules can still see a violation", () => {
+  /**
+   * Defect injection, because a scan that matches nothing passes whether or not
+   * it works. Each pattern is run against text that should trip it — if one
+   * stops biting, this fails rather than the suite going quietly green.
+   */
+  it.each([
+    ["Copy link", /\b(copy (the )?(rsvp )?link|copyLink|copy_link)\b/i],
+    ["send manually", /\b(send (it )?manually|manual send|sendManually)\b/i],
+    ["Post to group", /\b(post to (the )?group|postToGroup|post_to_group)\b/i],
+    ["Mark as sent", /\b(mark as sent|markAsSent|mark_as_sent)\b/i],
+    ["markAsDelivered", /\b(mark as delivered|markAsDelivered)\b/i],
+  ])("still recognises %s", (sample, pattern) => {
+    expect(pattern.test(sample)).toBe(true);
+  });
+
+  it("uses the same patterns it proves, rather than a copy that can drift", () => {
+    // Two lists would be one edit away from disagreeing, so the injected
+    // samples above must each be matched by a real entry in the live list.
+    for (const sample of [
+      "Copy link",
+      "send manually",
+      "Post to group",
+      "Mark as sent",
+      "markAsDelivered",
+    ]) {
+      expect(FORBIDDEN_AFFORDANCES.some((entry) => entry.pattern.test(sample))).toBe(true);
+    }
+  });
+});
