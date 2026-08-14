@@ -86,6 +86,9 @@ describe.runIf(configured)("anonymous access to the exposed schema", () => {
       "rsvp_responses",
       "attendance_records",
       "notification_jobs",
+      "rsvp_access_tokens",
+      "delivery_attempts",
+      "delivery_callbacks",
       "weekly_reports",
       "audit_events",
     ];

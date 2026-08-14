@@ -149,7 +149,7 @@ describe("row 14 — the service layer grants nothing and exposes nothing", () =
     /\brevoke\s+(all|select|insert|update|delete|truncate|references|trigger|create|connect|temporary|temp|usage|execute|maintain|grant\s+option)\b|\brevoke\s+\w+\s+from\b/i;
 
   /**
-   * Symmetric with `REVOKE` below. Widening one and not the other left
+   * Symmetric with `REVOKE`. Widening one and not the other left
    * `grant truncate on … to service_role` passing a file whose whole point is
    * that the service layer issues no privilege statements at all.
    */

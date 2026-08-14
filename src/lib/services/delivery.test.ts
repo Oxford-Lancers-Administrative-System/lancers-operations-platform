@@ -16,6 +16,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 vi.mock("server-only", () => ({}));
 
+import crypto from "node:crypto";
 import type { Client } from "pg";
 
 import { closePool, isServiceError, type ServiceError } from "@/lib/db";
@@ -23,6 +24,7 @@ import type { EnvironmentSource } from "@/lib/delivery/config";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
 import {
   applyProviderCallback,
+  JOB_NOT_FOUND_RULE,
   dispatchEventInvitations,
   dispatchJob,
   MAX_ATTEMPTS,
@@ -33,6 +35,16 @@ import {
 import { openObserver } from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN78DeliverySuite";
+
+/**
+ * The prefix every provider message identifier this suite invents begins with,
+ * and the handle `afterEach` deletes callbacks by.
+ *
+ * Unique per run. `delivery_callbacks.provider_event_id` is globally unique, so
+ * a fixed identifier that escapes cleanup once poisons the database for every
+ * later run — see `afterEach`.
+ */
+const PROVIDER_MESSAGE_PREFIX = `wamid.LAN78.${crypto.randomUUID().slice(0, 8)}.`;
 
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
@@ -99,6 +111,16 @@ afterEach(async () => {
        (select id from public.delivery_attempts where notification_job_id in ${jobs})`,
     [scope],
   );
+  // An **unmatched** callback has `delivery_attempt_id = null` and is therefore
+  // unreachable by the delete above. Left behind, it occupies its
+  // `provider_event_id` for ever — the uniqueness constraint is global — so the
+  // next run's insert is refused, `applyProviderCallback` answers "duplicate",
+  // and a test fails permanently on that database. CI never sees it, because CI
+  // resets from empty; a developer's stack would be broken until somebody found
+  // the row. Review found exactly that, on a real stack.
+  await observer.query("delete from public.delivery_callbacks where provider_event_id like $1", [
+    `${PROVIDER_MESSAGE_PREFIX}%`,
+  ]);
   await observer.query(`delete from public.delivery_results where notification_job_id in ${jobs}`, [
     scope,
   ]);
@@ -245,7 +267,59 @@ async function fixture(options: { phone?: string | null } = {}) {
  * identifier across two sends collides with the constraint and tests nothing
  * real. The collision itself is pinned separately, below.
  */
-function accepts(prefix = "wamid.ACCEPTED") {
+/** A second invitee on the same event, for the batch-isolation test. */
+async function addInvitee(tag: string) {
+  const person = await observer.query<{ id: string }>(
+    `insert into public.people (given_name, family_name, created_at)
+     values ($1, $2, now() + interval '100 years') returning id`,
+    [MARKER, tag],
+  );
+  const personId = person.rows[0].id;
+
+  await observer.query(
+    `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
+     values ($1, 'phone', '07700 900444', true)`,
+    [personId],
+  );
+
+  const membership = await observer.query<{ id: string }>(
+    `insert into public.season_memberships
+       (person_id, season_id, status, entry, confirmed_on, activated_on)
+     values ($1, $2, 'active', 'returning', current_date, current_date) returning id`,
+    [personId, seasonId],
+  );
+
+  const event = await observer.query<{ id: string; season_id: string }>(
+    "select id, season_id from public.events where name like $1 limit 1",
+    [`${MARKER}%`],
+  );
+
+  const audience = await observer.query<{ id: string }>(
+    `insert into public.event_audience_members
+       (event_id, season_id, capacity, season_membership_id, added_by_person_id)
+     values ($1, $2, 'player', $3, $4) returning id`,
+    [event.rows[0].id, event.rows[0].season_id, membership.rows[0].id, personId],
+  );
+
+  const invitation = await observer.query<{ id: string }>(
+    `insert into public.invitations
+       (event_id, event_status, solicits_response, season_id, capacity,
+        season_membership_id, status, audience_member_id)
+     values ($1, 'approved', true, $2, 'player', $3, 'pending', $4) returning id`,
+    [event.rows[0].id, event.rows[0].season_id, membership.rows[0].id, audience.rows[0].id],
+  );
+
+  await observer.query(
+    `insert into public.notification_jobs
+       (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel)
+     values ($1, 'invitation', 'pending', $2, $3, $4, 'whatsapp')`,
+    [`${MARKER}:${tag}:${event.rows[0].id}`, invitation.rows[0].id, event.rows[0].id, personId],
+  );
+
+  return { personId, invitationId: invitation.rows[0].id };
+}
+
+function accepts(prefix = `${PROVIDER_MESSAGE_PREFIX}ACCEPTED`) {
   let serial = 0;
   return vi.fn(async () => {
     serial += 1;
@@ -284,7 +358,7 @@ async function caught(run: () => Promise<unknown>): Promise<ServiceError> {
 describe("dispatching after approval", () => {
   it("attempts every pending invitation once and records the provider's identifier", async () => {
     const { eventId } = await fixture();
-    const transport = accepts("wamid.ONE");
+    const transport = accepts(`${PROVIDER_MESSAGE_PREFIX}ONE`);
 
     const summary = await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
 
@@ -305,7 +379,7 @@ describe("dispatching after approval", () => {
     );
     expect(attempt.rows).toHaveLength(1);
     expect(attempt.rows[0].provider).toBe(WHATSAPP_CLOUD_PROVIDER);
-    expect(attempt.rows[0].provider_message_id).toBe("wamid.ONE.1");
+    expect(attempt.rows[0].provider_message_id).toBe(`${PROVIDER_MESSAGE_PREFIX}ONE.1`);
     expect(attempt.rows[0].accepted_at).not.toBeNull();
     expect(attempt.rows[0].attempt_number).toBe(1);
   });
@@ -471,11 +545,11 @@ describe("failure and retry", () => {
     // two attempts may never share a provider message identifier.
     await retryDelivery(await anyPerson(), jobId, {
       source: CONFIGURED,
-      transport: accepts("wamid.RETRY"),
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}RETRY`),
     });
     await revokeAndReissue(await anyPerson(), invitationId, "Wrong link", {
       source: CONFIGURED,
-      transport: accepts("wamid.REISSUE"),
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}REISSUE`),
     });
 
     // LAN-77 froze the audience at approval. Repair must be provably unable to
@@ -518,7 +592,7 @@ describe("provider message identifiers", () => {
     // otherwise make "delivered" ambiguous between two attempts.
     const reused = vi.fn(
       async () =>
-        new Response(JSON.stringify({ messages: [{ id: "wamid.REUSED" }] }), {
+        new Response(JSON.stringify({ messages: [{ id: `${PROVIDER_MESSAGE_PREFIX}REUSED` }] }), {
           status: 200,
           headers: { "content-type": "application/json" },
         }),
@@ -535,8 +609,8 @@ describe("provider message identifiers", () => {
     const ids = await observer.query<{ count: string }>(
       `select count(*)::text as count from public.delivery_attempts a
          join public.notification_jobs j on j.id = a.notification_job_id
-        where j.event_id = $1 and a.provider_message_id = 'wamid.REUSED'`,
-      [eventId],
+        where j.event_id = $1 and a.provider_message_id = $2`,
+      [eventId, `${PROVIDER_MESSAGE_PREFIX}REUSED`],
     );
     expect(ids.rows[0].count).toBe("1");
   });
@@ -555,7 +629,7 @@ describe("revoke and reissue", () => {
 
     await revokeAndReissue(await anyPerson(), invitationId, "Sent to the wrong number", {
       source: CONFIGURED,
-      transport: accepts("wamid.REISSUED"),
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}REISSUED`),
     });
 
     const live = await observer.query<{ id: string }>(
@@ -598,7 +672,10 @@ describe("provider callbacks", () => {
 
   it("moves an attempted delivery to Delivered", async () => {
     const { eventId } = await fixture();
-    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport: accepts("wamid.CB") });
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}CB`),
+    });
 
     const applied = await applyProviderCallback(
       WHATSAPP_CLOUD_PROVIDER,
@@ -620,7 +697,7 @@ describe("provider callbacks", () => {
     const { eventId } = await fixture();
     await dispatchEventInvitations(eventId, {
       source: CONFIGURED,
-      transport: accepts("wamid.DUP"),
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}DUP`),
     });
     const messageId = await attemptFor(eventId);
     const event = {
@@ -652,7 +729,7 @@ describe("provider callbacks", () => {
     const { eventId } = await fixture();
     await dispatchEventInvitations(eventId, {
       source: CONFIGURED,
-      transport: accepts("wamid.READ"),
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}READ`),
     });
     const messageId = await attemptFor(eventId);
 
@@ -724,7 +801,7 @@ describe("provider callbacks", () => {
     const { eventId } = await fixture();
     await dispatchEventInvitations(eventId, {
       source: CONFIGURED,
-      transport: accepts("wamid.FAIL"),
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}FAIL`),
     });
     const messageId = await attemptFor(eventId);
 
@@ -763,7 +840,7 @@ describe("what an operator is told after a repair", () => {
     // the *old* reason — which is what it did, on the commonest repair path.
     await retryDelivery(await anyPerson(), jobId, {
       source: CONFIGURED,
-      transport: accepts("wamid.REPAIRED"),
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}REPAIRED`),
     });
 
     const current = await row(eventId);
@@ -800,7 +877,7 @@ describe("what an operator is told after a repair", () => {
 
     await retryDelivery(await anyPerson(), jobId, {
       source: CONFIGURED,
-      transport: accepts("wamid.CONFIGURED"),
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}CONFIGURED`),
     });
     expect((await row(eventId)).state).toBe("attempted");
   });
@@ -809,10 +886,10 @@ describe("what an operator is told after a repair", () => {
     const { eventId } = await fixture();
     await dispatchEventInvitations(eventId, {
       source: CONFIGURED,
-      transport: accepts("wamid.RACE"),
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}RACE`),
     });
 
-    const messageId = "wamid.RACE.1";
+    const messageId = `${PROVIDER_MESSAGE_PREFIX}RACE.1`;
     const base = { providerMessageId: messageId, detail: null } as const;
 
     await applyProviderCallback(
@@ -864,6 +941,101 @@ describe("what an operator is told after a repair", () => {
     );
     expect(stored.rows[0].applied).toBe(false);
     expect(stored.rows[0].ignored_reason).toMatch(/already has a recorded outcome/i);
+  });
+});
+
+/**
+ * The corrections review produced, each with the test it should have shipped
+ * with. Every one survived injection when it had none.
+ */
+describe("what the dispatcher refuses to do", () => {
+  it("retries an invitation job and nothing else", async () => {
+    const { eventId, invitationId, personId } = await fixture();
+
+    // Every job is an invitation today only because nothing else creates one.
+    // LAN-79's reminders would make an unconstrained retry a way to fire an
+    // unrelated job from the delivery screen.
+    const reminder = await observer.query<{ id: string }>(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, person_id, channel)
+       values ($1, 'reminder', 'pending', $2, $3, $4, 'whatsapp') returning id`,
+      [`${MARKER}:reminder:${eventId}`, invitationId, eventId, personId],
+    );
+
+    const error = await caught(() =>
+      retryDelivery(personId, reminder.rows[0].id, { source: CONFIGURED, transport: accepts() }),
+    );
+    expect(error.rule).toBe(JOB_NOT_FOUND_RULE);
+  });
+
+  it("sends to the preferred number when a person has more than one", async () => {
+    const { eventId, personId } = await fixture({ phone: "07700 900111" });
+    // `contact_points_one_preferred_per_kind` permits one preferred phone per
+    // person, so the old one is demoted before the new one is added.
+    await observer.query(
+      "update public.contact_points set is_preferred = false where person_id = $1",
+      [personId],
+    );
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, valid_from)
+       values ($1, 'phone', '07700 900222', true, current_date - 1)`,
+      [personId],
+    );
+
+    const transport = accepts();
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
+
+    const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
+    // Unordered, this was whatever PostgreSQL returned — sending to an
+    // arbitrary one of somebody's two numbers is the kind of wrong that looks
+    // like working software.
+    expect(JSON.parse(init.body as string).to).toBe("447700900222");
+  });
+
+  it("ignores a number that is not current yet", async () => {
+    const { eventId, personId } = await fixture({ phone: null });
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred, valid_from)
+       values ($1, 'phone', '07700 900333', true, current_date + 30)`,
+      [personId],
+    );
+
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport: accepts() });
+
+    expect((await row(eventId)).failureReason).toMatch(/no usable mobile number/i);
+  });
+
+  it("attempts the rest of the audience when one invitation cannot be prepared", async () => {
+    const { eventId } = await fixture();
+    const second = await addInvitee("Second");
+
+    // The first invitation's event start is moved into the past, so issuing its
+    // token throws inside the claim. Before this was isolated per job, that
+    // ended the loop and nobody after it was ever attempted.
+    await observer.query(
+      `update public.invitations set expires_at = now() - interval '1 day' where id = $1`,
+      [second.invitationId],
+    );
+    await observer.query(
+      `update public.events
+          set scheduled_on = ((now() - interval '1 hour') at time zone 'Europe/London')::date,
+              starts_at = ((now() - interval '1 hour') at time zone 'Europe/London')::time
+        where id = $1`,
+      [eventId],
+    );
+
+    const summary = await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(),
+    });
+
+    // Both refused — the event has started — but both were *reached*, and both
+    // recorded a reason rather than one failing and the other going silent.
+    expect(summary.attempted).toBe(2);
+    const delivery = await readEventDelivery(eventId);
+    for (const each of delivery.rows) {
+      expect(each.failureReason, `${each.inviteeName} recorded no reason`).not.toBeNull();
+    }
   });
 });
 

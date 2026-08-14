@@ -1,6 +1,12 @@
 import "server-only";
 
-import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
+import {
+  ConstraintViolated,
+  InvalidTransition,
+  isServiceError,
+  withTransaction,
+  type Tx,
+} from "@/lib/db";
 import {
   resolveDeliveryProvider,
   rsvpUrl,
@@ -208,8 +214,9 @@ async function claimJobIn(
     `select kind::text as kind, raw_value, normalised_value, is_preferred
        from public.contact_points
       where person_id = $1
+        and valid_from <= current_date
         and (valid_until is null or valid_until > current_date)
-      order by is_preferred desc, valid_from desc, created_at desc`,
+      order by is_preferred desc, valid_from desc, created_at desc, id`,
     [detail.person_id],
   );
 
@@ -451,6 +458,42 @@ export async function dispatchJob(
 }
 
 /**
+ * Records a dispatch that threw, so the invitee shows a reason rather than a
+ * silence, and returns.
+ *
+ * Deliberately swallows its own failure: it runs on the path where something
+ * has already gone wrong, and a second fault here must not stop the remaining
+ * invitations being attempted.
+ */
+async function recordDispatchFailure(jobId: string, error: unknown): Promise<void> {
+  const reason = isServiceError(error)
+    ? error.message
+    : "This invitation could not be prepared for sending, and nothing was sent.";
+
+  try {
+    await withTransaction(async (tx) => {
+      await tx.query(
+        `update public.notification_jobs
+            set status = 'failed', last_error = $2, claimed_at = null, claimed_by = null,
+                updated_at = now()
+          where id = $1`,
+        [jobId, reason],
+      );
+      await recordAudit(tx, {
+        actorLabel: DISPATCH_ACTOR_LABEL,
+        action: "delivery.failed",
+        entityTable: "notification_jobs",
+        entityId: jobId,
+        reason,
+      });
+    });
+  } catch {
+    // Nothing further can be done for this job, and the rest of the audience
+    // still has to be attempted.
+  }
+}
+
+/**
  * Dispatches every invitation job an approved event has waiting.
  *
  * Called immediately after approval, so that "approval automatically queues or
@@ -489,9 +532,16 @@ export async function dispatchEventInvitations(
   // Approval awaits this, sequentially, inside a Server Action. One unreachable
   // host costs `PROVIDER_TIMEOUT_MS` per invitee, so forty invitees could hold
   // the request open past Cloud Run's own limit and hand the operator a
-  // platform timeout instead of a confirmation. Every job left undispatched
-  // stays `pending` — visible as **Queued**, retryable, and picked up by the
-  // next sweep — so stopping early loses nothing except the wait.
+  // platform timeout instead of a confirmation.
+  //
+  // What happens to a job left undispatched, stated exactly, because an earlier
+  // version of this comment claimed a sweep that does not exist: it stays
+  // `pending`, shows on the delivery screen as **Queued** with Retry offered,
+  // and **nothing picks it up automatically**. `dispatchEventInvitations` has
+  // exactly one caller — `approveEventAction` — and there is no scheduler, cron
+  // or route behind it. Recovery is real but manual and per-invitee until
+  // something schedules this. That is disclosed in the pull request rather than
+  // implied here.
   const deadline = Date.now() + DISPATCH_BUDGET_MS;
 
   for (const job of due.rows) {
@@ -499,10 +549,23 @@ export async function dispatchEventInvitations(
       skipped += 1;
       continue;
     }
-    const outcome = await dispatchJob(job.id, options);
-    if (outcome === "accepted") accepted += 1;
-    else if (outcome === "refused") refused += 1;
-    else skipped += 1;
+
+    // Per job, because `dispatchJob` can throw despite its name: `issueTokenIn`
+    // refuses an event that has started or been cancelled, and that refusal
+    // travels out through the claim transaction. Without this, one such
+    // invitation ended the loop, every later invitee was never attempted and
+    // recorded nothing, and `approveEventAction`'s deliberate `catch {}`
+    // swallowed the reason. A failure that stops forty other people being
+    // invited has to be one of forty failures, not one silence.
+    try {
+      const outcome = await dispatchJob(job.id, options);
+      if (outcome === "accepted") accepted += 1;
+      else if (outcome === "refused") refused += 1;
+      else skipped += 1;
+    } catch (error) {
+      refused += 1;
+      await recordDispatchFailure(job.id, error);
+    }
   }
 
   return { attempted: accepted + refused, accepted, refused, skipped };
@@ -689,16 +752,25 @@ export async function applyProviderCallback(
     // callback that moved nothing, which is precisely the durable, auditable
     // evidence this table exists to be. So the conflict is established here,
     // before the verdict is committed.
+    // `for update` on the attempt, so two callbacks for one attempt serialise
+    // here rather than both reading `concluded = false` and both writing a
+    // verdict. Without it the reorder above narrows the window and does not
+    // close it: the loser would still commit a `delivery_callbacks` row saying
+    // it applied something, while correctly moving nothing.
     const concluded =
       matched === null
         ? false
-        : ((
-            await tx.query(
+        : await (async () => {
+            await tx.query("select 1 from public.delivery_attempts where id = $1 for update", [
+              matched.id,
+            ]);
+            const existing = await tx.query(
               `select 1 from public.delivery_results
                 where notification_job_id = $1 and attempt_number = $2`,
               [matched.notification_job_id, matched.attempt_number],
-            )
-          ).rowCount ?? 0) > 0;
+            );
+            return (existing.rowCount ?? 0) > 0;
+          })();
 
     const application: CallbackApplication = !matched
       ? "unmatched"

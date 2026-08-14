@@ -180,7 +180,7 @@ export function describeRetryability(
   if (state === "attempted") return "Waiting for the provider to confirm delivery";
   if (state === "queued") return "Waiting to be sent";
   if (!retryable) {
-    return `Attempted ${countAttempts(attempts)} and not retried again automatically. Somebody has to fix the cause first.`;
+    return `${countAttempts(attempts)} used, and no further automatic attempt. Somebody has to fix the cause first.`;
   }
   return `${countAttempts(attempts)} of ${max} used`;
 }

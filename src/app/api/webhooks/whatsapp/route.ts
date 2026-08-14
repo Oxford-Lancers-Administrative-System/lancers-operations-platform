@@ -52,6 +52,16 @@ import { applyProviderCallback } from "@/lib/services/delivery";
  * message stays **Attempted** forever without one.
  */
 
+/**
+ * The largest callback this route will read.
+ *
+ * Meta's status payloads are a few kilobytes; 64 KiB is generous. The cap
+ * exists because verifying costs an HMAC over the whole body, and an
+ * unauthenticated caller must not get to choose how much of that the club pays
+ * for.
+ */
+const MAX_CALLBACK_BYTES = 64 * 1024;
+
 /** Constant-time equality for a shared secret. `null` never matches. */
 function matchesSecret(given: string | null, expected: string): boolean {
   if (given === null) return false;
@@ -91,7 +101,19 @@ export async function POST(request: Request): Promise<Response> {
   // cannot verify must not accept. 503, not 200: it is a real inability.
   if (!webhook.configured) return new NextResponse(null, { status: 503 });
 
+  // Bounded before it is read. This is the only endpoint an unauthenticated
+  // caller is meant to reach, and everything after this line — reading the
+  // body, then hashing it — costs work that a stranger would otherwise choose
+  // the size of. Meta's callbacks are a few kilobytes.
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declared) && declared > MAX_CALLBACK_BYTES) {
+    return new NextResponse(null, { status: 413 });
+  }
+
   const raw = await request.text();
+  if (raw.length > MAX_CALLBACK_BYTES) {
+    return new NextResponse(null, { status: 413 });
+  }
 
   if (!verifyWebhookSignature(raw, request.headers.get("x-hub-signature-256"), webhook.config)) {
     return new NextResponse(null, { status: 403 });

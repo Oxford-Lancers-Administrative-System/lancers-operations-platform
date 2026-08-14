@@ -150,6 +150,27 @@ describe("retryDeliveryAction", () => {
   });
 });
 
+describe("retryDeliveryAction reports what actually happened", () => {
+  it("says so when the provider did not accept", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(retryDelivery).mockResolvedValue("refused");
+
+    const state = await retryDeliveryAction({ error: null }, retryForm());
+
+    // "Failures are safely visible" is an acceptance criterion, and always
+    // answering success is the cheapest way to break it. The operator pressed a
+    // button and is owed an answer to that press, not only a refreshed row.
+    expect(state.error).toMatch(/did not accept/i);
+  });
+
+  it("stays silent when it did", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(retryDelivery).mockResolvedValue("accepted");
+
+    expect((await retryDeliveryAction({ error: null }, retryForm())).error).toBeNull();
+  });
+});
+
 describe("revokeAndReissueAction", () => {
   it.each(PERMITTED)("lets the %s reissue", async (code) => {
     const operator = signedInAs([code]);
