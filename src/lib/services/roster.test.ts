@@ -20,7 +20,7 @@ vi.mock("server-only", () => ({}));
 import type { Client } from "pg";
 
 import { closePool, isServiceError, withTransaction } from "@/lib/db";
-import { openObserver } from "../../../tests/helpers/service-layer";
+import { openObserver, seededActorPersonId } from "../../../tests/helpers/service-layer";
 import { enterReturningPlayer, findPersonCandidates, resolveOpenSeason } from "./roster";
 
 /** This suite's namespace. Never shared — parallel suites share one database. */
@@ -39,45 +39,6 @@ let withoutMembership: { id: string; givenName: string; familyName: string | nul
 
 function unique(tag: string): string {
   return `${MARKER}-${tag}-${process.pid}`;
-}
-
-/**
- * A person from the **seeded** club, to act in this suite's transitions.
- *
- * This used to be `order by created_at, id limit 1`, and that was the cause of a
- * long-running intermittent failure across this file and `membership.test.ts` —
- * 13 tests at a time, on code that passed when re-run.
- *
- * The seed stamps every person `created_at = '2026-08-15T09:00:00Z'`, which is
- * in the **future** of the machine clock. Every seeded person therefore sorts
- * *last*, and any row a parallel suite had committed at `now()` sorted first and
- * was adopted as the actor. When that suite's cleanup deleted its person, every
- * subsequent write here that names the actor — `season_membership_status_events`,
- * `audit_events` — failed its foreign key and surfaced as `ConstraintViolated`,
- * far from the cause.
- *
- * Pinning to the seeded cohort removes the race: no suite ever deletes a seeded
- * person. Independent review found the mechanism and reproduced it on demand
- * with a parallel suite that inserted a person, held it 130 ms and deleted it.
- *
- * The future-dated seed itself is a separate latent trap, tracked in LAN-120.
- */
-async function seededActorPersonId(client: Client): Promise<string> {
-  const actor = await client.query<{ id: string }>(
-    `select id from public.people
-      where merged_into_person_id is null
-        and created_at = '2026-08-15T09:00:00Z'::timestamptz
-      order by id
-      limit 1`,
-  );
-  if (actor.rows.length === 0) {
-    // A pass produced by a missing cohort is not a pass, and this is exactly
-    // where a changed seed timestamp should announce itself.
-    throw new Error(
-      "No seeded person found. `scripts/seed-local.mjs` no longer stamps people with 2026-08-15T09:00:00Z.",
-    );
-  }
-  return actor.rows[0].id;
 }
 
 beforeAll(async () => {

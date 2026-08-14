@@ -435,8 +435,21 @@ for (let i = 0; i < PLAYER_COUNT + LEAVER_COUNT + STAFF_COUNT; i += 1) {
     merged_at: null,
     merged_by_person_id: null,
     merge_reason: null,
-    created_at: "2026-08-15T09:00:00Z",
-    updated_at: "2026-08-15T09:00:00Z",
+    // Dated in the PAST, deliberately.
+    //
+    // This cohort used to be stamped 2026-08-15, which was two days in the FUTURE
+    // of the machine clock. Nothing in the application read it, so nothing broke
+    // visibly — but every seeded person sorted *after* anything created at
+    // `now()`, and two test suites picking "the earliest person" as their acting
+    // operator therefore adopted a parallel suite's row and failed when it was
+    // deleted. That cost a long time to diagnose (LAN-119).
+    //
+    // The synthetic data is meant to mirror the real shape of club data, and a
+    // club whose founding members were created tomorrow does not. It now sits
+    // before the earliest season, which is what a real club's identity records
+    // would do.
+    created_at: "2025-06-01T09:00:00Z",
+    updated_at: "2025-06-01T09:00:00Z",
   };
   people.push(person);
   add("people", person);
@@ -455,7 +468,7 @@ for (let i = 0; i < PLAYER_COUNT + LEAVER_COUNT + STAFF_COUNT; i += 1) {
       valid_from: "2026-08-15",
       valid_until: null,
       source: "intake form",
-      created_at: "2026-08-15T09:00:00Z",
+      created_at: "2025-06-01T09:00:00Z",
     });
   }
 
@@ -471,7 +484,7 @@ for (let i = 0; i < PLAYER_COUNT + LEAVER_COUNT + STAFF_COUNT; i += 1) {
       valid_from: "2026-08-15",
       valid_until: null,
       source: "intake form",
-      created_at: "2026-08-15T09:00:00Z",
+      created_at: "2025-06-01T09:00:00Z",
     });
   }
 }
@@ -487,7 +500,7 @@ add("contact_points", {
   valid_from: "2024-10-01",
   valid_until: "2026-08-14",
   source: "2024 roster",
-  created_at: "2026-08-15T09:00:00Z",
+  created_at: "2025-06-01T09:00:00Z",
 });
 
 // At least three people who appear under two or three different name forms in
@@ -503,7 +516,7 @@ for (const [index, aliases] of [
       person_id: people[index].id,
       alias,
       source: "legacy roster workbook",
-      noted_at: "2026-08-15T09:00:00Z",
+      noted_at: "2025-06-01T09:00:00Z",
     });
   }
 }
@@ -529,7 +542,7 @@ for (const vocab of [vocab2023, vocab2026]) {
     code: vocab.code,
     label: vocab.label,
     adopted_on: vocab.adopted_on,
-    created_at: "2026-08-15T09:00:00Z",
+    created_at: "2025-06-01T09:00:00Z",
   });
   vocab.positions.forEach(([code, label, side], order) => {
     const position = { id: uuid(), vocabulary_id: vocab.id, code, label, side, sort_order: order };
@@ -589,7 +602,7 @@ for (const [name, year, starts, ends, firstWeek] of TERM_SPEC) {
     ends_on: ends,
     first_week: firstWeek,
     last_week: 8,
-    created_at: "2026-08-15T09:00:00Z",
+    created_at: "2025-06-01T09:00:00Z",
   };
   add("terms", term);
   terms[`${name}-${year}`] = term;
@@ -643,7 +656,7 @@ for (const [code, name, scope, isOffice, reference] of ROLE_SPEC) {
     is_constitutional_office: isOffice,
     constitution_edition: isOffice ? "Fourth Edition 24.04.22" : null,
     constitution_reference: reference,
-    created_at: "2026-08-15T09:00:00Z",
+    created_at: "2025-06-01T09:00:00Z",
   };
   add("roles", role);
   roles[code] = role;
