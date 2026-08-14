@@ -215,6 +215,52 @@ describe("who may record attendance", () => {
     expect(removeAttendance).not.toHaveBeenCalled();
   });
 
+  /**
+   * LAN-110 narrowed removal, and only removal.
+   *
+   * Removing a record is the way back out of an occurrence assertion — the
+   * assertion cannot be corrected while attendance hangs off it — and LAN-110's
+   * fixed boundary is that "coaches cannot mark an event occurred or not held
+   * unless a separate authorization rule explicitly grants that action". It is
+   * also absent from what LAN-110 permits, which is recording and correcting
+   * the four states.
+   */
+  it("admits a coach to the save and the walk-up, and refuses them the removal", async () => {
+    for (const role of ["head_coach", "offence_coach", "defence_coach"]) {
+      vi.mocked(recordAttendance).mockClear();
+      vi.mocked(recordWalkUpAttendance).mockClear();
+      vi.mocked(removeAttendance).mockClear();
+      givenAccess({ state: "active", operator: actor([role]) });
+
+      expect((await recordAttendanceAction(EMPTY_SAVE_STATE, saveForm())).error, role).toBeNull();
+      await expect(recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm())).rejects.toThrow(
+        /REDIRECT:/,
+      );
+
+      const refusal = await refusalFrom(() => removeAttendanceAction(EMPTY_SAVE_STATE, saveForm()));
+
+      expect(refusal, role).toBeInstanceOf(NotPermitted);
+      expect(refusal.rule).toBe("capability:event_occurrence_assertion");
+      expect(recordAttendance).toHaveBeenCalled();
+      expect(recordWalkUpAttendance).toHaveBeenCalled();
+      expect(removeAttendance).not.toHaveBeenCalled();
+    }
+  });
+
+  it("keeps the removal open to the operators who may assert occurrence", async () => {
+    // The narrowing reaches the coach and nobody else.
+    for (const role of ["president", "vice_president", "secretary", "general_manager"]) {
+      vi.mocked(removeAttendance).mockClear();
+      givenAccess({ state: "active", operator: actor([role]) });
+
+      await expect(removeAttendanceAction(EMPTY_SAVE_STATE, saveForm())).rejects.toThrow(
+        /REDIRECT:/,
+      );
+
+      expect(removeAttendance, role).toHaveBeenCalled();
+    }
+  });
+
   it("refuses a signed-in account with no operator profile", async () => {
     givenAccess({ state: "unlinked" });
 

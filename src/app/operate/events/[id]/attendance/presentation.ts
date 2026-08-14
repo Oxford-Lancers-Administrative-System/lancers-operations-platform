@@ -127,6 +127,51 @@ export const ATTENDANCE_LOCKED_RULE =
   "not held.";
 
 // ---------------------------------------------------------------------------
+// UX-90 — the same lock, seen by a coaching assignment
+// ---------------------------------------------------------------------------
+
+/**
+ * The coach's version of the locked state, and why the words differ.
+ *
+ * UX-71 tells an operator that somebody must mark the event occurred, and that
+ * operator may well be them — the sentence is an instruction. UX-90 shows the
+ * same lock to a coach, for whom it is not: `slice-ux.md` § 8 and LAN-110's
+ * fixed boundaries both say the assertion is closed to a coaching assignment,
+ * and a screen that told a coach to go and mark the event occurred would be
+ * describing an action the service refuses them.
+ *
+ * So the coach is told what is true and what to do about it: an operator has
+ * not marked it, and this is not yours to mark.
+ */
+export const COACH_LOCKED_HEADLINE = "Attendance is not open";
+
+export const COACH_LOCKED_DETAIL = "An authorized operator has not marked this event as occurred.";
+
+export const COACH_LOCKED_RULE =
+  "Coach attendance access does not include Mark occurred or Mark not held.";
+
+export const COACH_RETURN_TO_ELIGIBLE = "Return to eligible events";
+
+// ---------------------------------------------------------------------------
+// UX-91 to UX-95 — the board, seen by a coaching assignment
+// ---------------------------------------------------------------------------
+
+export const COACH_BOARD_SUBTITLE = "Occurred · coach recorder view";
+
+/**
+ * The sentence UX-91 puts at the top of the coach's board.
+ *
+ * It is not a disclaimer. `slice-ux.md` § 3 withholds RSVP reasons, contact
+ * details, availability and injury notes from this surface, and the person
+ * reading it is the one who would otherwise go looking for them — a coach who
+ * cannot see why somebody said no needs to know that the screen is not broken
+ * and that the answer is not one press away.
+ */
+export const COACH_BOARD_NOTE =
+  "Only event context, player identity, standing RSVP state and attendance are shown. " +
+  "RSVP reasons, contact, availability and administration are omitted.";
+
+// ---------------------------------------------------------------------------
 // UX-72 — the board
 // ---------------------------------------------------------------------------
 

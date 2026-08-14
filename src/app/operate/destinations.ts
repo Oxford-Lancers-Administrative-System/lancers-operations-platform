@@ -1,5 +1,5 @@
 import type { CapabilityKey } from "@/lib/auth/capabilities";
-import { roleCodesPermit } from "@/lib/auth/capabilities";
+import { isNarrowAttendanceRecorder, roleCodesPermit } from "@/lib/auth/capabilities";
 
 /**
  * The operator shell's destinations — all of them.
@@ -33,6 +33,8 @@ export interface Destination {
   readonly label: string;
   /** `null` means "any linked, active operator", never "anyone". */
   readonly capability: CapabilityKey | null;
+  /** Second line under the label, where the wireframe shows one. */
+  readonly detail?: string;
 }
 
 export const DESTINATIONS: readonly Destination[] = Object.freeze([
@@ -44,6 +46,47 @@ export const DESTINATIONS: readonly Destination[] = Object.freeze([
     capability: "leadership_report" as CapabilityKey,
   }),
 ]);
+
+/**
+ * The whole of a narrow attendance recorder's navigation — UX-91's sidebar and
+ * its phone bottom bar, both of which show exactly one destination. LAN-110.
+ *
+ * `slice-ux.md` § 3: a coaching assignment "receives only the occurred-event
+ * attendance surface. No general operator navigation …". One entry is what
+ * "only" means, and the second line is the wireframe's own — **Occurred events
+ * only** — which tells a coach why the list is shorter than the club's calendar
+ * rather than leaving them to wonder what happened to it.
+ *
+ * It reuses `/operate/events`, and that is not a shortcut. § 4's route contract
+ * is closed, and adding `/operate/attendance` to it would be a UX change this
+ * ticket is explicitly forbidden from making ("Do not add a new role,
+ * destination, workflow, field, status, or delivery action without a recorded
+ * design decision"). The route is shared and the *presentation* is
+ * capability-scoped, exactly as § 4 says of the attendance route itself.
+ *
+ * The label is **Attendance** rather than Events because that is what the
+ * wireframe shows and what the destination is for a coach: the list is filtered
+ * to occurred events, and every row leads to an attendance board.
+ */
+export const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
+  Object.freeze({
+    href: "/operate/events",
+    label: "Attendance",
+    capability: "attendance_recorder" as CapabilityKey,
+    detail: "Occurred events only",
+  }),
+]);
+
+/**
+ * The destinations this operator's shell shows.
+ *
+ * Navigation, still, and not authorization: every destination guards itself and
+ * a coach who types `/operate/roster` is refused there, not merely unable to
+ * click to it.
+ */
+export function destinationsFor(roleCodes: readonly string[]): readonly Destination[] {
+  return isNarrowAttendanceRecorder(roleCodes) ? COACH_DESTINATIONS : DESTINATIONS;
+}
 
 /** Can this operator's current roles open the destination? */
 export function permitsDestination(
@@ -59,5 +102,8 @@ export function permitsDestination(
  * permitted destination is refused rather than dropped on an empty page.
  */
 export function firstPermittedDestination(roleCodes: readonly string[]): Destination | null {
-  return DESTINATIONS.find((destination) => permitsDestination(roleCodes, destination)) ?? null;
+  return (
+    destinationsFor(roleCodes).find((destination) => permitsDestination(roleCodes, destination)) ??
+    null
+  );
 }

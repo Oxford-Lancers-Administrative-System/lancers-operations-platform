@@ -437,8 +437,31 @@ describe("row 6 — the refusal screen names the requirement, never the reader's
       expect(html, `the refusal screen names "${label}"`).not.toContain(label);
     }
     // Non-vacuous: this really is the refusal, and it really does say what is
-    // required.
+    // required. LAN-110 changed *which* requirement — this actor's only
+    // capability-bearing seat is a coaching one, so they are a narrow
+    // attendance recorder and the Report destination is not theirs for that
+    // reason rather than because nobody holds the report grant. The property
+    // under test is unchanged and is the assertions above: whichever refusal
+    // appears, it names no seat the reader holds.
     expect(container.textContent).toContain("You do not have access to this action");
+    expect(container.textContent).toContain(
+      "Attendance recording is the only operator surface open to a coaching assignment",
+    );
+  });
+
+  it("names the empty grant, and no role, for a non-coaching operator", async () => {
+    // The same property on the other path: an operator with seats that carry no
+    // capability at all reaches Report's empty grant, and that refusal must be
+    // just as silent about what they hold.
+    const held = ["it_officer", "social_secretary", "kit_manager"];
+    givenAccess({ state: "active", operator: actor(held) });
+
+    const { container } = render(await ReportPage());
+    const html = container.innerHTML.toLowerCase();
+
+    for (const label of ["it_officer", "it officer", "social secretary", "kit manager"]) {
+      expect(html, `the refusal screen names "${label}"`).not.toContain(label);
+    }
     expect(container.textContent).toContain("No club role is currently authorized");
   });
 });
@@ -578,5 +601,121 @@ describe("row 16 — the shell's declared shape at each breakpoint", () => {
     // whole layout past the viewport and producing horizontal scrolling.
     expect(declares(base, "min-width", "0")).toBe(true);
     expect(declares(base, "flex-grow", "1")).toBe(true);
+  });
+});
+
+/**
+ * The coach shell — LAN-110, and `slice-ux.md` § 3: an active Head Coach, OC or
+ * DC assignment "receives only the occurred-event attendance surface. No
+ * general operator navigation, roster editing, event administration, delivery,
+ * report, contact, RSVP-reason, or availability data is exposed."
+ *
+ * The refusals below are the load-bearing half. Navigation is a courtesy — the
+ * assertions that matter are that a coach who *types* `/operate/roster` gets a
+ * refusal and no roster, which is what "hidden navigation or controls are not
+ * an authorization boundary" means in LAN-110's own words.
+ */
+describe("LAN-110 — the coach shell", () => {
+  const COACH = ["head_coach"];
+
+  it("shows one destination, and none of the operator's three", async () => {
+    givenAccess({ state: "active", operator: actor(COACH, "Casey North") });
+
+    render(await OperateLayout(layoutProps(<p>shell content</p>)));
+
+    expect(screen.getByRole("link", { name: /Attendance/ })).toBeVisible();
+    for (const label of ["Roster", "Events", "Report"]) {
+      expect(screen.queryByRole("link", { name: label }), label).toBeNull();
+    }
+  });
+
+  it("captions the sidebar with the seat held, not with 'Authorized operator'", async () => {
+    givenAccess({ state: "active", operator: actor(COACH, "Casey North") });
+
+    const { container } = render(await OperateLayout(layoutProps(<p>shell content</p>)));
+
+    expect(flatten(container.textContent)).toContain("Head Coach");
+    expect(container.textContent).not.toContain("Authorized operator");
+    // UX-91's sidebar heading. The coach's shell is not "Operations".
+    expect(flatten(container.textContent)).toContain("Attendance");
+  });
+
+  it("says which events the destination holds", async () => {
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    const { container } = render(await OperateLayout(layoutProps(<p>shell content</p>)));
+
+    expect(flatten(container.textContent)).toContain("Occurred events only");
+  });
+
+  it("keeps the operator shell intact for everybody else", async () => {
+    // The narrowing must reach exactly one actor. A Secretary who also coaches
+    // is not that actor.
+    givenAccess({ state: "active", operator: actor(["secretary", "head_coach"]) });
+
+    render(await OperateLayout(layoutProps(<p>shell content</p>)));
+
+    for (const label of ["Roster", "Events", "Report"]) {
+      expect(screen.getByRole("link", { name: label }), label).toBeVisible();
+    }
+  });
+
+  it("refuses the roster, and renders none of it", async () => {
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    const { container } = render(await RosterPage(rosterProps()));
+
+    expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
+    expect(flatten(container.textContent)).toContain(
+      "Attendance recording is the only operator surface open to a coaching assignment",
+    );
+    expect(screen.queryByTestId("roster-row")).toBeNull();
+    expect(container.textContent).not.toContain("2026-27");
+  });
+
+  it("refuses the report", async () => {
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    render(await ReportPage());
+
+    expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
+  });
+
+  it("sends the refused coach to their own destination, never to one that refuses again", async () => {
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    render(await RosterPage(rosterProps()));
+
+    const back = screen.getByRole("link", { name: "Return to an authorized area" });
+    expect(back).toHaveAttribute("href", "/operate/events");
+  });
+
+  it("opens the shell on the attendance destination", async () => {
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    // § 3: "the shell opens the first destination permitted by the operator's
+    // capability map" — which for a coach is the only one they have.
+    await expect(OperatePage()).rejects.toThrow("REDIRECT:/operate/events");
+  });
+
+  it("gives the coach the eligible-events list, not the club calendar", async () => {
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    const { container } = render(await EventsPage(eventsProps()));
+
+    expect(screen.getByTestId("coach-eligible-events")).toBeVisible();
+    // No create, no status filter, no audience or response columns.
+    expect(screen.queryByRole("link", { name: "Create event" })).toBeNull();
+    expect(container.textContent).not.toContain("Audience");
+    expect(flatten(container.textContent)).toContain("Occurred events only");
+  });
+
+  it("still gives an ordinary operator the club calendar", async () => {
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
+
+    render(await EventsPage(eventsProps()));
+
+    expect(screen.queryByTestId("coach-eligible-events")).toBeNull();
+    expect(screen.getByTestId("season-label")).toBeVisible();
   });
 });

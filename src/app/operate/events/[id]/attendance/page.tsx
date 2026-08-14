@@ -4,6 +4,8 @@ import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
+import { operatorHasCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   readAttendanceBoard,
@@ -22,6 +24,12 @@ import {
   ATTENDANCE_LOCKED_DETAIL,
   ATTENDANCE_LOCKED_HEADLINE,
   ATTENDANCE_LOCKED_RULE,
+  COACH_BOARD_NOTE,
+  COACH_BOARD_SUBTITLE,
+  COACH_LOCKED_DETAIL,
+  COACH_LOCKED_HEADLINE,
+  COACH_LOCKED_RULE,
+  COACH_RETURN_TO_ELIGIBLE,
   COMPLETE_ATTENDANCE,
   COMPLETE_ATTENDANCE_MEANING,
   NOBODY_INVITED,
@@ -66,8 +74,20 @@ export default async function AttendancePage({
   params,
   searchParams,
 }: PageProps<"/operate/events/[id]/attendance">) {
-  const gate = await gateShellPage("/operate/events", "attendance_recording");
+  // LAN-110. The one surface a coaching assignment opens, so it opts in — and
+  // the refusal here is UX-96 rather than UX-05, because this is the screen
+  // whose whole subject is whether the reader may take the register.
+  const gate = await gateShellPage("/operate/events", "attendance_recording", {
+    narrowRecorder: "allow",
+    capabilityRefusal: "coach",
+  });
   if ("screen" in gate) return gate.screen;
+
+  // Which board to draw. Not which writes to allow: `./actions.ts` re-resolves
+  // the operator from the verified session on every save, and the coach's
+  // constraints are enforced there whatever this page rendered.
+  const isCoachView = isNarrowAttendanceRecorder(gate.operator.roleCodes);
+  const mayRemove = operatorHasCapability(gate.operator, "event_occurrence_assertion");
 
   const { id } = await params;
   const query = await searchParams;
@@ -92,7 +112,7 @@ export default async function AttendancePage({
         </Alert>
         <Box>
           <Button variant="outlined" href="/operate/events">
-            Back to events
+            {isCoachView ? COACH_RETURN_TO_ELIGIBLE : "Back to events"}
           </Button>
         </Box>
       </Stack>
@@ -101,17 +121,26 @@ export default async function AttendancePage({
 
   const { event } = board;
 
-  // UX-71. The event has not been asserted to have happened, or was asserted
-  // not to have — either way there is nothing to record, and the service says
-  // so as well as the screen does.
+  // UX-71, and UX-90 for a coach. The event has not been asserted to have
+  // happened, or was asserted not to have — either way there is nothing to
+  // record, and the service says so as well as the screen does.
   if (!board.isOpen) {
-    return <AttendanceLocked eventId={event.id} status={event.status} />;
+    return isCoachView ? (
+      <CoachAttendanceLocked status={event.status} />
+    ) : (
+      <AttendanceLocked eventId={event.id} status={event.status} />
+    );
   }
 
   if (addingWalkUp) {
     const candidates = await readWalkUpCandidates(event.id);
     return (
-      <Stack spacing={3} sx={{ maxWidth: 900 }} data-testid="walk-up-step">
+      <Stack
+        spacing={3}
+        sx={{ maxWidth: 900 }}
+        data-testid="walk-up-step"
+        data-view={isCoachView ? "coach" : "operator"}
+      >
         <Box>
           <Typography variant="body2" color="text.secondary">
             {`${event.name} · ${labelFor(STATUS_LABELS, event.status)}`}
@@ -126,15 +155,22 @@ export default async function AttendancePage({
   const basePath = `/operate/events/${event.id}/attendance`;
 
   return (
-    <Stack spacing={3} sx={{ maxWidth: 1100 }} data-testid="attendance-board">
+    <Stack
+      spacing={3}
+      sx={{ maxWidth: 1100 }}
+      data-testid="attendance-board"
+      data-view={isCoachView ? "coach" : "operator"}
+    >
       <Box>
         <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {`${ATTENDANCE_HEADLINE_PREFIX} ${event.name}`}
+          {isCoachView ? `${event.name} attendance` : `${ATTENDANCE_HEADLINE_PREFIX} ${event.name}`}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          {`${labelFor(STATUS_LABELS, event.status)} · ${formatDetailWhen(event)}${
-            event.venue ? ` · ${event.venue}` : ""
-          }`}
+          {isCoachView
+            ? COACH_BOARD_SUBTITLE
+            : `${labelFor(STATUS_LABELS, event.status)} · ${formatDetailWhen(event)}${
+                event.venue ? ` · ${event.venue}` : ""
+              }`}
         </Typography>
       </Box>
 
@@ -144,16 +180,26 @@ export default async function AttendancePage({
         </Alert>
       ) : null}
 
-      {/*
-        Not a warning and not a footnote. The frozen model says mismatches are
-        "computed, surfaced as exceptions, and never silently reconciled", and
-        a recorder looking at somebody who said no and turned up needs to know
-        that recording Present is the correct thing to do rather than a conflict
-        to resolve.
-      */}
-      <Alert severity="info" data-testid="rsvp-separate-note">
-        {RSVP_STAYS_SEPARATE}
-      </Alert>
+      {isCoachView ? (
+        // UX-91's own line. It replaces the operator's mismatch note rather
+        // than joining it: § 3 withholds the RSVP *reason* from a coach, and
+        // "mismatches are visible and never auto-reconciled" is a sentence
+        // about a reconciliation workflow this surface does not offer them.
+        <Alert severity="info" data-testid="coach-scope-note">
+          {COACH_BOARD_NOTE}
+        </Alert>
+      ) : (
+        /*
+          Not a warning and not a footnote. The frozen model says mismatches are
+          "computed, surfaced as exceptions, and never silently reconciled", and
+          a recorder looking at somebody who said no and turned up needs to know
+          that recording Present is the correct thing to do rather than a conflict
+          to resolve.
+        */
+        <Alert severity="info" data-testid="rsvp-separate-note">
+          {RSVP_STAYS_SEPARATE}
+        </Alert>
+      )}
 
       <Stack
         direction={{ xs: "column", md: "row" }}
@@ -177,7 +223,13 @@ export default async function AttendancePage({
       </Stack>
 
       <Paper variant="outlined" sx={{ p: { xs: 1.5, md: 3 } }}>
-        <Counts board={board} />
+        {/*
+          The counts are the operator's. Invited, Recorded and Walk-ups are
+          fine for anyone, but Mismatches is a count of an exception class the
+          Monday report acts on and the coach's surface deliberately does not —
+          and UX-91 shows no counts row at all, on either presentation.
+        */}
+        {isCoachView ? null : <Counts board={board} />}
 
         {board.participants.length === 0 ? (
           <Alert severity="info" data-testid="attendance-empty">
@@ -190,26 +242,67 @@ export default async function AttendancePage({
         ) : (
           <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
             {visible.map((participant) => (
-              <AttendanceRow key={participant.key} eventId={event.id} participant={participant} />
+              <AttendanceRow
+                key={participant.key}
+                eventId={event.id}
+                participant={participant}
+                showMismatch={!isCoachView}
+                mayRemove={mayRemove}
+              />
             ))}
           </Box>
         )}
       </Paper>
 
-      <Stack spacing={1} sx={{ maxWidth: 420 }}>
-        <Button
-          variant="contained"
-          href={`/operate/events/${event.id}`}
-          fullWidth
-          sx={{ minHeight: 44 }}
-          data-testid="complete-attendance"
-        >
-          {COMPLETE_ATTENDANCE}
-        </Button>
-        <Typography variant="body2" color="text.secondary">
-          {COMPLETE_ATTENDANCE_MEANING}
+      {/*
+        **Complete attendance** returns to `/operate/events/[id]`, which is
+        event administration and refuses a coach outright. Offering a coach a
+        button to a screen that will refuse them is worse than offering none,
+        and UX-91 shows the coach's board ending at the list.
+      */}
+      {isCoachView ? null : (
+        <Stack spacing={1} sx={{ maxWidth: 420 }}>
+          <Button
+            variant="contained"
+            href={`/operate/events/${event.id}`}
+            fullWidth
+            sx={{ minHeight: 44 }}
+            data-testid="complete-attendance"
+          >
+            {COMPLETE_ATTENDANCE}
+          </Button>
+          <Typography variant="body2" color="text.secondary">
+            {COMPLETE_ATTENDANCE_MEANING}
+          </Typography>
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+/** UX-90 — the lock, told to somebody who cannot lift it. */
+function CoachAttendanceLocked({ status }: { status: string }) {
+  return (
+    <Stack
+      spacing={3}
+      sx={{ maxWidth: 720 }}
+      data-testid="coach-attendance-locked"
+      data-status={status}
+    >
+      <Box>
+        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+          {COACH_LOCKED_HEADLINE}
         </Typography>
-      </Stack>
+        <Typography variant="body2" color="text.secondary">
+          {COACH_LOCKED_DETAIL}
+        </Typography>
+      </Box>
+      <Alert severity="info">{COACH_LOCKED_RULE}</Alert>
+      <Box>
+        <Button variant="contained" href="/operate/events" sx={{ minHeight: 44 }}>
+          {COACH_RETURN_TO_ELIGIBLE}
+        </Button>
+      </Box>
     </Stack>
   );
 }

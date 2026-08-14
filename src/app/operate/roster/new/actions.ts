@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 
-import { requireOperator } from "@/lib/auth/guards";
+import { requireGeneralOperator } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import { enterReturningPlayer, findPersonCandidates } from "@/lib/services/roster";
 import { GENERIC_FAILURE, personLabel, type IntakeState } from "./intake-state";
@@ -22,7 +22,8 @@ import { readIntakeValues, validateIntake, type IntakeFormValues } from "./valid
  *
  * ## Authorization
  *
- * `requireOperator()` — a linked, active operator, and nothing more.
+ * `requireGeneralOperator()` — a linked, active operator who is not a coaching
+ * assignment, and nothing more.
  *
  * That is the whole requirement, and choosing it is a reading worth stating.
  * `docs/ux/slice-ux.md` § 8 puts "ordinary operator actions" under "only the
@@ -36,6 +37,15 @@ import { readIntakeValues, validateIntake, type IntakeFormValues } from "./valid
  * without a recorded decision, which `docs/ux/tickets/LAN-74-returner-intake.md`
  * explicitly forbids. If Brian wants intake narrowed to particular seats, that
  * is one entry added to `capabilities.ts` and one word changed here.
+ *
+ * The one seat the floor does **not** admit is a coaching assignment, and that
+ * is LAN-110 rather than a new mapping: its fixed boundaries say a coach cannot
+ * edit "the roster, membership, recruitment/onboarding state", and this action
+ * mints a person, their contact points and a season membership. `requireOperator()`
+ * admitted a Head Coach exactly as it admitted the Social Secretary, so the
+ * floor failed a recorded boundary rather than merely being generous — the same
+ * shape of defect LAN-80's own attendance guard had. Nobody else's access
+ * changes; see `assertGeneralOperator` for why this is not a capability.
  *
  * The guard resolves the actor from the verified session. The actor is never
  * read from the form — a server action is a POST endpoint the browser can call
@@ -55,7 +65,7 @@ export async function submitReturnerIntake(
   _previous: IntakeState,
   formData: FormData,
 ): Promise<IntakeState> {
-  const operator = await requireOperator();
+  const operator = await requireGeneralOperator();
 
   const values = readIntakeValues(formData);
   const intent = formData.get("intent");

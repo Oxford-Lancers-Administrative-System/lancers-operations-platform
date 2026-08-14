@@ -1,10 +1,15 @@
 import type { ReactElement } from "react";
 import { redirect } from "next/navigation";
 import { assertCapability } from "@/lib/auth/guards";
-import { capabilityRequirement, type CapabilityKey } from "@/lib/auth/capabilities";
+import {
+  capabilityRequirement,
+  isNarrowAttendanceRecorder,
+  type CapabilityKey,
+} from "@/lib/auth/capabilities";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import { isServiceError } from "@/lib/db";
 import OperatorAccountState from "./account-state";
+import CoachNotPermittedScreen from "./coach-not-permitted";
 import NotPermittedScreen from "./not-permitted";
 import { firstPermittedDestination } from "./destinations";
 
@@ -33,10 +38,50 @@ import { firstPermittedDestination } from "./destinations";
  *
  * `capability` is omitted for the ordinary operator surfaces (§ 8's first row).
  * Omitting it means "any linked, active operator", never "anybody".
+ *
+ * ## The fifth outcome: a narrow attendance recorder. LAN-110
+ *
+ * `slice-ux.md` § 3 gives an operator whose only authority is coaching *one*
+ * surface, and a capability check cannot express that on its own: Roster and
+ * the event detail are open to every linked operator, so there is no capability
+ * for a coach to fail. `options.narrowRecorder` is that decision, and it
+ * defaults to `"refuse"` — a page says nothing and is closed to a coach.
+ *
+ * Defaulting closed is the whole value of putting it here. The alternative,
+ * listing the surfaces a coach may not open, is a list that a page added next
+ * year is silently absent from, and the failure is a coach quietly holding the
+ * roster. This way the failure is a coach refused a screen they should have
+ * had, which somebody reports on the first day.
+ *
+ * Two surfaces opt in, and they are the two § 3 names: the attendance board,
+ * and the event list that reaches it.
  */
 export type ShellGate = { operator: ResolvedOperator } | { screen: ReactElement };
 
-export async function gateShellPage(route: string, capability?: CapabilityKey): Promise<ShellGate> {
+/** What a coach is told when they reach a surface their one destination is not. */
+export const COACH_SURFACE_REQUIREMENT =
+  "Attendance recording is the only operator surface open to a coaching assignment. " +
+  "This action requires a club role that carries general operator access.";
+
+export interface ShellGateOptions {
+  /**
+   * What a narrow attendance recorder gets here. `"refuse"` is the default and
+   * is what every surface outside the coach's one destination wants.
+   */
+  narrowRecorder?: "allow" | "refuse";
+  /**
+   * Which refusal a failed `capability` check renders. `"coach"` is UX-96, and
+   * belongs to the attendance route alone — it is the one screen whose whole
+   * subject is that the reader cannot record attendance here.
+   */
+  capabilityRefusal?: "operator" | "coach";
+}
+
+export async function gateShellPage(
+  route: string,
+  capability?: CapabilityKey,
+  options: ShellGateOptions = {},
+): Promise<ShellGate> {
   const access = await resolveOperatorAccess();
 
   if (access.state === "no_session") {
@@ -45,6 +90,22 @@ export async function gateShellPage(route: string, capability?: CapabilityKey): 
 
   if (access.state !== "active") {
     return { screen: <OperatorAccountState state={access.state} /> };
+  }
+
+  if (options.narrowRecorder !== "allow" && isNarrowAttendanceRecorder(access.operator.roleCodes)) {
+    // Refused with the ordinary refusal, not the coach one: UX-96 says "you
+    // cannot record attendance for this event", which is untrue here — this
+    // operator records attendance perfectly well, just not on this screen. The
+    // return link is their own destination, which they can always open.
+    const fallback = firstPermittedDestination(access.operator.roleCodes);
+    return {
+      screen: (
+        <NotPermittedScreen
+          requirement={COACH_SURFACE_REQUIREMENT}
+          returnHref={fallback && fallback.href !== route ? fallback.href : undefined}
+        />
+      ),
+    };
   }
 
   if (capability) {
@@ -57,13 +118,18 @@ export async function gateShellPage(route: string, capability?: CapabilityKey): 
       // nowhere — in which case UX-05 offers sign-out alone rather than a link
       // that would refuse them again.
       const fallback = firstPermittedDestination(access.operator.roleCodes);
+      const returnHref = fallback && fallback.href !== route ? fallback.href : undefined;
+
       return {
-        screen: (
-          <NotPermittedScreen
-            requirement={capabilityRequirement(capability)}
-            returnHref={fallback && fallback.href !== route ? fallback.href : undefined}
-          />
-        ),
+        screen:
+          options.capabilityRefusal === "coach" ? (
+            <CoachNotPermittedScreen returnHref={returnHref} />
+          ) : (
+            <NotPermittedScreen
+              requirement={capabilityRequirement(capability)}
+              returnHref={returnHref}
+            />
+          ),
       };
     }
   }

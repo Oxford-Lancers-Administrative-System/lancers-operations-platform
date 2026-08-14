@@ -138,12 +138,29 @@ export async function recordAttendanceAction(
  * this there is no route back at all. It is not the way to change somebody's
  * state — that is a save, which is audited as a correction and keeps the
  * history.
+ *
+ * ## Why this one guards on the assertion, and the other two do not. LAN-110
+ *
+ * Because it *is* the assertion, one step removed. This control exists so that
+ * an operator who marked the wrong event `occurred` can get back out of it, and
+ * LAN-110's fixed boundary is explicit that "coaches cannot mark an event
+ * occurred or not held unless a separate authorization rule explicitly grants
+ * that action". Leaving removal on `attendance_recording` would have handed a
+ * coach the one action whose purpose is to make that assertion editable — the
+ * boundary by a different door.
+ *
+ * It is also not in what LAN-110 permits. The capability is "record and correct
+ * Present, Absent, Late or Excused"; a correction keeps the observation and the
+ * history, and a removal destroys the evidence that anybody watched at all.
+ *
+ * This narrows LAN-80, which had removal on `attendance_recording`, and narrows
+ * nothing else: the four calendar roles that could remove a record still can.
  */
 export async function removeAttendanceAction(
   _previous: AttendanceSaveState,
   formData: FormData,
 ): Promise<AttendanceSaveState> {
-  const operator = await requireCapability("attendance_recording");
+  const operator = await requireCapability("event_occurrence_assertion");
   const eventId = text(formData, "eventId");
   const key = text(formData, "participantKey");
 

@@ -4,6 +4,19 @@ import { coordinatorPaths } from "./local-supabase-coordinator.mjs";
 
 export const LOCAL_REVIEW_EMAIL = "brian.daniel.schuster@gmail.com";
 
+/**
+ * The second local review login — LAN-110's coaching assignment.
+ *
+ * Plus-addressing on the same mailbox, so it is the same person, needs no new
+ * address and is unmistakably a review account. It is **local only**: nothing
+ * creates it on hosted, and the coach seat on hosted is Brian's to grant
+ * through the supported administrative path.
+ *
+ * It shares the protected machine-local password rather than having one of its
+ * own — one secret, one file, mode 0600, and nothing extra to leak.
+ */
+export const LOCAL_REVIEW_COACH_EMAIL = "brian.daniel.schuster+coach@gmail.com";
+
 export function reviewAccountPath(repoPath, env = process.env) {
   return path.join(coordinatorPaths(repoPath, env).root, "review-account.json");
 }
