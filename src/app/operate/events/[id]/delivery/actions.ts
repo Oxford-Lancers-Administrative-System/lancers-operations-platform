@@ -107,12 +107,27 @@ export async function revokeAndReissueAction(
   const invitationId = text(formData, "invitationId");
   const reason = text(formData, "reason");
 
+  let outcome: Awaited<ReturnType<typeof revokeAndReissue>>;
   try {
-    await revokeAndReissue(operator.personId, invitationId, reason);
+    outcome = await revokeAndReissue(operator.personId, invitationId, reason);
   } catch (error) {
     return { error: messageFor(error) };
   }
 
   revalidatePath(`/operate/events/${eventId}/delivery`);
-  return { error: null };
+
+  // The more destructive of the two controls, and the one that most needs an
+  // honest answer. Revocation happens first and the send follows, so a refused
+  // send leaves the operator having withdrawn a link somebody was holding with
+  // nothing in its place — which is exactly the state an unconfigured
+  // deployment produces today. Reporting that as success was worse here than it
+  // would have been on Retry, and Retry already refused to do it.
+  return {
+    error:
+      outcome === "accepted"
+        ? null
+        : "The previous link has been withdrawn, but the replacement was not accepted by the " +
+          "provider. This person currently has no working link. The reason is shown against " +
+          "them below.",
+  };
 }

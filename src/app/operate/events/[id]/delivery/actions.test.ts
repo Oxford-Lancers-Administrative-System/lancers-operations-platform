@@ -171,6 +171,27 @@ describe("retryDeliveryAction reports what actually happened", () => {
   });
 });
 
+describe("revokeAndReissueAction reports what actually happened", () => {
+  it("warns that the person now has no link when the replacement was refused", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(revokeAndReissue).mockResolvedValue("refused");
+
+    const state = await revokeAndReissueAction({ error: null }, reissueForm());
+
+    // Revocation happens first, so a refused send leaves somebody holding
+    // nothing. Answering `{ error: null }` told the operator it had worked.
+    expect(state.error).toMatch(/withdrawn/i);
+    expect(state.error).toMatch(/no working link/i);
+  });
+
+  it("stays silent when the replacement was accepted", async () => {
+    signedInAs(["secretary"]);
+    vi.mocked(revokeAndReissue).mockResolvedValue("accepted");
+
+    expect((await revokeAndReissueAction({ error: null }, reissueForm())).error).toBeNull();
+  });
+});
+
 describe("revokeAndReissueAction", () => {
   it.each(PERMITTED)("lets the %s reissue", async (code) => {
     const operator = signedInAs([code]);
