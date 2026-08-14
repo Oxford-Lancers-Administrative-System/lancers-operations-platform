@@ -121,10 +121,10 @@ async function blankCanvas() {
       where (entity_table = 'events' and entity_id in ${events})
          or (entity_table = 'weekly_reports'
              and entity_id in (select id from public.weekly_reports
-                                where report_on between current_date - 7 and current_date))`,
+                                where report_on between current_date - 35 and current_date - 28))`,
   );
   await client.query(
-    "delete from public.weekly_reports where report_on between current_date - 7 and current_date",
+    "delete from public.weekly_reports where report_on between current_date - 35 and current_date - 28",
   );
   await client.query(`delete from public.attendance_records where event_id in ${events}`);
   await client.query(
@@ -141,7 +141,7 @@ async function blankCanvas() {
   // exactly as the scenario's own rows are, so the scenario has a week to itself
   // whatever today happens to be.
   const inWindow =
-    "(select id from public.events where scheduled_on between current_date - 7 and current_date - 1)";
+    "(select id from public.events where scheduled_on between current_date - 35 and current_date - 29)";
   await client.query(
     `delete from public.audit_events where entity_table = 'events' and entity_id in ${inWindow}`,
   );
@@ -165,7 +165,7 @@ async function blankCanvas() {
   await client.query(`delete from public.schedule_changes where event_id in ${inWindow}`);
   await client.query(`delete from public.event_questions where event_id in ${inWindow}`);
   await client.query(
-    "delete from public.events where scheduled_on between current_date - 7 and current_date - 1",
+    "delete from public.events where scheduled_on between current_date - 35 and current_date - 29",
   );
 }
 
@@ -227,7 +227,7 @@ async function generateReport(version: number, supersedes: string | null): Promi
        (season_id, report_on, version, supersedes_id, metric_definition_version,
         data_as_of, content)
      values ((select id from public.seasons where status in ('open', 'active')),
-             current_date, $1, $2, 'LAN-81.1', now(),
+             current_date - 28, $1, $2, 'LAN-81.1', now(),
              jsonb_build_object(
                'schema', 'lancers.monday-exception-report.v1',
                'exceptions', jsonb_build_array(
@@ -284,7 +284,7 @@ describe("setup.sql", () => {
     expect(
       await count(
         `public.events where name like $1
-           and scheduled_on between current_date - 7 and current_date - 1`,
+           and scheduled_on between current_date - 35 and current_date - 29`,
         [`%${SENTINEL}%`],
       ),
     ).toBe(3);
@@ -293,7 +293,7 @@ describe("setup.sql", () => {
   it("produces one of every exception the report leads with", async () => {
     await client.query(SETUP);
 
-    const window = "scheduled_on between current_date - 7 and current_date - 1";
+    const window = "scheduled_on between current_date - 35 and current_date - 29";
 
     // Two people were asked and never answered: one on the practice, one on
     // the empty-register session.
@@ -370,7 +370,7 @@ describe("setup.sql", () => {
   it("creates no weekly report — generating one is the thing under test", async () => {
     await client.query(SETUP);
 
-    expect(await count("public.weekly_reports where report_on = current_date")).toBe(0);
+    expect(await count("public.weekly_reports where report_on = current_date - 28")).toBe(0);
   });
 
   it("refuses to install into a week that is not its own", async () => {
@@ -379,16 +379,16 @@ describe("setup.sql", () => {
     await client.query(
       `insert into public.events (season_id, name, event_type, status, scheduled_on)
        values ((select id from public.seasons where status in ('open', 'active')),
-               'An unrelated practice', 'practice', 'draft', current_date - 2)`,
+               'An unrelated practice', 'practice', 'draft', current_date - 31)`,
     );
 
     await expect(client.query(SETUP)).rejects.toThrow(/already sit in the reporting window/);
   });
 
-  it("refuses to install on top of a report already filed for today", async () => {
+  it("refuses to install on top of a report already filed for its reporting date", async () => {
     await generateReport(1, null);
 
-    await expect(client.query(SETUP)).rejects.toThrow(/already filed for today/);
+    await expect(client.query(SETUP)).rejects.toThrow(/already filed for this scenario/);
   });
 
   it("refuses when an unrelated event has taken the sentinel", async () => {
@@ -425,7 +425,7 @@ describe("cleanup.sql", () => {
 
     const first = await generateReport(1, null);
     const second = await generateReport(2, first);
-    expect(await count("public.weekly_reports where report_on = current_date")).toBe(2);
+    expect(await count("public.weekly_reports where report_on = current_date - 28")).toBe(2);
 
     await client.query(CLEANUP);
 
@@ -465,7 +465,7 @@ describe("cleanup.sql", () => {
       `insert into public.weekly_reports
          (season_id, report_on, version, metric_definition_version, data_as_of, content)
        values ((select id from public.seasons where status in ('open', 'active')),
-               current_date - 1, 1, 'LAN-81.1', now(), '{"schema": "something else"}'::jsonb)`,
+               current_date - 29, 1, 'LAN-81.1', now(), '{"schema": "something else"}'::jsonb)`,
     );
 
     await expect(client.query(CLEANUP)).rejects.toThrow(/do not carry the PILOT-LAN-81 sentinel/);

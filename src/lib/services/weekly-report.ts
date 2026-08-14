@@ -299,6 +299,24 @@ function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
+/**
+ * The longest a reason may be in a card's one-line note before it is elided.
+ *
+ * UX-80 shows "Academic 3 · Injury 2", which assumes short category words. Real
+ * reasons are sentences a player typed — "Recorded as unsure on the channel —
+ * treated as a non-acceptance." — and three of those joined by separators is a
+ * paragraph pretending to be a summary. The full text is never lost: it is in
+ * the stored list under **Open stored list**, beside the person who gave it,
+ * which is where an operator can act on it.
+ */
+const REASON_NOTE_LIMIT = 28;
+
+function elide(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= REASON_NOTE_LIMIT) return trimmed;
+  return `${trimmed.slice(0, REASON_NOTE_LIMIT - 1).trimEnd()}…`;
+}
+
 /** "Academic 3 · Injury 2" — the two commonest reasons, and nothing about who. */
 function topReasons(reasons: (string | null)[]): string {
   const tally = new Map<string, number>();
@@ -310,8 +328,8 @@ function topReasons(reasons: (string | null)[]): string {
   const ranked = [...tally.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   if (ranked.length === 0) return "No reason recorded";
   return ranked
-    .slice(0, 3)
-    .map(([reason, count]) => `${reason} ${count}`)
+    .slice(0, 2)
+    .map(([reason, count]) => `${elide(reason)} ${count}`)
     .join(" · ");
 }
 

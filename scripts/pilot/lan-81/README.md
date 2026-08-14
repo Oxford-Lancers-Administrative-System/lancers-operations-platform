@@ -38,18 +38,21 @@ corresponds to anybody real, and the scenario creates no contact point, no
 notification job and no delivery work of any kind — so it can send nothing to
 anybody, ever.
 
-## The reporting date is today
+## The reporting date, and where to find it
 
-The report's window is the seven days ending the day before the reporting date,
-and this scenario puts its events in the week just gone. So the date to report on
-is **today**, which is the date `/operate/report` opens on by default. There is
-nothing to type.
+The report's window is the seven days ending the day before the reporting date.
+This scenario puts its events in a week **four weeks ago** — `current_date - 28`
+is the date to report on — and both of `setup.sql`'s result sets print that date
+as `reporting_date`. **Read it off the script rather than working it out**, and
+type it into the reporting-date field on `/operate/report`.
 
-`setup.sql` refuses to install if any event that is not this scenario's already
-sits in that window. That is not fussiness: a real event would make the numbers
-below wrong, and `cleanup.sql` identifies the snapshots you generate by the
-sentinel inside their stored content, which is only unambiguous while the whole
-window is this scenario's.
+Four weeks back rather than the week just gone, because the window has to belong
+to this scenario alone and the recent past is where real operational events
+actually are. `setup.sql` refuses to install if any event that is not this
+scenario's already sits in the window. That is not fussiness: a real event would
+make the numbers below wrong, and `cleanup.sql` identifies the snapshots you
+generate by the sentinel inside their stored content, which is only unambiguous
+while the whole window is this scenario's.
 
 ## What setup installs
 
@@ -65,11 +68,11 @@ window is this scenario's.
 
 The three events:
 
-| Event                                  | When       | Status     | Solicits a response |
-| -------------------------------------- | ---------- | ---------- | ------------------- |
-| `PILOT-LAN-81 Reporting week practice` | 3 days ago | `occurred` | yes                 |
-| `PILOT-LAN-81 Empty register session`  | 2 days ago | `occurred` | yes                 |
-| `PILOT-LAN-81 Committee briefing`      | 5 days ago | `approved` | **no**              |
+| Event                                  | When                | Status     | Solicits a response |
+| -------------------------------------- | ------------------- | ---------- | ------------------- |
+| `PILOT-LAN-81 Reporting week practice` | `current_date - 32` | `occurred` | yes                 |
+| `PILOT-LAN-81 Empty register session`  | `current_date - 31` | `occurred` | yes                 |
+| `PILOT-LAN-81 Committee briefing`      | `current_date - 34` | `approved` | **no**              |
 
 The six people, and which section of the report each one produces:
 
@@ -94,8 +97,8 @@ General Manager; the durable pilot foundation gave you the roles.
 
 | #   | Do this                                                                   | Expect                                                                                                                                             |
 | --- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Open `/operate/report`                                                    | **No stored report for this date**, and the sentence that an absent snapshot is not an all-clear                                                   |
-| 2   | Press **Preview report**                                                  | Today's date, the seven days it covers, and four tiles: 2 nonresponses, 1 not attending, 2 mismatches, 1 absence                                   |
+| 1   | Open `/operate/report`, set the reporting date to the one setup printed   | **No stored report for this date**, and the sentence that an absent snapshot is not an all-clear                                                   |
+| 2   | Press **Preview report**                                                  | That date, the seven days it covers, and four tiles: 2 nonresponses, 1 not attending, 2 mismatches, 2 missing attendance                                      |
 | 3   | Read the six numbered cards                                               | 1 Nonresponses · 2 Not attending · 3 RSVP / attendance mismatches · 4 Absences / missing attendance · 5 Onboarding exceptions · 6 Audience defects |
 | 4   | Read card 6                                                               | 1 approval defect, labelled **Approved but never invited — requires review**, and never as a chase                                                 |
 | 5   | Read **Availability by level**                                            | Three counts and the words **No narrative or diagnosis**. No note, no reason, no injury anywhere                                                   |
@@ -131,15 +134,15 @@ select version,
 -- 2. Every section came from the view that owns it.
 select
   (select count(*) from public.nonresponse_queue
-    where scheduled_on between current_date - 7 and current_date - 1) as nonresponses,
+    where scheduled_on between current_date - 35 and current_date - 29) as nonresponses,
   (select count(*) from public.invitation_response_state s
      join public.events e on e.id = s.event_id
-    where e.scheduled_on between current_date - 7 and current_date - 1
+    where e.scheduled_on between current_date - 35 and current_date - 29
       and s.response_state = 'responded_no') as not_attending,
   (select count(*) from public.rsvp_attendance_mismatches
-    where scheduled_on between current_date - 7 and current_date - 1) as mismatches,
+    where scheduled_on between current_date - 35 and current_date - 29) as mismatches,
   (select count(*) from public.uninvited_audience_members
-    where scheduled_on between current_date - 7 and current_date - 1) as approval_defects;
+    where scheduled_on between current_date - 35 and current_date - 29) as approval_defects;
 
 -- 3. Invariant E6. The briefing solicits nothing, so this must be zero —
 --    even though it has an audience and an invitation.
@@ -151,7 +154,7 @@ select count(*) as must_be_zero
 --    this was zero for every event that had any invitations at all.
 select mismatch, count(*)
   from public.rsvp_attendance_mismatches
- where scheduled_on between current_date - 7 and current_date - 1
+ where scheduled_on between current_date - 35 and current_date - 29
  group by mismatch;
 ```
 
@@ -170,11 +173,11 @@ identifiers, **and** the `PILOT-LAN-81` sentinel — and each predicate is pinne
 literally in `tests/pilot-data-contract.test.ts`, so widening one is a line in a
 diff. `docs/adr/0019-application-created-pilot-rows.md` records the rule.
 
-**The one thing this asks of you.** Generate only for the date this scenario is
-built around. If `cleanup.sql` meets a weekly report filed in that range whose
-content does not carry the sentinel, it **aborts** rather than guess — that row
-might be real leadership history, and deleting a real snapshot to tidy up a test
-is the outcome the whole ownership rule exists to prevent.
+**The one thing this asks of you.** Generate only for the date `setup.sql`
+printed. If `cleanup.sql` meets a weekly report filed anywhere in this scenario's
+date range whose content does not carry the sentinel, it **aborts** rather than
+guess — that row might be real leadership history, and deleting a real snapshot
+to tidy up a test is the outcome the whole ownership rule exists to prevent.
 
 ## Can this send anything to a real person?
 
@@ -189,6 +192,10 @@ Run `cleanup.sql`. It removes this scenario's rows and nothing else: the open
 season, the durable pilot identities, every access grant and all unrelated audit
 history are untouched. It is safe to run twice, and its final result set must
 show three zeroes and the open season still there.
+
+It has to be run within about a month of `setup.sql`, because its guard and its
+report delete are bounded to this scenario's own date range. Leaving a scenario
+installed for longer than that is outside what either script is built for.
 
 If it aborts, read the message — every guard in it names what is in the way and
 what to do about it. None of them is safe to work around by editing the script.

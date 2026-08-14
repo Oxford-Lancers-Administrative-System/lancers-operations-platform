@@ -7,19 +7,20 @@
 --
 -- Run by a human. Never by a migration, a seed, CI, a deploy or the app.
 --
--- THE REPORTING DATE, AND WHY IT IS TODAY
+-- THE REPORTING DATE, AND WHY IT IS FOUR WEEKS BACK
 --   The report's window is the seven days ending the day before the reporting
---   date. This scenario therefore places its events in the week just gone and
---   asks you to report on **today**, which is the date `/operate/report` opens
---   on by default. Nothing to type, and nothing to remember between running
---   this script and reading the screen.
+--   date. This scenario places its events in a week four weeks ago and asks you
+--   to report on `current_date - 28`. **Both result sets below print that date;
+--   use the one they print rather than working it out.**
 --
---   The preflight below refuses to install if any event that is not this
---   scenario's already sits in that window. Two reasons, and the second is the
---   important one: a real event would make the numbers in README.md wrong, and
---   cleanup identifies the generated snapshots by the sentinel inside their
---   stored content — which is only unambiguous while everything in the window
---   is this scenario's.
+--   Four weeks back rather than the week just gone, because the window has to
+--   belong to this scenario alone and the recent past is where real operational
+--   events actually are. The preflight refuses to install if any event that is
+--   not this scenario's already sits in the window. Two reasons, and the second
+--   is the important one: a real event would make the numbers in README.md
+--   wrong, and cleanup identifies the generated snapshots by the sentinel
+--   inside their stored content — which is only unambiguous while everything in
+--   the window is this scenario's.
 --
 -- WHAT IT ADDS
 --   * Six clearly synthetic people and six `active` memberships in the open
@@ -27,13 +28,13 @@
 --     number it does not need is a phone number that could be dialled.
 --   * Three events, all carrying the sentinel in `name`, all inside the
 --     reporting window:
---       - "PILOT-LAN-81 Reporting week practice"  — three days ago, `occurred`,
---         soliciting. The one that produces most of the report.
---       - "PILOT-LAN-81 Empty register session"   — two days ago, `occurred`,
---         soliciting, and deliberately with no attendance recorded at all.
---       - "PILOT-LAN-81 Committee briefing"       — five days ago, `approved`,
---         and **not** soliciting a response. Invariant E6's exclusion, which
---         you verify by its absence.
+--       - "PILOT-LAN-81 Reporting week practice"  — `current_date - 32`,
+--         `occurred`, soliciting. The one that produces most of the report.
+--       - "PILOT-LAN-81 Empty register session"   — `current_date - 31`,
+--         `occurred`, soliciting, and deliberately with no attendance at all.
+--       - "PILOT-LAN-81 Committee briefing"       — `current_date - 34`,
+--         `approved`, and **not** soliciting a response. Invariant E6's
+--         exclusion, which you verify by its absence.
 --   * An audience for each, invitations for everybody in it except one person,
 --     and answers that between them produce every section:
 --       1. Answered Attending, marked Absent      → an RSVP/attendance mismatch
@@ -97,9 +98,9 @@ select
   current_database() as database,
   current_user as connected_as,
   now() as at,
-  current_date as reporting_date_to_use,
-  (current_date - 7) as window_from,
-  (current_date - 1) as window_to,
+  (current_date - 28) as reporting_date_to_use,
+  (current_date - 35) as window_from,
+  (current_date - 29) as window_to,
   (select count(*) from public.people) as people_rows_before,
   (select count(*) from public.events) as event_rows_before,
   (select count(*) from public.weekly_reports) as weekly_report_rows_before,
@@ -174,12 +175,12 @@ begin
   -- identification of the generated snapshots unambiguous.
   select count(*) into offending
     from public.events
-   where scheduled_on between current_date - 7 and current_date - 1
+   where scheduled_on between current_date - 35 and current_date - 29
      and id <> all (scenario_events);
   if offending > 0 then
     raise exception
       'LAN-81 pilot setup: % event(s) that are not this scenario''s already sit in the reporting window (% to %). Install this scenario in a week that is otherwise empty, or remove them first.',
-      offending, current_date - 7, current_date - 1;
+      offending, current_date - 35, current_date - 29;
   end if;
 
   -- A weekly report already filed for today means a previous run was left
@@ -187,10 +188,10 @@ begin
   -- matrix in README.md would not match what you see.
   select count(*) into offending
     from public.weekly_reports
-   where report_on = current_date;
+   where report_on = current_date - 28;
   if offending > 0 then
     raise exception
-      'LAN-81 pilot setup: % weekly report(s) are already filed for today. Run cleanup.sql first, then install the scenario again.',
+      'LAN-81 pilot setup: % weekly report(s) are already filed for this scenario''s reporting date. Run cleanup.sql first, then install the scenario again.',
       offending;
   end if;
 end;
@@ -280,21 +281,21 @@ select
 from (values
   ('00810081-0081-4081-8081-000000000021',
    'PILOT-LAN-81 Reporting week practice',
-   'practice', 'occurred', (current_date - 3)::text, true,
-   (((current_date - 3) + '20:00'::time) at time zone 'Europe/London')::text,
+   'practice', 'occurred', (current_date - 32)::text, true,
+   (((current_date - 32) + '20:00'::time) at time zone 'Europe/London')::text,
    '00810081-0081-4081-8081-000000000001',
-   (((current_date - 5) + '18:00'::time) at time zone 'Europe/London')::text),
+   (((current_date - 34) + '18:00'::time) at time zone 'Europe/London')::text),
   ('00810081-0081-4081-8081-000000000022',
    'PILOT-LAN-81 Empty register session',
-   'practice', 'occurred', (current_date - 2)::text, true,
-   (((current_date - 2) + '20:00'::time) at time zone 'Europe/London')::text,
+   'practice', 'occurred', (current_date - 31)::text, true,
+   (((current_date - 31) + '20:00'::time) at time zone 'Europe/London')::text,
    '00810081-0081-4081-8081-000000000001',
-   (((current_date - 4) + '18:00'::time) at time zone 'Europe/London')::text),
+   (((current_date - 33) + '18:00'::time) at time zone 'Europe/London')::text),
   -- Solicits nothing, so it is approved and stays approved. Invariant E6 keeps
   -- its audience out of the response stream entirely.
   ('00810081-0081-4081-8081-000000000023',
    'PILOT-LAN-81 Committee briefing',
-   'meeting', 'approved', (current_date - 5)::text, false,
+   'meeting', 'approved', (current_date - 34)::text, false,
    null, null, null)
 ) as event(id, name, event_type, status, scheduled_on, solicits_response,
            outcome_at, outcome_by, deadline_at)
@@ -354,29 +355,29 @@ select
   invitation.membership_id::uuid,
   invitation.audience_member_id::uuid,
   invitation.status::public.invitation_status,
-  (current_date - 6)::timestamptz,
+  (current_date - 36)::timestamptz,
   invitation.expires_at::timestamptz
 from (values
   -- Answered Attending, and marked Absent below.
   ('00810081-0081-4081-8081-000000000041', '00810081-0081-4081-8081-000000000021',
    'occurred', true, '00810081-0081-4081-8081-000000000011',
    '00810081-0081-4081-8081-000000000031', 'responded',
-   (((current_date - 4) + '18:00'::time) at time zone 'Europe/London')::text),
+   (((current_date - 33) + '18:00'::time) at time zone 'Europe/London')::text),
   -- Answered Not attending, with the reason.
   ('00810081-0081-4081-8081-000000000042', '00810081-0081-4081-8081-000000000021',
    'occurred', true, '00810081-0081-4081-8081-000000000012',
    '00810081-0081-4081-8081-000000000032', 'responded',
-   (((current_date - 4) + '18:00'::time) at time zone 'Europe/London')::text),
+   (((current_date - 33) + '18:00'::time) at time zone 'Europe/London')::text),
   -- Asked, never answered, and the deadline has passed. The nonresponse queue.
   ('00810081-0081-4081-8081-000000000043', '00810081-0081-4081-8081-000000000021',
    'occurred', true, '00810081-0081-4081-8081-000000000013',
    '00810081-0081-4081-8081-000000000033', 'expired',
-   (((current_date - 4) + '18:00'::time) at time zone 'Europe/London')::text),
+   (((current_date - 33) + '18:00'::time) at time zone 'Europe/London')::text),
   -- The empty-register session's one invitee, who also never answered.
   ('00810081-0081-4081-8081-000000000044', '00810081-0081-4081-8081-000000000022',
    'occurred', true, '00810081-0081-4081-8081-000000000011',
    '00810081-0081-4081-8081-000000000035', 'expired',
-   (((current_date - 3) + '18:00'::time) at time zone 'Europe/London')::text),
+   (((current_date - 32) + '18:00'::time) at time zone 'Europe/London')::text),
   -- The briefing's one invitee. Never answered either — and invariant E6 keeps
   -- them out of the nonresponse queue anyway, which is the point of them.
   ('00810081-0081-4081-8081-000000000045', '00810081-0081-4081-8081-000000000023',
@@ -398,10 +399,10 @@ insert into public.rsvp_responses
 values
   ('00810081-0081-4081-8081-000000000051', '00810081-0081-4081-8081-000000000041',
    'yes', null, 'operator',
-   (current_date - 5)::timestamptz, (current_date - 5)::timestamptz),
+   (current_date - 34)::timestamptz, (current_date - 34)::timestamptz),
   ('00810081-0081-4081-8081-000000000052', '00810081-0081-4081-8081-000000000042',
    'no', 'PILOT-LAN-81 synthetic reason — coursework deadline.', 'operator',
-   (current_date - 5)::timestamptz, (current_date - 5)::timestamptz)
+   (current_date - 34)::timestamptz, (current_date - 34)::timestamptz)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
@@ -424,7 +425,7 @@ select
   'player',
   record.membership_id::uuid,
   record.presence::public.attendance_presence,
-  ((current_date - 3) + '22:00'::time)::timestamptz,
+  ((current_date - 32) + '22:00'::time)::timestamptz,
   '00810081-0081-4081-8081-000000000001'
 from (values
   ('00810081-0081-4081-8081-000000000061', '00810081-0081-4081-8081-000000000011', 'absent'),
@@ -440,27 +441,27 @@ on conflict (id) do nothing;
 -- something in the window is not this scenario's and you should roll back.
 select
   'LAN-81 pilot setup — installed' as check,
-  current_date as reporting_date,
-  (current_date - 7) as window_from,
-  (current_date - 1) as window_to,
+  (current_date - 28) as reporting_date,
+  (current_date - 35) as window_from,
+  (current_date - 29) as window_to,
   (select count(*) from public.events where name like '%PILOT-LAN-81%') as scenario_events,
   (
     select count(*) from public.nonresponse_queue
-     where scheduled_on between current_date - 7 and current_date - 1
+     where scheduled_on between current_date - 35 and current_date - 29
   ) as expect_nonresponses,
   (
     select count(*) from public.invitation_response_state s
      join public.events e on e.id = s.event_id
-    where e.scheduled_on between current_date - 7 and current_date - 1
+    where e.scheduled_on between current_date - 35 and current_date - 29
       and s.response_state = 'responded_no'
   ) as expect_not_attending,
   (
     select count(*) from public.rsvp_attendance_mismatches
-     where scheduled_on between current_date - 7 and current_date - 1
+     where scheduled_on between current_date - 35 and current_date - 29
   ) as expect_mismatches,
   (
     select count(*) from public.uninvited_audience_members
-     where scheduled_on between current_date - 7 and current_date - 1
+     where scheduled_on between current_date - 35 and current_date - 29
   ) as expect_approval_defects,
   (
     select count(*) from public.invitation_response_state s

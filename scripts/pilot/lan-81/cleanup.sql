@@ -82,7 +82,7 @@ declare
 begin
   select count(*) into ambiguous
     from public.weekly_reports w
-   where w.report_on between current_date - 7 and current_date
+   where w.report_on between current_date - 35 and current_date - 28
      and w.content::text not like '%PILOT-LAN-81%';
 
   if ambiguous > 0 then
