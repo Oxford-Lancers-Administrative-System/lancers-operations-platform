@@ -74,11 +74,11 @@ independently certify their adequacy.
 Assign review before implementation from reachability and blast radius, never
 diff size:
 
-| Grade   | Route                                                                                                                 | Criterion                                                                                                                                            |
-| ------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Low     | Top-level verification only; no independent reviewer.                                                                 | Non-behavioral or unreachable, with no schema, dependency, security, privacy, or production impact.                                                  |
-| Normal  | One fresh-context `code-reviewer` after implementation.                                                               | Reachable application behavior outside the highest-risk surfaces.                                                                                    |
-| Highest | One fresh-context `code-reviewer`; if corrections are required, a fresh re-review of the corrected head is mandatory. | Authentication, authorization, migrations, grants/RLS, secrets, privileged credentials, production-affecting workflows, or the agent harness itself. |
+| Grade   | Route                                                                                                                                       | Criterion                                                                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Low     | Top-level verification only; no independent reviewer.                                                                                       | Non-behavioral or unreachable, with no schema, dependency, security, privacy, or production impact.                                                  |
+| Normal  | One fresh-context `code-reviewer` after implementation.                                                                                     | Reachable application behavior outside the highest-risk surfaces.                                                                                    |
+| Highest | One fresh-context `code-reviewer`; narrow corrections use bounded correction review and material risk-surface changes reset to full review. | Authentication, authorization, migrations, grants/RLS, secrets, privileged credentials, production-affecting workflows, or the agent harness itself. |
 
 An unspecified grade resolves to Normal. Re-check the completed diff and raise
 the grade when its actual reach is higher; never lower it after implementation.
@@ -216,23 +216,120 @@ validation, CI, or this review.
 For Low risk, read the complete diff and verification evidence yourself and
 record why independent review is not required.
 
-For Normal or Highest risk, launch exactly one fresh-context `code-reviewer` in
-its own isolated worktree after the draft PR exists. Give it the issue, PR
-number, exact current head SHA, internal matrix, review grade, authoritative
-sources, and its local Supabase lease status. Never give it an implementer's
-summary as evidence. Green CI is required but is not review.
+For Normal or Highest risk, launch one fresh-context `code-reviewer` in its own
+isolated worktree after the draft PR exists. Review has three operations:
 
-Correct findings in this top-level session. For Highest risk, any correction
-invalidates the prior result: commit and push the correction, wait for CI at the
-new head, and launch a fresh reviewer to review the corrected head. Do not ask
-the original reviewer to bless its stale result. Continue until the required
-review is clear or a genuine blocker remains.
+- **Full review** independently reconstructs material requirements before
+  reading the PR body, implementer summary, or acceptance matrix, then reviews
+  the complete implementation and returns a structured receipt.
+- **Correction review** reviews only
+  `previous_reviewed_sha..current_head_sha`, the named blockers, affected
+  behavior, and targeted regression evidence. It reuses the prior receipt and
+  controlled-defect evidence for unchanged behavior.
+- **Requirement adjudication** is a fresh-context `code-reviewer` invocation in
+  `requirement-adjudication` mode. It resolves a premise that blocked two
+  consecutive rounds from authoritative sources without receiving the PR body,
+  implementer framing, prior reviewer reasoning, or code diff. It is not another
+  code-defect search, but it consumes one of the three automatic reviewer
+  invocations. If sources do not resolve the premise, it returns one precise
+  owner decision.
+
+The initial brief gives the reviewer the issue, draft PR number, exact current
+head SHA, review mode `full`, review grade, authoritative sources, and local
+Supabase lease status. The acceptance matrix and other implementer-authored
+framing are withheld until the reviewer has recorded requirement provenance.
+Green CI is required but is not review.
+
+### Findings and blocking threshold
+
+A finding may block only when evidence demonstrates an authoritative acceptance
+criterion violation; incorrect reachable behavior; an authentication,
+authorization, privacy, or security failure; data loss, corruption, integrity,
+migration, RLS, or transaction risk; an unauthorized production or external
+side effect; required verification failure; or a critical regression test that
+stays green under a plausible relevant defect.
+
+Style, naming, formatting, speculative future-proofing, compliant alternative
+designs, pre-existing problems not worsened by the PR, unsupported out-of-scope
+edges, maintainability preferences without material failure, and minor findings
+first discovered in unchanged code during correction review are advisories.
+Record them as residual risk or suggestions. Advisories must not cause a code
+change, commit, further review round, or unauthorized follow-up issue.
+
+During correction review, a new blocker is permitted only when the correction
+introduced it or it is a previously missed critical correctness, security,
+privacy, or data-integrity defect. A blocker against unchanged code must state
+the controlling authoritative source or invariant, concrete failure evidence,
+material blocking impact, and why the full review missed it. Every other new
+finding against unchanged code is advisory.
+
+### Corrections, reset conditions, and circuit breaker
+
+Correct blocking findings in this top-level session, commit and push, and wait
+for CI at the new head. For a narrow correction, launch a correction review with
+the prior receipt, previous reviewed SHA, current head SHA, blocking finding
+IDs, correction intent, and relevant targeted tests. Prior coverage remains
+valid for unchanged behavior; the reviewer challenges only corrected or newly
+affected critical behavior and does not repeat controlled-defect exercises for
+unchanged behavior.
+
+Reset to a full review only when the correction materially expands or
+invalidates the reviewed risk surface by changing an authoritative requirement
+or material acceptance criterion; introducing a new workflow or externally
+reachable behavior; changing an authorization, privacy, credential, or trust
+boundary outside the original finding; adding or materially changing a
+migration, RLS policy, transaction boundary, or production side effect; or
+replacing the test strategy so prior defect-sensitivity evidence is no longer
+credible. Diff size and editing a Highest-risk file are not reset conditions.
+Record the specific reset reason.
+
+If two consecutive rounds block on substantially the same requirement,
+mechanism, or finding family, stop correction work and do not launch another
+code-review round. If an automatic invocation remains, launch a new
+fresh-context `code-reviewer` in `requirement-adjudication` mode. Its brief names
+only the issue, disputed requirement/mechanism/finding family by stable IDs,
+authoritative sources, current round count, and remaining budget; it excludes
+the PR body, implementation, diff, acceptance matrix, correction intent, prior
+reviewer reasoning, and proposed resolution. The adjudicator reconstructs the
+premise independently and returns an adjudication receipt with the disputed
+IDs, provenance, resolution or one precise owner decision, and remaining review
+budget. If no invocation remains, stop at `budget-exhausted` with the exact
+premise and owner decision instead of launching adjudication.
+
+### Review budget, receipt, and stopping behavior
+
+Without explicit owner authorization, allow at most one initial full review,
+two correction reviews, and three total reviewer invocations, including any
+full reset. At the limit, launch no reviewer and never auto-approve an unresolved
+material blocker. Return the exact blocker and required decision. If only
+advisories remain, the review is clear and the advisories remain recorded. Do
+not create another Linear issue or expand scope.
+
+Every review returns a structured receipt stored in a dedicated PR-body section
+or another non-commit PR artifact; never commit a receipt containing its own
+commit SHA. It contains at least `issue`, `pr`, `review_mode`,
+`full_review_sha`, `correction_base_sha`, `reviewed_head_sha`, `round`,
+`requirement_provenance` entries with criterion/source/location/controlling
+quotation, `resolved_finding_ids`, `blocking_findings`, `advisories`, and
+`result` (`clear`, `blocked`, `requirement-adjudication-required`, or
+`budget-exhausted`).
 
 ## 10. Final handoff
 
+Lead the final handoff with the requested owner action and preserve review
+lineage. For a clear head say: `Ready for merge. Full review completed at A;
+correction delta A..B was approved; current head B is covered.` For a pending
+delta say: `Reviewed through A. Current head B contains a pending delta
+affecting X. Prior review remains valid; only this delta is pending.` For a
+budget stop say: `Automatic review stopped after three rounds. One material
+blocker remains: X. No additional reviewer was launched.` Never describe the
+whole implementation as unreviewed merely because current head differs from the
+full-review SHA.
+
 Add the draft PR link to the Linear issue. Then add exactly one final Linear
 evidence/handoff comment covering completed implementation, automated
-verification, reviewed head SHA and independent-review result, visual/human
+verification, full-review SHA, correction base and delta, current reviewed head,
+round count, blockers, advisories and independent-review result, visual/human
 review required, exact local URL and route, authentication method, remaining
 Brian actions, post-merge database/production actions, and known limitations.
 Use explicit `None` where no action remains. Do not set In Review unless human

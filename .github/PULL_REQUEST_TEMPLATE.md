@@ -38,6 +38,18 @@ if migrations changed. "Should pass" is not verification.
 - **Database/setup actions Brian must perform:** None
 - **Production actions Brian must perform:** None
 
+## Independent review
+
+- **Grade:** Low / Normal / Highest
+- **Mode:** Not required / full / correction
+- **Full-review SHA:** None / exact SHA
+- **Correction base SHA:** None / exact SHA
+- **Current reviewed SHA:** None / exact SHA
+- **Automatic reviewer round count:** 0 / 1 / 2 / 3
+- **Blocking findings:** None / stable finding IDs and summary
+- **Advisories:** None / stable finding IDs and summary
+- **Result:** Not required / clear / blocked / requirement-adjudication-required / budget-exhausted
+
 ## Fast lane
 
 <!--

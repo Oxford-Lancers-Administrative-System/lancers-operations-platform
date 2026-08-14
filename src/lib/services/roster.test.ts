@@ -40,9 +40,9 @@ const MARKER = "LAN74Intake";
  * This is a latent hazard rather than the intermittency actually observed on
  * 13 August 2026 — that one was `countDraftedAudits`, and is fixed where it
  * lives. Anchoring here closes the hazard before it is somebody's afternoon.
- * The seeded cohort is the only population no suite ever deletes.
+ * The seeded cohort is the only population no suite ever deletes, and
+ * `seededActorPersonId` in the shared helper is how this file reaches it.
  */
-const SEEDED_PEOPLE_CREATED_AT = "2025-06-01T09:00:00Z";
 
 let observer: Client;
 /** A real `people.id` standing in for what `resolveOperator()` returns. */

@@ -30,7 +30,7 @@ import {
   NO_REQUIRES_A_REASON_RULE,
   RESPONSE_WINDOW_CLOSED_RULE,
 } from "./rsvp";
-import { openObserver } from "../../../tests/helpers/service-layer";
+import { openObserver, SEEDED_IDENTITY_CREATED_AT } from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN79RsvpSuite";
 
@@ -44,7 +44,7 @@ beforeAll(async () => {
   // suite never adopts another suite's fixture as its season opener.
   const anchor = await observer.query<{ id: string }>(
     "select id from public.people where created_at = $1::timestamptz order by id limit 1",
-    ["2025-06-01T09:00:00Z"],
+    [SEEDED_IDENTITY_CREATED_AT],
   );
   expect(anchor.rows.length).toBe(1);
   const vocabulary = await observer.query<{ id: string }>(
