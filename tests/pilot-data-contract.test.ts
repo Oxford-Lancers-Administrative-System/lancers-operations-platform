@@ -944,6 +944,62 @@ describe("the scenario scripts stay inside the conventions", () => {
     // event that happened to collide, and the sentinel alone would delete any
     // event somebody named after this scenario — so a row survives unless its
     // event satisfies both.
+    /**
+     * LAN-78's delivery surface. Its setup script writes twenty-two rows with
+     * deterministic identifiers, and cleanup removes every one of those by id.
+     * These six remove what the APPLICATION writes while the scenario is in
+     * use — the RSVP access token a retry mints, the further delivery attempts
+     * and results it produces, the callbacks Meta sends, and the audit rows
+     * both write. None of them has an identifier any script can know.
+     *
+     * Every statement is pinned to the same two conjuncts: the scenario's
+     * deterministic event identifier, and the scenario's sentinel in
+     * `events.name`. Neither alone would be enough.
+     */
+    "lan-78": [
+      [
+        "public.delivery_callbacks",
+        [
+          "delivery_attempt_id in (select id from public.delivery_attempts where notification_job_id in (select id from public.notification_jobs where event_id in ('00780078-0078-4078-8078-000000000050')))",
+          "delivery_attempt_id in (select id from public.delivery_attempts where notification_job_id in (select id from public.notification_jobs where event_id in (select id from public.events where name like '%PILOT-LAN-78%')))",
+        ],
+      ],
+      [
+        "public.delivery_results",
+        [
+          "notification_job_id in (select id from public.notification_jobs where event_id in ('00780078-0078-4078-8078-000000000050'))",
+          "notification_job_id in (select id from public.notification_jobs where event_id in (select id from public.events where name like '%PILOT-LAN-78%'))",
+        ],
+      ],
+      [
+        "public.delivery_attempts",
+        [
+          "notification_job_id in (select id from public.notification_jobs where event_id in ('00780078-0078-4078-8078-000000000050'))",
+          "notification_job_id in (select id from public.notification_jobs where event_id in (select id from public.events where name like '%PILOT-LAN-78%'))",
+        ],
+      ],
+      [
+        "public.rsvp_access_tokens",
+        [
+          "invitation_id in (select id from public.invitations where event_id in ('00780078-0078-4078-8078-000000000050'))",
+          "invitation_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-78%'))",
+        ],
+      ],
+      [
+        "public.audit_events",
+        [
+          "entity_id in (select id from public.notification_jobs where event_id in ('00780078-0078-4078-8078-000000000050'))",
+          "entity_id in (select id from public.notification_jobs where event_id in (select id from public.events where name like '%PILOT-LAN-78%'))",
+        ],
+      ],
+      [
+        "public.audit_events",
+        [
+          "entity_id in (select id from public.invitations where event_id in ('00780078-0078-4078-8078-000000000050'))",
+          "entity_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-78%'))",
+        ],
+      ],
+    ],
     "lan-77": [
       [
         "public.delivery_results",
@@ -1224,6 +1280,11 @@ describe("the scenario scripts stay inside the conventions", () => {
     ["lan-75/cleanup.sql", read("scripts/pilot/lan-75/cleanup.sql"), 12] as const,
     ["lan-77/setup.sql", read("scripts/pilot/lan-77/setup.sql"), 5] as const,
     ["lan-77/cleanup.sql", read("scripts/pilot/lan-77/cleanup.sql"), 5] as const,
+    ["lan-78/setup.sql", read("scripts/pilot/lan-78/setup.sql"), 6] as const,
+    // Higher than any other cleanup, and it should be: this scenario's rows
+    // hang off memberships, an event and a set of jobs, so there are more
+    // foreign keys PostgreSQL would follow into history than anywhere else.
+    ["lan-78/cleanup.sql", read("scripts/pilot/lan-78/cleanup.sql"), 13] as const,
   ];
 
   it("checks the preflight of every scenario in the repository", () => {
