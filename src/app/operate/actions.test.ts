@@ -38,7 +38,6 @@ import {
   administerDelivery,
   approveEvent,
   manageRoles,
-  readLeadershipReport,
   recordAttendance,
 } from "./actions";
 import { ActionNotImplemented } from "./not-implemented";
@@ -91,12 +90,12 @@ const ACTIONS: ReadonlyArray<{
     capability: "delivery_administration",
     permitted: [],
   },
-  {
-    name: "readLeadershipReport",
-    action: readLeadershipReport,
-    capability: "leadership_report",
-    permitted: [],
-  },
+  // `readLeadershipReport` was here until LAN-81 built the report. Its
+  // authorization coverage did not disappear with it: the write path is
+  // `generateReportAction`, and `src/app/operate/report/actions.test.ts` calls
+  // that directly with an under-privileged actor — the same criterion, held
+  // against an action that can actually write. It cannot live in this list
+  // because every entry here is a zero-argument stub and that one takes a form.
 ];
 
 function actor(roleCodes: string[]): ResolvedOperator {

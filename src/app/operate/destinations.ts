@@ -18,11 +18,12 @@ import { roleCodesPermit } from "@/lib/auth/capabilities";
  *     them.
  *
  *   * Report is not ordinary. § 8 restricts it to an "authorized report
- *     operator" and does not say who that is, so `leadership_report` is an
- *     empty grant and this destination currently refuses everybody. That is
- *     deliberate and visible: fail-closed until LAN-81 makes the decision, and
- *     the refusal is the interface telling the truth about a decision nobody
- *     has taken rather than a quiet default that lets everyone in.
+ *     operator" and does not say who that is, so `leadership_report` was an
+ *     empty grant that refused everybody — deliberately and visibly — until
+ *     LAN-81, the issue that owed the answer, resolved it to the four calendar
+ *     roles. `capabilities.ts` carries the reasoning and the reason it is
+ *     narrower than the ordinary operator floor: the snapshot leads with the
+ *     reasons people gave for not attending.
  *
  * Navigation is never authorization. Every destination guards itself, and this
  * list is also used to decide which one the shell opens on — not what a page is

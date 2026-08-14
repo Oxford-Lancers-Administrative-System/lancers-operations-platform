@@ -302,6 +302,43 @@ const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
         "A single membership carries the whole season, including any gap in it.",
       { rule: "season_memberships_one_per_person_per_season", context },
     ),
+
+  // Invariant M5 — the four rules that make a weekly report an immutable
+  // snapshot rather than a document. LAN-81 allocates versions in the service
+  // layer, under an advisory lock, so a caller going through
+  // `generateWeeklyReport` reaches none of these. They are the backstop for
+  // every other caller — a correction script, a later issue, a second
+  // generation racing this one — and the issue asks for one of them by name:
+  // the composite foreign key already refuses a cross-season supersession, and
+  // the service has to surface that as a readable error rather than a raw
+  // failure.
+  weekly_reports_supersedes_the_same_report: (context) =>
+    new ConstraintViolated(
+      "A regenerated report can only supersede an earlier version of the same report — " +
+        "the same season and the same reporting date.",
+      { rule: "weekly_reports_supersedes_the_same_report", context },
+    ),
+
+  weekly_reports_one_per_version: (context) =>
+    new Conflict(
+      "That version of this report already exists. Another version was generated a moment " +
+        "ago; open the report to see it, and generate again if you still need a newer one.",
+      { rule: "weekly_reports_one_per_version", context },
+    ),
+
+  weekly_reports_one_superseding_row: (context) =>
+    new Conflict(
+      "Another version already supersedes that one. A report has a single line of versions, " +
+        "so open the current report and generate again from there.",
+      { rule: "weekly_reports_one_superseding_row", context },
+    ),
+
+  weekly_reports_first_version_supersedes_nothing: (context) =>
+    new ConstraintViolated(
+      "The first version of a report supersedes nothing, and every later version supersedes " +
+        "exactly one.",
+      { rule: "weekly_reports_first_version_supersedes_nothing", context },
+    ),
 };
 
 /**

@@ -277,14 +277,29 @@ from (values
    (current_date + 14)::text, '19:00', '21:00',
    (((current_date + 12) + '18:00'::time) at time zone 'Europe/London')::text,
    null),
-  -- Began two hours ago. `scheduled_on` and `starts_at` are computed from the
-  -- instant rather than assumed, because Britain changes offset twice a season.
+  -- Began at least two hours ago. `scheduled_on` and `starts_at` are computed
+  -- from the instant rather than assumed, because Britain changes offset twice
+  -- a season.
+  --
+  -- The start is clamped to 21:00 local, which is not cosmetic. `starts_at` and
+  -- `ends_at` are `time` columns with no date in them, so a start of 22:15 plus
+  -- the scenario's 150 minutes wrapped round to 00:45 and
+  -- `events_times_ordered` — "an event has to end after it starts" — refused
+  -- the insert. The script therefore failed for anybody who ran it, and this
+  -- test suite failed in CI, in a window of roughly three hours every evening
+  -- and at no other time. Found while running the suite at 22:00 on
+  -- 14 August 2026, on LAN-81, and corrected there.
+  --
+  -- Clamping keeps every property the scenario needs: the start is still in the
+  -- past, so the event has still begun and the write cutoff has still passed,
+  -- and the end is now always later on the same day.
   ('00790079-0079-4079-8079-000000000022',
    'PILOT-LAN-79 Started scenario',
    'approved',
    ((now() - interval '2 hours') at time zone 'Europe/London')::date::text,
-   ((now() - interval '2 hours') at time zone 'Europe/London')::time::text,
-   ((now() - interval '2 hours' + interval '150 minutes') at time zone 'Europe/London')::time::text,
+   least(((now() - interval '2 hours') at time zone 'Europe/London')::time, '21:00'::time)::text,
+   (least(((now() - interval '2 hours') at time zone 'Europe/London')::time, '21:00'::time)
+      + interval '150 minutes')::time::text,
    ((now() - interval '4 hours'))::text,
    null),
   -- Called off. Invariant P4: cancellation never deletes an invitation, so the

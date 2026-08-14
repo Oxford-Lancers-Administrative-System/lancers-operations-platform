@@ -18,6 +18,7 @@ import {
   CAPABILITY_KEYS,
   capabilityRequirement,
   capabilityRoleCodes,
+  COACH_ROLE_CODES,
   describeRoleRequirement,
   describeRoles,
   roleCodesPermit,
@@ -351,10 +352,45 @@ describe("delivery administration — decided by LAN-78", () => {
   });
 });
 
+describe("the Monday report is the four calendar roles, and no coaching seat", () => {
+  // LAN-81 decided this grant, and the sensitive half of what it protects is
+  // not the counts: the snapshot leads with the reasons people gave for not
+  // attending, which `docs/ux/slice-ux.md` § 3 names among the data a coaching
+  // seat never receives, alongside the report itself.
+  it("admits each of the four", () => {
+    for (const code of ["president", "vice_president", "secretary", "general_manager"]) {
+      expect(roleCodesPermit([code], "leadership_report")).toBe(true);
+    }
+  });
+
+  it("refuses every coaching seat, including all three at once", () => {
+    for (const code of COACH_ROLE_CODES) {
+      expect(roleCodesPermit([code], "leadership_report")).toBe(false);
+    }
+    expect(roleCodesPermit([...COACH_ROLE_CODES], "leadership_report")).toBe(false);
+  });
+
+  it("refuses the Treasurer, as the rest of the event workflow does", () => {
+    expect(roleCodesPermit(["treasurer"], "leadership_report")).toBe(false);
+    expect(capabilityRoleCodes("leadership_report")).not.toContain("treasurer");
+  });
+
+  it("refuses an ordinary operator holding an unrelated role", () => {
+    expect(roleCodesPermit(["it_officer", "social_secretary"], "leadership_report")).toBe(false);
+  });
+
+  it("records who decided it and when", () => {
+    expect(CAPABILITIES.leadership_report.decision).toMatch(/LAN-81/);
+    expect(CAPABILITIES.leadership_report.decision).not.toMatch(/undecided/i);
+  });
+});
+
 describe("the undecided capabilities are refused to everybody", () => {
-  // Two, since LAN-78 decided the third. Both still name the issue that owes
-  // the answer, and both are still refused to the whole catalogue at once.
-  const undecided: CapabilityKey[] = ["role_management", "leadership_report"];
+  // One, since LAN-78 decided delivery and LAN-81 decided the report. It still
+  // names the issue that owes the answer, and it is still refused to the whole
+  // catalogue at once — which is the property this block exists for, and which
+  // does not weaken as the list shortens.
+  const undecided: CapabilityKey[] = ["role_management"];
 
   it.each(undecided)("%s permits no role code at all", (key) => {
     expect(capabilityRoleCodes(key)).toEqual([]);
@@ -442,8 +478,20 @@ describe("row 6 — a requirement sentence names the action's need, never the ac
   });
 
   it("says plainly that nobody is authorized, rather than naming an empty list", () => {
-    expect(capabilityRequirement("leadership_report")).toBe(
+    // `leadership_report` demonstrated this until LAN-81 decided its grant.
+    // `role_management` is the remaining undecided capability and demonstrates
+    // it now; the sentence under test is the one an empty grant produces, and
+    // it must keep working for as long as an empty grant is possible at all.
+    expect(capabilityRoleCodes("role_management")).toEqual([]);
+    expect(capabilityRequirement("role_management")).toBe(
       "No club role is currently authorized to perform this action.",
+    );
+  });
+
+  it("names the report's authorized operators, now that they are decided", () => {
+    expect(capabilityRequirement("leadership_report")).toBe(
+      "This action requires one of these roles: President, Vice-President, Secretary " +
+        "or General Manager.",
     );
   });
 

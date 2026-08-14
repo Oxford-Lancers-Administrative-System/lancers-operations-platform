@@ -12,8 +12,8 @@
  *
  *   * **It grants nothing implicitly.** A capability whose `roleCodes` is empty
  *     is refused to everybody, including the President. Absence of a decision
- *     is never permission — see the three undecided entries below, each of
- *     which names the issue that owes the decision.
+ *     is never permission — see `role_management` below, the one entry still
+ *     undecided, which names the decision it owes rather than guessing at it.
  *
  *   * **It is data, not code.** No conditionals, no inheritance between
  *     capabilities, no "admin implies everything". An operator holding
@@ -46,6 +46,7 @@
  * | Event approval            | President, VP, Secretary, General Manager      | Brian, 12 Aug 2026 |
  * | Occurrence assertion      | President, VP, Secretary, General Manager      | Lead, 14 Aug 2026  |
  * | Delivery administration   | President, VP, Secretary, General Manager      | Lead, 13 Aug 2026  |
+ * | Leadership report         | President, VP, Secretary, General Manager      | Lead, 14 Aug 2026  |
  *
  * None of them is re-derived here, and none may be re-derived by a later
  * implementer: they are recorded owner and lead decisions on LAN-73, LAN-77 and
@@ -393,20 +394,59 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   }),
 
   /**
-   * Undecided, and therefore refused to everyone.
+   * The Monday exception and action report — previewing it, generating a
+   * snapshot, and reading a stored one.
    *
-   * `slice-ux.md` § 8 restricts the report to an "authorized report operator"
-   * without saying which roles that is. Naming them is an owner decision that
-   * LAN-81 owes; until it is made, `/operate/report` refuses everybody rather
-   * than guessing. Fail-closed is the correct direction for an authorization
-   * boundary, and an empty grant that is visible in the interface is better
-   * than one hidden in a comment.
+   * This entry previously read `[]`, refused to everybody, because
+   * `docs/ux/slice-ux.md` § 8 restricts the report to an "authorized report
+   * operator" without saying who that is, and LAN-73 deferred the answer to
+   * LAN-81. LAN-81 is this issue, and an empty grant would ship a report screen
+   * nobody could open — the same position `delivery_administration` was in
+   * before LAN-78 resolved it, and resolved the same way.
+   *
+   * The four calendar roles, and that is a derivation from recorded decisions
+   * rather than a new one:
+   *
+   *   * Brian's LAN-77 clarification — "only active President, Vice President,
+   *     Secretary, and General Manager role holders may create, edit, abandon,
+   *     or approve calendar events". The Monday review is the same operating
+   *     group reading the consequences of the week they ran, and it is the
+   *     group that can act on every exception it leads with: a nonresponse to
+   *     chase, an approval defect to correct, a register nobody completed.
+   *
+   *   * `slice-ux.md` § 3 states that a coaching seat receives "no general
+   *     operator navigation, roster editing, event administration, delivery,
+   *     **report**, contact, **RSVP-reason**, or availability data". The report
+   *     is named, and so is the one kind of content it leads with that nothing
+   *     else in the slice displays. No coaching role may hold this.
+   *
+   *   * The Treasurer is excluded for the same reason they are excluded from
+   *     `event_calendar_management`, `event_approval` and
+   *     `delivery_administration`. Nothing about the Monday review
+   *     distinguishes it from those three, and no recorded decision puts the
+   *     Treasurer on the club's event workflow. The report carries no finance
+   *     content: subscription status appears in it only as an outstanding
+   *     onboarding item, exactly as it does on the roster.
+   *
+   * What makes this grant worth reading twice rather than once: the snapshot
+   * contains **the reasons people gave for not attending**, which the approved
+   * MVP boundary puts in the lead. That is the most sensitive content in the
+   * slice, it is shown to the operator group only, and it is never exported or
+   * copied into anything shared. Narrowing this list is an edit to one array,
+   * and widening it is a privacy decision rather than a convenience.
+   *
+   * A lead derivation, flagged as the assumption it is on LAN-81's pull request.
    */
   leadership_report: capability({
     key: "leadership_report",
     action: "read the Monday exception and action report",
-    roleCodes: [],
-    decision: "Undecided. LAN-81 owes the 'authorized report operator' definition.",
+    roleCodes: ["president", "vice_president", "secretary", "general_manager"],
+    decision:
+      "Lead, 14 August 2026 (LAN-81): derived from Brian's LAN-77 event-workflow authority — " +
+      "the group that ran the week reads and acts on its exceptions — and from slice-ux.md " +
+      "§ 3, which names the report and RSVP reasons among the surfaces a coaching seat never " +
+      "receives. Replaces the empty grant LAN-73 recorded and LAN-81 owed. Recorded as an " +
+      "assumption on LAN-81 and narrowed by editing this list.",
   }),
 });
 

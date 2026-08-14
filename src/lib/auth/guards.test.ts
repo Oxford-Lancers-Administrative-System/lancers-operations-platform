@@ -241,9 +241,13 @@ describe("rows 9 to 12 — requireCapability() over the map", () => {
     },
   );
 
-  it.each(["role_management", "leadership_report"] as CapabilityKey[])(
+  it.each(["role_management"] as CapabilityKey[])(
     "refuses %s to the President, because nobody has been granted it",
     async (key) => {
+      // `leadership_report` was here until LAN-81 decided its grant. The
+      // property is unchanged and is asserted below against a role that is
+      // genuinely outside it: an empty grant refuses everybody, and a decided
+      // grant refuses everybody it does not name.
       givenSession({ state: "active", operator: actor(["president"]) });
 
       const refusal = await refusalFrom(() => requireCapability(key));
@@ -251,6 +255,26 @@ describe("rows 9 to 12 — requireCapability() over the map", () => {
       expect(refusal.message).toContain("No club role is currently authorized");
     },
   );
+
+  it("permits the Monday report to the four roles LAN-81 granted it", async () => {
+    for (const code of ["president", "vice_president", "secretary", "general_manager"]) {
+      const operator = actor([code]);
+      givenSession({ state: "active", operator });
+
+      await expect(requireCapability("leadership_report")).resolves.toBe(operator);
+    }
+  });
+
+  it("refuses the Monday report to a coaching seat and to the Treasurer", async () => {
+    for (const code of ["head_coach", "offence_coach", "defence_coach", "treasurer"]) {
+      givenSession({ state: "active", operator: actor([code]) });
+
+      const refusal = await refusalFrom(() => requireCapability("leadership_report"));
+      expect(refusal.rule).toBe(capabilityRule("leadership_report"));
+      // The requirement, and nothing about the reader.
+      expect(refusal.message).not.toContain(code);
+    }
+  });
 
   it("permits delivery administration to the four roles LAN-78 granted it", async () => {
     // The counterpart of the refusal above: this capability left the undecided

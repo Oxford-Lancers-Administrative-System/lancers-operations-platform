@@ -100,8 +100,16 @@ export async function administerDelivery(): Promise<never> {
   notImplemented("LAN-78", "administer WhatsApp delivery, retries and revocation");
 }
 
-/** Read the Monday exception and action report. Nobody, pending LAN-81. */
-export async function readLeadershipReport(): Promise<never> {
-  await requireCapability("leadership_report");
-  notImplemented("LAN-81", "read the Monday exception and action report");
-}
+/*
+ * `readLeadershipReport` used to be here, gated on `leadership_report` and
+ * raising `ActionNotImplemented` past the guard. LAN-81 built the report, so
+ * the claim it made — "authorization is in place and the behaviour is not" —
+ * stopped being true, and a placeholder that lies is worse than no placeholder.
+ *
+ * The capability did not go anywhere and neither did its enforcement. Reading
+ * is `src/app/operate/report/page.tsx`, through the same shell gate; writing is
+ * `generateReportAction` in `report/actions.ts`, which re-checks the capability
+ * itself. `report/actions.test.ts` calls that action directly with an
+ * under-privileged actor, which is LAN-73's criterion held against the thing
+ * that can now actually write.
+ */

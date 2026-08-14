@@ -275,10 +275,24 @@ No view is materialised, so there is no cache and nothing to drift.
 | `invitation_response_state`  | Invariant P7's partition, computed from the resolved audience outward; excludes non-soliciting events (E6)                        |
 | `nonresponse_queue`          | Requirement 6's escalation queue — invitees who were asked and have not answered                                                  |
 | `uninvited_audience_members` | People the approver confirmed who were never actually invited: an approval defect, deliberately kept out of the nonresponse queue |
-| `rsvp_attendance_mismatches` | Requirement 7's flagged mismatches                                                                                                |
+| `rsvp_attendance_mismatches` | Requirement 7's flagged mismatches, over the full outer join of an occurred event's invitations and its attendance                |
 | `constitutional_membership`  | Invariant I5 — admitted **and** paid, reported beside operational readiness                                                       |
 | `person_standing`            | Alumni derivation, operator-overridable                                                                                           |
 | `transition_ledger`          | Invariant M2 as one stream over the typed history tables plus `audit_events`                                                      |
+
+`rsvp_attendance_mismatches` is **not** the view
+`20260810121200_domain_views.sql` created.
+`20260814200000_mismatch_view_sees_walk_ups.sql` replaced it, because the
+original named four classifications and could produce only three: it joined
+attendance to invitations and admitted an unmatched attendance row through
+`or i.id is null`, which is true only for an event with no invitations at all —
+and every approved event has invitations. A walk-up therefore paired with
+nothing and `attended_without_invitation` was unreachable. The correction is the
+`full outer join` of "was asked" against "was observed", each side keyed on the
+one anchor invariant P8 guarantees it has. Nothing else about the view changed:
+the columns, the three working classifications, the `occurred`-only population
+and the deliberate absence of any resolution are as they were. LAN-80 found it
+and reported it; LAN-81 corrected it, being the issue that reads the view.
 
 ## Invariant enforcement matrix
 

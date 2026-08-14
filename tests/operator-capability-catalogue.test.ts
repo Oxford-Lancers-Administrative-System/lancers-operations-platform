@@ -124,10 +124,22 @@ describe.runIf(configured)("the capability map against public.roles", () => {
   });
 
   it("leaves no undecided capability holding a code by accident", () => {
-    // `delivery_administration` left this list in LAN-78, which decided it. The
-    // two that remain are still undecided and must still hold nothing.
-    for (const key of ["role_management", "leadership_report"] as const) {
+    // `delivery_administration` left this list in LAN-78 and
+    // `leadership_report` in LAN-81, each of which decided its grant.
+    // `role_management` is the one that remains undecided, and it must still
+    // hold nothing at all.
+    for (const key of ["role_management"] as const) {
       expect(CAPABILITIES[key].roleCodes).toEqual([]);
+    }
+  });
+
+  it("grants the Monday report only codes the catalogue really has", () => {
+    // Same reason as delivery below: a typo in this grant is a permanent silent
+    // refusal that no test would otherwise catch, and the report is the one
+    // destination in the shell that a wrong code would lock everybody out of.
+    expect(CAPABILITIES.leadership_report.roleCodes.length).toBeGreaterThan(0);
+    for (const code of CAPABILITIES.leadership_report.roleCodes) {
+      expect(catalogue.map((role) => role.code)).toContain(code);
     }
   });
 
