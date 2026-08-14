@@ -466,18 +466,30 @@ export async function dispatchJob(
  * invitations being attempted.
  */
 async function recordDispatchFailure(jobId: string, error: unknown): Promise<void> {
+  // Deliberately does NOT say "nothing was sent". This runs on the path where
+  // `dispatchJob` threw, and one of those throws comes from the transaction
+  // that records an outcome *after* the provider already accepted the message.
+  // Asserting that nothing was sent would then be false, and would invite a
+  // retry that duplicates an invitation somebody has already received.
   const reason = isServiceError(error)
     ? error.message
-    : "This invitation could not be prepared for sending, and nothing was sent.";
+    : "This invitation could not be completed, and its outcome is unknown. Check with the " +
+      "person before retrying.";
 
   try {
     await withTransaction(async (tx) => {
+      // Guarded on the claim this dispatcher holds. Between a failed claim
+      // rolling back and this write, another worker can legitimately claim the
+      // same job — and stamping it `failed` underneath them would strand a send
+      // that is actually in flight, with nothing to correct it until a callback
+      // arrives, which no deployment receives yet.
       await tx.query(
         `update public.notification_jobs
             set status = 'failed', last_error = $2, claimed_at = null, claimed_by = null,
                 updated_at = now()
-          where id = $1`,
-        [jobId, reason],
+          where id = $1
+            and (claimed_by is null or claimed_by = $3)`,
+        [jobId, reason, DISPATCH_ACTOR_LABEL],
       );
       await recordAudit(tx, {
         actorLabel: DISPATCH_ACTOR_LABEL,

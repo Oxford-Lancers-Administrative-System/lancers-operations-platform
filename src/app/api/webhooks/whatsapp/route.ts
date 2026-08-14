@@ -60,7 +60,7 @@ import { applyProviderCallback } from "@/lib/services/delivery";
  * unauthenticated caller must not get to choose how much of that the club pays
  * for.
  */
-const MAX_CALLBACK_BYTES = 64 * 1024;
+export const MAX_CALLBACK_BYTES = 64 * 1024;
 
 /** Constant-time equality for a shared secret. `null` never matches. */
 function matchesSecret(given: string | null, expected: string): boolean {
@@ -101,17 +101,26 @@ export async function POST(request: Request): Promise<Response> {
   // cannot verify must not accept. 503, not 200: it is a real inability.
   if (!webhook.configured) return new NextResponse(null, { status: 503 });
 
-  // Bounded before it is read. This is the only endpoint an unauthenticated
-  // caller is meant to reach, and everything after this line — reading the
-  // body, then hashing it — costs work that a stranger would otherwise choose
-  // the size of. Meta's callbacks are a few kilobytes.
-  const declared = Number(request.headers.get("content-length") ?? "0");
+  // Bounded before it is **hashed**, which is the honest claim. An earlier
+  // version of this comment said "before it is read", and that was false: the
+  // body is buffered by `request.text()` regardless, and the platform's own
+  // limit is what bounds that. What these two checks avoid is computing an HMAC
+  // over an arbitrarily large body chosen by an unauthenticated caller — the
+  // one endpoint a stranger is meant to reach.
+  //
+  // `content-length` is a hint, not a guarantee: it is absent on a chunked
+  // request and can be a lie. So it is used only when it is present and
+  // numeric, and the real check is on the decoded bytes afterwards —
+  // `Buffer.byteLength`, not `String.length`, because the latter counts UTF-16
+  // code units and would let a UTF-8 body of roughly three times the cap
+  // through.
+  const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > MAX_CALLBACK_BYTES) {
     return new NextResponse(null, { status: 413 });
   }
 
   const raw = await request.text();
-  if (raw.length > MAX_CALLBACK_BYTES) {
+  if (Buffer.byteLength(raw, "utf8") > MAX_CALLBACK_BYTES) {
     return new NextResponse(null, { status: 413 });
   }
 

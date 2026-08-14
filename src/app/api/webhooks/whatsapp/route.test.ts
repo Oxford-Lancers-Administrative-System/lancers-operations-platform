@@ -34,7 +34,7 @@ import type { Client } from "pg";
 
 import { closePool } from "@/lib/db";
 import { openObserver } from "../../../../../tests/helpers/service-layer";
-import { GET, POST } from "./route";
+import { GET, MAX_CALLBACK_BYTES, POST } from "./route";
 
 /** Test-only values. Neither is a credential to anything that exists. */
 const APP_SECRET = "lan78-route-suite-app-secret";
@@ -205,6 +205,58 @@ describe("POST — a verified request is applied exactly once", () => {
     // This response crosses the internet to a caller that is authenticated but
     // owed nothing: no identifier, no status, no recipient.
     expect(Object.keys(answered as object).sort()).toEqual(["applied", "received"]);
+  });
+});
+
+describe("POST — the body is bounded before it is hashed", () => {
+  it("refuses an oversized body outright", async () => {
+    configured();
+    // Verifying costs an HMAC over the whole body, and this is the one endpoint
+    // an unauthenticated caller is meant to reach. Signed or not, an
+    // arbitrarily large body is refused before that cost is paid.
+    const oversized = JSON.stringify({ entry: [], padding: "x".repeat(MAX_CALLBACK_BYTES) });
+
+    const response = await post(oversized, sign(oversized));
+
+    expect(response.status).toBe(413);
+    expect(await callbackCount()).toBe(0);
+  });
+
+  it("refuses a body whose declared length is oversized", async () => {
+    configured();
+    const body = payload("declared");
+
+    const response = await POST(
+      new Request("https://lancers.example.org/api/webhooks/whatsapp", {
+        method: "POST",
+        headers: {
+          "x-hub-signature-256": sign(body),
+          "content-length": String(MAX_CALLBACK_BYTES + 1),
+        },
+        body,
+      }),
+    );
+
+    expect(response.status).toBe(413);
+  });
+
+  it("measures bytes rather than characters", async () => {
+    configured();
+    // `String.length` counts UTF-16 code units, so a multi-byte body would slip
+    // through a cap written against it at roughly three times the size.
+    const multibyte = JSON.stringify({ entry: [], padding: "é".repeat(MAX_CALLBACK_BYTES - 200) });
+    expect(multibyte.length).toBeLessThan(MAX_CALLBACK_BYTES);
+    expect(Buffer.byteLength(multibyte, "utf8")).toBeGreaterThan(MAX_CALLBACK_BYTES);
+
+    expect((await post(multibyte, sign(multibyte))).status).toBe(413);
+  });
+
+  it("accepts an ordinary callback, which is nowhere near the cap", async () => {
+    configured();
+    const body = payload("small");
+    expect(Buffer.byteLength(body, "utf8")).toBeLessThan(MAX_CALLBACK_BYTES);
+
+    expect((await post(body, sign(body))).status).toBe(200);
   });
 });
 
