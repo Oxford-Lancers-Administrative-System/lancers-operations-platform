@@ -78,7 +78,7 @@ select
   -- Untouched by this script, and reported so their survival is visible rather
   -- than assumed.
   (select count(*) from public.people
-    where known_as is distinct from 'PILOT-LAN-78 Delivery') as people_that_stay,
+    where known_as is null or known_as not like 'PILOT-LAN-78%') as people_that_stay,
   (select count(*) from public.operator_accounts) as operator_accounts_that_stay,
   (select count(*) from public.role_assignments) as role_assignments_that_stay,
   (select count(*) from public.audit_events) as audit_rows_before;

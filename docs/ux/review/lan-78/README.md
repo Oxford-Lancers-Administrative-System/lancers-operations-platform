@@ -44,14 +44,29 @@ and [`docs/ux/slice-ux.md`](../../slice-ux.md).
 
 ## Recorded deviations
 
-Two, both deliberate.
+Five, all deliberate.
 
 1. **UX-51's Retry column shows `Scheduled` for a queued row**, matching the
    wireframe, but the underlying value is `retryable` — the same flag that
    renders `Retryable` for a failed row. The wireframe's "Next automated attempt
    12:15" on UX-52 is **not** implemented: nothing schedules a next attempt (see
    the pull request's limitations), so a time there would be untrue.
-2. **UX-52's Token fact reads "Not yet issued"** for an invitation that has not
+2. **UX-52's Latest result reads `Retryable`, not `Failed`**, for a delivery
+   that failed transiently. The wireframe shows Result `Failed` beside Retry
+   `Retryable` as two independent axes; the implementation treats a transient
+   failure with attempts remaining as the single state **Retryable**, and
+   reserves **Failed** for a terminal refusal or an exhausted ceiling. That is
+   the distinction ADR 0023 records, and collapsing it back would mean telling
+   an operator a delivery had failed when it is about to be retried.
+3. **UX-51's Status filter opens on "All", not "Needs attention".** The
+   wireframe shows the filter already narrowed. Defaulting a filter to a subset
+   hides rows an operator has not asked to hide, so the screen opens showing
+   everything and offers **Needs attention** as the first choice.
+4. **UX-52's Fallback fact reads "Automated email / calendar"** where the
+   wireframe reads "Automated email scheduled". Nothing is scheduled — the
+   fallback is policy, and no scheduler exists — so the wireframe's wording
+   would be a promise the system does not keep.
+5. **UX-52's Token fact reads "Not yet issued"** for an invitation that has not
    been attempted, where the wireframe shows "Live". A token is minted at the
    delivery attempt, not at approval, because its plaintext cannot be stored —
    so "Live" before any attempt would be false. ADR 0023 records the reasoning.
