@@ -132,29 +132,35 @@ occurred is an authorized-operator action and you already hold it.
 Work through it in order. Steps 1 to 4 must be done **before** step 5, because
 the gate being shut is what they demonstrate.
 
-| #   | Sign in as        | Do this                                                             | Expect                                                                                                         |
-| --- | ----------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| 1   | The coach login   | Open the shell                                                      | One destination, **Attendance · This season's sessions**. No Roster, no Events, no Report                      |
-| 2   | The coach login   | Open **Attendance**                                                 | **Upcoming** first, today's session badged **Today** and outlined at the top; both say **Attendance not open** |
-| 3   | The coach login   | Open today's session anyway                                         | **Attendance is not open**, and a line saying coach access does not include Mark occurred                      |
-| 4   | The coach login   | Type `/operate/roster` into the address bar                         | Refused, with no roster on the screen. Navigation was never the boundary                                       |
-| 5   | You (operator)    | Open **both** events and press **Mark occurred** on each            | The assertion is recorded against you, twice                                                                   |
-| 6   | The coach login   | Open **Attendance** again                                           | Neither says Attendance not open now. Today's is still top of Upcoming; the older one is under **Earlier**     |
-| 7   | The coach login   | Open the scenario event, under Earlier                              | The register: **Attending** open, **Everyone else** closed beneath it, each sorted by name                     |
-| 8   | The coach login   | Open Everyone else, press **Present** for the one who said no       | `Saving…`, then the committed value with your coach's name and the time                                        |
-| 9   | The coach login   | Press **Late** for the same person                                  | The correction commits; the earlier value stays in the audit trail                                             |
-| 10  | The coach login   | Type part of a name into **Search player**, then clear it           | Every group opens and the person appears; clearing puts them back as they were                                 |
-| 11  | The coach login   | Look for the reason behind the **Not attending**                    | It is not on the screen, and not in the page source                                                            |
-| 12  | The coach login   | Open **Today session**, **Add walk-up**, `PILOT-LAN-110 Devon Skye` | The form does not ask for an attendance state; it says it records Present                                      |
-| 13  | The coach login   | Save it                                                             | Back on the board, in a **Walk-ups** group of its own at the bottom, present, flagged, no membership           |
-| 14  | The coach login   | Look for a way to remove a record                                   | There is none. Removal unwinds the occurrence assertion, which is not a coach's                                |
-| 15  | The refused login | Open either attendance URL                                          | **You cannot record attendance for this event**, no board, no names                                            |
-| 16  | Both coach logins | Do steps 6 to 13 again at phone width (375px)                       | Everything reachable, nothing scrolling sideways                                                               |
+| #   | Sign in as        | Do this                                                                                               | Expect                                                                                                         |
+| --- | ----------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1   | The coach login   | Open the shell                                                                                        | One destination, **Attendance · This season's sessions**. No Roster, no Events, no Report                      |
+| 2   | The coach login   | Open **Attendance**                                                                                   | **Upcoming** first, today's session badged **Today** and outlined at the top; both say **Attendance not open** |
+| 3   | The coach login   | Open today's session anyway                                                                           | **Attendance is not open**, and a line saying coach access does not include Mark occurred                      |
+| 4   | The coach login   | Type `/operate/roster` into the address bar                                                           | Refused, with no roster on the screen. Navigation was never the boundary                                       |
+| 5   | You (operator)    | Open **both** events and press **Mark occurred** on each                                              | The assertion is recorded against you, twice                                                                   |
+| 6   | The coach login   | Open **Attendance** again                                                                             | Neither says Attendance not open now. Today's is still top of Upcoming; the older one is under **Earlier**     |
+| 7   | The coach login   | Open the scenario event, under Earlier                                                                | The register: **Attending** open, **Everyone else** closed beneath it, each sorted by name                     |
+| 8   | The coach login   | Open Everyone else, press **Present** for the one who said no                                         | `Saving…`, then the committed value with your coach's name and the time                                        |
+| 9   | The coach login   | Press **Late** for the same person                                                                    | The correction commits; the earlier value stays in the audit trail                                             |
+| 10  | The coach login   | Type part of a name into **Search player**, then clear it                                             | Every group opens and the person appears; clearing puts them back as they were                                 |
+| 11  | The coach login   | Look for the reason behind the **Not attending**                                                      | It is not on the screen, and not in the page source                                                            |
+| 12  | The coach login   | Open **Today session**, **Add walk-on**: first name `PILOT-LAN-110`, last name `Skye`, a phone number | Four fields, the same as adding a player. No attendance state is asked for; it says it records Present         |
+| 13  | The coach login   | Save it                                                                                               | Back on the board, in a **Walk-ups** group of its own at the bottom, present, no membership                    |
+| 14  | The coach login   | Look for a way to remove a record                                                                     | There is none. Removal unwinds the occurrence assertion, which is not a coach's                                |
+| 15  | The refused login | Open either attendance URL                                                                            | **You cannot record attendance for this event**, no board, no names                                            |
+| 16  | Both coach logins | Do steps 6 to 13 again at phone width (375px)                                                         | Everything reachable, nothing scrolling sideways                                                               |
 
-**The one thing this asks of you.** In step 12, type the sentinel as the **first
-word** of the walk-up's name. That person is minted from what you type and the
-name is the only marker available; cleanup aborts on a walk-up without it rather
-than guess whether it is a real member.
+**The one thing this asks of you.** In step 12, put the sentinel in the **First
+name** field, exactly — `PILOT-LAN-110`, and the surname in Last name. That
+person is minted from what you type and the name is the only marker available;
+cleanup matches the sentinel against `given_name` and aborts on a walk-on
+without it rather than guess whether it is a real member.
+
+**And one more thing to check afterwards.** A walk-on now lands in recruitment,
+not on the roster. Look them up: they should have a `recruitment_prospects` row
+at `identified` whose `source` names this session, both contact points, and
+**no** `season_memberships` row. Cleanup removes all of it.
 
 ## Ownership marker: sentinel only
 

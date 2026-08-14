@@ -241,9 +241,16 @@ delete from public.attendance_records
  where event_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032')
    and event_id in (select id from public.events where name like '%PILOT-LAN-110%');
 
--- A contact point on a typed-in walk-up, if one was given. Removed before the
--- person, which it references.
+-- The contact points on a typed-in walk-on — a phone always, an email when one
+-- was given. Removed before the person, which they reference.
 delete from public.contact_points
+ where person_id in (select person_id from pilot_lan_110_walk_ups)
+   and person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))));
+
+-- The recruitment prospect the walk-on created. `person_id` is `on delete
+-- restrict`, so without this the person delete below fails outright and the
+-- whole script aborts — which is how this was found.
+delete from public.recruitment_prospects
  where person_id in (select person_id from pilot_lan_110_walk_ups)
    and person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))));
 

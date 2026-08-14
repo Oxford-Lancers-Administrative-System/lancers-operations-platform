@@ -1146,6 +1146,15 @@ describe("the scenario scripts stay inside the conventions", () => {
           "person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))))",
         ],
       ],
+      // The prospect a walk-on now creates. `person_id` is `on delete restrict`,
+      // so this is not optional tidying — without it the person delete fails.
+      [
+        "public.recruitment_prospects",
+        [
+          "person_id in (select person_id from pilot_lan_110_walk_ups)",
+          "person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))))",
+        ],
+      ],
       [
         "public.people",
         [

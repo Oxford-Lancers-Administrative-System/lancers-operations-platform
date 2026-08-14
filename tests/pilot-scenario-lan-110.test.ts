@@ -132,6 +132,13 @@ async function blankCanvas() {
       where person_id in (select person_id from blank_canvas_walk_ups)
          or person_id in ${people}`,
   );
+  // Before the people: a walk-on leaves a recruitment prospect, and
+  // `recruitment_prospects.person_id` is `on delete restrict`.
+  await client.query(
+    `delete from public.recruitment_prospects
+      where person_id in (select person_id from blank_canvas_walk_ups)
+         or person_id in ${people}`,
+  );
   await client.query(
     `delete from public.people where id in (select person_id from blank_canvas_walk_ups)
        and id not in ${people}`,
@@ -272,16 +279,28 @@ async function recordWalkUp(typedName: string, contact: string | null) {
   if (contact !== null) {
     await client.query(
       `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
-       values ($1, 'phone', $2, true, 'walk-up attendance')`,
+       values ($1, 'phone', $2, true, 'walk-on attendance')`,
       [person.id, contact],
     );
   }
+
+  // The recruitment prospect the application now writes alongside the person.
+  // `recruitment_prospects.person_id` is `on delete restrict`, so a cleanup
+  // that forgot it would fail on the person delete rather than leave a stray
+  // row — which is exactly the failure the assertions below are for.
+  await client.query(
+    `insert into public.recruitment_prospects
+       (person_id, season_id, status, source, first_contact_on)
+     select $1, e.season_id, 'identified', 'Walk-on at ' || e.name, e.scheduled_on
+       from public.events e where e.id = $2`,
+    [person.id, EVENT_ID],
+  );
 
   const attendance = await one<{ id: string }>(
     client,
     `insert into public.attendance_records
        (event_id, event_status, season_id, capacity, person_id, presence, recorded_by_person_id)
-     select $1, 'occurred', e.season_id, 'guest', $2, 'present', $3
+     select $1, 'occurred', e.season_id, 'recruit', $2, 'present', $3
        from public.events e where e.id = $1
      returning id`,
     [EVENT_ID, person.id, PEOPLE.authorizedCoach],
@@ -569,6 +588,35 @@ describe("cleanup.sql", () => {
     expect((await scenarioRows()).people).toBe(0);
   });
 
+  it("removes the walk-on's recruitment prospect, without which the person cannot go", async () => {
+    // `recruitment_prospects.person_id` is `on delete restrict`. A cleanup that
+    // forgot this row would not leave a stray behind — it would abort on the
+    // person delete and leave the whole scenario installed.
+    await client.query(SETUP);
+    const walkUpPersonId = await workThroughTheMatrix();
+
+    expect(
+      await count("public.recruitment_prospects where person_id = $1::uuid", [walkUpPersonId]),
+    ).toBe(1);
+
+    await client.query(CLEANUP);
+
+    expect(
+      await count("public.recruitment_prospects where person_id = $1::uuid", [walkUpPersonId]),
+    ).toBe(0);
+    expect(await count("public.people where id = $1::uuid", [walkUpPersonId])).toBe(0);
+  });
+
+  it("leaves a recruitment prospect that is not this scenario's alone", async () => {
+    const before = await count("public.recruitment_prospects");
+
+    await client.query(SETUP);
+    await workThroughTheMatrix();
+    await client.query(CLEANUP);
+
+    expect(await count("public.recruitment_prospects")).toBe(before);
+  });
+
   it("removes the attendance, the walk-up person and the audit rows both wrote", async () => {
     await client.query(SETUP);
     const walkUpPersonId = await workThroughTheMatrix();
@@ -762,9 +810,13 @@ describe("README.md", () => {
     }
   });
 
-  it("tells Brian to type the sentinel into the walk-up name", () => {
-    expect(README_FILE).toMatch(/first\s*\*?\*?word/i);
-    expect(README_FILE).toContain(`${SENTINEL} Devon Skye`);
+  it("tells Brian which field the sentinel goes in", () => {
+    // The form has separate first and last name fields now, and cleanup matches
+    // the sentinel against `given_name` — so "the first word of the name" is no
+    // longer an instruction anybody can follow. It names the field.
+    expect(README_FILE).toMatch(/\*\*First\s*\n?\s*name\*\* field/i);
+    expect(README_FILE).toContain(`first name \`${SENTINEL}\``);
+    expect(CLEANUP_FILE).toContain("upper(btrim(given_name))");
   });
 
   it("says the role catalogue is a prerequisite the script will not create", () => {

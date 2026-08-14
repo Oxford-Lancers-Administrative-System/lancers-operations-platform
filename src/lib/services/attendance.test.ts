@@ -770,9 +770,15 @@ describe("walk-ons", () => {
     );
 
     expect(await mintedPerson()).toEqual([]);
+
+    // Scoped to this suite's own marker, not to every prospect in the database.
+    // Vitest runs suites in parallel against one stack, and the local stack is
+    // also the review environment — a global count here would report on
+    // whatever somebody else had just done.
     const prospects = await observer.query<{ count: string }>(
       `select count(*)::text as count from public.recruitment_prospects
-        where source like 'Walk-on%'`,
+        where person_id in (select id from public.people where family_name = $1)`,
+      [NAME_MARKER],
     );
     expect(Number(prospects.rows[0].count)).toBe(0);
   });

@@ -102,15 +102,48 @@ apart — "a Yes never becomes Present automatically" — so filing somebody who
 turned up under the word for what they answered would be the conflation the
 frozen model forbids.
 
-### 2. The walk-up form no longer asks for an attendance state
+### 2. The walk-on form was rebuilt, and a walk-on goes into recruitment
 
-UX-73 and UX-97 both show an **Attendance** selector. It is gone: a walk-up is
-recorded **Present**, the form says so, and the four buttons on the row it
-creates correct it afterwards like anybody else's. Somebody is being typed into
-that form because they are standing in front of the person typing.
+UX-73 and UX-97 show one **Name** field, one combined **Email or phone** field,
+an **Attendance** selector and a **Possible roster match** dropdown. None of
+those survives.
 
-The value is fixed in the server action, not merely defaulted in the form, so a
-`presence` in a crafted request body changes nothing.
+| Field          | Required | Notes                                         |
+| -------------- | -------- | --------------------------------------------- |
+| **First name** | Yes      | Same label and order as `/operate/roster/new` |
+| **Last name**  | Yes      | Stricter than intake — see below              |
+| **Phone**      | Yes      | How the club follows them up                  |
+| **Email**      | No       |                                               |
+
+Brian, on the built screen: "it should be almost identical to adding a player…
+first name, last name, phone, and email, to grab as much as they can". The
+roster match went with it — "they know who's on their roster, there are only 40
+people" — so a walk-on is always a new person and a duplicate is
+reconciliation's problem.
+
+**Required is stricter than the returner intake, on purpose.** Intake asks only
+for a first name, because the club's own files are full of records that never
+had more, and `people.family_name` is nullable for that reason. A walk-on is the
+opposite case: nobody knew them ten minutes ago and the point of writing them
+down is that somebody follows them up, so a walk-on with no surname and no
+number is a row nobody can act on.
+
+**No attendance state is asked for.** A walk-on is recorded **Present** and the
+form says so; the four buttons on their row correct it afterwards. The value is
+fixed in the server action rather than defaulted in the form, so a `presence` in
+a crafted request body changes nothing.
+
+**What it writes.** The person, their contact points, and a
+`recruitment_prospects` row at `identified` naming the session as its source —
+and **no season membership**. "Not in the roster, not in the season roster, but
+in the person in the recruitment… they're not on the team yet." All three in one
+transaction. Attendance capacity moved from `guest` to `recruit` to match.
+
+LAN-85 still owns everything after this point: following the prospect up,
+converting them, and what the club does with them across future events. Brian's
+stated intent is that a walk-on becomes part of the recruitment list that future
+events draw on; the audience builder has no recruit group today, and building
+one was deliberately left out of this ticket.
 
 ### 3. The coach's list looks forward, and is no longer occurred-only
 
