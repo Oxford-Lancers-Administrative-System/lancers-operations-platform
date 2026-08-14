@@ -372,7 +372,7 @@ select
   (select count(*) from public.contact_points
     where source = 'PILOT-LAN-78') as contact_points,
   (select count(*) from public.season_memberships
-    where person_id in (select id from public.people where known_as = 'PILOT-LAN-78')) as memberships,
+    where person_id in (select id from public.people where known_as like 'PILOT-LAN-78%')) as memberships,
   (select count(*) from public.events
     where name like '%PILOT-LAN-78%') as events,
   (select count(*) from public.event_audience_members
