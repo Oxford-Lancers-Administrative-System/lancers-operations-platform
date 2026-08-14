@@ -62,9 +62,29 @@ export async function approveEvent(): Promise<never> {
   notImplemented("LAN-77", "approve an event and release its invitations");
 }
 
-/** Record attendance for an occurred event. HC/OC/DC only. Behaviour: LAN-80/LAN-110. */
+/**
+ * Record attendance for an occurred event. The four calendar roles, plus the
+ * three coaching seats.
+ *
+ * The behaviour shipped in LAN-80 and lives in
+ * `src/app/operate/events/[id]/attendance/actions.ts`, beside the board that
+ * posts to it — same as `approveEvent` above.
+ *
+ * **The capability changed, and this line is why the change was caught.** This
+ * declaration said `attendance_recorder`, "HC/OC/DC only", from LAN-73 onward;
+ * LAN-80 first shipped the behaviour under `requireOperator()` and left this
+ * untouched, so the repository carried two different answers to "who may record
+ * attendance" and neither was the decision. Independent review found it here.
+ * Both now name `attendance_recording`, and `src/lib/auth/capabilities.ts`
+ * records what it grants and why.
+ *
+ * `attendance_recorder` is still LAN-110's, still exactly the three coaching
+ * seats, and still answers a different question: not "may you record" but "is
+ * the constrained coach screen yours". It is deliberately enforced at no call
+ * site until LAN-110 builds that screen.
+ */
 export async function recordAttendance(): Promise<never> {
-  await requireCapability("attendance_recorder");
+  await requireCapability("attendance_recording");
   notImplemented("LAN-80", "record attendance for an occurred event");
 }
 

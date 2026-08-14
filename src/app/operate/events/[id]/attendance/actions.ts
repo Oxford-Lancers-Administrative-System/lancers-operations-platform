@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireOperator } from "@/lib/auth/guards";
+import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   isAttendancePresence,
@@ -16,25 +16,33 @@ import type { AttendanceSaveState, WalkUpFormState } from "./action-state";
 /**
  * The attendance server actions — LAN-80.
  *
- * ## Why these guard on `requireOperator()` and not on a capability
+ * ## Which capability, and the one this file got wrong first
  *
- * `docs/ux/slice-ux.md` § 8 splits attendance in two, and the split is the
- * reason this file looks less strict than `../../actions.ts`:
+ * `attendance_recording` — the union of the four calendar roles and the three
+ * coaching seats. `docs/ux/slice-ux.md` § 8 splits attendance in two and both
+ * halves land here:
  *
- *   * **General attendance** — "Authorized operator after `occurred`". Not a
- *     role list. Recording who turned up is ordinary operator work in the same
- *     sense that reading the club calendar is, and the surface it lives on is
- *     the one the Exec, the Secretary and the General Manager all use.
+ *   * **General attendance** — "Authorized operator after `occurred`". The
+ *     surface the Exec, the Secretary and the General Manager use, so gating it
+ *     on the narrow coaching grant would lock them out of their own screen.
  *
- *   * **Coach attendance** — the narrow `attendance_recorder` grant, held by
- *     the Head Coach, Offensive Coordinator and Defensive Coordinator seats.
- *     That capability exists in `capabilities.ts` and LAN-110 owns the
- *     constrained surface it opens.
+ *   * **Coach attendance** — Brian's 12 August 2026 decision puts the Head
+ *     Coach, Offensive Coordinator and Defensive Coordinator on this workflow
+ *     explicitly, which is why those three seats are in the grant too.
  *
- * Gating this path on `attendance_recorder` would lock the Exec out of their
- * own attendance screen, which is precisely the mistake the capability map's
- * own note warns about. So the floor here is a linked, active operator — never
- * "anybody", and never inferred from the route being reachable.
+ * The first implementation used `requireOperator()`, the ordinary-operator
+ * floor, reading § 8's "authorized operator" as "any linked operator".
+ * Independent review showed that fails one of LAN-80's own criteria: Brian's
+ * coach decision requires that "an unauthorized coach and ordinary player are
+ * refused at the service boundary, including direct action calls", and a floor
+ * admitting every linked operator does not refuse an ordinary player who
+ * happens to hold an operator account. The floor was not merely generous; it
+ * was wrong against a recorded criterion.
+ *
+ * `attendance_recorder` stays exactly the three coaching seats and is untouched
+ * by this. It answers a different question — "is the constrained screen yours"
+ * — which LAN-110 asks. A Secretary holds `attendance_recording` and not that
+ * one, and gets the operator's board.
  *
  * ## What is still refused, and by whom
  *
@@ -79,7 +87,7 @@ export async function recordAttendanceAction(
   _previous: AttendanceSaveState,
   formData: FormData,
 ): Promise<AttendanceSaveState> {
-  const operator = await requireOperator();
+  const operator = await requireCapability("attendance_recording");
   const eventId = text(formData, "eventId");
   const key = text(formData, "participantKey");
   const presence = text(formData, "presence");
@@ -135,7 +143,7 @@ export async function removeAttendanceAction(
   _previous: AttendanceSaveState,
   formData: FormData,
 ): Promise<AttendanceSaveState> {
-  const operator = await requireOperator();
+  const operator = await requireCapability("attendance_recording");
   const eventId = text(formData, "eventId");
   const key = text(formData, "participantKey");
 
@@ -167,7 +175,7 @@ export async function recordWalkUpAction(
   _previous: WalkUpFormState,
   formData: FormData,
 ): Promise<WalkUpFormState> {
-  const operator = await requireOperator();
+  const operator = await requireCapability("attendance_recording");
   const eventId = text(formData, "eventId");
 
   const values = {

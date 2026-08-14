@@ -73,8 +73,12 @@ occurrence assertion requires.
    Expect **Attendance is not available yet**, no names, and no way to record
    anything. This is UX-71 and it is the refusal invariant P5 exists for.
 2. **The decision is offered, and is a decision.** On the event, expect **Confirm
-   what happened**, both buttons, and the three facts beside them — including
-   **Start time has passed**, which is displayed and is not a condition.
+   what happened**, both buttons, and the three facts beside them: the event's
+   status, **Not yet asserted** with "Never inferred from time", and
+   **Unavailable** with "Opens only after Mark occurred". There is deliberately
+   no "start time has passed" line — Brian removed it on 14 August 2026, and the
+   rule it was decorating is unchanged: nothing infers occurrence from the clock,
+   in either direction.
 3. **Mark not held.** Do this on the _not-held_ event. Expect **Event marked not
    held**, the note that attendance remains unavailable, and no route through to
    a board. Visit its attendance URL directly: still closed, permanently.

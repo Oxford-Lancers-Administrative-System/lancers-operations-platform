@@ -13,7 +13,7 @@
  * which is what `container.textContent` gets closest to.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 const routerPush = vi.fn();
@@ -86,11 +86,12 @@ function operator(roleCodes: string[] = ["secretary"]): ResolvedOperator {
 }
 
 /**
- * A linked, active operator holding no capability at all.
+ * A linked, active operator holding no club role at all — the ordinary player
+ * who can sign in.
  *
- * The important case for this route: § 8 makes general attendance ordinary
- * operator work, so this person **can** record attendance, and must still be
- * refused the occurrence assertion.
+ * They are refused both LAN-80 capabilities: the board, because Brian's coach
+ * decision says an ordinary player is refused at the service boundary, and the
+ * occurrence assertion, which was never theirs.
  */
 function plainOperator(): ResolvedOperator {
   return operator([]);
@@ -292,6 +293,24 @@ describe("UX-71 — attendance is not available yet", () => {
     });
   }
 
+  it("refuses the board to an operator without the capability, and shows no names", async () => {
+    // The route is not the boundary — every write guards itself — but a screen
+    // that rendered the roster to somebody who may not record it would leak the
+    // payload regardless of what the actions then refused.
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: plainOperator(),
+    });
+    vi.mocked(readAttendanceBoard).mockResolvedValue(board());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(screen.queryByTestId("attendance-board")).toBeNull();
+    expect(screen.queryByTestId("attendance-row")).toBeNull();
+    expect(container.textContent).not.toContain("Avery Fielding");
+    expect(container.textContent).toContain("You do not have access to this action");
+  });
+
   it("says the event is gone rather than rendering an empty board", async () => {
     vi.mocked(readAttendanceBoard).mockRejectedValue(new NotFound("That event no longer exists."));
 
@@ -348,6 +367,41 @@ describe("UX-72 — the attendance board", () => {
     const { container } = render(await AttendancePage(attendanceProps()));
 
     expect(container.textContent).toContain("Saved · Casey North · 20:07");
+  });
+
+  it("offers no removal until there is something to remove", async () => {
+    // Nothing recorded, nothing to take away — and the control is what makes
+    // the occurrence-correction refusal's instruction followable, so its
+    // presence is load-bearing rather than decorative.
+    render(await AttendancePage(attendanceProps()));
+    expect(screen.queryByTestId("remove-attendance-open")).toBeNull();
+  });
+
+  it("offers removal on a recorded row, behind a disclosure", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        participants: [
+          participant({
+            presence: "present",
+            recordedAt: "2026-10-14T19:07:00Z",
+            recordedByName: "Casey North",
+          }),
+        ],
+      }),
+    );
+
+    render(await AttendancePage(attendanceProps()));
+
+    const open = screen.getByTestId("remove-attendance-open");
+    expect(open.textContent).toContain("Remove this record");
+    // Behind a disclosure: removing an observation is a real loss, so it is not
+    // a fifth button sitting beside the four states.
+    expect(screen.queryByTestId("remove-attendance-form")).toBeNull();
+
+    fireEvent.click(open);
+    expect(screen.getByTestId("remove-attendance-form")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Remove record" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Keep it" })).toBeTruthy();
   });
 
   it("says Not marked when nothing has been recorded for somebody", async () => {

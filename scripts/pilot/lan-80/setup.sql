@@ -228,9 +228,10 @@ on conflict (id) do nothing;
 -- The events
 -- ---------------------------------------------------------------------------
 -- Two, because the assertion is a fork and each branch has to be walkable
--- without undoing the other. Both are in the past: the screen shows "Start time
--- has passed" as a fact, and an event nobody could have attended yet makes a
--- poor rehearsal for one that has been.
+-- without undoing the other. Both are in the past because an event nobody could
+-- have attended yet makes a poor rehearsal for one that has been — not because
+-- the screen checks. It does not: nothing infers occurrence from the clock, and
+-- the caption that used to say so was removed on 14 August 2026.
 --
 -- Both stay `approved` with a null `outcome_recorded_at`. That is the state
 -- LAN-80 exists to move out of, by hand, which is the whole exercise.

@@ -132,29 +132,25 @@ beforeEach(() => {
 
 describe("who may record attendance", () => {
   /**
-   * The floor, and the reason it is a floor rather than a role list.
+   * The four calendar roles, because the board is the Exec's screen.
    *
-   * `slice-ux.md` § 8 makes general attendance "authorized operator after
-   * `occurred`" — the ordinary-operator row. An operator holding no seat at all
-   * may record, exactly as they may read the club calendar. Gating this on the
-   * narrow `attendance_recorder` grant would lock out the Exec, whose screen
-   * this is.
+   * `slice-ux.md` § 8's "General attendance — authorized operator" is what this
+   * is reading, and the reason it is not the *narrow* coaching grant: gating it
+   * there would lock the Secretary out of the attendance screen.
    */
-  it("admits a linked, active operator holding no role at all", async () => {
-    givenAccess({ state: "active", operator: actor([]) });
+  it("admits each of the four calendar roles", async () => {
+    for (const role of ["president", "vice_president", "secretary", "general_manager"]) {
+      vi.mocked(recordAttendance).mockClear();
+      givenAccess({ state: "active", operator: actor([role]) });
 
-    const state = await recordAttendanceAction(EMPTY_SAVE_STATE, saveForm());
+      const state = await recordAttendanceAction(EMPTY_SAVE_STATE, saveForm());
 
-    expect(state.error).toBeNull();
-    expect(recordAttendance).toHaveBeenCalledWith(
-      OPERATOR_PERSON_ID,
-      EVENT_ID,
-      PARTICIPANT_KEY,
-      "present",
-    );
+      expect(state.error, `${role} should be able to record`).toBeNull();
+      expect(recordAttendance).toHaveBeenCalled();
+    }
   });
 
-  it("admits the three coaching seats LAN-110 will narrow", async () => {
+  it("admits the three coaching seats Brian put on this workflow", async () => {
     for (const role of ["head_coach", "offence_coach", "defence_coach"]) {
       vi.mocked(recordAttendance).mockClear();
       givenAccess({ state: "active", operator: actor([role]) });
@@ -164,6 +160,59 @@ describe("who may record attendance", () => {
       expect(state.error, `${role} should be able to record`).toBeNull();
       expect(recordAttendance).toHaveBeenCalled();
     }
+  });
+
+  /**
+   * The criterion the first implementation failed, and the reason this file
+   * changed.
+   *
+   * Brian's 12 August 2026 coach decision: "An unauthorized coach and ordinary
+   * player are refused at the service boundary, **including direct action
+   * calls**." The first implementation guarded on `requireOperator()`, so an
+   * ordinary player who holds an operator account was admitted — and a test
+   * here asserted that as if it were the intent. Independent review caught it.
+   *
+   * "Ordinary player" is modelled as an operator holding **no** club role,
+   * because that is what a player who can sign in looks like in this schema;
+   * "unauthorized coach" is modelled by a catalogue seat that is not one of the
+   * three, since no assistant-coach role exists to hold.
+   */
+  it("refuses an ordinary player and every seat that is not on this workflow", async () => {
+    for (const roleCodes of [
+      [],
+      ["treasurer"],
+      ["social_secretary"],
+      ["gameday_secretary"],
+      ["kit_manager"],
+      ["media_secretary"],
+      ["it_officer"],
+    ]) {
+      vi.mocked(recordAttendance).mockClear();
+      givenAccess({ state: "active", operator: actor(roleCodes) });
+
+      const error = await refusalFrom(() => recordAttendanceAction(EMPTY_SAVE_STATE, saveForm()));
+
+      expect(error, `${roleCodes.join(",") || "no role"} must be refused`).toBeInstanceOf(
+        NotPermitted,
+      );
+      expect(recordAttendance).not.toHaveBeenCalled();
+    }
+  });
+
+  it("refuses them on the walk-up and the removal too, not only on the save", async () => {
+    // The walk-up mints a `people` row and the removal destroys an observation.
+    // Neither may be reachable by somebody the save refuses.
+    givenAccess({ state: "active", operator: actor(["treasurer"]) });
+
+    expect(
+      await refusalFrom(() => recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm())),
+    ).toBeInstanceOf(NotPermitted);
+    expect(
+      await refusalFrom(() => removeAttendanceAction(EMPTY_SAVE_STATE, saveForm())),
+    ).toBeInstanceOf(NotPermitted);
+
+    expect(recordWalkUpAttendance).not.toHaveBeenCalled();
+    expect(removeAttendance).not.toHaveBeenCalled();
   });
 
   it("refuses a signed-in account with no operator profile", async () => {
@@ -209,20 +258,6 @@ describe("who may record attendance", () => {
       PARTICIPANT_KEY,
       "present",
     );
-  });
-
-  it("applies the same floor to the walk-up and the removal", async () => {
-    givenAccess({ state: "unlinked" });
-
-    expect(
-      await refusalFrom(() => recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm())),
-    ).toBeInstanceOf(NotPermitted);
-    expect(
-      await refusalFrom(() => removeAttendanceAction(EMPTY_SAVE_STATE, saveForm())),
-    ).toBeInstanceOf(NotPermitted);
-
-    expect(recordWalkUpAttendance).not.toHaveBeenCalled();
-    expect(removeAttendance).not.toHaveBeenCalled();
   });
 });
 

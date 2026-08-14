@@ -295,7 +295,24 @@ describe("rows 9 to 12 — requireCapability() over the map", () => {
 });
 
 describe("row 10 — an attendance recorder receives nothing else", () => {
-  const others = CAPABILITY_KEYS.filter((key) => key !== "attendance_recorder");
+  /**
+   * "Nothing else" is now two capabilities rather than one, and the second is
+   * not a widening.
+   *
+   * `attendance_recorder` has always been the narrow coaching grant — LAN-110's
+   * question, "is the constrained screen yours". LAN-80 added
+   * `attendance_recording`, the question "may you record at all", and Brian's
+   * 12 August 2026 decision puts the three coaching seats on that workflow
+   * explicitly: "an authorized coach may set and correct Present, Absent, Late
+   * or Excused". A coach who could not record would contradict it.
+   *
+   * Everything this block is really guarding is unchanged: no roster editing,
+   * no activation, no approval, no occurrence assertion, no role management, no
+   * delivery, no report. The list below is exhaustive over the map, so a future
+   * capability a coach must not hold fails here the moment it is added.
+   */
+  const ATTENDANCE = ["attendance_recorder", "attendance_recording"] as const;
+  const others = CAPABILITY_KEYS.filter((key) => !(ATTENDANCE as readonly string[]).includes(key));
 
   for (const code of COACHES) {
     it.each(others)(`refuses %s to a ${code}`, async (key) => {
@@ -315,11 +332,22 @@ describe("row 10 — an attendance recorder receives nothing else", () => {
     }
   });
 
-  it("grants a coach exactly one capability out of the six", () => {
+  it("grants a coach the two attendance capabilities and nothing else", () => {
     const coach = actor(["head_coach"]);
     const granted = CAPABILITY_KEYS.filter((key) => operatorHasCapability(coach, key));
 
-    expect(granted).toEqual(["attendance_recorder"]);
+    expect([...granted].sort()).toEqual([...ATTENDANCE].sort());
+  });
+
+  it("does not let recording attendance imply asserting that the event happened", () => {
+    // The boundary `slice-ux.md` § 8 states in as many words — "Occurrence
+    // assertion … not implied by attendance-recorder capability" — and the one
+    // LAN-110 restates as a fixed boundary. A coach records who turned up; they
+    // do not decide that there was anything to turn up to.
+    for (const code of COACHES) {
+      expect(operatorHasCapability(actor([code]), "attendance_recording")).toBe(true);
+      expect(operatorHasCapability(actor([code]), "event_occurrence_assertion")).toBe(false);
+    }
   });
 
   it("never lets a capability be reached through a role it does not list", () => {

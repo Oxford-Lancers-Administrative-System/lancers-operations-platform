@@ -42,11 +42,11 @@ import {
  *
  * ## Authorization, and the two things it is not
  *
- * The page opens with the shell gate and **no capability**: `slice-ux.md` § 8
- * makes general attendance "authorized operator after `occurred`", which is the
- * ordinary-operator row rather than a role list. Gating it on the narrow
- * `attendance_recorder` grant would lock out the Exec, who are the people the
- * board was drawn for.
+ * The page gates on `attendance_recording` — the four calendar roles and the
+ * three coaching seats. See `./actions.ts` for why it is that union, and for
+ * the reading of § 8 this replaced: an ordinary-operator floor admitted an
+ * ordinary player who happened to hold an operator account, which is the thing
+ * LAN-80's own criterion says must be refused.
  *
  * That is not the boundary, and neither is this route. Every write re-resolves
  * the operator from the verified session inside its own server action, and the
@@ -66,7 +66,7 @@ export default async function AttendancePage({
   params,
   searchParams,
 }: PageProps<"/operate/events/[id]/attendance">) {
-  const gate = await gateShellPage("/operate/events");
+  const gate = await gateShellPage("/operate/events", "attendance_recording");
   if ("screen" in gate) return gate.screen;
 
   const { id } = await params;

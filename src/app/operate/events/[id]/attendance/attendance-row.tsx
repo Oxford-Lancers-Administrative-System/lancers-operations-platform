@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -12,7 +12,7 @@ import {
   type AttendanceParticipant,
   type AttendancePresence,
 } from "@/lib/services/attendance-vocabulary";
-import { recordAttendanceAction } from "./actions";
+import { recordAttendanceAction, removeAttendanceAction } from "./actions";
 import { EMPTY_SAVE_STATE } from "./action-state";
 import {
   describeCommitted,
@@ -192,6 +192,94 @@ export function AttendanceRow({
           )}
         </Stack>
       </Box>
+
+      {committed === null ? null : <RemoveAttendance eventId={eventId} participant={participant} />}
+    </Box>
+  );
+}
+
+/**
+ * Takes one attendance record away entirely.
+ *
+ * ## Why this is on the screen at all
+ *
+ * Because without it the product tells an operator to do something the product
+ * cannot do. An occurrence assertion cannot be corrected while attendance hangs
+ * off the event — invariant P5, enforced by the cascading foreign key
+ * underneath the service's own refusal — and that refusal reads "remove them
+ * before changing what happened at the event". The service function existed
+ * from the start; the control did not, so the instruction was a dead end and an
+ * operator who marked the wrong event `occurred` and recorded against it was
+ * stuck with it permanently. Independent review found that, and this is the
+ * half that was missing.
+ *
+ * ## Why it is not one of the four buttons
+ *
+ * Removing a record is not correcting one. A correction says "they were late,
+ * not absent" and keeps the history; this says "there is no observation here",
+ * which is a real loss of evidence about who was at a practice. So it is behind
+ * a disclosure, the way abandoning a draft is, and it asks a question with the
+ * destructive answer second.
+ *
+ * It is still audited: `attendance.removed` records the actor and the value
+ * that was removed, so the deletion is itself part of the trail.
+ */
+function RemoveAttendance({
+  eventId,
+  participant,
+}: {
+  eventId: string;
+  participant: AttendanceParticipant;
+}) {
+  const [state, formAction, pending] = useActionState(removeAttendanceAction, EMPTY_SAVE_STATE);
+  const [open, setOpen] = useState(false);
+
+  if (!open) {
+    return (
+      <Box sx={{ gridColumn: { md: "2" } }}>
+        <Button
+          variant="text"
+          size="small"
+          color="inherit"
+          onClick={() => setOpen(true)}
+          data-testid="remove-attendance-open"
+          sx={{ minHeight: 44 }}
+        >
+          Remove this record
+        </Button>
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      component="form"
+      action={formAction}
+      data-testid="remove-attendance-form"
+      sx={{ gridColumn: { md: "2" } }}
+    >
+      <input type="hidden" name="eventId" value={eventId} />
+      <input type="hidden" name="participantKey" value={participant.key} />
+      <Stack spacing={1}>
+        <Typography variant="body2" color="text.secondary">
+          {`Remove the attendance recorded for ${participant.displayName}? This is not a
+            correction — it leaves no observation at all, and it is what you do when the
+            record belongs to a different event.`}
+        </Typography>
+        {state.key === participant.key && state.error ? (
+          <Alert severity="error" data-testid="remove-attendance-error">
+            {state.error}
+          </Alert>
+        ) : null}
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+          <Button variant="outlined" onClick={() => setOpen(false)} disabled={pending}>
+            Keep it
+          </Button>
+          <Button type="submit" variant="text" color="error" disabled={pending}>
+            {pending ? "Removing…" : "Remove record"}
+          </Button>
+        </Stack>
+      </Stack>
     </Box>
   );
 }
