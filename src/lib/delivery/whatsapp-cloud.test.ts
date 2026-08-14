@@ -142,6 +142,28 @@ describe("interpreting a response", () => {
     expect(unknown.status === "refused" && unknown.retryable).toBe(false);
   });
 
+  /**
+   * The known-terminal codes, pinned as terminal.
+   *
+   * The test above proves an *unknown* code is not retried, which is the safe
+   * default — but it pins no known one, so moving a terminal code into
+   * `RETRYABLE_PROVIDER_CODES` passes the whole suite. The consequence is not
+   * cosmetic: a terminal refusal recorded as `failed` rather than `rejected`
+   * renders as **Retryable**, so the screen invites an operator to press Retry
+   * on a dead credential or an unroutable number, five times, against a real
+   * provider.
+   */
+  it.each([
+    [131026, "the number is not a WhatsApp account"],
+    [131030, "the recipient is not on the allow list"],
+    [132001, "the template does not exist"],
+    [190, "the credential has expired"],
+  ])("never retries %i — %s", (code) => {
+    const outcome = interpretResponse(400, { error: { code } });
+    expect(outcome.status).toBe("refused");
+    expect(outcome.status === "refused" && outcome.retryable).toBe(false);
+  });
+
   it("explains the window failure the live test produced", () => {
     // 131047 is what an out-of-window free-form message becomes. The sentence
     // has to be one an operator can act on without knowing what a window is.
@@ -272,11 +294,31 @@ describe("parsing a callback", () => {
    * and widening that enum is a frozen-model change. They are parsed, kept as
    * evidence, and applied to nothing.
    */
-  it("keeps a status it has no outcome for, rather than discarding it", () => {
-    const events = parseCallbackPayload(payload([{ id: "wamid.C", status: "read" }]));
-    expect(events).toHaveLength(1);
+  it.each(["sent", "read"])(
+    "keeps %s, which it has no outcome for, rather than discarding it",
+    (status) => {
+      const events = parseCallbackPayload(payload([{ id: "wamid.C", status }]));
+      expect(events).toHaveLength(1);
+      expect(events[0].outcome).toBeNull();
+      expect(events[0].providerStatus).toBe(status);
+    },
+  );
+
+  it("never reads `sent` as a delivery, which is this branch's whole finding", () => {
+    // Meta emits `sent` for every accepted message, before `delivered`, always.
+    // Mapping it to `delivered` is the single most plausible future mistake here
+    // — the word invites it — and it is the exact defect the live test on
+    // 13 August disproved: a provider 200 is acceptance, not arrival.
+    //
+    // With that mapping, the first callback concludes the attempt, completes the
+    // job and writes a `delivery.delivered` audit row. The real `delivered` is
+    // then superseded, and so is a later `failed`, because `delivery_results` is
+    // authoritative per attempt. A message that never arrived reads Delivered
+    // for ever, and `retryable` is false for a delivered job, so there is no
+    // repair path.
+    const events = parseCallbackPayload(payload([{ id: "wamid.S", status: "sent" }]));
+    expect(events[0].outcome).not.toBe("delivered");
     expect(events[0].outcome).toBeNull();
-    expect(events[0].providerStatus).toBe("read");
   });
 
   it("gives one message's two transitions distinct deduplication keys", () => {
