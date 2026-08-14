@@ -102,7 +102,13 @@ describe("the delivery path this system takes is never a manual one", () => {
 });
 
 describe("no runbook presents a hand-sent message as a completed delivery", () => {
-  const documents = [...filesUnder("docs", [".md"]), ...filesUnder("scripts/pilot", [".md"])];
+  // The criterion names "screen, code path, fixture or runbook", so the pilot
+  // SQL is scanned as well as its README — those files are the fixtures, and
+  // Brian runs them by hand against the one production database.
+  const documents = [
+    ...filesUnder("docs", [".md"]),
+    ...filesUnder("scripts/pilot", [".md", ".sql"]),
+  ];
 
   it("reads a non-trivial number of documents", () => {
     expect(documents.length).toBeGreaterThan(15);

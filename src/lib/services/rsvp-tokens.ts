@@ -226,7 +226,11 @@ export type TokenState =
 
 export interface TokenResolution {
   readonly state: TokenState;
-  /** Present only for `valid` and `cancelled` — the two states that resolve. */
+  /**
+   * Present for `valid`, `cancelled` and `event_started` — the three states
+   * that resolve to a real invitation. LAN-79 owns what a public page may
+   * show for each of them; resolving one is not permission to render it.
+   */
   readonly invitation: ResolvedInvitation | null;
   /** Whether a player may write a response through this link, right now. */
   readonly writable: boolean;
