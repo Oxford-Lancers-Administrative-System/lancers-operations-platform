@@ -1292,6 +1292,17 @@ describe("the seeded identity records", () => {
     // The trap LAN-119 spent a long time diagnosing: these were stamped two days
     // in the FUTURE, so every seeded person sorted after anything created at
     // `now()`. Nothing in the application read it; two test suites did.
+    //
+    // Asserted about the SEEDED COHORT — the *earliest* group of people sharing
+    // one `created_at` — rather than about `public.people` as a whole. The
+    // original form required exactly one distinct stamp in the table, which is
+    // a property of an idle database rather than of the seed: any suite that
+    // commits a person adds a second stamp, and any suite holding fixtures adds
+    // a third, so it failed whenever the files ran in parallel.
+    //
+    // LAN-121 and this branch reached the same conclusion independently and
+    // fixed it two ways; this is LAN-121's, kept because it is on `main` and
+    // because "earliest" is the property the lookups actually depend on.
     const stamps = await observer.query<{ created_at: Date; count: string }>(
       `select created_at, count(*)::text as count
          from public.people

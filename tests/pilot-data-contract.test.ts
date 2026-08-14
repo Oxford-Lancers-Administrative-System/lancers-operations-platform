@@ -1002,6 +1002,52 @@ describe("the scenario scripts stay inside the conventions", () => {
         ],
       ],
     ],
+    /**
+     * LAN-79's player RSVP. Its setup script writes twenty-three rows with
+     * deterministic identifiers, and cleanup removes every one of those by
+     * `id = '…'` — no relaxation is needed for them.
+     *
+     * These three remove what the APPLICATION writes while the scenario is in
+     * use: the RSVP responses a tester gives through the page, the audit rows
+     * those responses write, and any notification job the response path
+     * cancelled. None has an identifier any script can know, because PostgreSQL
+     * generates it inside the response transaction.
+     *
+     * Every statement is pinned to the same two conjuncts: the scenario's three
+     * deterministic event identifiers, and the scenario's sentinel in
+     * `events.name`. The audit delete carries a third, `entity_table`, because
+     * `entity_id` is polymorphic and a colliding identifier in another table
+     * would otherwise be in scope.
+     *
+     * Unlike LAN-78, this scenario's cleanup deliberately DOES remove RSVP
+     * responses. There they would be real history a scenario had no business
+     * acquiring; here the response is the thing under test, given by a tester
+     * to a synthetic invitation of a synthetic person.
+     */
+    "lan-79": [
+      [
+        "public.audit_events",
+        [
+          "entity_table = 'invitations'",
+          "entity_id in (select id from public.invitations where event_id in ('00790079-0079-4079-8079-000000000021', '00790079-0079-4079-8079-000000000022', '00790079-0079-4079-8079-000000000023'))",
+          "entity_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-79%'))",
+        ],
+      ],
+      [
+        "public.rsvp_responses",
+        [
+          "invitation_id in (select id from public.invitations where event_id in ('00790079-0079-4079-8079-000000000021', '00790079-0079-4079-8079-000000000022', '00790079-0079-4079-8079-000000000023'))",
+          "invitation_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-79%'))",
+        ],
+      ],
+      [
+        "public.notification_jobs",
+        [
+          "invitation_id in (select id from public.invitations where event_id in ('00790079-0079-4079-8079-000000000021', '00790079-0079-4079-8079-000000000022', '00790079-0079-4079-8079-000000000023'))",
+          "invitation_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-79%'))",
+        ],
+      ],
+    ],
     "lan-77": [
       [
         "public.delivery_results",
@@ -1287,6 +1333,12 @@ describe("the scenario scripts stay inside the conventions", () => {
     // hang off memberships, an event and a set of jobs, so there are more
     // foreign keys PostgreSQL would follow into history than anywhere else.
     ["lan-78/cleanup.sql", read("scripts/pilot/lan-78/cleanup.sql"), 13] as const,
+    // Four prerequisite guards and two that refuse a half-filled token block —
+    // this is the only scenario whose setup needs a secret pasted into it, and
+    // a placeholder reaching the database would fail on a constraint name
+    // instead of on an instruction.
+    ["lan-79/setup.sql", read("scripts/pilot/lan-79/setup.sql"), 6] as const,
+    ["lan-79/cleanup.sql", read("scripts/pilot/lan-79/cleanup.sql"), 6] as const,
   ];
 
   it("checks the preflight of every scenario in the repository", () => {

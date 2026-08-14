@@ -32,7 +32,7 @@ import {
   type EventDraftInput,
 } from "./events";
 import { readCurrentSeason } from "./seasons";
-import { openObserver } from "../../../tests/helpers/service-layer";
+import { openObserver, SEEDED_IDENTITY_CREATED_AT } from "../../../tests/helpers/service-layer";
 
 /** Unique to this file. Two suites sharing one marker delete each other's rows. */
 const NAME_MARKER = "LAN76EventsSuite";
@@ -53,7 +53,7 @@ const NAME_MARKER = "LAN76EventsSuite";
  * lives. Anchoring here closes the hazard before it is somebody's afternoon.
  * The seeded cohort is the only population no suite ever deletes.
  */
-const SEEDED_PEOPLE_CREATED_AT = "2025-06-01T09:00:00Z";
+const SEEDED_PEOPLE_CREATED_AT = SEEDED_IDENTITY_CREATED_AT;
 
 let observer: Client;
 let actorPersonId: string;

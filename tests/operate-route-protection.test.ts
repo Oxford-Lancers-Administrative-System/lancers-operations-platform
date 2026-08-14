@@ -177,3 +177,80 @@ describe("row 15 — /operate is in the protected set, and nothing else changed"
     expect(matcherRuns("/favicon.ico")).toBe(false);
   });
 });
+
+/**
+ * The signed RSVP page's headers — LAN-79.
+ *
+ * These exist because independent review deleted `Referrer-Policy: no-referrer`
+ * from the proxy and the whole suite stayed green. That header is the single
+ * thing standing between a token in a URL and a third party's access log, and
+ * nothing asserted it. Neither did anything assert the early return itself, or
+ * the reason it exists.
+ */
+describe("the signed RSVP page is public, unauthenticated, and carries its own headers", () => {
+  const RSVP = "/rsvp/abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM0123";
+
+  it("is matched by the proxy, or none of the below would run at all", () => {
+    expect(matcherRuns("/rsvp")).toBe(true);
+    expect(matcherRuns(RSVP)).toBe(true);
+  });
+
+  it("stops the token leaving in a Referer header", async () => {
+    // The token IS the authorization and it is in the URL, so any outbound
+    // request from this page would hand it to whoever received it.
+    givenSignedIn(false);
+
+    const response = await proxy(requestFor(RSVP));
+
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  it("lets nothing keep a copy of a page that names a player", async () => {
+    givenSignedIn(false);
+
+    const response = await proxy(requestFor(RSVP));
+
+    const cacheControl = response.headers.get("cache-control") ?? "";
+    expect(cacheControl).toContain("no-store");
+    expect(cacheControl).toContain("private");
+  });
+
+  it("keeps a signed link out of search results", async () => {
+    givenSignedIn(false);
+
+    const response = await proxy(requestFor(RSVP));
+
+    expect(response.headers.get("x-robots-tag")).toContain("noindex");
+  });
+
+  it("never redirects a player to sign in", async () => {
+    // It is the one page in the application with no session. A redirect here
+    // would be a sign-in prompt on an unauthenticated surface.
+    givenSignedIn(false);
+
+    const response = await proxy(requestFor(RSVP));
+
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("does no Supabase work at all, so it cannot rotate an operator's cookie", async () => {
+    // The stated reason for the early return: a player's page load must not
+    // cost a session round trip, and must not touch the session of an operator
+    // who happens to share the browser — a committee member's phone.
+    givenSignedIn(true);
+
+    await proxy(requestFor(RSVP));
+
+    expect(createServerClient).not.toHaveBeenCalled();
+  });
+
+  it("still refreshes the session on every other path", async () => {
+    // The counterweight: proof that the early return is scoped to /rsvp and has
+    // not quietly switched session handling off everywhere.
+    givenSignedIn(true);
+
+    await proxy(requestFor("/operate/roster"));
+
+    expect(createServerClient).toHaveBeenCalled();
+  });
+});
