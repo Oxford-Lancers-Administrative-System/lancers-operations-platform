@@ -480,16 +480,18 @@ migrates hosted Supabase, or writes to production.
   The primary checkout remains unchanged and clean. Reviewers use their own
   isolated worktrees.
 - **The implementer writes tests but does not certify them.** Normal and Highest
-  risk changes receive a fresh-context reviewer that independently judges the
-  matrix and challenges critical rules with plausible defect injection. Green
-  CI is required but is not approval.
+  risk changes receive a fresh-context reviewer that independently reconstructs
+  requirements, judges the matrix and challenges critical rules with plausible
+  defect injection. Narrow corrections preserve review lineage and receive
+  correction-only review; material risk-surface changes reset to full review.
+  Review is capped at three automatic invocations, with repeated premises routed
+  to requirement adjudication. Green CI is required but is not approval.
 - **Review is graded before implementation by reachability and blast radius,
   never diff size.** Low risk is top-level verification only; Normal application
   work receives one independent review; Highest risk includes auth,
   authorization, migrations, grants/RLS, secrets, privileged credentials,
-  production-affecting workflows, and the agent harness. A correction at
-  Highest risk requires a fresh re-review of the corrected head. An unspecified
-  grade resolves to Normal.
+  production-affecting workflows, and the agent harness. An unspecified grade
+  resolves to Normal.
 - **Visual acceptance precedes final correctness review.** After objective
   verification, UI-affecting work receives agent browser preflight at desktop
   and 375px, then stops with a live protected `review-ready` environment for

@@ -26,6 +26,14 @@ const reviewerPath = path.join(agents, "code-reviewer.md");
 const skill = frontMatter(skillPath);
 const reviewer = frontMatter(reviewerPath);
 const agreement = readFileSync(path.join(root, "AGENTS.md"), "utf8");
+const narrowCorrectionTranscript = readFileSync(
+  path.join(root, "tests", "fixtures", "agent-review", "narrow-correction.md"),
+  "utf8",
+);
+const repeatedPremiseTranscript = readFileSync(
+  path.join(root, "tests", "fixtures", "agent-review", "repeated-premise.md"),
+  "utf8",
+);
 const pullRequestTemplate = readFileSync(
   path.join(root, ".github", "PULL_REQUEST_TEMPLATE.md"),
   "utf8",
@@ -53,7 +61,7 @@ describe("single-issue Claude workflow", () => {
   it("makes the top-level session implement and permits only review delegation", () => {
     expect(readdirSync(agents)).toEqual(["code-reviewer.md"]);
     expect(flat(skill.body)).toMatch(/Do not launch an implementation sub-agent/i);
-    expect(flat(skill.body)).toMatch(/launch exactly one fresh-context `code-reviewer`/i);
+    expect(flat(skill.body)).toMatch(/launch one fresh-context `code-reviewer`/i);
     expect(reviewer.fields.disallowedTools).toContain("Agent");
     expect(reviewer.fields.disallowedTools).toContain("Workflow");
   });
@@ -104,11 +112,110 @@ describe("graded review routing", () => {
     expect(body).toMatch(/raise the grade.*never lower it/i);
   });
 
-  it("requires a fresh re-review after any Highest-risk correction", () => {
+  it("uses one full review and correction-only review for narrow fixes", () => {
     const body = flat(skill.body);
-    expect(body).toMatch(/any correction invalidates the prior result/i);
-    expect(body).toMatch(/launch a fresh reviewer to review the corrected head/i);
-    expect(flat(reviewer.body)).toMatch(/Never treat this review as covering a later commit/i);
+    const reviewBody = flat(reviewer.body);
+    expect(body).toMatch(/Review has three operations/i);
+    expect(body).toMatch(/Full review.*independently reconstructs material requirements/i);
+    expect(body).toMatch(/Correction review.*previous_reviewed_sha\.\.current_head_sha/i);
+    expect(reviewBody).toMatch(
+      /review mode \(`full`, `correction`, or `requirement-adjudication`\)/i,
+    );
+    expect(reviewBody).toMatch(/Review `previous_reviewed_sha\.\.current_head_sha`/i);
+    expect(reviewBody).toMatch(
+      /Before reading the PR body, implementer summary, acceptance matrix, complete diff, or commit list, reconstruct every material criterion/i,
+    );
+    expect(reviewBody).toMatch(
+      /Do not receive the implementer acceptance\/test matrix.*until after independently reconstructing/i,
+    );
+    expect(body).not.toMatch(/any correction invalidates the prior result/i);
+    expect(body).not.toMatch(/continue until.*clear/i);
+  });
+
+  it("preserves unchanged coverage and reuses controlled-defect evidence", () => {
+    for (const body of [flat(skill.body), flat(reviewer.body)]) {
+      expect(body).toMatch(/reuse.*controlled-defect evidence for unchanged behavior/i);
+      expect(body).toMatch(/only corrected or newly affected critical behavior/i);
+    }
+    expect(flat(skill.body)).toMatch(/Prior coverage remains valid for unchanged behavior/i);
+  });
+
+  it("distinguishes blockers from advisories and prevents advisory review loops", () => {
+    const body = flat(skill.body);
+    const reviewBody = flat(reviewer.body);
+    expect(body).toMatch(/A finding may block only when evidence demonstrates/i);
+    expect(body).toMatch(/critical regression test that stays green/i);
+    expect(body).toMatch(/minor findings first discovered in unchanged code.*are advisories/i);
+    expect(body).toMatch(/Advisories must not cause a code change, commit, further review round/i);
+    expect(reviewBody).toMatch(/Advisories never request a code change, commit, review round/i);
+  });
+
+  it("restricts new blockers found during correction review", () => {
+    const body = flat(reviewer.body);
+    expect(body).toMatch(/new blocker is allowed only when the correction introduced the defect/i);
+    expect(body).toMatch(
+      /previously missed critical correctness, security, privacy, or data-integrity/i,
+    );
+    expect(body).toMatch(
+      /controlling authoritative source or invariant, concrete failure evidence/i,
+    );
+    expect(body).toMatch(/Every other new finding against unchanged code.*is advisory/i);
+  });
+
+  it("resets full review only for enumerated material risk-surface changes", () => {
+    const body = flat(skill.body);
+    expect(body).toMatch(/Reset to a full review only when.*materially expands or invalidates/i);
+    expect(body).toMatch(
+      /authorization, privacy, credential, or trust boundary outside the original finding/i,
+    );
+    expect(body).toMatch(/migration, RLS policy, transaction boundary, or production side effect/i);
+    expect(body).toMatch(/replacing the test strategy/i);
+    expect(body).toMatch(/Diff size and editing a Highest-risk file are not reset conditions/i);
+  });
+
+  it("breaks repeated-premise loops and caps automatic reviewer invocations", () => {
+    const body = flat(skill.body);
+    expect(body).toMatch(/two consecutive rounds block on substantially the same requirement/i);
+    expect(body).toMatch(/stop correction work and do not launch another code-review round/i);
+    expect(body).toMatch(/requirement adjudication/i);
+    expect(body).toMatch(/fresh-context `code-reviewer` in `requirement-adjudication` mode/i);
+    expect(body).toMatch(/excludes the PR body, implementation, diff, acceptance matrix/i);
+    expect(flat(reviewer.body)).toMatch(/requirement-adjudication brief names only the issue/i);
+    expect(flat(reviewer.body)).toMatch(/Return an adjudication receipt containing/i);
+    expect(body).toMatch(
+      /at most one initial full review, two correction reviews, and three total reviewer invocations/i,
+    );
+    expect(body).toMatch(/never auto-approve an unresolved material blocker/i);
+  });
+
+  it("requires structured receipts and lineage-aware handoff", () => {
+    for (const field of [
+      "review_mode",
+      "full_review_sha",
+      "correction_base_sha",
+      "reviewed_head_sha",
+      "requirement_provenance",
+      "resolved_finding_ids",
+      "blocking_findings",
+      "advisories",
+      "result",
+    ]) {
+      expect(skill.body).toContain(`\`${field}\``);
+      expect(reviewer.body).toContain(`"${field}"`);
+    }
+    expect(flat(skill.body)).toMatch(/Prior review remains valid; only this delta is pending/i);
+    expect(flat(skill.body)).toMatch(/Automatic review stopped after three rounds/i);
+  });
+
+  it("dry-runs narrow correction and repeated-premise scenarios", () => {
+    expect(flat(narrowCorrectionTranscript)).toMatch(
+      /round 1.*full.*blocked.*R-001.*round 2.*correction.*A\.\.B.*clear/i,
+    );
+    expect(flat(narrowCorrectionTranscript)).toMatch(/unchanged.*evidence is reused/i);
+    expect(flat(repeatedPremiseTranscript)).toMatch(
+      /round 1.*R-007.*round 2.*same finding family.*requirement adjudication/i,
+    );
+    expect(flat(repeatedPremiseTranscript)).toMatch(/third code-review invocation.*not launched/i);
   });
 
   it("pins review and CI to the current PR head", () => {

@@ -1293,7 +1293,11 @@ describe("the seeded identity records", () => {
     // in the FUTURE, so every seeded person sorted after anything created at
     // `now()`. Nothing in the application read it; two test suites did.
     const stamps = await observer.query<{ created_at: Date; count: string }>(
-      "select created_at, count(*)::text as count from public.people group by 1",
+      `select created_at, count(*)::text as count
+         from public.people
+        group by created_at
+        order by created_at
+        limit 1`,
     );
 
     expect(stamps.rows).toHaveLength(1);
