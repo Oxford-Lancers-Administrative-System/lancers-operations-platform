@@ -25,6 +25,7 @@ import {
   DELIVERY_STATE_COLOURS,
   DELIVERY_STATE_LABELS,
   describeRetryability,
+  describeRetryColumn,
   DIAGNOSTICS_HEADING,
   DIAGNOSTICS_NOTE,
   FALLBACK_NOTE,
@@ -309,7 +310,7 @@ function Diagnostics({
                   <StateChip row={row} />
                 </TableCell>
                 <TableCell>{formatAttemptTime(row.lastAttemptAt)}</TableCell>
-                <TableCell>{row.retryable ? "Retryable" : "—"}</TableCell>
+                <TableCell>{describeRetryColumn(row.state, row.retryable)}</TableCell>
                 <TableCell>{RESPONSE_LABELS[row.responseState] ?? row.responseState}</TableCell>
                 <TableCell align="right">
                   <Button size="small" href={`${basePath}?invitation=${row.invitationId}`}>
@@ -416,7 +417,7 @@ function RepairPanel({
           <Fact
             label="Retry"
             value={retryable ? "Retryable" : "Not retryable"}
-            note={describeRetryability(row.state, row.attemptCount, MAX_ATTEMPTS)}
+            note={describeRetryability(row.state, row.attemptCount, MAX_ATTEMPTS, retryable)}
             testId="retry-fact"
           />
           <Fact
@@ -442,7 +443,12 @@ function RepairPanel({
             eventId={eventId}
             jobId={row.jobId}
             disabled={!retryable}
-            disabledReason={describeRetryability(row.state, row.attemptCount, MAX_ATTEMPTS)}
+            disabledReason={describeRetryability(
+              row.state,
+              row.attemptCount,
+              MAX_ATTEMPTS,
+              retryable,
+            )}
           />
           <RevokeAndReissueForm
             eventId={eventId}

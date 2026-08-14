@@ -842,7 +842,7 @@ describe("what an operator is told after a repair", () => {
       { signatureVerified: true },
     );
 
-    expect(outcome).toBe("duplicate");
+    expect(outcome).toBe("superseded");
     expect((await row(eventId)).state).toBe("retryable");
 
     const results = await observer.query<{ outcome: string }>(
@@ -852,6 +852,18 @@ describe("what an operator is told after a repair", () => {
       [eventId],
     );
     expect(results.rows.map((each) => each.outcome)).toEqual(["failed"]);
+
+    // And the stored callback says so. It applied nothing, so recording it with
+    // `applied_at` set and no reason would make this table — the durable,
+    // auditable evidence the issue asks for — assert something untrue.
+    const stored = await observer.query<{ applied: boolean; ignored_reason: string | null }>(
+      `select applied_at is not null as applied, ignored_reason
+         from public.delivery_callbacks
+        where provider_event_id = $1`,
+      [`${messageId}:delivered`],
+    );
+    expect(stored.rows[0].applied).toBe(false);
+    expect(stored.rows[0].ignored_reason).toMatch(/already has a recorded outcome/i);
   });
 });
 

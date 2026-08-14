@@ -80,6 +80,17 @@ import { issueTokenIn, revokeTokensIn } from "./rsvp-tokens";
  */
 export const MAX_ATTEMPTS = 5;
 
+/**
+ * How long one approval's whole dispatch may take before the rest is left for
+ * later.
+ *
+ * Ninety seconds — comfortably inside Cloud Run's default request limit, and
+ * long enough that a healthy provider finishes an ordinary audience well within
+ * it. What it bounds is the unhealthy case, where the per-call deadline alone
+ * would multiply by the number of invitees.
+ */
+export const DISPATCH_BUDGET_MS = 90_000;
+
 /** `notification_jobs.claimed_by`, and the audit actor for automated work. */
 export const DISPATCH_ACTOR_LABEL = "system: automated delivery";
 
@@ -189,10 +200,16 @@ async function claimJobIn(
     normalised_value: string | null;
     is_preferred: boolean;
   }>(
+    // Ordered, because `selectMobileNumber` promises "the contact the club
+    // marked preferred, then the most recently recorded current one" and an
+    // unordered read makes the second half whatever PostgreSQL happens to
+    // return. Sending to an arbitrary one of somebody's two numbers is the kind
+    // of wrong that looks like working software.
     `select kind::text as kind, raw_value, normalised_value, is_preferred
        from public.contact_points
       where person_id = $1
-        and (valid_until is null or valid_until > current_date)`,
+        and (valid_until is null or valid_until > current_date)
+      order by is_preferred desc, valid_from desc, created_at desc`,
     [detail.person_id],
   );
 
@@ -313,12 +330,19 @@ export async function dispatchJob(
       // left every job permanently `failed` with no operator path back — the
       // attempt ceiling consumed by a condition no operator caused and no retry
       // could clear.
+      //
+      // The ceiling is still *read*, though. Every caller that reaches here
+      // guards it already, so the predicate is unreachable today — and it stays
+      // because a later caller that does not would otherwise overwrite a
+      // genuinely exhausted job's real failure with the configuration
+      // sentence, losing the reason a human needs.
       const claimed = await tx.query<{ attempt_count: number }>(
         `update public.notification_jobs
             set status = 'failed', last_error = $2, updated_at = now()
           where id = $1 and status in ('pending', 'ready', 'failed')
+            and attempt_count < $3
           returning attempt_count`,
-        [jobId, resolution.reason],
+        [jobId, resolution.reason, MAX_ATTEMPTS],
       );
       if (claimed.rowCount === 0) return;
       await recordAudit(tx, {
@@ -460,7 +484,21 @@ export async function dispatchEventInvitations(
   let refused = 0;
   let skipped = 0;
 
+  // A total budget, not only a per-call one.
+  //
+  // Approval awaits this, sequentially, inside a Server Action. One unreachable
+  // host costs `PROVIDER_TIMEOUT_MS` per invitee, so forty invitees could hold
+  // the request open past Cloud Run's own limit and hand the operator a
+  // platform timeout instead of a confirmation. Every job left undispatched
+  // stays `pending` — visible as **Queued**, retryable, and picked up by the
+  // next sweep — so stopping early loses nothing except the wait.
+  const deadline = Date.now() + DISPATCH_BUDGET_MS;
+
   for (const job of due.rows) {
+    if (Date.now() >= deadline) {
+      skipped += 1;
+      continue;
+    }
     const outcome = await dispatchJob(job.id, options);
     if (outcome === "accepted") accepted += 1;
     else if (outcome === "refused") refused += 1;
@@ -484,10 +522,14 @@ export async function retryDelivery(
   options: { source?: EnvironmentSource; transport?: Transport } = {},
 ): Promise<"accepted" | "refused"> {
   const eligible = await withTransaction(async (tx) => {
+    // `job_type` is constrained, not assumed. The identifier arrives from a
+    // form, and every job is an invitation today only because nothing else
+    // creates one yet — LAN-79's reminders would make an unconstrained retry a
+    // way to fire an unrelated job from the delivery screen.
     const result = await tx.query<{ status: string; attempt_count: number }>(
       `select status::text as status, attempt_count
          from public.notification_jobs
-        where id = $1`,
+        where id = $1 and job_type = 'invitation'`,
       [jobId],
     );
     const row = result.rows[0];
@@ -592,7 +634,13 @@ export async function revokeAndReissue(
 // Inbound callbacks
 // ---------------------------------------------------------------------------
 
-export type CallbackApplication = "applied" | "duplicate" | "unmatched" | "not_applicable";
+export type CallbackApplication =
+  | "applied"
+  | "duplicate"
+  | "unmatched"
+  | "not_applicable"
+  /** The attempt already had a terminal result, which stays authoritative. */
+  | "superseded";
 
 /**
  * Applies one verified provider callback, exactly once.
@@ -630,21 +678,44 @@ export async function applyProviderCallback(
 
     const matched = attempt?.rows[0] ?? null;
 
-    // Decided before the insert, because the row records its own verdict and is
-    // written once — there is no window in which a callback is stored but not
-    // yet applied.
+    // Whether this callback *can* be applied is decided before the row is
+    // written, because the row records its own verdict and is written once.
+    //
+    // "Can" is not "will", and the difference matters: the attempt may already
+    // carry a terminal result, in which case `delivery_results` — authoritative
+    // under invariant M4 — refuses the second one and this callback applies
+    // nothing. Writing the row first and discovering that afterwards produced a
+    // stored verdict of `applied_at` set and `ignored_reason` null for a
+    // callback that moved nothing, which is precisely the durable, auditable
+    // evidence this table exists to be. So the conflict is established here,
+    // before the verdict is committed.
+    const concluded =
+      matched === null
+        ? false
+        : ((
+            await tx.query(
+              `select 1 from public.delivery_results
+                where notification_job_id = $1 and attempt_number = $2`,
+              [matched.notification_job_id, matched.attempt_number],
+            )
+          ).rowCount ?? 0) > 0;
+
     const application: CallbackApplication = !matched
       ? "unmatched"
       : event.outcome === null
         ? "not_applicable"
-        : "applied";
+        : concluded
+          ? "superseded"
+          : "applied";
 
     const ignoredReason =
       application === "unmatched"
         ? "No delivery attempt matches this provider message identifier."
         : application === "not_applicable"
           ? `The provider status "${event.providerStatus ?? "unknown"}" has no delivery outcome in this system.`
-          : null;
+          : application === "superseded"
+            ? "This attempt already has a recorded outcome, which stays authoritative."
+            : null;
 
     const stored = await tx.query<{ id: string }>(
       `insert into public.delivery_callbacks
@@ -692,13 +763,11 @@ export async function applyProviderCallback(
       ],
     );
 
-    // The job moves only when this callback actually wrote the result.
-    // `delivery_results` is authoritative (invariant M4) and holds one row per
-    // attempt, so a second, *different* terminal callback for the same attempt
-    // is refused by `on conflict` — and must not move the job either. Updating
-    // unconditionally let a late "delivered" flip a job whose recorded outcome
-    // stayed `failed`, and the operator's screen reads the job.
-    if (written.rowCount === 0) return "duplicate";
+    // Belt and braces. `concluded` above already refused this case before the
+    // callback row was written, so reaching here means another transaction
+    // inserted the result in between — and the job must still not move, because
+    // `delivery_results` is authoritative under invariant M4.
+    if (written.rowCount === 0) return "superseded";
 
     await tx.query(
       `update public.notification_jobs

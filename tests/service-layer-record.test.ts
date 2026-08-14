@@ -148,8 +148,16 @@ describe("row 14 — the service layer grants nothing and exposes nothing", () =
   const REVOKE =
     /\brevoke\s+(all|select|insert|update|delete|truncate|references|trigger|create|connect|temporary|temp|usage|execute|maintain|grant\s+option)\b|\brevoke\s+\w+\s+from\b/i;
 
+  /**
+   * Symmetric with `REVOKE` below. Widening one and not the other left
+   * `grant truncate on … to service_role` passing a file whose whole point is
+   * that the service layer issues no privilege statements at all.
+   */
+  const GRANT =
+    /\bgrant\s+(all|select|insert|update|delete|truncate|references|trigger|create|connect|temporary|temp|usage|execute|maintain)\b/i;
+
   it.each([
-    ["a grant", /\bgrant\s+(all|select|insert|update|delete|usage|execute)\b/i],
+    ["a grant", GRANT],
     ["a revoke", REVOKE],
     ["an RLS policy", /\bcreate\s+policy\b/i],
     ["an RLS toggle", /\brow\s+level\s+security\b/i],

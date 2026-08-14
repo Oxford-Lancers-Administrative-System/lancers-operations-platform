@@ -161,13 +161,44 @@ export const FALLBACK_NOTE = "No manual send action";
 
 export const NO_ATTEMPT_YET = "Not attempted yet";
 
-/** Shown in place of a retry control once the ceiling is reached. */
-export function describeRetryability(state: DeliveryState, attempts: number, max: number): string {
+/**
+ * The note under the Retry fact.
+ *
+ * Result and Retry are separate axes — a **Failed** delivery whose cause a human
+ * has since fixed is still worth one more attempt — so this has to describe
+ * retryability without contradicting the result shown beside it. It previously
+ * read "Failed after 1 attempts…" under the value **Retryable**, which is both
+ * ungrammatical and the opposite of what the value said.
+ */
+export function describeRetryability(
+  state: DeliveryState,
+  attempts: number,
+  max: number,
+  retryable: boolean,
+): string {
   if (state === "delivered") return "Delivered — nothing to repair";
   if (state === "attempted") return "Waiting for the provider to confirm delivery";
   if (state === "queued") return "Waiting to be sent";
-  if (state === "retryable") return `Retryable — ${attempts} of ${max} attempts used`;
-  return `Failed after ${attempts} attempts. Somebody has to fix the cause before retrying.`;
+  if (!retryable) {
+    return `Attempted ${countAttempts(attempts)} and not retried again automatically. Somebody has to fix the cause first.`;
+  }
+  return `${countAttempts(attempts)} of ${max} used`;
+}
+
+function countAttempts(attempts: number): string {
+  return attempts === 1 ? "1 attempt" : `${attempts} attempts`;
+}
+
+/**
+ * The Retry column on UX-51.
+ *
+ * The wireframe distinguishes a queued row, which is waiting for its first
+ * send, from a failed one that will be tried again — "Scheduled" and
+ * "Retryable" respectively — and shows an em dash where neither applies.
+ */
+export function describeRetryColumn(state: DeliveryState, retryable: boolean): string {
+  if (state === "queued") return "Scheduled";
+  return retryable ? "Retryable" : "—";
 }
 
 /** The date format the wireframes use: "12 Oct, 18:04". */

@@ -65,14 +65,25 @@ export async function retryDeliveryAction(
   const eventId = text(formData, "eventId");
   const jobId = text(formData, "jobId");
 
+  let outcome: Awaited<ReturnType<typeof retryDelivery>>;
   try {
-    await retryDelivery(operator.personId, jobId);
+    outcome = await retryDelivery(operator.personId, jobId);
   } catch (error) {
     return { error: messageFor(error) };
   }
 
   revalidatePath(`/operate/events/${eventId}/delivery`);
-  return { error: null };
+
+  // "Failures are safely visible" is an acceptance criterion, and reporting a
+  // refused attempt as success is the cheapest way to break it. The refreshed
+  // row would eventually say so, but the operator pressed a button and is owed
+  // an answer to that press.
+  return {
+    error:
+      outcome === "accepted"
+        ? null
+        : "The provider did not accept this invitation. The reason is shown against it below.",
+  };
 }
 
 /**
