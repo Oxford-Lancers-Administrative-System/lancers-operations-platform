@@ -95,10 +95,31 @@ async function auditFor(eventId: string) {
 }
 
 /** How many "an event was drafted" records exist right now. */
+/**
+ * Drafting audits **for this suite's events only**.
+ *
+ * This counted every `event.drafted` row in the database, which is a cross-suite
+ * race of the family LAN-119 fixes: Vitest runs suites in parallel against one
+ * database, and `event-approval.test.ts` drafts an event in almost every test.
+ * A row committed between the before and after counts failed this assertion in a
+ * suite that had nothing to do with it.
+ *
+ * Independent review found it while checking whether the two races already fixed
+ * were the only ones. They were not.
+ *
+ * Scoping to `NAME_MARKER` is both race-free and closer to the claim: what the
+ * caller wants to know is whether a refused create wrote an audit row for the
+ * event *it* tried to create.
+ */
 async function countDraftedAudits(): Promise<number> {
   const result = await observer.query<{ count: string }>(
-    `select count(*)::text as count from public.audit_events
-      where entity_table = 'events' and action = 'event.drafted'`,
+    `select count(*)::text as count
+       from public.audit_events a
+       join public.events e on e.id = a.entity_id
+      where a.entity_table = 'events'
+        and a.action = 'event.drafted'
+        and e.name like $1`,
+    [`${NAME_MARKER}%`],
   );
   return Number(result.rows[0].count);
 }
@@ -805,16 +826,26 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
     expect(list.events.map((row) => row.id)).not.toContain(foreign.rows[0].id);
 
     // And the season total is the season's, not the database's.
-    const inSeason = await observer.query<{ count: string }>(
-      "select count(*)::text as count from public.events where season_id = $1",
+    //
+    // Read in ONE statement rather than two, and compared as a difference rather
+    // than as two independent equalities. `list.totalInSeason` and a separate
+    // `count(*)` are two snapshots of a table that several parallel suites are
+    // inserting into, so strict equality between them was a race — the same
+    // family LAN-119 fixes elsewhere. What matters here is that the total counts
+    // one season and not the database, and the gap proves it.
+    const counts = await observer.query<{ in_season: string; everything: string }>(
+      `select
+         (select count(*)::text from public.events where season_id = $1) as in_season,
+         (select count(*)::text from public.events) as everything`,
       [mine.seasonId],
     );
-    expect(unfilteredTotal).toBe(Number(inSeason.rows[0].count));
+    const inSeason = Number(counts.rows[0].in_season);
+    const everything = Number(counts.rows[0].everything);
 
-    const everything = await observer.query<{ count: string }>(
-      "select count(*)::text as count from public.events",
-    );
-    expect(unfilteredTotal).toBeLessThan(Number(everything.rows[0].count));
+    expect(inSeason).toBeLessThan(everything);
+    // The foreign event this test planted is one of the ones outside the total.
+    expect(unfilteredTotal).toBeLessThan(everything);
+    expect(unfilteredTotal).toBeGreaterThan(0);
   });
 
   it("filters by status without changing the season total", async () => {

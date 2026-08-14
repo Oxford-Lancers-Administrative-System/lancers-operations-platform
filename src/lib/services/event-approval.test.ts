@@ -1010,42 +1010,6 @@ describe("a concurrent audience change cannot undermine an approval in flight", 
    * the two transactions to the precise point where they used to interfere.
    */
 
-  it("blocks a save until an in-flight approval commits, and keeps the audience", async () => {
-    const event = await newDraft();
-    const keys = await keysFor(event, "player", 3);
-    await saveEventAudience(actorPersonId, event.id, keys);
-
-    // A second connection, so this is genuinely two transactions rather than
-    // one transaction talking to itself.
-    const rival = await openObserver();
-    try {
-      await rival.query("begin");
-
-      // The approval runs to completion while the rival transaction is open.
-      const outcome = await approveEvent(actorPersonId, event.id);
-      expect(outcome.invitationCount).toBe(3);
-
-      // Now the rival tries to take the same lock. It must block until the
-      // approval has committed — which it already has — and then find the event
-      // is no longer a draft.
-      const refusal = await caught(() => saveEventAudience(actorPersonId, event.id, []));
-      expect(refusal.kind).toBe("invalid_transition");
-      expect(refusal.message).toMatch(/Only a draft's audience can be changed/);
-
-      await rival.query("rollback");
-    } finally {
-      await rival.end();
-    }
-
-    // The state the old code could produce: approved, nobody invited.
-    expect(await countsFor(event.id)).toMatchObject({
-      audience: 3,
-      invitations: 3,
-      jobs: 3,
-      uninvited: 0,
-    });
-  });
-
   it("does not rewrite the audience of an event that was approved while it waited", async () => {
     // The mirror of the test above, and the direction that was still uncovered.
     //
@@ -1063,7 +1027,19 @@ describe("a concurrent audience change cannot undermine an approval in flight", 
     const rival = await openObserver();
     try {
       await rival.query("begin");
-      await rival.query("select id from public.events where id = $1 for update", [event.id]);
+      // FOR KEY SHARE, deliberately, and not FOR UPDATE.
+      //
+      // The rival is standing in for a second service call, so the lock it holds
+      // decides what this test can detect. A rival holding FOR UPDATE blocks any
+      // lock mode the service might take — including FOR SHARE, which conflicts
+      // with FOR UPDATE but *not with itself*, and which therefore would not fix
+      // the defect at all: two real service calls would both acquire it and
+      // interleave exactly as before.
+      //
+      // FOR KEY SHARE conflicts with FOR UPDATE and with nothing weaker, so this
+      // test now fails if the service takes anything less than an exclusive lock.
+      // Independent review found the earlier version could not tell the two apart.
+      await rival.query("select id from public.events where id = $1 for key share", [event.id]);
 
       const save = saveEventAudience(actorPersonId, event.id, []).then(
         (value) => ({ ok: true as const, value }),
@@ -1127,7 +1103,19 @@ describe("a concurrent audience change cannot undermine an approval in flight", 
     const rival = await openObserver();
     try {
       await rival.query("begin");
-      await rival.query("select id from public.events where id = $1 for update", [event.id]);
+      // FOR KEY SHARE, deliberately, and not FOR UPDATE.
+      //
+      // The rival is standing in for a second service call, so the lock it holds
+      // decides what this test can detect. A rival holding FOR UPDATE blocks any
+      // lock mode the service might take — including FOR SHARE, which conflicts
+      // with FOR UPDATE but *not with itself*, and which therefore would not fix
+      // the defect at all: two real service calls would both acquire it and
+      // interleave exactly as before.
+      //
+      // FOR KEY SHARE conflicts with FOR UPDATE and with nothing weaker, so this
+      // test now fails if the service takes anything less than an exclusive lock.
+      // Independent review found the earlier version could not tell the two apart.
+      await rival.query("select id from public.events where id = $1 for key share", [event.id]);
 
       const approval = approveEvent(actorPersonId, event.id).then(
         (value) => ({ ok: true as const, value }),

@@ -1135,10 +1135,12 @@ describe("UX-40 — building the audience", () => {
   });
 
   it("never shrinks the audience when an already-lit group is pressed", async () => {
-    // The one-press variant, which needs no undo at all. Selecting the players
-    // lights the coaches button, because the only coach in this fixture is not a
-    // player — so use the committee button, whose sole member Morgan Pike IS a
-    // selected player. Pressing it can only add; it must never subtract.
+    // The one-press variant, which needs no undo at all.
+    //
+    // Casey North is the only coach and is not a player, so selecting the
+    // players leaves the coaches button dark. The committee button is the one
+    // that lights, because its sole member Morgan Pike IS a selected player —
+    // and pressing a lit button must never subtract.
     await openBuilder();
 
     fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));

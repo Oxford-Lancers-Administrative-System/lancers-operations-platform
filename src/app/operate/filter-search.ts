@@ -99,10 +99,17 @@ export function useFilterSearch({
    *
    * The clause only fires when the arriving URL says **exactly** what the box
    * already holds — so it is never protecting unsaved keystrokes; there are none
-   * to protect. What it did was skip advancing `committed.current`, which left a
-   * pending debounce believing it still had something to say, so choosing a
-   * filter mid-type produced a second navigation to the URL the browser had just
-   * arrived at.
+   * to protect. What it did was skip advancing `committed.current`, leaving a
+   * pending debounce believing it still had something to say.
+   *
+   * The redundant navigation that produced is worth stating precisely, because
+   * the mechanism is indirect: advancing `committed.current` does **not** cancel
+   * a running timer. What cancels it is the effect re-running — and it re-runs
+   * because changing a filter changes `filterKey`, which changes `hrefFor`'s
+   * identity, which is in the effect's dependency list. The timer is then
+   * recreated, sees `typed === committed.current`, and returns without pushing.
+   * A future change that memoised `hrefFor` differently would silently restore
+   * the double navigation, and the test would still pass.
    *
    * Adopting an identical value is safe: `setTyped` with the same string is a
    * no-op to React, so there is no re-render and no caret to jump. The guard

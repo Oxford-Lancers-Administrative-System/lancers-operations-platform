@@ -181,7 +181,7 @@ async function currentStatus(membershipId: string): Promise<string> {
  * A person from the **seeded** club, to act in this suite's transitions.
  *
  * This used to be `order by created_at, id limit 1`, and that was the cause of a
- * long-running intermittent failure across this file and `membership.test.ts` —
+ * long-running intermittent failure across this file and `roster.test.ts` —
  * 13 tests at a time, on code that passed when re-run.
  *
  * The seed stamps every person `created_at = '2026-08-15T09:00:00Z'`, which is
@@ -1055,6 +1055,11 @@ describe("listCurrentSeasonRoster", () => {
 
       expect(actual).toEqual(expected);
       expect(actual.length).toBeGreaterThan(0);
+      // The narrowing above preserves the ordering claim but would also pass if
+      // an inherited key truncated the roster, since both sides would be the
+      // same short list. Independent review caught that, so the set size is
+      // asserted separately — against the read's own total, not a second query.
+      expect(roster.entries.length).toBe(byName.entries.length);
     }
   });
 
