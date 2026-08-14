@@ -9,12 +9,26 @@
  * changes an approved decision — it needs Brian, not a reviewer.
  */
 
+import { TYPE_LABELS } from "@/app/operate/events/presentation";
+
 /** The club's name, as the page banner shows it. */
 export const BANNER = "LANCERS OPERATIONS";
 
 // ---------------------------------------------------------------------------
 // UX-60 — the invitation
 // ---------------------------------------------------------------------------
+
+/**
+ * The kind of event, in the club's word for it.
+ *
+ * Re-exported from the operator screens rather than restated, so that a player
+ * and an operator cannot end up calling the same event two different things.
+ * `TYPE_LABELS` is the single list; adding an event type to the enum without
+ * adding it there shows the raw value, which is ugly enough to notice.
+ */
+export function eventTypeLabel(eventType: string): string {
+  return TYPE_LABELS[eventType] ?? eventType;
+}
 
 export const PRIVACY_NOTE =
   "This secure page records only your response. Other players’ responses are never visible.";

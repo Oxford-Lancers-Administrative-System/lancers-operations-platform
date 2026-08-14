@@ -83,6 +83,7 @@ const TOKEN = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM0123";
 const PAGE: SignedRsvpPage = {
   invitationId: "00000000-0000-4000-8000-000000000079",
   eventName: "Team Practice",
+  eventType: "fixture",
   eventStatus: "approved",
   scheduledOn: "2026-10-14",
   startsAt: "20:00",
@@ -151,6 +152,18 @@ describe("UX-60 — the invitation", () => {
     // The response deadline, which is NOT the write cutoff.
     expect(text).toContain("Tuesday, 13 October at 18:00");
     expect(text).toContain("Late responses accepted until start");
+  });
+
+  it("says what kind of event it is, in the same words the operator screens use", async () => {
+    // Brian's visual review: "fixture or practice?" is the first thing a player
+    // wants off a link. The label comes from the operator screens' TYPE_LABELS
+    // rather than a second list, so the two surfaces cannot drift into calling
+    // one event different things.
+    givenToken("valid");
+    expect((await renderPage()).container.textContent).toContain("Fixture");
+
+    givenToken("valid", { ...PAGE, eventType: "strength_and_conditioning" });
+    expect((await renderPage()).container.textContent).toContain("Strength and conditioning");
   });
 
   it("offers both answers with the approved labels", async () => {

@@ -52,6 +52,8 @@ import { resolveRsvpTokenIn, type TokenState } from "./rsvp-tokens";
 export interface SignedRsvpPage {
   readonly invitationId: string;
   readonly eventName: string;
+  /** `events.event_type`, raw. The page turns it into the club's word for it. */
+  readonly eventType: string;
   readonly eventStatus: string;
   /** Calendar date of the event, `YYYY-MM-DD`, in the club's zone. */
   readonly scheduledOn: string | null;
@@ -91,6 +93,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
   const result = await tx.query<{
     invitation_id: string;
     event_name: string;
+    event_type: string;
     event_status: string;
     scheduled_on: string | null;
     starts_at: string | null;
@@ -105,6 +108,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
   }>(
     `select i.id as invitation_id,
             e.name as event_name,
+            e.event_type::text as event_type,
             e.status::text as event_status,
             to_char(e.scheduled_on, 'YYYY-MM-DD') as scheduled_on,
             to_char(e.starts_at, 'HH24:MI') as starts_at,
@@ -145,6 +149,7 @@ export async function readSignedRsvpPageIn(tx: Tx, invitationId: string): Promis
   return {
     invitationId: row.invitation_id,
     eventName: row.event_name,
+    eventType: row.event_type,
     eventStatus: row.event_status,
     scheduledOn: row.scheduled_on,
     startsAt: row.starts_at,

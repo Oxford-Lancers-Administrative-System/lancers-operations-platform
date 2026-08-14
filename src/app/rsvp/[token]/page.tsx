@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -55,6 +56,7 @@ import {
   VENUE_LABEL,
   cancelledSentence,
   eventSummary,
+  eventTypeLabel,
   formatDeadline,
   formatEventDate,
   formatEventDateShort,
@@ -236,6 +238,18 @@ function Invitation({
 
   return (
     <Shell>
+      {/*
+        What kind of event this is, above its name — Brian's visual review.
+        A player scanning a link on a phone wants to know "fixture or practice?"
+        before they read anything else, and the event's own name does not always
+        say: "vs Ivybridge Ravens" does, "Michaelmas week 3" does not.
+      */}
+      <Chip
+        label={eventTypeLabel(page.eventType)}
+        size="small"
+        color="primary"
+        sx={{ mb: 1.5, fontWeight: 700, letterSpacing: "0.04em" }}
+      />
       <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
         {page.eventName}
       </Typography>
