@@ -120,6 +120,7 @@ export default async function EventDetailPage({
 
   const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
   const mayApprove = operatorHasCapability(gate.operator, "event_approval");
+  const mayAdministerDelivery = operatorHasCapability(gate.operator, "delivery_administration");
   const canWorkOnAudience = mayApprove && event.status === "draft";
 
   // UX-40 and UX-41 are read-heavy and only reachable by an approver working on
@@ -173,6 +174,7 @@ export default async function EventDetailPage({
       event={event}
       mayManage={mayManage}
       mayApprove={mayApprove}
+      mayAdministerDelivery={mayAdministerDelivery}
       justApproved={justApproved}
       audience={audience}
     />
@@ -422,12 +424,14 @@ function EventDetailView({
   event,
   mayManage,
   mayApprove,
+  mayAdministerDelivery,
   justApproved,
   audience,
 }: {
   event: EventDetail;
   mayManage: boolean;
   mayApprove: boolean;
+  mayAdministerDelivery: boolean;
   justApproved: boolean;
   audience: AudienceMember[];
 }) {
@@ -528,6 +532,20 @@ function EventDetailView({
       </Paper>
 
       <Stack spacing={2} sx={{ maxWidth: 420 }}>
+        {mayAdministerDelivery && !preApproval ? (
+          // LAN-78's surface, reachable only once there is something to look
+          // at. The route guards itself on `delivery_administration`; this is
+          // the courtesy that stops an operator finding it by guessing.
+          <Button
+            variant="outlined"
+            href={`/operate/events/${event.id}/delivery`}
+            fullWidth
+            sx={{ minHeight: 44 }}
+          >
+            Delivery
+          </Button>
+        ) : null}
+
         {mayApprove && event.status === "draft" ? (
           <Stack spacing={1}>
             <Button

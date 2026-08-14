@@ -26,6 +26,24 @@ import { enterReturningPlayer, findPersonCandidates, resolveOpenSeason } from ".
 /** This suite's namespace. Never shared — parallel suites share one database. */
 const MARKER = "LAN74Intake";
 
+/**
+ * The seed stamps every person it creates with one fixed `created_at`, and this
+ * suite draws its actor only from that cohort.
+ *
+ * `select id from public.people limit 1` returned an arbitrary row, and "the
+ * oldest person" returned somebody else's fixture — the seed's people are dated
+ * in the *future*, so a suite creating one at `now()` sorts ahead of them. Both
+ * forms can adopt another suite's person as this one's actor, at which point
+ * that suite's cleanup is refused by `on delete restrict` and a foreign-key
+ * error surfaces in a test with no connection to the cause.
+ *
+ * This is a latent hazard rather than the intermittency actually observed on
+ * 13 August 2026 — that one was `countDraftedAudits`, and is fixed where it
+ * lives. Anchoring here closes the hazard before it is somebody's afternoon.
+ * The seeded cohort is the only population no suite ever deletes.
+ */
+const SEEDED_PEOPLE_CREATED_AT = "2026-08-15T09:00:00Z";
+
 let observer: Client;
 /** A real `people.id` standing in for what `resolveOperator()` returns. */
 let actorPersonId: string;

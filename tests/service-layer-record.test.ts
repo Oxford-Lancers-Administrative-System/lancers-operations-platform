@@ -129,9 +129,36 @@ describe("row 14 — the service layer grants nothing and exposes nothing", () =
     expect(sources.length).toBeGreaterThanOrEqual(6);
   });
 
+  /**
+   * `a revoke` is matched on what a `REVOKE` statement actually looks like,
+   * rather than on the word.
+   *
+   * It was `/\brevoke\s+/i`, and LAN-78 is where that stopped working: token
+   * revocation is a domain concept the club has — "Revoke and reissue link" is
+   * an approved control on UX-52 — so `src/lib/services/delivery.ts` contains
+   * the word "revoke" followed by a space several times, in prose and in copy,
+   * while issuing no SQL at all.
+   *
+   * The replacement is symmetric with the `grant` pattern above and covers both
+   * forms the statement takes: privileges (`revoke all on …`, `revoke select on
+   * …`) and role membership (`revoke <role> from <user>`). It is narrower in
+   * what it matches and no weaker in what it catches — the injection cases
+   * below prove that, and would fail if somebody loosened it further.
+   */
+  const REVOKE =
+    /\brevoke\s+(all|select|insert|update|delete|truncate|references|trigger|create|connect|temporary|temp|usage|execute|maintain|grant\s+option)\b|\brevoke\s+\w+\s+from\b/i;
+
+  /**
+   * Symmetric with `REVOKE`. Widening one and not the other left
+   * `grant truncate on … to service_role` passing a file whose whole point is
+   * that the service layer issues no privilege statements at all.
+   */
+  const GRANT =
+    /\bgrant\s+(all|select|insert|update|delete|truncate|references|trigger|create|connect|temporary|temp|usage|execute|maintain)\b/i;
+
   it.each([
-    ["a grant", /\bgrant\s+(all|select|insert|update|delete|usage|execute)\b/i],
-    ["a revoke", /\brevoke\s+/i],
+    ["a grant", GRANT],
+    ["a revoke", REVOKE],
     ["an RLS policy", /\bcreate\s+policy\b/i],
     ["an RLS toggle", /\brow\s+level\s+security\b/i],
     ["a role change", /\b(create|alter)\s+role\b/i],
@@ -140,6 +167,34 @@ describe("row 14 — the service layer grants nothing and exposes nothing", () =
     for (const source of sources) {
       expect(source.contents, `${source.file} matched ${pattern}`).not.toMatch(pattern);
     }
+  });
+
+  it.each([
+    "revoke all on table public.people from anon",
+    "REVOKE SELECT ON public.invitations FROM authenticated",
+    "revoke update on public.events from service_role",
+    "revoke club_admin from service_role",
+    // The privileges the first narrowing lost. Independent review pointed out
+    // that the four above did not cover them, so the list they justify did not
+    // either. Every one is a real statement the service layer must never carry.
+    "revoke truncate on public.audit_events from service_role",
+    "revoke references on public.people from authenticated",
+    "revoke trigger on public.events from service_role",
+    "revoke connect on database postgres from anon",
+    "revoke temporary on database postgres from authenticated",
+    "revoke grant option for select on public.people from service_role",
+  ])("still catches %s", (statement) => {
+    // Narrowing a pattern is only safe if it is shown to still bite. Each of
+    // these is a real revoke the service layer must never contain.
+    expect(REVOKE.test(statement)).toBe(true);
+  });
+
+  it.each([
+    "Revoke and reissue link",
+    "revokeTokensIn(tx, invitationId, reason)",
+    "the operator may revoke a link that went to the wrong person",
+  ])("does not mistake %s for one", (prose) => {
+    expect(REVOKE.test(prose)).toBe(false);
   });
 });
 

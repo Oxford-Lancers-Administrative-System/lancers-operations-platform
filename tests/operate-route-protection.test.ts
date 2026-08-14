@@ -54,6 +54,36 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+/**
+ * LAN-78. The provider webhook is the one route in the application an
+ * unauthenticated stranger is meant to reach, and it authenticates its own
+ * caller with an HMAC over the raw body. Running session refresh in front of it
+ * would make every forged POST cost a Supabase round trip before the signature
+ * is even read — free amplification on the only public endpoint there is.
+ *
+ * Asserted because removing the exclusion left every other assertion in this
+ * file green.
+ */
+describe("the provider webhook bypasses session refresh", () => {
+  const matcher = new RegExp(config.matcher[0].replace(/^\//, "^/").replace(/\$$/, "$"));
+
+  it("does not match the WhatsApp webhook", () => {
+    expect(matcher.test("/api/webhooks/whatsapp")).toBe(false);
+  });
+
+  it("still matches every operator route", () => {
+    for (const route of ["/operate", "/operate/events", "/operate/roster", "/dashboard"]) {
+      expect(matcher.test(route), `${route} should be protected`).toBe(true);
+    }
+  });
+
+  it("does not exclude the whole webhooks namespace", () => {
+    // Only the one self-authenticating route is excused. A future webhook that
+    // does not verify its own caller must not inherit the exemption.
+    expect(matcher.test("/api/webhooks/anything-else")).toBe(true);
+  });
+});
+
 describe("row 1 — an anonymous request for the operator shell goes to /login", () => {
   it.each(["/operate", "/operate/roster", "/operate/events", "/operate/report"])(
     "redirects %s",

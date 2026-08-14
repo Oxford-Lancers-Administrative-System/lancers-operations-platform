@@ -38,6 +38,24 @@ import { enterReturningPlayer, resolveOpenSeason } from "./roster";
 /** This suite's namespace. Never shared — parallel suites share one database. */
 const MARKER = "LAN75Membership";
 
+/**
+ * The seed stamps every person it creates with one fixed `created_at`, and this
+ * suite draws its actor only from that cohort.
+ *
+ * `select id from public.people limit 1` returned an arbitrary row, and "the
+ * oldest person" returned somebody else's fixture — the seed's people are dated
+ * in the *future*, so a suite creating one at `now()` sorts ahead of them. Both
+ * forms can adopt another suite's person as this one's actor, at which point
+ * that suite's cleanup is refused by `on delete restrict` and a foreign-key
+ * error surfaces in a test with no connection to the cause.
+ *
+ * This is a latent hazard rather than the intermittency actually observed on
+ * 13 August 2026 — that one was `countDraftedAudits`, and is fixed where it
+ * lives. Anchoring here closes the hazard before it is somebody's afternoon.
+ * The seeded cohort is the only population no suite ever deletes.
+ */
+const SEEDED_PEOPLE_CREATED_AT = "2026-08-15T09:00:00Z";
+
 let observer: Client;
 let actorPersonId: string;
 let openSeasonId: string;
@@ -1034,32 +1052,39 @@ describe("listCurrentSeasonRoster", () => {
     // lookup with `??` never fell back and the query became `order by
     // undefined`, which the database refuses and the screen renders as "the
     // roster is unavailable". `?sort=toString` is a URL anybody can type.
-    const byName = await listCurrentSeasonRoster({ sort: "name" });
+    //
+    // Compared over the memberships that existed for the WHOLE comparison.
+    //
+    // Every read here is a separate statement against a database several
+    // parallel suites are writing to, so no two of them need contain the same
+    // rows. Two earlier attempts at this both failed in CI: comparing whole
+    // lists, and comparing intersections but then asserting the two totals were
+    // equal — that last assertion is a race by itself, and this branch's suites
+    // create memberships often enough to lose it.
+    //
+    // Bracketing the sorted read between two default reads gives an exact set:
+    // a membership in both the before and the after existed throughout, so it
+    // must appear in the middle read too. Comparing that set in order therefore
+    // proves the ordering claim *and* catches a truncating sort key, because a
+    // truncated result would be missing members of it — without either
+    // assertion depending on what any other suite is doing.
+    const before = await listCurrentSeasonRoster({ sort: "name" });
 
     for (const inherited of ["toString", "constructor", "valueOf", "hasOwnProperty"]) {
       const roster = await listCurrentSeasonRoster({ sort: inherited });
+      const after = await listCurrentSeasonRoster({ sort: "name" });
 
-      // Compared over the memberships BOTH reads saw, rather than as whole
-      // lists. These are two separate statements against a database several
-      // parallel suites are writing to, so a membership created or deleted
-      // between them would fail this test for a reason that has nothing to do
-      // with sort keys. The claim is that an inherited key produces the *same
-      // ordering* as the default sort, and that survives the narrowing intact.
-      const shared = new Set(roster.entries.map((entry) => entry.membershipId));
-      const expected = byName.entries
+      const stillThere = new Set(after.entries.map((entry) => entry.membershipId));
+      const throughout = before.entries
         .map((entry) => entry.membershipId)
-        .filter((id) => shared.has(id));
-      const actual = roster.entries
-        .map((entry) => entry.membershipId)
-        .filter((id) => expected.includes(id));
+        .filter((id) => stillThere.has(id));
+      const seen = new Set(throughout);
 
-      expect(actual).toEqual(expected);
-      expect(actual.length).toBeGreaterThan(0);
-      // The narrowing above preserves the ordering claim but would also pass if
-      // an inherited key truncated the roster, since both sides would be the
-      // same short list. Independent review caught that, so the set size is
-      // asserted separately — against the read's own total, not a second query.
-      expect(roster.entries.length).toBe(byName.entries.length);
+      expect(throughout.length).toBeGreaterThan(0);
+      expect(
+        roster.entries.map((entry) => entry.membershipId).filter((id) => seen.has(id)),
+        `sort=${inherited}`,
+      ).toEqual(throughout);
     }
   });
 
@@ -1067,8 +1092,13 @@ describe("listCurrentSeasonRoster", () => {
     const injected = await listCurrentSeasonRoster({ sort: "p.given_name; drop table people" });
     const byName = await listCurrentSeasonRoster({ sort: "name" });
 
-    expect(injected.entries.map((entry) => entry.membershipId)).toEqual(
-      byName.entries.map((entry) => entry.membershipId),
+    // Same reasoning as above: the claim is about the sort key, and two live
+    // reads of a shared table need not contain the same rows.
+    const injectedIds = injected.entries.map((entry) => entry.membershipId);
+    const byNameIds = byName.entries.map((entry) => entry.membershipId);
+    const shared = new Set(injectedIds);
+    expect(injectedIds.filter((id) => byNameIds.includes(id))).toEqual(
+      byNameIds.filter((id) => shared.has(id)),
     );
   });
 });

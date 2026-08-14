@@ -364,6 +364,110 @@ export type Database = {
           },
         ]
       }
+      delivery_attempts: {
+        Row: {
+          accepted_at: string | null
+          attempt_number: number
+          channel: Database["public"]["Enums"]["notification_channel"]
+          concluded_at: string | null
+          failure_reason: string | null
+          id: string
+          notification_job_id: string
+          provider: string
+          provider_message_id: string | null
+          requested_at: string
+          rsvp_access_token_id: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          attempt_number: number
+          channel: Database["public"]["Enums"]["notification_channel"]
+          concluded_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          notification_job_id: string
+          provider: string
+          provider_message_id?: string | null
+          requested_at?: string
+          rsvp_access_token_id?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          attempt_number?: number
+          channel?: Database["public"]["Enums"]["notification_channel"]
+          concluded_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          notification_job_id?: string
+          provider?: string
+          provider_message_id?: string | null
+          requested_at?: string
+          rsvp_access_token_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_attempts_notification_job_id_fkey"
+            columns: ["notification_job_id"]
+            isOneToOne: false
+            referencedRelation: "notification_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_attempts_rsvp_access_token_id_fkey"
+            columns: ["rsvp_access_token_id"]
+            isOneToOne: false
+            referencedRelation: "rsvp_access_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_callbacks: {
+        Row: {
+          applied_at: string | null
+          delivery_attempt_id: string | null
+          id: string
+          ignored_reason: string | null
+          provider: string
+          provider_event_id: string
+          provider_message_id: string | null
+          provider_status: string | null
+          received_at: string
+          signature_verified: boolean
+        }
+        Insert: {
+          applied_at?: string | null
+          delivery_attempt_id?: string | null
+          id?: string
+          ignored_reason?: string | null
+          provider: string
+          provider_event_id: string
+          provider_message_id?: string | null
+          provider_status?: string | null
+          received_at?: string
+          signature_verified: boolean
+        }
+        Update: {
+          applied_at?: string | null
+          delivery_attempt_id?: string | null
+          id?: string
+          ignored_reason?: string | null
+          provider?: string
+          provider_event_id?: string
+          provider_message_id?: string | null
+          provider_status?: string | null
+          received_at?: string
+          signature_verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_callbacks_delivery_attempt_id_fkey"
+            columns: ["delivery_attempt_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_attempts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_results: {
         Row: {
           actor_person_id: string | null
@@ -2007,6 +2111,97 @@ export type Database = {
           scope?: Database["public"]["Enums"]["role_scope"]
         }
         Relationships: []
+      }
+      rsvp_access_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          invitation_id: string
+          issued_at: string
+          issued_by_person_id: string | null
+          last_used_at: string | null
+          revoked_at: string | null
+          revoked_reason: string | null
+          superseded_at: string | null
+          superseded_by_token_id: string | null
+          token_hash: string
+          use_count: number
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          invitation_id: string
+          issued_at?: string
+          issued_by_person_id?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          superseded_at?: string | null
+          superseded_by_token_id?: string | null
+          token_hash: string
+          use_count?: number
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          invitation_id?: string
+          issued_at?: string
+          issued_by_person_id?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          superseded_at?: string | null
+          superseded_by_token_id?: string | null
+          token_hash?: string
+          use_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rsvp_access_tokens_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "invitation_response_state"
+            referencedColumns: ["invitation_id"]
+          },
+          {
+            foreignKeyName: "rsvp_access_tokens_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "invitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rsvp_access_tokens_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "nonresponse_queue"
+            referencedColumns: ["invitation_id"]
+          },
+          {
+            foreignKeyName: "rsvp_access_tokens_issued_by_person_id_fkey"
+            columns: ["issued_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rsvp_access_tokens_issued_by_person_id_fkey"
+            columns: ["issued_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "rsvp_access_tokens_superseded_by_token_id_fkey"
+            columns: ["superseded_by_token_id"]
+            isOneToOne: false
+            referencedRelation: "rsvp_access_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rsvp_responses: {
         Row: {

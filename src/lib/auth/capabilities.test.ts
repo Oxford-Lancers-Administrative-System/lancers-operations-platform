@@ -236,12 +236,44 @@ describe("row 12 — event approval is the four calendar roles", () => {
   });
 });
 
+describe("delivery administration — decided by LAN-78", () => {
+  /**
+   * This capability was one of the undecided three until LAN-78 built delivery.
+   * Its assertions have moved here rather than been deleted: the grant is now a
+   * decision with a shape, and the shape is what needs proving.
+   */
+  it("grants exactly the four event-workflow roles", () => {
+    expect([...capabilityRoleCodes("delivery_administration")].sort()).toEqual(
+      ["general_manager", "president", "secretary", "vice_president"].sort(),
+    );
+  });
+
+  it("agrees with event approval, because delivery repair continues it", () => {
+    expect(permittedSet("delivery_administration")).toEqual(permittedSet("event_approval"));
+  });
+
+  it("refuses every coaching seat", () => {
+    // slice-ux.md § 3 names delivery among the surfaces a coaching seat never
+    // receives, so this is a contract rather than a preference.
+    for (const code of COACHES) {
+      expect(roleCodesPermit([code], "delivery_administration")).toBe(false);
+    }
+  });
+
+  it("refuses the Treasurer, as calendar management does", () => {
+    expect(capabilityRoleCodes("delivery_administration")).not.toContain("treasurer");
+  });
+
+  it("records who decided it and when", () => {
+    expect(CAPABILITIES.delivery_administration.decision).toMatch(/LAN-78/);
+    expect(CAPABILITIES.delivery_administration.decision).not.toMatch(/undecided/i);
+  });
+});
+
 describe("the undecided capabilities are refused to everybody", () => {
-  const undecided: CapabilityKey[] = [
-    "role_management",
-    "delivery_administration",
-    "leadership_report",
-  ];
+  // Two, since LAN-78 decided the third. Both still name the issue that owes
+  // the answer, and both are still refused to the whole catalogue at once.
+  const undecided: CapabilityKey[] = ["role_management", "leadership_report"];
 
   it.each(undecided)("%s permits no role code at all", (key) => {
     expect(capabilityRoleCodes(key)).toEqual([]);

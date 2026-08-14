@@ -58,7 +58,15 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Everything except Next.js internals, the health check, and static assets.
-    "/((?!_next/static|_next/image|api/health|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // Everything except Next.js internals, the health check, the provider
+    // webhook, and static assets.
+    //
+    // The WhatsApp webhook — that one route, not the `api/webhooks` namespace —
+    // is excluded because it is the one route an unauthenticated
+    // stranger is *meant* to reach, and it authenticates its caller itself with
+    // an HMAC over the raw body. Running session refresh first would make every
+    // forged POST cost a Supabase round trip before the signature is even read
+    // — free amplification on the only public endpoint the application has.
+    "/((?!_next/static|_next/image|api/health|api/webhooks/whatsapp|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

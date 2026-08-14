@@ -37,12 +37,34 @@ import { openObserver } from "../../../tests/helpers/service-layer";
 /** Unique to this file. Two suites sharing one marker delete each other's rows. */
 const NAME_MARKER = "LAN76EventsSuite";
 
+/**
+ * The seed stamps every person it creates with one fixed `created_at`, and this
+ * suite draws its actor only from that cohort.
+ *
+ * `select id from public.people limit 1` returned an arbitrary row, and "the
+ * oldest person" returned somebody else's fixture — the seed's people are dated
+ * in the *future*, so a suite creating one at `now()` sorts ahead of them. Both
+ * forms can adopt another suite's person as this one's actor, at which point
+ * that suite's cleanup is refused by `on delete restrict` and a foreign-key
+ * error surfaces in a test with no connection to the cause.
+ *
+ * This is a latent hazard rather than the intermittency actually observed on
+ * 13 August 2026 — that one was `countDraftedAudits`, and is fixed where it
+ * lives. Anchoring here closes the hazard before it is somebody's afternoon.
+ * The seeded cohort is the only population no suite ever deletes.
+ */
+const SEEDED_PEOPLE_CREATED_AT = "2026-08-15T09:00:00Z";
+
 let observer: Client;
 let actorPersonId: string;
 
 beforeAll(async () => {
   observer = await openObserver();
-  const person = await observer.query<{ id: string }>("select id from public.people limit 1");
+  const person = await observer.query<{ id: string }>(
+    "select id from public.people where created_at = $1::timestamptz and merged_into_person_id is null order by id limit 1",
+    [SEEDED_PEOPLE_CREATED_AT],
+  );
+  expect(person.rows.length).toBe(1);
   actorPersonId = person.rows[0].id;
 });
 
@@ -819,7 +841,29 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
     );
     const mine = await createEventDraft(actorPersonId, draft());
 
+    const countSeason = async () => {
+      const result = await observer.query<{ count: string }>(
+        "select count(*)::text as count from public.events where season_id = $1",
+        [mine.seasonId],
+      );
+      return Number(result.rows[0].count);
+    };
+
+    // Bracketed, not compared to a single later read.
+    //
+    // Vitest runs suites in parallel against one PostgreSQL, so an event created
+    // by another suite between the list and the count made these two numbers
+    // disagree — a test about the season predicate failing because of somebody
+    // else's fixture. It was the last of four assertions in this class and made
+    // the shared gate red intermittently.
+    //
+    // The claim is that the total is the *season's* rather than the database's,
+    // and bracketing states it exactly: a total counted over the whole table
+    // would sit far above this window, and a total that ignored the season would
+    // include the foreign event asserted absent above.
+    const before = await countSeason();
     const list = await listCurrentSeasonEvents();
+    const after = await countSeason();
     const unfilteredTotal = list.totalInSeason;
 
     expect(list.events.map((row) => row.id)).toContain(mine.id);
