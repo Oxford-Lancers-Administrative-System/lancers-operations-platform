@@ -34,10 +34,30 @@ const repeatedPremiseTranscript = readFileSync(
   path.join(root, "tests", "fixtures", "agent-review", "repeated-premise.md"),
   "utf8",
 );
+const findingDispositionTranscript = readFileSync(
+  path.join(root, "tests", "fixtures", "agent-review", "finding-dispositions.md"),
+  "utf8",
+);
 const pullRequestTemplate = readFileSync(
   path.join(root, ".github", "PULL_REQUEST_TEMPLATE.md"),
   "utf8",
 );
+const dispositionPolicy = flat(
+  [skill.body, reviewer.body, findingDispositionTranscript].join("\n"),
+);
+const contradictoryPolicyPatterns = {
+  correctionTrigger:
+    /`?correct-before-handoff`? findings?.{0,40}(?:also )?independently triggers (?:a )?correction-review invocation|`?correct-before-handoff`? (?:also )?independently triggers (?:a )?correction review/i,
+  sensitiveLowerDisposition:
+    /(?:authorization|authentication|privacy|security|data[- ]integrity) findings?.{0,80}(?:may|can|use|assign).{0,40}(?:correct-before-handoff|advisory)|(?:correct-before-handoff|advisory).{0,80}(?:may|can|use|assign).{0,40}(?:authorization|authentication|privacy|security|data[- ]integrity) findings?/i,
+  unresolvedHandoff:
+    /final handoff.{0,80}(?:may|can|proceed|allowed).{0,80}unresolved.{0,40}correct-before-handoff/i,
+  boundaryCrossing:
+    /(?:executable role list|migration instruction|production action).{0,100}(?:remain|stays?|use).{0,40}correct-before-handoff/i,
+  fourthReviewer: /(?:launch|run).{0,30}(?:a )?fourth automatic reviewer/i,
+  contraryScenario:
+    /(?:every|all seven) scenarios?.{0,100}(?:including authorization|including integrity|authorization|data[- ]integrity).{0,80}advisory|(?:every|all seven) scenarios?.{0,80}(?:may|can|are|be).{0,30}advisory.{0,100}(?:including )?(?:authorization|integrity|data[- ]integrity)/i,
+};
 const settings = JSON.parse(readFileSync(path.join(root, ".claude", "settings.json"), "utf8"));
 
 describe("single-issue Claude workflow", () => {
@@ -140,14 +160,96 @@ describe("graded review routing", () => {
     expect(flat(skill.body)).toMatch(/Prior coverage remains valid for unchanged behavior/i);
   });
 
-  it("distinguishes blockers from advisories and prevents advisory review loops", () => {
+  it("separates impact severity from the three gate dispositions", () => {
     const body = flat(skill.body);
     const reviewBody = flat(reviewer.body);
-    expect(body).toMatch(/A finding may block only when evidence demonstrates/i);
+    for (const value of ["critical", "high", "medium", "low"])
+      expect(body).toContain(`\`${value}\``);
+    for (const value of ["block", "correct-before-handoff", "advisory"])
+      expect(body).toContain(`\`${value}\``);
+    expect(body).toMatch(/severity alone never decides whether another reviewer runs/i);
+    expect(reviewBody).toMatch(
+      /Only `block` independently triggers a correction-review invocation/i,
+    );
     expect(body).toMatch(/critical regression test that stays green/i);
-    expect(body).toMatch(/minor findings first discovered in unchanged code.*are advisories/i);
-    expect(body).toMatch(/Advisories must not cause a code change, commit, further review round/i);
-    expect(reviewBody).toMatch(/Advisories never request a code change, commit, review round/i);
+    expect(body).toMatch(
+      /minor findings first discovered in unchanged code.*are normally advisories/i,
+    );
+    expect(body).toMatch(/advisory.*never authorizes a correction, commit, review round/i);
+  });
+
+  it("gates required artifact corrections without spending a review round", () => {
+    const body = flat(skill.body);
+    expect(body).toMatch(/correct-before-handoff.*before the PR may be reported ready for merge/i);
+    expect(body).toMatch(/deterministic verification or exact artifact read-back/i);
+    expect(body).toMatch(
+      /do not consume another independent review round unless the correction changes executable behavior/i,
+    );
+    expect(flat(reviewer.body)).toMatch(
+      /correct-before-handoff.*does not by itself trigger another reviewer invocation/i,
+    );
+  });
+
+  it("hard-blocks sensitive or executable-boundary findings", () => {
+    for (const body of [flat(skill.body), flat(reviewer.body)]) {
+      expect(body).toMatch(
+        /Authentication, authorization, privacy, security, data integrity, incorrect reachable behavior/i,
+      );
+      expect(body).toMatch(
+        /may never be `correct-before-handoff` or `advisory`|never assign either lower disposition/i,
+      );
+      expect(body).toMatch(
+        /reclassify it as `block`.*changes executable behavior|changes executable behavior.*reclassify it as `block`/i,
+      );
+    }
+  });
+
+  it("rejects contradictory lower dispositions and review triggers", () => {
+    expect(dispositionPolicy).not.toMatch(contradictoryPolicyPatterns.correctionTrigger);
+    expect(dispositionPolicy).not.toMatch(contradictoryPolicyPatterns.sensitiveLowerDisposition);
+  });
+
+  it("rejects unresolved handoff and lower-disposition boundary crossings", () => {
+    expect(dispositionPolicy).not.toMatch(contradictoryPolicyPatterns.unresolvedHandoff);
+    expect(dispositionPolicy).not.toMatch(contradictoryPolicyPatterns.boundaryCrossing);
+  });
+
+  it("rejects review-budget and scenario outcomes that contradict the policy", () => {
+    expect(dispositionPolicy).not.toMatch(contradictoryPolicyPatterns.fourthReviewer);
+    expect(dispositionPolicy).not.toMatch(
+      /(?:authorization|data[- ]integrity).{0,100}(?:may|can|is|are|be).{0,30}advisory/i,
+    );
+    expect(dispositionPolicy).not.toMatch(contradictoryPolicyPatterns.contraryScenario);
+  });
+
+  it("detects canonical ordinary-format contradictions", () => {
+    const contradictions: Array<[string, RegExp]> = [
+      [
+        "A `correct-before-handoff` finding also independently triggers a correction-review invocation.",
+        contradictoryPolicyPatterns.correctionTrigger,
+      ],
+      [
+        "Low-impact authorization findings may use `correct-before-handoff`.",
+        contradictoryPolicyPatterns.sensitiveLowerDisposition,
+      ],
+      [
+        "Final handoff may proceed with unresolved `correct-before-handoff` findings.",
+        contradictoryPolicyPatterns.unresolvedHandoff,
+      ],
+      [
+        "An executable role list may remain `correct-before-handoff`.",
+        contradictoryPolicyPatterns.boundaryCrossing,
+      ],
+      [
+        "Launch a fourth automatic reviewer when uncertainty remains.",
+        contradictoryPolicyPatterns.fourthReviewer,
+      ],
+      [
+        "All seven scenarios may be advisory, including authorization and data-integrity defects.",
+        contradictoryPolicyPatterns.contraryScenario,
+      ],
+    ];
+    for (const [contradiction, pattern] of contradictions) expect(contradiction).toMatch(pattern);
   });
 
   it("restricts new blockers found during correction review", () => {
@@ -196,7 +298,9 @@ describe("graded review routing", () => {
       "reviewed_head_sha",
       "requirement_provenance",
       "resolved_finding_ids",
+      "findings",
       "blocking_findings",
+      "correct_before_handoff_findings",
       "advisories",
       "result",
     ]) {
@@ -205,6 +309,16 @@ describe("graded review routing", () => {
     }
     expect(flat(skill.body)).toMatch(/Prior review remains valid; only this delta is pending/i);
     expect(flat(skill.body)).toMatch(/Automatic review stopped after three rounds/i);
+    for (const label of [
+      "Findings",
+      "Blocking findings",
+      "Correct-before-handoff findings",
+      "Advisories",
+    ])
+      expect(pullRequestTemplate).toContain(`- **${label}:**`);
+    expect(flat(pullRequestTemplate)).toMatch(
+      /stable ID, impact severity, gate disposition, concrete reachable consequence, review-invocation effect/i,
+    );
   });
 
   it("dry-runs narrow correction and repeated-premise scenarios", () => {
@@ -216,6 +330,24 @@ describe("graded review routing", () => {
       /round 1.*R-007.*round 2.*same finding family.*requirement adjudication/i,
     );
     expect(flat(repeatedPremiseTranscript)).toMatch(/third code-review invocation.*not launched/i);
+  });
+
+  it("dry-runs all seven finding-disposition scenarios", () => {
+    const transcript = flat(findingDispositionTranscript);
+    for (const marker of [
+      "stale cosmetic sentence",
+      "hosted runbook",
+      "visibly Saved",
+      "unauthorized operator",
+      "lose, corrupt, mis-anchor",
+      "executable role list",
+      "mixed review",
+    ])
+      expect(transcript).toMatch(new RegExp(marker, "i"));
+    expect(transcript).toMatch(/authorization hard exclusion rejects both lower dispositions/i);
+    expect(transcript).toMatch(/data-integrity hard exclusion rejects both lower dispositions/i);
+    expect(transcript).toMatch(/reclassified from `correct-before-handoff` to `block`/i);
+    expect(transcript).toMatch(/do not independently expand review scope/i);
   });
 
   it("pins review and CI to the current PR head", () => {

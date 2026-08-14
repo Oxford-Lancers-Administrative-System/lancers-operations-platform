@@ -240,21 +240,48 @@ Supabase lease status. The acceptance matrix and other implementer-authored
 framing are withheld until the reviewer has recorded requirement provenance.
 Green CI is required but is not review.
 
-### Findings and blocking threshold
+### Finding impact and gate disposition
 
-A finding may block only when evidence demonstrates an authoritative acceptance
-criterion violation; incorrect reachable behavior; an authentication,
-authorization, privacy, or security failure; data loss, corruption, integrity,
-migration, RLS, or transaction risk; an unauthorized production or external
-side effect; required verification failure; or a critical regression test that
-stays green under a plausible relevant defect.
+Every finding has two independent attributes. `impact_severity` is exactly
+`critical`, `high`, `medium`, or `low` and communicates consequence; severity
+alone never decides whether another reviewer runs. `gate_disposition` is
+exactly one of:
+
+- `block`: correction is mandatory and independently triggers correction
+  review under the existing lineage rules. Use it for an authoritative
+  acceptance failure; incorrect reachable behavior; authentication,
+  authorization, privacy, or security failure; data loss, corruption,
+  integrity, migration, RLS, or transaction risk; unauthorized production or
+  external effect; material required-verification failure; or a critical
+  regression test that stays green under a plausible relevant defect.
+- `correct-before-handoff`: correction is mandatory before the PR may be
+  reported ready for merge or enter final handoff, but does not by itself
+  consume an independent reviewer invocation. The implementer records
+  proportionate deterministic verification or exact artifact read-back. It
+  cannot authorize scope expansion or a follow-up issue.
+- `advisory`: record only. It never authorizes a correction, commit, review
+  round, or follow-up issue.
+
+Authentication, authorization, privacy, security, data integrity, incorrect
+reachable behavior, migration, RLS, transaction risk, and unauthorized
+production or external effects are hard exclusions: they may never be
+`correct-before-handoff` or `advisory`. Before implementing a
+`correct-before-handoff` correction, reclassify it as `block` if it changes
+executable behavior or crosses an authorization, privacy, security,
+data-integrity, migration, transaction, trust, or production boundary.
 
 Style, naming, formatting, speculative future-proofing, compliant alternative
 designs, pre-existing problems not worsened by the PR, unsupported out-of-scope
 edges, maintainability preferences without material failure, and minor findings
-first discovered in unchanged code during correction review are advisories.
-Record them as residual risk or suggestions. Advisories must not cause a code
-change, commit, further review round, or unauthorized follow-up issue.
+first discovered in unchanged code during correction review are normally
+advisories. A materially false issue-owned artifact may instead be
+`correct-before-handoff` when exact read-back can prove its correction.
+
+Only unresolved `block` findings make the independent-review result `blocked`.
+Unresolved `correct-before-handoff` findings still prevent ready-for-merge final
+handoff. Correct them before final handoff, but do not consume another
+independent review round unless the correction changes executable behavior or
+crosses a material-risk boundary.
 
 During correction review, a new blocker is permitted only when the correction
 introduced it or it is a previously missed critical correctness, security,
@@ -265,8 +292,11 @@ finding against unchanged code is advisory.
 
 ### Corrections, reset conditions, and circuit breaker
 
-Correct blocking findings in this top-level session, commit and push, and wait
-for CI at the new head. For a narrow correction, launch a correction review with
+Correct `block` findings and any `correct-before-handoff` findings in this
+top-level session, commit and push, and wait for CI at the new head. Record
+deterministic verification or exact read-back for every
+`correct-before-handoff` correction. For a narrow `block` correction, launch a
+correction review with
 the prior receipt, previous reviewed SHA, current head SHA, blocking finding
 IDs, correction intent, and relevant targeted tests. Prior coverage remains
 valid for unchanged behavior; the reviewer challenges only corrected or newly
@@ -301,23 +331,35 @@ premise and owner decision instead of launching adjudication.
 Without explicit owner authorization, allow at most one initial full review,
 two correction reviews, and three total reviewer invocations, including any
 full reset. At the limit, launch no reviewer and never auto-approve an unresolved
-material blocker. Return the exact blocker and required decision. If only
-advisories remain, the review is clear and the advisories remain recorded. Do
-not create another Linear issue or expand scope.
+material blocker. Return the exact blocker and required decision. If no `block`
+findings remain, the independent review is clear; advisories remain recorded,
+and any `correct-before-handoff` findings still require correction and recorded
+verification before final handoff. Do not create another Linear issue or expand
+scope.
 
 Every review returns a structured receipt stored in a dedicated PR-body section
 or another non-commit PR artifact; never commit a receipt containing its own
 commit SHA. It contains at least `issue`, `pr`, `review_mode`,
 `full_review_sha`, `correction_base_sha`, `reviewed_head_sha`, `round`,
 `requirement_provenance` entries with criterion/source/location/controlling
-quotation, `resolved_finding_ids`, `blocking_findings`, `advisories`, and
+quotation, `resolved_finding_ids`, `findings`, `blocking_findings`,
+`correct_before_handoff_findings`, `advisories`, and
 `result` (`clear`, `blocked`, `requirement-adjudication-required`, or
-`budget-exhausted`).
+`budget-exhausted`). Every `findings` entry includes stable ID,
+`impact_severity`, `gate_disposition`, concrete reachable consequence, whether
+it caused another reviewer invocation, and the exact SHA or mutable artifact it
+applies to. A `correct-before-handoff` entry also records its deterministic
+verification or exact read-back once resolved.
 
 ## 10. Final handoff
 
 Lead the final handoff with the requested owner action and preserve review
-lineage. For a clear head say: `Ready for merge. Full review completed at A;
+lineage. Do not enter final handoff while any `correct-before-handoff` finding
+is unresolved or lacks recorded verification. Summarize findings by consequence
+rather than relaying every review result with equal alarm. For each finding give
+its stable ID, impact severity, gate disposition, concrete reachable
+consequence, review-invocation effect, and applicable SHA or mutable artifact.
+For a clear head say: `Ready for merge. Full review completed at A;
 correction delta A..B was approved; current head B is covered.` For a pending
 delta say: `Reviewed through A. Current head B contains a pending delta
 affecting X. Prior review remains valid; only this delta is pending.` For a
@@ -329,9 +371,10 @@ full-review SHA.
 Add the draft PR link to the Linear issue. Then add exactly one final Linear
 evidence/handoff comment covering completed implementation, automated
 verification, full-review SHA, correction base and delta, current reviewed head,
-round count, blockers, advisories and independent-review result, visual/human
-review required, exact local URL and route, authentication method, remaining
-Brian actions, post-merge database/production actions, and known limitations.
+round count, blockers, correct-before-handoff findings and their verification,
+advisories and independent-review result, visual/human review required, exact
+local URL and route, authentication method, remaining Brian actions, post-merge
+database/production actions, and known limitations.
 Use explicit `None` where no action remains. Do not set In Review unless human
 visual acceptance is genuinely pending and the complete review environment has
 been personally verified in a browser.
