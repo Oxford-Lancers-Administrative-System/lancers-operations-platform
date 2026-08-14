@@ -146,7 +146,7 @@ describe("row 14 — the service layer grants nothing and exposes nothing", () =
    * below prove that, and would fail if somebody loosened it further.
    */
   const REVOKE =
-    /\brevoke\s+(all|select|insert|update|delete|usage|execute)\b|\brevoke\s+\w+\s+from\b/i;
+    /\brevoke\s+(all|select|insert|update|delete|truncate|references|trigger|create|connect|temporary|temp|usage|execute|maintain|grant\s+option)\b|\brevoke\s+\w+\s+from\b/i;
 
   it.each([
     ["a grant", /\bgrant\s+(all|select|insert|update|delete|usage|execute)\b/i],
@@ -166,6 +166,15 @@ describe("row 14 — the service layer grants nothing and exposes nothing", () =
     "REVOKE SELECT ON public.invitations FROM authenticated",
     "revoke update on public.events from service_role",
     "revoke club_admin from service_role",
+    // The privileges the first narrowing lost. Independent review pointed out
+    // that the four above did not cover them, so the list they justify did not
+    // either. Every one is a real statement the service layer must never carry.
+    "revoke truncate on public.audit_events from service_role",
+    "revoke references on public.people from authenticated",
+    "revoke trigger on public.events from service_role",
+    "revoke connect on database postgres from anon",
+    "revoke temporary on database postgres from authenticated",
+    "revoke grant option for select on public.people from service_role",
   ])("still catches %s", (statement) => {
     // Narrowing a pattern is only safe if it is shown to still bite. Each of
     // these is a real revoke the service layer must never contain.

@@ -988,6 +988,7 @@ describe("the scenario scripts stay inside the conventions", () => {
       [
         "public.audit_events",
         [
+          "entity_table = 'notification_jobs'",
           "entity_id in (select id from public.notification_jobs where event_id in ('00780078-0078-4078-8078-000000000050'))",
           "entity_id in (select id from public.notification_jobs where event_id in (select id from public.events where name like '%PILOT-LAN-78%'))",
         ],
@@ -995,6 +996,7 @@ describe("the scenario scripts stay inside the conventions", () => {
       [
         "public.audit_events",
         [
+          "entity_table = 'invitations'",
           "entity_id in (select id from public.invitations where event_id in ('00780078-0078-4078-8078-000000000050'))",
           "entity_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-78%'))",
         ],

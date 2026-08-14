@@ -240,12 +240,17 @@ delete from public.rsvp_access_tokens
  where invitation_id in (select id from public.invitations where event_id in ('00780078-0078-4078-8078-000000000050'))
    and invitation_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-78%'));
 
+-- `entity_table` is named explicitly. Without it these two deletes are safe
+-- only *incidentally* — because a v4 identifier does not collide across tables —
+-- and safety by coincidence is the thing this file exists not to rely on.
 delete from public.audit_events
- where entity_id in (select id from public.notification_jobs where event_id in ('00780078-0078-4078-8078-000000000050'))
+ where entity_table = 'notification_jobs'
+   and entity_id in (select id from public.notification_jobs where event_id in ('00780078-0078-4078-8078-000000000050'))
    and entity_id in (select id from public.notification_jobs where event_id in (select id from public.events where name like '%PILOT-LAN-78%'));
 
 delete from public.audit_events
- where entity_id in (select id from public.invitations where event_id in ('00780078-0078-4078-8078-000000000050'))
+ where entity_table = 'invitations'
+   and entity_id in (select id from public.invitations where event_id in ('00780078-0078-4078-8078-000000000050'))
    and entity_id in (select id from public.invitations where event_id in (select id from public.events where name like '%PILOT-LAN-78%'));
 
 -- ---------------------------------------------------------------------------
