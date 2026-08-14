@@ -144,6 +144,60 @@ describe("no manual delivery path exists in the application", () => {
   });
 });
 
+/**
+ * Schemes, not phrasings.
+ *
+ * The affordance list above matches English. Two rounds of review walked past
+ * it — first with "Open in WhatsApp to send this invitation yourself", then
+ * with "Share invitation" — because there are unbounded ways to word a button
+ * and only one way to point it at WhatsApp. These rules match the *mechanism*,
+ * which has a small closed vocabulary, and are therefore the half of this file
+ * that cannot be out-phrased.
+ */
+describe("nothing in the application can hand a person off to another app", () => {
+  const sources = filesUnder("src", [".ts", ".tsx"]).filter(
+    (file) => !EXPLAINS_THE_BAN.includes(file) && !/\.test\.tsx?$/.test(file),
+  );
+
+  const HANDOFF_SCHEMES: readonly { name: string; pattern: RegExp }[] = [
+    { name: "a wa.me deep link", pattern: /\bwa\.me\b/i },
+    { name: "a whatsapp:// URL", pattern: /whatsapp:\/\//i },
+    { name: "the WhatsApp send API", pattern: /api\.whatsapp\.com/i },
+    { name: "an sms: link", pattern: /["'`]sms:/i },
+    { name: "a tel: link", pattern: /["'`]tel:/i },
+    { name: "a mailto: link", pattern: /["'`]mailto:/i },
+    { name: "the Web Share API", pattern: /navigator\.share\b/i },
+  ];
+
+  it.each(HANDOFF_SCHEMES)("contains nothing resembling $name", ({ pattern }) => {
+    expect(sources.filter((file) => pattern.test(read(file)))).toEqual([]);
+  });
+
+  it.each([
+    ["https://wa.me/447700900123", /\bwa\.me\b/i],
+    ['href="whatsapp://send?text=hello"', /whatsapp:\/\//i],
+    ["https://api.whatsapp.com/send", /api\.whatsapp\.com/i],
+    ['href="sms:+447700900123"', /["'`]sms:/i],
+    ['href="tel:+447700900123"', /["'`]tel:/i],
+    ['href="mailto:alex@example.invalid"', /["'`]mailto:/i],
+    ["await navigator.share({ url })", /navigator\.share\b/i],
+  ])("still recognises %s", (sample, pattern) => {
+    // A rule that matches nothing passes whether or not it works.
+    expect(pattern.test(sample)).toBe(true);
+  });
+
+  it("uses the same patterns it proves", () => {
+    for (const sample of [
+      "https://wa.me/447700900123",
+      'href="whatsapp://send"',
+      "https://api.whatsapp.com/send",
+      "await navigator.share({ url })",
+    ]) {
+      expect(HANDOFF_SCHEMES.some((entry) => entry.pattern.test(sample))).toBe(true);
+    }
+  });
+});
+
 describe("no runbook or fixture presents one as a fallback", () => {
   const documents = [
     ...filesUnder("docs", [".md"]),

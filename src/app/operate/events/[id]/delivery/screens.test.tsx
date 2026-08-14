@@ -237,19 +237,89 @@ describe("UX-51 — the diagnostics table", () => {
   });
 });
 
-describe("UX-52 — the repair panel offers exactly two controls", () => {
+/**
+ * A complete inventory of every control on every delivery view, not a blocklist.
+ *
+ * Round one of review defeated a phrase blocklist with a `wa.me` button, so the
+ * repair panel's controls were pinned. Round two defeated *that* by putting the
+ * same button in the diagnostics table instead: the inventory was scoped to
+ * `[data-testid="repair-panel"]`, and two of the three screens had no
+ * structural guard at all.
+ *
+ * So the pin now covers all three views, and it covers **links as well as
+ * buttons** — a manual send path is far more likely to be an anchor than a
+ * button. Adding any control to any of these screens fails this test whatever
+ * it is called, and whoever adds one has to widen the list on purpose.
+ */
+const PERMITTED_CONTROLS: Readonly<Record<string, readonly string[]>> = {
+  overview: ["View diagnostics", "Delivery overview", "Back to event", "Sign out"],
+  diagnostics: [
+    "Open selected issue",
+    "Delivery overview",
+    "Back to event",
+    "Sign out",
+    "All",
+    "Needs attention",
+    "Queued",
+    "Attempted",
+    "Delivered",
+    "Failed",
+    "Retryable",
+  ],
+  repair: [
+    "Retry delivery",
+    "Revoke and reissue link",
+    "Delivery overview",
+    "Back to event",
+    "Sign out",
+  ],
+};
+
+/** Every href the delivery screens are allowed to produce, as a shape. */
+const PERMITTED_HREF = /^\/(operate|login)(\/|\?|$)/;
+
+describe("every delivery view offers only the controls it is meant to", () => {
   beforeEach(() => signedInAs(["secretary"]));
 
-  /**
-   * A complete inventory, not a blocklist.
-   *
-   * The scan in `tests/no-manual-delivery.test.ts` matches known phrasings, and
-   * review demonstrated that an "Open in WhatsApp to send this invitation
-   * yourself" button linking to `wa.me` passes it. Pinning the whole set means
-   * any control added here fails this test regardless of its wording, and
-   * whoever adds one has to change this list deliberately.
-   */
-  const PERMITTED_CONTROLS = ["Retry delivery", "Revoke and reissue link"];
+  it.each([
+    ["overview", {}],
+    ["diagnostics", { view: "diagnostics" }],
+    ["repair", { invitation: "invitation-1" }],
+  ])("pins the interactive controls on %s", async (view, query) => {
+    const { container } = await renderPage(query as Record<string, string>);
+
+    const controls = [
+      ...container.querySelectorAll("button, a, [role='button'], [role='link']"),
+    ].map((node) => (node.textContent ?? "").trim());
+
+    const permitted = new Set(PERMITTED_CONTROLS[view]);
+    const unexpected = controls.filter((label) => label !== "" && !permitted.has(label));
+
+    expect(unexpected).toEqual([]);
+  });
+
+  it.each([
+    ["overview", {}],
+    ["diagnostics", { view: "diagnostics" }],
+    ["repair", { invitation: "invitation-1" }],
+  ])("lets %s link nowhere outside the application", async (_view, query) => {
+    const { container } = await renderPage(query as Record<string, string>);
+
+    const hrefs = [...container.querySelectorAll("[href]")].map(
+      (node) => node.getAttribute("href") ?? "",
+    );
+
+    // A share sheet, a `wa.me` deep link, a `whatsapp://` URL, an `sms:` or a
+    // `mailto:` would each be a manual send path that no phrase blocklist
+    // recognises. Every one of them fails this shape.
+    for (const href of hrefs) {
+      expect(href, `${href} is not an in-application route`).toMatch(PERMITTED_HREF);
+    }
+  });
+});
+
+describe("UX-52 — the repair panel offers exactly two controls", () => {
+  beforeEach(() => signedInAs(["secretary"]));
 
   it("offers those two and nothing else", async () => {
     const { container } = await renderPage({ invitation: "invitation-1" });
@@ -260,17 +330,7 @@ describe("UX-52 — the repair panel offers exactly two controls", () => {
       .queryAllByRole("button")
       .map((node) => node.textContent?.trim() ?? "");
 
-    expect(controls.sort()).toEqual([...PERMITTED_CONTROLS].sort());
-  });
-
-  it("contains no link out of the application at all", async () => {
-    const { container } = await renderPage({ invitation: "invitation-1" });
-    const panel = container.querySelector('[data-testid="repair-panel"]') as HTMLElement;
-
-    const hrefs = [...panel.querySelectorAll("a")].map((node) => node.getAttribute("href") ?? "");
-    // A share sheet, a `wa.me` deep link or a `whatsapp://` URL would each be a
-    // manual send path that no phrase blocklist recognises.
-    expect(hrefs).toEqual([]);
+    expect(controls.sort()).toEqual(["Retry delivery", "Revoke and reissue link"].sort());
   });
 
   it("never puts the RSVP link or a phone number in the DOM", async () => {
