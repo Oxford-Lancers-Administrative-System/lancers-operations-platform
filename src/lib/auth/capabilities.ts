@@ -43,9 +43,11 @@
  * | Membership activation     | the four offices, plus `general_manager`       | Lead, 12 Aug 2026  |
  * | Event calendar management | President, VP, Secretary, General Manager      | Brian, 12 Aug 2026 |
  * | Event approval            | President, VP, Secretary, General Manager      | Brian, 12 Aug 2026 |
+ * | Delivery administration   | President, VP, Secretary, General Manager      | Lead, 13 Aug 2026  |
  *
  * None of them is re-derived here, and none may be re-derived by a later
- * implementer: they are recorded owner and lead decisions on LAN-73 and LAN-77.
+ * implementer: they are recorded owner and lead decisions on LAN-73, LAN-77 and
+ * LAN-78.
  */
 
 /** The privileged actions this slice knows about. */
@@ -238,14 +240,46 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   }),
 
   /**
-   * Undecided, and therefore refused to everyone. LAN-78 owns delivery, and is
-   * blocked behind the LAN-92 decision gate.
+   * Delivery administration — inspecting delivery status, retrying a failed
+   * invitation, and revoking and reissuing a link.
+   *
+   * This entry previously read `[]`, refused to everybody, because LAN-78 was
+   * blocked behind the LAN-92 decision gate. That gate is closed and LAN-78 is
+   * built, so the grant has to be decided rather than left empty — an empty
+   * grant would ship a delivery screen nobody could open.
+   *
+   * It resolves to the same four roles as `event_approval`, and that is a
+   * derivation from recorded decisions rather than a new one:
+   *
+   *   * Brian's LAN-77 clarification says "only active President, Vice
+   *     President, Secretary, and General Manager role holders may create,
+   *     edit, abandon, or approve calendar events". Repairing the delivery of
+   *     invitations that an approval released is the same workflow, one step
+   *     further along — the operator who took the decision to contact forty
+   *     people is the operator who fixes it when two of them were not reached.
+   *
+   *   * `docs/ux/slice-ux.md` § 3 states that a coaching seat receives "no
+   *     general operator navigation, roster editing, event administration,
+   *     delivery, report, contact, RSVP-reason, or availability data". Delivery
+   *     is named explicitly, so no coaching role may hold this.
+   *
+   *   * The Treasurer is excluded for the same reason they are excluded from
+   *     `event_calendar_management`, and nothing about delivery distinguishes
+   *     the two.
+   *
+   * It is a lead derivation and it is cheap to narrow: separation of duties, or
+   * a dedicated delivery role, is an edit to one array in this file. It is
+   * flagged in LAN-78's pull request as the assumption it is.
    */
   delivery_administration: capability({
     key: "delivery_administration",
-    action: "administer WhatsApp delivery, retries and revocation",
-    roleCodes: [],
-    decision: "Undecided. LAN-78 owns delivery and is blocked behind the LAN-92 gate.",
+    action: "inspect delivery, retry a failed invitation, and reissue a link",
+    roleCodes: ["president", "vice_president", "secretary", "general_manager"],
+    decision:
+      "Lead, 13 August 2026 (LAN-78): derived from Brian's LAN-77 event-workflow authority — " +
+      "delivery repair is the continuation of the approval that released the invitations — and " +
+      "from slice-ux.md § 3, which names delivery among the surfaces a coaching seat never " +
+      "receives. Recorded as an assumption on LAN-78 and narrowed by editing this list.",
   }),
 
   /**

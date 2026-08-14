@@ -11,6 +11,7 @@ import {
   validateEventDraft,
 } from "@/lib/services/events";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
+import { dispatchEventInvitations } from "@/lib/services/delivery";
 import type { RawEventDraft } from "@/lib/services/event-input";
 import type { EventFormState, EventTransitionState } from "./form-state";
 
@@ -183,8 +184,30 @@ export async function approveEventAction(
     return { error: messageFor(error) };
   }
 
+  // LAN-78. Approval is what makes distribution automatic — "event approval
+  // automatically queues or initiates one WhatsApp invitation per approved
+  // opted-in audience member", and there is no operator action anywhere that
+  // means "now send them".
+  //
+  // Deliberately outside the try above, and deliberately not able to fail this
+  // action. The approval is committed; a provider that is down, unconfigured or
+  // rate-limiting must not turn a successful approval into an error message,
+  // because retrying it would be refused — the event is no longer a draft. Each
+  // job records its own failure and appears on the delivery screen as Failed or
+  // Retryable, which is the surface built for exactly this.
+  try {
+    await dispatchEventInvitations(eventId);
+  } catch {
+    // Swallowed on purpose, and it is the one swallowed error in this file.
+    // Every outcome worth acting on is already durable in `notification_jobs`
+    // and `delivery_attempts`; what is discarded here is only the summary the
+    // operator does not see anyway. Rethrowing would show them an error about
+    // an approval that succeeded.
+  }
+
   revalidatePath("/operate/events");
   revalidatePath(`/operate/events/${eventId}`);
+  revalidatePath(`/operate/events/${eventId}/delivery`);
   redirect(`/operate/events/${eventId}?approved=1`);
 }
 

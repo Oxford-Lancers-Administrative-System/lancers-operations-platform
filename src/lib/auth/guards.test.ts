@@ -241,7 +241,7 @@ describe("rows 9 to 12 — requireCapability() over the map", () => {
     },
   );
 
-  it.each(["role_management", "delivery_administration", "leadership_report"] as CapabilityKey[])(
+  it.each(["role_management", "leadership_report"] as CapabilityKey[])(
     "refuses %s to the President, because nobody has been granted it",
     async (key) => {
       givenSession({ state: "active", operator: actor(["president"]) });
@@ -251,6 +251,22 @@ describe("rows 9 to 12 — requireCapability() over the map", () => {
       expect(refusal.message).toContain("No club role is currently authorized");
     },
   );
+
+  it("permits delivery administration to the four roles LAN-78 granted it", async () => {
+    // The counterpart of the refusal above: this capability left the undecided
+    // set in LAN-78, so it now needs a positive assertion rather than none.
+    for (const code of ["president", "vice_president", "secretary", "general_manager"]) {
+      const operator = actor([code]);
+      givenSession({ state: "active", operator });
+      await expect(requireCapability("delivery_administration")).resolves.toBe(operator);
+    }
+  });
+
+  it("refuses delivery administration to a coaching seat", async () => {
+    givenSession({ state: "active", operator: actor(["head_coach"]) });
+    const refusal = await refusalFrom(() => requireCapability("delivery_administration"));
+    expect(refusal.rule).toBe(capabilityRule("delivery_administration"));
+  });
 
   it.each(CAPABILITY_KEYS)("refuses %s to an unlinked account", async (key) => {
     givenSession({ state: "unlinked" });
