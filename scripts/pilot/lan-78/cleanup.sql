@@ -56,7 +56,7 @@ select
   current_user as connected_as,
   now() as at,
   (select count(*) from public.people
-    where known_as = 'PILOT-LAN-78') as scenario_people,
+    where known_as like 'PILOT-LAN-78%') as scenario_people,
   (select count(*) from public.events
     where id = '00780078-0078-4078-8078-000000000050'
       and name like '%PILOT-LAN-78%') as scenario_events,
@@ -78,7 +78,7 @@ select
   -- Untouched by this script, and reported so their survival is visible rather
   -- than assumed.
   (select count(*) from public.people
-    where known_as is distinct from 'PILOT-LAN-78') as people_that_stay,
+    where known_as is distinct from 'PILOT-LAN-78 Delivery') as people_that_stay,
   (select count(*) from public.operator_accounts) as operator_accounts_that_stay,
   (select count(*) from public.role_assignments) as role_assignments_that_stay,
   (select count(*) from public.audit_events) as audit_rows_before;
@@ -147,7 +147,7 @@ begin
     from public.season_membership_status_events
    where season_membership_id in (
      select id from public.season_memberships
-      where person_id in (select id from public.people where known_as = 'PILOT-LAN-78'));
+      where person_id in (select id from public.people where known_as like 'PILOT-LAN-78%'));
   if offending > 0 then
     raise exception
       'LAN-78 pilot cleanup: % membership status event(s) exist for this scenario''s people. Refusing to delete membership history.',
@@ -158,7 +158,7 @@ begin
     from public.onboarding_items
    where season_membership_id in (
      select id from public.season_memberships
-      where person_id in (select id from public.people where known_as = 'PILOT-LAN-78'));
+      where person_id in (select id from public.people where known_as like 'PILOT-LAN-78%'));
   if offending > 0 then
     raise exception
       'LAN-78 pilot cleanup: % onboarding item(s) hang off this scenario''s memberships. Refusing to delete them.',
@@ -169,7 +169,7 @@ begin
     from public.availability_statuses
    where season_membership_id in (
      select id from public.season_memberships
-      where person_id in (select id from public.people where known_as = 'PILOT-LAN-78'));
+      where person_id in (select id from public.people where known_as like 'PILOT-LAN-78%'));
   if offending > 0 then
     raise exception
       'LAN-78 pilot cleanup: % availability status(es) exist for this scenario''s memberships. Refusing to delete them.',
@@ -180,7 +180,7 @@ begin
     from public.position_assignments
    where season_membership_id in (
      select id from public.season_memberships
-      where person_id in (select id from public.people where known_as = 'PILOT-LAN-78'));
+      where person_id in (select id from public.people where known_as like 'PILOT-LAN-78%'));
   if offending > 0 then
     raise exception
       'LAN-78 pilot cleanup: % position assignment(s) exist for this scenario''s memberships. Refusing to delete them.',
@@ -191,7 +191,7 @@ begin
     from public.jersey_assignments
    where season_membership_id in (
      select id from public.season_memberships
-      where person_id in (select id from public.people where known_as = 'PILOT-LAN-78'));
+      where person_id in (select id from public.people where known_as like 'PILOT-LAN-78%'));
   if offending > 0 then
     raise exception
       'LAN-78 pilot cleanup: % jersey assignment(s) exist for this scenario''s memberships. Refusing to delete them.',
@@ -200,7 +200,7 @@ begin
 
   select count(*) into offending
     from public.person_aliases
-   where person_id in (select id from public.people where known_as = 'PILOT-LAN-78');
+   where person_id in (select id from public.people where known_as like 'PILOT-LAN-78%');
   if offending > 0 then
     raise exception
       'LAN-78 pilot cleanup: % person alias(es) exist for this scenario''s people. Refusing to delete them.',
@@ -209,7 +209,7 @@ begin
 
   select count(*) into offending
     from public.audit_events
-   where actor_person_id in (select id from public.people where known_as = 'PILOT-LAN-78');
+   where actor_person_id in (select id from public.people where known_as like 'PILOT-LAN-78%');
   if offending > 0 then
     raise exception
       'LAN-78 pilot cleanup: this scenario''s people are named as the actor on % audit row(s). They cannot be deleted without destroying audit history — leave the scenario in place.',
@@ -326,15 +326,15 @@ delete from public.contact_points
 
 delete from public.people
  where id = '00780078-0078-4078-8078-000000000001'
-   and known_as = 'PILOT-LAN-78';
+   and known_as like 'PILOT-LAN-78%';
 
 delete from public.people
  where id = '00780078-0078-4078-8078-000000000002'
-   and known_as = 'PILOT-LAN-78';
+   and known_as like 'PILOT-LAN-78%';
 
 delete from public.people
  where id = '00780078-0078-4078-8078-000000000003'
-   and known_as = 'PILOT-LAN-78';
+   and known_as like 'PILOT-LAN-78%';
 
 -- ---------------------------------------------------------------------------
 -- What is left
@@ -344,7 +344,7 @@ delete from public.people
 select
   'LAN-78 pilot cleanup — remaining' as check,
   (select count(*) from public.people
-    where known_as = 'PILOT-LAN-78') as scenario_people,
+    where known_as like 'PILOT-LAN-78%') as scenario_people,
   (select count(*) from public.contact_points
     where source = 'PILOT-LAN-78') as scenario_contact_points,
   (select count(*) from public.events

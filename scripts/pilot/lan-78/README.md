@@ -12,13 +12,15 @@ To let you see the five provider-neutral delivery states against real rows, and
 to exercise the two repair controls, without anything reaching a person.
 
 It creates three synthetic invitees on one approved event, each sitting in a
-different state:
+different state. The names below are what the screen shows — `known_as` carries
+the sentinel and is what both the delivery read model and the dispatcher
+display, so the sentinel is part of the name rather than hidden behind it:
 
-| Invitee            | State         | Why it is in that state                              |
-| ------------------ | ------------- | ---------------------------------------------------- |
-| Delivery Queued    | **Queued**    | pending, never attempted                             |
-| Delivery Retryable | **Retryable** | one failed attempt, four remaining, transient reason |
-| Delivery Failed    | **Failed**    | terminal refusal, attempt ceiling reached            |
+| Invitee                         | State         | Why it is in that state                       |
+| ------------------------------- | ------------- | --------------------------------------------- |
+| PILOT-LAN-78 Delivery Queued    | **Queued**    | pending, never attempted                      |
+| PILOT-LAN-78 Delivery Retryable | **Retryable** | one failed attempt, four remaining, transient |
+| PILOT-LAN-78 Delivery Failed    | **Failed**    | terminal refusal, attempt ceiling reached     |
 
 **Delivered** and **Attempted** are deliberately absent, and cannot be
 manufactured: both require the provider to have accepted a message, and a script
@@ -92,20 +94,20 @@ unaffected either way.
 
 ## The matrix
 
-| #   | Do this                                       | Expect                                                                                                                       |
-| --- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Open the event, then **Delivery**             | UX-50: Audience 3, Delivered 0, Queued 1, Failed 2                                                                           |
-| 2   | Read the standing note                        | "Operators never copy, send or post invitations manually. Delivery telemetry does not imply an RSVP."                        |
-| 3   | **View diagnostics**                          | UX-51: three invitees, one per state, each with its channel and last attempt                                                 |
-| 4   | Filter to **Needs attention**                 | Only Retryable and Failed remain                                                                                             |
-| 5   | Search a partial name                         | The list narrows as you type, with no Enter needed                                                                           |
-| 6   | **Open selected issue** on Delivery Retryable | UX-52: Latest result Failed, Retry Retryable, Token "Not yet issued"                                                         |
-| 7   | Read the reason shown                         | A plain sentence. No phone number, no provider body, no raw error                                                            |
-| 8   | **Retry delivery**                            | An attempt is made. Unconfigured: fails naming the missing settings. Configured: the provider refuses the drama-range number |
-| 9   | **Open selected issue** on Delivery Failed    | Retry is offered but described as needing the cause fixed first                                                              |
-| 10  | Look for a way to send by hand                | There is none — no copy link, no send message, no post to group, no mark as sent                                             |
-| 11  | Check the RSVP column                         | Independent of delivery state. Delivered never means responded                                                               |
-| 12  | Repeat at 375px                               | Cards rather than a table; every state and both actions still reachable                                                      |
+| #   | Do this                                          | Expect                                                                                                                       |
+| --- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Open the event, then **Delivery**                | UX-50: Audience 3, Delivered 0, Queued 1, Failed 2                                                                           |
+| 2   | Read the standing note                           | "Operators never copy, send or post invitations manually. Delivery telemetry does not imply an RSVP."                        |
+| 3   | **View diagnostics**                             | UX-51: three invitees, one per state, each with its channel and last attempt                                                 |
+| 4   | Filter to **Needs attention**                    | Only Retryable and Failed remain                                                                                             |
+| 5   | Search `Retryable`                               | The list narrows to one row as you type, with no Enter needed                                                                |
+| 6   | **Open selected issue** on the Retryable invitee | UX-52: Latest result Failed, Retry Retryable, Token "Not yet issued"                                                         |
+| 7   | Read the reason shown                            | A plain sentence. No phone number, no provider body, no raw error                                                            |
+| 8   | **Retry delivery**                               | An attempt is made. Unconfigured: fails naming the missing settings. Configured: the provider refuses the drama-range number |
+| 9   | **Open selected issue** on the Failed invitee    | Retry is shown **disabled**, with a note that somebody has to fix the cause first                                            |
+| 10  | Look for a way to send by hand                   | There is none — no copy link, no send message, no post to group, no mark as sent                                             |
+| 11  | Check the RSVP column                            | Independent of delivery state. Delivered never means responded                                                               |
+| 12  | Repeat at 375px                                  | Cards rather than a table; every state and both actions still reachable                                                      |
 
 Sign in as an operator **without** one of the four roles and open the same
 route: the screen is refused and no delivery data appears in the response.

@@ -175,10 +175,14 @@ $preflight$;
 -- every one of these rows is identifiable by text as well as by key.
 
 insert into public.people (id, given_name, family_name, known_as)
+-- `known_as` carries the sentinel AND is what the screen displays, because both
+-- the delivery read model and the dispatcher prefer it over `given_name`. So it
+-- has to be the name Brian will actually see in the matrix, with the sentinel
+-- inside it rather than instead of it.
 values
-  ('00780078-0078-4078-8078-000000000001', 'Delivery', 'Queued', 'PILOT-LAN-78'),
-  ('00780078-0078-4078-8078-000000000002', 'Delivery', 'Retryable', 'PILOT-LAN-78'),
-  ('00780078-0078-4078-8078-000000000003', 'Delivery', 'Failed', 'PILOT-LAN-78')
+  ('00780078-0078-4078-8078-000000000001', 'Delivery', 'Queued', 'PILOT-LAN-78 Delivery'),
+  ('00780078-0078-4078-8078-000000000002', 'Delivery', 'Retryable', 'PILOT-LAN-78 Delivery'),
+  ('00780078-0078-4078-8078-000000000003', 'Delivery', 'Failed', 'PILOT-LAN-78 Delivery')
 on conflict (id) do nothing;
 
 -- Ofcom's reserved 07700 900xxx drama range. Never allocated, so a fully
@@ -364,7 +368,7 @@ on conflict (id) do nothing;
 select
   'LAN-78 pilot setup — written' as check,
   (select count(*) from public.people
-    where known_as = 'PILOT-LAN-78') as people,
+    where known_as like 'PILOT-LAN-78%') as people,
   (select count(*) from public.contact_points
     where source = 'PILOT-LAN-78') as contact_points,
   (select count(*) from public.season_memberships

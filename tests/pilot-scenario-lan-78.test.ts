@@ -142,7 +142,9 @@ async function count(sql: string, params: unknown[] = []): Promise<number> {
 /** Every scenario-owned row, counted the way the scripts identify them. */
 async function scenarioCounts() {
   return {
-    people: await count("public.people where known_as = $1", [SENTINEL]),
+    // `like`, because `known_as` is the name the screen shows and carries the
+    // sentinel as a prefix rather than as the whole value.
+    people: await count("public.people where known_as like $1", [`${SENTINEL}%`]),
     contacts: await count("public.contact_points where source = $1", [SENTINEL]),
     memberships: await count("public.season_memberships where person_id = any($1::uuid[])", [
       PEOPLE,
