@@ -26,11 +26,16 @@ const PROTECTED_PREFIXES = ["/dashboard", "/operate"];
  * rotated by a player's page load — the two surfaces share a browser more often
  * than is comfortable, on a committee member's phone.
  *
- * The headers are set here rather than in `next.config.ts` because Next writes
- * its own `Cache-Control` for a dynamically rendered page, and the configured
- * one loses: the response came back `no-cache, must-revalidate`, which still
- * permits a cache to *store* a page naming a player and their answer. Setting
- * it on the response after the fact is what actually makes `no-store` stick.
+ * The headers are set here rather than in `next.config.ts` because a
+ * `headers()` entry there loses to what Next writes for a dynamically rendered
+ * page. Setting them on the response is what makes them stick.
+ *
+ * Measured on a production build (`next build` + `next start`), which is the
+ * only measurement that counts: both the 200 and the uniform 404 come back
+ * `no-store, no-cache, must-revalidate, private`. An earlier note in this
+ * repository claimed `no-store` was being stripped — that reading was taken
+ * from `next dev`, which sends different headers from the build that ships, and
+ * it was wrong. `tests/operate-route-protection.test.ts` now asserts all three.
  */
 const RSVP_PREFIX = "/rsvp";
 

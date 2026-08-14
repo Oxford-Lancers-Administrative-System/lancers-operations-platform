@@ -25,6 +25,7 @@ import {
   composeReason,
   readSignedRsvpPageIn,
   recordSignedLinkResponse,
+  EVENT_SOLICITS_NO_RESPONSE_RULE,
   INVITATION_WITHDRAWN_RULE,
   NO_REQUIRES_A_REASON_RULE,
   RESPONSE_WINDOW_CLOSED_RULE,
@@ -359,6 +360,91 @@ describe("recordSignedLinkResponse", () => {
 
     expect(await statusOf(invitationId)).toBe("responded");
     expect(await responsesFor(invitationId)).toHaveLength(1);
+  });
+
+  it("accepts a response one minute before the start, not merely two days before", async () => {
+    // The accept half of the boundary, at the boundary.
+    //
+    // Independent review moved the cutoff two hours early — closing the window
+    // while every event was still ahead — and every test passed, because the
+    // accepting test answered 48 hours out. A window that shuts early is a
+    // player told their link is dead on the afternoon of the match.
+    const { invitationId, eventId } = await fixture(48);
+    const token = await tokenFor(invitationId);
+
+    await observer.query(
+      `update public.events
+          set scheduled_on = ((now() + interval '1 minute') at time zone 'Europe/London')::date,
+              starts_at = ((now() + interval '1 minute') at time zone 'Europe/London')::time
+        where id = $1`,
+      [eventId],
+    );
+
+    await recordSignedLinkResponse(token, { response: "yes" });
+    expect(await responsesFor(invitationId)).toHaveLength(1);
+    expect(await statusOf(invitationId)).toBe("responded");
+  });
+
+  it("refuses an event that solicits no response at all", async () => {
+    // Invariant E6. An informational event resolves an audience for visibility
+    // only, but approval still creates invitations and nothing stops a token
+    // being minted — so without this guard a signed link would record an
+    // authoritative answer that then stands in `current_rsvp` and in the P7
+    // reporting LAN-81 consumes. The resolver carried the fact; nobody read it.
+    const { invitationId, eventId } = await fixture(48);
+    const token = await tokenFor(invitationId);
+    await observer.query(
+      "update public.events set solicits_response = false, response_deadline_at = null where id = $1",
+      [eventId],
+    );
+    await observer.query("update public.invitations set expires_at = null where id = $1", [
+      invitationId,
+    ]);
+
+    const error = await caught(() => recordSignedLinkResponse(token, { response: "yes" }));
+    expect(error.rule).toBe(EVENT_SOLICITS_NO_RESPONSE_RULE);
+    expect(await responsesFor(invitationId)).toHaveLength(0);
+  });
+
+  it("rolls the whole answer back when the last of its four writes fails", async () => {
+    // Restored, and by the route independent review demonstrated.
+    //
+    // Two earlier attempts sabotaged `audit_events` with a constraint and then
+    // a trigger; both need an ACCESS EXCLUSIVE lock on a table every other
+    // suite writes to, and the second deadlocked a full parallel run. I removed
+    // the test and argued the transaction helper's own suite covered it. That
+    // was half right: the helper is proved, but this function's *use* of it was
+    // not, and an edit moving `recordAudit` outside the callback would have
+    // been caught by nothing.
+    //
+    // Making the audit write fail from inside the service needs no DDL at all —
+    // a blank actor is refused by `recordAudit` before it reaches the database,
+    // after the other three writes have already happened.
+    const { invitationId } = await fixture(48);
+    const token = await tokenFor(invitationId);
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, channel, scheduled_for)
+       values ($1, 'reminder', 'pending', $2, 'whatsapp', now() + interval '1 day')`,
+      [`${MARKER}-rollback`, invitationId],
+    );
+
+    const audit = await import("./audit");
+    const spy = vi.spyOn(audit, "recordAudit").mockRejectedValueOnce(new Error("audit refused"));
+    try {
+      await expect(recordSignedLinkResponse(token, { response: "yes" })).rejects.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
+
+    // All three earlier writes are gone with it.
+    expect(await responsesFor(invitationId)).toHaveLength(0);
+    expect(await statusOf(invitationId)).toBe("pending");
+    const job = await observer.query<{ status: string }>(
+      "select status::text as status from public.notification_jobs where idempotency_key = $1",
+      [`${MARKER}-rollback`],
+    );
+    expect(job.rows[0].status).toBe("pending");
   });
 
   it("accepts a response a minute before the start and refuses one a minute after", async () => {

@@ -62,7 +62,11 @@ vi.mock("./actions", () => ({
 import { withTransaction } from "@/lib/db";
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
 import { resolveRsvpTokenIn, type TokenState } from "@/lib/services/rsvp-tokens";
-import { resetRsvpRateLimit } from "@/lib/rsvp/public-surface";
+import {
+  RATE_LIMIT_MAX_PER_LINK,
+  resetRsvpRateLimit,
+  UNIFORM_TERMINAL_RESPONSE_MS,
+} from "@/lib/rsvp/public-surface";
 import RsvpPage from "./page";
 import RsvpLinkUnusable from "./not-found";
 import {
@@ -302,13 +306,38 @@ describe("UX-63, UX-64 and UX-65 — one response for every unusable link", () =
     await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
+  it.each(TERMINAL)("holds a %s link to the uniform timing floor", async (state) => {
+    // The wiring, not the helper.
+    //
+    // Independent review removed `|| outcome.state === "event_started"` from
+    // the predicate in `page.tsx` and every test still passed — which would
+    // have returned a started link in about 5ms while a revoked one took 250,
+    // a 50x difference measurable from a phone and a direct breach of the
+    // "non-distinguishable timing behavior" clause. `public-surface.test.ts`
+    // proves the floor works; only this proves the page asks for it.
+    givenToken(state, state === "event_started" ? PAGE : null);
+
+    const startedAt = Date.now();
+    await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(UNIFORM_TERMINAL_RESPONSE_MS - 5);
+  });
+
+  it("does not make a usable link wait", async () => {
+    // The counterweight: if the predicate ever returned true for everything,
+    // every test above would still pass and every player would pay 250ms.
+    givenToken("valid");
+
+    const startedAt = Date.now();
+    await renderPage();
+    expect(Date.now() - startedAt).toBeLessThan(UNIFORM_TERMINAL_RESPONSE_MS);
+  });
+
   it("renders the approved copy and nothing about the link", async () => {
     const { container } = render(<RsvpLinkUnusable />);
     const text = container.textContent ?? "";
 
     expect(text).toContain(TERMINAL_HEADING);
     expect(text).toContain(TERMINAL_BODY);
-    expect(text).toContain(CONTACT_THE_CLUB);
 
     // No event, no player, no time, no token history, and no word that would
     // let a holder tell which of the four situations they are in.
@@ -330,14 +359,52 @@ describe("UX-63, UX-64 and UX-65 — one response for every unusable link", () =
     }
   });
 
-  it("offers no way to retry, guess again, or reach the operator area", async () => {
+  it("offers no way to retry, guess again, or reach a sign-in prompt", async () => {
     const { container } = render(<RsvpLinkUnusable />);
-    // A form would be a place to submit a different token; an /operate link
-    // would invite a player into a surface they have no account for.
+    // A form would be a place to submit a different token.
     expect(container.querySelector("form")).toBeNull();
     expect(container.querySelector("input")).toBeNull();
+
+    // Close used to link to "/", which carries a **Sign in** button and a
+    // **Protected page** button — putting a stranger holding a dead link one
+    // tap from an operator sign-in, which this ticket forbids. Asserting on the
+    // immediate href was not enough to catch that, so the landing page's own
+    // destinations are named here too.
     for (const link of Array.from(container.querySelectorAll("a"))) {
-      expect(link.getAttribute("href")).not.toMatch(/\/operate|\/login/);
+      const href = link.getAttribute("href") ?? "";
+      expect(href).not.toMatch(/\/operate|\/login|\/dashboard/);
+      expect(href).not.toBe("/");
+    }
+  });
+
+  it("renders no contact action while the club's address is undecided", async () => {
+    // Brian deferred the address on 14 August 2026. A button is better absent
+    // than present and inert: the first version shipped a `mailto:` to a
+    // reserved `.example` domain behind an environment variable declared
+    // nowhere, so tapping the club's own approved action did nothing at all.
+    const { container } = render(<RsvpLinkUnusable />);
+    const html = container.innerHTML;
+
+    expect(html).not.toContain("mailto:");
+    expect(html).not.toContain(".example");
+    expect(container.textContent).not.toContain(CONTACT_THE_CLUB);
+  });
+
+  it("renders the contact action as a mailto once an address is configured", async () => {
+    // The other half: proving the absence above is a consequence of the
+    // deferral rather than of the action having been quietly deleted.
+    vi.resetModules();
+    vi.stubEnv("NEXT_PUBLIC_CLUB_CONTACT_EMAIL", "committee@oxfordlancers.org.uk");
+    try {
+      const { default: Configured } = await import("./not-found");
+      const { container } = render(<Configured />);
+
+      expect(container.textContent).toContain(CONTACT_THE_CLUB);
+      const mailto = container.querySelector('a[href^="mailto:"]');
+      expect(mailto?.getAttribute("href")).toBe("mailto:committee@oxfordlancers.org.uk");
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
     }
   });
 });
@@ -377,11 +444,11 @@ describe("rate limiting", () => {
   it("refuses a flood as the same terminal response a bad token produces", async () => {
     givenToken("valid");
 
-    // Well past the per-minute allowance, from one client. The first requests
-    // succeed; the page then refuses exactly as an unusable link does, which is
-    // what stops the limiter from being a signal of its own.
+    // Well past the per-link allowance. The first requests succeed; the page
+    // then refuses exactly as an unusable link does, which is what stops the
+    // limiter from being a signal of its own.
     let refusals = 0;
-    for (let attempt = 0; attempt < 40; attempt += 1) {
+    for (let attempt = 0; attempt < RATE_LIMIT_MAX_PER_LINK + 5; attempt += 1) {
       try {
         await renderPage();
       } catch (error) {
@@ -390,5 +457,40 @@ describe("rate limiting", () => {
       }
     }
     expect(refusals).toBeGreaterThan(0);
+  });
+
+  it("says so in the log, because the player is told nothing", async () => {
+    // The uniform response is what makes throttling undiscoverable: a player
+    // sees "this link can't be used" and asks for a new link, superseding the
+    // working one they had. The server is the only thing that can report it.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      givenToken("valid");
+      for (let attempt = 0; attempt < RATE_LIMIT_MAX_PER_LINK + 2; attempt += 1) {
+        await renderPage().catch(() => {});
+      }
+      expect(warn).toHaveBeenCalled();
+      expect(String(warn.mock.calls.at(-1)?.[0])).toContain("rate limit");
+      // Never the token: it is a secret, and never the address: it is personal.
+      for (const call of warn.mock.calls) {
+        expect(String(call[0])).not.toContain(TOKEN);
+      }
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("throttles one link without touching another player's", async () => {
+    givenToken("valid");
+    for (let attempt = 0; attempt < RATE_LIMIT_MAX_PER_LINK + 2; attempt += 1) {
+      await renderPage().catch(() => {});
+    }
+
+    // A different token, same (absent) address. It must still render.
+    const other = await RsvpPage({
+      params: Promise.resolve({ token: "ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" }),
+      searchParams: Promise.resolve({}),
+    });
+    expect(render(other).container.textContent).toContain("Team Practice");
   });
 });

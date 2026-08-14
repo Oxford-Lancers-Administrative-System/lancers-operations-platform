@@ -27,3 +27,13 @@ export const REASON_REQUIRED_ERROR = "reason";
  * to hide.
  */
 export const CLOSED_ERROR = "closed";
+
+/**
+ * The request was rate limited.
+ *
+ * Distinct from `closed` on purpose. Both refuse the write, but they are not
+ * the same fact and must not read as one: `closed` tells a player their event
+ * has started, and telling that to somebody who merely arrived in a busy minute
+ * is false and leaves them nothing to do. This one says try again.
+ */
+export const BUSY_ERROR = "busy";

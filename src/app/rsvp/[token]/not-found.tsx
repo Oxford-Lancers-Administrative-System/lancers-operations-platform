@@ -7,6 +7,7 @@ import Typography from "@mui/material/Typography";
 import {
   BANNER,
   CLOSE,
+  CLUB_CONTACT_EMAIL,
   CONTACT_THE_CLUB,
   TERMINAL_BODY,
   TERMINAL_HEADING,
@@ -73,19 +74,47 @@ export default function RsvpLinkUnusable() {
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ mt: 3 }}>
             {/*
-              A mailto rather than a route: this holder has no account, and the
-              approved page has no navigation into the operator area. The
-              address is the club's published contact, carried in configuration
-              so that changing it is not a code change.
+              Contact the club — only when there is somewhere for it to go.
+
+              The first version shipped a `mailto:` to an address invented here,
+              behind an environment variable declared nowhere, falling back to a
+              reserved `.example` domain that can never receive mail. It looked
+              like an action and was one of the two the owner decision approves,
+              and it did nothing: a player would tap it, their mail client would
+              open, and the message would go nowhere.
+              `NEXT_PUBLIC_*` is also inlined at build time, so it could not
+              have been set on a running revision anyway.
+
+              Brian deferred the club's contact address on 14 August 2026. Until
+              it exists, this renders no button rather than a broken one — the
+              body copy already tells the holder to request a new link from the
+              club, so nothing is lost but the affordance. Supplying the address
+              is a one-value change; it is named in the pull request's Production
+              handoff as the owner action it is.
             */}
-            <Button
-              href={`mailto:${process.env.NEXT_PUBLIC_CLUB_CONTACT_EMAIL ?? "committee@oxfordlancers.example"}`}
-              variant="contained"
-              sx={{ minHeight: 48, flex: 1 }}
-            >
-              {CONTACT_THE_CLUB}
-            </Button>
-            <Button href="/" variant="text" sx={{ minHeight: 48, flex: 1 }}>
+            {CLUB_CONTACT_EMAIL ? (
+              <Button
+                href={`mailto:${CLUB_CONTACT_EMAIL}`}
+                variant="contained"
+                sx={{ minHeight: 48, flex: 1 }}
+              >
+                {CONTACT_THE_CLUB}
+              </Button>
+            ) : null}
+            {/*
+              Close goes nowhere on purpose.
+
+              It used to link to `/`, which is the scaffold landing page and
+              carries a **Sign in** button — putting a stranger holding a dead
+              link one tap from an operator sign-in prompt, which is exactly
+              what this ticket says the page must not do. There is no other
+              destination in the application that a player has any business
+              reaching, and `window.close()` does nothing for a tab the script
+              did not open, so a button that appeared to close and then did not
+              would be worse. It acknowledges the end of the journey and stays
+              put.
+            */}
+            <Button component="span" variant="text" sx={{ minHeight: 48, flex: 1 }}>
               {CLOSE}
             </Button>
           </Stack>

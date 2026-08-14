@@ -88,6 +88,20 @@ export const TERMINAL_PRIVACY_NOTE =
   "For privacy, we can’t provide more information about this link.";
 export const CONTACT_THE_CLUB = "Contact the club";
 
+/**
+ * Where "Contact the club" goes, or an empty string when nobody has decided.
+ *
+ * Read once, here, so that exactly one place knows whether the action exists.
+ * `NEXT_PUBLIC_*` is inlined at build time — a value set on a running Cloud Run
+ * revision would be ignored — so supplying this is a build-time owner action,
+ * recorded as such in the pull request rather than implied by a fallback.
+ *
+ * There is deliberately no default. A plausible-looking placeholder is worse
+ * than nothing: it renders an action that silently fails, which is how the
+ * first version of this shipped a `mailto:` to a reserved `.example` domain.
+ */
+export const CLUB_CONTACT_EMAIL = (process.env.NEXT_PUBLIC_CLUB_CONTACT_EMAIL ?? "").trim();
+
 // ---------------------------------------------------------------------------
 // UX-66 — a valid link to a cancelled event
 // ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ import { withTransaction } from "@/lib/db";
 import {
   allowRsvpRequest,
   clientKeyFrom,
+  logThrottledRsvpRequest,
   withUniformTerminalTiming,
 } from "@/lib/rsvp/public-surface";
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
@@ -20,6 +21,7 @@ import { resolveRsvpTokenIn } from "@/lib/services/rsvp-tokens";
 
 import { submitAttending, submitNotAttending } from "./actions";
 import {
+  BUSY_ERROR,
   CLOSED_ERROR,
   DECLINE_STEP,
   ERROR_PARAM,
@@ -72,8 +74,10 @@ import {
  * authorization. Everything that follows from that is deliberate.
  *
  * **Nothing is cached.** `force-dynamic` plus the `no-store` headers set in
- * `next.config.ts` keep one player's answer out of another's response, and keep
- * a shared proxy from ever holding a page that names a person.
+ * `src/proxy.ts` keep one player's answer out of another's response, and keep a
+ * shared proxy from ever holding a page that names a person. Verified on a
+ * production build rather than assumed, and asserted in
+ * `tests/operate-route-protection.test.ts`.
  *
  * **Nothing is indexed, and no referrer leaves.** The token is in the URL, so a
  * `Referer` header on any outbound request would hand it to a third party.
@@ -119,9 +123,13 @@ export default async function RsvpPage({ params, searchParams }: PageProps) {
       // Counted before the token is even looked at, so that a scanner cannot
       // spend database round trips. A throttled request is reported as the same
       // terminal outcome everything else unusable produces — a distinct "too
-      // many requests" page would tell a scanner it was being counted.
+      // many requests" page would tell a scanner it was being counted — but the
+      // server says so in its own log, so that a throttled player is something
+      // the club can discover rather than something nobody can see.
       const requestHeaders = await headers();
-      if (!allowRsvpRequest(clientKeyFrom(requestHeaders))) {
+      const decision = allowRsvpRequest(clientKeyFrom(requestHeaders), token);
+      if (!decision.allowed) {
+        logThrottledRsvpRequest(decision.reason!);
         return { state: "unknown" as const, page: null };
       }
 
@@ -278,11 +286,23 @@ function Invitation({
 
       <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2 }}>{PRIVACY_NOTE}</Typography>
 
+      {/*
+        Two different failures, and they must not read as one. `closed` means
+        the window shut between rendering and submitting — the page still
+        resolves, so the player is told plainly rather than 404'd. `busy` means
+        the request was rate limited, which is nothing to do with their event;
+        the first version told those players their event had started, which was
+        false and left them nothing to do about it.
+      */}
       {error === CLOSED_ERROR ? (
         <Alert severity="warning" sx={{ mt: 2 }}>
-          {/* The window shut between rendering and submitting. The page still
-              resolves, so the player is told plainly rather than 404'd. */}
           Your response could not be saved. Responses close when the event starts.
+        </Alert>
+      ) : null}
+      {error === BUSY_ERROR ? (
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          Your response could not be saved just now because the club received a lot of requests at
+          once. Please try again in a minute — your event has not started.
         </Alert>
       ) : null}
 

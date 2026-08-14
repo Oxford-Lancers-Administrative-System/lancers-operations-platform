@@ -489,6 +489,33 @@ describe("README.md", () => {
     expect(README_FILE).toMatch(/createHash\('sha256'\)/);
   });
 
+  it("hands Brian a command that still matches the application's own algorithm", async () => {
+    // The README tells him to mint tokens with a `node -e` one-liner rather
+    // than through the service, because the service is `server-only` and the
+    // hosted database is somewhere no repository script may point. That is
+    // sound — but it is a second implementation of a security primitive, and
+    // nothing compared the two. A change to `TOKEN_BYTES` or to the digest in
+    // `rsvp-tokens.ts` would silently desynchronise the pilot, and Brian would
+    // discover it as a link that does not work against a database he cannot
+    // easily inspect.
+    const { hashToken, TOKEN_BYTES, TOKEN_PATTERN } =
+      await import("../src/lib/services/rsvp-tokens");
+
+    const token = crypto.randomBytes(TOKEN_BYTES).toString("base64url");
+    expect(TOKEN_PATTERN.test(token), "the README's token shape").toBe(true);
+
+    const readmeDigest = crypto.createHash("sha256").update(token).digest("hex");
+    expect(readmeDigest, "the README's digest").toBe(hashToken(token));
+
+    // And the command in both files is the one that produces them.
+    for (const file of [README_FILE, SETUP_FILE]) {
+      expect(file).toContain("randomBytes(32)");
+      expect(file).toContain("base64url");
+      expect(file).toContain("sha256");
+    }
+    expect(TOKEN_BYTES, "the README hard-codes 32").toBe(32);
+  });
+
   it("names every link in the matrix it asks Brian to work through", () => {
     for (const label of ["Valid", "Late", "Revoked", "Started", "Cancelled"]) {
       expect(README_FILE).toContain(`${SENTINEL} ${label}`);
