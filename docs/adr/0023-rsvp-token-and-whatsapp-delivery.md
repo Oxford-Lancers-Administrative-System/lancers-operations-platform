@@ -88,13 +88,29 @@ implements the interface and changes nothing above it.
 
 The transport is injected, so the adapter is exercised without a network.
 
-### There is no manual path, and its absence is structural
+### No manual path is built, and that is a scope decision
 
+LAN-78 says manual copying, sending or posting "is not an MVP, pilot or fallback
+path", `docs/ux/slice-ux.md` says "there is no manual send or post control", and
+the acceptance criterion is that nothing "treats manual WhatsApp sending as
+completion". Each of those is about what we build and what the screens offer. An
+operator with a link and a phone can obviously send it by hand; no software
+prevents that, and none of these sources asks it to.
+
+So the guarantee is proportionate to the sentences that state it.
 `delivery_attempts` carries `check (channel <> 'manual')`, so an attempt this
-system makes can never be a manual one. No service function records one, no
-screen offers one, and `tests/no-manual-delivery.test.ts` scans the source, the
-documents and the pilot scripts for a copy-link, send-manually, post-to-group or
-mark-as-sent affordance.
+system makes can never be a manual one. `tests/no-manual-delivery.test.ts` holds
+the other two halves: the service exports no function that would perform one and
+writes no manual channel or outcome, and no runbook instructs a human to send by
+hand as a step. The screens are covered as ordinary UX conformance, by the
+control inventory in the delivery screens' own test.
+
+An earlier draft read this as an invariant to be defended against a hostile
+edit — a URL-scheme scan across every application file, a ban on absolute URLs
+in the delivery sources, an inventory reaching pages that are not delivery
+screens. Six rounds of independent review spent defeating and re-hardening it,
+none of which protected anything the sources actually promise. That apparatus is
+removed deliberately, and this paragraph exists so it is not reintroduced.
 
 `delivery_outcome`'s existing `manual` value is untouched. It records that a
 human contacted somebody, with their name against it — a different and
