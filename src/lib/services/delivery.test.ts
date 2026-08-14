@@ -44,7 +44,8 @@ const MARKER = "LAN78DeliverySuite";
  * a fixed identifier that escapes cleanup once poisons the database for every
  * later run — see `afterEach`.
  */
-const PROVIDER_MESSAGE_PREFIX = `wamid.LAN78.${crypto.randomUUID().slice(0, 8)}.`;
+const PROVIDER_MESSAGE_NAMESPACE = "wamid.LAN78.";
+const PROVIDER_MESSAGE_PREFIX = `${PROVIDER_MESSAGE_NAMESPACE}${crypto.randomUUID().slice(0, 8)}.`;
 
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
@@ -157,8 +158,14 @@ afterEach(async () => {
   await observer.query("delete from public.people where given_name = $1", [MARKER]);
   // Audit rows written by the automated actor name a job, not a person, so they
   // are cleaned by their entity rather than their actor.
+  // Scoped to this suite's own jobs. It was "any automated audit row from the
+  // last ten minutes", which on a shared local stack deletes a concurrent
+  // suite's, a developer's, or a hand-run pilot scenario's rows.
   await observer.query(
-    "delete from public.audit_events where entity_table = 'notification_jobs' and actor_label like 'system: automated%' and occurred_at > now() - interval '10 minutes'",
+    `delete from public.audit_events
+      where entity_table = 'notification_jobs'
+        and entity_id in (select id from public.notification_jobs where event_id in ${events})`,
+    [scope],
   );
 });
 
@@ -781,15 +788,30 @@ describe("provider callbacks", () => {
   });
 
   it("leaves no callback behind that its own cleanup cannot reach", async () => {
-    // The property, asserted rather than trusted: every identifier this suite
-    // invents begins with the per-run prefix, so `afterEach` can always find it
-    // however the test that created it ended.
+    // Scoped to this suite's own namespace, `wamid.LAN78.`, and NOT to the whole
+    // table.
+    //
+    // The unscoped version measured "no row any writer has ever committed falls
+    // outside this run's prefix" while claiming to measure "every identifier
+    // this suite invents begins with it". Those are different properties, and
+    // the first turns a leftover row belonging to `route.test.ts` — or to a
+    // hand-run pilot script — into a permanent red for this file. That is the
+    // poisoning this assertion exists to prevent, with its polarity reversed.
+    //
+    // Scoping to the namespace still catches the real hazard: a row this suite
+    // wrote on an earlier run and failed to clean up.
     const stray = await observer.query<{ provider_event_id: string }>(
       `select provider_event_id from public.delivery_callbacks
-        where provider_event_id not like $1`,
-      [`${PROVIDER_MESSAGE_PREFIX}%`],
+        where provider_event_id like $1
+          and provider_event_id not like $2`,
+      [`${PROVIDER_MESSAGE_NAMESPACE}%`, `${PROVIDER_MESSAGE_PREFIX}%`],
     );
     expect(stray.rows.map((each) => each.provider_event_id)).toEqual([]);
+  });
+
+  it("invents no identifier outside the namespace its cleanup searches", () => {
+    // The code-level half, which no shared database can perturb.
+    expect(PROVIDER_MESSAGE_PREFIX.startsWith(PROVIDER_MESSAGE_NAMESPACE)).toBe(true);
   });
 
   it("refuses to record anything whose signature was not verified", async () => {
@@ -1054,6 +1076,74 @@ describe("what the dispatcher refuses to do", () => {
     for (const each of delivery.rows) {
       expect(each.failureReason, `${each.inviteeName} recorded no reason`).not.toBeNull();
     }
+  });
+});
+
+describe("the late failure write does not stamp another worker's claim", () => {
+  /**
+   * The path this guard exists for, reached the way it is really reached.
+   *
+   * `claimJobIn` runs inside a transaction. When `issueTokenIn` refuses — a
+   * started or cancelled event — that transaction rolls back, so the claim is
+   * undone and `claimed_by` reverts to whatever it was. `recordDispatchFailure`
+   * then runs in a **new** transaction, and without a discriminating predicate
+   * it stamps `failed` over whatever it finds, including another dispatcher's
+   * live claim.
+   *
+   * The predicate was `claimed_by is null or claimed_by = <one shared
+   * constant>`, and that constant was the only non-null value anything ever
+   * wrote to the column — so it matched every row and refused nothing. A
+   * fencing token per dispatch is what makes it discriminate.
+   */
+  it("refuses to conclude a job another dispatcher is holding", async () => {
+    const { eventId, jobId } = await fixture();
+
+    const foreign = "system: automated delivery:00000000-0000-4000-8000-00000000ffff";
+    await observer.query("update public.notification_jobs set claimed_by = $2 where id = $1", [
+      jobId,
+      foreign,
+    ]);
+
+    // Move the event into the past so `issueTokenIn` refuses and the claim
+    // transaction rolls back, leaving the foreign claim in place.
+    await observer.query(
+      `update public.events
+          set scheduled_on = ((now() - interval '1 hour') at time zone 'Europe/London')::date,
+              starts_at = ((now() - interval '1 hour') at time zone 'Europe/London')::time
+        where id = $1`,
+      [eventId],
+    );
+
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport: accepts() });
+
+    const after = await observer.query<{ status: string; claimed_by: string | null }>(
+      "select status::text as status, claimed_by from public.notification_jobs where id = $1",
+      [jobId],
+    );
+    expect(after.rows[0].claimed_by).toBe(foreign);
+    expect(after.rows[0].status).toBe("pending");
+  });
+
+  it("does conclude a job nobody else holds", async () => {
+    const { eventId, jobId } = await fixture();
+    await observer.query(
+      `update public.events
+          set scheduled_on = ((now() - interval '1 hour') at time zone 'Europe/London')::date,
+              starts_at = ((now() - interval '1 hour') at time zone 'Europe/London')::time
+        where id = $1`,
+      [eventId],
+    );
+
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport: accepts() });
+
+    // Unclaimed, so the failure is recorded — the invitee shows a reason rather
+    // than a silence, which is the whole point of recording it at all.
+    const after = await observer.query<{ status: string; last_error: string | null }>(
+      "select status::text as status, last_error from public.notification_jobs where id = $1",
+      [jobId],
+    );
+    expect(after.rows[0].status).toBe("failed");
+    expect(after.rows[0].last_error).toMatch(/already started/i);
   });
 });
 

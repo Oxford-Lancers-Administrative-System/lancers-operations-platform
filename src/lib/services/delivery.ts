@@ -1,5 +1,7 @@
 import "server-only";
 
+import crypto from "node:crypto";
+
 import {
   ConstraintViolated,
   InvalidTransition,
@@ -97,8 +99,25 @@ export const MAX_ATTEMPTS = 5;
  */
 export const DISPATCH_BUDGET_MS = 90_000;
 
-/** `notification_jobs.claimed_by`, and the audit actor for automated work. */
+/** The audit actor for automated work. Never a person. */
 export const DISPATCH_ACTOR_LABEL = "system: automated delivery";
+
+/**
+ * The value one dispatcher writes to `notification_jobs.claimed_by`.
+ *
+ * A **fencing token**, not a constant. It was the constant above, which meant
+ * the guard on `recordDispatchFailure` — `claimed_by is null or claimed_by =
+ * <constant>` — was true for every row the system can produce, because that
+ * constant is the only non-null value anything ever writes there. The predicate
+ * read like a concurrency guard and discriminated nothing.
+ *
+ * With a token per dispatch, a second worker's claim writes a different value,
+ * the predicate stops matching, and the late failure write really is refused
+ * rather than stamping `failed` over a send that is in flight.
+ */
+function dispatchClaim(): string {
+  return `${DISPATCH_ACTOR_LABEL}:${crypto.randomUUID()}`;
+}
 
 export const JOB_NOT_RETRYABLE_RULE = "delivery_job_not_retryable";
 export const JOB_NOT_FOUND_RULE = "delivery_job_not_found";
@@ -142,6 +161,7 @@ async function claimJobIn(
   jobId: string,
   config: OutboundConfig,
   provider: DeliveryProvider,
+  claim: string,
 ): Promise<ClaimOutcome> {
   const claimed = await tx.query<{
     id: string;
@@ -166,7 +186,7 @@ async function claimJobIn(
         and attempt_count < $3
         and invitation_id is not null
       returning id, invitation_id, attempt_count`,
-    [jobId, DISPATCH_ACTOR_LABEL, MAX_ATTEMPTS],
+    [jobId, claim, MAX_ATTEMPTS],
   );
 
   const job = claimed.rows[0];
@@ -366,8 +386,12 @@ export async function dispatchJob(
 
   const { provider, config } = resolution;
 
+  // One token for this dispatch, threaded through the claim and the late
+  // failure write so the two can tell each other apart from anybody else.
+  const claimToken = dispatchClaim();
+
   const claim = await withTransaction(async (tx) => {
-    const outcome = await claimJobIn(tx, jobId, config, provider);
+    const outcome = await claimJobIn(tx, jobId, config, provider, claimToken);
     if (!outcome.claimed && outcome.reason === "undeliverable") {
       await recordUndeliverableIn(tx, jobId, outcome.detail, provider);
     }
@@ -465,7 +489,7 @@ export async function dispatchJob(
  * has already gone wrong, and a second fault here must not stop the remaining
  * invitations being attempted.
  */
-async function recordDispatchFailure(jobId: string, error: unknown): Promise<void> {
+async function recordDispatchFailure(jobId: string, error: unknown, claim: string): Promise<void> {
   // Deliberately does NOT say "nothing was sent". This runs on the path where
   // `dispatchJob` threw, and one of those throws comes from the transaction
   // that records an outcome *after* the provider already accepted the message.
@@ -489,7 +513,7 @@ async function recordDispatchFailure(jobId: string, error: unknown): Promise<voi
                 updated_at = now()
           where id = $1
             and (claimed_by is null or claimed_by = $3)`,
-        [jobId, reason, DISPATCH_ACTOR_LABEL],
+        [jobId, reason, claim],
       );
       await recordAudit(tx, {
         actorLabel: DISPATCH_ACTOR_LABEL,
@@ -569,6 +593,11 @@ export async function dispatchEventInvitations(
     // recorded nothing, and `approveEventAction`'s deliberate `catch {}`
     // swallowed the reason. A failure that stops forty other people being
     // invited has to be one of forty failures, not one silence.
+    // The token this iteration's failure write will be guarded on. `dispatchJob`
+    // mints its own for the claim; this one only has to be distinct from any
+    // other worker's, which it is.
+    const claimToken = dispatchClaim();
+
     try {
       const outcome = await dispatchJob(job.id, options);
       if (outcome === "accepted") accepted += 1;
@@ -576,7 +605,7 @@ export async function dispatchEventInvitations(
       else skipped += 1;
     } catch (error) {
       refused += 1;
-      await recordDispatchFailure(job.id, error);
+      await recordDispatchFailure(job.id, error, claimToken);
     }
   }
 
