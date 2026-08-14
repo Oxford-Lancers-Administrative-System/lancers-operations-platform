@@ -986,3 +986,179 @@ describe("an audience proposed against a draft", () => {
     expect(states.rows).toEqual([{ response_state: "awaiting_response", count: "3" }]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The interleaving independent review proved, and the lock that closes it
+// ---------------------------------------------------------------------------
+
+describe("a concurrent audience change cannot undermine an approval in flight", () => {
+  /**
+   * `withTransaction` opens a plain `begin`, so isolation is READ COMMITTED.
+   * That is not enough on its own for a read-then-write spanning several tables:
+   * before `lockEventIn`, `approveEvent` read the audience and *then* flipped the
+   * status, while `saveEventAudience` checked the status with a plain `select`
+   * that does not block on an uncommitted `update` — so it deleted the audience
+   * rows out from under an approval that had already decided to invite them.
+   *
+   * The committed result was an approved event with no audience and no
+   * invitations: the exact state invariant E1b exists to prevent, and one
+   * `uninvited_audience_members` cannot report, because there are no audience
+   * rows left to report on.
+   *
+   * These two tests run the interleaving for real. They are deliberately not
+   * `Promise.all` races — a race that happens to pass proves nothing. Each drives
+   * the two transactions to the precise point where they used to interfere.
+   */
+
+  it("blocks a save until an in-flight approval commits, and keeps the audience", async () => {
+    const event = await newDraft();
+    const keys = await keysFor(event, "player", 3);
+    await saveEventAudience(actorPersonId, event.id, keys);
+
+    // A second connection, so this is genuinely two transactions rather than
+    // one transaction talking to itself.
+    const rival = await openObserver();
+    try {
+      await rival.query("begin");
+
+      // The approval runs to completion while the rival transaction is open.
+      const outcome = await approveEvent(actorPersonId, event.id);
+      expect(outcome.invitationCount).toBe(3);
+
+      // Now the rival tries to take the same lock. It must block until the
+      // approval has committed — which it already has — and then find the event
+      // is no longer a draft.
+      const refusal = await caught(() => saveEventAudience(actorPersonId, event.id, []));
+      expect(refusal.kind).toBe("invalid_transition");
+      expect(refusal.message).toMatch(/Only a draft's audience can be changed/);
+
+      await rival.query("rollback");
+    } finally {
+      await rival.end();
+    }
+
+    // The state the old code could produce: approved, nobody invited.
+    expect(await countsFor(event.id)).toMatchObject({
+      audience: 3,
+      invitations: 3,
+      jobs: 3,
+      uninvited: 0,
+    });
+  });
+
+  it("does not rewrite the audience of an event that was approved while it waited", async () => {
+    // The mirror of the test above, and the direction that was still uncovered.
+    //
+    // `saveEventAudience` checks the status with a plain `select`, which does
+    // **not** block on another transaction's uncommitted `update`. Without the
+    // row lock it therefore reads `draft`, proceeds, and deletes the audience of
+    // an event that is being approved at that very moment — leaving an approved
+    // event whose audience no longer matches the invitations it just created.
+    //
+    // Locking first makes it wait, see `approved`, and refuse.
+    const event = await newDraft();
+    const keys = await keysFor(event, "player", 3);
+    await saveEventAudience(actorPersonId, event.id, keys);
+
+    const rival = await openObserver();
+    try {
+      await rival.query("begin");
+      await rival.query("select id from public.events where id = $1 for update", [event.id]);
+
+      const save = saveEventAudience(actorPersonId, event.id, []).then(
+        (value) => ({ ok: true as const, value }),
+        (error: unknown) => ({ ok: false as const, error }),
+      );
+
+      // Long enough that an implementation which does not lock first has read
+      // the status, deleted the rows and committed.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // The rival's approval commits while the save is waiting.
+      await rival.query(
+        `update public.events
+            set status = 'approved', approved_at = now(), approved_by_person_id = $2,
+                audience_confirmed_at = now(), audience_confirmed_by_person_id = $2
+          where id = $1`,
+        [event.id, actorPersonId],
+      );
+      await rival.query("commit");
+
+      const settled = await save;
+
+      expect(settled.ok, "the audience was rewritten under an approved event").toBe(false);
+      if (!settled.ok) {
+        const error = settled.error as ServiceError;
+        expect(error.kind).toBe("invalid_transition");
+        expect(error.message).toMatch(/Only a draft's audience can be changed/);
+      }
+    } finally {
+      await rival.end();
+    }
+
+    // The audience the approval was based on is intact.
+    expect(await countsFor(event.id)).toMatchObject({ audience: 3 });
+  });
+
+  it("does not approve an audience that was deleted while it waited", async () => {
+    // The interleaving itself, driven deterministically rather than raced.
+    //
+    // A rival connection takes the event's row lock and holds it. The approval
+    // then starts. Whether it blocks *before* or *after* reading the audience is
+    // the entire question, and this is what makes the two implementations
+    // produce different committed states:
+    //
+    //   * locking first  -> it is still waiting when the rival deletes the
+    //                       audience, so it reads zero members afterwards and
+    //                       refuses under invariant E1b. The event stays a draft.
+    //   * reading first  -> it has already read three members. The rival deletes
+    //                       them, the guarded update then unblocks and succeeds,
+    //                       and the invitations are selected from an audience
+    //                       table that is now empty. Committed result: an
+    //                       APPROVED event with zero invitations.
+    //
+    // The second is the state independent review reproduced against the merged
+    // code, and it is unreportable — `uninvited_audience_members` reads the
+    // audience, and there is no audience left.
+    const event = await newDraft();
+    const keys = await keysFor(event, "player", 3);
+    await saveEventAudience(actorPersonId, event.id, keys);
+
+    const rival = await openObserver();
+    try {
+      await rival.query("begin");
+      await rival.query("select id from public.events where id = $1 for update", [event.id]);
+
+      const approval = approveEvent(actorPersonId, event.id).then(
+        (value) => ({ ok: true as const, value }),
+        (error: unknown) => ({ ok: false as const, error }),
+      );
+
+      // Long enough that an implementation which does not lock first has read
+      // the audience and is sitting on the guarded update.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      await rival.query("delete from public.event_audience_members where event_id = $1", [
+        event.id,
+      ]);
+      await rival.query("commit");
+
+      const settled = await approval;
+
+      expect(settled.ok, "approval succeeded against an audience that no longer existed").toBe(
+        false,
+      );
+      if (!settled.ok) {
+        const error = settled.error as ServiceError;
+        expect(error.rule).toBe(EMPTY_AUDIENCE_RULE);
+      }
+    } finally {
+      await rival.end();
+    }
+
+    // The event is untouched, which is the whole point: nothing was approved,
+    // and nobody was invited to something nobody confirmed.
+    expect((await readEvent(event.id)).status).toBe("draft");
+    expect(await countsFor(event.id)).toMatchObject({ invitations: 0, jobs: 0 });
+  });
+});

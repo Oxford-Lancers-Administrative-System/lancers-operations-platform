@@ -234,28 +234,30 @@ describe.runIf(seeded)("the scenarios the schema ticket names", () => {
     );
     expect(neverInvited).toBeGreaterThan(0);
 
-    // Compared over the same population, which is not pedantry.
+    // `uninvited_audience_members` reports the approval defect: somebody the
+    // approver confirmed and nobody ever asked. It narrows the partition above to
+    // approved, occurred and not-held, because only there is `never_invited` a
+    // defect rather than a fact.
     //
-    // `invitation_response_state` partitions the resolved audience of every
-    // response-soliciting event, whatever its status. `uninvited_audience_members`
-    // narrows that to approved, occurred and not-held — because only there is
-    // "never invited" a defect rather than a fact.
+    // This used to assert the two counts were equal, which was true while an
+    // audience could only exist on an approved event. LAN-77 stores a *proposed*
+    // audience against a draft, so a draft with forty people chosen and nothing
+    // sent now supplies forty perfectly correct `never_invited` rows to the wider
+    // view, and the equality had to go.
     //
-    // Those two counts were equal while an audience could only exist on an
-    // approved event. LAN-77 stores a *proposed* audience against a draft, so a
-    // draft with forty people chosen and nothing sent now supplies forty
-    // perfectly correct `never_invited` rows to the wider view. Asserting plain
-    // equality would fail the moment anybody used the feature.
-    const flagged = await count("select count(*) as count from public.uninvited_audience_members");
-    const reportable = await count(
-      `select count(*) as count
-         from public.invitation_response_state s
-         join public.events e on e.id = s.event_id
-        where s.response_state = 'never_invited'
-          and e.status in ('approved', 'occurred', 'not_held')`,
+    // Its first replacement compared the view against a hand-retyped copy of the
+    // view's own definition, which cannot fail for any seed content. Independent
+    // review caught that. What is asserted now is a property of the *data* that
+    // the view does not define: the seed contains a real approval defect to
+    // report, and every row reported is one an operator could actually act on.
+    const flagged = await client.query<{ event_status: string }>(
+      "select event_status::text as event_status from public.uninvited_audience_members",
     );
-    expect(flagged).toBe(reportable);
-    expect(flagged).toBeGreaterThan(0);
+
+    expect(flagged.rows.length).toBeGreaterThan(0);
+    for (const row of flagged.rows) {
+      expect(["approved", "occurred", "not_held"]).toContain(row.event_status);
+    }
   });
 
   it("reports all five P7 states from the seeded season", async () => {

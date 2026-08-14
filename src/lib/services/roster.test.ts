@@ -41,6 +41,45 @@ function unique(tag: string): string {
   return `${MARKER}-${tag}-${process.pid}`;
 }
 
+/**
+ * A person from the **seeded** club, to act in this suite's transitions.
+ *
+ * This used to be `order by created_at, id limit 1`, and that was the cause of a
+ * long-running intermittent failure across this file and `membership.test.ts` —
+ * 13 tests at a time, on code that passed when re-run.
+ *
+ * The seed stamps every person `created_at = '2026-08-15T09:00:00Z'`, which is
+ * in the **future** of the machine clock. Every seeded person therefore sorts
+ * *last*, and any row a parallel suite had committed at `now()` sorted first and
+ * was adopted as the actor. When that suite's cleanup deleted its person, every
+ * subsequent write here that names the actor — `season_membership_status_events`,
+ * `audit_events` — failed its foreign key and surfaced as `ConstraintViolated`,
+ * far from the cause.
+ *
+ * Pinning to the seeded cohort removes the race: no suite ever deletes a seeded
+ * person. Independent review found the mechanism and reproduced it on demand
+ * with a parallel suite that inserted a person, held it 130 ms and deleted it.
+ *
+ * The future-dated seed itself is a separate latent trap, tracked in LAN-120.
+ */
+async function seededActorPersonId(client: Client): Promise<string> {
+  const actor = await client.query<{ id: string }>(
+    `select id from public.people
+      where merged_into_person_id is null
+        and created_at = '2026-08-15T09:00:00Z'::timestamptz
+      order by id
+      limit 1`,
+  );
+  if (actor.rows.length === 0) {
+    // A pass produced by a missing cohort is not a pass, and this is exactly
+    // where a changed seed timestamp should announce itself.
+    throw new Error(
+      "No seeded person found. `scripts/seed-local.mjs` no longer stamps people with 2026-08-15T09:00:00Z.",
+    );
+  }
+  return actor.rows[0].id;
+}
+
 beforeAll(async () => {
   observer = await openObserver();
 
@@ -48,10 +87,7 @@ beforeAll(async () => {
   openSeasonId = season.id;
   openSeasonLabel = season.label;
 
-  const actor = await observer.query<{ id: string }>(
-    "select id from public.people where merged_into_person_id is null order by created_at, id limit 1",
-  );
-  actorPersonId = actor.rows[0].id;
+  actorPersonId = await seededActorPersonId(observer);
 
   const seededFirstNameOnly = await observer.query<{ id: string; given_name: string }>(
     `select p.id, p.given_name
@@ -492,9 +528,26 @@ describe("enterReturningPlayer — a new person", () => {
 
 describe("enterReturningPlayer — an existing person", () => {
   it("creates a membership without a second person row", async () => {
-    const before = await observer.query<{ count: string }>(
-      "select count(*)::text as count from public.people",
-    );
+    // Counted by NAME, not globally. `select count(*) from public.people` was a
+    // second cross-suite race of the same family as the actor one: Vitest runs
+    // suites in parallel against one database, several of them create and delete
+    // people, and a row committed between these two counts failed the assertion
+    // in a test that had nothing to do with it.
+    //
+    // The name is what this assertion is actually about — that selecting an
+    // existing candidate reuses their record rather than minting a second one
+    // under the same name — so scoping to it is both race-free and closer to the
+    // claim.
+    const countByName = async () => {
+      const row = await observer.query<{ count: string }>(
+        `select count(*)::text as count from public.people
+          where given_name = $1 and family_name is not distinct from $2`,
+        [withoutMembership.givenName, withoutMembership.familyName],
+      );
+      return row.rows[0].count;
+    };
+
+    const before = await countByName();
 
     const result = await enterReturningPlayer({
       actorPersonId,
@@ -505,10 +558,7 @@ describe("enterReturningPlayer — an existing person", () => {
     expect(result.personCreated).toBe(false);
     expect(result.personId).toBe(withoutMembership.id);
 
-    const after = await observer.query<{ count: string }>(
-      "select count(*)::text as count from public.people",
-    );
-    expect(after.rows[0].count).toBe(before.rows[0].count);
+    expect(await countByName()).toBe(before);
 
     const membership = await observer.query<{ person_id: string; entry: string; status: string }>(
       "select person_id, entry::text, status::text from public.season_memberships where id = $1::uuid",

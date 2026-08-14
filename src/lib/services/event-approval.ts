@@ -10,7 +10,7 @@ import {
   type AudienceCapacity,
   type AudienceCatalogue,
 } from "./event-audience";
-import { readEventIn, type EventDetail } from "./events";
+import { lockEventIn, readEventIn, type EventDetail } from "./events";
 import { resolveResponseDeadlineIn, type ResolvedResponseDeadline } from "./response-deadline";
 
 /**
@@ -234,7 +234,11 @@ export async function saveEventAudience(
   requireActor(actorPersonId);
 
   return withTransaction(async (tx) => {
-    const event = await readEventIn(tx, eventId);
+    // Locked before the status is read, not after. A plain `select` does not
+    // block on another transaction's uncommitted `update`, so without this an
+    // approval in flight is invisible here and this function would happily
+    // delete the audience it is about to invite. See `lockEventIn`.
+    const event = await lockEventIn(tx, eventId);
     if (event.status !== "draft") {
       throw new InvalidTransition(
         `${AUDIENCE_EDIT_REQUIRES_DRAFT_MESSAGE} This event is ${describeStatus(event.status)}.`,
@@ -301,7 +305,10 @@ export async function approveEvent(
   requireActor(actorPersonId);
 
   return withTransaction(async (tx) => {
-    const before = await readEventIn(tx, eventId);
+    // The lock comes first, before the audience is read. Everything below
+    // decides from that audience, so reading it unlocked would mean deciding
+    // from a list a concurrent `saveEventAudience` is free to replace.
+    const before = await lockEventIn(tx, eventId);
     const catalogue = await listAudienceCatalogueIn(tx, before.seasonId, before.scheduledOn);
     const members = await readAudienceIn(tx, eventId, catalogue);
 

@@ -749,6 +749,52 @@ describe("UX-20 — the search box actually filters", () => {
     expect(pushed).toContain("q=Quinn");
   });
 
+  /**
+   * The second of the two races, and the one that shipped with no coverage at
+   * all — independent review deleted the guard and the whole suite stayed green.
+   *
+   * The sequence: the operator types, a filter is chosen inside the debounce
+   * window (which pushes a URL carrying the half-typed search), and that
+   * navigation lands as a new `search` prop while the box still holds the same
+   * text. The box must keep what was typed, and the pending debounce must not
+   * fire a second navigation to a URL the browser is already on.
+   */
+  it("keeps the box and does not navigate twice when the URL catches up mid-type", async () => {
+    const { rerender } = renderFilters();
+
+    fireEvent.change(screen.getByLabelText("Search name or contact"), {
+      target: { value: "Quinn" },
+    });
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: /Status/ }));
+    fireEvent.click(await screen.findByRole("option", { name: "Active" }));
+
+    const afterFilter = routerPush.mock.calls.length;
+
+    // The navigation lands: the prop now carries what the box already holds.
+    rerender(
+      <RosterFilters
+        statuses={["active"]}
+        entries={["returning"]}
+        sortColumns={[{ value: "name", label: "Name" }]}
+        search="Quinn"
+        status="active"
+        entry=""
+        sort="name"
+        direction="asc"
+      />,
+    );
+
+    expect(screen.getByLabelText("Search name or contact")).toHaveValue("Quinn");
+
+    await act(async () => {
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
+    });
+
+    // Nothing further: the URL already says what the box says.
+    expect(screen.getByLabelText("Search name or contact")).toHaveValue("Quinn");
+    expect(routerPush).toHaveBeenCalledTimes(afterFilter);
+  });
+
   it("adopts the URL when it genuinely changes underneath — Back, or Clear filters", () => {
     const { rerender } = renderFilters({ search: "Quinn" });
     expect(screen.getByLabelText("Search name or contact")).toHaveValue("Quinn");
