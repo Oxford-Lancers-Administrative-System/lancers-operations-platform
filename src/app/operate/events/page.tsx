@@ -27,7 +27,12 @@ import {
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import { gateShellPage } from "../gate";
 import { CoachEligibleEvents } from "./coach-eligible-events";
-import { bucketCoachEvents, londonToday } from "./coach-event-buckets";
+import {
+  bucketCoachEvents,
+  isOpenForAttendance,
+  isToday,
+  londonToday,
+} from "./coach-event-buckets";
 import EventFilters from "./event-filters";
 import {
   AUDIENCE_AND_RESPONSES_COME_LATER,
@@ -292,8 +297,10 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
  * coaches would be the first step towards two answers to "which events are
  * there".
  *
- * The status filter is fixed here rather than taken from the query string, so
- * `?status=draft` on this route returns occurred events and not a draft.
+ * No status comes from the query string, so `?status=draft` on this route
+ * cannot show a coach a draft. Which statuses they see is decided in
+ * `./coach-event-buckets.ts` and applied there — approved and occurred, and
+ * nothing else.
  *
  * A function the page awaits rather than a component it returns. An async
  * component element returned from another async component is resolved by the
@@ -304,12 +311,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
 async function coachEventList(search: string) {
   let list: EventList;
   try {
-    list = await listCurrentSeasonEvents({
-      search,
-      status: "occurred",
-      sort: "date",
-      direction: "desc",
-    });
+    list = await listCurrentSeasonEvents({ search, sort: "date", direction: "desc" });
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
@@ -324,23 +326,23 @@ async function coachEventList(search: string) {
     );
   }
 
+  const today = londonToday();
+
   return (
     <CoachEligibleEvents
       search={search}
       filtered={search !== ""}
-      sections={bucketCoachEvents(list.events, londonToday()).map((bucket) => ({
+      sections={bucketCoachEvents(list.events, today).map((bucket) => ({
         key: bucket.key,
         label: bucket.label,
         detail: bucket.detail,
-        // Today is the one section drawn out of the page, per Brian's
-        // 14 August 2026 note. "Highlighted" is a property of the section
-        // rather than a second list, so there is one ordering to read.
-        highlighted: bucket.key === "today",
         events: bucket.events.map((event) => ({
           id: event.id,
           name: event.name,
           when: formatListWhen(event),
           venue: event.venue,
+          isToday: isToday(event, today),
+          isOpen: isOpenForAttendance(event),
         })),
       }))}
     />

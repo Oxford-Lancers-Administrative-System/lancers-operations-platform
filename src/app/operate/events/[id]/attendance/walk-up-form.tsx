@@ -8,11 +8,11 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { ATTENDANCE_PRESENCES, type WalkUpCandidate } from "@/lib/services/attendance-vocabulary";
+import type { WalkUpCandidate } from "@/lib/services/attendance-vocabulary";
 import { recordWalkUpAction } from "./actions";
 import { EMPTY_WALK_UP_STATE } from "./action-state";
 import {
-  PRESENCE_LABELS,
+  WALK_UP_ALWAYS_PRESENT,
   WALK_UP_CONTACT_LABEL,
   WALK_UP_DETAIL,
   WALK_UP_HEADLINE,
@@ -20,7 +20,6 @@ import {
   WALK_UP_MATCH_LABEL,
   WALK_UP_MATCH_NONE,
   WALK_UP_NAME_LABEL,
-  WALK_UP_PRESENCE_LABEL,
   WALK_UP_RECONCILIATION_NOTE,
   WALK_UP_SUBMIT,
 } from "./presentation";
@@ -100,20 +99,6 @@ export function WalkUpForm({
         />
 
         <TextField
-          label={WALK_UP_PRESENCE_LABEL}
-          name="presence"
-          select
-          defaultValue={values?.presence || "present"}
-          fullWidth
-        >
-          {ATTENDANCE_PRESENCES.map((presence) => (
-            <MenuItem key={presence} value={presence}>
-              {PRESENCE_LABELS[presence]}
-            </MenuItem>
-          ))}
-        </TextField>
-
-        <TextField
           label={WALK_UP_MATCH_LABEL}
           name="membershipId"
           select
@@ -128,6 +113,10 @@ export function WalkUpForm({
             </MenuItem>
           ))}
         </TextField>
+
+        <Typography variant="body2" color="text.secondary" data-testid="walk-up-presence-note">
+          {WALK_UP_ALWAYS_PRESENT}
+        </Typography>
 
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
           <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>

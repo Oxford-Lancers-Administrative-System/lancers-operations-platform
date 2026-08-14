@@ -135,13 +135,18 @@ function flatten(text: string | null): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
 }
 
-/** One occurred event, as the coach's list receives it from the service. */
-function eventEntry(id: string, name: string, scheduledOn: string): EventListEntry {
+/** One event, as the coach's list receives it from the service. */
+function eventEntry(
+  id: string,
+  name: string,
+  scheduledOn: string,
+  status: EventListEntry["status"] = "occurred",
+): EventListEntry {
   return {
     id,
     name,
     eventType: "practice",
-    status: "occurred",
+    status,
     scheduledOn,
     startsAt: "20:00",
     endsAt: "22:00",
@@ -677,7 +682,7 @@ describe("LAN-110 — the coach shell", () => {
 
     const { container } = render(await OperateLayout(layoutProps(<p>shell content</p>)));
 
-    expect(flatten(container.textContent)).toContain("Occurred events only");
+    expect(flatten(container.textContent)).toContain("This season's sessions");
   });
 
   it("keeps the operator shell intact for everybody else", async () => {
@@ -739,19 +744,19 @@ describe("LAN-110 — the coach shell", () => {
     // No create, no status filter, no audience or response columns.
     expect(screen.queryByRole("link", { name: "Create event" })).toBeNull();
     expect(container.textContent).not.toContain("Audience");
-    expect(flatten(container.textContent)).toContain("Occurred events only");
+    expect(flatten(container.textContent)).toContain("This season's sessions");
   });
 
-  it("draws today's events at the top, in their own highlighted section", async () => {
-    // Brian, 14 August 2026. The section is only drawn when it has something in
-    // it, so this fixture puts one event today and one last week.
+  it("looks forward: Upcoming first, then Earlier, with today drawn out", async () => {
+    // Brian, 14 August 2026: "We should be looking forward… anything before
+    // today is just Earlier. That's it."
     const today = londonToday();
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
       season: { id: "season", label: "2026-27", status: "active" },
       events: [
-        eventEntry("today-practice", "Practice", today),
-        eventEntry("last-week", "S&C", shiftDays(today, -3)),
-        eventEntry("long-ago", "Varsity", shiftDays(today, -60)),
+        eventEntry("today-practice", "Practice", today, "occurred"),
+        eventEntry("next-week", "S&C", shiftDays(today, 5), "approved"),
+        eventEntry("last-week", "Varsity", shiftDays(today, -3), "occurred"),
       ],
       totalInSeason: 3,
     });
@@ -759,46 +764,87 @@ describe("LAN-110 — the coach shell", () => {
 
     const { container } = render(await EventsPage(eventsProps()));
 
-    expect(screen.getByTestId("coach-events-section-today")).toBeVisible();
-    expect(screen.getByTestId("coach-events-section-past_week")).toBeVisible();
-    expect(screen.getByTestId("coach-events-section-earlier")).toBeVisible();
-
-    // Today first, and badged.
     const sections = [...container.querySelectorAll("[data-testid^='coach-events-section-']")];
-    expect(sections[0]).toHaveAttribute("data-testid", "coach-events-section-today");
-    expect(container.querySelector("[data-section='today']")?.textContent).toContain("Today");
+    expect(sections.map((node) => node.getAttribute("data-testid"))).toEqual([
+      "coach-events-section-upcoming",
+      "coach-events-section-earlier",
+    ]);
+
+    // Today is badged and sits at the top of Upcoming, not in a section of its
+    // own — Upcoming holds the rest of the season behind it.
+    const upcoming = [
+      ...screen
+        .getByTestId("coach-events-section-upcoming")
+        .querySelectorAll("[data-testid='coach-event-row']"),
+    ];
+    expect(upcoming[0]).toHaveAttribute("data-today", "true");
+    expect(upcoming[0].textContent).toContain("Today");
+    expect(upcoming[1]).toHaveAttribute("data-today", "false");
   });
 
-  it("draws no heading for a day nothing happened on", async () => {
-    // A club practises for eight months and then stops for the summer, so a
-    // standing empty "Today" would train the eye to skip it.
+  it("says on the card when a register cannot be opened yet", async () => {
+    // A coach who taps three sessions looking for a register they can fill in
+    // has learned nothing except that the list is unreliable.
+    const today = londonToday();
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
       season: { id: "season", label: "2026-27", status: "active" },
-      events: [eventEntry("long-ago", "Varsity", shiftDays(londonToday(), -60))],
+      events: [
+        eventEntry("open", "Practice", today, "occurred"),
+        eventEntry("not-yet", "S&C", shiftDays(today, 2), "approved"),
+      ],
+      totalInSeason: 2,
+    });
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    render(await EventsPage(eventsProps()));
+
+    expect(screen.getAllByTestId("coach-event-not-open")).toHaveLength(1);
+    expect(screen.getByTestId("coach-event-not-open").textContent).toBe("Attendance not open");
+  });
+
+  it("draws no heading for a section with nothing in it", async () => {
+    // A club practises for eight months and then stops for the summer.
+    vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
+      season: { id: "season", label: "2026-27", status: "active" },
+      events: [eventEntry("long-ago", "Varsity", shiftDays(londonToday(), -60), "occurred")],
       totalInSeason: 1,
     });
     givenAccess({ state: "active", operator: actor(COACH) });
 
     render(await EventsPage(eventsProps()));
 
-    expect(screen.queryByTestId("coach-events-section-today")).toBeNull();
-    expect(screen.queryByTestId("coach-events-section-past_week")).toBeNull();
+    expect(screen.queryByTestId("coach-events-section-upcoming")).toBeNull();
     expect(screen.getByTestId("coach-events-section-earlier")).toBeVisible();
   });
 
-  it("asks the service for occurred events only, whatever the query string says", async () => {
-    // The status is fixed by the page, not taken from the URL: `?status=draft`
-    // on this route returns occurred events and not a draft.
+  it("shows no draft, cancelled or not-held session, whatever the query string says", async () => {
+    // No status comes from the URL, so `?status=draft` cannot show a coach a
+    // draft; and the visible set is decided in coach-event-buckets.ts.
+    const today = londonToday();
+    vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
+      season: { id: "season", label: "2026-27", status: "active" },
+      events: [
+        eventEntry("draft", "A draft nobody approved", today, "draft"),
+        eventEntry("cancelled", "A cancelled fixture", today, "cancelled"),
+        eventEntry("not-held", "A washed-out practice", shiftDays(today, -1), "not_held"),
+        eventEntry("real", "Practice", today, "occurred"),
+      ],
+      totalInSeason: 4,
+    });
     givenAccess({ state: "active", operator: actor(COACH) });
 
-    await EventsPage({
-      params: Promise.resolve({}),
-      searchParams: Promise.resolve({ status: "draft" }),
-    } as unknown as PageProps<"/operate/events">);
-
-    expect(listCurrentSeasonEvents).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "occurred" }),
+    const { container } = render(
+      await EventsPage({
+        params: Promise.resolve({}),
+        searchParams: Promise.resolve({ status: "draft" }),
+      } as unknown as PageProps<"/operate/events">),
     );
+
+    expect(screen.getAllByTestId("coach-event-row")).toHaveLength(1);
+    expect(container.textContent).toContain("Practice");
+    expect(container.textContent).not.toContain("A draft nobody approved");
+    expect(container.textContent).not.toContain("A cancelled fixture");
+    expect(container.textContent).not.toContain("A washed-out practice");
   });
 
   it("still gives an ordinary operator the club calendar", async () => {

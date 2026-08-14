@@ -488,10 +488,10 @@ describe("UX-72 — the attendance board", () => {
 
     const { container } = render(await AttendancePage(attendanceProps()));
 
-    // Both of these people are in **Everyone else** — a walk-up has no standing
-    // answer and the mismatch here is somebody who said no — and that group is
-    // closed until the recorder opens it. Opening it is the test: the chips are
-    // what is under the disclosure, not what replaced it.
+    // The mismatch here is somebody who said no, so they are in **Everyone
+    // else**, which is closed until the recorder opens it. The walk-up is in
+    // its own group, which is open. Opening the one is part of the test: the
+    // chips are what is under the disclosure, not what replaced it.
     fireEvent.click(screen.getByTestId("attendance-group-toggle-everyone_else"));
 
     expect(screen.getByTestId("walk-up-chip").textContent).toContain("to reconcile");
@@ -590,7 +590,7 @@ describe("UX-73 — add walk-up attendance", () => {
     ]);
   });
 
-  it("asks for a name, a contact, a state and a possible roster match, and nothing else", async () => {
+  it("asks for a name, a contact and a possible roster match, and nothing else", async () => {
     const { container } = render(await AttendancePage(attendanceProps({ add: "walk-up" })));
 
     expect(container.textContent).toContain("Add walk-up attendance");
@@ -603,6 +603,19 @@ describe("UX-73 — add walk-up attendance", () => {
     for (const absent of ["date of birth", "emergency", "subscription", "consent", "position"]) {
       expect(container.textContent?.toLowerCase()).not.toContain(absent);
     }
+  });
+
+  it("does not ask what the attendance was, and says what it recorded", async () => {
+    // Brian, 14 August 2026. Somebody is being typed into a form because they
+    // are standing in front of the person typing; an uninvited person who is
+    // absent is not an event that happens.
+    const { container } = render(await AttendancePage(attendanceProps({ add: "walk-up" })));
+
+    expect(screen.queryByLabelText(/^Attendance/)).toBeNull();
+    expect(container.querySelector("[name='presence']")).toBeNull();
+    expect(screen.getByTestId("walk-up-presence-note").textContent).toBe(
+      "Recorded as Present. Correct it on their row afterwards if you need to.",
+    );
   });
 
   it("says the record is flagged and creates no membership, before it is committed", async () => {
@@ -952,7 +965,7 @@ describe("the board is read in two groups", () => {
     });
   }
 
-  function namesIn(group: "attending" | "everyone_else"): string[] {
+  function namesIn(group: "attending" | "everyone_else" | "walk_ups"): string[] {
     const panel = screen.getByTestId(`attendance-group-${group}`);
     return [...panel.querySelectorAll("[data-testid='attendance-row']")].map(
       (row) => row.querySelector("p")?.textContent ?? "",
@@ -978,26 +991,79 @@ describe("the board is read in two groups", () => {
     expect(namesIn("attending")).toEqual([...namesIn("attending")].sort());
   });
 
-  it("puts a walk-up with everyone else, because nobody was expecting them", async () => {
-    vi.mocked(readAttendanceBoard).mockResolvedValue(
-      board({
-        participants: [
-          participant({ key: "player:x", displayName: "Alwyn Cholmondley", rsvp: "yes" }),
-          participant({
-            key: `guest:${WALK_UP_PERSON_ID}`,
-            displayName: "Devon Skye",
-            capacity: "guest",
-            rsvp: null,
-            isWalkUp: true,
-          }),
-        ],
-      }),
-    );
+  /**
+   * Brian, 14 August 2026: a walk-up gets "its own separate group that
+   * attended", at the bottom.
+   *
+   * It cannot be in either of the others without lying. "Everyone else" says
+   * the club was not expecting them, next to people who are not there;
+   * "Attending" means *said yes* throughout this product, and Locked
+   * Requirement 7 forbids reading somebody's presence as their intent.
+   */
+  function walkUpBoard() {
+    return board({
+      participants: [
+        participant({ key: "player:x", displayName: "Alwyn Cholmondley", rsvp: "yes" }),
+        participant({ key: "player:y", displayName: "Bar Sedgewick", rsvp: "no" }),
+        participant({
+          key: `guest:${WALK_UP_PERSON_ID}`,
+          displayName: "Devon Skye",
+          capacity: "guest",
+          rsvp: null,
+          isWalkUp: true,
+          presence: "present",
+        }),
+      ],
+    });
+  }
+
+  it("gives a walk-up its own group, and keeps them out of the other two", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(walkUpBoard());
 
     render(await AttendancePage(attendanceProps()));
     fireEvent.click(screen.getByTestId("attendance-group-toggle-everyone_else"));
 
-    expect(namesIn("everyone_else")).toEqual(["Devon Skye"]);
+    expect(namesIn("walk_ups")).toEqual(["Devon Skye"]);
+    expect(namesIn("attending")).toEqual(["Alwyn Cholmondley"]);
+    expect(namesIn("everyone_else")).toEqual(["Bar Sedgewick"]);
+  });
+
+  it("puts the walk-up group last, under the two RSVP groups", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(walkUpBoard());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    const groups = [...container.querySelectorAll("[data-testid^='attendance-group-']")]
+      .map((node) => node.getAttribute("data-testid"))
+      .filter((id) => id !== null && !id.includes("toggle") && !id.includes("count"));
+
+    expect(groups).toEqual([
+      "attendance-group-attending",
+      "attendance-group-everyone_else",
+      "attendance-group-walk_ups",
+    ]);
+  });
+
+  it("opens the walk-up group, because it is the receipt for what was just done", async () => {
+    // Empty at almost every event, and an empty group is not drawn at all — so
+    // the open state costs nothing until the recorder has just added somebody
+    // and been returned here to see it.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(walkUpBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("attendance-group-walk_ups")).toHaveAttribute("data-open", "true");
+  });
+
+  it("says what the walk-up group is, without calling it an RSVP", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(walkUpBoard());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("Walk-ups");
+    expect(container.textContent).toContain("Turned up uninvited, recorded present, to reconcile");
+    // And the RSVP group's own line no longer claims to hold them.
+    expect(container.textContent).toContain("Not attending, and no response");
   });
 
   it("opens Attending and closes Everyone else, and lets either be changed", async () => {

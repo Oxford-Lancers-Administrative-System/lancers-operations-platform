@@ -1,47 +1,67 @@
 /**
  * How the coach's list is ordered — Brian, 14 August 2026.
  *
- * "Events happening today should be highlighted at the top", then this past
- * week, then everything older. A coach opens this at the side of a pitch,
- * minutes after a session, and the session they were just at should be the
- * first thing under their thumb rather than somewhere in a list of sixty.
+ * "We should be looking forward… I want to see what's coming up, and anything
+ * before today is just Earlier. That's it."
  *
- * ## Why "this past week" and not "the next 7 days"
+ * Two sections, and no third:
  *
- * Because the list is occurred events only, and an event that has not happened
- * cannot have been asserted to have happened — invariant E5 makes occurrence a
- * human act, and no operator marks next Tuesday's practice occurred. A
- * forward-looking section would therefore be permanently empty. Brian confirmed
- * the reading on 14 August 2026: today, then the week behind, then earlier.
+ *   * **Upcoming** — today, then everything ahead of it, soonest first. Today's
+ *     sessions are badged and drawn out of the page, and sorted to the top of
+ *     the section, because the register a coach opens the application to fill
+ *     in is almost always one of them.
+ *   * **Earlier** — everything before today, most recent first, because the
+ *     other reason to open this is to correct the session you were at last
+ *     week.
  *
- * ## The fourth case, which has no section
+ * ## Why this list is no longer occurred-only
  *
- * An occurred event dated **after** today is not a thing the club can produce,
- * and it falls into `earlier` along with everything else that is neither today
- * nor this past week. The local synthetic dataset has 67 of them — it dates the
- * whole 2026-27 season ahead of the seed's own "today" — so the section is not
- * hypothetical on a development machine, and calling that bucket anything more
- * specific than "Earlier" would be a label that lies about the data underneath
- * it on the one machine where it appears.
+ * It cannot be. An event that has not happened has not been asserted to have
+ * happened — invariant E5 makes occurrence a human act — so a forward-looking
+ * list of occurred events would be permanently empty, which is what the first
+ * implementation of this screen ran into. Looking forward means showing events
+ * that are not yet open, and saying so on the card: they carry **Attendance not
+ * open**, and opening one gives UX-90 rather than a register.
+ *
+ * That is a widening of what a coaching assignment sees, and it is recorded as
+ * a deviation in `docs/ux/tickets/LAN-110-coach-attendance.md`. What it adds is
+ * the club's own fixture list — a name, a date and a venue for sessions the
+ * coach is running. It adds no audience, no responses, no counts, and no way to
+ * change anything: `/operate/events/[id]` still refuses them outright.
+ *
+ * ## What is deliberately not in either section
+ *
+ * A draft, a pending or rejected submission, a withdrawn one, a cancelled event
+ * and one asserted **not held**. None of those is a session anybody is going
+ * to; showing a coach the calendar's discarded drafts would be the event
+ * administration § 3 withholds, and listing a cancelled fixture under Upcoming
+ * would be worse than not listing it.
  */
 import type { EventListEntry } from "@/lib/services/events";
 
-export type CoachEventBucketKey = "today" | "past_week" | "earlier";
+export type CoachEventBucketKey = "upcoming" | "earlier";
 
 export interface CoachEventBucket {
   key: CoachEventBucketKey;
   label: string;
-  /** One line under the heading. Empty where the heading says enough. */
+  /** One line under the heading. */
   detail: string;
   events: EventListEntry[];
 }
 
-export const TODAY_LABEL = "Today";
-export const TODAY_DETAIL = "Happening today";
-export const PAST_WEEK_LABEL = "This past week";
-export const PAST_WEEK_DETAIL = "The last seven days";
+export const UPCOMING_LABEL = "Upcoming";
+export const UPCOMING_DETAIL = "Today first, then what is coming up";
 export const EARLIER_LABEL = "Earlier";
-export const EARLIER_DETAIL = "Everything else this season";
+export const EARLIER_DETAIL = "Before today, most recent first";
+
+/**
+ * The statuses a coach sees at all.
+ *
+ * `approved` is a session that is going to happen; `occurred` is one that did.
+ * Everything else is either a decision still being taken or a session that is
+ * not happening, and neither is a coach's business — see the note above.
+ */
+export const COACH_VISIBLE_STATUSES: readonly string[] = Object.freeze(["approved", "occurred"]);
 
 /**
  * Today's date in the club's timezone, as `YYYY-MM-DD`.
@@ -65,49 +85,56 @@ export function londonToday(now: Date = new Date()): string {
   }).format(now);
 }
 
-/** The same date, `days` earlier. Both arguments and result are `YYYY-MM-DD`. */
+/** The same date, `days` later. Both argument and result are `YYYY-MM-DD`. */
 export function shiftDays(day: string, days: number): string {
   const shifted = new Date(`${day}T00:00:00Z`);
   shifted.setUTCDate(shifted.getUTCDate() + days);
   return shifted.toISOString().slice(0, 10);
 }
 
+/** Is this event happening today? Drives the badge and the outline. */
+export function isToday(event: EventListEntry, today: string): boolean {
+  return event.scheduledOn === today;
+}
+
+/** Can a register be opened for it yet? Drives the "Attendance not open" line. */
+export function isOpenForAttendance(event: EventListEntry): boolean {
+  return event.status === "occurred";
+}
+
 /**
- * The three sections, in reading order, each keeping the order it was given.
+ * The two sections, in reading order.
  *
- * The caller hands over a date-descending list, which is the right order inside
- * every section: the most recent first is what somebody looking for "the one I
- * was just at" wants, and for `today` it puts a 20:00 practice above the 18:00
- * chalk talk that preceded it.
+ * Sorted here rather than left in the order the service returned, because the
+ * two sections want opposite orders — soonest-first ahead of today, most-recent
+ * first behind it — and the service can only return one of them.
  *
- * An event with no date at all — possible on a draft, not on an occurred event,
- * but the type allows it — is `earlier`. That is the fail-quiet direction: it
- * stays reachable at the bottom of the list rather than claiming to be today.
+ * An event with no date at all is `earlier`, and last within it. It cannot be
+ * upcoming, because nothing is known about when it is; putting it at the top of
+ * the list a coach reads first would be the loudest possible place for the one
+ * row that says nothing.
  */
 export function bucketCoachEvents(
   events: readonly EventListEntry[],
   today: string,
 ): CoachEventBucket[] {
-  const weekAgo = shiftDays(today, -7);
+  const visible = events.filter((event) => COACH_VISIBLE_STATUSES.includes(event.status));
 
-  const bucketFor = (event: EventListEntry): CoachEventBucketKey => {
-    const day = event.scheduledOn;
-    if (day === null) return "earlier";
-    if (day === today) return "today";
-    if (day < today && day >= weekAgo) return "past_week";
-    return "earlier";
-  };
+  const upcoming = visible
+    .filter((event) => event.scheduledOn !== null && event.scheduledOn >= today)
+    .sort((left, right) => (left.scheduledOn ?? "").localeCompare(right.scheduledOn ?? ""));
 
-  const buckets: CoachEventBucket[] = [
-    { key: "today", label: TODAY_LABEL, detail: TODAY_DETAIL, events: [] },
-    { key: "past_week", label: PAST_WEEK_LABEL, detail: PAST_WEEK_DETAIL, events: [] },
-    { key: "earlier", label: EARLIER_LABEL, detail: EARLIER_DETAIL, events: [] },
+  const earlier = visible
+    .filter((event) => event.scheduledOn === null || event.scheduledOn < today)
+    .sort((left, right) => {
+      // Undated rows to the bottom, whichever direction the rest is going.
+      if (left.scheduledOn === null) return right.scheduledOn === null ? 0 : 1;
+      if (right.scheduledOn === null) return -1;
+      return right.scheduledOn.localeCompare(left.scheduledOn);
+    });
+
+  return [
+    { key: "upcoming", label: UPCOMING_LABEL, detail: UPCOMING_DETAIL, events: upcoming },
+    { key: "earlier", label: EARLIER_LABEL, detail: EARLIER_DETAIL, events: earlier },
   ];
-
-  for (const event of events) {
-    const key = bucketFor(event);
-    buckets.find((bucket) => bucket.key === key)?.events.push(event);
-  }
-
-  return buckets;
 }

@@ -68,6 +68,81 @@ UX-97 is the coach-only variant of LAN-80 walk-up capture. It stays on `/operate
 - Before implementation, re-read the live owning issue and comments and reconcile any changes recorded after Brian’s 12 August 2026 approval.
 - In implementation review, provide LAN-110, implemented screen IDs, desktop and 375px phone screenshots, acceptance-criteria results, and every deviation or assumption.
 
+## Recorded deviations — Brian, 14 August 2026
+
+Four, all decided by Brian while reviewing the built screens, and all
+deliberate. The wireframes above are not re-drawn; this section is the record,
+and it is what an implementation review should be read against.
+
+### 1. The register is read in groups, not as one list
+
+UX-72 and UX-91 both show a flat list of participants. The built screens group
+it, and the operator's board is grouped the same way — Brian's answer when asked
+whether it applied to both was "both boards".
+
+| Group             | Holds                                  | Open by default |
+| ----------------- | -------------------------------------- | --------------- |
+| **Attending**     | Standing RSVP of yes                   | Yes             |
+| **Everyone else** | Not attending, and no response         | No              |
+| **Walk-ups**      | No invitation at all; recorded present | Yes             |
+
+Each group is sorted by name. A search opens every group and clearing it
+restores what they were, so a name is never hidden behind a closed disclosure.
+Pressing an attendance state never moves anybody between groups: the split is by
+standing RSVP and by whether there was an invitation, never by what was
+recorded.
+
+**Why walk-ups are their own group rather than in either other one.** Brian's
+instruction was that a walk-up "should be its own separate group that attended
+and should automatically be marked as present". It could not have gone in
+either: "Everyone else" says the club was not expecting them, next to people who
+are not there, and **Attending** means _said yes_ throughout this product.
+Locked Requirement 7 and `../slice-ux.md` § 6 both hold intent and reality
+apart — "a Yes never becomes Present automatically" — so filing somebody who
+turned up under the word for what they answered would be the conflation the
+frozen model forbids.
+
+### 2. The walk-up form no longer asks for an attendance state
+
+UX-73 and UX-97 both show an **Attendance** selector. It is gone: a walk-up is
+recorded **Present**, the form says so, and the four buttons on the row it
+creates correct it afterwards like anybody else's. Somebody is being typed into
+that form because they are standing in front of the person typing.
+
+The value is fixed in the server action, not merely defaulted in the form, so a
+`presence` in a crafted request body changes nothing.
+
+### 3. The coach's list looks forward, and is no longer occurred-only
+
+UX-91's sidebar reads **Occurred events only**, and the built screen does not.
+Brian, on the review: "We should be looking forward… I want to see what's coming
+up, and anything before today is just Earlier. That's it."
+
+Two sections — **Upcoming** (today first, badged and outlined, then everything
+ahead of it soonest first) and **Earlier** (before today, most recent first).
+
+This required the list to include sessions that have **not** been marked
+occurred, because an event that has not happened cannot have been asserted to
+have happened and a forward-looking list of occurred events is permanently
+empty. Those cards say **Attendance not open** and open UX-90 rather than a
+register.
+
+**What it widens, exactly.** A coaching assignment now sees the name, date and
+venue of approved sessions as well as occurred ones — the club's own fixture
+list, for sessions the coach is running. It does not widen anything else: no
+audience, no responses, no counts, no draft, pending, rejected, withdrawn,
+cancelled or not-held event, and no way to change any of it. `/operate/events/[id]`
+still refuses a coach outright, and every § 3 exclusion — roster, contact,
+RSVP reasons, availability, delivery, reports — is unchanged.
+
+### 4. Removal is not offered to a coach
+
+Not a wireframe deviation so much as a boundary worth recording here too.
+**Remove this record** exists to unwind an occurrence assertion, which LAN-110's
+fixed boundaries keep away from a coaching assignment, so the control is not
+rendered for one and `removeAttendanceAction` guards on
+`event_occurrence_assertion`. The four calendar roles are unaffected.
+
 ## Acceptance criteria
 
 - All owned screen IDs render at their registered routes for the correct role and record scope.

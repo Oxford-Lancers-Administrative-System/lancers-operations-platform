@@ -190,8 +190,7 @@ export const NOT_MARKED = "Not marked";
 // ---------------------------------------------------------------------------
 
 /**
- * Attending first, everyone else after — and why the split is by **standing
- * RSVP** rather than by anything else.
+ * Attending, then everyone else, then walk-ups — Brian, 14 August 2026.
  *
  * A recorder works the register in one direction: they expect the people who
  * said they were coming, tick them off, and only then deal with the surprises.
@@ -199,25 +198,36 @@ export const NOT_MARKED = "Not marked";
  * yes, and then I want everyone else (no or otherwise)… those are not the
  * people I'm expecting to be there."
  *
- * So there are exactly two groups, not three. A "no" and a nonresponse are
- * different facts and the row still shows which is which, but they are the same
- * *expectation* — somebody who was not counted on — and splitting them would
- * put the recorder back to scanning three lists instead of one short one and
- * one long one.
+ * The first two groups split on the **standing RSVP**. A "no" and a nonresponse
+ * are different facts and the row still shows which is which, but they are the
+ * same *expectation* — somebody who was not counted on — so they share a group.
  *
- * A walk-up has no invitation and therefore no standing answer, so it lands in
- * "everyone else" by the same rule rather than by a special case. That is
- * right: a walk-up is the definitive person nobody expected.
+ * ## Why a walk-up is not in either of them
+ *
+ * Because it would have to be a lie in one direction or the other. A walk-up
+ * has no invitation and so no standing answer, which by the rule above puts
+ * them in "everyone else" — under a heading that says the club was not
+ * expecting them, next to people who are not there. But the group above says
+ * **Attending**, and that word means "said yes" throughout this product:
+ * Locked Requirement 7 and `slice-ux.md` § 6 are explicit that intent and
+ * reality are different records and that "a Yes never becomes Present
+ * automatically". Putting somebody who turned up into a group named for what
+ * they answered is exactly the conflation the frozen model forbids.
+ *
+ * So they get their own group, at the bottom, which is what Brian asked for:
+ * "it should be its own separate group that attended and should automatically
+ * be marked as present". It says what is true of them — they turned up, nobody
+ * invited them, and they still have to be reconciled with the roster.
  *
  * ## What this deliberately does not do
  *
  * It does not reorder anything by attendance. The groups are fixed by the
- * standing RSVP, so pressing **Present** on somebody in "Everyone else" leaves
- * them exactly where they were — a row that jumped to another section under the
- * recorder's thumb, mid-register, at the side of a pitch, is how the wrong
- * person gets marked.
+ * standing RSVP and by whether there was an invitation, so pressing **Present**
+ * on somebody in "Everyone else" leaves them exactly where they were — a row
+ * that jumped to another section under the recorder's thumb, mid-register, at
+ * the side of a pitch, is how the wrong person gets marked.
  */
-export type ParticipantGroupKey = "attending" | "everyone_else";
+export type ParticipantGroupKey = "attending" | "everyone_else" | "walk_ups";
 
 export interface ParticipantGroup {
   key: ParticipantGroupKey;
@@ -230,7 +240,9 @@ export interface ParticipantGroup {
 export const ATTENDING_GROUP_LABEL = "Attending";
 export const ATTENDING_GROUP_DETAIL = "Said yes to this event";
 export const EVERYONE_ELSE_GROUP_LABEL = "Everyone else";
-export const EVERYONE_ELSE_GROUP_DETAIL = "Not attending, no response, and walk-ups";
+export const EVERYONE_ELSE_GROUP_DETAIL = "Not attending, and no response";
+export const WALK_UP_GROUP_LABEL = "Walk-ups";
+export const WALK_UP_GROUP_DETAIL = "Turned up uninvited, recorded present, to reconcile";
 
 /**
  * Sorted by name, within each group.
@@ -251,20 +263,30 @@ function byName(left: AttendanceParticipant, right: AttendanceParticipant): numb
   return name !== 0 ? name : left.key.localeCompare(right.key);
 }
 
-/** The board's two groups, in reading order, each sorted by name. */
+/** The board's three groups, in reading order, each sorted by name. */
 export function groupParticipants(participants: AttendanceParticipant[]): ParticipantGroup[] {
+  // Tested first, and everywhere: a walk-up is never in either RSVP group, even
+  // though `rsvp` is null on one and could be anything on a future one.
+  const invited = participants.filter((participant) => !participant.isWalkUp);
+
   return [
     {
       key: "attending" as const,
       label: ATTENDING_GROUP_LABEL,
       detail: ATTENDING_GROUP_DETAIL,
-      participants: participants.filter((participant) => participant.rsvp === "yes").sort(byName),
+      participants: invited.filter((participant) => participant.rsvp === "yes").sort(byName),
     },
     {
       key: "everyone_else" as const,
       label: EVERYONE_ELSE_GROUP_LABEL,
       detail: EVERYONE_ELSE_GROUP_DETAIL,
-      participants: participants.filter((participant) => participant.rsvp !== "yes").sort(byName),
+      participants: invited.filter((participant) => participant.rsvp !== "yes").sort(byName),
+    },
+    {
+      key: "walk_ups" as const,
+      label: WALK_UP_GROUP_LABEL,
+      detail: WALK_UP_GROUP_DETAIL,
+      participants: participants.filter((participant) => participant.isWalkUp).sort(byName),
     },
   ];
 }
@@ -332,7 +354,25 @@ export const WALK_UP_NAME_LABEL = "Name";
 
 export const WALK_UP_CONTACT_LABEL = "Email or phone";
 
-export const WALK_UP_PRESENCE_LABEL = "Attendance";
+/**
+ * A walk-up is recorded **Present**, and the form does not ask — Brian,
+ * 14 August 2026: "when they're added as a walk-up, they should be
+ * automatically added as present."
+ *
+ * It is the only attendance value the situation can produce. Somebody is being
+ * typed into a form because they are standing in front of the person typing;
+ * an uninvited person who is *absent* is not an event that happens, and asking
+ * a coach to confirm what they can see is a decision taken away from the thing
+ * they are actually doing.
+ *
+ * It is not a lock. The four buttons on the row it creates work exactly as they
+ * do for anybody else, so a walk-up who turned up late or left at half time is
+ * corrected in the same place and audited the same way. The note below says so
+ * on the form, because a value chosen for you without explanation is a value
+ * you do not trust.
+ */
+export const WALK_UP_ALWAYS_PRESENT =
+  "Recorded as Present. Correct it on their row afterwards if you need to.";
 
 export const WALK_UP_MATCH_LABEL = "Possible roster match";
 

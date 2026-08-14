@@ -53,9 +53,12 @@ export const DESTINATIONS: readonly Destination[] = Object.freeze([
  *
  * `slice-ux.md` § 3: a coaching assignment "receives only the occurred-event
  * attendance surface. No general operator navigation …". One entry is what
- * "only" means, and the second line is the wireframe's own — **Occurred events
- * only** — which tells a coach why the list is shorter than the club's calendar
- * rather than leaving them to wonder what happened to it.
+ * "only" means, and the second line says what is behind it.
+ *
+ * The wireframe's own second line was **Occurred events only**, and it stopped
+ * being true on 14 August 2026: Brian asked for the list to look forward, which
+ * a list of occurred events cannot do — see `./coach-event-buckets.ts`. The
+ * deviation is recorded in `docs/ux/tickets/LAN-110-coach-attendance.md`.
  *
  * It reuses `/operate/events`, and that is not a shortcut. § 4's route contract
  * is closed, and adding `/operate/attendance` to it would be a UX change this
@@ -73,7 +76,7 @@ export const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
     href: "/operate/events",
     label: "Attendance",
     capability: "attendance_recorder" as CapabilityKey,
-    detail: "Occurred events only",
+    detail: "This season's sessions",
   }),
 ]);
 

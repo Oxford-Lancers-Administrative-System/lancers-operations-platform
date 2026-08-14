@@ -1,26 +1,36 @@
 // @vitest-environment node
 /**
- * How the coach's list is ordered — Brian, 14 August 2026: today first and
- * highlighted, then this past week, then everything older.
+ * How the coach's list is ordered — Brian, 14 August 2026: looking forward.
+ * Upcoming, with today drawn out at the top of it, then Earlier.
  *
  * Pure, so every boundary is exercised directly rather than through a render.
- * The boundaries are where this fails if it fails: "today" and "seven days ago"
- * are both inclusive-at-one-end, and an off-by-one puts the session a coach was
- * at an hour ago into the wrong section — which on a list of sixty events is
- * indistinguishable from it being missing.
+ * The boundaries are where this fails if it fails: "today" is in Upcoming and
+ * "yesterday" is not, and an off-by-one puts tonight's session at the bottom of
+ * a list of sixty, which is indistinguishable from it being missing.
  */
 import { describe, expect, it } from "vitest";
 import type { EventListEntry } from "@/lib/services/events";
-import { bucketCoachEvents, londonToday, shiftDays } from "./coach-event-buckets";
+import {
+  bucketCoachEvents,
+  COACH_VISIBLE_STATUSES,
+  isOpenForAttendance,
+  isToday,
+  londonToday,
+  shiftDays,
+} from "./coach-event-buckets";
 
 const TODAY = "2026-10-14";
 
-function event(id: string, scheduledOn: string | null): EventListEntry {
+function event(
+  id: string,
+  scheduledOn: string | null,
+  status: EventListEntry["status"] = "occurred",
+): EventListEntry {
   return {
     id,
     name: `Event ${id}`,
     eventType: "practice",
-    status: "occurred",
+    status,
     scheduledOn,
     startsAt: "20:00",
     endsAt: "22:00",
@@ -44,19 +54,14 @@ function bucketed(events: EventListEntry[], today = TODAY): Record<string, strin
 }
 
 describe("shiftDays", () => {
-  it("moves a date backwards without touching the calendar", () => {
+  it("moves a date without touching the calendar", () => {
     expect(shiftDays("2026-10-14", -7)).toBe("2026-10-07");
+    expect(shiftDays("2026-10-14", 7)).toBe("2026-10-21");
   });
 
-  it("crosses a month boundary", () => {
+  it("crosses a month, a year and a leap day", () => {
     expect(shiftDays("2026-10-03", -7)).toBe("2026-09-26");
-  });
-
-  it("crosses a year boundary", () => {
     expect(shiftDays("2027-01-03", -7)).toBe("2026-12-27");
-  });
-
-  it("crosses a leap day", () => {
     expect(shiftDays("2028-03-02", -7)).toBe("2028-02-24");
   });
 
@@ -75,83 +80,100 @@ describe("londonToday", () => {
   });
 
   it("uses Oxford's day, not the server's", () => {
-    // 23:30 on 14 October in London is 22:30 UTC — same day. But 00:30 on
-    // 15 October BST is 23:30 UTC on the 14th, and a container running on UTC
-    // would put a late social on the wrong day.
+    // 00:30 on 15 June BST is 23:30 UTC on the 14th, and a container running on
+    // UTC would put a late social on the wrong day.
     expect(londonToday(new Date("2026-06-14T23:30:00Z"))).toBe("2026-06-15");
     expect(londonToday(new Date("2026-12-14T23:30:00Z"))).toBe("2026-12-14");
   });
 });
 
 describe("bucketCoachEvents", () => {
-  it("puts an event scheduled today at the top, on its own", () => {
-    const result = bucketed([event("a", TODAY), event("b", "2026-10-10")]);
-
-    expect(result.today).toEqual(["a"]);
-    expect(result.past_week).toEqual(["b"]);
-    expect(result.earlier).toEqual([]);
-  });
-
-  it("returns the three sections in reading order, always", () => {
+  it("returns the two sections in reading order, always", () => {
     // The order is the contract; an empty section is dropped by the component,
     // not here, so the caller never has to sort them.
     expect(bucketCoachEvents([], TODAY).map((bucket) => bucket.key)).toEqual([
-      "today",
-      "past_week",
+      "upcoming",
       "earlier",
     ]);
   });
 
-  it("counts yesterday and seven days ago as this past week", () => {
-    const result = bucketed([event("yesterday", "2026-10-13"), event("weekAgo", "2026-10-07")]);
+  it("puts today and everything after it in Upcoming", () => {
+    const result = bucketed([
+      event("today", TODAY),
+      event("tomorrow", "2026-10-15", "approved"),
+      event("nextMonth", "2026-11-20", "approved"),
+    ]);
 
-    expect(result.past_week).toEqual(["yesterday", "weekAgo"]);
+    expect(result.upcoming).toEqual(["today", "tomorrow", "nextMonth"]);
     expect(result.earlier).toEqual([]);
   });
 
-  it("counts eight days ago as earlier", () => {
-    // The boundary in the other direction. Seven days ago is in; the day before
-    // it is out.
-    expect(bucketed([event("eightDays", "2026-10-06")]).earlier).toEqual(["eightDays"]);
+  it("puts yesterday and everything before it in Earlier", () => {
+    const result = bucketed([event("yesterday", "2026-10-13"), event("lastMonth", "2026-09-01")]);
+
+    expect(result.upcoming).toEqual([]);
+    expect(result.earlier).toEqual(["yesterday", "lastMonth"]);
   });
 
-  it("keeps the order it was given inside each section", () => {
-    // The service returns date-descending, which is what somebody looking for
-    // "the one I was just at" wants — and for two events today it puts the
-    // 20:00 practice above the 18:00 chalk talk.
+  it("sorts Upcoming soonest first — what is coming up", () => {
     const result = bucketed([
-      event("laterToday", TODAY),
-      event("earlierToday", TODAY),
-      event("tuesday", "2026-10-13"),
-      event("monday", "2026-10-12"),
+      event("nextMonth", "2026-11-20", "approved"),
+      event("today", TODAY),
+      event("tomorrow", "2026-10-15", "approved"),
     ]);
 
-    expect(result.today).toEqual(["laterToday", "earlierToday"]);
-    expect(result.past_week).toEqual(["tuesday", "monday"]);
+    expect(result.upcoming).toEqual(["today", "tomorrow", "nextMonth"]);
   });
 
-  it("puts an undated event at the bottom rather than claiming it is today", () => {
-    expect(bucketed([event("undated", null)]).earlier).toEqual(["undated"]);
+  it("sorts Earlier most recent first — the one you were just at", () => {
+    const result = bucketed([
+      event("lastMonth", "2026-09-01"),
+      event("yesterday", "2026-10-13"),
+      event("lastWeek", "2026-10-07"),
+    ]);
+
+    expect(result.earlier).toEqual(["yesterday", "lastWeek", "lastMonth"]);
   });
 
-  it("puts an event dated after today in earlier, not in today", () => {
-    // Not producible by the club — an operator does not mark next Tuesday
-    // occurred — but the local synthetic dataset dates the whole season ahead
-    // of its own "today", so this is the case a development machine actually
-    // shows. It must not be mistaken for today's session.
-    const result = bucketed([event("future", "2026-12-25"), event("today", TODAY)]);
+  it("keeps an undated event out of Upcoming, and last in Earlier", () => {
+    // Nothing is known about when it is, so it cannot be upcoming; and the top
+    // of the list a coach reads first is the loudest possible place for the one
+    // row that says nothing.
+    const result = bucketed([event("undated", null), event("yesterday", "2026-10-13")]);
 
-    expect(result.today).toEqual(["today"]);
-    expect(result.earlier).toEqual(["future"]);
+    expect(result.upcoming).toEqual([]);
+    expect(result.earlier).toEqual(["yesterday", "undated"]);
   });
 
-  it("loses nothing", () => {
+  it("shows approved and occurred sessions, and nothing else", () => {
+    const result = bucketed([
+      event("approved", "2026-10-15", "approved"),
+      event("occurred", "2026-10-13", "occurred"),
+      event("draft", "2026-10-15", "draft"),
+      event("pending", "2026-10-15", "pending_approval"),
+      event("rejected", "2026-10-15", "rejected"),
+      event("withdrawn", "2026-10-15", "withdrawn"),
+      event("cancelled", "2026-10-15", "cancelled"),
+      event("notHeld", "2026-10-13", "not_held"),
+    ]);
+
+    expect(result.upcoming).toEqual(["approved"]);
+    expect(result.earlier).toEqual(["occurred"]);
+  });
+
+  it("names the visible statuses as a set, so widening them is a line in a diff", () => {
+    // A coach seeing the calendar's discarded drafts would be the event
+    // administration slice-ux.md § 3 withholds.
+    expect([...COACH_VISIBLE_STATUSES].sort()).toEqual(["approved", "occurred"]);
+  });
+
+  it("loses nothing it is allowed to show", () => {
     const events = [
       event("a", TODAY),
       event("b", "2026-10-13"),
       event("c", "2026-01-01"),
       event("d", null),
-      event("e", "2027-01-01"),
+      event("e", "2027-01-01", "approved"),
     ];
 
     const placed = bucketCoachEvents(events, TODAY).flatMap((bucket) => bucket.events);
@@ -160,5 +182,22 @@ describe("bucketCoachEvents", () => {
     expect(new Set(placed.map((entry) => entry.id))).toEqual(
       new Set(events.map((entry) => entry.id)),
     );
+  });
+});
+
+describe("isToday", () => {
+  it("is true only on the day itself", () => {
+    expect(isToday(event("a", TODAY), TODAY)).toBe(true);
+    expect(isToday(event("a", "2026-10-15"), TODAY)).toBe(false);
+    expect(isToday(event("a", "2026-10-13"), TODAY)).toBe(false);
+    expect(isToday(event("a", null), TODAY)).toBe(false);
+  });
+});
+
+describe("isOpenForAttendance", () => {
+  it("is true only once an operator has asserted the session occurred", () => {
+    // The gate LAN-110 exists around: a coach may record, and may not assert.
+    expect(isOpenForAttendance(event("a", TODAY, "occurred"))).toBe(true);
+    expect(isOpenForAttendance(event("a", TODAY, "approved"))).toBe(false);
   });
 });

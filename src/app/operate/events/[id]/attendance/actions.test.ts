@@ -433,28 +433,50 @@ describe("recordWalkUpAction", () => {
       }),
     );
 
-    const state = await recordWalkUpAction(
-      EMPTY_WALK_UP_STATE,
-      walkUpForm({ contact: "ask Sam", presence: "late" }),
-    );
+    const state = await recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ contact: "ask Sam" }));
 
     expect(state.error).toContain("email address or a phone number");
     expect(state.values).toEqual({
       name: "Devon Skye",
       contact: "ask Sam",
-      presence: "late",
+      presence: "present",
       membershipId: "",
     });
   });
 
-  it("refuses a state the club has no word for, before the service is called", async () => {
-    const state = await recordWalkUpAction(
-      EMPTY_WALK_UP_STATE,
-      walkUpForm({ presence: "turned up" }),
-    );
+  /**
+   * Brian, 14 August 2026: a walk-up is recorded Present and the form no longer
+   * asks. So a `presence` in the request body did not come from the form, and a
+   * server action is a POST endpoint anybody holding a session can call — the
+   * value the club's rule produces is the value that gets written.
+   */
+  it("records Present whatever the body says, because the form no longer asks", async () => {
+    for (const forged of ["absent", "late", "excused", "turned up", ""]) {
+      vi.mocked(recordWalkUpAttendance).mockClear();
 
-    expect(state.error).toBe("Choose Present, Late, Excused or Absent.");
-    expect(recordWalkUpAttendance).not.toHaveBeenCalled();
+      await expect(
+        recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ presence: forged })),
+      ).rejects.toThrow(/REDIRECT:/);
+
+      expect(recordWalkUpAttendance, forged).toHaveBeenCalledWith(
+        OPERATOR_PERSON_ID,
+        EVENT_ID,
+        expect.objectContaining({ presence: "present" }),
+      );
+    }
+  });
+
+  it("records Present when the body carries no presence at all", async () => {
+    const form = walkUpForm();
+    form.delete("presence");
+
+    await expect(recordWalkUpAction(EMPTY_WALK_UP_STATE, form)).rejects.toThrow(/REDIRECT:/);
+
+    expect(recordWalkUpAttendance).toHaveBeenCalledWith(
+      OPERATOR_PERSON_ID,
+      EVENT_ID,
+      expect.objectContaining({ presence: "present" }),
+    );
   });
 });
 

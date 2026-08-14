@@ -182,11 +182,18 @@ export async function removeAttendanceAction(
 }
 
 /**
+ * The attendance a walk-up is always recorded with. See
+ * `WALK_UP_ALWAYS_PRESENT` in `./presentation.ts` for why the form stopped
+ * asking, and why this is not a lock.
+ */
+const WALK_UP_PRESENCE: AttendancePresence = "present";
+
+/**
  * UX-73 — records somebody who was never invited, and nothing else.
  *
  * No membership, no onboarding, no recruitment record. On success it returns to
  * the board, where the new row carries the walk-up flag the view computes for
- * it.
+ * it and sits in the board's own Walk-ups group.
  */
 export async function recordWalkUpAction(
   _previous: WalkUpFormState,
@@ -198,19 +205,20 @@ export async function recordWalkUpAction(
   const values = {
     name: text(formData, "name"),
     contact: text(formData, "contact"),
-    presence: text(formData, "presence"),
+    presence: WALK_UP_PRESENCE,
     membershipId: text(formData, "membershipId"),
   };
-
-  if (!isAttendancePresence(values.presence)) {
-    return { error: "Choose Present, Late, Excused or Absent.", values };
-  }
 
   try {
     await recordWalkUpAttendance(operator.personId, eventId, {
       name: values.name,
       contact: values.contact === "" ? null : values.contact,
-      presence: values.presence,
+      // Fixed here, not read from the form — Brian, 14 August 2026. The form no
+      // longer asks, so a `presence` in the body came from somewhere else, and
+      // a server action is a POST endpoint anybody with a session can call. The
+      // value the club's rule produces is the value that gets written, and the
+      // row's four buttons correct it afterwards like any other.
+      presence: WALK_UP_PRESENCE,
       membershipId: values.membershipId === "" ? null : values.membershipId,
     });
   } catch (error) {

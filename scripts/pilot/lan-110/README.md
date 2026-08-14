@@ -79,27 +79,28 @@ honestly looks like in this schema.
 
 The two events:
 
-| Event                                     | When       | Status     | Invitees | Lands in       |
-| ----------------------------------------- | ---------- | ---------- | -------- | -------------- |
-| `PILOT-LAN-110 Coach attendance scenario` | 2 days ago | `approved` | 3        | This past week |
-| `PILOT-LAN-110 Today session`             | today      | `approved` | 0        | Today          |
+| Event                                     | When       | Status     | Invitees | Lands in                   |
+| ----------------------------------------- | ---------- | ---------- | -------- | -------------------------- |
+| `PILOT-LAN-110 Coach attendance scenario` | 2 days ago | `approved` | 3        | Earlier                    |
+| `PILOT-LAN-110 Today session`             | today      | `approved` | 0        | Upcoming, badged **Today** |
 
 Both arrive `approved`, not `occurred`, and that is the point: the coach cannot
 open either until an operator has said the session happened, and watching that
-gate open is half the exercise.
+gate open is half the exercise. Until it does, both cards read **Attendance not
+open**.
 
-The second one exists so that the coach list's **Today** section — the one
-highlighted at the top — can be seen at all. It carries no audience on purpose:
-the walk-up is the only way onto its register, which is exactly the pitch-side
-case the coach surface is for.
+The second one exists so that today's badge — the card drawn out at the top of
+Upcoming — can be seen at all. It carries no audience on purpose: the walk-up is
+the only way onto its register, which is exactly the pitch-side case the coach
+surface is for.
 
 The three invitees:
 
-| Person                      | Standing RSVP     | Note                                            |
-| --------------------------- | ----------------- | ----------------------------------------------- |
-| `PILOT-LAN-110 Said yes`    | **Attending**     |                                                 |
-| `PILOT-LAN-110 Said no`     | **Not attending** | Carries a synthetic reason. Step 8 looks for it |
-| `PILOT-LAN-110 No response` | **No response**   | Never answered; its deadline has passed         |
+| Person                      | Standing RSVP     | Note                                             |
+| --------------------------- | ----------------- | ------------------------------------------------ |
+| `PILOT-LAN-110 Said yes`    | **Attending**     |                                                  |
+| `PILOT-LAN-110 Said no`     | **Not attending** | Carries a synthetic reason. Step 11 looks for it |
+| `PILOT-LAN-110 No response` | **No response**   | Never answered; its deadline has passed          |
 
 ## The logins you have to create
 
@@ -128,27 +129,29 @@ occurred is an authorized-operator action and you already hold it.
 
 ## The matrix
 
-Work through it in order. Steps 1 and 2 must be done **before** step 3, because
-the gate closing is what they demonstrate.
+Work through it in order. Steps 1 to 4 must be done **before** step 5, because
+the gate being shut is what they demonstrate.
 
-| #   | Sign in as        | Do this                                                             | Expect                                                                                               |
-| --- | ----------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| 1   | The coach login   | Open the shell                                                      | One destination, **Attendance · Occurred events only**. No Roster, no Events, no Report              |
-| 2   | The coach login   | Open the attendance URL for the scenario event                      | **Attendance is not open**, and a line saying coach access does not include Mark occurred            |
-| 3   | The coach login   | Type `/operate/roster` into the address bar                         | Refused, with no roster on the screen. Navigation was never the boundary                             |
-| 4   | You (operator)    | Open **both** events and press **Mark occurred** on each            | The assertion is recorded against you, twice                                                         |
-| 5   | The coach login   | Open **Attendance**                                                 | Three sections: **Today** at the top, badged and outlined, then **This past week**, then **Earlier** |
-| 6   | The coach login   | Open the scenario event, under This past week                       | The register, **Attending** open and **Everyone else** closed under it, each sorted by name          |
-| 7   | The coach login   | Open Everyone else, press **Present** for the one who said no       | `Saving…`, then the committed value with your coach's name and the time                              |
-| 8   | The coach login   | Press **Late** for the same person                                  | The correction commits; the earlier value stays in the audit trail                                   |
-| 9   | The coach login   | Type part of a name into **Search player**, then clear it           | Both groups open and the person appears; clearing puts the groups back as they were                  |
-| 10  | The coach login   | Look for the reason behind the **Not attending**                    | It is not on the screen, and not in the page source                                                  |
-| 11  | The coach login   | Open **Today session**, **Add walk-up**, `PILOT-LAN-110 Devon Skye` | Recorded, flagged for reconciliation, no membership created                                          |
-| 12  | The coach login   | Look for a way to remove a record                                   | There is none. Removal unwinds the occurrence assertion, which is not a coach's                      |
-| 13  | The refused login | Open either attendance URL                                          | **You cannot record attendance for this event**, no board, no names                                  |
-| 14  | Both coach logins | Do steps 5 to 11 again at phone width (375px)                       | Everything reachable, nothing scrolling sideways                                                     |
+| #   | Sign in as        | Do this                                                             | Expect                                                                                                         |
+| --- | ----------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1   | The coach login   | Open the shell                                                      | One destination, **Attendance · This season's sessions**. No Roster, no Events, no Report                      |
+| 2   | The coach login   | Open **Attendance**                                                 | **Upcoming** first, today's session badged **Today** and outlined at the top; both say **Attendance not open** |
+| 3   | The coach login   | Open today's session anyway                                         | **Attendance is not open**, and a line saying coach access does not include Mark occurred                      |
+| 4   | The coach login   | Type `/operate/roster` into the address bar                         | Refused, with no roster on the screen. Navigation was never the boundary                                       |
+| 5   | You (operator)    | Open **both** events and press **Mark occurred** on each            | The assertion is recorded against you, twice                                                                   |
+| 6   | The coach login   | Open **Attendance** again                                           | Neither says Attendance not open now. Today's is still top of Upcoming; the older one is under **Earlier**     |
+| 7   | The coach login   | Open the scenario event, under Earlier                              | The register: **Attending** open, **Everyone else** closed beneath it, each sorted by name                     |
+| 8   | The coach login   | Open Everyone else, press **Present** for the one who said no       | `Saving…`, then the committed value with your coach's name and the time                                        |
+| 9   | The coach login   | Press **Late** for the same person                                  | The correction commits; the earlier value stays in the audit trail                                             |
+| 10  | The coach login   | Type part of a name into **Search player**, then clear it           | Every group opens and the person appears; clearing puts them back as they were                                 |
+| 11  | The coach login   | Look for the reason behind the **Not attending**                    | It is not on the screen, and not in the page source                                                            |
+| 12  | The coach login   | Open **Today session**, **Add walk-up**, `PILOT-LAN-110 Devon Skye` | The form does not ask for an attendance state; it says it records Present                                      |
+| 13  | The coach login   | Save it                                                             | Back on the board, in a **Walk-ups** group of its own at the bottom, present, flagged, no membership           |
+| 14  | The coach login   | Look for a way to remove a record                                   | There is none. Removal unwinds the occurrence assertion, which is not a coach's                                |
+| 15  | The refused login | Open either attendance URL                                          | **You cannot record attendance for this event**, no board, no names                                            |
+| 16  | Both coach logins | Do steps 6 to 13 again at phone width (375px)                       | Everything reachable, nothing scrolling sideways                                                               |
 
-**The one thing this asks of you.** In step 11, type the sentinel as the **first
+**The one thing this asks of you.** In step 12, type the sentinel as the **first
 word** of the walk-up's name. That person is minted from what you type and the
 name is the only marker available; cleanup aborts on a walk-up without it rather
 than guess whether it is a real member.

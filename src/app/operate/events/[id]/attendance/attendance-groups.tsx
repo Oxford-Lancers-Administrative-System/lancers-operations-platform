@@ -12,21 +12,25 @@ import { AttendanceRow } from "./attendance-row";
 import { groupParticipants, type ParticipantGroupKey } from "./presentation";
 
 /**
- * The board's two groups, and the disclosure over them — Brian, 14 August 2026.
+ * The board's three groups, and the disclosure over them — Brian, 14 August
+ * 2026. Which people are in which group, and why there are three, is in
+ * `groupParticipants` in `./presentation.ts`; this is only about opening and
+ * closing them.
  *
  * ## What is open when
  *
- * **Attending** is open, **Everyone else** is closed, and the recorder can
- * change either. That is the register's own shape: the people who said they
- * were coming are the list you work through, and the rest is a place to go when
- * somebody turns up who should not have.
+ * **Attending** is open, **Everyone else** is closed, **Walk-ups** is open, and
+ * the recorder can change any of them. That is the register's own shape: the
+ * people who said they were coming are the list you work through, the rest is a
+ * place to go when somebody turns up who should not have, and the walk-ups are
+ * the receipt for what you just did.
  *
- * ## Searching opens both, and closing the search puts them back
+ * ## Searching opens all of them, and closing the search puts them back
  *
  * A search that only looked inside the section you happened to have open would
  * be a search that lies — the recorder types a name, sees nothing, and concludes
- * the person is not on the event. So while a search is active both groups are
- * open regardless of what they were.
+ * the person is not on the event. So while a search is active every group is
+ * open regardless of what it was.
  *
  * And when the search is cleared they return to **what they were before it**,
  * not to the default. That is the difference between a disclosure the recorder
@@ -48,18 +52,29 @@ import { groupParticipants, type ParticipantGroupKey } from "./presentation";
  * section showing one.
  */
 
-interface OpenState {
-  attending: boolean;
-  everyone_else: boolean;
+type GroupOpenState = Record<ParticipantGroupKey, boolean>;
+
+interface OpenState extends GroupOpenState {
   /** What to go back to when the search clears. `null` when not searching. */
-  saved: { attending: boolean; everyone_else: boolean } | null;
+  saved: GroupOpenState | null;
   /** The search state this was last reconciled against. */
   searching: boolean;
 }
 
-const CLOSED_BY_DEFAULT: OpenState = {
+/**
+ * Attending open, Everyone else closed — and **Walk-ups open**.
+ *
+ * The third one is not an inconsistency. A walk-up group is empty at almost
+ * every event, and an empty group is not drawn at all, so the open state costs
+ * nothing until there is something in it. When there is, it is because the
+ * recorder just added somebody thirty seconds ago and was returned to this
+ * board to see it: closing the only confirmation that the walk-up was recorded
+ * would be the one place a disclosure actively hides what the operator did.
+ */
+const DEFAULT_OPEN: OpenState = {
   attending: true,
   everyone_else: false,
+  walk_ups: true,
   saved: null,
   searching: false,
 };
@@ -79,7 +94,7 @@ export function AttendanceGroups({
   showMismatch: boolean;
   mayRemove: boolean;
 }) {
-  const [open, setOpen] = useState<OpenState>(CLOSED_BY_DEFAULT);
+  const [open, setOpen] = useState<OpenState>(DEFAULT_OPEN);
   const searching = search.trim() !== "";
 
   // Adjusted during render rather than in an effect. React documents this as
@@ -94,7 +109,12 @@ export function AttendanceGroups({
         return {
           attending: true,
           everyone_else: true,
-          saved: { attending: prev.attending, everyone_else: prev.everyone_else },
+          walk_ups: true,
+          saved: {
+            attending: prev.attending,
+            everyone_else: prev.everyone_else,
+            walk_ups: prev.walk_ups,
+          },
           searching: true,
         };
       }
