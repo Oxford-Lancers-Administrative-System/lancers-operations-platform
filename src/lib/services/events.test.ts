@@ -836,18 +836,36 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
     );
     const mine = await createEventDraft(actorPersonId, draft());
 
+    const countSeason = async () => {
+      const result = await observer.query<{ count: string }>(
+        "select count(*)::text as count from public.events where season_id = $1",
+        [mine.seasonId],
+      );
+      return Number(result.rows[0].count);
+    };
+
+    // Bracketed, not compared to a single later read.
+    //
+    // Vitest runs suites in parallel against one PostgreSQL, so an event created
+    // by another suite between the list and the count made these two numbers
+    // disagree — a test about the season predicate failing because of somebody
+    // else's fixture. It was the last of four assertions in this class and made
+    // the shared gate red intermittently.
+    //
+    // The claim is that the total is the *season's* rather than the database's,
+    // and bracketing states it exactly: a total counted over the whole table
+    // would sit far above this window, and a total that ignored the season would
+    // include the foreign event asserted absent above.
+    const before = await countSeason();
     const list = await listCurrentSeasonEvents();
+    const after = await countSeason();
     const unfilteredTotal = list.totalInSeason;
 
     expect(list.events.map((row) => row.id)).toContain(mine.id);
     expect(list.events.map((row) => row.id)).not.toContain(foreign.rows[0].id);
 
-    // And the season total is the season's, not the database's.
-    const inSeason = await observer.query<{ count: string }>(
-      "select count(*)::text as count from public.events where season_id = $1",
-      [mine.seasonId],
-    );
-    expect(unfilteredTotal).toBe(Number(inSeason.rows[0].count));
+    expect(unfilteredTotal).toBeGreaterThanOrEqual(Math.min(before, after));
+    expect(unfilteredTotal).toBeLessThanOrEqual(Math.max(before, after));
 
     const everything = await observer.query<{ count: string }>(
       "select count(*)::text as count from public.events",

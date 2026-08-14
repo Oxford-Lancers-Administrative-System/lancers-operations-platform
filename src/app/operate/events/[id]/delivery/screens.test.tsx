@@ -472,50 +472,62 @@ describe("every delivery view offers only the controls it is meant to", () => {
    */
   const observed = new Set<string>();
 
-  it.each(ALL_STATES)("pins the interactive controls on %s", async (state) => {
-    for (const shape of shapesFor(state)) {
-      const { baseElement, unmount } = await renderState(state, shape);
+  it.each(ALL_STATES)(
+    "pins the interactive controls on %s",
+    async (state) => {
+      for (const shape of shapesFor(state)) {
+        const { baseElement, unmount } = await renderState(state, shape);
 
-      // `baseElement`, not `container`: MUI portals a select menu, a dialog or a
-      // popover into `document.body`, and a control rendered there would be
-      // invisible to a container-scoped query.
-      const controls = [...baseElement.querySelectorAll(CONTROL_SELECTOR)].map(accessibleName);
-      controls.forEach((label) => observed.add(label));
+        // `baseElement`, not `container`: MUI portals a select menu, a dialog or a
+        // popover into `document.body`, and a control rendered there would be
+        // invisible to a container-scoped query.
+        const controls = [...baseElement.querySelectorAll(CONTROL_SELECTOR)].map(accessibleName);
+        controls.forEach((label) => observed.add(label));
 
-      const permitted = new Set(PERMITTED_CONTROLS[state]);
-      // No `label !== ""` filter. An unnamed control is a control.
-      const unexpected = controls.filter((label) => !permitted.has(label));
+        const permitted = new Set(PERMITTED_CONTROLS[state]);
+        // No `label !== ""` filter. An unnamed control is a control.
+        const unexpected = controls.filter((label) => !permitted.has(label));
 
-      expect(unexpected, `${state} with ${JSON.stringify(shape)}`).toEqual([]);
-      unmount();
-    }
-  });
+        expect(unexpected, `${state} with ${JSON.stringify(shape)}`).toEqual([]);
+        unmount();
+      }
+      // Thirteen full page renders in one case. It fits comfortably alone and
+      // exceeded the 5s default once under full-suite parallel load, which is a
+      // red gate for no defect. Timed generously rather than split, because the
+      // matrix is the point.
+    },
+    30_000,
+  );
 
-  it.each(ALL_STATES)("lets %s point nowhere outside the application", async (state) => {
-    for (const shape of shapesFor(state)) {
-      const { baseElement, unmount } = await renderState(state, shape);
+  it.each(ALL_STATES)(
+    "lets %s point nowhere outside the application",
+    async (state) => {
+      for (const shape of shapesFor(state)) {
+        const { baseElement, unmount } = await renderState(state, shape);
 
-      const destinations: string[] = [];
-      for (const attribute of URL_ATTRIBUTES) {
-        for (const node of baseElement.querySelectorAll(`[${attribute}]`)) {
-          destinations.push(node.getAttribute(attribute) ?? "");
+        const destinations: string[] = [];
+        for (const attribute of URL_ATTRIBUTES) {
+          for (const node of baseElement.querySelectorAll(`[${attribute}]`)) {
+            destinations.push(node.getAttribute(attribute) ?? "");
+          }
         }
-      }
 
-      // A share sheet, a `wa.me` deep link, a `whatsapp://` URL, an `sms:` or a
-      // `mailto:` would each be a manual send path that no phrase blocklist
-      // recognises. Every one fails this shape, in any attribute that can carry
-      // a destination rather than in `href` alone.
-      for (const destination of destinations) {
-        // React's own sentinel on a Server Action form. Framework machinery,
-        // navigates nowhere, permitted by its exact text rather than by
-        // dropping `action` from the check.
-        if (REACT_FORM_SENTINEL.test(destination)) continue;
-        expect(destination, `${destination} in ${state}`).toMatch(PERMITTED_HREF);
+        // A share sheet, a `wa.me` deep link, a `whatsapp://` URL, an `sms:` or a
+        // `mailto:` would each be a manual send path that no phrase blocklist
+        // recognises. Every one fails this shape, in any attribute that can carry
+        // a destination rather than in `href` alone.
+        for (const destination of destinations) {
+          // React's own sentinel on a Server Action form. Framework machinery,
+          // navigates nowhere, permitted by its exact text rather than by
+          // dropping `action` from the check.
+          if (REACT_FORM_SENTINEL.test(destination)) continue;
+          expect(destination, `${destination} in ${state}`).toMatch(PERMITTED_HREF);
+        }
+        unmount();
       }
-      unmount();
-    }
-  });
+    },
+    30_000,
+  );
 
   it("observed every control it permits", () => {
     // Runs after the two above. A permitted label nothing ever rendered is an
