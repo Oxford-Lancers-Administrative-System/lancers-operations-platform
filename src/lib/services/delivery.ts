@@ -136,6 +136,13 @@ async function claimJobIn(
             claimed_at = now(),
             claimed_by = $2,
             attempt_count = attempt_count + 1,
+            -- Cleared, because it describes the attempt that just ended and a
+            -- new one has begun. Leaving it meant the repair screen rendered
+            -- "Latest result: Attempted" directly above the *previous*
+            -- failure's reason, for a message the provider had just accepted:
+            -- a wrong diagnostic on the one screen that exists to give an
+            -- operator a true one, reached by the commonest repair path.
+            last_error = null,
             updated_at = now()
       where id = $1
         and status in ('pending', 'ready', 'failed')
@@ -300,14 +307,18 @@ export async function dispatchJob(
     // and nothing else, and stays retryable until the attempt ceiling — so
     // configuring the deployment and pressing Retry is a complete repair.
     await withTransaction(async (tx) => {
+      // `attempt_count` is deliberately NOT incremented. Nothing was attempted:
+      // no provider was called and no message could have been sent. Counting it
+      // meant five approvals before the club's administrator set the secrets
+      // left every job permanently `failed` with no operator path back — the
+      // attempt ceiling consumed by a condition no operator caused and no retry
+      // could clear.
       const claimed = await tx.query<{ attempt_count: number }>(
         `update public.notification_jobs
-            set status = 'failed', last_error = $2, attempt_count = attempt_count + 1,
-                updated_at = now()
+            set status = 'failed', last_error = $2, updated_at = now()
           where id = $1 and status in ('pending', 'ready', 'failed')
-            and attempt_count < $3
           returning attempt_count`,
-        [jobId, resolution.reason, MAX_ATTEMPTS],
+        [jobId, resolution.reason],
       );
       if (claimed.rowCount === 0) return;
       await recordAudit(tx, {
@@ -316,7 +327,7 @@ export async function dispatchJob(
         entityTable: "notification_jobs",
         entityId: jobId,
         reason: resolution.reason,
-        context: { attemptNumber: claimed.rows[0].attempt_count, configured: false },
+        context: { attemptsUsed: claimed.rows[0].attempt_count, configured: false },
       });
     });
     return "refused";
@@ -664,7 +675,7 @@ export async function applyProviderCallback(
       [matched.id, event.outcome, event.detail],
     );
 
-    await tx.query(
+    const written = await tx.query(
       `insert into public.delivery_results
          (notification_job_id, attempt_number, outcome, channel, provider, provider_message_id, detail)
        select $1::uuid, $2::integer, $3::public.delivery_outcome, a.channel, a.provider,
@@ -680,6 +691,14 @@ export async function applyProviderCallback(
         matched.id,
       ],
     );
+
+    // The job moves only when this callback actually wrote the result.
+    // `delivery_results` is authoritative (invariant M4) and holds one row per
+    // attempt, so a second, *different* terminal callback for the same attempt
+    // is refused by `on conflict` — and must not move the job either. Updating
+    // unconditionally let a late "delivered" flip a job whose recorded outcome
+    // stayed `failed`, and the operator's screen reads the job.
+    if (written.rowCount === 0) return "duplicate";
 
     await tx.query(
       `update public.notification_jobs
@@ -873,7 +892,16 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         // Independent of `state`, and deliberately so: UX-51 shows Result and
         // Retry as separate columns because a **Failed** delivery whose cause a
         // human has since fixed is still worth one more attempt.
-        retryable: row.attempt_count < MAX_ATTEMPTS && row.state !== "delivered",
+        //
+        // `attempted` is excluded because `retryDelivery` refuses any job that
+        // is not pending, ready or failed. Offering a control that can only
+        // ever answer "this is already in progress" is worse than offering
+        // none — the repair for a send that never concluded is **Revoke and
+        // reissue link**, which returns the job to `pending` first.
+        retryable:
+          row.attempt_count < MAX_ATTEMPTS &&
+          row.state !== "delivered" &&
+          row.state !== "attempted",
       };
     });
 

@@ -746,6 +746,115 @@ describe("provider callbacks", () => {
   });
 });
 
+/**
+ * The four corrections independent review produced. Each one is a state an
+ * operator could reach, and each was wrong or misleading before.
+ */
+describe("what an operator is told after a repair", () => {
+  it("stops showing the previous failure once a new attempt is accepted", async () => {
+    const { eventId, jobId } = await fixture();
+
+    // 131026 — not a WhatsApp account. Terminal, and it sets `last_error`.
+    await dispatchJob(jobId, { source: CONFIGURED, transport: refuses(131026) });
+    expect((await row(eventId)).failureReason).toMatch(/not be a WhatsApp account/i);
+
+    // The cause is fixed off-screen and the operator retries. The provider
+    // accepts. The panel must not now render "Latest result: Attempted" above
+    // the *old* reason — which is what it did, on the commonest repair path.
+    await retryDelivery(await anyPerson(), jobId, {
+      source: CONFIGURED,
+      transport: accepts("wamid.REPAIRED"),
+    });
+
+    const current = await row(eventId);
+    expect(current.state).toBe("attempted");
+    expect(current.failureReason).toBeNull();
+  });
+
+  it("does not offer retry for a send the provider has already accepted", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport: accepts() });
+
+    // `retryDelivery` refuses anything that is not pending, ready or failed, so
+    // an offered control here could only ever answer "already in progress".
+    const current = await row(eventId);
+    expect(current.state).toBe("attempted");
+    expect(current.retryable).toBe(false);
+  });
+
+  it("does not spend the attempt ceiling on a deployment that cannot send", async () => {
+    const { eventId, jobId } = await fixture();
+
+    // Six unconfigured dispatches — one more than the ceiling. Nothing was
+    // attempted: no provider was called and no message could have been sent.
+    for (let attempt = 0; attempt < MAX_ATTEMPTS + 1; attempt += 1) {
+      await dispatchJob(jobId, { source: {}, transport: accepts() });
+    }
+
+    const current = await row(eventId);
+    expect(current.attemptCount).toBe(0);
+    expect(current.failureReason).toContain("WHATSAPP_ACCESS_TOKEN");
+    // Still repairable: setting the secrets and pressing Retry is a complete
+    // fix, which it would not be if the ceiling had been consumed.
+    expect(current.retryable).toBe(true);
+
+    await retryDelivery(await anyPerson(), jobId, {
+      source: CONFIGURED,
+      transport: accepts("wamid.CONFIGURED"),
+    });
+    expect((await row(eventId)).state).toBe("attempted");
+  });
+
+  it("keeps the job and the authoritative result from disagreeing", async () => {
+    const { eventId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts("wamid.RACE"),
+    });
+
+    const messageId = "wamid.RACE.1";
+    const base = { providerMessageId: messageId, detail: null } as const;
+
+    await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        ...base,
+        providerEventId: `${messageId}:failed`,
+        providerStatus: "failed",
+        outcome: "failed",
+      },
+      { signatureVerified: true },
+    );
+    expect((await row(eventId)).state).toBe("retryable");
+
+    // A second, *different* terminal callback for the same attempt. Only one
+    // `delivery_results` row may exist per attempt (invariant M4), so the
+    // second is refused — and the job must not move either, or the screen
+    // would read Delivered while the recorded outcome stayed `failed`.
+    const outcome = await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        ...base,
+        providerEventId: `${messageId}:delivered`,
+        providerStatus: "delivered",
+        outcome: "delivered",
+      },
+      { signatureVerified: true },
+    );
+
+    expect(outcome).toBe("duplicate");
+    expect((await row(eventId)).state).toBe("retryable");
+
+    const results = await observer.query<{ outcome: string }>(
+      `select r.outcome::text as outcome from public.delivery_results r
+         join public.notification_jobs j on j.id = r.notification_job_id
+        where j.event_id = $1`,
+      [eventId],
+    );
+    expect(results.rows.map((each) => each.outcome)).toEqual(["failed"]);
+  });
+});
+
 describe("the operator's read model", () => {
   it("keeps delivery and RSVP as separate facts", async () => {
     const { eventId } = await fixture();

@@ -52,6 +52,15 @@ import type {
  * `redactDigits` first, because Meta's error messages quote the recipient.
  */
 
+/**
+ * How long one provider call may take before it is abandoned.
+ *
+ * Fifteen seconds. Long enough for a slow but working Graph response, short
+ * enough that approving an event with forty invitees cannot hang for minutes on
+ * one unreachable host.
+ */
+export const PROVIDER_TIMEOUT_MS = 15_000;
+
 /** Stored in `delivery_attempts.provider`. Rows are keyed on it; keep it stable. */
 export const WHATSAPP_CLOUD_PROVIDER = "meta_whatsapp_cloud";
 
@@ -242,6 +251,13 @@ export function createWhatsAppCloudProvider(
             "Content-Type": "application/json",
           },
           body: JSON.stringify(buildMessageBody(config, message)),
+          // Approval awaits dispatch, one invitee at a time, inside a Server
+          // Action. Without a deadline a single hung provider connection holds
+          // an operator's approval open for as long as the platform allows —
+          // multiplied by the number of people being invited. A timeout is a
+          // transport failure, which is retryable, so the invitation is not
+          // lost by giving up on it.
+          signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
         });
       } catch (error) {
         // A DNS failure, a TLS failure, a timeout. Retryable by definition, and

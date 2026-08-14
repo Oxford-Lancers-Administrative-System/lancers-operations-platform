@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { resolveWebhookConfig } from "@/lib/delivery/config";
@@ -50,6 +52,15 @@ import { applyProviderCallback } from "@/lib/services/delivery";
  * message stays **Attempted** forever without one.
  */
 
+/** Constant-time equality for a shared secret. `null` never matches. */
+function matchesSecret(given: string | null, expected: string): boolean {
+  if (given === null) return false;
+  const a = Buffer.from(given, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 /** Meta's subscription handshake. Answers only with the challenge it was given. */
 export async function GET(request: Request): Promise<Response> {
   const webhook = resolveWebhookConfig();
@@ -60,9 +71,11 @@ export async function GET(request: Request): Promise<Response> {
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
 
-  // Compared as given. The verify token is a shared secret and a mismatch says
-  // only "no" — never which part was wrong.
-  if (mode !== "subscribe" || token !== webhook.config.webhookVerifyToken) {
+  // The verify token is a shared secret, so it is compared the same way the
+  // POST path compares a signature — length first, then `timingSafeEqual`. A
+  // `!==` on a secret leaks, through timing, how many leading characters were
+  // right. A mismatch says only "no", never which part was wrong.
+  if (mode !== "subscribe" || !matchesSecret(token, webhook.config.webhookVerifyToken)) {
     return new NextResponse(null, { status: 403 });
   }
 
