@@ -69,7 +69,17 @@ const FORBIDDEN_AFFORDANCES: readonly { name: string; pattern: RegExp }[] = [
   { name: "a mark-as-delivered transition", pattern: /\b(mark as delivered|markAsDelivered)\b/i },
 ];
 
-/** Files that may legitimately discuss the ban, and so are read for it instead. */
+/**
+ * Files that may legitimately discuss the ban in English, and so are exempt
+ * from the **phrase** rules — and from those only.
+ *
+ * They are still held to the scheme rules below. Review defeated the phrase
+ * rules by putting `https://wa.me/` in `presentation.ts`, which is on this list
+ * and was therefore exempt from everything: the scheme rules never read the one
+ * file that holds the delivery screens' strings. Explaining a prohibition is a
+ * reason to be excused a keyword search. It is not a reason to be excused a URL
+ * scheme that has no honest use anywhere in this application.
+ */
 const EXPLAINS_THE_BAN: readonly string[] = [
   "tests/no-manual-delivery.test.ts",
   "src/app/operate/events/[id]/delivery/presentation.ts",
@@ -155,9 +165,15 @@ describe("no manual delivery path exists in the application", () => {
  * that cannot be out-phrased.
  */
 describe("nothing in the application can hand a person off to another app", () => {
-  const sources = filesUnder("src", [".ts", ".tsx"]).filter(
-    (file) => !EXPLAINS_THE_BAN.includes(file) && !/\.test\.tsx?$/.test(file),
-  );
+  // Every application file, including the ones excused the phrase rules. Only
+  // this suite itself is exempt, because it has to write the schemes down.
+  const sources = filesUnder("src", [".ts", ".tsx"]).filter((file) => !/\.test\.tsx?$/.test(file));
+
+  it("reads the files the phrase rules excuse", () => {
+    // The exemption list is a phrase-rule concession and must not leak here.
+    expect(sources).toContain("src/app/operate/events/[id]/delivery/presentation.ts");
+    expect(sources).toContain("src/lib/services/delivery.ts");
+  });
 
   const HANDOFF_SCHEMES: readonly { name: string; pattern: RegExp }[] = [
     { name: "a wa.me deep link", pattern: /\bwa\.me\b/i },
@@ -167,6 +183,12 @@ describe("nothing in the application can hand a person off to another app", () =
     { name: "a tel: link", pattern: /["'`]tel:/i },
     { name: "a mailto: link", pattern: /["'`]mailto:/i },
     { name: "the Web Share API", pattern: /navigator\.share\b/i },
+    // Not a scheme, but the same thing by another route: a control that opens
+    // or navigates anywhere is a handoff whatever its destination string looks
+    // like, and a computed URL defeats every pattern above.
+    { name: "a window.open call", pattern: /\bwindow\.open\s*\(/i },
+    { name: "a location assignment", pattern: /\blocation\.(assign|replace|href\s*=)/i },
+    { name: "a clipboard write", pattern: /navigator\.clipboard/i },
   ];
 
   it.each(HANDOFF_SCHEMES)("contains nothing resembling $name", ({ pattern }) => {
@@ -181,6 +203,9 @@ describe("nothing in the application can hand a person off to another app", () =
     ['href="tel:+447700900123"', /["'`]tel:/i],
     ['href="mailto:alex@example.invalid"', /["'`]mailto:/i],
     ["await navigator.share({ url })", /navigator\.share\b/i],
+    ['window.open(`${BASE}${number}`, "_blank")', /\bwindow\.open\s*\(/i],
+    ["location.assign(handoffUrl)", /\blocation\.(assign|replace|href\s*=)/i],
+    ["navigator.clipboard.writeText(link)", /navigator\.clipboard/i],
   ])("still recognises %s", (sample, pattern) => {
     // A rule that matches nothing passes whether or not it works.
     expect(pattern.test(sample)).toBe(true);
@@ -192,6 +217,8 @@ describe("nothing in the application can hand a person off to another app", () =
       'href="whatsapp://send"',
       "https://api.whatsapp.com/send",
       "await navigator.share({ url })",
+      'window.open(`${BASE}${number}`, "_blank")',
+      "navigator.clipboard.writeText(link)",
     ]) {
       expect(HANDOFF_SCHEMES.some((entry) => entry.pattern.test(sample))).toBe(true);
     }

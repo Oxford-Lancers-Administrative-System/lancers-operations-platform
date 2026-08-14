@@ -281,40 +281,124 @@ const PERMITTED_HREF = /^\/(operate|login)(\/|\?|$)/;
 describe("every delivery view offers only the controls it is meant to", () => {
   beforeEach(() => signedInAs(["secretary"]));
 
-  it.each([
+  /**
+   * What a control is called, for the purpose of this inventory.
+   *
+   * Its **accessible name**, not its text. Reducing a control to `textContent`
+   * and then discarding the empty ones — which is what this did — means an
+   * icon-only button has no label, is filtered out, and never reaches the
+   * comparison. Review defeated the inventory exactly that way: a `<button>`
+   * containing only an `<svg>`, calling `window.open` on a `wa.me` URL, passed
+   * every assertion here.
+   *
+   * An unnamed control is now reported as `(unnamed control)`, which is in no
+   * permitted set and therefore fails. That is also the right answer for
+   * accessibility: a control a screen reader cannot announce is a defect on its
+   * own terms.
+   */
+  function accessibleName(node: Element): string {
+    const label = node.getAttribute("aria-label")?.trim();
+    if (label) return label;
+    const text = (node.textContent ?? "").trim();
+    return text === "" ? "(unnamed control)" : text;
+  }
+
+  /** React's own guard on a Server Action form. Navigates nowhere. */
+  const REACT_FORM_SENTINEL =
+    /^javascript:throw new Error\('A React form was unexpectedly submitted/;
+
+  /** Every attribute that can carry a destination. */
+  const URL_ATTRIBUTES = ["href", "src", "action", "formaction", "ping", "data-href"];
+
+  const VIEWS: readonly (readonly [string, Record<string, string>])[] = [
     ["overview", {}],
     ["diagnostics", { view: "diagnostics" }],
     ["repair", { invitation: "invitation-1" }],
-  ])("pins the interactive controls on %s", async (view, query) => {
-    const { container } = await renderPage(query as Record<string, string>);
+  ];
+
+  it.each(VIEWS)("pins the interactive controls on %s", async (view, query) => {
+    const { container } = await renderPage(query);
 
     const controls = [
-      ...container.querySelectorAll("button, a, [role='button'], [role='link']"),
-    ].map((node) => (node.textContent ?? "").trim());
+      ...container.querySelectorAll(
+        "button, a, [role='button'], [role='link'], [onclick], input[type='submit']",
+      ),
+    ].map(accessibleName);
 
     const permitted = new Set(PERMITTED_CONTROLS[view]);
-    const unexpected = controls.filter((label) => label !== "" && !permitted.has(label));
+    // No `label !== ""` filter. An unnamed control is a control.
+    const unexpected = controls.filter((label) => !permitted.has(label));
 
     expect(unexpected).toEqual([]);
   });
 
-  it.each([
-    ["overview", {}],
-    ["diagnostics", { view: "diagnostics" }],
-    ["repair", { invitation: "invitation-1" }],
-  ])("lets %s link nowhere outside the application", async (_view, query) => {
-    const { container } = await renderPage(query as Record<string, string>);
+  it.each(VIEWS)("lets %s point nowhere outside the application", async (_view, query) => {
+    const { container } = await renderPage(query);
 
-    const hrefs = [...container.querySelectorAll("[href]")].map(
-      (node) => node.getAttribute("href") ?? "",
-    );
+    const destinations: string[] = [];
+    for (const attribute of URL_ATTRIBUTES) {
+      for (const node of container.querySelectorAll(`[${attribute}]`)) {
+        destinations.push(node.getAttribute(attribute) ?? "");
+      }
+    }
 
     // A share sheet, a `wa.me` deep link, a `whatsapp://` URL, an `sms:` or a
     // `mailto:` would each be a manual send path that no phrase blocklist
-    // recognises. Every one of them fails this shape.
-    for (const href of hrefs) {
-      expect(href, `${href} is not an in-application route`).toMatch(PERMITTED_HREF);
+    // recognises. Every one of them fails this shape, in any attribute that can
+    // carry a destination rather than in `href` alone.
+    for (const destination of destinations) {
+      // React renders its own sentinel into a Server Action form's `action`,
+      // to catch a manual `form.submit()`. It is framework machinery, it
+      // navigates nowhere, and it is permitted by its exact text rather than by
+      // dropping `action` from the check — which would leave a real
+      // `action="https://wa.me/…"` form unguarded.
+      if (REACT_FORM_SENTINEL.test(destination)) continue;
+      expect(destination, `${destination} is not an in-application route`).toMatch(PERMITTED_HREF);
     }
+  });
+
+  it("would notice a control that has no name at all", () => {
+    // The filter this test used to have is the defect review exploited, so its
+    // absence is asserted rather than assumed.
+    const icon = document.createElement("button");
+    icon.innerHTML = "<svg></svg>";
+    expect(accessibleName(icon)).toBe("(unnamed control)");
+    expect(new Set(PERMITTED_CONTROLS.diagnostics).has(accessibleName(icon))).toBe(false);
+  });
+});
+
+describe("UX-51 — the Retry column says what the wireframe says", () => {
+  beforeEach(() => signedInAs(["secretary"]));
+
+  it.each([
+    ["queued", true, "Scheduled"],
+    ["retryable", true, "Retryable"],
+    ["delivered", false, "—"],
+    ["attempted", false, "—"],
+  ])("shows %s as %s", async (state, retryable, expected) => {
+    vi.mocked(readEventDelivery).mockResolvedValue(
+      delivery({ rows: [row({ state: state as DeliveryRow["state"], retryable })] }),
+    );
+    const { container } = await renderPage({ view: "diagnostics" });
+
+    const cells = [...(container.querySelector('[data-testid="delivery-row"]')?.children ?? [])];
+    // The wireframe distinguishes a queued row waiting for its first send from
+    // a failed one that will be tried again.
+    expect(cells[4]?.textContent).toBe(expected);
+  });
+
+  it("never contradicts the result shown beside it", async () => {
+    vi.mocked(readEventDelivery).mockResolvedValue(
+      delivery({ rows: [row({ state: "failed", attemptCount: 1, retryable: true })] }),
+    );
+    const { container } = await renderPage({ invitation: "invitation-1" });
+
+    const retry = container.querySelector('[data-testid="retry-fact"]')?.textContent ?? "";
+    // It read "Failed after 1 attempts…" underneath the value **Retryable** —
+    // ungrammatical, and the opposite of what the value said.
+    expect(retry).toContain("Retryable");
+    expect(retry).not.toMatch(/Failed after/);
+    expect(retry).not.toMatch(/\b1 attempts\b/);
   });
 });
 
