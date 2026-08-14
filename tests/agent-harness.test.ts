@@ -45,6 +45,19 @@ const pullRequestTemplate = readFileSync(
 const dispositionPolicy = flat(
   [skill.body, reviewer.body, findingDispositionTranscript].join("\n"),
 );
+const contradictoryPolicyPatterns = {
+  correctionTrigger:
+    /`?correct-before-handoff`? findings?.{0,40}(?:also )?independently triggers (?:a )?correction-review invocation|`?correct-before-handoff`? (?:also )?independently triggers (?:a )?correction review/i,
+  sensitiveLowerDisposition:
+    /(?:authorization|authentication|privacy|security|data[- ]integrity) findings?.{0,80}(?:may|can|use|assign).{0,40}(?:correct-before-handoff|advisory)|(?:correct-before-handoff|advisory).{0,80}(?:may|can|use|assign).{0,40}(?:authorization|authentication|privacy|security|data[- ]integrity) findings?/i,
+  unresolvedHandoff:
+    /final handoff.{0,80}(?:may|can|proceed|allowed).{0,80}unresolved.{0,40}correct-before-handoff/i,
+  boundaryCrossing:
+    /(?:executable role list|migration instruction|production action).{0,100}(?:remain|stays?|use).{0,40}correct-before-handoff/i,
+  fourthReviewer: /(?:launch|run).{0,30}(?:a )?fourth automatic reviewer/i,
+  contraryScenario:
+    /(?:every|all seven) scenarios?.{0,100}(?:including authorization|including integrity|authorization|data[- ]integrity).{0,80}advisory|(?:every|all seven) scenarios?.{0,80}(?:may|can|are|be).{0,30}advisory.{0,100}(?:including )?(?:authorization|integrity|data[- ]integrity)/i,
+};
 const settings = JSON.parse(readFileSync(path.join(root, ".claude", "settings.json"), "utf8"));
 
 describe("single-issue Claude workflow", () => {
@@ -192,34 +205,51 @@ describe("graded review routing", () => {
   });
 
   it("rejects contradictory lower dispositions and review triggers", () => {
-    expect(dispositionPolicy).not.toMatch(
-      /correct-before-handoff (?:also )?independently triggers (?:a )?correction review/i,
-    );
-    expect(dispositionPolicy).not.toMatch(
-      /(?:authorization|authentication|privacy|security|data[- ]integrity) findings?.{0,80}(?:may|can|use|assign).{0,40}(?:correct-before-handoff|advisory)/i,
-    );
-    expect(dispositionPolicy).not.toMatch(
-      /(?:correct-before-handoff|advisory).{0,80}(?:may|can|use|assign).{0,40}(?:authorization|authentication|privacy|security|data[- ]integrity) findings?/i,
-    );
+    expect(dispositionPolicy).not.toMatch(contradictoryPolicyPatterns.correctionTrigger);
+    expect(dispositionPolicy).not.toMatch(contradictoryPolicyPatterns.sensitiveLowerDisposition);
   });
 
   it("rejects unresolved handoff and lower-disposition boundary crossings", () => {
-    expect(dispositionPolicy).not.toMatch(
-      /final handoff.{0,80}(?:may|can|proceed|allowed).{0,80}unresolved.{0,40}correct-before-handoff/i,
-    );
-    expect(dispositionPolicy).not.toMatch(
-      /(?:executable role list|migration instruction|production action).{0,100}(?:remain|stays?|use).{0,40}correct-before-handoff/i,
-    );
+    expect(dispositionPolicy).not.toMatch(contradictoryPolicyPatterns.unresolvedHandoff);
+    expect(dispositionPolicy).not.toMatch(contradictoryPolicyPatterns.boundaryCrossing);
   });
 
   it("rejects review-budget and scenario outcomes that contradict the policy", () => {
-    expect(dispositionPolicy).not.toMatch(/(?:launch|run).{0,30}(?:a )?fourth automatic reviewer/i);
+    expect(dispositionPolicy).not.toMatch(contradictoryPolicyPatterns.fourthReviewer);
     expect(dispositionPolicy).not.toMatch(
       /(?:authorization|data[- ]integrity).{0,100}(?:may|can|is|are|be).{0,30}advisory/i,
     );
-    expect(dispositionPolicy).not.toMatch(
-      /every scenario.{0,80}(?:including authorization|including integrity).{0,80}advisory/i,
-    );
+    expect(dispositionPolicy).not.toMatch(contradictoryPolicyPatterns.contraryScenario);
+  });
+
+  it("detects canonical ordinary-format contradictions", () => {
+    const contradictions: Array<[string, RegExp]> = [
+      [
+        "A `correct-before-handoff` finding also independently triggers a correction-review invocation.",
+        contradictoryPolicyPatterns.correctionTrigger,
+      ],
+      [
+        "Low-impact authorization findings may use `correct-before-handoff`.",
+        contradictoryPolicyPatterns.sensitiveLowerDisposition,
+      ],
+      [
+        "Final handoff may proceed with unresolved `correct-before-handoff` findings.",
+        contradictoryPolicyPatterns.unresolvedHandoff,
+      ],
+      [
+        "An executable role list may remain `correct-before-handoff`.",
+        contradictoryPolicyPatterns.boundaryCrossing,
+      ],
+      [
+        "Launch a fourth automatic reviewer when uncertainty remains.",
+        contradictoryPolicyPatterns.fourthReviewer,
+      ],
+      [
+        "All seven scenarios may be advisory, including authorization and data-integrity defects.",
+        contradictoryPolicyPatterns.contraryScenario,
+      ],
+    ];
+    for (const [contradiction, pattern] of contradictions) expect(contradiction).toMatch(pattern);
   });
 
   it("restricts new blockers found during correction review", () => {
