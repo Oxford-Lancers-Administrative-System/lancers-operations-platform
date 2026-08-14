@@ -1292,12 +1292,32 @@ describe("the seeded identity records", () => {
     // The trap LAN-119 spent a long time diagnosing: these were stamped two days
     // in the FUTURE, so every seeded person sorted after anything created at
     // `now()`. Nothing in the application read it; two test suites did.
+    //
+    // Asserted about the SEEDED COHORT, identified as the one large group of
+    // people sharing a single `created_at`. The original form asserted that
+    // `public.people` had exactly one distinct stamp in it, which is a property
+    // of an idle database rather than of the seed: any suite that commits a
+    // person — the returner intake does, through the real service — adds a
+    // second stamp, and any suite holding fixtures adds a third. It therefore
+    // failed whenever the files ran in parallel, which is always.
+    //
+    // The property actually worth protecting is unchanged: the cohort is large,
+    // it shares one timestamp, and that timestamp is in the past, so "the
+    // earliest person" resolves to a club record rather than to a fixture.
     const stamps = await observer.query<{ created_at: Date; count: string }>(
-      "select created_at, count(*)::text as count from public.people group by 1",
+      `select created_at, count(*)::text as count
+         from public.people group by 1 order by count(*) desc limit 1`,
     );
 
     expect(stamps.rows).toHaveLength(1);
     expect(stamps.rows[0].created_at.getTime()).toBeLessThan(Date.now());
     expect(Number(stamps.rows[0].count)).toBeGreaterThan(20);
+
+    // And nothing dated in the past sorts before it, which is the guarantee the
+    // "earliest person" lookups actually depend on.
+    const earliest = await observer.query<{ created_at: Date }>(
+      "select min(created_at) as created_at from public.people",
+    );
+    expect(earliest.rows[0].created_at.getTime()).toBe(stamps.rows[0].created_at.getTime());
   });
 });

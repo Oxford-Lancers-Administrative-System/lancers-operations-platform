@@ -62,7 +62,7 @@ beforeAll(async () => {
   // people with one fixed timestamp, and no suite ever deletes them.
   const anchor = await observer.query<{ id: string }>(
     "select id from public.people where created_at = $1::timestamptz order by id limit 1",
-    ["2026-08-15T09:00:00Z"],
+    ["2025-06-01T09:00:00Z"],
   );
   expect(anchor.rows.length).toBe(1);
   const vocabulary = await observer.query<{ id: string }>(
@@ -128,9 +128,8 @@ async function fixture(startsInHours: number, status = "approved") {
     const person = await observer.query<{ id: string }>(
       // `created_at` is set far ahead on purpose, and this is not cosmetic.
       //
-      // The seed stamps its people with a **future** timestamp (2026-08-15), so a
-      // fixture person created at `now()` is the *oldest* row in `public.people`.
-      // `roster.test.ts` resolves its acting operator as "the oldest person", and in
+      // `roster.test.ts` resolves its acting operator as "the oldest person",
+      // and a fixture person created at plain `now()` can win that ordering. In
       // a parallel run it therefore adopted this suite's fixture — which this suite
       // then deleted in `afterEach`, taking that suite's actor with it and failing
       // thirteen of its tests with foreign-key errors about a table neither suite is
