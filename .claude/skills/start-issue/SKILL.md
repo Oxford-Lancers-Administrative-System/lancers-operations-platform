@@ -226,10 +226,13 @@ isolated worktree after the draft PR exists. Review has three operations:
   `previous_reviewed_sha..current_head_sha`, the named blockers, affected
   behavior, and targeted regression evidence. It reuses the prior receipt and
   controlled-defect evidence for unchanged behavior.
-- **Requirement adjudication** resolves a premise that blocked two consecutive
-  rounds from authoritative sources without inheriting either side's framing.
-  It is not another code-defect search or reviewer invocation. If sources do not
-  resolve the premise, return one precise owner decision.
+- **Requirement adjudication** is a fresh-context `code-reviewer` invocation in
+  `requirement-adjudication` mode. It resolves a premise that blocked two
+  consecutive rounds from authoritative sources without receiving the PR body,
+  implementer framing, prior reviewer reasoning, or code diff. It is not another
+  code-defect search, but it consumes one of the three automatic reviewer
+  invocations. If sources do not resolve the premise, it returns one precise
+  owner decision.
 
 The initial brief gives the reviewer the issue, draft PR number, exact current
 head SHA, review mode `full`, review grade, authoritative sources, and local
@@ -282,9 +285,16 @@ Record the specific reset reason.
 
 If two consecutive rounds block on substantially the same requirement,
 mechanism, or finding family, stop correction work and do not launch another
-code-review round. Perform independent requirement adjudication. Resolve the
-premise when authoritative sources are clear; otherwise return the precise
-owner decision required.
+code-review round. If an automatic invocation remains, launch a new
+fresh-context `code-reviewer` in `requirement-adjudication` mode. Its brief names
+only the issue, disputed requirement/mechanism/finding family by stable IDs,
+authoritative sources, current round count, and remaining budget; it excludes
+the PR body, implementation, diff, acceptance matrix, correction intent, prior
+reviewer reasoning, and proposed resolution. The adjudicator reconstructs the
+premise independently and returns an adjudication receipt with the disputed
+IDs, provenance, resolution or one precise owner decision, and remaining review
+budget. If no invocation remains, stop at `budget-exhausted` with the exact
+premise and owner decision instead of launching adjudication.
 
 ### Review budget, receipt, and stopping behavior
 

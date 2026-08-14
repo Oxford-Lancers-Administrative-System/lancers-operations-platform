@@ -118,8 +118,16 @@ describe("graded review routing", () => {
     expect(body).toMatch(/Review has three operations/i);
     expect(body).toMatch(/Full review.*independently reconstructs material requirements/i);
     expect(body).toMatch(/Correction review.*previous_reviewed_sha\.\.current_head_sha/i);
-    expect(reviewBody).toMatch(/review mode \(`full` or `correction`\)/i);
+    expect(reviewBody).toMatch(
+      /review mode \(`full`, `correction`, or `requirement-adjudication`\)/i,
+    );
     expect(reviewBody).toMatch(/Review `previous_reviewed_sha\.\.current_head_sha`/i);
+    expect(reviewBody).toMatch(
+      /Before reading the PR body, implementer summary, acceptance matrix, complete diff, or commit list, reconstruct every material criterion/i,
+    );
+    expect(reviewBody).toMatch(
+      /Do not receive the implementer acceptance\/test matrix.*until after independently reconstructing/i,
+    );
     expect(body).not.toMatch(/any correction invalidates the prior result/i);
     expect(body).not.toMatch(/continue until.*clear/i);
   });
@@ -169,7 +177,11 @@ describe("graded review routing", () => {
     const body = flat(skill.body);
     expect(body).toMatch(/two consecutive rounds block on substantially the same requirement/i);
     expect(body).toMatch(/stop correction work and do not launch another code-review round/i);
-    expect(body).toMatch(/Perform independent requirement adjudication/i);
+    expect(body).toMatch(/requirement adjudication/i);
+    expect(body).toMatch(/fresh-context `code-reviewer` in `requirement-adjudication` mode/i);
+    expect(body).toMatch(/excludes the PR body, implementation, diff, acceptance matrix/i);
+    expect(flat(reviewer.body)).toMatch(/requirement-adjudication brief names only the issue/i);
+    expect(flat(reviewer.body)).toMatch(/Return an adjudication receipt containing/i);
     expect(body).toMatch(
       /at most one initial full review, two correction reviews, and three total reviewer invocations/i,
     );

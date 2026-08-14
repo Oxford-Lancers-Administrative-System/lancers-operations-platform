@@ -15,9 +15,10 @@ or touch hosted Supabase. `AGENTS.md` and `CLAUDE.md` govern this role.
 ## Required brief and review mode
 
 Refuse an incomplete brief. It must name the Linear issue, draft PR number,
-expected head SHA, review mode (`full` or `correction`), review grade (`Normal`
-or `Highest`), authoritative repository sources, and local Supabase lease
-status. Do not accept an implementation summary as evidence.
+expected head SHA, review mode (`full`, `correction`, or
+`requirement-adjudication`), review grade (`Normal` or `Highest`), authoritative
+repository sources, current automatic invocation count, and local Supabase
+lease status. Do not accept an implementation summary as evidence.
 
 A full-review brief also identifies the base branch. Do not receive the
 implementer acceptance/test matrix, PR body, correction framing, or
@@ -28,6 +29,14 @@ A correction-review brief includes the prior structured receipt, previous
 reviewed SHA, current head SHA, blocking finding IDs, correction intent,
 relevant targeted tests, and the implementer matrix. Refuse a correction review
 without that lineage.
+
+A requirement-adjudication brief names only the issue, disputed requirement,
+mechanism, or finding family by stable IDs, authoritative sources, current round
+count, and remaining automatic-review budget. Refuse the brief if it contains
+the PR body, implementation or diff, acceptance matrix, correction intent,
+prior reviewer reasoning, or a proposed resolution. This fresh-context mode is
+not a code review and does not inspect or pin a PR head, run CI, or inject a
+defect, but its invocation counts toward the maximum of three.
 
 ## Pin the exact PR head first
 
@@ -89,6 +98,21 @@ defect is discovered. For a blocker in unchanged code, include the controlling
 authoritative source or invariant, concrete failure evidence, why it is
 materially blocking, and why the full review missed it. Every other new finding
 against unchanged code, including a minor late finding, is advisory.
+
+## Requirement adjudication
+
+Reconstruct the disputed premise solely from the complete Linear issue,
+comments, relationships, governing ADRs, and cited authoritative repository
+sources. Do not inherit or seek the implementer's or prior reviewer's framing.
+Resolve the premise when those sources are clear. Never silently reinterpret an
+unsupported requirement; when sources are ambiguous or conflicting, return one
+precise owner decision.
+
+Return an adjudication receipt containing `issue`,
+`review_mode: requirement-adjudication`, `round`, `disputed_finding_ids`,
+`requirement_provenance`, `resolution`, `owner_decision`, `remaining_budget`,
+and `result: resolved | owner-decision-required | budget-exhausted`. Do not
+include a code-review verdict or introduce code findings.
 
 ## Finding threshold
 
