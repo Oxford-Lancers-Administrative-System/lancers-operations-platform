@@ -53,7 +53,7 @@ const NAME_MARKER = "LAN76EventsSuite";
  * lives. Anchoring here closes the hazard before it is somebody's afternoon.
  * The seeded cohort is the only population no suite ever deletes.
  */
-const SEEDED_PEOPLE_CREATED_AT = "2026-08-15T09:00:00Z";
+const SEEDED_PEOPLE_CREATED_AT = "2025-06-01T09:00:00Z";
 
 let observer: Client;
 let actorPersonId: string;
