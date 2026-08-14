@@ -756,11 +756,21 @@ describe("provider callbacks", () => {
   });
 
   it("records a callback for a message it has never seen, and applies nothing", async () => {
+    // The per-run prefix, not a fixed identifier — and no cleanup inside the
+    // test body. This row has `delivery_attempt_id = null`, so the
+    // attempt-scoped delete in `afterEach` cannot reach it; only the prefix
+    // delete can. It previously used `${MARKER}:unmatched:delivered` and tidied
+    // up on the line after the assertion, so any failure of that assertion left
+    // the row behind — and because `provider_event_id` is globally unique, the
+    // next run then reported `duplicate` and the suite was red on that machine
+    // for ever. Review reproduced exactly that.
+    const providerEventId = `${PROVIDER_MESSAGE_PREFIX}unmatched:delivered`;
+
     const outcome = await applyProviderCallback(
       WHATSAPP_CLOUD_PROVIDER,
       {
-        providerEventId: `${MARKER}:unmatched:delivered`,
-        providerMessageId: `${MARKER}.unknown`,
+        providerEventId,
+        providerMessageId: `${PROVIDER_MESSAGE_PREFIX}unknown`,
         providerStatus: "delivered",
         outcome: "delivered",
         detail: null,
@@ -768,10 +778,18 @@ describe("provider callbacks", () => {
       { signatureVerified: true },
     );
     expect(outcome).toBe("unmatched");
+  });
 
-    await observer.query("delete from public.delivery_callbacks where provider_event_id = $1", [
-      `${MARKER}:unmatched:delivered`,
-    ]);
+  it("leaves no callback behind that its own cleanup cannot reach", async () => {
+    // The property, asserted rather than trusted: every identifier this suite
+    // invents begins with the per-run prefix, so `afterEach` can always find it
+    // however the test that created it ended.
+    const stray = await observer.query<{ provider_event_id: string }>(
+      `select provider_event_id from public.delivery_callbacks
+        where provider_event_id not like $1`,
+      [`${PROVIDER_MESSAGE_PREFIX}%`],
+    );
+    expect(stray.rows.map((each) => each.provider_event_id)).toEqual([]);
   });
 
   it("refuses to record anything whose signature was not verified", async () => {
