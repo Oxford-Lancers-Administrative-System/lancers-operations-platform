@@ -1,7 +1,8 @@
 # 0020 — Zero-command visual acceptance precedes final review
 
-**Status:** Accepted · **Date:** 2026-08-13 · **Supersedes
-[0018](0018-single-issue-agent-development.md)**
+**Status:** Accepted; correction-review rule superseded by
+[0024](0024-bounded-lineage-aware-review.md) · **Date:** 2026-08-13 ·
+**Supersedes [0018](0018-single-issue-agent-development.md)**
 
 ## Context
 
@@ -33,7 +34,9 @@ database/setup actions, and production actions.
 After approval or requested correction, materially changed presentation repeats
 preflight and visual acceptance. Final verification and graded independent
 correctness review then run at the current commit. Highest-risk corrections
-still require a fresh reviewer.
+originally required an unrestricted fresh review. ADR 0024 supersedes only that
+correction-review rule with bounded, lineage-aware correction review; this ADR's
+visual sequence and all other controls remain in force.
 
 The fixed review account is confirmed and idempotently linked to exactly one
 seeded operator. Its password exists only in mode-0600 machine-local coordinator
