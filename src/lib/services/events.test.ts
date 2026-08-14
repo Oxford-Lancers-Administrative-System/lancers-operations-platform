@@ -37,12 +37,34 @@ import { openObserver } from "../../../tests/helpers/service-layer";
 /** Unique to this file. Two suites sharing one marker delete each other's rows. */
 const NAME_MARKER = "LAN76EventsSuite";
 
+/**
+ * The seed stamps every person it creates with one fixed `created_at`, and this
+ * suite draws its actor only from that cohort.
+ *
+ * `select id from public.people limit 1` returned an arbitrary row, and "the
+ * oldest person" returned somebody else's fixture — the seed's people are dated
+ * in the *future*, so a suite creating one at `now()` sorts ahead of them. Both
+ * forms can adopt another suite's person as this one's actor, at which point
+ * that suite's cleanup is refused by `on delete restrict` and a foreign-key
+ * error surfaces in a test with no connection to the cause.
+ *
+ * This is a latent hazard rather than the intermittency actually observed on
+ * 13 August 2026 — that one was `countDraftedAudits`, and is fixed where it
+ * lives. Anchoring here closes the hazard before it is somebody's afternoon.
+ * The seeded cohort is the only population no suite ever deletes.
+ */
+const SEEDED_PEOPLE_CREATED_AT = "2026-08-15T09:00:00Z";
+
 let observer: Client;
 let actorPersonId: string;
 
 beforeAll(async () => {
   observer = await openObserver();
-  const person = await observer.query<{ id: string }>("select id from public.people limit 1");
+  const person = await observer.query<{ id: string }>(
+    "select id from public.people where created_at = $1::timestamptz and merged_into_person_id is null order by id limit 1",
+    [SEEDED_PEOPLE_CREATED_AT],
+  );
+  expect(person.rows.length).toBe(1);
   actorPersonId = person.rows[0].id;
 });
 
@@ -95,10 +117,26 @@ async function auditFor(eventId: string) {
 }
 
 /** How many "an event was drafted" records exist right now. */
+/**
+ * This suite's own `event.drafted` rows, and nobody else's.
+ *
+ * It counted every such row in the database, which is a race rather than a
+ * measurement: Vitest runs suites in parallel against one PostgreSQL, so any
+ * other suite drafting or cleaning up an event between the two reads moved the
+ * number and failed the assertion here — in a test about rollback, for a reason
+ * that had nothing to do with rollback. Reproduced on 13 August 2026: roughly
+ * one run in three of four pre-existing suites, with no LAN-78 file involved.
+ *
+ * Scoping it to `NAME_MARKER` restores what the test meant to ask — "did *this*
+ * refused draft leave an audit row?" — and makes the answer independent of what
+ * anything else is doing.
+ */
 async function countDraftedAudits(): Promise<number> {
   const result = await observer.query<{ count: string }>(
     `select count(*)::text as count from public.audit_events
-      where entity_table = 'events' and action = 'event.drafted'`,
+      where entity_table = 'events' and action = 'event.drafted'
+        and entity_id in (select id from public.events where name like $1)`,
+    [`${NAME_MARKER}%`],
   );
   return Number(result.rows[0].count);
 }
