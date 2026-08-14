@@ -42,6 +42,9 @@ const pullRequestTemplate = readFileSync(
   path.join(root, ".github", "PULL_REQUEST_TEMPLATE.md"),
   "utf8",
 );
+const dispositionPolicy = flat(
+  [skill.body, reviewer.body, findingDispositionTranscript].join("\n"),
+);
 const settings = JSON.parse(readFileSync(path.join(root, ".claude", "settings.json"), "utf8"));
 
 describe("single-issue Claude workflow", () => {
@@ -186,6 +189,37 @@ describe("graded review routing", () => {
         /reclassify it as `block`.*changes executable behavior|changes executable behavior.*reclassify it as `block`/i,
       );
     }
+  });
+
+  it("rejects contradictory lower dispositions and review triggers", () => {
+    expect(dispositionPolicy).not.toMatch(
+      /correct-before-handoff (?:also )?independently triggers (?:a )?correction review/i,
+    );
+    expect(dispositionPolicy).not.toMatch(
+      /(?:authorization|authentication|privacy|security|data[- ]integrity) findings?.{0,80}(?:may|can|use|assign).{0,40}(?:correct-before-handoff|advisory)/i,
+    );
+    expect(dispositionPolicy).not.toMatch(
+      /(?:correct-before-handoff|advisory).{0,80}(?:may|can|use|assign).{0,40}(?:authorization|authentication|privacy|security|data[- ]integrity) findings?/i,
+    );
+  });
+
+  it("rejects unresolved handoff and lower-disposition boundary crossings", () => {
+    expect(dispositionPolicy).not.toMatch(
+      /final handoff.{0,80}(?:may|can|proceed|allowed).{0,80}unresolved.{0,40}correct-before-handoff/i,
+    );
+    expect(dispositionPolicy).not.toMatch(
+      /(?:executable role list|migration instruction|production action).{0,100}(?:remain|stays?|use).{0,40}correct-before-handoff/i,
+    );
+  });
+
+  it("rejects review-budget and scenario outcomes that contradict the policy", () => {
+    expect(dispositionPolicy).not.toMatch(/(?:launch|run).{0,30}(?:a )?fourth automatic reviewer/i);
+    expect(dispositionPolicy).not.toMatch(
+      /(?:authorization|data[- ]integrity).{0,100}(?:may|can|is|are|be).{0,30}advisory/i,
+    );
+    expect(dispositionPolicy).not.toMatch(
+      /every scenario.{0,80}(?:including authorization|including integrity).{0,80}advisory/i,
+    );
   });
 
   it("restricts new blockers found during correction review", () => {
