@@ -144,8 +144,25 @@ async function fixture(
           solicits_response, audience_confirmed_at, audience_confirmed_by_person_id,
           approved_at, approved_by_person_id)
        select $1, $2, 'practice', $4::public.event_status,
-              (select local::date from target), (select local::time from target),
-              (select (local + interval '150 minutes')::time from target),
+              (select local::date from target),
+              -- Truncated to the minute, so it can never fall inside the last
+              -- second of the day and collide with the cap below.
+              (select date_trunc('minute', local)::time from target),
+              -- Kept on the same day. ends_at is a time on scheduled_on, and
+              -- events_times_ordered requires it to be after starts_at, so a
+              -- 150-minute practice starting at 22:10 produced ends_at = 00:40
+              -- and violated the constraint -- which made this whole suite fail
+              -- between about half past nine and midnight, London, and pass
+              -- every other hour of the day. CI runs on UTC, so the window was
+              -- real there too, and the failure looked like whatever had last
+              -- been committed. Nothing here depends on the duration; what
+              -- these tests need is a well-formed event that starts when they
+              -- asked for it.
+              (select case
+                        when (local + interval '150 minutes')::date > local::date
+                          then time '23:59:59'
+                        else (local + interval '150 minutes')::time
+                      end from target),
               $6,
               true, now(), $5::uuid, now(), $5::uuid
        returning id`,

@@ -162,7 +162,7 @@ structurally present — see [Scope](#release-one-versus-structurally-present).
 | Committee Year        | `committee_years`                            | surrogate        | none                                                                         | `label`; ranges may not overlap (exclusion)              | —                                                  | actual AGM date stored                          | Release one |
 | Season Membership     | `season_memberships`                         | surrogate        | → `people`, `seasons`, self-FK carry-forward                                 | `(person_id, season_id)` (I2)                            | `membership_status` enum on the row                | `season_membership_status_events`, append-only  | Release one |
 | — lifecycle history   | `season_membership_status_events`            | surrogate        | → `season_memberships`                                                       | —                                                        | from/to status                                     | append-only by privilege                        | Release one |
-| Recruitment Prospect  | `recruitment_prospects`                      | surrogate        | → `people`, `seasons`, conversion → membership                               | `(person_id, season_id)`                                 | `prospect_status` enum                             | —                                               | Structural  |
+| Recruitment Prospect  | `recruitment_prospects`                      | surrogate        | → `people`, `seasons`, conversion → membership                               | `(person_id, season_id)`                                 | `prospect_status` enum                             | —                                               | Release one |
 | Role                  | `roles`                                      | surrogate        | → `role_aliases`                                                             | `code`                                                   | —                                                  | —                                               | Release one |
 | Role Assignment       | `role_assignments`                           | surrogate        | → `people`, `roles`, XOR `committee_years`/`seasons`                         | Office exclusions (I3)                                   | effective-dated                                    | new record per change (D11)                     | Release one |
 | Position Assignment   | `position_assignments`                       | surrogate        | → membership, `positions`, vocabulary                                        | one per slot, exclusion (S1)                             | effective-dated                                    | superseding records (S4)                        | Release one |
@@ -373,10 +373,16 @@ positions and jerseys, onboarding, availability, events and schedules,
 invitations, RSVP, attendance, notification jobs and delivery results, the
 weekly report, follow-up actions, and audit.
 
-**Structurally present, not yet driven by a workflow.** `recruitment_prospects`
-(the recruitment workflow's design is deliberately still open — register D3);
-`eligibility_records` beyond `club_play`; `event_questions` beyond transport;
-`alternative_groups`; the `staging` schema.
+**Structurally present, not yet driven by a workflow.** `eligibility_records`
+beyond `club_play`; `event_questions` beyond transport; `alternative_groups`;
+the `staging` schema.
+
+`recruitment_prospects` is no longer among them. LAN-110's walk-on form writes
+one at `identified` for the event's season — somebody who turned up and is not
+on the roster is a recruitment lead, not a guest (Brian, 14 August 2026). That
+is the only workflow writing the table; the wider recruitment workflow's design
+stays open (register D3), and nothing yet reads a prospect or advances its
+status.
 
 **Deliberately not implemented.** Frozen model §1.2 defers four conceptual
 entities from the release-one schema (review F14): **Channel Presence**,

@@ -138,12 +138,29 @@ export async function recordAttendanceAction(
  * this there is no route back at all. It is not the way to change somebody's
  * state — that is a save, which is audited as a correction and keeps the
  * history.
+ *
+ * ## Why this one guards on the assertion, and the other two do not. LAN-110
+ *
+ * Because it *is* the assertion, one step removed. This control exists so that
+ * an operator who marked the wrong event `occurred` can get back out of it, and
+ * LAN-110's fixed boundary is explicit that "coaches cannot mark an event
+ * occurred or not held unless a separate authorization rule explicitly grants
+ * that action". Leaving removal on `attendance_recording` would have handed a
+ * coach the one action whose purpose is to make that assertion editable — the
+ * boundary by a different door.
+ *
+ * It is also not in what LAN-110 permits. The capability is "record and correct
+ * Present, Absent, Late or Excused"; a correction keeps the observation and the
+ * history, and a removal destroys the evidence that anybody watched at all.
+ *
+ * This narrows LAN-80, which had removal on `attendance_recording`, and narrows
+ * nothing else: the four calendar roles that could remove a record still can.
  */
 export async function removeAttendanceAction(
   _previous: AttendanceSaveState,
   formData: FormData,
 ): Promise<AttendanceSaveState> {
-  const operator = await requireCapability("attendance_recording");
+  const operator = await requireCapability("event_occurrence_assertion");
   const eventId = text(formData, "eventId");
   const key = text(formData, "participantKey");
 
@@ -165,11 +182,19 @@ export async function removeAttendanceAction(
 }
 
 /**
+ * The attendance a walk-up is always recorded with. See
+ * `WALK_UP_ALWAYS_PRESENT` in `./presentation.ts` for why the form stopped
+ * asking, and why this is not a lock.
+ */
+const WALK_UP_PRESENCE: AttendancePresence = "present";
+
+/**
  * UX-73 — records somebody who was never invited, and nothing else.
  *
- * No membership, no onboarding, no recruitment record. On success it returns to
- * the board, where the new row carries the walk-up flag the view computes for
- * it.
+ * It creates the person, their contact points and a **recruitment prospect** —
+ * see `recordWalkUpAttendance` — and no season membership and no onboarding. On
+ * success it returns to the board, where the new row carries the walk-up flag
+ * the view computes for it and sits in the board's own Walk-ups group.
  */
 export async function recordWalkUpAction(
   _previous: WalkUpFormState,
@@ -179,22 +204,24 @@ export async function recordWalkUpAction(
   const eventId = text(formData, "eventId");
 
   const values = {
-    name: text(formData, "name"),
-    contact: text(formData, "contact"),
-    presence: text(formData, "presence"),
-    membershipId: text(formData, "membershipId"),
+    givenName: text(formData, "givenName"),
+    familyName: text(formData, "familyName"),
+    phone: text(formData, "phone"),
+    email: text(formData, "email"),
   };
-
-  if (!isAttendancePresence(values.presence)) {
-    return { error: "Choose Present, Late, Excused or Absent.", values };
-  }
 
   try {
     await recordWalkUpAttendance(operator.personId, eventId, {
-      name: values.name,
-      contact: values.contact === "" ? null : values.contact,
-      presence: values.presence,
-      membershipId: values.membershipId === "" ? null : values.membershipId,
+      givenName: values.givenName,
+      familyName: values.familyName,
+      phone: values.phone,
+      email: values.email === "" ? null : values.email,
+      // Fixed here, not read from the form — Brian, 14 August 2026. The form no
+      // longer asks, so a `presence` in the body came from somewhere else, and
+      // a server action is a POST endpoint anybody with a session can call. The
+      // value the club's rule produces is the value that gets written, and the
+      // row's four buttons correct it afterwards like any other.
+      presence: WALK_UP_PRESENCE,
     });
   } catch (error) {
     return { error: messageFor(error), values };

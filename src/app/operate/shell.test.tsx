@@ -63,6 +63,8 @@ import {
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
+import { listCurrentSeasonEvents, type EventListEntry } from "@/lib/services/events";
+import { londonToday, shiftDays } from "./events/coach-event-buckets";
 import OperateLayout from "./layout";
 import OperatePage from "./page";
 import RosterPage from "./roster/page";
@@ -143,6 +145,30 @@ function reportProps() {
 /** Text with runs of whitespace collapsed, so wrapping cannot break a match. */
 function flatten(text: string | null): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
+}
+
+/** One event, as the coach's list receives it from the service. */
+function eventEntry(
+  id: string,
+  name: string,
+  scheduledOn: string,
+  status: EventListEntry["status"] = "occurred",
+): EventListEntry {
+  return {
+    id,
+    name,
+    eventType: "practice",
+    status,
+    scheduledOn,
+    startsAt: "20:00",
+    endsAt: "22:00",
+    venue: "Iffley Road Astro",
+    isMandatory: true,
+    solicitsResponse: true,
+    audienceCount: 0,
+    invitationCount: 0,
+    responseCount: 0,
+  };
 }
 
 beforeEach(() => {
@@ -466,10 +492,36 @@ describe("row 6 — the refusal screen names the requirement, never the reader's
       expect(html, `the refusal screen names "${label}"`).not.toContain(label);
     }
     // Non-vacuous: this really is the refusal, and it really does say what is
-    // required. The requirement sentence names roles now that LAN-81 decided
-    // the grant, which sharpens the test rather than blunting it — the screen
-    // names four roles and still names none of the four the reader holds.
+    // required. LAN-110 changed *which* requirement — this actor's only
+    // capability-bearing seat is a coaching one, so they are a narrow
+    // attendance recorder and the Report destination is not theirs for that
+    // reason rather than because nobody holds the report grant. The property
+    // under test is unchanged and is the assertions above: whichever refusal
+    // appears, it names no seat the reader holds.
     expect(container.textContent).toContain("You do not have access to this action");
+    expect(container.textContent).toContain(
+      "Attendance recording is the only operator surface open to a coaching assignment",
+    );
+  });
+
+  it("names the report's requirement, and no role, for a non-coaching operator", async () => {
+    // The same property on the other path: an operator with seats that carry no
+    // capability at all reaches Report's own refusal, and that refusal must be
+    // just as silent about what they hold.
+    //
+    // Until LAN-81 this read "No club role is currently authorized", because the
+    // report grant was empty. LAN-81 decided it, so the sentence now names four
+    // roles — which sharpens the assertion rather than blunting it: the screen
+    // names four seats and still names none of the three the reader holds.
+    const held = ["it_officer", "social_secretary", "kit_manager"];
+    givenAccess({ state: "active", operator: actor(held) });
+
+    const { container } = render(await ReportPage(reportProps()));
+    const html = container.innerHTML.toLowerCase();
+
+    for (const label of ["it_officer", "it officer", "social secretary", "kit manager"]) {
+      expect(html, `the refusal screen names "${label}"`).not.toContain(label);
+    }
     expect(flatten(container.textContent)).toContain(
       "This action requires one of these roles: President, Vice-President, Secretary or " +
         "General Manager.",
@@ -612,5 +664,232 @@ describe("row 16 — the shell's declared shape at each breakpoint", () => {
     // whole layout past the viewport and producing horizontal scrolling.
     expect(declares(base, "min-width", "0")).toBe(true);
     expect(declares(base, "flex-grow", "1")).toBe(true);
+  });
+});
+
+/**
+ * The coach shell — LAN-110, and `slice-ux.md` § 3: an active Head Coach, OC or
+ * DC assignment "receives only the occurred-event attendance surface. No
+ * general operator navigation, roster editing, event administration, delivery,
+ * report, contact, RSVP-reason, or availability data is exposed."
+ *
+ * The refusals below are the load-bearing half. Navigation is a courtesy — the
+ * assertions that matter are that a coach who *types* `/operate/roster` gets a
+ * refusal and no roster, which is what "hidden navigation or controls are not
+ * an authorization boundary" means in LAN-110's own words.
+ */
+describe("LAN-110 — the coach shell", () => {
+  const COACH = ["head_coach"];
+
+  // `vi.clearAllMocks()` clears calls but keeps implementations, so a
+  // `mockResolvedValue` set in one test here would leak into the next. Put the
+  // empty default back before each.
+  beforeEach(() => {
+    vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
+      season: { id: "season", label: "2026-27", status: "active" },
+      events: [],
+      totalInSeason: 0,
+    });
+  });
+
+  it("shows one destination, and none of the operator's three", async () => {
+    givenAccess({ state: "active", operator: actor(COACH, "Casey North") });
+
+    render(await OperateLayout(layoutProps(<p>shell content</p>)));
+
+    expect(screen.getByRole("link", { name: /Attendance/ })).toBeVisible();
+    for (const label of ["Roster", "Events", "Report"]) {
+      expect(screen.queryByRole("link", { name: label }), label).toBeNull();
+    }
+  });
+
+  it("captions the sidebar with the seat held, not with 'Authorized operator'", async () => {
+    givenAccess({ state: "active", operator: actor(COACH, "Casey North") });
+
+    const { container } = render(await OperateLayout(layoutProps(<p>shell content</p>)));
+
+    expect(flatten(container.textContent)).toContain("Head Coach");
+    expect(container.textContent).not.toContain("Authorized operator");
+    // UX-91's sidebar heading. The coach's shell is not "Operations".
+    expect(flatten(container.textContent)).toContain("Attendance");
+  });
+
+  it("says which events the destination holds", async () => {
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    const { container } = render(await OperateLayout(layoutProps(<p>shell content</p>)));
+
+    expect(flatten(container.textContent)).toContain("This season's sessions");
+  });
+
+  it("keeps the operator shell intact for everybody else", async () => {
+    // The narrowing must reach exactly one actor. A Secretary who also coaches
+    // is not that actor.
+    givenAccess({ state: "active", operator: actor(["secretary", "head_coach"]) });
+
+    render(await OperateLayout(layoutProps(<p>shell content</p>)));
+
+    for (const label of ["Roster", "Events", "Report"]) {
+      expect(screen.getByRole("link", { name: label }), label).toBeVisible();
+    }
+  });
+
+  it("refuses the roster, and renders none of it", async () => {
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    const { container } = render(await RosterPage(rosterProps()));
+
+    expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
+    expect(flatten(container.textContent)).toContain(
+      "Attendance recording is the only operator surface open to a coaching assignment",
+    );
+    expect(screen.queryByTestId("roster-row")).toBeNull();
+    expect(container.textContent).not.toContain("2026-27");
+  });
+
+  it("refuses the report", async () => {
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    render(await ReportPage(reportProps()));
+
+    expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
+  });
+
+  it("sends the refused coach to their own destination, never to one that refuses again", async () => {
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    render(await RosterPage(rosterProps()));
+
+    const back = screen.getByRole("link", { name: "Return to an authorized area" });
+    expect(back).toHaveAttribute("href", "/operate/events");
+  });
+
+  it("opens the shell on the attendance destination", async () => {
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    // § 3: "the shell opens the first destination permitted by the operator's
+    // capability map" — which for a coach is the only one they have.
+    await expect(OperatePage()).rejects.toThrow("REDIRECT:/operate/events");
+  });
+
+  it("gives the coach the eligible-events list, not the club calendar", async () => {
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    const { container } = render(await EventsPage(eventsProps()));
+
+    expect(screen.getByTestId("coach-eligible-events")).toBeVisible();
+    // No create, no status filter, no audience or response columns.
+    expect(screen.queryByRole("link", { name: "Create event" })).toBeNull();
+    expect(container.textContent).not.toContain("Audience");
+    expect(flatten(container.textContent)).toContain("This season's sessions");
+  });
+
+  it("looks forward: Upcoming first, then Earlier, with today drawn out", async () => {
+    // Brian, 14 August 2026: "We should be looking forward… anything before
+    // today is just Earlier. That's it."
+    const today = londonToday();
+    vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
+      season: { id: "season", label: "2026-27", status: "active" },
+      events: [
+        eventEntry("today-practice", "Practice", today, "occurred"),
+        eventEntry("next-week", "S&C", shiftDays(today, 5), "approved"),
+        eventEntry("last-week", "Varsity", shiftDays(today, -3), "occurred"),
+      ],
+      totalInSeason: 3,
+    });
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    const { container } = render(await EventsPage(eventsProps()));
+
+    const sections = [...container.querySelectorAll("[data-testid^='coach-events-section-']")];
+    expect(sections.map((node) => node.getAttribute("data-testid"))).toEqual([
+      "coach-events-section-upcoming",
+      "coach-events-section-earlier",
+    ]);
+
+    // Today is badged and sits at the top of Upcoming, not in a section of its
+    // own — Upcoming holds the rest of the season behind it.
+    const upcoming = [
+      ...screen
+        .getByTestId("coach-events-section-upcoming")
+        .querySelectorAll("[data-testid='coach-event-row']"),
+    ];
+    expect(upcoming[0]).toHaveAttribute("data-today", "true");
+    expect(upcoming[0].textContent).toContain("Today");
+    expect(upcoming[1]).toHaveAttribute("data-today", "false");
+  });
+
+  it("says on the card when a register cannot be opened yet", async () => {
+    // A coach who taps three sessions looking for a register they can fill in
+    // has learned nothing except that the list is unreliable.
+    const today = londonToday();
+    vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
+      season: { id: "season", label: "2026-27", status: "active" },
+      events: [
+        eventEntry("open", "Practice", today, "occurred"),
+        eventEntry("not-yet", "S&C", shiftDays(today, 2), "approved"),
+      ],
+      totalInSeason: 2,
+    });
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    render(await EventsPage(eventsProps()));
+
+    expect(screen.getAllByTestId("coach-event-not-open")).toHaveLength(1);
+    expect(screen.getByTestId("coach-event-not-open").textContent).toBe("Attendance not open");
+  });
+
+  it("draws no heading for a section with nothing in it", async () => {
+    // A club practises for eight months and then stops for the summer.
+    vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
+      season: { id: "season", label: "2026-27", status: "active" },
+      events: [eventEntry("long-ago", "Varsity", shiftDays(londonToday(), -60), "occurred")],
+      totalInSeason: 1,
+    });
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    render(await EventsPage(eventsProps()));
+
+    expect(screen.queryByTestId("coach-events-section-upcoming")).toBeNull();
+    expect(screen.getByTestId("coach-events-section-earlier")).toBeVisible();
+  });
+
+  it("shows no draft, cancelled or not-held session, whatever the query string says", async () => {
+    // No status comes from the URL, so `?status=draft` cannot show a coach a
+    // draft; and the visible set is decided in coach-event-buckets.ts.
+    const today = londonToday();
+    vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
+      season: { id: "season", label: "2026-27", status: "active" },
+      events: [
+        eventEntry("draft", "A draft nobody approved", today, "draft"),
+        eventEntry("cancelled", "A cancelled fixture", today, "cancelled"),
+        eventEntry("not-held", "A washed-out practice", shiftDays(today, -1), "not_held"),
+        eventEntry("real", "Practice", today, "occurred"),
+      ],
+      totalInSeason: 4,
+    });
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    const { container } = render(
+      await EventsPage({
+        params: Promise.resolve({}),
+        searchParams: Promise.resolve({ status: "draft" }),
+      } as unknown as PageProps<"/operate/events">),
+    );
+
+    expect(screen.getAllByTestId("coach-event-row")).toHaveLength(1);
+    expect(container.textContent).toContain("Practice");
+    expect(container.textContent).not.toContain("A draft nobody approved");
+    expect(container.textContent).not.toContain("A cancelled fixture");
+    expect(container.textContent).not.toContain("A washed-out practice");
+  });
+
+  it("still gives an ordinary operator the club calendar", async () => {
+    givenAccess({ state: "active", operator: actor(["secretary"]) });
+
+    render(await EventsPage(eventsProps()));
+
+    expect(screen.queryByTestId("coach-eligible-events")).toBeNull();
+    expect(screen.getByTestId("season-label")).toBeVisible();
   });
 });

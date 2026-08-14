@@ -255,11 +255,12 @@ const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
     ),
 
   // The same rule on the attendance table, and the one place it is genuinely
-  // easy to get wrong: a walk-up who turns out to be on the roster must be
-  // recorded against their **membership** at player capacity, and a walk-up who
-  // is not must be recorded against a person at guest capacity. Both anchor
-  // columns are nullable and both are plausible, so a row written the other way
-  // round would otherwise fail as an anonymous check violation.
+  // easy to get wrong: a player is recorded against their **membership** at
+  // player capacity, and everybody else against the durable **person** — a
+  // walk-on at `recruit` capacity, since LAN-110 mints one into recruitment
+  // rather than onto the roster. Both anchor columns are nullable and both are
+  // plausible, so a row written the other way round would otherwise fail as an
+  // anonymous check violation.
   attendance_records_anchor_matches_capacity: (context) =>
     new ConstraintViolated(
       "A player's attendance is recorded against their season membership, and anybody " +

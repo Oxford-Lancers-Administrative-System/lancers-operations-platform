@@ -16,7 +16,11 @@ import { firstPermittedDestination } from "./destinations";
  * Adding content here would create the Home page the UX contract removed.
  */
 export default async function OperatePage() {
-  const gate = await gateShellPage("/operate");
+  // A coaching assignment passes through here like anybody else. This route
+  // renders no content — it resolves the account state and forwards — so
+  // refusing a coach would strand them at the front door of the one shell they
+  // are entitled to. Their destination refuses or admits them on its own.
+  const gate = await gateShellPage("/operate", undefined, { narrowRecorder: "allow" });
   if ("screen" in gate) return gate.screen;
 
   const destination = firstPermittedDestination(gate.operator.roleCodes);

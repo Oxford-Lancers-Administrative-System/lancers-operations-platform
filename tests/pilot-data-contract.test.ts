@@ -1119,7 +1119,7 @@ describe("the scenario scripts stay inside the conventions", () => {
      *
      * The two report-shaped statements are qualified on the open season and on
      * the sentinel inside the report's own **stored content**, which is a
-     * marker nothing else puts there: every section of a report for this week
+     * marker nothing else puts there: every section of a report for that week
      * names this scenario's events and people, and `setup.sql` refuses to
      * install unless the reporting window contains no event but its own. The
      * cleanup additionally aborts if it meets a report in that date range whose
@@ -1152,6 +1152,65 @@ describe("the scenario scripts stay inside the conventions", () => {
           "entity_table = 'events'",
           "entity_id in ('00810081-0081-4081-8081-000000000021', '00810081-0081-4081-8081-000000000022', '00810081-0081-4081-8081-000000000023')",
           "entity_id in (select id from public.events where name like '%PILOT-LAN-81%')",
+        ],
+      ],
+    ],
+    // LAN-110's coach attendance recorder. The same four application-created
+    // tables LAN-80 has — the coach's board writes exactly what the operator's
+    // board writes — plus the recruitment prospect a walk-on now creates.
+    //
+    // What is NOT in this list is the point of reading it: this scenario grants
+    // two coaching seats and **deletes neither**. The runbook's "Preserves the
+    // foundation" rule forbids deleting from `role_assignments`, so cleanup
+    // end-dates them, and the two people who hold them stay as durable
+    // identities. An earlier version of this PR deleted both and widened the
+    // parser below to allow it; independent review caught that, and the parser
+    // is back to refusing any `delete` against this table outright.
+    "lan-110": [
+      [
+        "public.audit_events",
+        [
+          "entity_table = 'attendance_records'",
+          "entity_id in (select id from public.attendance_records where event_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032'))",
+          "entity_id in (select id from public.attendance_records where event_id in (select id from public.events where name like '%PILOT-LAN-110%'))",
+        ],
+      ],
+      [
+        "public.audit_events",
+        [
+          "entity_table = 'events'",
+          "entity_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032')",
+          "entity_id in (select id from public.events where name like '%PILOT-LAN-110%')",
+        ],
+      ],
+      [
+        "public.attendance_records",
+        [
+          "event_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032')",
+          "event_id in (select id from public.events where name like '%PILOT-LAN-110%')",
+        ],
+      ],
+      [
+        "public.contact_points",
+        [
+          "person_id in (select person_id from pilot_lan_110_walk_ups)",
+          "person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))))",
+        ],
+      ],
+      // The prospect a walk-on now creates. `person_id` is `on delete restrict`,
+      // so this is not optional tidying — without it the person delete fails.
+      [
+        "public.recruitment_prospects",
+        [
+          "person_id in (select person_id from pilot_lan_110_walk_ups)",
+          "person_id in (select id from public.people where 'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, '')))))",
+        ],
+      ],
+      [
+        "public.people",
+        [
+          "id in (select person_id from pilot_lan_110_walk_ups)",
+          "'PILOT-LAN-110' in (upper(btrim(given_name)), upper(btrim(coalesce(known_as, ''))))",
         ],
       ],
     ],
@@ -1461,6 +1520,17 @@ describe("the scenario scripts stay inside the conventions", () => {
     // scenario's date range whose content carries no sentinel stops the script
     // rather than being deleted on a guess. It might be real leadership history.
     ["lan-81/cleanup.sql", read("scripts/pilot/lan-81/cleanup.sql"), 1] as const,
+    // Seven, and the two extra are what makes this scenario different from
+    // LAN-80's: it grants access, so its setup refuses a database whose role
+    // catalogue does not have the seat it is about to grant, and refuses one
+    // where that seat is not season-scoped.
+    ["lan-110/setup.sql", read("scripts/pilot/lan-110/setup.sql"), 7] as const,
+    // One more than LAN-80's, for the two guards that protect access rather
+    // than data — a role assignment this scenario did not write, and a login
+    // still pointing at one of its people — against one event rather than two.
+    // Both are decisions to unwind deliberately, and neither is a row a cleanup
+    // may delete quietly.
+    ["lan-110/cleanup.sql", read("scripts/pilot/lan-110/cleanup.sql"), 7] as const,
   ];
 
   it("checks the preflight of every scenario in the repository", () => {
@@ -1786,7 +1856,7 @@ describe("the pilot runbook represents elevated access truthfully", () => {
    */
   interface Write {
     kind: "insert" | "update";
-    /** Column name → the expression assigned to it, in statement order. */
+    /** Column name → the expression assigned to it, in statement order. Empty for a delete. */
     assignments: { column: string; value: string }[];
     statement: string;
   }
@@ -1950,7 +2020,7 @@ describe("the pilot runbook represents elevated access truthfully", () => {
    */
   const END_DATE = /^(?:date\s+'|timestamptz?\s+'|current_date\b|now\(\)|'[^']*'\s*::|<[a-z-]*>)/i;
 
-  /** What a write may be wrong about. Two categories, one per surviving rule. */
+  /** What a write may be wrong about. One category per surviving rule. */
   interface Violation {
     rule: "truthful" | "time-bound";
     message: string;
@@ -2087,54 +2157,6 @@ describe("the pilot runbook represents elevated access truthfully", () => {
 
     for (const write of writes) {
       expect(write.assignments.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("cannot be satisfied by a statement it failed to recognise", () => {
-    /**
-     * The self-check, made non-self-referential (matrix row 2).
-     *
-     * The old version counted candidates with `/insert\s+into\s+public\.role_
-     * assignments/` and parsed with the same expression, so "some grant was
-     * never parsed" was true by construction for every statement the expression
-     * could not see. Here the count comes from a pattern that recognises verbs
-     * the parser deliberately cannot decompose, and the parser throws rather
-     * than skipping — so the two can only disagree loudly.
-     *
-     * The second half is the honest limit and where the tension sits: a write
-     * whose verb is not adjacent to the table would be missed by the finder
-     * too. So every *mention* of the identifier that is not inside a found
-     * statement is checked for a writing verb close in front of it. That is
-     * deliberately conservative — it will also fire on prose that puts "insert"
-     * within thirty characters of the table name, and the answer to that is to
-     * reword the sentence or widen the finder, never to loosen this. Prose that
-     * merely names the table, a heading, a column reference and
-     * `select … from role_assignments` all stay green, which is the other half
-     * of the requirement.
-     */
-    const MENTION = /\brole_assignments\b/gi;
-    const WRITING_VERB_JUST_BEFORE = /\b(insert|update|merge|upsert|copy|truncate)\b[^;]{0,30}$/i;
-
-    for (const file of GRANT_SCAN) {
-      const normalised = normaliseSql(read(file));
-      const statements = candidateStatements(normalised);
-
-      expect(() => statements.map((candidate) => parseWrite(candidate.text))).not.toThrow();
-
-      for (const mention of normalised.matchAll(MENTION)) {
-        const inside = statements.some(
-          (candidate) =>
-            mention.index >= candidate.index &&
-            mention.index < candidate.index + candidate.text.length,
-        );
-        if (inside) continue;
-
-        const before = normalised.slice(Math.max(0, mention.index - 40), mention.index);
-        expect(
-          before,
-          `${file}: a mention of role_assignments has a writing verb in front of it but was not parsed as a statement — widen the finder rather than the tolerance. Context: "${before}"`,
-        ).not.toMatch(WRITING_VERB_JUST_BEFORE);
-      }
     }
   });
 

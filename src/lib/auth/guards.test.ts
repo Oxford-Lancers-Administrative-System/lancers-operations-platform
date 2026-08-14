@@ -24,12 +24,15 @@ import { isServiceError, NotPermitted, ServiceError } from "@/lib/db";
 import { CAPABILITY_KEYS, capabilityRoleCodes, type CapabilityKey } from "./capabilities";
 import {
   assertCapability,
+  assertGeneralOperator,
   assertOperator,
   assertRole,
   capabilityRule,
+  GENERAL_OPERATOR_RULE,
   OPERATOR_REQUIRED_MESSAGE,
   operatorHasCapability,
   requireCapability,
+  requireGeneralOperator,
   requireOperator,
   requireRole,
 } from "./guards";
@@ -545,6 +548,93 @@ describe("row 6 — no refusal says anything about what the actor holds", () => 
       const disclosed = everythingDisclosed(await refusalFrom(() => requireOperator()));
 
       expect(disclosed).not.toMatch(/unlink|inactive|deactivat|disabled|no session|expired/);
+    }
+  });
+});
+
+/**
+ * The general-operator floor — LAN-110.
+ *
+ * The ordinary floor with one actor removed. Two properties, and the second is
+ * the one that keeps this ticket inside its scope: a coaching assignment is
+ * refused, and *nobody else's access changes*.
+ */
+describe("LAN-110 — the floor a coaching assignment does not stand on", () => {
+  it("refuses each coaching seat", async () => {
+    for (const code of COACHES) {
+      const refusal = await refusalFrom(() => assertGeneralOperator(actor([code])));
+
+      expect(refusal, code).toBeInstanceOf(NotPermitted);
+      expect(refusal.rule).toBe(GENERAL_OPERATOR_RULE);
+    }
+  });
+
+  it("admits every operator the ordinary floor admits, except that one", () => {
+    // Exhaustive against the catalogue: if the derivation ever widened, an
+    // ordinary seat would start being refused here.
+    for (const code of [
+      "president",
+      "vice_president",
+      "secretary",
+      "treasurer",
+      "social_secretary",
+      "gameday_secretary",
+      "kit_manager",
+      "media_secretary",
+      "it_officer",
+      "general_manager",
+    ]) {
+      expect(assertGeneralOperator(actor([code])).roleCodes, code).toEqual([code]);
+    }
+  });
+
+  it("admits an operator holding no role at all", () => {
+    // An operator with no seat is not a coach, and this floor is not a
+    // capability. Refusing them here would silently narrow roster intake to
+    // whoever holds a seat, which is a decision nobody has taken.
+    expect(assertGeneralOperator(actor([])).roleCodes).toEqual([]);
+  });
+
+  it("admits an operator who coaches and also holds an ordinary seat", () => {
+    expect(assertGeneralOperator(actor(["head_coach", "secretary"])).roleCodes).toContain(
+      "secretary",
+    );
+  });
+
+  it("refuses a null actor as the unresolved operator, not as a coach", async () => {
+    // The three unresolved causes keep their one message. A caller passing a
+    // resolution that returned nothing must not be told about coaching.
+    const refusal = await refusalFrom(() => assertGeneralOperator(null));
+
+    expect(refusal.message).toBe(OPERATOR_REQUIRED_MESSAGE);
+    expect(refusal.rule).not.toBe(GENERAL_OPERATOR_RULE);
+  });
+
+  it("names what is required and nothing the reader holds", async () => {
+    const refusal = await refusalFrom(() => assertGeneralOperator(actor(["head_coach"])));
+
+    expect(refusal.message).toContain("coaching assignment");
+    expect(refusal.message).not.toMatch(/head coach|head_coach|Rowan Ashdown/i);
+  });
+
+  it("takes the actor from the session, never from an argument", async () => {
+    givenSession({ state: "active", operator: actor(["head_coach"]) });
+
+    expect(await refusalFrom(() => requireGeneralOperator())).toBeInstanceOf(NotPermitted);
+
+    givenSession({ state: "active", operator: actor(["secretary"]) });
+
+    expect((await requireGeneralOperator()).roleCodes).toEqual(["secretary"]);
+  });
+
+  it("refuses each unresolved session state", async () => {
+    for (const state of ["no_session", "unlinked", "inactive"] as const) {
+      givenSession({ state } as OperatorAccess);
+
+      const refusal = await refusalFrom(() => requireGeneralOperator());
+
+      expect(refusal, state).toBeInstanceOf(NotPermitted);
+      expect(refusal.message).toBe(OPERATOR_REQUIRED_MESSAGE);
     }
   });
 });

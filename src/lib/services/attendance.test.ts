@@ -26,11 +26,12 @@ import {
   ATTENDANCE_CLOSED_MESSAGE,
   PARTICIPANT_NOT_FOUND_MESSAGE,
   readAttendanceBoard,
-  readWalkUpCandidates,
   recordAttendance,
   recordWalkUpAttendance,
   removeAttendance,
-  WALK_UP_NAME_REQUIRED,
+  WALK_UP_FAMILY_NAME_REQUIRED,
+  WALK_UP_GIVEN_NAME_REQUIRED,
+  WALK_UP_PHONE_REQUIRED,
 } from "./attendance";
 import { approveEvent, saveEventAudience } from "./event-approval";
 import { listAudienceCatalogueIn } from "./event-audience";
@@ -97,6 +98,13 @@ afterEach(async () => {
   await observer.query("delete from public.events where name like $1", [scope]);
   await observer.query(
     "delete from public.contact_points where person_id in (select id from public.people where family_name = $1)",
+    [NAME_MARKER],
+  );
+  // A walk-on now leaves a recruitment prospect behind, and `person_id` is
+  // `on delete restrict` — so without this the person delete below fails, the
+  // hook aborts, and every later test in the file inherits the leftovers.
+  await observer.query(
+    "delete from public.recruitment_prospects where person_id in (select id from public.people where family_name = $1)",
     [NAME_MARKER],
   );
   await observer.query("delete from public.people where family_name = $1", [NAME_MARKER]);
@@ -554,22 +562,42 @@ describe("recording attendance", () => {
 // Invariant P6 — the walk-up
 // ---------------------------------------------------------------------------
 
-describe("walk-ups", () => {
-  it("records somebody who was never invited, at guest capacity", async () => {
+/**
+ * The walk-on — invariant P6, and Brian's 14 August 2026 rebuild of it.
+ *
+ * It used to mint a bare person and nothing else. It now creates the person,
+ * their contact points and a **recruitment prospect**, and still no season
+ * membership: "not in the roster, not in the season roster, but in the person
+ * in the recruitment… they're not on the team yet."
+ */
+describe("walk-ons", () => {
+  const WALK_ON = {
+    givenName: "Devon",
+    familyName: NAME_MARKER,
+    phone: "+44 7700 900105",
+    email: "devon@example.ac.ox",
+    presence: "present" as const,
+  };
+
+  /** The person this scenario minted, by the marker their surname carries. */
+  async function mintedPerson() {
+    const result = await observer.query<{ id: string; given_name: string; family_name: string }>(
+      "select id, given_name, family_name from public.people where family_name = $1",
+      [NAME_MARKER],
+    );
+    return result.rows;
+  }
+
+  it("records somebody who was never invited, at recruit capacity", async () => {
     const event = await occurredEvent();
 
-    const saved = await recordWalkUpAttendance(actorPersonId, event.id, {
-      name: `Devon ${NAME_MARKER}`,
-      contact: "+44 7700 900105",
-      presence: "present",
-      membershipId: null,
-    });
+    const saved = await recordWalkUpAttendance(actorPersonId, event.id, WALK_ON);
 
     expect(saved.presence).toBe("present");
 
     const rows = await attendanceRows(event.id);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ capacity: "guest", season_membership_id: null });
+    expect(rows[0]).toMatchObject({ capacity: "recruit", season_membership_id: null });
     expect(rows[0].person_id).not.toBeNull();
 
     // Invariant P6, stated the way the schema states it: no invitation exists,
@@ -587,142 +615,197 @@ describe("walk-ups", () => {
     expect(board.walkUpCount).toBe(1);
   });
 
-  it("creates no membership, no onboarding and no recruitment record", async () => {
+  it("stores the first and last name as two columns, not one string split apart", async () => {
     const event = await occurredEvent();
-    await recordWalkUpAttendance(actorPersonId, event.id, {
-      name: `Devon ${NAME_MARKER}`,
-      contact: null,
-      presence: "present",
-      membershipId: null,
-    });
+    await recordWalkUpAttendance(actorPersonId, event.id, WALK_ON);
 
-    const person = await observer.query<{ id: string }>(
-      "select id from public.people where family_name = $1",
-      [NAME_MARKER],
-    );
-    expect(person.rows).toHaveLength(1);
-
-    // Both tables key on the person directly, so "nothing was started for them"
-    // is one count each. Onboarding items hang off a membership, and there is
-    // no membership — which the first of these proves.
-    for (const table of ["season_memberships", "recruitment_prospects"] as const) {
-      const rows = await observer.query<{ count: string }>(
-        `select count(*)::text as count from public.${table} where person_id = $1`,
-        [person.rows[0].id],
-      );
-      expect(Number(rows.rows[0].count), `${table} should be untouched`).toBe(0);
-    }
+    const people = await mintedPerson();
+    expect(people).toHaveLength(1);
+    expect(people[0]).toMatchObject({ given_name: "Devon", family_name: NAME_MARKER });
   });
 
-  it("stores the contact exactly as it was given, and only when given", async () => {
+  it("creates a recruitment prospect against the event's season, and no membership", async () => {
+    // The change Brian asked for. They are somebody to follow up, not somebody
+    // on the team sheet that then has to be taken off again.
+    const event = await occurredEvent();
+    await recordWalkUpAttendance(actorPersonId, event.id, WALK_ON);
+
+    const person = (await mintedPerson())[0];
+
+    const prospect = await observer.query<{
+      season_id: string;
+      status: string;
+      source: string;
+      first_contact_on: Date;
+      converted_membership_id: string | null;
+    }>(
+      `select season_id, status::text as status, source, first_contact_on,
+              converted_membership_id
+         from public.recruitment_prospects where person_id = $1`,
+      [person.id],
+    );
+
+    expect(prospect.rows).toHaveLength(1);
+    expect(prospect.rows[0].season_id).toBe(event.seasonId);
+    expect(prospect.rows[0].status).toBe("identified");
+    expect(prospect.rows[0].source).toContain("Walk-on");
+    expect(prospect.rows[0].converted_membership_id).toBeNull();
+
+    const memberships = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.season_memberships where person_id = $1",
+      [person.id],
+    );
+    expect(Number(memberships.rows[0].count), "no membership is created").toBe(0);
+  });
+
+  it("stores both contact points exactly as they were given", async () => {
     const event = await occurredEvent();
     await recordWalkUpAttendance(actorPersonId, event.id, {
-      name: `Devon ${NAME_MARKER}`,
-      contact: " devon@example.ac.ox ",
-      presence: "late",
-      membershipId: null,
+      ...WALK_ON,
+      phone: " +44 7700 900105 ",
+      email: " devon@example.ac.ox ",
     });
 
-    const contact = await observer.query<{ kind: string; raw_value: string }>(
-      `select kind::text as kind, raw_value from public.contact_points
+    const contact = await observer.query<{
+      kind: string;
+      raw_value: string;
+      is_preferred: boolean;
+    }>(
+      `select kind::text as kind, raw_value, is_preferred from public.contact_points
+        where person_id in (select id from public.people where family_name = $1)
+        order by kind`,
+      [NAME_MARKER],
+    );
+
+    expect(contact.rows).toHaveLength(2);
+    // Trimmed at the edges and otherwise untouched: `raw_value` has no format
+    // constraint on purpose, so `devon@example.ac.ox` — not a real domain —
+    // survives exactly as typed, and normalisation stays a separate reversible
+    // step. Only the surrounding whitespace goes.
+    expect(contact.rows[0]).toMatchObject({ kind: "email", raw_value: "devon@example.ac.ox" });
+    expect(contact.rows[1]).toMatchObject({
+      kind: "phone",
+      raw_value: "+44 7700 900105",
+      is_preferred: true,
+    });
+  });
+
+  it("records the phone alone when no email was given", async () => {
+    const event = await occurredEvent();
+    await recordWalkUpAttendance(actorPersonId, event.id, { ...WALK_ON, email: null });
+
+    const contact = await observer.query<{ kind: string }>(
+      `select kind::text as kind from public.contact_points
         where person_id in (select id from public.people where family_name = $1)`,
       [NAME_MARKER],
     );
-    expect(contact.rows).toHaveLength(1);
-    expect(contact.rows[0]).toMatchObject({ kind: "email", raw_value: "devon@example.ac.ox" });
+    expect(contact.rows.map((row) => row.kind)).toEqual(["phone"]);
   });
 
-  it("refuses a contact that is neither an address nor a number, and writes nothing", async () => {
+  it.each([
+    ["givenName", WALK_UP_GIVEN_NAME_REQUIRED],
+    ["familyName", WALK_UP_FAMILY_NAME_REQUIRED],
+    ["phone", WALK_UP_PHONE_REQUIRED],
+  ] as const)("requires the %s, and writes nothing without it", async (field, message) => {
+    // Stricter than the returner intake, deliberately: a walk-on with no
+    // surname and no number is a row nobody can follow up.
+    const event = await occurredEvent();
+
+    const error = await expectRefused(
+      recordWalkUpAttendance(actorPersonId, event.id, { ...WALK_ON, [field]: "   " }),
+    );
+
+    expect(error.kind).toBe("constraint_violated");
+    expect(error.message).toBe(message);
+    expect(await attendanceRows(event.id)).toEqual([]);
+    expect(await mintedPerson()).toEqual([]);
+  });
+
+  it("refuses a phone number with no digits in it, and writes nothing", async () => {
     const event = await occurredEvent();
     const error = await expectRefused(
-      recordWalkUpAttendance(actorPersonId, event.id, {
-        name: `Devon ${NAME_MARKER}`,
-        contact: "ask Sam",
-        presence: "present",
-        membershipId: null,
-      }),
+      recordWalkUpAttendance(actorPersonId, event.id, { ...WALK_ON, phone: "ask Sam" }),
     );
 
     expect(error.kind).toBe("constraint_violated");
     expect(await attendanceRows(event.id)).toEqual([]);
-    const person = await observer.query("select id from public.people where family_name = $1", [
-      NAME_MARKER,
-    ]);
-    expect(person.rowCount).toBe(0);
+    expect(await mintedPerson()).toEqual([]);
   });
 
-  it("needs a name, and says which name", async () => {
+  it("refuses an address with no @, and writes nothing", async () => {
     const event = await occurredEvent();
     const error = await expectRefused(
-      recordWalkUpAttendance(actorPersonId, event.id, {
-        name: "   ",
-        contact: null,
-        presence: "present",
-        membershipId: null,
-      }),
+      recordWalkUpAttendance(actorPersonId, event.id, { ...WALK_ON, email: "devon at example" }),
     );
-    expect(error.message).toBe(WALK_UP_NAME_REQUIRED);
+
+    expect(error.kind).toBe("constraint_violated");
+    expect(await attendanceRows(event.id)).toEqual([]);
+    expect(await mintedPerson()).toEqual([]);
   });
 
-  it("anchors to the membership when the operator recognises them, not to a new person", async () => {
-    const event = await occurredEvent(2);
-    const candidates = await readWalkUpCandidates(event.id);
-    expect(candidates.length).toBeGreaterThan(0);
+  it("accepts the messy contacts the club's real files contain", async () => {
+    // As forgiving as LAN-74's intake, for the recorded reason: a contact the
+    // club cannot store is a contact the club loses.
+    const event = await occurredEvent();
 
     await recordWalkUpAttendance(actorPersonId, event.id, {
-      name: "Ignored, because the membership names them",
-      contact: null,
-      presence: "present",
-      membershipId: candidates[0].membershipId,
+      ...WALK_ON,
+      phone: "07700 90010",
+      email: "devon@example.ac.ox",
     });
 
-    const rows = await attendanceRows(event.id);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
-      capacity: "player",
-      season_membership_id: candidates[0].membershipId,
-      person_id: null,
-    });
-
-    // No second person was minted for somebody the club already has.
-    const minted = await observer.query("select id from public.people where family_name = $1", [
-      NAME_MARKER,
-    ]);
-    expect(minted.rowCount).toBe(0);
+    expect(await attendanceRows(event.id)).toHaveLength(1);
   });
 
-  it("offers no candidate who is already invited to this event", async () => {
-    const event = await occurredEvent(3);
-    const invited = await observer.query<{ season_membership_id: string }>(
-      "select season_membership_id from public.invitations where event_id = $1",
-      [event.id],
-    );
+  /**
+   * The person, the contacts and the prospect are one act with the attendance
+   * row, and this is the only test that proves it.
+   *
+   * The failure has to happen **inside** the transaction, after
+   * `mintWalkUpProspect` has written. An earlier version of this test injected
+   * an invalid `presence`, which `requirePresence` rejects thirteen lines
+   * before `withTransaction` opens — so it asserted that nothing was written by
+   * a call that had executed no SQL, and would have stayed green if the prospect
+   * were committed on its own connection. Independent review caught it.
+   *
+   * An unresolvable actor does the job: `requireActor` only checks the string
+   * is not blank, so a syntactically valid id that matches no person passes
+   * every check and then violates `attendance_records.recorded_by_person_id`'s
+   * foreign key on the last insert of the transaction.
+   */
+  it("leaves nothing behind when the write fails inside the transaction", async () => {
+    const event = await occurredEvent();
+    const strangerId = "00000000-0000-4000-8000-0000000000ff";
 
-    const candidates = await readWalkUpCandidates(event.id);
-    const offered = new Set(candidates.map((candidate) => candidate.membershipId));
-    for (const row of invited.rows) {
-      expect(offered.has(row.season_membership_id)).toBe(false);
+    await expectRefused(recordWalkUpAttendance(strangerId, event.id, WALK_ON));
+
+    expect(await attendanceRows(event.id)).toEqual([]);
+    expect(await mintedPerson(), "the person must be rolled back too").toEqual([]);
+
+    // Both scoped to this suite's own marker, not to the whole database. Vitest
+    // runs suites in parallel against one stack, and the local stack is also
+    // the review environment — a global count would report on whatever somebody
+    // else had just done.
+    for (const table of ["recruitment_prospects", "contact_points"] as const) {
+      const rows = await observer.query<{ count: string }>(
+        `select count(*)::text as count from public.${table}
+          where person_id in (select id from public.people where family_name = $1)`,
+        [NAME_MARKER],
+      );
+      expect(Number(rows.rows[0].count), `${table} must be rolled back`).toBe(0);
     }
   });
 
-  it("refuses a roster match from another season", async () => {
+  it("still refuses a blank actor before it opens a transaction", async () => {
+    // The cheap guard is still there, and still fires first. Kept as its own
+    // case so the test above stays honestly about the transaction boundary
+    // rather than quietly covering two different refusals.
     const event = await occurredEvent();
-    const foreign = await observer.query<{ id: string }>(
-      `select sm.id from public.season_memberships sm
-        where sm.season_id <> $1 limit 1`,
-      [event.seasonId],
-    );
 
-    const error = await expectRefused(
-      recordWalkUpAttendance(actorPersonId, event.id, {
-        name: `Devon ${NAME_MARKER}`,
-        contact: null,
-        presence: "present",
-        membershipId: foreign.rows[0].id,
-      }),
-    );
-    expect(error.kind).toBe("not_found");
-    expect(await attendanceRows(event.id)).toEqual([]);
+    const error = await expectRefused(recordWalkUpAttendance("   ", event.id, WALK_ON));
+
+    expect(error.kind).toBe("constraint_violated");
+    expect(await mintedPerson()).toEqual([]);
   });
 });
 
@@ -806,10 +889,11 @@ describe("the wall between RSVP and attendance", () => {
     await recordAttendance(actorPersonId, event.id, keyFor(1), "present");
     await recordAttendance(actorPersonId, event.id, keyFor(2), "absent");
     await recordWalkUpAttendance(actorPersonId, event.id, {
-      name: `Devon ${NAME_MARKER}`,
-      contact: null,
+      givenName: "Devon",
+      familyName: NAME_MARKER,
+      phone: "+44 7700 900105",
+      email: null,
       presence: "present",
-      membershipId: null,
     });
 
     expect(board).toHaveLength(3);
@@ -882,10 +966,11 @@ describe("the wall between RSVP and attendance", () => {
   it("reports attended_without_invitation — the gap LAN-80 pinned, corrected in LAN-81", async () => {
     const event = await occurredEvent(2);
     await recordWalkUpAttendance(actorPersonId, event.id, {
-      name: `Devon ${NAME_MARKER}`,
-      contact: null,
+      givenName: "Devon",
+      familyName: NAME_MARKER,
+      phone: "+44 7700 900105",
+      email: null,
       presence: "present",
-      membershipId: null,
     });
 
     // The event has invitations — which is the whole point. Under the old view

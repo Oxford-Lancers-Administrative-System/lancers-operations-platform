@@ -4,57 +4,58 @@ import { useActionState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { ATTENDANCE_PRESENCES, type WalkUpCandidate } from "@/lib/services/attendance-vocabulary";
 import { recordWalkUpAction } from "./actions";
 import { EMPTY_WALK_UP_STATE } from "./action-state";
 import {
-  PRESENCE_LABELS,
-  WALK_UP_CONTACT_LABEL,
+  WALK_UP_ALWAYS_PRESENT,
   WALK_UP_DETAIL,
+  WALK_UP_EMAIL_LABEL,
+  WALK_UP_FAMILY_NAME_LABEL,
+  WALK_UP_GIVEN_NAME_LABEL,
   WALK_UP_HEADLINE,
-  WALK_UP_MATCH_HELP,
-  WALK_UP_MATCH_LABEL,
-  WALK_UP_MATCH_NONE,
-  WALK_UP_NAME_LABEL,
-  WALK_UP_PRESENCE_LABEL,
+  WALK_UP_PHONE_LABEL,
   WALK_UP_RECONCILIATION_NOTE,
   WALK_UP_SUBMIT,
 } from "./presentation";
 
 /**
- * UX-73 — the whole of what the club asks a walk-up for. LAN-80.
+ * Adding a walk-on — Brian, 14 August 2026.
  *
- * Four fields, three of which are optional, because Brian's 12 August 2026
- * decision fixes the shape: capture the minimum identity needed to tell this
- * person apart, record the attendance now, flag it for later reconciliation,
- * and do not launch the recruitment or onboarding workflow on the field. A form
- * that asked for a date of birth, an emergency contact and a subscription
- * status would be the thing that decision exists to prevent — and the person is
- * standing on a pitch in October waiting to be told where to go.
+ * ## The same four fields as adding a player, in the same order
  *
- * **Possible roster match** is the one field that is not about identity. It is
- * there so that a player who simply never got an invitation is recorded against
- * their own membership rather than as a second person with the same name, which
- * is a merge somebody would have to do by hand later. Choosing one creates no
- * invitation: they genuinely were not asked, and pretending otherwise would
- * falsify the mismatch the Monday report is supposed to surface.
+ * First name, last name, phone, email. That is not a coincidence and it is not
+ * a coincidence that they are the same four `/operate/roster/new` asks for:
+ * "it should be almost identical to adding a player… to grab as much as they
+ * can". Two screens that add a person to the club should not feel like two
+ * different products, and the operator holding the phone should not have to
+ * work out which one they are on.
  *
- * The reconciliation note is not decoration. The approved criterion is that the
- * record "cannot be mistaken for a completed membership", so the screen says so
- * before the operator commits, and the row it creates carries the flag
- * afterwards.
+ * The first version of this screen asked for one **Name** field, one combined
+ * **Email or phone** field, and a **Possible roster match** dropdown. Brian's
+ * verdict on the built screen was blunt and correct on every count: the name
+ * field does not align with how the club stores a name, one field cannot hold
+ * two different contact details, and the roster match was clutter — "they know
+ * who's on their roster, there are only 40 people".
+ *
+ * ## What is required, and why it is stricter than intake
+ *
+ * First name, last name and phone. The returner intake requires only a first
+ * name, because the club's own files are full of records that never had more —
+ * and that is right for somebody already known. A walk-on is the opposite case:
+ * nobody knew them ten minutes ago, and the entire point of writing them down
+ * is that somebody follows them up. A walk-on with no surname and no number is
+ * a row nobody can act on.
+ *
+ * ## What it creates
+ *
+ * A person, their contact points, and a **recruitment prospect** — see
+ * `recordWalkUpAttendance`. Not a season membership: they are not on the team,
+ * which is what made them a walk-on.
  */
-export function WalkUpForm({
-  eventId,
-  candidates,
-}: {
-  eventId: string;
-  candidates: WalkUpCandidate[];
-}) {
+export function WalkUpForm({ eventId }: { eventId: string }) {
   const [state, formAction, pending] = useActionState(recordWalkUpAction, EMPTY_WALK_UP_STATE);
   const values = state.values;
 
@@ -82,52 +83,44 @@ export function WalkUpForm({
         ) : null}
 
         <TextField
-          label={WALK_UP_NAME_LABEL}
-          name="name"
-          defaultValue={values?.name ?? ""}
+          label={WALK_UP_GIVEN_NAME_LABEL}
+          name="givenName"
+          defaultValue={values?.givenName ?? ""}
           required
           fullWidth
           autoFocus
-          helperText="Whatever they gave you. A first name on its own is enough."
         />
 
         <TextField
-          label={WALK_UP_CONTACT_LABEL}
-          name="contact"
-          defaultValue={values?.contact ?? ""}
+          label={WALK_UP_FAMILY_NAME_LABEL}
+          name="familyName"
+          defaultValue={values?.familyName ?? ""}
+          required
+          fullWidth
+        />
+
+        <TextField
+          label={WALK_UP_PHONE_LABEL}
+          name="phone"
+          type="tel"
+          defaultValue={values?.phone ?? ""}
+          required
+          fullWidth
+          helperText="How the club follows them up. Stored exactly as it was given."
+        />
+
+        <TextField
+          label={WALK_UP_EMAIL_LABEL}
+          name="email"
+          type="email"
+          defaultValue={values?.email ?? ""}
           fullWidth
           helperText="Optional. Stored exactly as it was given."
         />
 
-        <TextField
-          label={WALK_UP_PRESENCE_LABEL}
-          name="presence"
-          select
-          defaultValue={values?.presence || "present"}
-          fullWidth
-        >
-          {ATTENDANCE_PRESENCES.map((presence) => (
-            <MenuItem key={presence} value={presence}>
-              {PRESENCE_LABELS[presence]}
-            </MenuItem>
-          ))}
-        </TextField>
-
-        <TextField
-          label={WALK_UP_MATCH_LABEL}
-          name="membershipId"
-          select
-          defaultValue={values?.membershipId ?? ""}
-          fullWidth
-          helperText={WALK_UP_MATCH_HELP}
-        >
-          <MenuItem value="">{WALK_UP_MATCH_NONE}</MenuItem>
-          {candidates.map((candidate) => (
-            <MenuItem key={candidate.membershipId} value={candidate.membershipId}>
-              {candidate.displayName}
-            </MenuItem>
-          ))}
-        </TextField>
+        <Typography variant="body2" color="text.secondary" data-testid="walk-up-presence-note">
+          {WALK_UP_ALWAYS_PRESENT}
+        </Typography>
 
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
           <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>

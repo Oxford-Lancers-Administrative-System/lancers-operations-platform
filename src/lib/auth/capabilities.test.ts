@@ -19,8 +19,11 @@ import {
   capabilityRequirement,
   capabilityRoleCodes,
   COACH_ROLE_CODES,
+  describeHeldCoachingSeats,
   describeRoleRequirement,
   describeRoles,
+  isNarrowAttendanceRecorder,
+  NARROW_RECORDER_CAPABILITIES,
   roleCodesPermit,
   type CapabilityKey,
 } from "./capabilities";
@@ -513,5 +516,100 @@ describe("row 6 — a requirement sentence names the action's need, never the ac
       const sentence = capabilityRequirement(key);
       expect(sentence).not.toMatch(/you hold|your role|currently hold|assigned to|held by/i);
     }
+  });
+});
+
+/**
+ * The narrow attendance recorder — LAN-110.
+ *
+ * `slice-ux.md` § 3 gives a coaching assignment "only the occurred-event
+ * attendance surface", and this derivation is what the shell, the gate and both
+ * coach screens read to decide it. The last two cases walk the whole map rather
+ * than naming examples, because the failure worth catching is a capability
+ * added next year that a coaching seat quietly holds.
+ */
+describe("LAN-110 — who receives the narrow coach surface", () => {
+  it("classifies each coaching seat on its own", () => {
+    for (const code of COACHES) {
+      expect(isNarrowAttendanceRecorder([code]), code).toBe(true);
+    }
+  });
+
+  it("classifies a coach who holds several coaching seats", () => {
+    expect(isNarrowAttendanceRecorder(COACHES)).toBe(true);
+    expect(isNarrowAttendanceRecorder(["head_coach", "offence_coach"])).toBe(true);
+  });
+
+  it("does not narrow an operator who also holds a non-coaching capability", () => {
+    // The case `attendance_recorder`'s own note calls out: a Secretary who also
+    // coaches keeps the operator's board. § 3 describes what a coach receives;
+    // it is not a rule for taking away authority a recorded decision granted.
+    for (const code of ["president", "vice_president", "secretary", "general_manager"]) {
+      expect(isNarrowAttendanceRecorder(["head_coach", code]), code).toBe(false);
+    }
+  });
+
+  it("does not narrow an operator holding no capability at all", () => {
+    // An operator with nothing granted is an ordinary operator with nothing
+    // granted — they keep the ordinary shell and are refused action by action.
+    // Narrowing them would hand the coach's surface to somebody holding no
+    // coaching seat, which is the one direction this must never fail in.
+    expect(isNarrowAttendanceRecorder([])).toBe(false);
+    expect(isNarrowAttendanceRecorder(["it_officer", "kit_manager", "social_secretary"])).toBe(
+      false,
+    );
+    expect(isNarrowAttendanceRecorder(["treasurer"])).toBe(false);
+  });
+
+  it("holds exactly the two attendance capabilities, and no other", () => {
+    // The set is the definition, so it is asserted as a set. A third capability
+    // added to it later would silently widen what a coach may reach.
+    expect([...NARROW_RECORDER_CAPABILITIES].sort()).toEqual([
+      "attendance_recorder",
+      "attendance_recording",
+    ]);
+  });
+
+  it("narrows nobody who holds a capability outside that set", () => {
+    for (const key of CAPABILITY_KEYS) {
+      if (NARROW_RECORDER_CAPABILITIES.includes(key)) continue;
+      for (const code of capabilityRoleCodes(key)) {
+        expect(isNarrowAttendanceRecorder([code, "head_coach"]), `${key} / ${code}`).toBe(false);
+      }
+    }
+  });
+
+  it("never narrows an actor who could not then record attendance", () => {
+    // A narrow recorder is offered the attendance surface and nothing else, so
+    // one who cannot record would be left with no surface at all.
+    for (const codes of [[], ["president"], ["treasurer"], ["it_officer"], COACHES]) {
+      if (!isNarrowAttendanceRecorder(codes)) continue;
+      expect(roleCodesPermit(codes, "attendance_recorder"), codes.join()).toBe(true);
+      expect(roleCodesPermit(codes, "attendance_recording"), codes.join()).toBe(true);
+    }
+  });
+});
+
+describe("LAN-110 — captioning the coach's own seat", () => {
+  it("names the seats this operator holds, and only those", () => {
+    expect(describeHeldCoachingSeats(["head_coach"])).toBe("Head Coach");
+    expect(describeHeldCoachingSeats(["offence_coach", "defence_coach"])).toBe(
+      "Offence Coach or Defence Coach",
+    );
+  });
+
+  it("says nothing at all for an operator holding no coaching seat", () => {
+    expect(describeHeldCoachingSeats(["president"])).toBe("");
+    expect(describeHeldCoachingSeats([])).toBe("");
+  });
+
+  it("does not name a seat the operator does not hold", () => {
+    // The caption is a disclosure to the account's own holder about their own
+    // account. Listing the other two coaching seats beside the one they hold
+    // would make it a statement about the club's coaching staff instead.
+    const caption = describeHeldCoachingSeats(["defence_coach"]);
+    expect(caption).toBe("Defence Coach");
+    expect(caption).not.toContain("Head Coach");
+    expect(caption).not.toContain("Offence Coach");
   });
 });

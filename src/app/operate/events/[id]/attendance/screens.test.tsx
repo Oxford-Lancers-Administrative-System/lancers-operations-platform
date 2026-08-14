@@ -32,7 +32,6 @@ vi.mock("@/lib/services/attendance", async (importOriginal) => {
   return {
     ...actual,
     readAttendanceBoard: vi.fn(),
-    readWalkUpCandidates: vi.fn(),
     recordAttendance: vi.fn(),
     recordWalkUpAttendance: vi.fn(),
     removeAttendance: vi.fn(),
@@ -61,7 +60,6 @@ import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
   readAttendanceBoard,
-  readWalkUpCandidates,
   recordAttendance,
   type AttendanceBoard,
   type AttendanceParticipant,
@@ -310,7 +308,10 @@ describe("UX-71 — attendance is not available yet", () => {
     expect(screen.queryByTestId("attendance-board")).toBeNull();
     expect(screen.queryByTestId("attendance-row")).toBeNull();
     expect(container.textContent).not.toContain("Avery Fielding");
-    expect(container.textContent).toContain("You do not have access to this action");
+    // LAN-110 replaced the general UX-05 on this route with UX-96, whose whole
+    // subject is that the reader may not take this register. The property under
+    // test — no board, no names — is unchanged.
+    expect(container.textContent).toContain("You cannot record attendance for this event");
   });
 
   it("says the event is gone rather than rendering an empty board", async () => {
@@ -485,7 +486,13 @@ describe("UX-72 — the attendance board", () => {
 
     const { container } = render(await AttendancePage(attendanceProps()));
 
-    expect(screen.getByTestId("walk-up-chip").textContent).toContain("to reconcile");
+    // The mismatch here is somebody who said no, so they are in **Everyone
+    // else**, which is closed until the recorder opens it. The walk-up is in
+    // its own group, which is open. Opening the one is part of the test: the
+    // chips are what is under the disclosure, not what replaced it.
+    fireEvent.click(screen.getByTestId("attendance-group-toggle-everyone_else"));
+
+    expect(screen.getByTestId("walk-up-chip").textContent).toContain("in recruitment");
     expect(screen.getByTestId("mismatch-chip").textContent).toContain("turned up");
     expect(container.textContent).toContain("Walk-up · never invited");
   });
@@ -576,19 +583,23 @@ describe("the board's filters", () => {
 describe("UX-73 — add walk-up attendance", () => {
   beforeEach(() => {
     vi.mocked(readAttendanceBoard).mockResolvedValue(board());
-    vi.mocked(readWalkUpCandidates).mockResolvedValue([
-      { membershipId: MEMBERSHIP_ID, displayName: "Leo Hartwell" },
-    ]);
   });
 
-  it("asks for a name, a contact, a state and a possible roster match, and nothing else", async () => {
+  it("asks the same four fields as adding a player, and nothing else", async () => {
+    // Brian, 14 August 2026: "it should be almost identical to adding a
+    // player… first name, last name, phone, and email".
     const { container } = render(await AttendancePage(attendanceProps({ add: "walk-up" })));
 
-    expect(container.textContent).toContain("Add walk-up attendance");
-    expect(container.textContent).toContain("Capture only enough identity to record attendance");
-    expect(screen.getByLabelText(/^Name/)).toBeTruthy();
-    expect(screen.getByLabelText(/Email or phone/)).toBeTruthy();
-    expect(container.textContent).toContain("Possible roster match");
+    expect(container.textContent).toContain("Add a walk-on");
+    expect(screen.getByLabelText(/^First name/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Last name/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Phone/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Email/)).toBeTruthy();
+
+    // The three the first version had, all gone.
+    expect(container.textContent).not.toContain("Possible roster match");
+    expect(container.textContent).not.toContain("Email or phone");
+    expect(screen.queryByLabelText(/^Name$/)).toBeNull();
 
     // Nothing recruitment- or onboarding-shaped is asked for on the field.
     for (const absent of ["date of birth", "emergency", "subscription", "consent", "position"]) {
@@ -596,12 +607,25 @@ describe("UX-73 — add walk-up attendance", () => {
     }
   });
 
+  it("does not ask what the attendance was, and says what it recorded", async () => {
+    // Brian, 14 August 2026. Somebody is being typed into a form because they
+    // are standing in front of the person typing; an uninvited person who is
+    // absent is not an event that happens.
+    const { container } = render(await AttendancePage(attendanceProps({ add: "walk-up" })));
+
+    expect(screen.queryByLabelText(/^Attendance/)).toBeNull();
+    expect(container.querySelector("[name='presence']")).toBeNull();
+    expect(screen.getByTestId("walk-up-presence-note").textContent).toBe(
+      "Recorded as Present. Correct it on their row afterwards if you need to.",
+    );
+  });
+
   it("says the record is flagged and creates no membership, before it is committed", async () => {
     const { container } = render(await AttendancePage(attendanceProps({ add: "walk-up" })));
 
     const note = screen.getByTestId("walk-up-reconciliation-note");
-    expect(note.textContent).toContain("flagged for later reconciliation");
-    expect(note.textContent).toContain("does not create or activate a membership");
+    expect(note.textContent).toContain("added to recruitment");
+    expect(note.textContent).toContain("does not put them on the roster");
 
     // And it says that without naming an issue tracker. A sentence pointing at
     // LAN-85 was here and Brian cut it: an operator on a pitch has no use for
@@ -614,9 +638,578 @@ describe("UX-73 — add walk-up attendance", () => {
   it("confirms the same two facts after it is committed", async () => {
     const { container } = render(await AttendancePage(attendanceProps({ added: "walk-up" })));
 
-    expect(screen.getByTestId("walk-up-added").textContent).toContain(
-      "flagged for later reconciliation",
+    expect(screen.getByTestId("walk-up-added").textContent).toContain("in recruitment");
+    expect(container.textContent).toContain("were not put on the roster");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// UX-90 to UX-97 — the same route, seen by a coaching assignment. LAN-110
+// ---------------------------------------------------------------------------
+
+/** An active Head Coach and nothing else — LAN-110's actor. */
+function coach(code = "head_coach"): ResolvedOperator {
+  return { ...operator([code]), displayName: "Casey North" };
+}
+
+function givenCoach(code = "head_coach") {
+  vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: coach(code) });
+}
+
+describe("UX-91 — the coach's board", () => {
+  for (const code of ["head_coach", "offence_coach", "defence_coach"]) {
+    it(`opens for an active ${code} assignment`, async () => {
+      givenCoach(code);
+      vi.mocked(readAttendanceBoard).mockResolvedValue(board());
+
+      render(await AttendancePage(attendanceProps()));
+
+      expect(screen.getByTestId("attendance-board")).toHaveAttribute("data-view", "coach");
+      expect(screen.getByTestId("attendance-row")).toBeVisible();
+    });
+  }
+
+  it("offers all four states, and the walk-up", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(board());
+
+    render(await AttendancePage(attendanceProps()));
+
+    for (const label of ["Present", "Late", "Excused", "Absent"]) {
+      expect(screen.getByRole("button", { name: label }), label).toBeVisible();
+    }
+    expect(screen.getByTestId("add-walk-up")).toBeVisible();
+  });
+
+  it("states what the surface withholds, rather than leaving it to be noticed", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(board());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("coach-scope-note")).toBeVisible();
+    expect(container.textContent).toContain(
+      "RSVP reasons, contact, availability and administration are omitted",
     );
-    expect(container.textContent).toContain("no membership was created");
+    expect(container.textContent).toContain("Occurred · coach recorder view");
+  });
+
+  it("carries the standing RSVP, which is what the coach is given", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(board());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("Avery Fielding");
+    expect(container.textContent).toMatch(/Attending/);
+  });
+
+  it("shows the latest committed value with its actor and time", async () => {
+    // LAN-110's two-recorder criterion, at the presentation end: the value on
+    // screen is the committed one and it says who put it there.
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        participants: [
+          participant({
+            presence: "present",
+            recordedAt: "2026-10-14T20:07:00Z",
+            recordedByName: "Morgan Pike",
+          }),
+        ],
+      }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("Morgan Pike");
+    expect(screen.getByTestId("attendance-committed").textContent).toMatch(/Saved/);
+  });
+
+  it("withholds the operator's chrome — counts, mismatch and the event detail", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        participants: [
+          participant({ rsvp: "no", presence: "present", mismatch: "said_no_but_attended" }),
+        ],
+      }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(screen.queryByTestId("count-mismatches")).toBeNull();
+    expect(screen.queryByTestId("count-invited")).toBeNull();
+    expect(screen.queryByTestId("mismatch-chip")).toBeNull();
+    expect(screen.queryByTestId("rsvp-separate-note")).toBeNull();
+    // **Complete attendance** returns to `/operate/events/[id]`, which is event
+    // administration and refuses a coach outright.
+    expect(screen.queryByTestId("complete-attendance")).toBeNull();
+    expect(container.innerHTML).not.toContain(`/operate/events/${EVENT_ID}"`);
+  });
+
+  it("offers no way to remove a record, because removal unwinds the assertion", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        participants: [
+          participant({
+            presence: "present",
+            recordedAt: "2026-10-14T20:07:00Z",
+            recordedByName: "Casey North",
+          }),
+        ],
+      }),
+    );
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.queryByTestId("remove-attendance-open")).toBeNull();
+  });
+
+  it("still offers removal to an operator who may assert occurrence", async () => {
+    // The narrowing reaches the coach and nobody else.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        participants: [
+          participant({
+            presence: "present",
+            recordedAt: "2026-10-14T20:07:00Z",
+            recordedByName: "Morgan Pike",
+          }),
+        ],
+      }),
+    );
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("remove-attendance-open")).toBeVisible();
+  });
+
+  it("is handed a participant that has no reason, contact or availability to leak", async () => {
+    // The strongest form of "the coach cannot see it" is that the payload has
+    // no field for it. Asserted as an exact key set: adding `rsvpReason` or
+    // `phone` to the participant type fails here, before any screen has had the
+    // chance to render it. § 3 forbids every one of them on this surface.
+    const keys = Object.keys(participant()).sort();
+
+    expect(keys).toEqual([
+      "capacity",
+      "displayName",
+      "isWalkUp",
+      "key",
+      "mismatch",
+      "presence",
+      "recordedAt",
+      "recordedByName",
+      "rsvp",
+    ]);
+  });
+
+  it("renders no email address and no telephone number", async () => {
+    // The other half, at the DOM: whatever the fixture carries, nothing that
+    // looks like a contact detail reaches the markup a browser is sent.
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({ participants: [participant({ rsvp: "no" })] }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.innerHTML).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+    expect(container.innerHTML).not.toMatch(/(?:\+44|0)\d[\d\s]{8,}/);
+  });
+});
+
+describe("UX-90 — attendance is not open, told to a coach", () => {
+  for (const status of ["approved", "cancelled", "not_held"] as const) {
+    it(`refuses the board for a ${status} event, and does not tell a coach to assert it`, async () => {
+      givenCoach();
+      vi.mocked(readAttendanceBoard).mockResolvedValue(
+        board({ event: detail({ status }), isOpen: false, participants: [] }),
+      );
+
+      const { container } = render(await AttendancePage(attendanceProps()));
+
+      expect(screen.getByTestId("coach-attendance-locked")).toBeVisible();
+      expect(container.textContent).toContain("Attendance is not open");
+      expect(container.textContent).toContain(
+        "An authorized operator has not marked this event as occurred",
+      );
+      expect(container.textContent).toContain(
+        "Coach attendance access does not include Mark occurred or Mark not held",
+      );
+      // The operator's wording tells the reader to go and mark it. This reader
+      // may not, and the service refuses them if they try.
+      expect(container.textContent).not.toContain("must first mark this event");
+      expect(screen.queryByTestId("attendance-row")).toBeNull();
+    });
+  }
+
+  it("returns the coach to their own list, never to the event detail", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({ event: detail({ status: "approved" }), isOpen: false, participants: [] }),
+    );
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByRole("link", { name: "Return to eligible events" })).toHaveAttribute(
+      "href",
+      "/operate/events",
+    );
+  });
+
+  it("keeps the operator's own locked screen unchanged", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({ event: detail({ status: "approved" }), isOpen: false, participants: [] }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("attendance-locked")).toBeVisible();
+    expect(container.textContent).toContain("Attendance is not available yet");
+  });
+});
+
+describe("UX-96 — you cannot record attendance for this event", () => {
+  it("refuses an ordinary player, with no board and no names", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: plainOperator(),
+    });
+    vi.mocked(readAttendanceBoard).mockResolvedValue(board());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("coach-not-permitted")).toBeVisible();
+    expect(container.textContent).toContain(
+      "This account does not have an active Head Coach, Offensive Coordinator or Defensive " +
+        "Coordinator assignment for this scope.",
+    );
+    expect(container.textContent).toContain(
+      "No roster, contact, RSVP reason, availability, attendance data or operator navigation " +
+        "is exposed.",
+    );
+    expect(screen.queryByTestId("attendance-board")).toBeNull();
+    expect(container.textContent).not.toContain("Avery Fielding");
+  });
+
+  it("refuses a coach whose seat has ended, exactly as it refuses anybody else", async () => {
+    // An ended assignment is not in `roleCodes` at all — `resolveOperatorAccess`
+    // bounds effectiveness at both ends — so a coach out of post reaches this
+    // screen and not the board.
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator([]),
+    });
+    vi.mocked(readAttendanceBoard).mockResolvedValue(board());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("coach-not-permitted")).toBeVisible();
+  });
+
+  it("names no role the reader holds, and nobody who holds the missing one", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator(["kit_manager", "social_secretary"]),
+    });
+    vi.mocked(readAttendanceBoard).mockResolvedValue(board());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    const html = container.innerHTML.toLowerCase();
+    for (const code of ["kit_manager", "kit manager", "social secretary"]) {
+      expect(html, code).not.toContain(code);
+    }
+  });
+
+  it("sends an unlinked account to the account state, not to this screen", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "unlinked" });
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.queryByTestId("coach-not-permitted")).toBeNull();
+    expect(screen.queryByTestId("attendance-board")).toBeNull();
+  });
+
+  it("sends an inactive account to the account state, not to this screen", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "inactive" });
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.queryByTestId("coach-not-permitted")).toBeNull();
+    expect(screen.queryByTestId("attendance-board")).toBeNull();
+  });
+});
+
+/**
+ * The two groups — Brian, 14 August 2026.
+ *
+ * "I want to look at the people who RSVPed yes, and then I want everyone else
+ * (no or otherwise)… those are not the people I'm expecting to be there." Both
+ * boards get it: the row list is one implementation and the operator's board
+ * reads the same way.
+ */
+describe("the board is read in two groups", () => {
+  /** Four people whose names sort differently from the order they arrive in. */
+  function mixedBoard() {
+    return board({
+      participants: [
+        participant({ key: "player:d", displayName: "Zara Winterbourne", rsvp: "yes" }),
+        participant({ key: "player:c", displayName: "Alwyn Cholmondley", rsvp: "yes" }),
+        participant({ key: "player:b", displayName: "Samira Quinn", rsvp: null }),
+        participant({ key: "player:a", displayName: "Bar Sedgewick", rsvp: "no" }),
+      ],
+    });
+  }
+
+  function namesIn(group: "attending" | "everyone_else" | "walk_ups"): string[] {
+    const panel = screen.getByTestId(`attendance-group-${group}`);
+    return [...panel.querySelectorAll("[data-testid='attendance-row']")].map(
+      (row) => row.querySelector("p")?.textContent ?? "",
+    );
+  }
+
+  it("puts the people who said yes in one group and everybody else in the other", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+    fireEvent.click(screen.getByTestId("attendance-group-toggle-everyone_else"));
+
+    expect(namesIn("attending")).toEqual(["Alwyn Cholmondley", "Zara Winterbourne"]);
+    expect(namesIn("everyone_else")).toEqual(["Bar Sedgewick", "Samira Quinn"]);
+  });
+
+  it("sorts each group by name, not by the order the service returned", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    // The fixture arrives Zara, Alwyn, Samira, Bar. Sorted, Alwyn leads.
+    expect(namesIn("attending")).toEqual([...namesIn("attending")].sort());
+  });
+
+  /**
+   * Brian, 14 August 2026: a walk-up gets "its own separate group that
+   * attended", at the bottom.
+   *
+   * It cannot be in either of the others without lying. "Everyone else" says
+   * the club was not expecting them, next to people who are not there;
+   * "Attending" means *said yes* throughout this product, and Locked
+   * Requirement 7 forbids reading somebody's presence as their intent.
+   */
+  function walkUpBoard() {
+    return board({
+      participants: [
+        participant({ key: "player:x", displayName: "Alwyn Cholmondley", rsvp: "yes" }),
+        participant({ key: "player:y", displayName: "Bar Sedgewick", rsvp: "no" }),
+        participant({
+          key: `guest:${WALK_UP_PERSON_ID}`,
+          displayName: "Devon Skye",
+          capacity: "guest",
+          rsvp: null,
+          isWalkUp: true,
+          presence: "present",
+        }),
+      ],
+    });
+  }
+
+  it("gives a walk-up its own group, and keeps them out of the other two", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(walkUpBoard());
+
+    render(await AttendancePage(attendanceProps()));
+    fireEvent.click(screen.getByTestId("attendance-group-toggle-everyone_else"));
+
+    expect(namesIn("walk_ups")).toEqual(["Devon Skye"]);
+    expect(namesIn("attending")).toEqual(["Alwyn Cholmondley"]);
+    expect(namesIn("everyone_else")).toEqual(["Bar Sedgewick"]);
+  });
+
+  it("puts the walk-up group last, under the two RSVP groups", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(walkUpBoard());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    const groups = [...container.querySelectorAll("[data-testid^='attendance-group-']")]
+      .map((node) => node.getAttribute("data-testid"))
+      .filter((id) => id !== null && !id.includes("toggle") && !id.includes("count"));
+
+    expect(groups).toEqual([
+      "attendance-group-attending",
+      "attendance-group-everyone_else",
+      "attendance-group-walk_ups",
+    ]);
+  });
+
+  it("opens the walk-up group, because it is the receipt for what was just done", async () => {
+    // Empty at almost every event, and an empty group is not drawn at all — so
+    // the open state costs nothing until the recorder has just added somebody
+    // and been returned here to see it.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(walkUpBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("attendance-group-walk_ups")).toHaveAttribute("data-open", "true");
+  });
+
+  it("says what the walk-up group is, without calling it an RSVP", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(walkUpBoard());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("Walk-ups");
+    expect(container.textContent).toContain("Turned up uninvited, recorded present, to reconcile");
+    // And the RSVP group's own line no longer claims to hold them.
+    expect(container.textContent).toContain("Not attending, and no response");
+  });
+
+  it("opens Attending and closes Everyone else, and lets either be changed", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("attendance-group-attending")).toHaveAttribute("data-open", "true");
+    expect(screen.getByTestId("attendance-group-everyone_else")).toHaveAttribute(
+      "data-open",
+      "false",
+    );
+
+    fireEvent.click(screen.getByTestId("attendance-group-toggle-attending"));
+    expect(screen.getByTestId("attendance-group-attending")).toHaveAttribute("data-open", "false");
+  });
+
+  it("counts what is under each heading", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("attendance-group-count-attending").textContent).toBe("2");
+    expect(screen.getByTestId("attendance-group-count-everyone_else").textContent).toBe("2");
+  });
+
+  it("draws no heading for a group with nobody in it", async () => {
+    // An empty "Attending (0)" reads as a team nobody said yes to.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({ participants: [participant({ rsvp: "no" })] }),
+    );
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.queryByTestId("attendance-group-attending")).toBeNull();
+    expect(screen.getByTestId("attendance-group-everyone_else")).toBeVisible();
+  });
+
+  it("groups the operator's board the same way", async () => {
+    // One row list, one behaviour — the answer to "does this apply to the
+    // operator's board too", 14 August 2026.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("attendance-board")).toHaveAttribute("data-view", "operator");
+    expect(screen.getByTestId("attendance-group-attending")).toBeVisible();
+  });
+
+  it("groups the coach's board the same way", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("attendance-board")).toHaveAttribute("data-view", "coach");
+    expect(screen.getByTestId("attendance-group-attending")).toBeVisible();
+  });
+
+  it("opens both groups while a search is running", async () => {
+    // A search that only looked inside the open section would be a search that
+    // lies: the recorder types a name, sees nothing, and concludes the person
+    // is not on the event.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps({ q: "Sedgewick" })));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("attendance-group-everyone_else")).toHaveAttribute(
+        "data-open",
+        "true",
+      );
+    });
+    expect(namesIn("everyone_else")).toEqual(["Bar Sedgewick"]);
+  });
+
+  it("puts the groups back the way they were when the search clears", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    const { rerender } = render(await AttendancePage(attendanceProps({ q: "Sedgewick" })));
+    await waitFor(() => {
+      expect(screen.getByTestId("attendance-group-everyone_else")).toHaveAttribute(
+        "data-open",
+        "true",
+      );
+    });
+
+    rerender(await AttendancePage(attendanceProps()));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("attendance-group-everyone_else")).toHaveAttribute(
+        "data-open",
+        "false",
+      );
+    });
+    expect(screen.getByTestId("attendance-group-attending")).toHaveAttribute("data-open", "true");
+  });
+
+  it("keeps a choice the recorder made during the search", async () => {
+    // The one case where "back to the way it was" would undo something they
+    // just did deliberately: an explicit toggle wins over the restore.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    const { rerender } = render(await AttendancePage(attendanceProps({ q: "e" })));
+    await waitFor(() => {
+      expect(screen.getByTestId("attendance-group-everyone_else")).toHaveAttribute(
+        "data-open",
+        "true",
+      );
+    });
+
+    fireEvent.click(screen.getByTestId("attendance-group-toggle-attending"));
+    rerender(await AttendancePage(attendanceProps()));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("attendance-group-attending")).toHaveAttribute(
+        "data-open",
+        "false",
+      );
+    });
+  });
+});
+
+describe("UX-97 — the coach's walk-up", () => {
+  it("offers the same minimal capture, on the same route", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(board());
+
+    const { container } = render(await AttendancePage(attendanceProps({ add: "walk-up" })));
+
+    expect(screen.getByTestId("walk-up-step")).toHaveAttribute("data-view", "coach");
+    expect(container.textContent).toContain("Add a walk-on");
+    expect(container.textContent).toContain("added to recruitment");
+    // The deferred workflow is named and not offered — LAN-85, per LAN-80.
+    expect(screen.queryByRole("link", { name: /onboard/i })).toBeNull();
+  });
+
+  it("cancels back to the board, not to the event", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(board());
+
+    render(await AttendancePage(attendanceProps({ add: "walk-up" })));
+
+    expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute(
+      "href",
+      `/operate/events/${EVENT_ID}/attendance`,
+    );
   });
 });

@@ -63,9 +63,25 @@ import {
 export function AttendanceRow({
   eventId,
   participant,
+  showMismatch = true,
+  mayRemove = true,
 }: {
   eventId: string;
   participant: AttendanceParticipant;
+  /**
+   * The RSVP-versus-attendance mismatch chip. Off for a coaching assignment:
+   * `slice-ux.md` § 3 keeps the mismatch exception on the operator's board and
+   * in the Monday report, and the chip is one word away from the RSVP reason a
+   * coach may not have.
+   */
+  showMismatch?: boolean;
+  /**
+   * Whether **Remove this record** is offered. LAN-110: removal exists to
+   * unwind an occurrence assertion, so it belongs to whoever may make one — and
+   * a coach may not. `removeAttendanceAction` guards on the same capability, so
+   * this decides the control and never the permission.
+   */
+  mayRemove?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(recordAttendanceAction, EMPTY_SAVE_STATE);
 
@@ -99,7 +115,7 @@ export function AttendanceRow({
    */
   const committed: AttendancePresence | null = participant.presence;
   const savedLine = describeCommitted(participant.recordedAt, participant.recordedByName);
-  const mismatch = describeMismatch(participant.mismatch);
+  const mismatch = showMismatch ? describeMismatch(participant.mismatch) : null;
   const failure = mine && state.error !== null ? state.error : null;
 
   return (
@@ -209,7 +225,9 @@ export function AttendanceRow({
         </Stack>
       </Box>
 
-      {committed === null ? null : <RemoveAttendance eventId={eventId} participant={participant} />}
+      {committed === null || !mayRemove ? null : (
+        <RemoveAttendance eventId={eventId} participant={participant} />
+      )}
     </Box>
   );
 }

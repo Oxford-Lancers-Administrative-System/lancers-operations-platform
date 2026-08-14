@@ -128,6 +128,18 @@ afterEach(async () => {
     );
     if (removed.rowCount === 0) break;
   }
+  // The walk-up this suite records is a person the application minted, and
+  // LAN-110 made it a recruitment prospect too — `person_id` is
+  // `on delete restrict`, so without these two the person delete below fails,
+  // the hook aborts, and every later test in the file inherits the leftovers.
+  await observer.query(
+    "delete from public.recruitment_prospects where person_id in (select id from public.people where family_name = $1)",
+    [NAME_MARKER],
+  );
+  await observer.query(
+    "delete from public.contact_points where person_id in (select id from public.people where family_name = $1)",
+    [NAME_MARKER],
+  );
   await observer.query("delete from public.people where family_name = $1", [NAME_MARKER]);
 });
 
@@ -537,10 +549,11 @@ describe("every section comes from the view that owns it", () => {
   it("includes a walk-up as a mismatch, which the corrected view now emits", async () => {
     const event = await occurredEvent();
     await recordWalkUpAttendance(actorPersonId, event.id, {
-      name: `Devon ${NAME_MARKER}`,
-      contact: null,
+      givenName: "Devon",
+      familyName: NAME_MARKER,
+      phone: "07700 900081",
+      email: null,
       presence: "present",
-      membershipId: null,
     });
 
     const section = sectionOf(await preview(), "mismatches");
