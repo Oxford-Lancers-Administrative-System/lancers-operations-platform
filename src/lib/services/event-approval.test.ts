@@ -37,27 +37,9 @@ import {
 } from "./event-audience";
 import { createEventDraft, readEvent, updateEventDraft, type EventDraftInput } from "./events";
 import { responseDeadlineRule, RESPONSE_DEADLINE_RULES } from "./response-deadline";
-import { openObserver } from "../../../tests/helpers/service-layer";
+import { openObserver, SEEDED_IDENTITY_CREATED_AT } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN77ApprovalSuite";
-
-/**
- * The seed stamps every person it creates with one fixed `created_at`; rows a
- * test creates get `now()` instead.
- *
- * This suite's audience is drawn **only** from that cohort, and the reason is a
- * real collision rather than tidiness. Vitest runs suites in parallel against
- * one database, and an audience member is a foreign key: if this suite invited
- * somebody that `roster.test.ts` had just created, that suite's cleanup would
- * fail to delete its own person — `on delete restrict` — and report a baffling
- * integrity error in a test that has nothing to do with approval. Picking "the
- * first few active memberships" did exactly that.
- *
- * Snapshotting ids in `beforeAll` would not fix it: another suite may have
- * created its fixtures before this one started. The seeded cohort is the only
- * population no other suite ever deletes.
- */
-const SEEDED_PEOPLE_CREATED_AT = "2026-08-15T09:00:00Z";
 
 let observer: Client;
 let actorPersonId: string;
@@ -67,7 +49,7 @@ beforeAll(async () => {
   observer = await openObserver();
   const people = await observer.query<{ id: string }>(
     "select id from public.people where created_at = $1::timestamptz order by id",
-    [SEEDED_PEOPLE_CREATED_AT],
+    [SEEDED_IDENTITY_CREATED_AT],
   );
   seededPeople = new Set(people.rows.map((row) => row.id));
 
@@ -1148,5 +1130,174 @@ describe("a concurrent audience change cannot undermine an approval in flight", 
     // and nobody was invited to something nobody confirmed.
     expect((await readEvent(event.id)).status).toBe("draft");
     expect(await countsFor(event.id)).toMatchObject({ invitations: 0, jobs: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-120 — three things that were correct only because nobody had added a row
+// ---------------------------------------------------------------------------
+
+describe("an event outside the operating season", () => {
+  /**
+   * `readEventIn` reads by id alone, so a draft left behind in a closed season
+   * used to be approvable — and approving it would have resolved an audience
+   * from that season's memberships and queued real messages to a roster the
+   * club has moved on from. No such draft exists in the seed, so this creates
+   * one.
+   */
+  async function draftInArchivedSeason(): Promise<string> {
+    const archived = await observer.query<{ id: string }>(
+      `select id from public.seasons
+        where status not in ('open', 'active', 'closing')
+        order by starts_on desc limit 1`,
+    );
+    expect(archived.rows[0], "the seeded dataset has no non-operating season").toBeDefined();
+
+    const inserted = await observer.query<{ id: string }>(
+      `insert into public.events
+         (season_id, name, event_type, origin, status, scheduled_on, is_mandatory,
+          solicits_response, owner_person_id)
+       values ($1, $2, 'practice', 'club_controlled', 'draft', '2026-05-20', true, true, $3)
+       returning id`,
+      [archived.rows[0].id, `${NAME_MARKER} Last season's leftover`, actorPersonId],
+    );
+    return inserted.rows[0].id;
+  }
+
+  it("cannot have an audience proposed against it", async () => {
+    const eventId = await draftInArchivedSeason();
+
+    const error = await caught(() => saveEventAudience(actorPersonId, eventId, []));
+
+    expect(error.kind).toBe("invalid_transition");
+    expect(error.message).toMatch(/season the club is no longer operating/);
+  });
+
+  it("cannot be approved, even carrying an audience", async () => {
+    const eventId = await draftInArchivedSeason();
+
+    // Planted directly, because the service refuses to put one there — which is
+    // the point: the only way to reach approval with an audience is to have
+    // built one while the season was still open.
+    const season = await observer.query<{ season_id: string }>(
+      "select season_id from public.events where id = $1",
+      [eventId],
+    );
+    const membership = await observer.query<{ id: string }>(
+      "select id from public.season_memberships where season_id = $1 limit 1",
+      [season.rows[0].season_id],
+    );
+    expect(membership.rows[0], "the archived season has no memberships").toBeDefined();
+    await observer.query(
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, season_membership_id)
+       values ($1, $2, 'player', $3)`,
+      [eventId, season.rows[0].season_id, membership.rows[0].id],
+    );
+
+    const error = await caught(() => approveEvent(actorPersonId, eventId));
+
+    expect(error.kind).toBe("invalid_transition");
+    expect(error.message).toMatch(/season the club is no longer operating/);
+
+    const after = await observer.query<{ status: string }>(
+      "select status::text as status from public.events where id = $1",
+      [eventId],
+    );
+    expect(after.rows[0].status).toBe("draft");
+    expect(await countsFor(eventId)).toMatchObject({ invitations: 0, jobs: 0 });
+  });
+
+  it("still approves an event in the season the club is operating", async () => {
+    // The other half, so the guard cannot pass by refusing everything.
+    const event = await newDraft();
+    const keys = await keysFor(event, "player", 2);
+
+    const outcome = await approve(event.id, keys);
+
+    expect(outcome.invitationCount).toBe(2);
+  });
+});
+
+describe("a season-scoped role that is not a coaching seat", () => {
+  /**
+   * Capacity used to be derived from a role's *scope*: season-scoped meant
+   * coach. Exhaustive while the only season-scoped roles were the three
+   * coaching seats, and wrong on the first addition — a team manager would have
+   * appeared under "All active coaches" and been invited as one.
+   */
+  const MANAGER_CODE = "lan120_team_manager";
+
+  afterEach(async () => {
+    await observer.query(
+      `delete from public.role_assignments
+        where role_id in (select id from public.roles where code = $1)`,
+      [MANAGER_CODE],
+    );
+    await observer.query("delete from public.roles where code = $1", [MANAGER_CODE]);
+  });
+
+  it("is not offered as a coach, and not offered at all", async () => {
+    const event = await newDraft();
+    const before = await catalogueFor(event);
+
+    const season = await observer.query<{ id: string }>(
+      "select id from public.seasons where status = 'active' order by starts_on desc limit 1",
+    );
+    const role = await observer.query<{ id: string }>(
+      `insert into public.roles (code, name, scope) values ($1, 'Team Manager', 'season')
+       returning id`,
+      [MANAGER_CODE],
+    );
+    const person = await observer.query<{ id: string }>(
+      "select id from public.people order by id limit 1",
+    );
+    await observer.query(
+      `insert into public.role_assignments
+         (person_id, role_id, scope, is_constitutional_office, season_id, effective_from)
+       values ($1, $2, 'season', false, $3, '2026-09-01')`,
+      [person.rows[0].id, role.rows[0].id, season.rows[0].id],
+    );
+
+    const after = await withTransaction((tx) =>
+      listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn),
+    );
+
+    // The manager appears nowhere: not as a coach, and not under any other
+    // capacity either. Fail closed — an uninvitable role is a smaller problem
+    // than one invited under a capacity nobody chose for it.
+    expect(after.counts.coach).toBe(before.counts.coach);
+    expect(
+      after.candidates.some((candidate) => candidate.standing === "Team Manager"),
+      "a season-scoped non-coaching role was offered in the audience",
+    ).toBe(false);
+  });
+
+  it("still offers the real coaching seats", async () => {
+    // The other half again: the narrowing must not have emptied the group.
+    const event = await newDraft();
+    const catalogue = await withTransaction((tx) =>
+      listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn),
+    );
+
+    expect(catalogue.counts.coach).toBeGreaterThan(0);
+    for (const coach of catalogue.candidates.filter((entry) => entry.capacity === "coach")) {
+      expect(coach.standing).toMatch(/Coach/);
+    }
+  });
+});
+
+describe("the seeded identity records", () => {
+  it("are dated in the past, so 'earliest person' means the club's own", async () => {
+    // The trap LAN-119 spent a long time diagnosing: these were stamped two days
+    // in the FUTURE, so every seeded person sorted after anything created at
+    // `now()`. Nothing in the application read it; two test suites did.
+    const stamps = await observer.query<{ created_at: Date; count: string }>(
+      "select created_at, count(*)::text as count from public.people group by 1",
+    );
+
+    expect(stamps.rows).toHaveLength(1);
+    expect(stamps.rows[0].created_at.getTime()).toBeLessThan(Date.now());
+    expect(Number(stamps.rows[0].count)).toBeGreaterThan(20);
   });
 });

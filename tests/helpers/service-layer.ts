@@ -91,3 +91,44 @@ export function createFixture(suite: string): Fixture {
     },
   };
 }
+
+/**
+ * When the seed stamps the identity records it creates — people, their aliases
+ * and contact points, and the role catalogue.
+ *
+ * Exported so a suite can pin its fixtures to the **seeded** club rather than to
+ * whatever happens to sort first. That distinction is not cosmetic: Vitest runs
+ * these suites in parallel against one database, several of them create and
+ * delete people, and a suite that picks "the earliest person" picks somebody
+ * else's fixture and fails when it is deleted. LAN-119 diagnosed exactly that.
+ *
+ * It lived as a literal in three separate test files, which is three places to
+ * forget when the seed changes. One place, and `seededActorPersonId` below is
+ * the one way to use it.
+ */
+export const SEEDED_IDENTITY_CREATED_AT = "2025-06-01T09:00:00Z";
+
+/**
+ * A person the seed created, to act in a suite's transitions.
+ *
+ * Throws rather than returning nothing: a suite that silently got no actor
+ * would fail later and somewhere else, which is the failure this exists to
+ * prevent.
+ */
+export async function seededActorPersonId(client: pg.Client): Promise<string> {
+  const actor = await client.query<{ id: string }>(
+    `select id from public.people
+      where merged_into_person_id is null
+        and created_at = $1::timestamptz
+      order by id
+      limit 1`,
+    [SEEDED_IDENTITY_CREATED_AT],
+  );
+  if (actor.rows.length === 0) {
+    throw new Error(
+      `No seeded person found at ${SEEDED_IDENTITY_CREATED_AT}. ` +
+        "`scripts/seed-local.mjs` no longer stamps identity records with that timestamp.",
+    );
+  }
+  return actor.rows[0].id;
+}

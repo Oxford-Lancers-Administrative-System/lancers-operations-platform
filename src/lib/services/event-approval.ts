@@ -11,6 +11,7 @@ import {
   type AudienceCatalogue,
 } from "./event-audience";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
+import { readCurrentSeasonIn } from "./seasons";
 import { resolveResponseDeadlineIn, type ResolvedResponseDeadline } from "./response-deadline";
 
 /**
@@ -122,6 +123,39 @@ export const APPROVAL_REQUIRES_DRAFT_RULE = "event_approval_requires_draft";
 export const AUDIENCE_EDIT_REQUIRES_DRAFT_MESSAGE =
   "Only a draft's audience can be changed. Once an event is approved its audience is fixed.";
 export const AUDIENCE_EDIT_REQUIRES_DRAFT_RULE = "event_audience_requires_draft";
+
+export const WRONG_SEASON_RULE = "event_outside_operating_season";
+
+export const WRONG_SEASON_MESSAGE =
+  "This event belongs to a season the club is no longer operating, so it cannot be " +
+  "approved. Approving it would invite that season's members and queue messages to them.";
+
+/**
+ * Invariant, stated here because nothing below the service layer states it: an
+ * event may only be approved while its season is the one the club is operating.
+ *
+ * `readEventIn` reads by id alone — deliberately, and documented as such, so
+ * that any event resolves for display. That is right for a screen and wrong for
+ * a write: a draft left behind in a closed season was approvable, and approving
+ * it would have resolved an audience from that season's memberships and queued
+ * real messages to a roster the club has moved on from.
+ *
+ * No such draft exists today, which is why this was latent rather than broken.
+ * Brian's decision, 14 August 2026: refuse it. The safe direction, and it
+ * matches how every other read in the application already treats "the current
+ * season".
+ *
+ * `readCurrentSeasonIn` is the same resolution the rest of the service layer
+ * uses — `open`, `active` or `closing`, newest first — so a club that has opened
+ * next season before closing this one still operates the newer of the two, and
+ * an event in either is fine.
+ */
+async function assertOperatingSeason(tx: Tx, event: EventDetail): Promise<void> {
+  const current = await readCurrentSeasonIn(tx);
+  if (event.seasonId !== current.id) {
+    throw new InvalidTransition(WRONG_SEASON_MESSAGE, { rule: WRONG_SEASON_RULE });
+  }
+}
 
 /**
  * The audience stored against an event, with the names a screen has to show.
@@ -239,6 +273,7 @@ export async function saveEventAudience(
     // approval in flight is invisible here and this function would happily
     // delete the audience it is about to invite. See `lockEventIn`.
     const event = await lockEventIn(tx, eventId);
+    await assertOperatingSeason(tx, event);
     if (event.status !== "draft") {
       throw new InvalidTransition(
         `${AUDIENCE_EDIT_REQUIRES_DRAFT_MESSAGE} This event is ${describeStatus(event.status)}.`,
@@ -309,6 +344,7 @@ export async function approveEvent(
     // decides from that audience, so reading it unlocked would mean deciding
     // from a list a concurrent `saveEventAudience` is free to replace.
     const before = await lockEventIn(tx, eventId);
+    await assertOperatingSeason(tx, before);
     const catalogue = await listAudienceCatalogueIn(tx, before.seasonId, before.scheduledOn);
     const members = await readAudienceIn(tx, eventId, catalogue);
 

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Tx } from "@/lib/db";
+import { COACH_ROLE_CODES } from "@/lib/auth/capabilities";
 import {
   type AudienceCandidate,
   type AudienceCapacity,
@@ -32,8 +33,9 @@ import {
  * from a stored list somebody has to maintain:
  *
  *   * **Active players** — the season's `active` memberships.
- *   * **Active coaches** — `season`-scoped role assignments effective then.
- *     Register D8 puts coaching staff on the season for exactly this reason.
+ *   * **Active coaches** — role assignments effective then whose role code is
+ *     one of `COACH_ROLE_CODES`. Register D8 puts coaching staff on the season,
+ *     but not everything scoped to a season coaches — see that constant.
  *   * **Active committee** — `committee_year`-scoped role assignments effective then.
  *   * **Everyone active** — the de-duplicated union of the three.
  *
@@ -184,10 +186,14 @@ export async function listAudienceCatalogueIn(
        cross join as_of
       where ra.effective_from <= as_of.day
         and (ra.effective_to is null or ra.effective_to > as_of.day)
-        and (r.scope <> 'season' or ra.season_id = $1)
+        -- A season-scoped role is only a coaching seat if its code is one of
+        -- the named coaching codes. Anything else season-scoped is not offered
+        -- at all, rather than taking the coach capacity because of where it
+        -- hangs. See COACH_ROLE_CODES.
+        and (r.scope <> 'season' or (ra.season_id = $1 and r.code = any($3::text[])))
 
       order by 1, 6, 5`,
-    [seasonId, scheduledOn],
+    [seasonId, scheduledOn, COACH_ROLE_CODES],
   );
 
   // A person holding two committee seats at once is legal and real — the model

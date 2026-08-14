@@ -300,6 +300,40 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   }),
 });
 
+/**
+ * The `roles.code` values that make somebody a **coach** when an event's
+ * audience is built.
+ *
+ * This is not a capability — holding one of these seats permits nothing on its
+ * own, and `attendance_recorder` above is where the coaching *grant* lives. It
+ * is here because `tests/capability-map-single-source.test.ts` makes this module
+ * the only place in `src/` allowed to name a role code, and that rule is worth
+ * more than the tidiness of keeping it beside the audience code that uses it.
+ * One file to read when the catalogue changes.
+ *
+ * The audience catalogue used to derive capacity from a role's *scope*:
+ * season-scoped meant coach. That was exhaustive while the only season-scoped
+ * roles were these three, and wrong on the first addition — register D8 puts
+ * coaching staff on the season because coaches are appointed around seasons, not
+ * because everything appointed around a season coaches. A team manager, a physio
+ * or a season-scoped kit officer would each have become `coach` capacity
+ * silently: offered under **All active coaches**, invited as a coach, and
+ * recorded as one in the audit trail.
+ *
+ * A season-scoped role that is not listed here is **not offered at all**, which
+ * is the fail-closed direction — an uninvitable role is a smaller problem than
+ * one invited under a capacity nobody chose for it.
+ *
+ * `tests/operator-capability-catalogue.test.ts` checks every code named in this
+ * module against the real seeded `public.roles`, so a typo fails a test rather
+ * than silently emptying the coaching group.
+ */
+export const COACH_ROLE_CODES: readonly string[] = Object.freeze([
+  "head_coach",
+  "offence_coach",
+  "defence_coach",
+]);
+
 /** Every capability key, for tests and for exhaustive iteration. */
 export const CAPABILITY_KEYS: readonly CapabilityKey[] = Object.freeze(
   Object.keys(CAPABILITIES) as CapabilityKey[],
