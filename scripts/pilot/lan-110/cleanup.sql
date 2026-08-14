@@ -156,14 +156,18 @@ begin
       offending;
   end if;
 
-  -- An operator account on one of them is a login somebody created. It is
-  -- yours to disable, and this script will not do it silently.
+  -- An **active** login on one of them is access somebody granted, and it is
+  -- yours to withdraw; this script will not do it silently. A deactivated one
+  -- is fine and is expected to stay: the runbook revokes an operator account by
+  -- setting `is_active = false`, never by deleting it, "so an actor referenced
+  -- by history stays resolvable".
   select count(*) into offending
     from public.operator_accounts
-   where person_id = any(scenario_people);
+   where person_id = any(scenario_people)
+     and is_active;
   if offending > 0 then
     raise exception
-      'LAN-110 pilot cleanup: % operator account(s) are linked to this scenario''s people. Disable the login yourself first — see README.md, "After acceptance" — then run this again.',
+      'LAN-110 pilot cleanup: % active operator account(s) are linked to this scenario''s people. Deactivate the login yourself first — see README.md, "After acceptance" — then run this again.',
       offending;
   end if;
 
@@ -297,16 +301,38 @@ delete from public.event_audience_members
    and event_id in (select id from public.events where name like '%PILOT-LAN-110%');
 
 -- ---------------------------------------------------------------------------
--- The coaching seats
+-- The coaching seats — END-DATED, never deleted
 -- ---------------------------------------------------------------------------
--- By identifier AND by the sentinel in `note`. The preflight has already
--- refused to reach this statement if a third assignment exists on these people.
-delete from public.role_assignments
+-- `docs/pilot-data-runbook.md` § Every scenario satisfies all of the following:
+-- "Never deletes from auth.users, operator_accounts, role_assignments, roles or
+-- audit_events". And § Deprovisioning: "Removing access must not remove
+-- history. In order: 1. End-date the access: set effective_to on the role
+-- assignments, which preserves the record that the person held the seat."
+--
+-- An earlier version of this script deleted them. That was wrong twice over: it
+-- broke a rule the runbook calls binding rather than stylistic, and it destroyed
+-- the only evidence that the seat was ever held. Withdrawing access is an
+-- end-date.
+--
+-- The consequence is the section below: `role_assignments.person_id` is
+-- `on delete restrict`, so the two coaching people cannot be removed either.
+-- They are durable pilot identities from here on, which is what the issue's own
+-- handoff means by "preserve permanent approved pilot identities/access".
+--
+-- Each update is qualified on the seat still being in effect, which does two
+-- things at once: it can only ever shorten a grant, never extend one, and it
+-- matches nothing on a second run. The seat that setup installed already
+-- expired keeps the date it expired on rather than being nudged to today.
+update public.role_assignments
+   set effective_to = current_date
  where id = '01100110-0110-4110-8110-000000000011'
-   and note like 'PILOT-LAN-110%';
-delete from public.role_assignments
+   and note like 'PILOT-LAN-110%'
+   and (effective_to is null or effective_to > current_date);
+update public.role_assignments
+   set effective_to = current_date
  where id = '01100110-0110-4110-8110-000000000012'
-   and note like 'PILOT-LAN-110%';
+   and note like 'PILOT-LAN-110%'
+   and (effective_to is null or effective_to > current_date);
 
 -- ---------------------------------------------------------------------------
 -- The memberships
@@ -334,12 +360,11 @@ delete from public.events
 -- ---------------------------------------------------------------------------
 -- The people
 -- ---------------------------------------------------------------------------
-delete from public.people
- where id = '01100110-0110-4110-8110-000000000001'
-   and known_as like 'PILOT-LAN-110%';
-delete from public.people
- where id = '01100110-0110-4110-8110-000000000002'
-   and known_as like 'PILOT-LAN-110%';
+-- The two coaching people are NOT removed. Their end-dated seats reference them
+-- with `on delete restrict`, and the seats stay because the runbook says access
+-- is withdrawn by end-dating rather than deleting. They persist as durable
+-- synthetic identities, carrying the sentinel, exactly as the permanent pilot
+-- foundation's identities do. README.md says so under "After acceptance".
 delete from public.people
  where id = '01100110-0110-4110-8110-000000000003'
    and known_as like 'PILOT-LAN-110%';
@@ -351,14 +376,21 @@ delete from public.people
    and known_as like 'PILOT-LAN-110%';
 
 -- ---------------------------------------------------------------------------
--- Verification — every count below must be zero
+-- Verification — read every number
 -- ---------------------------------------------------------------------------
+-- The last three must be zero. The first two must be **2 and 2**: the coaching
+-- identities and their end-dated seats are preserved on purpose, and
+-- `seats_still_in_effect` is the one that proves the access is actually gone.
 select
   'LAN-110 pilot cleanup — remaining' as check,
   (select count(*) from public.people
-    where known_as like 'PILOT-LAN-110%') as scenario_people,
+    where known_as like 'PILOT-LAN-110%') as coaching_identities_preserved,
   (select count(*) from public.role_assignments
-    where note like 'PILOT-LAN-110%') as scenario_role_assignments,
+    where note like 'PILOT-LAN-110%') as seats_preserved_as_history,
+  (select count(*) from public.role_assignments
+    where note like 'PILOT-LAN-110%'
+      and effective_from <= current_date
+      and (effective_to is null or effective_to > current_date)) as seats_still_in_effect,
   (select count(*) from public.events
     where name like 'PILOT-LAN-110%') as scenario_events,
   (select count(*) from public.invitations

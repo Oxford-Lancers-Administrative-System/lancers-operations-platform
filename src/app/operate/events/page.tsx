@@ -290,9 +290,9 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
 /**
  * The coaching assignment's event list. LAN-110.
  *
- * It reads through `listCurrentSeasonEvents` with `status: "occurred"` — the
- * same service, the same season resolution, the same query — rather than
- * through a second reader of its own. LAN-110's own criterion is that "no code
+ * It reads through `listCurrentSeasonEvents` — the same service, the same
+ * season resolution, the same query — rather than through a second reader of
+ * its own, and filters the statuses in `./coach-event-buckets.ts`. LAN-110's own criterion is that "no code
  * path duplicates LAN-80's attendance model", and a private events query for
  * coaches would be the first step towards two answers to "which events are
  * there".

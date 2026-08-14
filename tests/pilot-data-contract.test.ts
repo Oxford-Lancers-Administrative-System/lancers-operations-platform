@@ -1108,13 +1108,15 @@ describe("the scenario scripts stay inside the conventions", () => {
     ],
     // LAN-110's coach attendance recorder. The same four application-created
     // tables LAN-80 has — the coach's board writes exactly what the operator's
-    // board writes — against one event rather than two.
+    // board writes — plus the recruitment prospect a walk-on now creates.
     //
-    // What is NOT in this list is the point of reading it: the two
-    // `public.role_assignments` deletes are keyed on a deterministic `id`, so
-    // they take the ordinary shape and need no entry here. This scenario is the
-    // first to remove an authorization record at all, and it does so only for
-    // seats its own setup wrote, by identifier and by the sentinel in `note`.
+    // What is NOT in this list is the point of reading it: this scenario grants
+    // two coaching seats and **deletes neither**. The runbook's "Preserves the
+    // foundation" rule forbids deleting from `role_assignments`, so cleanup
+    // end-dates them, and the two people who hold them stay as durable
+    // identities. An earlier version of this PR deleted both and widened the
+    // parser below to allow it; independent review caught that, and the parser
+    // is back to refusing any `delete` against this table outright.
     "lan-110": [
       [
         "public.audit_events",
@@ -1794,11 +1796,9 @@ describe("the pilot runbook represents elevated access truthfully", () => {
    * assigned columns and the assigned values are read separately and paired.
    */
   interface Write {
-    kind: "insert" | "update" | "delete";
+    kind: "insert" | "update";
     /** Column name → the expression assigned to it, in statement order. Empty for a delete. */
     assignments: { column: string; value: string }[];
-    /** The `where` clause of a delete, without the keyword. Absent otherwise. */
-    restriction?: string;
     statement: string;
   }
 
@@ -1931,45 +1931,6 @@ describe("the pilot runbook represents elevated access truthfully", () => {
       };
     }
 
-    /**
-     * A delete — LAN-110, the first scenario whose cleanup withdraws its own
-     * grant.
-     *
-     * Until then `delete` was in the finder and deliberately absent from this
-     * parser, so a statement in that form was found, refused, and the suite went
-     * red with a message. That was the design working: the divergence between
-     * finder and parser is meant to shout rather than to let something past. It
-     * shouted, and this is the deliberate answer to it rather than a tolerance
-     * widened to make a red test green.
-     *
-     * A delete is not a grant. It removes authority instead of conferring it, so
-     * the truthful-grant and time-bound rules have nothing to say about it —
-     * there are no assigned columns to read from `public.roles` and no end date
-     * to demand. What it needs is the opposite constraint, and one this scan did
-     * not previously have anywhere: it must be **restricted**. An unqualified
-     * `delete from role_assignments` executed by hand against the one production
-     * database would erase the club's entire authorization record in a
-     * statement, silently and without a database backstop, which is precisely
-     * the shape of failure this section exists to prevent.
-     *
-     * So the `where` clause is captured, and `violations()` requires it to exist
-     * and to name something. Widening this to accept an unrestricted delete
-     * would be the change to argue with.
-     */
-    if (/^delete\s+from\s+role_assignments\b/i.test(statement)) {
-      const restriction = /^delete\s+from\s+role_assignments\s+where\s+([\s\S]*)$/i.exec(statement);
-
-      return {
-        kind: "delete",
-        assignments: [],
-        restriction: restriction?.[1]
-          .replace(/;\s*$/, "")
-          .split(/\s+returning\s+/i)[0]
-          .trim(),
-        statement,
-      };
-    }
-
     throw new Error(
       `A statement writes role_assignments in a form this check cannot read, so nothing constrains it: ${quote(statement)}`,
     );
@@ -2002,7 +1963,7 @@ describe("the pilot runbook represents elevated access truthfully", () => {
 
   /** What a write may be wrong about. One category per surviving rule. */
   interface Violation {
-    rule: "truthful" | "time-bound" | "restricted";
+    rule: "truthful" | "time-bound";
     message: string;
   }
 
@@ -2031,21 +1992,6 @@ describe("the pilot runbook represents elevated access truthfully", () => {
 
     for (const write of findWrites(normalised)) {
       const columns = write.assignments.map((assignment) => assignment.column);
-
-      // A delete withdraws authority rather than conferring it, so the two
-      // grant rules do not apply. The one that does is that it must be
-      // restricted: an unqualified delete against the one production database
-      // erases the club's whole authorization record in a statement.
-      if (write.kind === "delete") {
-        const restriction = write.restriction ?? "";
-        if (restriction === "" || /^(true|1\s*=\s*1)\b/i.test(restriction)) {
-          found.push({
-            rule: "restricted",
-            message: `a delete from role_assignments must be restricted: ${quote(write.statement)}`,
-          });
-        }
-        continue;
-      }
 
       // The office flag and the scope are read FROM the role, never asserted by
       // the person writing the grant. A literal here is how a template starts
@@ -2149,120 +2095,9 @@ describe("the pilot runbook represents elevated access truthfully", () => {
     );
     expect(writes.map((write) => write.kind)).toContain("insert");
     expect(writes.map((write) => write.kind)).toContain("update");
-    // LAN-110's cleanup withdraws its own two coaching seats, so the third verb
-    // is now present too and is held to its own rule below.
-    expect(writes.map((write) => write.kind)).toContain("delete");
 
     for (const write of writes) {
-      if (write.kind === "delete") {
-        expect(write.restriction, `an unrestricted delete: ${write.statement}`).toBeTruthy();
-        continue;
-      }
       expect(write.assignments.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("requires every delete of an authorization record to be restricted", () => {
-    /**
-     * The rule LAN-110 added, and the reason it is not merely "cleanup deletes
-     * its own rows".
-     *
-     * `delete from role_assignments;` is one keystroke away from
-     * `delete from role_assignments where id = '…';`, is executed by hand
-     * against the single production database, and has no database backstop of
-     * any kind — no RLS on the connection the runbook uses, no foreign key that
-     * would refuse it, no undo. It would take the club's entire authorization
-     * record with it. This is the assertion that stops that shape reaching a
-     * script in the first place.
-     */
-    const deletes = GRANT_SCAN.flatMap((file) =>
-      findWrites(normaliseSql(read(file))).filter((write) => write.kind === "delete"),
-    );
-
-    expect(deletes.length, "no delete of role_assignments was found anywhere").toBeGreaterThan(0);
-
-    for (const write of deletes) {
-      expect(write.restriction, `unrestricted: ${write.statement}`).toBeTruthy();
-      expect(write.restriction).not.toMatch(/^(true|1\s*=\s*1)\b/i);
-    }
-
-    expect(
-      GRANT_SCAN.flatMap((file) => violations(normaliseSql(read(file)))).filter(
-        (violation) => violation.rule === "restricted",
-      ),
-    ).toEqual([]);
-  });
-
-  it("objects to an unrestricted delete, however it is spelled", () => {
-    // The injection half: the rule above is only worth having if it fires. Fed
-    // deliberately broken copies, it must object to each.
-    for (const broken of [
-      "delete from role_assignments;",
-      "delete from public.role_assignments;",
-      'delete from "public"."role_assignments";',
-      "delete from role_assignments where true;",
-    ]) {
-      expect(
-        violations(normaliseSql(broken)).filter((violation) => violation.rule === "restricted"),
-        broken,
-      ).not.toEqual([]);
-    }
-
-    // And stays quiet about a restricted one.
-    expect(
-      violations(
-        normaliseSql(
-          "delete from public.role_assignments where id = '00000000-0000-4000-8000-000000000001';",
-        ),
-      ),
-    ).toEqual([]);
-  });
-
-  it("cannot be satisfied by a statement it failed to recognise", () => {
-    /**
-     * The self-check, made non-self-referential (matrix row 2).
-     *
-     * The old version counted candidates with `/insert\s+into\s+public\.role_
-     * assignments/` and parsed with the same expression, so "some grant was
-     * never parsed" was true by construction for every statement the expression
-     * could not see. Here the count comes from a pattern that recognises verbs
-     * the parser deliberately cannot decompose, and the parser throws rather
-     * than skipping — so the two can only disagree loudly.
-     *
-     * The second half is the honest limit and where the tension sits: a write
-     * whose verb is not adjacent to the table would be missed by the finder
-     * too. So every *mention* of the identifier that is not inside a found
-     * statement is checked for a writing verb close in front of it. That is
-     * deliberately conservative — it will also fire on prose that puts "insert"
-     * within thirty characters of the table name, and the answer to that is to
-     * reword the sentence or widen the finder, never to loosen this. Prose that
-     * merely names the table, a heading, a column reference and
-     * `select … from role_assignments` all stay green, which is the other half
-     * of the requirement.
-     */
-    const MENTION = /\brole_assignments\b/gi;
-    const WRITING_VERB_JUST_BEFORE = /\b(insert|update|merge|upsert|copy|truncate)\b[^;]{0,30}$/i;
-
-    for (const file of GRANT_SCAN) {
-      const normalised = normaliseSql(read(file));
-      const statements = candidateStatements(normalised);
-
-      expect(() => statements.map((candidate) => parseWrite(candidate.text))).not.toThrow();
-
-      for (const mention of normalised.matchAll(MENTION)) {
-        const inside = statements.some(
-          (candidate) =>
-            mention.index >= candidate.index &&
-            mention.index < candidate.index + candidate.text.length,
-        );
-        if (inside) continue;
-
-        const before = normalised.slice(Math.max(0, mention.index - 40), mention.index);
-        expect(
-          before,
-          `${file}: a mention of role_assignments has a writing verb in front of it but was not parsed as a statement — widen the finder rather than the tolerance. Context: "${before}"`,
-        ).not.toMatch(WRITING_VERB_JUST_BEFORE);
-      }
     }
   });
 

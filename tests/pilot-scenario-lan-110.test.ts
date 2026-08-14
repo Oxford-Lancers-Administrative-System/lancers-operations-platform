@@ -11,17 +11,23 @@
  * ## What is different about this scenario
  *
  * It is the first that **grants access**. Its two `head_coach` assignments are
- * the scenario — one in effect, one that has ended — so unlike every scenario
- * before it, cleanup has to delete role assignments rather than abort on them.
- * That is a sharper edge than deleting a synthetic practice: an over-broad
- * predicate here would withdraw a real committee member's seat. Three
- * assertions below are about exactly that, and one of them is the abort on a
- * third assignment the script did not write.
+ * the scenario — one in effect, one that has ended — and that makes its cleanup
+ * unlike every scenario before it: it withdraws access by **end-dating**, never
+ * by deleting. `docs/pilot-data-runbook.md` forbids deleting from
+ * `role_assignments` outright, and its deprovisioning procedure says removing
+ * access must not remove history.
  *
- * It is also the first whose cleanup refuses while a **login** exists. Setup
- * creates no auth user and no `operator_accounts` row; if one is present at
- * cleanup, somebody granted a login and withdrawing it is a decision rather
- * than teardown.
+ * The consequence is that the two coaching people survive cleanup as well —
+ * `role_assignments.person_id` is `on delete restrict` — so they become durable
+ * synthetic identities. Several assertions below are about exactly that: the
+ * seats end up out of effect, the history that they were held survives, and no
+ * assignment belonging to anybody else is touched. An over-broad predicate here
+ * would withdraw a real committee member's seat.
+ *
+ * It is also the first whose cleanup refuses while an **active login** exists.
+ * Setup creates no auth user and no `operator_accounts` row; an active one at
+ * cleanup means somebody granted access, and withdrawing it is a decision
+ * rather than teardown. A deactivated one is expected to stay.
  *
  * LOCAL ONLY, and structurally so: the connection is opened by
  * `scripts/lib/local-db.mjs`, which refuses any non-loopback host and any
@@ -569,14 +575,16 @@ describe("setup.sql", () => {
 });
 
 describe("cleanup.sql", () => {
-  it("removes everything setup created, and is safe to run twice", async () => {
+  it("removes the scenario and keeps the coaching identities, twice over", async () => {
+    // The two coaching people and their seats are preserved on purpose — see
+    // the block comment on the end-dating test below. Everything else goes.
     await client.query(SETUP);
     expect((await scenarioRows()).people).toBe(5);
 
     await client.query(CLEANUP);
     expect(await scenarioRows()).toEqual({
-      people: 0,
-      assignments: 0,
+      people: 2,
+      assignments: 2,
       events: 0,
       memberships: 0,
       audience: 0,
@@ -585,7 +593,15 @@ describe("cleanup.sql", () => {
     });
 
     await client.query(CLEANUP);
-    expect((await scenarioRows()).people).toBe(0);
+    expect(await scenarioRows()).toEqual({
+      people: 2,
+      assignments: 2,
+      events: 0,
+      memberships: 0,
+      audience: 0,
+      invitations: 0,
+      responses: 0,
+    });
   });
 
   it("removes the walk-on's recruitment prospect, without which the person cannot go", async () => {
@@ -641,27 +657,38 @@ describe("cleanup.sql", () => {
     ).toBe(0);
   });
 
-  it("leaves the rest of the database exactly as it found it", async () => {
-    // The strongest statement available: every row of every table, hashed.
-    const before = await snapshot();
+  it("leaves every table it does not own exactly as it found it", async () => {
+    // The strongest statement available: every row of every table, hashed. The
+    // three tables holding the preserved coaching identities are excluded and
+    // asserted separately below — everything else must come back byte-identical.
+    const owned = new Set(["public.people", "public.role_assignments", "public.contact_points"]);
+    const untouched = async () =>
+      Object.fromEntries(Object.entries(await snapshot()).filter(([table]) => !owned.has(table)));
+
+    const before = await untouched();
 
     await client.query(SETUP);
     await workThroughTheMatrix();
     await client.query(CLEANUP);
 
-    expect(await snapshot()).toEqual(before);
+    expect(await untouched()).toEqual(before);
   });
 
   /**
    * The assertion this scenario exists to make, and the one whose failure would
    * be worst.
    *
-   * This is the first cleanup in the repository that deletes `role_assignments`.
-   * An over-broad predicate would withdraw a real committee member's seat, so
-   * the whole table is hashed before and after: every assignment that is not
-   * one of this scenario's two must be byte-identical afterwards.
+   * Cleanup **end-dates** its two coaching seats and deletes neither.
+   * `docs/pilot-data-runbook.md` forbids deleting from `role_assignments` at
+   * all — "Preserves the foundation" — and its deprovisioning procedure says
+   * removing access must not remove history. An earlier version of this PR
+   * deleted them and widened the governance test to permit it; independent
+   * review caught that, and this is the compliant shape.
+   *
+   * So the count must not move, every other assignment must be byte-identical,
+   * and the scenario's own two must end up out of effect.
    */
-  it("removes its own two coaching seats and touches no other assignment", async () => {
+  it("end-dates its own two coaching seats and touches no other assignment", async () => {
     const digest = async () =>
       (
         await one<{ digest: string }>(
@@ -675,6 +702,16 @@ describe("cleanup.sql", () => {
 
     const before = await digest();
     const assignmentsBefore = await count("public.role_assignments");
+    const othersBefore = (
+      await one<{ digest: string }>(
+        client,
+        `select coalesce(
+                  md5(string_agg(md5(to_jsonb(t)::text), ',' order by md5(to_jsonb(t)::text))),
+                  '-') as digest
+           from public.role_assignments t
+          where t.note is null or t.note not like 'PILOT-LAN-110%'`,
+      )
+    ).digest;
 
     await client.query(SETUP);
     expect(await count("public.role_assignments")).toBe(assignmentsBefore + 2);
@@ -682,11 +719,36 @@ describe("cleanup.sql", () => {
     await workThroughTheMatrix();
     await client.query(CLEANUP);
 
-    // Every remaining assignment is byte-identical to before — not merely the
-    // same count. A predicate that widened would show up here as a changed
-    // hash, which is the failure worth catching: a real committee seat gone.
-    expect(await count("public.role_assignments")).toBe(assignmentsBefore);
-    expect(await digest()).toBe(before);
+    // Nothing was deleted: the count is still the raised one.
+    expect(await count("public.role_assignments")).toBe(assignmentsBefore + 2);
+
+    // The scenario's two are out of effect...
+    expect(
+      await count(
+        `public.role_assignments where note like 'PILOT-LAN-110%'
+           and effective_from <= current_date
+           and (effective_to is null or effective_to > current_date)`,
+      ),
+    ).toBe(0);
+
+    // ...and the history that they were once held survives.
+    expect(await count("public.role_assignments where note like 'PILOT-LAN-110%'")).toBe(2);
+
+    // Every assignment that is not one of this scenario's two is byte-identical
+    // to before. That is the failure worth catching: a real committee seat gone.
+    const others = async () =>
+      (
+        await one<{ digest: string }>(
+          client,
+          `select coalesce(
+                    md5(string_agg(md5(to_jsonb(t)::text), ',' order by md5(to_jsonb(t)::text))),
+                    '-') as digest
+             from public.role_assignments t
+            where t.note is null or t.note not like 'PILOT-LAN-110%'`,
+        )
+      ).digest;
+    expect(await others()).toBe(othersBefore);
+    expect(before).not.toBe("-");
   });
 
   it("leaves the role catalogue itself completely alone", async () => {
@@ -743,7 +805,7 @@ describe("cleanup.sql", () => {
     expect((await scenarioRows()).assignments).toBe(2);
   });
 
-  it("refuses while a login is still linked to one of its people", async () => {
+  it("refuses while an active login is still linked to one of its people", async () => {
     await client.query(SETUP);
 
     /**

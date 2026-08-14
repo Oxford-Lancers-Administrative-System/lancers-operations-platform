@@ -757,30 +757,55 @@ describe("walk-ons", () => {
     expect(await attendanceRows(event.id)).toHaveLength(1);
   });
 
-  it("leaves nothing behind when the write fails", async () => {
-    // The person, the contacts and the prospect are one act. A refusal at the
-    // attendance write must not leave a prospect nobody was ever at anything.
+  /**
+   * The person, the contacts and the prospect are one act with the attendance
+   * row, and this is the only test that proves it.
+   *
+   * The failure has to happen **inside** the transaction, after
+   * `mintWalkUpProspect` has written. An earlier version of this test injected
+   * an invalid `presence`, which `requirePresence` rejects thirteen lines
+   * before `withTransaction` opens — so it asserted that nothing was written by
+   * a call that had executed no SQL, and would have stayed green if the prospect
+   * were committed on its own connection. Independent review caught it.
+   *
+   * An unresolvable actor does the job: `requireActor` only checks the string
+   * is not blank, so a syntactically valid id that matches no person passes
+   * every check and then violates `attendance_records.recorded_by_person_id`'s
+   * foreign key on the last insert of the transaction.
+   */
+  it("leaves nothing behind when the write fails inside the transaction", async () => {
+    const event = await occurredEvent();
+    const strangerId = "00000000-0000-4000-8000-0000000000ff";
+
+    await expectRefused(recordWalkUpAttendance(strangerId, event.id, WALK_ON));
+
+    expect(await attendanceRows(event.id)).toEqual([]);
+    expect(await mintedPerson(), "the person must be rolled back too").toEqual([]);
+
+    // Both scoped to this suite's own marker, not to the whole database. Vitest
+    // runs suites in parallel against one stack, and the local stack is also
+    // the review environment — a global count would report on whatever somebody
+    // else had just done.
+    for (const table of ["recruitment_prospects", "contact_points"] as const) {
+      const rows = await observer.query<{ count: string }>(
+        `select count(*)::text as count from public.${table}
+          where person_id in (select id from public.people where family_name = $1)`,
+        [NAME_MARKER],
+      );
+      expect(Number(rows.rows[0].count), `${table} must be rolled back`).toBe(0);
+    }
+  });
+
+  it("still refuses a blank actor before it opens a transaction", async () => {
+    // The cheap guard is still there, and still fires first. Kept as its own
+    // case so the test above stays honestly about the transaction boundary
+    // rather than quietly covering two different refusals.
     const event = await occurredEvent();
 
-    await expectRefused(
-      recordWalkUpAttendance(actorPersonId, event.id, {
-        ...WALK_ON,
-        presence: "showed up" as never,
-      }),
-    );
+    const error = await expectRefused(recordWalkUpAttendance("   ", event.id, WALK_ON));
 
+    expect(error.kind).toBe("constraint_violated");
     expect(await mintedPerson()).toEqual([]);
-
-    // Scoped to this suite's own marker, not to every prospect in the database.
-    // Vitest runs suites in parallel against one stack, and the local stack is
-    // also the review environment — a global count here would report on
-    // whatever somebody else had just done.
-    const prospects = await observer.query<{ count: string }>(
-      `select count(*)::text as count from public.recruitment_prospects
-        where person_id in (select id from public.people where family_name = $1)`,
-      [NAME_MARKER],
-    );
-    expect(Number(prospects.rows[0].count)).toBe(0);
   });
 });
 

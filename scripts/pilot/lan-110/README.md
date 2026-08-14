@@ -189,20 +189,32 @@ walk-up form, and nothing in this slice delivers to a walk-up.
 
 In this order:
 
-1. **Disable the two logins you created.** Cleanup aborts while an
-   `operator_accounts` row points at one of this scenario's people, deliberately:
-   withdrawing access is a decision, not teardown, and a script should not make
-   it quietly. Set `is_active = false` — or delete the `operator_accounts` row
-   and the auth user, if you would rather not keep them.
-2. **Run `cleanup.sql`.** It removes this scenario's rows and nothing else: the
-   open season, the role catalogue, the durable pilot identities, every other
-   access grant and all unrelated audit history are untouched. It is safe to run
-   twice, and its final result set must show five zeroes. It removes both
-   events, including today's.
+1. **Disable the two logins you created.** Set `is_active = false`, with a
+   `disabled_at` and a `disabled_reason` — the runbook's own deprovisioning
+   step. Cleanup aborts while an **active** `operator_accounts` row points at one
+   of this scenario's people: withdrawing access is a decision, not teardown, and
+   a script should not make it quietly. A deactivated row is fine and is meant to
+   stay; there is deliberately no `delete` privilege on that table.
+2. **Run `cleanup.sql`.** It removes the event, the players, their memberships,
+   the invitations, the answers, the attendance and any walk-on — and nothing
+   else. The open season, the role catalogue, every other access grant and all
+   unrelated audit history are untouched. Safe to run twice.
 
-Unlike LAN-80's, this cleanup **does** remove two role assignments — its own
-two, by identifier and by the sentinel in `note`. It aborts on any third, because
-a seat it did not write is a grant somebody made deliberately.
+**What it deliberately leaves behind, and why.** The two coaching people and
+their two `head_coach` assignments. `docs/pilot-data-runbook.md` says a scenario
+"never deletes from `auth.users`, `operator_accounts`, `role_assignments`,
+`roles` or `audit_events`", and that removing access "must not remove history —
+end-date the access". So cleanup **end-dates** both seats rather than deleting
+them, and because `role_assignments.person_id` is `on delete restrict` the two
+people stay too, as durable synthetic identities carrying the sentinel.
+
+Read the final result set with that in mind: the first two numbers should be
+**2 and 2** — the identities and their seats, preserved as history — and
+`seats_still_in_effect` and the last three must be **zero**. That zero is the
+one that proves the access is actually gone.
+
+It still aborts on a third assignment against these people, because a seat it
+did not write is a grant somebody made deliberately.
 
 If it aborts, read the message — every guard in it names what is in the way and
 what to do about it. None of them is safe to work around by editing the script.

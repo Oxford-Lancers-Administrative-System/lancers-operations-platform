@@ -191,9 +191,10 @@ const WALK_UP_PRESENCE: AttendancePresence = "present";
 /**
  * UX-73 — records somebody who was never invited, and nothing else.
  *
- * No membership, no onboarding, no recruitment record. On success it returns to
- * the board, where the new row carries the walk-up flag the view computes for
- * it and sits in the board's own Walk-ups group.
+ * It creates the person, their contact points and a **recruitment prospect** —
+ * see `recordWalkUpAttendance` — and no season membership and no onboarding. On
+ * success it returns to the board, where the new row carries the walk-up flag
+ * the view computes for it and sits in the board's own Walk-ups group.
  */
 export async function recordWalkUpAction(
   _previous: WalkUpFormState,
