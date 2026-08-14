@@ -32,6 +32,39 @@ function part(scheduledOn: string, options: Intl.DateTimeFormatOptions): string 
 }
 
 /**
+ * Month abbreviations, owned by this repository rather than asked of ICU.
+ *
+ * The same reasoning as `part()` above, and found the same way. `en-GB` with
+ * `month: "short"` renders September as **"Sept"** on some ICU builds and
+ * "Sep" on others, so the abbreviation an operator reads would depend on which
+ * Node the container happened to be built with — and the Oxford term card,
+ * whose whole job is to state exact dates, would disagree with itself between a
+ * developer's machine and Cloud Run.
+ *
+ * Twelve strings settle it. The month index is read straight off the
+ * `YYYY-MM-DD`, which needs no formatter at all.
+ */
+export const SHORT_MONTHS: readonly string[] = Object.freeze([
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+]);
+
+/** "Oct" for any `YYYY-MM-DD`. Empty for anything that is not one. */
+export function shortMonthOf(day: string): string {
+  return SHORT_MONTHS[Number(day.slice(5, 7)) - 1] ?? "";
+}
+
+/**
  * "Wed 14 Oct 2026" — the list's date column.
  *
  * The year is not decoration. A season runs from September to June, so a list
@@ -42,7 +75,7 @@ export function formatShortDate(scheduledOn: string | null): string {
   if (!scheduledOn) return "No date yet";
   const weekday = part(scheduledOn, { weekday: "short" });
   const day = part(scheduledOn, { day: "numeric" });
-  const month = part(scheduledOn, { month: "short" });
+  const month = shortMonthOf(scheduledOn);
   const year = part(scheduledOn, { year: "numeric" });
   return `${weekday} ${day} ${month} ${year}`;
 }
