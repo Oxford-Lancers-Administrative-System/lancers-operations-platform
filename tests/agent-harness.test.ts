@@ -34,6 +34,10 @@ const repeatedPremiseTranscript = readFileSync(
   path.join(root, "tests", "fixtures", "agent-review", "repeated-premise.md"),
   "utf8",
 );
+const findingDispositionTranscript = readFileSync(
+  path.join(root, "tests", "fixtures", "agent-review", "finding-dispositions.md"),
+  "utf8",
+);
 const pullRequestTemplate = readFileSync(
   path.join(root, ".github", "PULL_REQUEST_TEMPLATE.md"),
   "utf8",
@@ -140,14 +144,48 @@ describe("graded review routing", () => {
     expect(flat(skill.body)).toMatch(/Prior coverage remains valid for unchanged behavior/i);
   });
 
-  it("distinguishes blockers from advisories and prevents advisory review loops", () => {
+  it("separates impact severity from the three gate dispositions", () => {
     const body = flat(skill.body);
     const reviewBody = flat(reviewer.body);
-    expect(body).toMatch(/A finding may block only when evidence demonstrates/i);
+    for (const value of ["critical", "high", "medium", "low"])
+      expect(body).toContain(`\`${value}\``);
+    for (const value of ["block", "correct-before-handoff", "advisory"])
+      expect(body).toContain(`\`${value}\``);
+    expect(body).toMatch(/severity alone never decides whether another reviewer runs/i);
+    expect(reviewBody).toMatch(
+      /Only `block` independently triggers a correction-review invocation/i,
+    );
     expect(body).toMatch(/critical regression test that stays green/i);
-    expect(body).toMatch(/minor findings first discovered in unchanged code.*are advisories/i);
-    expect(body).toMatch(/Advisories must not cause a code change, commit, further review round/i);
-    expect(reviewBody).toMatch(/Advisories never request a code change, commit, review round/i);
+    expect(body).toMatch(
+      /minor findings first discovered in unchanged code.*are normally advisories/i,
+    );
+    expect(body).toMatch(/advisory.*never authorizes a correction, commit, review round/i);
+  });
+
+  it("gates required artifact corrections without spending a review round", () => {
+    const body = flat(skill.body);
+    expect(body).toMatch(/correct-before-handoff.*before the PR may be reported ready for merge/i);
+    expect(body).toMatch(/deterministic verification or exact artifact read-back/i);
+    expect(body).toMatch(
+      /do not consume another independent review round unless the correction changes executable behavior/i,
+    );
+    expect(flat(reviewer.body)).toMatch(
+      /correct-before-handoff.*does not by itself trigger another reviewer invocation/i,
+    );
+  });
+
+  it("hard-blocks sensitive or executable-boundary findings", () => {
+    for (const body of [flat(skill.body), flat(reviewer.body)]) {
+      expect(body).toMatch(
+        /Authentication, authorization, privacy, security, data integrity, incorrect reachable behavior/i,
+      );
+      expect(body).toMatch(
+        /may never be `correct-before-handoff` or `advisory`|never assign either lower disposition/i,
+      );
+      expect(body).toMatch(
+        /reclassify it as `block`.*changes executable behavior|changes executable behavior.*reclassify it as `block`/i,
+      );
+    }
   });
 
   it("restricts new blockers found during correction review", () => {
@@ -196,7 +234,9 @@ describe("graded review routing", () => {
       "reviewed_head_sha",
       "requirement_provenance",
       "resolved_finding_ids",
+      "findings",
       "blocking_findings",
+      "correct_before_handoff_findings",
       "advisories",
       "result",
     ]) {
@@ -205,6 +245,16 @@ describe("graded review routing", () => {
     }
     expect(flat(skill.body)).toMatch(/Prior review remains valid; only this delta is pending/i);
     expect(flat(skill.body)).toMatch(/Automatic review stopped after three rounds/i);
+    for (const label of [
+      "Findings",
+      "Blocking findings",
+      "Correct-before-handoff findings",
+      "Advisories",
+    ])
+      expect(pullRequestTemplate).toContain(`- **${label}:**`);
+    expect(flat(pullRequestTemplate)).toMatch(
+      /stable ID, impact severity, gate disposition, concrete reachable consequence, review-invocation effect/i,
+    );
   });
 
   it("dry-runs narrow correction and repeated-premise scenarios", () => {
@@ -216,6 +266,24 @@ describe("graded review routing", () => {
       /round 1.*R-007.*round 2.*same finding family.*requirement adjudication/i,
     );
     expect(flat(repeatedPremiseTranscript)).toMatch(/third code-review invocation.*not launched/i);
+  });
+
+  it("dry-runs all seven finding-disposition scenarios", () => {
+    const transcript = flat(findingDispositionTranscript);
+    for (const marker of [
+      "stale cosmetic sentence",
+      "hosted runbook",
+      "visibly Saved",
+      "unauthorized operator",
+      "lose, corrupt, mis-anchor",
+      "executable role list",
+      "mixed review",
+    ])
+      expect(transcript).toMatch(new RegExp(marker, "i"));
+    expect(transcript).toMatch(/authorization hard exclusion rejects both lower dispositions/i);
+    expect(transcript).toMatch(/data-integrity hard exclusion rejects both lower dispositions/i);
+    expect(transcript).toMatch(/reclassified from `correct-before-handoff` to `block`/i);
+    expect(transcript).toMatch(/do not independently expand review scope/i);
   });
 
   it("pins review and CI to the current PR head", () => {

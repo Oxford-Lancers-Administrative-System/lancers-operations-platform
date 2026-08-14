@@ -1,7 +1,9 @@
 # 0024 — Bounded, lineage-aware independent review
 
-**Status:** Accepted · **Date:** 2026-08-14 · **Supersedes only the
-correction-review rule in [0020](0020-zero-command-visual-review.md)**
+**Status:** Accepted; finding-classification portion superseded by
+[0025](0025-separate-finding-impact-from-gate-disposition.md) · **Date:**
+2026-08-14 · **Supersedes only the correction-review rule in
+[0020](0020-zero-command-visual-review.md)**
 
 ## Context
 

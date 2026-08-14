@@ -46,7 +46,12 @@ if migrations changed. "Should pass" is not verification.
 - **Correction base SHA:** None / exact SHA
 - **Current reviewed SHA:** None / exact SHA
 - **Automatic reviewer round count:** 0 / 1 / 2 / 3
+- **Findings:** None / for each: stable ID, impact severity, gate disposition,
+  concrete reachable consequence, review-invocation effect, and exact SHA or
+  mutable artifact
 - **Blocking findings:** None / stable finding IDs and summary
+- **Correct-before-handoff findings:** None / stable finding IDs, correction,
+  and deterministic verification or exact read-back
 - **Advisories:** None / stable finding IDs and summary
 - **Result:** Not required / clear / blocked / requirement-adjudication-required / budget-exhausted
 

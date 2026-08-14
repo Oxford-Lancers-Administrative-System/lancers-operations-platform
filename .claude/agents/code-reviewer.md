@@ -114,21 +114,41 @@ Return an adjudication receipt containing `issue`,
 and `result: resolved | owner-decision-required | budget-exhausted`. Do not
 include a code-review verdict or introduce code findings.
 
-## Finding threshold
+## Finding impact and gate disposition
 
-A finding blocks only when it demonstrates an authoritative acceptance
-criterion violation; incorrect reachable behavior; authentication,
-authorization, privacy, or security failure; data loss, corruption, integrity,
-migration, RLS, or transaction risk; unauthorized production or external side
-effect; required verification failure; or a critical regression test that stays
-green under a plausible relevant defect.
+Give every finding two independent attributes. `impact_severity` is exactly
+`critical`, `high`, `medium`, or `low`; it describes consequence and never by
+itself decides whether another reviewer runs. `gate_disposition` is exactly
+`block`, `correct-before-handoff`, or `advisory`:
+
+- `block` requires correction and independently triggers correction review. Use
+  it for an authoritative acceptance failure, incorrect reachable behavior,
+  authentication, authorization, privacy, security, data-integrity,
+  migration/RLS/transaction risk, unauthorized production or external effects,
+  material verification failure, or a critical regression test insensitive to
+  a plausible defect.
+- `correct-before-handoff` requires correction and deterministic verification
+  or exact artifact read-back before ready-for-merge final handoff, but does not
+  by itself trigger another reviewer invocation. It is limited to low-risk
+  artifact defects and cannot authorize scope expansion or a follow-up issue.
+- `advisory` is record-only and never requests a correction, commit, review
+  round, or follow-up issue.
+
+Authentication, authorization, privacy, security, data integrity, incorrect
+reachable behavior, migration, RLS, transaction risk, and unauthorized
+production or external effects are hard exclusions: never assign either lower
+disposition. If a proposed `correct-before-handoff` correction changes
+executable behavior or crosses an authorization, privacy, security,
+data-integrity, migration, transaction, trust, or production boundary,
+reclassify it as `block` before implementation.
 
 Style, naming, formatting, speculative future-proofing, compliant alternative
 designs, pre-existing problems not worsened by the PR, unsupported out-of-scope
 edges, maintainability preferences without demonstrated material failure, and
 minor findings first discovered during correction review in unchanged code are
-advisories. Advisories never request a code change, commit, review round, or
-follow-up ticket.
+normally advisories. A materially false issue-owned artifact may be
+`correct-before-handoff` when deterministic read-back can prove the correction.
+Only `block` independently triggers a correction-review invocation.
 
 ## Local Supabase ownership
 
@@ -180,14 +200,20 @@ Return a receipt with these fields:
     }
   ],
   "resolved_finding_ids": [],
+  "findings": [],
   "blocking_findings": [],
+  "correct_before_handoff_findings": [],
   "advisories": [],
   "result": "clear | blocked | requirement-adjudication-required | budget-exhausted"
 }
 ```
 
-List blockers with stable IDs, file/line, authoritative evidence, concrete
-failure, and required correction; separate advisories. Also include:
+For every finding include stable ID, file/line, authoritative evidence,
+concrete reachable consequence, `impact_severity`, `gate_disposition`, required
+action, whether it caused another reviewer invocation, and exact SHA or mutable
+artifact. Separate blockers, required-before-handoff corrections, and
+advisories. A resolved `correct-before-handoff` finding includes its
+deterministic verification or exact read-back. Also include:
 
 - proof that reviewed head still matches;
 - clean worktree proof and confirmation no mutation survived;
