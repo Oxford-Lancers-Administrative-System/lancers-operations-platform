@@ -88,13 +88,39 @@ export function useFilterSearch({
     [typed, basePath, filterKey],
   );
 
-  // The URL is the source of truth — Back, Clear filters, a shared link — but
-  // only adopt it when it says something we did not just say ourselves.
+  /**
+   * The URL is the source of truth — Back, Clear filters, a shared link — but
+   * only adopt it when it says something we did not just say ourselves.
+   *
+   * This used to carry a second clause, `|| search === typed`, meant to stop a
+   * landing navigation re-seeding the box while the operator kept typing.
+   * Independent review found it untested, and writing the missing test showed it
+   * was worse than inert.
+   *
+   * The clause only fires when the arriving URL says **exactly** what the box
+   * already holds — so it is never protecting unsaved keystrokes; there are none
+   * to protect. What it did was skip advancing `committed.current`, leaving a
+   * pending debounce believing it still had something to say.
+   *
+   * The redundant navigation that produced is worth stating precisely, because
+   * the mechanism is indirect: advancing `committed.current` does **not** cancel
+   * a running timer. What cancels it is the effect re-running — and it re-runs
+   * because changing a filter changes `filterKey`, which changes `hrefFor`'s
+   * identity, which is in the effect's dependency list. The timer is then
+   * recreated, sees `typed === committed.current`, and returns without pushing.
+   * A future change that memoised `hrefFor` differently would silently restore
+   * the double navigation, and the test would still pass.
+   *
+   * Adopting an identical value is safe: `setTyped` with the same string is a
+   * no-op to React, so there is no re-render and no caret to jump. The guard
+   * against stale props is `search === committed.current`, which is the one that
+   * was doing the work all along.
+   */
   useEffect(() => {
-    if (search === committed.current || search === typed) return;
+    if (search === committed.current) return;
     committed.current = search;
     setTyped(search);
-  }, [search, typed]);
+  }, [search]);
 
   /**
    * The pause matters. Without it every keystroke is a server round trip and a

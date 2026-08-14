@@ -177,6 +177,45 @@ async function currentStatus(membershipId: string): Promise<string> {
   return result.rows[0].status;
 }
 
+/**
+ * A person from the **seeded** club, to act in this suite's transitions.
+ *
+ * This used to be `order by created_at, id limit 1`, and that was the cause of a
+ * long-running intermittent failure across this file and `roster.test.ts` —
+ * 13 tests at a time, on code that passed when re-run.
+ *
+ * The seed stamps every person `created_at = '2026-08-15T09:00:00Z'`, which is
+ * in the **future** of the machine clock. Every seeded person therefore sorts
+ * *last*, and any row a parallel suite had committed at `now()` sorted first and
+ * was adopted as the actor. When that suite's cleanup deleted its person, every
+ * subsequent write here that names the actor — `season_membership_status_events`,
+ * `audit_events` — failed its foreign key and surfaced as `ConstraintViolated`,
+ * far from the cause.
+ *
+ * Pinning to the seeded cohort removes the race: no suite ever deletes a seeded
+ * person. Independent review found the mechanism and reproduced it on demand
+ * with a parallel suite that inserted a person, held it 130 ms and deleted it.
+ *
+ * The future-dated seed itself is a separate latent trap, tracked in LAN-120.
+ */
+async function seededActorPersonId(client: Client): Promise<string> {
+  const actor = await client.query<{ id: string }>(
+    `select id from public.people
+      where merged_into_person_id is null
+        and created_at = '2026-08-15T09:00:00Z'::timestamptz
+      order by id
+      limit 1`,
+  );
+  if (actor.rows.length === 0) {
+    // A pass produced by a missing cohort is not a pass, and this is exactly
+    // where a changed seed timestamp should announce itself.
+    throw new Error(
+      "No seeded person found. `scripts/seed-local.mjs` no longer stamps people with 2026-08-15T09:00:00Z.",
+    );
+  }
+  return actor.rows[0].id;
+}
+
 beforeAll(async () => {
   observer = await openObserver();
 
@@ -184,10 +223,7 @@ beforeAll(async () => {
   openSeasonId = season.id;
   openSeasonLabel = season.label;
 
-  const actor = await observer.query<{ id: string }>(
-    "select id from public.people where merged_into_person_id is null order by created_at, id limit 1",
-  );
-  actorPersonId = actor.rows[0].id;
+  actorPersonId = await seededActorPersonId(observer);
 
   const types = await observer.query<{
     id: string;
@@ -1002,9 +1038,28 @@ describe("listCurrentSeasonRoster", () => {
 
     for (const inherited of ["toString", "constructor", "valueOf", "hasOwnProperty"]) {
       const roster = await listCurrentSeasonRoster({ sort: inherited });
-      expect(roster.entries.map((entry) => entry.membershipId)).toEqual(
-        byName.entries.map((entry) => entry.membershipId),
-      );
+
+      // Compared over the memberships BOTH reads saw, rather than as whole
+      // lists. These are two separate statements against a database several
+      // parallel suites are writing to, so a membership created or deleted
+      // between them would fail this test for a reason that has nothing to do
+      // with sort keys. The claim is that an inherited key produces the *same
+      // ordering* as the default sort, and that survives the narrowing intact.
+      const shared = new Set(roster.entries.map((entry) => entry.membershipId));
+      const expected = byName.entries
+        .map((entry) => entry.membershipId)
+        .filter((id) => shared.has(id));
+      const actual = roster.entries
+        .map((entry) => entry.membershipId)
+        .filter((id) => expected.includes(id));
+
+      expect(actual).toEqual(expected);
+      expect(actual.length).toBeGreaterThan(0);
+      // The narrowing above preserves the ordering claim but would also pass if
+      // an inherited key truncated the roster, since both sides would be the
+      // same short list. Independent review caught that, so the set size is
+      // asserted separately — against the read's own total, not a second query.
+      expect(roster.entries.length).toBe(byName.entries.length);
     }
   });
 

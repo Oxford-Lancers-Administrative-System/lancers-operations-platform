@@ -234,28 +234,37 @@ describe.runIf(seeded)("the scenarios the schema ticket names", () => {
     );
     expect(neverInvited).toBeGreaterThan(0);
 
-    // Compared over the same population, which is not pedantry.
+    // `uninvited_audience_members` reports the approval defect: somebody the
+    // approver confirmed and nobody ever asked.
     //
-    // `invitation_response_state` partitions the resolved audience of every
-    // response-soliciting event, whatever its status. `uninvited_audience_members`
-    // narrows that to approved, occurred and not-held — because only there is
-    // "never invited" a defect rather than a fact.
+    // Two earlier versions of this assertion were worthless, and the second was
+    // caught by independent review after being written to replace the first.
+    // The original compared the view's count against a hand-retyped copy of its
+    // own `where` clause; the replacement looped over the rows asserting their
+    // `event_status` was one of the three the view already filters to. Both
+    // restated the view's definition, so neither could fail for any seed
+    // content, any defect, or any schema change short of editing that clause.
     //
-    // Those two counts were equal while an audience could only exist on an
-    // approved event. LAN-77 stores a *proposed* audience against a draft, so a
-    // draft with forty people chosen and nothing sent now supplies forty
-    // perfectly correct `never_invited` rows to the wider view. Asserting plain
-    // equality would fail the moment anybody used the feature.
-    const flagged = await count("select count(*) as count from public.uninvited_audience_members");
-    const reportable = await count(
-      `select count(*) as count
-         from public.invitation_response_state s
-         join public.events e on e.id = s.event_id
-        where s.response_state = 'never_invited'
-          and e.status in ('approved', 'occurred', 'not_held')`,
+    // What is asserted here instead is a property of the seeded **data** that
+    // the view does not encode: the defect it reports is a *partial* one. The
+    // seed contains an approved-or-later event where some of the confirmed
+    // audience was invited and some was not — which is what makes the row worth
+    // reporting, and is exactly the shape a real approval bug produces. An
+    // event where nobody at all was invited would also populate the view, and
+    // would be a different (and less interesting) fault.
+    const partial = await client.query<{ event_id: string; uninvited: string; invited: string }>(
+      `select u.event_id,
+              count(*)::text as uninvited,
+              (select count(*)::text from public.invitations i where i.event_id = u.event_id) as invited
+         from public.uninvited_audience_members u
+        group by u.event_id`,
     );
-    expect(flagged).toBe(reportable);
-    expect(flagged).toBeGreaterThan(0);
+
+    expect(partial.rows.length).toBeGreaterThan(0);
+    expect(
+      partial.rows.some((row) => Number(row.uninvited) > 0 && Number(row.invited) > 0),
+      "the seed has no event where part of the confirmed audience was invited and part was not",
+    ).toBe(true);
   });
 
   it("reports all five P7 states from the seeded season", async () => {
