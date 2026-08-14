@@ -9,7 +9,6 @@ import { operatorHasCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   readAttendanceBoard,
-  readWalkUpCandidates,
   type AttendanceBoard,
   type AttendanceParticipant,
 } from "@/lib/services/attendance";
@@ -133,7 +132,6 @@ export default async function AttendancePage({
   }
 
   if (addingWalkUp) {
-    const candidates = await readWalkUpCandidates(event.id);
     return (
       <Stack
         spacing={3}
@@ -146,7 +144,7 @@ export default async function AttendancePage({
             {`${event.name} · ${labelFor(STATUS_LABELS, event.status)}`}
           </Typography>
         </Box>
-        <WalkUpForm eventId={event.id} candidates={candidates} />
+        <WalkUpForm eventId={event.id} />
       </Stack>
     );
   }
@@ -176,7 +174,8 @@ export default async function AttendancePage({
 
       {justAdded ? (
         <Alert severity="success" data-testid="walk-up-added">
-          Walk-up recorded. It is flagged for later reconciliation and no membership was created.
+          Walk-on recorded. They are in recruitment as somebody to follow up, and were not put on
+          the roster.
         </Alert>
       ) : null}
 

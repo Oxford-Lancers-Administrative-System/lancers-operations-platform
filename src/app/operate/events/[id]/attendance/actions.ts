@@ -203,23 +203,24 @@ export async function recordWalkUpAction(
   const eventId = text(formData, "eventId");
 
   const values = {
-    name: text(formData, "name"),
-    contact: text(formData, "contact"),
-    presence: WALK_UP_PRESENCE,
-    membershipId: text(formData, "membershipId"),
+    givenName: text(formData, "givenName"),
+    familyName: text(formData, "familyName"),
+    phone: text(formData, "phone"),
+    email: text(formData, "email"),
   };
 
   try {
     await recordWalkUpAttendance(operator.personId, eventId, {
-      name: values.name,
-      contact: values.contact === "" ? null : values.contact,
+      givenName: values.givenName,
+      familyName: values.familyName,
+      phone: values.phone,
+      email: values.email === "" ? null : values.email,
       // Fixed here, not read from the form — Brian, 14 August 2026. The form no
       // longer asks, so a `presence` in the body came from somewhere else, and
       // a server action is a POST endpoint anybody with a session can call. The
       // value the club's rule produces is the value that gets written, and the
       // row's four buttons correct it afterwards like any other.
       presence: WALK_UP_PRESENCE,
-      membershipId: values.membershipId === "" ? null : values.membershipId,
     });
   } catch (error) {
     return { error: messageFor(error), values };

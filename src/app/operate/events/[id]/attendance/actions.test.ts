@@ -89,10 +89,10 @@ function walkUpForm(overrides: Record<string, string> = {}): FormData {
   const form = new FormData();
   const fields: Record<string, string> = {
     eventId: EVENT_ID,
-    name: "Devon Skye",
-    contact: "+44 7700 900105",
-    presence: "present",
-    membershipId: "",
+    givenName: "Devon",
+    familyName: "Skye",
+    phone: "+44 7700 900105",
+    email: "devon@example.ac.ox",
     ...overrides,
   };
   for (const [key, value] of Object.entries(fields)) form.set(key, value);
@@ -389,58 +389,62 @@ describe("recordWalkUpAction", () => {
     givenAccess({ state: "active", operator: actor(["secretary"]) });
   });
 
-  it("passes the minimum identity, and an empty match as no match", async () => {
+  it("passes the four fields the form now collects", async () => {
     await expect(recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm())).rejects.toThrow(
       `REDIRECT:/operate/events/${EVENT_ID}/attendance?added=walk-up`,
     );
 
     expect(recordWalkUpAttendance).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, {
-      name: "Devon Skye",
-      contact: "+44 7700 900105",
+      givenName: "Devon",
+      familyName: "Skye",
+      phone: "+44 7700 900105",
+      email: "devon@example.ac.ox",
       presence: "present",
-      membershipId: null,
     });
   });
 
-  it("passes a chosen roster match through", async () => {
+  it("treats a blank email as no email rather than as an empty one", async () => {
     await expect(
-      recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ membershipId: "abc" })),
+      recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ email: "" })),
     ).rejects.toThrow("REDIRECT:");
 
     expect(recordWalkUpAttendance).toHaveBeenCalledWith(
       OPERATOR_PERSON_ID,
       EVENT_ID,
-      expect.objectContaining({ membershipId: "abc" }),
+      expect.objectContaining({ email: null }),
     );
   });
 
-  it("treats a blank contact as no contact rather than as an empty one", async () => {
+  it("sends the required fields through untouched for the service to refuse", async () => {
+    // The action does not second-guess them. One place decides what a walk-on
+    // must have, and it is the service — so a direct call is held to the same
+    // rule as the form.
     await expect(
-      recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ contact: "" })),
+      recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ familyName: "", phone: "" })),
     ).rejects.toThrow("REDIRECT:");
 
     expect(recordWalkUpAttendance).toHaveBeenCalledWith(
       OPERATOR_PERSON_ID,
       EVENT_ID,
-      expect.objectContaining({ contact: null }),
+      expect.objectContaining({ familyName: "", phone: "" }),
     );
   });
 
   it("keeps everything typed when it is refused", async () => {
     vi.mocked(recordWalkUpAttendance).mockRejectedValue(
-      new ConstraintViolated("This does not look like an email address or a phone number.", {
-        rule: "walk_up_contact_shape",
+      new ConstraintViolated("This does not look like an email address.", {
+        rule: "walk_up_email_shape",
       }),
     );
 
-    const state = await recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ contact: "ask Sam" }));
+    const state = await recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ email: "ask Sam" }));
 
-    expect(state.error).toContain("email address or a phone number");
+    expect(state.error).toContain("email address");
     expect(state.values).toEqual({
-      name: "Devon Skye",
-      contact: "ask Sam",
-      presence: "present",
-      membershipId: "",
+      givenName: "Devon",
+      familyName: "Skye",
+      phone: "+44 7700 900105",
+      email: "ask Sam",
     });
   });
 

@@ -32,7 +32,6 @@ vi.mock("@/lib/services/attendance", async (importOriginal) => {
   return {
     ...actual,
     readAttendanceBoard: vi.fn(),
-    readWalkUpCandidates: vi.fn(),
     recordAttendance: vi.fn(),
     recordWalkUpAttendance: vi.fn(),
     removeAttendance: vi.fn(),
@@ -61,7 +60,6 @@ import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
   readAttendanceBoard,
-  readWalkUpCandidates,
   recordAttendance,
   type AttendanceBoard,
   type AttendanceParticipant,
@@ -494,7 +492,7 @@ describe("UX-72 — the attendance board", () => {
     // chips are what is under the disclosure, not what replaced it.
     fireEvent.click(screen.getByTestId("attendance-group-toggle-everyone_else"));
 
-    expect(screen.getByTestId("walk-up-chip").textContent).toContain("to reconcile");
+    expect(screen.getByTestId("walk-up-chip").textContent).toContain("in recruitment");
     expect(screen.getByTestId("mismatch-chip").textContent).toContain("turned up");
     expect(container.textContent).toContain("Walk-up · never invited");
   });
@@ -585,19 +583,23 @@ describe("the board's filters", () => {
 describe("UX-73 — add walk-up attendance", () => {
   beforeEach(() => {
     vi.mocked(readAttendanceBoard).mockResolvedValue(board());
-    vi.mocked(readWalkUpCandidates).mockResolvedValue([
-      { membershipId: MEMBERSHIP_ID, displayName: "Leo Hartwell" },
-    ]);
   });
 
-  it("asks for a name, a contact and a possible roster match, and nothing else", async () => {
+  it("asks the same four fields as adding a player, and nothing else", async () => {
+    // Brian, 14 August 2026: "it should be almost identical to adding a
+    // player… first name, last name, phone, and email".
     const { container } = render(await AttendancePage(attendanceProps({ add: "walk-up" })));
 
-    expect(container.textContent).toContain("Add walk-up attendance");
-    expect(container.textContent).toContain("Capture only enough identity to record attendance");
-    expect(screen.getByLabelText(/^Name/)).toBeTruthy();
-    expect(screen.getByLabelText(/Email or phone/)).toBeTruthy();
-    expect(container.textContent).toContain("Possible roster match");
+    expect(container.textContent).toContain("Add a walk-on");
+    expect(screen.getByLabelText(/^First name/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Last name/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Phone/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Email/)).toBeTruthy();
+
+    // The three the first version had, all gone.
+    expect(container.textContent).not.toContain("Possible roster match");
+    expect(container.textContent).not.toContain("Email or phone");
+    expect(screen.queryByLabelText(/^Name$/)).toBeNull();
 
     // Nothing recruitment- or onboarding-shaped is asked for on the field.
     for (const absent of ["date of birth", "emergency", "subscription", "consent", "position"]) {
@@ -622,8 +624,8 @@ describe("UX-73 — add walk-up attendance", () => {
     const { container } = render(await AttendancePage(attendanceProps({ add: "walk-up" })));
 
     const note = screen.getByTestId("walk-up-reconciliation-note");
-    expect(note.textContent).toContain("flagged for later reconciliation");
-    expect(note.textContent).toContain("does not create or activate a membership");
+    expect(note.textContent).toContain("added to recruitment");
+    expect(note.textContent).toContain("does not put them on the roster");
 
     // And it says that without naming an issue tracker. A sentence pointing at
     // LAN-85 was here and Brian cut it: an operator on a pitch has no use for
@@ -636,10 +638,8 @@ describe("UX-73 — add walk-up attendance", () => {
   it("confirms the same two facts after it is committed", async () => {
     const { container } = render(await AttendancePage(attendanceProps({ added: "walk-up" })));
 
-    expect(screen.getByTestId("walk-up-added").textContent).toContain(
-      "flagged for later reconciliation",
-    );
-    expect(container.textContent).toContain("no membership was created");
+    expect(screen.getByTestId("walk-up-added").textContent).toContain("in recruitment");
+    expect(container.textContent).toContain("were not put on the roster");
   });
 });
 
@@ -1191,13 +1191,12 @@ describe("UX-97 — the coach's walk-up", () => {
   it("offers the same minimal capture, on the same route", async () => {
     givenCoach();
     vi.mocked(readAttendanceBoard).mockResolvedValue(board());
-    vi.mocked(readWalkUpCandidates).mockResolvedValue([]);
 
     const { container } = render(await AttendancePage(attendanceProps({ add: "walk-up" })));
 
     expect(screen.getByTestId("walk-up-step")).toHaveAttribute("data-view", "coach");
-    expect(container.textContent).toContain("Add walk-up attendance");
-    expect(container.textContent).toContain("flagged for later reconciliation");
+    expect(container.textContent).toContain("Add a walk-on");
+    expect(container.textContent).toContain("added to recruitment");
     // The deferred workflow is named and not offered — LAN-85, per LAN-80.
     expect(screen.queryByRole("link", { name: /onboard/i })).toBeNull();
   });
@@ -1205,7 +1204,6 @@ describe("UX-97 — the coach's walk-up", () => {
   it("cancels back to the board, not to the event", async () => {
     givenCoach();
     vi.mocked(readAttendanceBoard).mockResolvedValue(board());
-    vi.mocked(readWalkUpCandidates).mockResolvedValue([]);
 
     render(await AttendancePage(attendanceProps({ add: "walk-up" })));
 

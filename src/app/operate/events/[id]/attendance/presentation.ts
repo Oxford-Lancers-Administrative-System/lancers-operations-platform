@@ -342,17 +342,34 @@ export function describeCommitted(
 // UX-73 / UX-97 — the walk-up
 // ---------------------------------------------------------------------------
 
-export const WALK_UP_HEADLINE = "Add walk-up attendance";
+export const WALK_UP_HEADLINE = "Add a walk-on";
 
-export const WALK_UP_DETAIL = "Capture only enough identity to record attendance now.";
+export const WALK_UP_DETAIL = "Somebody who turned up and is not on the roster.";
 
+/**
+ * What the club ends up with, said before the operator commits — Brian,
+ * 14 August 2026: a walk-on "should go in like a new person is being added, not
+ * in the roster, not in the season roster, but in the person in the
+ * recruitment".
+ *
+ * Both halves are load-bearing. **Into recruitment** is what somebody picking
+ * this up next week needs to know to go and find them; **not onto the roster**
+ * is the approved criterion that the record "cannot be mistaken for a completed
+ * membership", and is why nobody has to take them off a team sheet afterwards.
+ */
 export const WALK_UP_RECONCILIATION_NOTE =
-  "The walk-up is visibly flagged for later reconciliation. This does not create or activate " +
-  "a membership.";
+  "They are added to recruitment as somebody to follow up, and recorded at this event. " +
+  "This does not put them on the roster or create a membership.";
 
-export const WALK_UP_NAME_LABEL = "Name";
+// The four labels, matching `/operate/roster/new` word for word. Two screens
+// that add a person to the club should not name the same field two ways.
+export const WALK_UP_GIVEN_NAME_LABEL = "First name";
 
-export const WALK_UP_CONTACT_LABEL = "Email or phone";
+export const WALK_UP_FAMILY_NAME_LABEL = "Last name";
+
+export const WALK_UP_PHONE_LABEL = "Phone";
+
+export const WALK_UP_EMAIL_LABEL = "Email";
 
 /**
  * A walk-up is recorded **Present**, and the form does not ask — Brian,
@@ -374,15 +391,7 @@ export const WALK_UP_CONTACT_LABEL = "Email or phone";
 export const WALK_UP_ALWAYS_PRESENT =
   "Recorded as Present. Correct it on their row afterwards if you need to.";
 
-export const WALK_UP_MATCH_LABEL = "Possible roster match";
-
-export const WALK_UP_MATCH_NONE = "None selected";
-
-export const WALK_UP_MATCH_HELP =
-  "If they are already on this season's roster, choose them here so the attendance is " +
-  "recorded against their membership rather than against a second record of the same person.";
-
-export const WALK_UP_SUBMIT = "Add walk-up";
+export const WALK_UP_SUBMIT = "Add walk-on";
 
 /** The reconciliation flag, in the club's words. Derived, never a column. */
-export const WALK_UP_CHIP = "Walk-up · to reconcile";
+export const WALK_UP_CHIP = "Walk-on · in recruitment";
