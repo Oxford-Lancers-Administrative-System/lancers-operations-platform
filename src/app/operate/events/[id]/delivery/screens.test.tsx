@@ -371,6 +371,16 @@ describe("every delivery view offers only the controls it is meant to", () => {
     { state: "retryable", tokenState: "revoked", retryable: true },
     { state: "retryable", tokenState: "none", retryable: true, responseState: "responded_no" },
     { state: "failed", tokenState: "live", retryable: true, attemptCount: 5 },
+    // `describeChannel` has three arms and only one was ever rendered. `email`
+    // and `sms` are real `notification_channel` values, and "Automated email /
+    // calendar" is the contract's named fallback, so a control behind one of
+    // them is not hypothetical — review put one there and nothing noticed.
+    { state: "delivered", channel: "email", tokenState: "live", retryable: false },
+    { state: "failed", channel: "sms", tokenState: "none", retryable: true },
+    // The rest of the response vocabulary.
+    { state: "queued", responseState: "expired_without_response", tokenState: "none" },
+    { state: "delivered", responseState: "cancelled", tokenState: "revoked", retryable: false },
+    { state: "queued", responseState: "not_solicited", tokenState: "none" },
   ];
 
   const QUERIES: Readonly<Record<string, Record<string, string>>> = {
@@ -521,6 +531,62 @@ describe("every delivery view offers only the controls it is meant to", () => {
     icon.innerHTML = "<svg></svg>";
     expect(accessibleName(icon)).toBe("(unnamed control)");
     expect(new Set(PERMITTED_CONTROLS.diagnostics).has(accessibleName(icon))).toBe(false);
+  });
+});
+
+/**
+ * The screens' policy copy, pinned verbatim.
+ *
+ * The inventory guards **controls**, and prose hands off just as effectively as
+ * a button: review rewrote `REPAIR_NOTE` to read "…ask the team manager to
+ * message this player on WhatsApp themselves and note that they did", rendered
+ * it under "Repair delivery", and the whole suite stayed green. `presentation.ts`
+ * is exempt from the phrase rules — it has to be, since it holds the sentence
+ * that *states* the prohibition — so nothing else was looking either.
+ *
+ * These are the sentences an operator reads about what they may and may not do.
+ * Changing one should be a deliberate edit here, not a silent one there.
+ */
+describe("the delivery screens say what they are supposed to say", () => {
+  beforeEach(() => signedInAs(["secretary"]));
+
+  it("states the standing policy on every view", async () => {
+    const views: Record<string, string>[] = [
+      {},
+      { view: "diagnostics" },
+      { invitation: "invitation-1" },
+    ];
+    for (const query of views) {
+      const { container, unmount } = await renderPage(query);
+      expect(container.querySelector('[data-testid="delivery-policy-note"]')?.textContent).toBe(
+        "Operators never copy, send or post invitations manually. Delivery telemetry does not " +
+          "imply an RSVP.",
+      );
+      unmount();
+    }
+  });
+
+  it("pins the repair panel's note", async () => {
+    const { container } = await renderPage({ invitation: "invitation-1" });
+    expect(container.textContent).toContain(
+      "Retry and token repair are auditable system actions. There is no copy-link, " +
+        "send-message or post-to-group control.",
+    );
+  });
+
+  it("pins the diagnostics note", async () => {
+    const { container } = await renderPage({ view: "diagnostics" });
+    expect(container.textContent).toContain(
+      "Provider-neutral statuses are queued, attempted, delivered, failed and retryable. " +
+        "RSVP remains independent.",
+    );
+  });
+
+  it("pins the fallback fact, which is where a handoff would read most naturally", async () => {
+    const { container } = await renderPage({ invitation: "invitation-1" });
+    const fallback = container.querySelector('[data-testid="fallback-fact"]')?.textContent ?? "";
+    expect(fallback).toContain("Automated email / calendar");
+    expect(fallback).toContain("No manual send action");
   });
 });
 
