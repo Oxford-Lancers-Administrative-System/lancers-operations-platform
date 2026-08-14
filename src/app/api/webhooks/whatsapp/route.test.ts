@@ -136,10 +136,6 @@ describe("POST — an unverified request reaches nothing", () => {
     expect(await callbackCount()).toBe(0);
   });
 
-  /**
-   * The failure a route that parsed before verifying would introduce. The bytes
-   * differ only in whitespace, and the signature is over bytes.
-   */
   it("refuses a signature computed over re-serialised JSON", async () => {
     configured();
     const original = '{"entry": [{"changes": []}]}';
@@ -147,6 +143,41 @@ describe("POST — an unverified request reaches nothing", () => {
     expect(reserialised).not.toBe(original);
 
     expect((await post(reserialised, sign(original))).status).toBe(403);
+  });
+
+  /**
+   * The assertion that actually pins the ordering, and the one this suite was
+   * missing.
+   *
+   * Everything else here builds its bodies with `JSON.stringify`, so they are
+   * already canonical and re-serialising them is the identity — which meant a
+   * route that parsed first and verified over `JSON.stringify(payload)` passed
+   * every test in the file. Meta's real callbacks are not canonical: they carry
+   * whitespace and their own key order.
+   *
+   * So this posts a deliberately non-canonical body, signed over those exact
+   * bytes, and requires it to be **accepted**. A parse-then-verify route
+   * answers 403, which would silently discard every genuine callback — and
+   * canonicalising before verifying would also make one captured signature
+   * authenticate a whole family of bodies.
+   */
+  it("accepts a signature over the bytes as received, whitespace and key order included", async () => {
+    configured();
+    const asMetaSendsIt =
+      '{\n  "object": "whatsapp_business_account",\n  "entry": [ {\n' +
+      '    "changes": [ {\n      "value": {\n        "statuses": [ {\n' +
+      `          "status": "delivered",\n          "timestamp": "1700000000",\n` +
+      `          "id": "${MARKER}-noncanonical"\n` +
+      '        } ]\n      },\n      "field": "messages"\n    } ]\n  } ]\n}';
+
+    // Not what `JSON.stringify` would produce, which is the whole point.
+    expect(asMetaSendsIt).not.toBe(JSON.stringify(JSON.parse(asMetaSendsIt)));
+
+    const response = await post(asMetaSendsIt, sign(asMetaSendsIt));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: 1, applied: 0 });
+    expect(await callbackCount()).toBe(1);
   });
 
   it("refuses everything, verified or not, when the deployment cannot verify", async () => {
