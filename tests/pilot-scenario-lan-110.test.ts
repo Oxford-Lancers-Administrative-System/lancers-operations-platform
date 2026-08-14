@@ -641,16 +641,31 @@ describe("cleanup.sql", () => {
 
   it("refuses while a login is still linked to one of its people", async () => {
     await client.query(SETUP);
-    // Re-points an existing login rather than minting an auth user: the local
-    // stack's two review logins are both already linked, and this test only
-    // needs an `operator_accounts` row aimed at one of the scenario's people.
-    // The whole test runs inside a transaction that is rolled back.
+
+    /**
+     * Points a login at one of this scenario's people.
+     *
+     * `insert … on conflict` rather than an `update`, because the two
+     * environments differ and the first version of this test only worked in
+     * one. A development stack has both review logins linked already, so
+     * re-pointing one is all that is needed; CI seeds an auth user and never
+     * links it, so there is no `operator_accounts` row to update and an update
+     * silently matched nothing — the guard was never reached and the test
+     * passed locally while failing in CI. `on conflict` covers both.
+     *
+     * The whole test runs inside a transaction that is rolled back, so neither
+     * environment keeps the link.
+     */
     await client.query(
-      `update public.operator_accounts
-          set person_id = $1
-        where id = (select id from public.operator_accounts order by created_at limit 1)`,
+      `insert into public.operator_accounts (auth_user_id, person_id)
+       select id, $1 from auth.users order by created_at limit 1
+       on conflict (auth_user_id) do update set person_id = excluded.person_id`,
       [PEOPLE.authorizedCoach],
     );
+    expect(
+      await count("public.operator_accounts where person_id = $1::uuid", [PEOPLE.authorizedCoach]),
+      "the fixture must actually create the link the guard is meant to notice",
+    ).toBe(1);
 
     await expect(runCleanup()).rejects.toThrow(/operator account\(s\) are linked/i);
     expect((await scenarioRows()).people).toBe(5);
