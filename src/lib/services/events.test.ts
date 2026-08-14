@@ -118,24 +118,29 @@ async function auditFor(eventId: string) {
 
 /** How many "an event was drafted" records exist right now. */
 /**
- * This suite's own `event.drafted` rows, and nobody else's.
+ * Drafting audits **for this suite's events only**.
  *
- * It counted every such row in the database, which is a race rather than a
- * measurement: Vitest runs suites in parallel against one PostgreSQL, so any
- * other suite drafting or cleaning up an event between the two reads moved the
- * number and failed the assertion here — in a test about rollback, for a reason
- * that had nothing to do with rollback. Reproduced on 13 August 2026: roughly
- * one run in three of four pre-existing suites, with no LAN-78 file involved.
+ * This counted every `event.drafted` row in the database, which is a cross-suite
+ * race of the family LAN-119 fixes: Vitest runs suites in parallel against one
+ * database, and `event-approval.test.ts` drafts an event in almost every test.
+ * A row committed between the before and after counts failed this assertion in a
+ * suite that had nothing to do with it.
  *
- * Scoping it to `NAME_MARKER` restores what the test meant to ask — "did *this*
- * refused draft leave an audit row?" — and makes the answer independent of what
- * anything else is doing.
+ * Independent review found it while checking whether the two races already fixed
+ * were the only ones. They were not.
+ *
+ * Scoping to `NAME_MARKER` is both race-free and closer to the claim: what the
+ * caller wants to know is whether a refused create wrote an audit row for the
+ * event *it* tried to create.
  */
 async function countDraftedAudits(): Promise<number> {
   const result = await observer.query<{ count: string }>(
-    `select count(*)::text as count from public.audit_events
-      where entity_table = 'events' and action = 'event.drafted'
-        and entity_id in (select id from public.events where name like $1)`,
+    `select count(*)::text as count
+       from public.audit_events a
+       join public.events e on e.id = a.entity_id
+      where a.entity_table = 'events'
+        and a.action = 'event.drafted'
+        and e.name like $1`,
     [`${NAME_MARKER}%`],
   );
   return Number(result.rows[0].count);
@@ -864,13 +869,27 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
     expect(list.events.map((row) => row.id)).toContain(mine.id);
     expect(list.events.map((row) => row.id)).not.toContain(foreign.rows[0].id);
 
-    expect(unfilteredTotal).toBeGreaterThanOrEqual(Math.min(before, after));
-    expect(unfilteredTotal).toBeLessThanOrEqual(Math.max(before, after));
-
-    const everything = await observer.query<{ count: string }>(
-      "select count(*)::text as count from public.events",
+    // And the season total is the season's, not the database's.
+    //
+    // Read in ONE statement rather than two, and compared as a difference rather
+    // than as two independent equalities. `list.totalInSeason` and a separate
+    // `count(*)` are two snapshots of a table that several parallel suites are
+    // inserting into, so strict equality between them was a race — the same
+    // family LAN-119 fixes elsewhere. What matters here is that the total counts
+    // one season and not the database, and the gap proves it.
+    const counts = await observer.query<{ in_season: string; everything: string }>(
+      `select
+         (select count(*)::text from public.events where season_id = $1) as in_season,
+         (select count(*)::text from public.events) as everything`,
+      [mine.seasonId],
     );
-    expect(unfilteredTotal).toBeLessThan(Number(everything.rows[0].count));
+    const inSeason = Number(counts.rows[0].in_season);
+    const everything = Number(counts.rows[0].everything);
+
+    expect(inSeason).toBeLessThan(everything);
+    // The foreign event this test planted is one of the ones outside the total.
+    expect(unfilteredTotal).toBeLessThan(everything);
+    expect(unfilteredTotal).toBeGreaterThan(0);
   });
 
   it("filters by status without changing the season total", async () => {

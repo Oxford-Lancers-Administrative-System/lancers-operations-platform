@@ -285,12 +285,44 @@ export function groupIsSelected(
 }
 
 /**
- * The selection after pressing a group button.
+ * The selection after pressing a group button: add the group's keys, or remove
+ * them.
  *
- * Adding is a union of keys. **Removing is by person**, for the same reason the
- * lit state is: somebody selected as a player is still in "everyone active", and
- * clearing that group has to remove them whichever capacity they are held under.
- * Dropping only the group's own keys would leave a lit button's people behind.
+ * ## Removal is by key, and the first version got this wrong
+ *
+ * It removed every key belonging to a *person* in the group. That is
+ * indistinguishable from key-wise removal for "Everyone active" — which is the
+ * only group the test exercised — and destructive for every narrower one:
+ *
+ *   * Select **All active players** (Alice, Bob, Cara), then **All active
+ *     committee** (adds Xena), then press committee again to undo. Alice also
+ *     holds a committee seat, so person-wise removal took her out too — even
+ *     though the players group put her there and is still lit.
+ *   * Worse, with one press: after selecting players, **All active coaches** is
+ *     already lit, because the only coach is a selected player. Pressing it to
+ *     *add* coaches took the remove branch and deleted her. Fewer people than
+ *     before, and no coach added.
+ *
+ * Ten people in the seeded club hold two capacities, so that was one mis-click
+ * from an approval quietly missing somebody, with the audit recording the
+ * already-shrunk count. Independent review found it; `npm run test` did not.
+ *
+ * Removing exactly the keys the group would add is the inverse of adding them,
+ * which is what a toggle should be. A person held under another capacity keeps
+ * that capacity and stays in the audience.
+ *
+ * ## Why a lit button can then do nothing
+ *
+ * `groupIsSelected` asks whether everybody in the group is invited, so it can
+ * light up for a group whose own keys are not in the selection at all — the
+ * coaches case above, and any group restored from a saved audience, which holds
+ * one key per person rather than one per capacity.
+ *
+ * Pressing such a button removes its keys, finds none, and changes nothing. The
+ * button stays lit, which is still true: those people are still all invited.
+ * That is the honest outcome, and much better than the alternative, which was
+ * to delete somebody the operator never asked to remove. Anyone genuinely
+ * wanting them out can untick them individually or press **Clear selection**.
  */
 export function toggleGroup(
   candidates: readonly AudienceCandidate[],
@@ -303,12 +335,6 @@ export function toggleGroup(
     return new Set([...selected, ...groupKeys]);
   }
 
-  const leaving = peopleIn(candidates, groupKeys);
-  const byKey = new Map(candidates.map((candidate) => [candidate.key, candidate] as const));
-  return new Set(
-    [...selected].filter((key) => {
-      const candidate = byKey.get(key);
-      return candidate === undefined || !leaving.has(candidate.personId);
-    }),
-  );
+  const leaving = new Set(groupKeys);
+  return new Set([...selected].filter((key) => !leaving.has(key)));
 }

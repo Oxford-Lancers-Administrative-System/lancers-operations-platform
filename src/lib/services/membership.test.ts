@@ -195,6 +195,45 @@ async function currentStatus(membershipId: string): Promise<string> {
   return result.rows[0].status;
 }
 
+/**
+ * A person from the **seeded** club, to act in this suite's transitions.
+ *
+ * This used to be `order by created_at, id limit 1`, and that was the cause of a
+ * long-running intermittent failure across this file and `roster.test.ts` —
+ * 13 tests at a time, on code that passed when re-run.
+ *
+ * The seed stamps every person `created_at = '2026-08-15T09:00:00Z'`, which is
+ * in the **future** of the machine clock. Every seeded person therefore sorts
+ * *last*, and any row a parallel suite had committed at `now()` sorted first and
+ * was adopted as the actor. When that suite's cleanup deleted its person, every
+ * subsequent write here that names the actor — `season_membership_status_events`,
+ * `audit_events` — failed its foreign key and surfaced as `ConstraintViolated`,
+ * far from the cause.
+ *
+ * Pinning to the seeded cohort removes the race: no suite ever deletes a seeded
+ * person. Independent review found the mechanism and reproduced it on demand
+ * with a parallel suite that inserted a person, held it 130 ms and deleted it.
+ *
+ * The future-dated seed itself is a separate latent trap, tracked in LAN-120.
+ */
+async function seededActorPersonId(client: Client): Promise<string> {
+  const actor = await client.query<{ id: string }>(
+    `select id from public.people
+      where merged_into_person_id is null
+        and created_at = '2026-08-15T09:00:00Z'::timestamptz
+      order by id
+      limit 1`,
+  );
+  if (actor.rows.length === 0) {
+    // A pass produced by a missing cohort is not a pass, and this is exactly
+    // where a changed seed timestamp should announce itself.
+    throw new Error(
+      "No seeded person found. `scripts/seed-local.mjs` no longer stamps people with 2026-08-15T09:00:00Z.",
+    );
+  }
+  return actor.rows[0].id;
+}
+
 beforeAll(async () => {
   observer = await openObserver();
 
@@ -202,11 +241,7 @@ beforeAll(async () => {
   openSeasonId = season.id;
   openSeasonLabel = season.label;
 
-  const actor = await observer.query<{ id: string }>(
-    "select id from public.people where created_at = $1::timestamptz and merged_into_person_id is null order by id limit 1",
-    [SEEDED_PEOPLE_CREATED_AT],
-  );
-  actorPersonId = actor.rows[0].id;
+  actorPersonId = await seededActorPersonId(observer);
 
   const types = await observer.query<{
     id: string;
@@ -1017,23 +1052,39 @@ describe("listCurrentSeasonRoster", () => {
     // lookup with `??` never fell back and the query became `order by
     // undefined`, which the database refuses and the screen renders as "the
     // roster is unavailable". `?sort=toString` is a URL anybody can type.
-    // Compared as **sets** taken at different moments, not as ordered lists of
-    // whatever the roster happened to contain.
     //
-    // Two live reads of a table other suites are writing to will not agree, and
-    // the assertion here is about the *sort key* resolving to the default — not
-    // about the roster being frozen. Intersecting each result with the first
-    // keeps the ordering claim exact while tolerating a membership appearing or
-    // going between reads.
-    const byName = await listCurrentSeasonRoster({ sort: "name" });
-    const baseline = byName.entries.map((entry) => entry.membershipId);
+    // Compared over the memberships that existed for the WHOLE comparison.
+    //
+    // Every read here is a separate statement against a database several
+    // parallel suites are writing to, so no two of them need contain the same
+    // rows. Two earlier attempts at this both failed in CI: comparing whole
+    // lists, and comparing intersections but then asserting the two totals were
+    // equal — that last assertion is a race by itself, and this branch's suites
+    // create memberships often enough to lose it.
+    //
+    // Bracketing the sorted read between two default reads gives an exact set:
+    // a membership in both the before and the after existed throughout, so it
+    // must appear in the middle read too. Comparing that set in order therefore
+    // proves the ordering claim *and* catches a truncating sort key, because a
+    // truncated result would be missing members of it — without either
+    // assertion depending on what any other suite is doing.
+    const before = await listCurrentSeasonRoster({ sort: "name" });
 
     for (const inherited of ["toString", "constructor", "valueOf", "hasOwnProperty"]) {
       const roster = await listCurrentSeasonRoster({ sort: inherited });
-      const shared = new Set(roster.entries.map((entry) => entry.membershipId));
+      const after = await listCurrentSeasonRoster({ sort: "name" });
+
+      const stillThere = new Set(after.entries.map((entry) => entry.membershipId));
+      const throughout = before.entries
+        .map((entry) => entry.membershipId)
+        .filter((id) => stillThere.has(id));
+      const seen = new Set(throughout);
+
+      expect(throughout.length).toBeGreaterThan(0);
       expect(
-        roster.entries.map((entry) => entry.membershipId).filter((id) => baseline.includes(id)),
-      ).toEqual(baseline.filter((id) => shared.has(id)));
+        roster.entries.map((entry) => entry.membershipId).filter((id) => seen.has(id)),
+        `sort=${inherited}`,
+      ).toEqual(throughout);
     }
   });
 

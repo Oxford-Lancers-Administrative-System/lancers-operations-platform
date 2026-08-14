@@ -319,11 +319,66 @@ export async function readEvent(eventId: string): Promise<EventDetail> {
 }
 
 /**
+ * The event, read under a row lock that is held until the transaction ends.
+ *
+ * ## What this is for, and the bug that produced it
+ *
+ * `withTransaction` opens a plain `begin`, so the isolation level is READ
+ * COMMITTED. That is the right default and it is not enough on its own for a
+ * read-then-write across *several* tables: two transactions can each read a
+ * consistent picture, each decide it is safe to proceed, and each be right about
+ * a state that no longer exists by the time they write.
+ *
+ * Independent review proved exactly that against LAN-77's approval path, with
+ * three real connections. `approveEvent` read the audience, then flipped the
+ * status; `saveEventAudience` checked the status with a plain `select`, which
+ * does not block on another transaction's uncommitted `update`, and deleted the
+ * audience rows underneath it. The committed result was an **approved event with
+ * no audience and no invitations** — precisely the state invariant E1b exists to
+ * prevent, and one `uninvited_audience_members` cannot even report, because
+ * there are no audience rows left to report on.
+ *
+ * `select … for update` closes it: the second transaction blocks here until the
+ * first commits or rolls back, and then sees the truth rather than a memory of
+ * it. Every path that reads an event and then writes rows that depend on the
+ * event's state takes this lock **first**, before reading anything it will make
+ * a decision from.
+ *
+ * The guarded `update … where status = 'draft'` stays where it is. It is still
+ * the thing that makes a double submission safe, and it now has a lock in front
+ * of it rather than instead of it.
+ *
+ * ## Why it returns the event rather than just locking
+ *
+ * So that a caller cannot take the lock and then act on a copy it read before
+ * taking it — which is the bug in miniature. The returned detail is read after
+ * the lock is held, so it is authoritative for the rest of the transaction.
+ */
+export async function lockEventIn(tx: Tx, eventId: string): Promise<EventDetail> {
+  if (!UUID_PATTERN.test(eventId)) {
+    throw new NotFound(EVENT_NOT_FOUND_MESSAGE, { rule: "event_not_found" });
+  }
+
+  const locked = await tx.query<{ id: string }>(
+    "select id from public.events where id = $1 for update",
+    [eventId],
+  );
+  if (locked.rowCount === 0) {
+    throw new NotFound(EVENT_NOT_FOUND_MESSAGE, { rule: "event_not_found" });
+  }
+
+  return readEventIn(tx, eventId);
+}
+
+/**
  * The same read, inside a caller's transaction.
  *
  * Exported for `./event-approval`, which has to read the event, resolve an
  * audience and write all five tables as one unit — reading through `readEvent`
  * would open a second transaction and defeat the point.
+ *
+ * Takes no lock. A caller that will *write* based on what it reads wants
+ * `lockEventIn` instead; this one is for reads that only display.
  */
 export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail> {
   if (!UUID_PATTERN.test(eventId)) {

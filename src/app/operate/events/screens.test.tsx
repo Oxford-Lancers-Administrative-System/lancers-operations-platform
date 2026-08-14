@@ -1112,17 +1112,62 @@ describe("UX-40 — building the audience", () => {
     );
   });
 
-  it("clears a lit group by person, not only by its own keys", async () => {
+  it("undoing a narrower group keeps somebody another group put there", async () => {
+    // The defect independent review found, and the reason the test that used to
+    // sit here could not find it: it pressed "Everyone active", the one group
+    // whose keys cover every selected key, so removing by person and removing by
+    // key are indistinguishable there.
+    //
+    // Morgan Pike is an active player AND on the committee. The players group
+    // put them in; undoing the committee group must not take them out.
+    await openBuilder();
+
+    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
+
+    fireEvent.click(screen.getByRole("button", { name: "All active committee (1)" }));
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
+
+    fireEvent.click(screen.getByRole("button", { name: "All active committee (1)" }));
+
+    expect(screen.getByTestId("review-selection").textContent).toBe("Review 3 selected");
+    expect(screen.getByRole("checkbox", { name: "Include Morgan Pike as Player" })).toBeChecked();
+  });
+
+  it("never shrinks the audience when an already-lit group is pressed", async () => {
+    // The one-press variant, which needs no undo at all.
+    //
+    // Casey North is the only coach and is not a player, so selecting the
+    // players leaves the coaches button dark. The committee button is the one
+    // that lights, because its sole member Morgan Pike IS a selected player —
+    // and pressing a lit button must never subtract.
+    await openBuilder();
+
+    fireEvent.click(screen.getByRole("button", { name: "All active players (3)" }));
+    const before = screen.getByTestId("review-selection").textContent;
+
+    expect(screen.getByRole("button", { name: "All active committee (1)" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "All active committee (1)" }));
+
+    expect(screen.getByTestId("review-selection").textContent).toBe(before);
+    for (const name of ["Avery Fielding", "Samira Quinn", "Morgan Pike"]) {
+      expect(screen.getByRole("checkbox", { name: `Include ${name} as Player` })).toBeChecked();
+    }
+  });
+
+  it("clears the whole selection when everyone-active is un-pressed", async () => {
     givenAudience(AUDIENCE, undefined, SAVED_EVERYONE);
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps({ step: "audience" })));
 
+    // The case the old test covered, kept: for this one group, its keys are all
+    // the keys, so pressing it does clear everything.
     fireEvent.click(screen.getByRole("button", { name: "Everyone active (4)" }));
 
-    // Morgan Pike was saved under `player`; "everyone active" claims them under
-    // `committee` too. Clearing the group has to remove them whichever capacity
-    // they are held under, or a dark button leaves its people behind.
     expect(screen.getByTestId("review-selection").textContent).toBe("Review 0 selected");
     for (const box of screen.getAllByRole("checkbox")) {
       expect(box).not.toBeChecked();
