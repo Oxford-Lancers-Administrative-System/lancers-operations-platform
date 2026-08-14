@@ -79,13 +79,38 @@ const EXPLAINS_THE_BAN: readonly string[] = [
 ];
 
 describe("no manual delivery path exists in the application", () => {
+  /**
+   * Application source only — test files are excluded.
+   *
+   * Not a relaxation: a test cannot offer a control to an operator, so scanning
+   * one never protected anything. What it did do was guarantee a false positive,
+   * because a suite that *tests* the ban has to name the thing being banned —
+   * `src/app/operate/events/[id]/delivery/screens.test.tsx` pins the repair
+   * panel's controls precisely so that "Open in WhatsApp to send this yourself"
+   * fails, and it cannot do that without writing the phrase down.
+   *
+   * The screens themselves are guarded by that inventory rather than by this
+   * scan, which is the stronger of the two: it fails for any control added to
+   * the panel, however it is worded.
+   */
   const sources = filesUnder("src", [".ts", ".tsx"]).filter(
-    (file) => !EXPLAINS_THE_BAN.includes(file),
+    (file) => !EXPLAINS_THE_BAN.includes(file) && !/\.test\.tsx?$/.test(file),
   );
 
   it("reads a non-trivial number of source files", () => {
     // A scan that silently stops finding files is how this rule dies.
     expect(sources.length).toBeGreaterThan(40);
+    expect(sources.filter((file) => /\.test\.tsx?$/.test(file))).toEqual([]);
+  });
+
+  it("still reads the delivery screens themselves", () => {
+    // The exclusion above must not have swallowed the files that matter most.
+    for (const file of [
+      "src/app/operate/events/[id]/delivery/page.tsx",
+      "src/app/operate/events/[id]/delivery/repair-forms.tsx",
+    ]) {
+      expect(sources).toContain(file);
+    }
   });
 
   it.each(FORBIDDEN_AFFORDANCES)("offers nothing resembling $name", ({ pattern }) => {

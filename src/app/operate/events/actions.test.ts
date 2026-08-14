@@ -48,6 +48,10 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
     readApprovalPreview: vi.fn(),
   };
 });
+vi.mock("@/lib/services/delivery", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/delivery")>();
+  return { ...actual, dispatchEventInvitations: vi.fn() };
+});
 
 import {
   ConstraintViolated,
@@ -71,6 +75,8 @@ import {
   saveEventAudienceAction,
   updateEventDraftAction,
 } from "./actions";
+import { revalidatePath } from "next/cache";
+import { dispatchEventInvitations } from "@/lib/services/delivery";
 import { EMPTY_FORM_STATE, EMPTY_TRANSITION_STATE } from "./form-state";
 
 const OPERATOR_PERSON_ID = "22222222-2222-4222-8222-222222222222";
@@ -491,6 +497,82 @@ describe("approveEventAction is the authorization boundary for releasing invitat
     // proves it is not the boundary: a client that skips the screen reaches the
     // service and is refused by invariant E1b.
     expect(state.error).toBe(EMPTY_AUDIENCE_MESSAGE);
+  });
+});
+
+/**
+ * LAN-78. Approval is what makes distribution automatic — the issue's headline
+ * criterion and the whole justification for there being no manual send control
+ * anywhere.
+ *
+ * Independent review found this asserted by nothing: making the dispatch call
+ * unreachable left the entire suite green, so the club could silently stop
+ * inviting anybody and no test would notice.
+ */
+describe("approval is what starts distribution", () => {
+  beforeEach(() => {
+    vi.mocked(dispatchEventInvitations).mockResolvedValue({
+      attempted: 3,
+      accepted: 3,
+      refused: 0,
+      skipped: 0,
+    });
+  });
+
+  it("dispatches the approved event's invitations, and only after approving", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+
+    await expect(approveEventAction(EMPTY_TRANSITION_STATE, approvalForm())).rejects.toThrow(
+      "REDIRECT:",
+    );
+
+    expect(dispatchEventInvitations).toHaveBeenCalledTimes(1);
+    expect(dispatchEventInvitations).toHaveBeenCalledWith(EVENT_ID);
+    expect(vi.mocked(approveEvent).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(dispatchEventInvitations).mock.invocationCallOrder[0],
+    );
+  });
+
+  it("dispatches nothing when the approval itself was refused", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+    vi.mocked(approveEvent).mockRejectedValue(
+      new ConstraintViolated(EMPTY_AUDIENCE_MESSAGE, { rule: "event_audience_is_non_empty" }),
+    );
+
+    await approveEventAction(EMPTY_TRANSITION_STATE, approvalForm([]));
+
+    expect(dispatchEventInvitations).not.toHaveBeenCalled();
+  });
+
+  it("dispatches nothing when the caller was refused", async () => {
+    givenAccess({ state: "active", operator: actor(["head_coach"]) });
+
+    await refusalFrom(() => approveEventAction(EMPTY_TRANSITION_STATE, approvalForm()));
+
+    expect(dispatchEventInvitations).not.toHaveBeenCalled();
+  });
+
+  it("still reports the approval as successful when the provider is unreachable", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+    vi.mocked(dispatchEventInvitations).mockRejectedValue(new Error("provider unreachable"));
+
+    // The approval is committed. Turning a delivery failure into an error on
+    // this action would tell the operator to try again at something that would
+    // then be refused — the event is no longer a draft — while every job's own
+    // failure is already durable and visible on the delivery screen.
+    await expect(approveEventAction(EMPTY_TRANSITION_STATE, approvalForm())).rejects.toThrow(
+      `REDIRECT:/operate/events/${EVENT_ID}?approved=1`,
+    );
+  });
+
+  it("revalidates the delivery screen, so the new jobs are visible at once", async () => {
+    givenAccess({ state: "active", operator: actor(["president"]) });
+
+    await expect(approveEventAction(EMPTY_TRANSITION_STATE, approvalForm())).rejects.toThrow(
+      "REDIRECT:",
+    );
+
+    expect(revalidatePath).toHaveBeenCalledWith(`/operate/events/${EVENT_ID}/delivery`);
   });
 });
 
