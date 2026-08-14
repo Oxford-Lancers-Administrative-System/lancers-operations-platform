@@ -305,6 +305,7 @@ describe("row 8 — the map is the single source of truth, and is not editable a
         "delivery_administration",
         "event_approval",
         "event_calendar_management",
+        "event_occurrence_assertion",
         "leadership_report",
         "membership_activation",
         "role_management",

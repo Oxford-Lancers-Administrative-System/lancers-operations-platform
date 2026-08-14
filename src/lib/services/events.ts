@@ -128,6 +128,23 @@ export interface EventDetail extends EventListEntry {
   createdByName: string | null;
   decisionReason: string | null;
   seasonId: string;
+  /**
+   * Has the event's start time passed, in the club's own zone? LAN-80, UX-70.
+   *
+   * Displayed, never decided from. Invariant E5 is emphatic that "the passage
+   * of time never equals occurrence", so this is a **fact shown beside** the
+   * two assertion buttons rather than a condition on them: an operator whose
+   * pitch flooded at 19:55 may report a 20:00 practice as not held, and an
+   * operator who never got round to it may assert last week's. Neither the
+   * interface nor the service infers anything from it.
+   *
+   * Computed by PostgreSQL at `Europe/London` rather than in JavaScript,
+   * because British Summer Time is a wall-clock rule and the same reasoning
+   * that put the RSVP deadline in the database applies here. An event with no
+   * start time is measured from midnight on its date; an event with no date at
+   * all has not started.
+   */
+  startHasPassed: boolean;
 }
 
 export interface EventListFilters {
@@ -217,6 +234,7 @@ interface EventDetailRow extends EventRow {
   created_by_name: string | null;
   decision_reason: string | null;
   season_id: string;
+  start_has_passed: boolean;
 }
 
 /** Escapes the two LIKE metacharacters, and the escape character itself. */
@@ -391,6 +409,10 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
             e.venue, e.is_mandatory, e.solicits_response, e.origin::text as origin,
             e.term_id, t.name::text as term_name, t.academic_year as term_academic_year,
             e.week_number, e.decision_reason, e.season_id,
+            coalesce(
+              (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
+                at time zone 'Europe/London' <= now(),
+              false) as start_has_passed,
             case
               when o.id is null then null
               when o.family_name is null then coalesce(nullif(btrim(o.known_as), ''), o.given_name)
@@ -419,6 +441,7 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
     createdByName: row.created_by_name,
     decisionReason: row.decision_reason,
     seasonId: row.season_id,
+    startHasPassed: row.start_has_passed,
   };
 }
 
@@ -586,24 +609,64 @@ async function applyTransition(
 
   const trimmedReason = optional(reason);
   if (rule.requiresReason && trimmedReason === null) {
-    // `events_negative_decisions_are_explained` says the same thing. Refusing
-    // here first means the operator gets the sentence, not the constraint.
-    throw new ConstraintViolated("Say why this event is being abandoned.", {
-      rule: "events_negative_decisions_are_explained",
+    // Refusing here first means the operator gets the sentence rather than the
+    // constraint — and, for a correction, a sentence for a rule the database
+    // does not carry at all.
+    throw new ConstraintViolated(rule.reasonRefusal ?? "Say why this change is being made.", {
+      rule: rule.reasonRule,
     });
   }
 
   return withTransaction(async (tx) => {
-    const before = await readEventIn(tx, eventId);
+    // Locked, not merely read. Every check below is a read this statement then
+    // acts on, and the one that matters most — "does any attendance exist?" —
+    // is a read of a *different* table, which the guarded `where status = …`
+    // cannot protect on its own. Without the lock, a recorder saving the first
+    // attendance row and an operator correcting the assertion can each be right
+    // about a state the other is leaving.
+    const before = await lockEventIn(tx, eventId);
+
+    // Invariant P5, from the other side. `attendance_records.event_status` is a
+    // cascading copy of this column, so an update that moves the event off
+    // `occurred` rewrites every attendance row and then breaks
+    // `attendance_records_require_an_occurred_event`. That refusal is correct
+    // and is not readable: it names attendance while the operator was looking
+    // at an event. So the count is checked first and the refusal says what is
+    // actually in the way and what to do about it.
+    if (rule.from === "occurred") {
+      const attendance = await tx.query<{ count: string }>(
+        "select count(*)::text as count from public.attendance_records where event_id = $1",
+        [eventId],
+      );
+      const recorded = Number(attendance.rows[0].count);
+      if (recorded > 0) {
+        throw new InvalidTransition(
+          `This event still has ${recorded} attendance ${
+            recorded === 1 ? "record" : "records"
+          } against it. Remove them before changing what happened at the event.`,
+          { rule: "event_occurrence_locked_by_attendance" },
+        );
+      }
+    }
 
     const updated = await tx.query<{ id: string }>(
       `update public.events
           set status = $3::public.event_status,
               decision_reason = case when $4::text is null then decision_reason else $4 end,
+              outcome_recorded_at = case when $5 then now() else outcome_recorded_at end,
+              outcome_recorded_by_person_id =
+                case when $5 then $6::uuid else outcome_recorded_by_person_id end,
               updated_at = now()
         where id = $1 and status = $2::public.event_status
        returning id`,
-      [eventId, rule.from, rule.to, trimmedReason],
+      [
+        eventId,
+        rule.from,
+        rule.to,
+        trimmedReason,
+        rule.recordsOutcome === true,
+        rule.recordsOutcome === true ? actorPersonId : null,
+      ],
     );
 
     if (updated.rowCount === 0) {
@@ -640,6 +703,54 @@ export async function abandonEventDraft(
   reason: string,
 ): Promise<EventDetail> {
   return applyTransition(actorPersonId, eventId, "abandon", reason);
+}
+
+/**
+ * `approved → occurred`. LAN-80, UX-70's **Mark occurred**.
+ *
+ * The event's own record of what happened, asserted by a named operator. This
+ * function is the only path in the repository that produces `occurred`, and it
+ * takes no date argument, reads no clock to decide, and has no caller that is
+ * not a person pressing a button — invariant E5, which the schema restates as
+ * `events_outcome_is_asserted`.
+ */
+export async function markEventOccurred(
+  actorPersonId: string,
+  eventId: string,
+): Promise<EventDetail> {
+  return applyTransition(actorPersonId, eventId, "mark_occurred", null);
+}
+
+/** `approved → not_held`. UX-70's **Mark not held**, and UX-75's result. */
+export async function markEventNotHeld(
+  actorPersonId: string,
+  eventId: string,
+): Promise<EventDetail> {
+  return applyTransition(actorPersonId, eventId, "mark_not_held", null);
+}
+
+/**
+ * Corrects an occurrence assertion in whichever direction the event needs.
+ *
+ * The direction is derived from the event's current state rather than asked
+ * for, so a caller cannot request a correction that is not a correction. An
+ * event that has not been asserted at all is refused by `applyTransition`'s
+ * guarded update, naming the state it is really in.
+ *
+ * Leaving `occurred` is refused while attendance exists. That is not a
+ * limitation to work around: attendance is evidence somebody was there, and an
+ * assertion that the event did not happen would contradict it. The operator
+ * removes the attendance first, deliberately, or leaves the assertion alone.
+ */
+export async function correctOccurrenceAssertion(
+  actorPersonId: string,
+  eventId: string,
+  reason: string,
+): Promise<EventDetail> {
+  const current = await readEvent(eventId);
+  const transition: EventTransition =
+    current.status === "not_held" ? "correct_to_occurred" : "correct_to_not_held";
+  return applyTransition(actorPersonId, eventId, transition, reason);
 }
 
 // ---------------------------------------------------------------------------

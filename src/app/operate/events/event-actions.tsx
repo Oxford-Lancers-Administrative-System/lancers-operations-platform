@@ -6,7 +6,12 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import { abandonEventDraftAction, approveEventAction } from "./actions";
+import {
+  abandonEventDraftAction,
+  approveEventAction,
+  assertEventOutcomeAction,
+  correctEventOutcomeAction,
+} from "./actions";
 import { EMPTY_TRANSITION_STATE } from "./form-state";
 
 /**
@@ -121,6 +126,126 @@ export function ApproveEventForm({ eventId }: { eventId: string }) {
             sx={{ minHeight: 44 }}
           >
             Back to audience
+          </Button>
+        </Stack>
+      </Stack>
+    </Box>
+  );
+}
+
+/**
+ * UX-70's two buttons — **Mark occurred** and **Mark not held**.
+ *
+ * One form with two submit buttons rather than two forms, so that a single
+ * refusal renders once and under both. Each button carries the outcome as its
+ * own `value`, which is how a form posts *which* button was pressed without any
+ * client state deciding it.
+ *
+ * The labels are the approved ones. `slice-ux.md` § 6 fixes the club's
+ * vocabulary for this decision, and these two are the whole of it.
+ */
+export function OccurrenceDecisionForm({ eventId }: { eventId: string }) {
+  const [state, formAction, pending] = useActionState(
+    assertEventOutcomeAction,
+    EMPTY_TRANSITION_STATE,
+  );
+
+  return (
+    <Box component="form" action={formAction} data-testid="occurrence-form">
+      <input type="hidden" name="eventId" value={eventId} />
+      <Stack spacing={2}>
+        {state.error ? (
+          <Alert severity="error" data-testid="occurrence-error">
+            {state.error}
+          </Alert>
+        ) : null}
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+          <Button
+            type="submit"
+            name="outcome"
+            value="occurred"
+            variant="contained"
+            disabled={pending}
+            fullWidth
+            sx={{ minHeight: 44 }}
+          >
+            {pending ? "Recording…" : "Mark occurred"}
+          </Button>
+          <Button
+            type="submit"
+            name="outcome"
+            value="not_held"
+            variant="outlined"
+            disabled={pending}
+            fullWidth
+            sx={{ minHeight: 44 }}
+          >
+            Mark not held
+          </Button>
+        </Stack>
+      </Stack>
+    </Box>
+  );
+}
+
+/**
+ * The way back from an assertion somebody got wrong.
+ *
+ * Behind a disclosure, and asking for a reason, for the same reason abandoning
+ * a draft is: this rewrites the club's record of whether an evening happened,
+ * and an always-open control beside it is the shape people press by habit.
+ *
+ * `slice-ux.md` § 9 requires a completed state to offer "any permitted
+ * correction". Without one, an operator who pressed the wrong button on the
+ * wrong event in the list is stuck with it — and the alternative they would
+ * reach for is worse, because there is no other way to move an event's status.
+ */
+export function CorrectOccurrenceForm({
+  eventId,
+  currentStatus,
+}: {
+  eventId: string;
+  currentStatus: "occurred" | "not_held";
+}) {
+  const [state, formAction, pending] = useActionState(
+    correctEventOutcomeAction,
+    EMPTY_TRANSITION_STATE,
+  );
+  const [open, setOpen] = useState(false);
+
+  const target = currentStatus === "occurred" ? "not held" : "occurred";
+
+  if (!open) {
+    return (
+      <Button variant="text" onClick={() => setOpen(true)} data-testid="correct-occurrence-open">
+        {`Correct this to ${target}`}
+      </Button>
+    );
+  }
+
+  return (
+    <Box component="form" action={formAction} data-testid="correct-occurrence-form">
+      <input type="hidden" name="eventId" value={eventId} />
+      <Stack spacing={2}>
+        <TextField
+          label={`Why is this being corrected to ${target}?`}
+          name="reason"
+          multiline
+          minRows={2}
+          fullWidth
+          autoFocus
+        />
+        {state.error ? (
+          <Alert severity="error" data-testid="correct-occurrence-error">
+            {state.error}
+          </Alert>
+        ) : null}
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+          <Button type="submit" variant="contained" disabled={pending} sx={{ minHeight: 44 }}>
+            {pending ? "Correcting…" : `Correct to ${target}`}
+          </Button>
+          <Button variant="outlined" onClick={() => setOpen(false)} disabled={pending}>
+            Leave it as it is
           </Button>
         </Stack>
       </Stack>

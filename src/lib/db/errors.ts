@@ -254,6 +254,19 @@ const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
       { rule: "event_audience_members_anchor_matches_capacity", context },
     ),
 
+  // The same rule on the attendance table, and the one place it is genuinely
+  // easy to get wrong: a walk-up who turns out to be on the roster must be
+  // recorded against their **membership** at player capacity, and a walk-up who
+  // is not must be recorded against a person at guest capacity. Both anchor
+  // columns are nullable and both are plausible, so a row written the other way
+  // round would otherwise fail as an anonymous check violation.
+  attendance_records_anchor_matches_capacity: (context) =>
+    new ConstraintViolated(
+      "A player's attendance is recorded against their season membership, and anybody " +
+        "else's against the person. This one was recorded the other way round.",
+      { rule: "attendance_records_anchor_matches_capacity", context },
+    ),
+
   invitations_anchor_matches_capacity: (context) =>
     new ConstraintViolated(
       "A player is invited through their season membership, and a coach or committee " +
