@@ -253,12 +253,20 @@ describe("UX-51 — the diagnostics table", () => {
  * it is called, and whoever adds one has to widen the list on purpose.
  */
 const PERMITTED_CONTROLS: Readonly<Record<string, readonly string[]>> = {
-  overview: ["View diagnostics", "Delivery overview", "Back to event", "Sign out"],
-  diagnostics: [
+  overview: ["View diagnostics", "Delivery overview", "Back to event"],
+  diagnostics: ["Open selected issue", "Delivery overview", "Back to event"],
+  /**
+   * The status filter with its menu open.
+   *
+   * MUI portals a `Select`'s options into `document.body`, and they do not
+   * exist at all until it is opened — so seven labels sat in the permitted set
+   * guarding nothing, and any control added to that menu would have been
+   * invisible. The presence assertion below is what surfaced it.
+   */
+  "diagnostics (filter open)": [
     "Open selected issue",
     "Delivery overview",
     "Back to event",
-    "Sign out",
     "All",
     "Needs attention",
     "Queued",
@@ -267,22 +275,14 @@ const PERMITTED_CONTROLS: Readonly<Record<string, readonly string[]>> = {
     "Failed",
     "Retryable",
   ],
-  repair: [
-    "Retry delivery",
-    "Revoke and reissue link",
-    "Delivery overview",
-    "Back to event",
-    "Sign out",
-  ],
+  repair: ["Retry delivery", "Revoke and reissue link", "Delivery overview", "Back to event"],
   /**
    * The reissue disclosure, open.
    *
-   * Review defeated the inventory here: this branch only renders after a click,
-   * nothing in the suite clicked, and its `Cancel` button was absent from every
-   * permitted set while the tests passed — which is the proof the branch was
-   * never reached. A `wa.me` control beside `Cancel` was invisible to
-   * everything, and an operator pressing **Revoke and reissue link** would have
-   * been looking straight at it.
+   * Review defeated the inventory here once: this branch renders only after a
+   * click, nothing in the suite clicked, and its `Cancel` button was absent
+   * from every permitted set while the tests passed — which is the proof the
+   * branch was never reached.
    */
   "repair (reissue open)": [
     "Retry delivery",
@@ -290,10 +290,9 @@ const PERMITTED_CONTROLS: Readonly<Record<string, readonly string[]>> = {
     "Cancel",
     "Delivery overview",
     "Back to event",
-    "Sign out",
   ],
   /** The service-error branch, reached whenever the read throws. */
-  unavailable: ["Back to events", "Sign out"],
+  unavailable: ["Back to events"],
 };
 
 /** Every href the delivery screens are allowed to produce, as a shape. */
@@ -306,13 +305,11 @@ describe("every delivery view offers only the controls it is meant to", () => {
    * What a control is called, for the purpose of this inventory.
    *
    * Its **accessible name**, not its text. Reducing a control to `textContent`
-   * and then discarding the empty ones — which is what this did — means an
-   * icon-only button has no label, is filtered out, and never reaches the
-   * comparison. Review defeated the inventory exactly that way: a `<button>`
-   * containing only an `<svg>`, calling `window.open` on a `wa.me` URL, passed
-   * every assertion here.
+   * and then discarding the empty ones means an icon-only button has no label,
+   * is filtered out, and never reaches the comparison — which is how review
+   * slipped a `window.open` handoff past an earlier version of this test.
    *
-   * An unnamed control is now reported as `(unnamed control)`, which is in no
+   * An unnamed control is reported as `(unnamed control)`, which is in no
    * permitted set and therefore fails. That is also the right answer for
    * accessibility: a control a screen reader cannot announce is a defect on its
    * own terms.
@@ -331,9 +328,51 @@ describe("every delivery view offers only the controls it is meant to", () => {
   /** Every attribute that can carry a destination. */
   const URL_ATTRIBUTES = ["href", "src", "action", "formaction", "ping", "data-href"];
 
+  /**
+   * Anything a person can activate.
+   *
+   * `[role='option']` is here because MUI's `Select` gives its menu entries
+   * that role, not `menuitem` — an omission that made the seven status filter
+   * options unreachable by this query even once the menu was open.
+   */
+  const CONTROL_SELECTOR = [
+    "button",
+    "a",
+    "[role='button']",
+    "[role='link']",
+    "[role='option']",
+    "[role='menuitem']",
+    "[onclick]",
+    "input[type='submit']",
+  ].join(", ");
+
+  /**
+   * The row shapes the delivery screens branch on.
+   *
+   * Five *route* states were not enough. Review put a `wa.me` control behind
+   * `row.tokenState === "revoked"` and the whole suite stayed green, because
+   * every fixture rendered exactly one row: retryable, live token, awaiting a
+   * response. A screen's reach is the cross-product of its route and its data,
+   * and `tokenState === "revoked"` is not a corner — it is what an operator
+   * sees immediately after pressing **Revoke and reissue link** on a
+   * deployment where WhatsApp is not configured, which is every deployment
+   * today. The state where somebody is most tempted to reach for WhatsApp
+   * themselves was the one state nothing guarded.
+   */
+  const ROW_SHAPES: readonly Partial<DeliveryRow>[] = [
+    { state: "queued", tokenState: "none", retryable: true },
+    { state: "attempted", tokenState: "live", retryable: false },
+    { state: "delivered", tokenState: "live", retryable: false, responseState: "responded_yes" },
+    { state: "failed", tokenState: "revoked", retryable: false, failureReason: "Refused." },
+    { state: "retryable", tokenState: "revoked", retryable: true },
+    { state: "retryable", tokenState: "none", retryable: true, responseState: "responded_no" },
+    { state: "failed", tokenState: "live", retryable: true, attemptCount: 5 },
+  ];
+
   const QUERIES: Readonly<Record<string, Record<string, string>>> = {
     overview: {},
     diagnostics: { view: "diagnostics" },
+    "diagnostics (filter open)": { view: "diagnostics" },
     repair: { invitation: "invitation-1" },
     "repair (reissue open)": { invitation: "invitation-1" },
     unavailable: {},
@@ -342,20 +381,28 @@ describe("every delivery view offers only the controls it is meant to", () => {
   /**
    * Every state of these screens that renders a control, including the two that
    * appear only after an interaction or a failure.
-   *
-   * The inventory is exactly as wide as the states it renders, and three of
-   * five was enough for review to hide a control in one of the other two.
    */
-  async function renderState(state: string) {
+  async function renderState(state: string, shape: Partial<DeliveryRow> = {}) {
     if (state === "unavailable") {
       vi.mocked(readEventDelivery).mockRejectedValue(new NotFound("That event no longer exists."));
+    } else {
+      vi.mocked(readEventDelivery).mockResolvedValue(delivery({ rows: [row(shape)] }));
     }
 
     const rendered = await renderPage(QUERIES[state]);
 
     if (state === "repair (reissue open)") {
-      // A client-side branch, opened the way an operator opens it.
-      fireEvent.click(rendered.getByRole("button", { name: "Revoke and reissue link" }));
+      const open = rendered.queryByRole("button", { name: "Revoke and reissue link" });
+      // Disabled at the attempt ceiling, which is itself one of the shapes.
+      if (open && !(open as HTMLButtonElement).disabled) fireEvent.click(open);
+    }
+
+    if (state === "diagnostics (filter open)") {
+      // MUI's `Select` renders its options only once opened, and portals them
+      // into `document.body` — which is why the queries below read
+      // `baseElement` rather than `container`.
+      const combobox = rendered.queryAllByRole("combobox").at(0);
+      if (combobox) fireEvent.mouseDown(combobox);
     }
 
     return rendered;
@@ -364,56 +411,75 @@ describe("every delivery view offers only the controls it is meant to", () => {
   const ALL_STATES = Object.keys(QUERIES);
 
   it("renders every state it claims to cover", () => {
-    // The inventory's reach is what failed twice, so it is asserted rather than
-    // assumed: a permitted set with no fixture fails here instead of quietly
-    // guarding nothing.
     expect([...ALL_STATES].sort()).toEqual(Object.keys(PERMITTED_CONTROLS).sort());
   });
 
+  /**
+   * Absence **and** presence.
+   *
+   * Checking only that nothing unexpected appears lets a permitted entry name a
+   * control that never renders — which is how an earlier version hid a whole
+   * state behind an entry nobody had observed. Every permitted label must be
+   * seen at least once across the matrix, so a stale entry fails instead of
+   * quietly widening what is allowed.
+   */
+  const observed = new Set<string>();
+
   it.each(ALL_STATES)("pins the interactive controls on %s", async (state) => {
-    const { container } = await renderState(state);
+    for (const shape of state === "unavailable" ? [{}] : ROW_SHAPES) {
+      const { baseElement, unmount } = await renderState(state, shape);
 
-    const controls = [
-      ...container.querySelectorAll(
-        "button, a, [role='button'], [role='link'], [onclick], input[type='submit']",
-      ),
-    ].map(accessibleName);
+      // `baseElement`, not `container`: MUI portals a select menu, a dialog or a
+      // popover into `document.body`, and a control rendered there would be
+      // invisible to a container-scoped query.
+      const controls = [...baseElement.querySelectorAll(CONTROL_SELECTOR)].map(accessibleName);
+      controls.forEach((label) => observed.add(label));
 
-    const permitted = new Set(PERMITTED_CONTROLS[state]);
-    // No `label !== ""` filter. An unnamed control is a control.
-    const unexpected = controls.filter((label) => !permitted.has(label));
+      const permitted = new Set(PERMITTED_CONTROLS[state]);
+      // No `label !== ""` filter. An unnamed control is a control.
+      const unexpected = controls.filter((label) => !permitted.has(label));
 
-    expect(unexpected).toEqual([]);
+      expect(unexpected, `${state} with ${JSON.stringify(shape)}`).toEqual([]);
+      unmount();
+    }
   });
 
   it.each(ALL_STATES)("lets %s point nowhere outside the application", async (state) => {
-    const { container } = await renderState(state);
+    for (const shape of state === "unavailable" ? [{}] : ROW_SHAPES) {
+      const { baseElement, unmount } = await renderState(state, shape);
 
-    const destinations: string[] = [];
-    for (const attribute of URL_ATTRIBUTES) {
-      for (const node of container.querySelectorAll(`[${attribute}]`)) {
-        destinations.push(node.getAttribute(attribute) ?? "");
+      const destinations: string[] = [];
+      for (const attribute of URL_ATTRIBUTES) {
+        for (const node of baseElement.querySelectorAll(`[${attribute}]`)) {
+          destinations.push(node.getAttribute(attribute) ?? "");
+        }
       }
-    }
 
-    // A share sheet, a `wa.me` deep link, a `whatsapp://` URL, an `sms:` or a
-    // `mailto:` would each be a manual send path that no phrase blocklist
-    // recognises. Every one of them fails this shape, in any attribute that can
-    // carry a destination rather than in `href` alone.
-    for (const destination of destinations) {
-      // React renders its own sentinel into a Server Action form's `action`,
-      // to catch a manual `form.submit()`. It is framework machinery, it
-      // navigates nowhere, and it is permitted by its exact text rather than by
-      // dropping `action` from the check — which would leave a real
-      // `action="https://wa.me/…"` form unguarded.
-      if (REACT_FORM_SENTINEL.test(destination)) continue;
-      expect(destination, `${destination} is not an in-application route`).toMatch(PERMITTED_HREF);
+      // A share sheet, a `wa.me` deep link, a `whatsapp://` URL, an `sms:` or a
+      // `mailto:` would each be a manual send path that no phrase blocklist
+      // recognises. Every one fails this shape, in any attribute that can carry
+      // a destination rather than in `href` alone.
+      for (const destination of destinations) {
+        // React's own sentinel on a Server Action form. Framework machinery,
+        // navigates nowhere, permitted by its exact text rather than by
+        // dropping `action` from the check.
+        if (REACT_FORM_SENTINEL.test(destination)) continue;
+        expect(destination, `${destination} in ${state}`).toMatch(PERMITTED_HREF);
+      }
+      unmount();
     }
   });
 
+  it("observed every control it permits", () => {
+    // Runs after the two above. A permitted label nothing ever rendered is an
+    // entry guarding nothing, and the next control added under it would be
+    // invisible.
+    const permitted = new Set(Object.values(PERMITTED_CONTROLS).flat());
+    const never = [...permitted].filter((label) => !observed.has(label));
+    expect(never).toEqual([]);
+  });
+
   it("would notice a control that has no name at all", () => {
-    // The filter this test used to have is the defect review exploited, so its
-    // absence is asserted rather than assumed.
     const icon = document.createElement("button");
     icon.innerHTML = "<svg></svg>";
     expect(accessibleName(icon)).toBe("(unnamed control)");
