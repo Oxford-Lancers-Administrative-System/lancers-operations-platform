@@ -114,6 +114,7 @@ npm run db:status          # prints URL and keys
 npm run db:reset           # reset, seed, and restore the fixed review login
 npm run db:seed            # load the deterministic synthetic dataset (local only)
 npm run db:seed-user       # create/update the fixed local review user
+npm run db:link-coach      # the second local login: a coaching seat only
 npm run db:heartbeat
 npm run db:review-ready
 npm run db:release

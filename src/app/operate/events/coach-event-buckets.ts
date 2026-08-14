@@ -1,0 +1,140 @@
+/**
+ * How the coach's list is ordered — Brian, 14 August 2026.
+ *
+ * "We should be looking forward… I want to see what's coming up, and anything
+ * before today is just Earlier. That's it."
+ *
+ * Two sections, and no third:
+ *
+ *   * **Upcoming** — today, then everything ahead of it, soonest first. Today's
+ *     sessions are badged and drawn out of the page, and sorted to the top of
+ *     the section, because the register a coach opens the application to fill
+ *     in is almost always one of them.
+ *   * **Earlier** — everything before today, most recent first, because the
+ *     other reason to open this is to correct the session you were at last
+ *     week.
+ *
+ * ## Why this list is no longer occurred-only
+ *
+ * It cannot be. An event that has not happened has not been asserted to have
+ * happened — invariant E5 makes occurrence a human act — so a forward-looking
+ * list of occurred events would be permanently empty, which is what the first
+ * implementation of this screen ran into. Looking forward means showing events
+ * that are not yet open, and saying so on the card: they carry **Attendance not
+ * open**, and opening one gives UX-90 rather than a register.
+ *
+ * That is a widening of what a coaching assignment sees, and it is recorded as
+ * a deviation in `docs/ux/tickets/LAN-110-coach-attendance.md`. What it adds is
+ * the club's own fixture list — a name, a date and a venue for sessions the
+ * coach is running. It adds no audience, no responses, no counts, and no way to
+ * change anything: `/operate/events/[id]` still refuses them outright.
+ *
+ * ## What is deliberately not in either section
+ *
+ * A draft, a pending or rejected submission, a withdrawn one, a cancelled event
+ * and one asserted **not held**. None of those is a session anybody is going
+ * to; showing a coach the calendar's discarded drafts would be the event
+ * administration § 3 withholds, and listing a cancelled fixture under Upcoming
+ * would be worse than not listing it.
+ */
+import type { EventListEntry } from "@/lib/services/events";
+
+export type CoachEventBucketKey = "upcoming" | "earlier";
+
+export interface CoachEventBucket {
+  key: CoachEventBucketKey;
+  label: string;
+  /** One line under the heading. */
+  detail: string;
+  events: EventListEntry[];
+}
+
+export const UPCOMING_LABEL = "Upcoming";
+export const UPCOMING_DETAIL = "Today first, then what is coming up";
+export const EARLIER_LABEL = "Earlier";
+export const EARLIER_DETAIL = "Before today, most recent first";
+
+/**
+ * The statuses a coach sees at all.
+ *
+ * `approved` is a session that is going to happen; `occurred` is one that did.
+ * Everything else is either a decision still being taken or a session that is
+ * not happening, and neither is a coach's business — see the note above.
+ */
+export const COACH_VISIBLE_STATUSES: readonly string[] = Object.freeze(["approved", "occurred"]);
+
+/**
+ * Today's date in the club's timezone, as `YYYY-MM-DD`.
+ *
+ * `en-CA` because it formats exactly that way, which is also how
+ * `events.scheduled_on` arrives — a `date` column, not an instant. Comparing
+ * two `YYYY-MM-DD` strings lexicographically is the same comparison PostgreSQL
+ * would make, and it avoids constructing a `Date` per row and then arguing with
+ * it about which day a 23:00 kickoff in October belongs to.
+ *
+ * Europe/London rather than the server's zone: the club is in Oxford, and a
+ * container in `europe-west2` running on UTC would put a 00:30 social on the
+ * wrong day for half the year.
+ */
+export function londonToday(now: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+/** The same date, `days` later. Both argument and result are `YYYY-MM-DD`. */
+export function shiftDays(day: string, days: number): string {
+  const shifted = new Date(`${day}T00:00:00Z`);
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}
+
+/** Is this event happening today? Drives the badge and the outline. */
+export function isToday(event: EventListEntry, today: string): boolean {
+  return event.scheduledOn === today;
+}
+
+/** Can a register be opened for it yet? Drives the "Attendance not open" line. */
+export function isOpenForAttendance(event: EventListEntry): boolean {
+  return event.status === "occurred";
+}
+
+/**
+ * The two sections, in reading order.
+ *
+ * Sorted here rather than left in the order the service returned, because the
+ * two sections want opposite orders — soonest-first ahead of today, most-recent
+ * first behind it — and the service can only return one of them.
+ *
+ * An event with no date at all is `earlier`, and last within it. It cannot be
+ * upcoming, because nothing is known about when it is; putting it at the top of
+ * the list a coach reads first would be the loudest possible place for the one
+ * row that says nothing.
+ */
+export function bucketCoachEvents(
+  events: readonly EventListEntry[],
+  today: string,
+): CoachEventBucket[] {
+  const visible = events.filter((event) => COACH_VISIBLE_STATUSES.includes(event.status));
+
+  const upcoming = visible
+    .filter((event) => event.scheduledOn !== null && event.scheduledOn >= today)
+    .sort((left, right) => (left.scheduledOn ?? "").localeCompare(right.scheduledOn ?? ""));
+
+  const earlier = visible
+    .filter((event) => event.scheduledOn === null || event.scheduledOn < today)
+    .sort((left, right) => {
+      // Undated rows to the bottom, whichever direction the rest is going.
+      if (left.scheduledOn === null) return right.scheduledOn === null ? 0 : 1;
+      if (right.scheduledOn === null) return -1;
+      return right.scheduledOn.localeCompare(left.scheduledOn);
+    });
+
+  return [
+    { key: "upcoming", label: UPCOMING_LABEL, detail: UPCOMING_DETAIL, events: upcoming },
+    { key: "earlier", label: EARLIER_LABEL, detail: EARLIER_DETAIL, events: earlier },
+  ];
+}

@@ -42,15 +42,15 @@ export const EMPTY_SAVE_STATE: AttendanceSaveState = Object.freeze({
   error: null,
 });
 
-/** What the walk-up form gets back. Field-keyed, so the message sits by the field. */
+/** What the walk-on form gets back. */
 export interface WalkUpFormState {
   error: string | null;
   /** Exactly what was typed, so nothing is retyped after a refusal. */
   values: {
-    name: string;
-    contact: string;
-    presence: string;
-    membershipId: string;
+    givenName: string;
+    familyName: string;
+    phone: string;
+    email: string;
   } | null;
 }
 

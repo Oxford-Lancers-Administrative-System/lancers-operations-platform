@@ -279,12 +279,26 @@ from (values
    null),
   -- Began two hours ago. `scheduled_on` and `starts_at` are computed from the
   -- instant rather than assumed, because Britain changes offset twice a season.
+  --
+  -- `ends_at` is kept on the same day. It is a `time` on `scheduled_on`, and
+  -- `events_times_ordered` requires it to be after `starts_at` — so a session
+  -- that began at 21:45 produced an end time of 00:15 and the whole script
+  -- aborted. That made this scenario uninstallable for roughly two and a half
+  -- hours every evening, which is exactly when somebody would be running it
+  -- after a practice. Found by CI on 14 August 2026, during LAN-110.
   ('00790079-0079-4079-8079-000000000022',
    'PILOT-LAN-79 Started scenario',
    'approved',
    ((now() - interval '2 hours') at time zone 'Europe/London')::date::text,
    ((now() - interval '2 hours') at time zone 'Europe/London')::time::text,
-   ((now() - interval '2 hours' + interval '150 minutes') at time zone 'Europe/London')::time::text,
+   (case
+      when ((now() - interval '2 hours' + interval '150 minutes')
+              at time zone 'Europe/London')::date
+           > ((now() - interval '2 hours') at time zone 'Europe/London')::date
+        then time '23:59:59'
+      else ((now() - interval '2 hours' + interval '150 minutes')
+              at time zone 'Europe/London')::time
+    end)::text,
    ((now() - interval '4 hours'))::text,
    null),
   -- Called off. Invariant P4: cancellation never deletes an invitation, so the

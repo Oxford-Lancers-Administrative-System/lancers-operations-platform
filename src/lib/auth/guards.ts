@@ -4,6 +4,7 @@ import { NotPermitted } from "@/lib/db";
 import {
   capabilityRoleCodes,
   describeRoleRequirement,
+  isNarrowAttendanceRecorder,
   roleCodesPermit,
   type CapabilityKey,
 } from "./capabilities";
@@ -142,6 +143,74 @@ export function assertCapability(
  */
 export async function requireOperator(): Promise<ResolvedOperator> {
   return assertOperator(await resolveOperatorAccess());
+}
+
+/** `rule` on a refusal of a general operator action to a coaching assignment. */
+export const GENERAL_OPERATOR_RULE = "general_operator_required";
+
+/** What a coach is told when a general operator action is not theirs. */
+export const GENERAL_OPERATOR_MESSAGE =
+  `${REFUSAL_HEADLINE} Attendance recording is the only operator surface open to a ` +
+  "coaching assignment. This action requires a club role that carries general operator " +
+  "access.";
+
+/**
+ * Pure: an operator who is not a narrow attendance recorder, or a refusal.
+ * LAN-110.
+ *
+ * ## The hole this fills
+ *
+ * Some actions in the slice are correctly open to *any* linked active operator
+ * — entering a returning player, ticking off an onboarding item. They have no
+ * capability, because no decision has ever restricted them, and
+ * `requireOperator()` is the right floor for them.
+ *
+ * It is not the right floor for a coach. LAN-110's fixed boundaries say
+ * "coaches cannot edit the roster, membership, recruitment/onboarding state,
+ * roles, event approval, delivery administration or leadership reports", and an
+ * action guarded by the ordinary floor admits a coaching assignment exactly as
+ * it admits the Social Secretary. Hiding the screen does not help: LAN-110 is
+ * explicit that "the service layer enforces every read and write. Hidden
+ * navigation or controls are not an authorization boundary", and a server
+ * action is a POST endpoint anybody with a session can call.
+ *
+ * So this is the floor with the coach removed, and it is the service-layer twin
+ * of the `/operate` gate's default. It narrows one actor and nobody else: every
+ * operator who could call these actions yesterday still can.
+ *
+ * It is deliberately **not** a capability. A capability would mean deciding who
+ * may enter a returning player, and nobody has — see
+ * `NARROW_RECORDER_CAPABILITIES` for why that decision is not this ticket's to
+ * take.
+ */
+export function assertGeneralOperator(operator: ResolvedOperator | null): ResolvedOperator {
+  if (!operator) {
+    throw new NotPermitted(OPERATOR_REQUIRED_MESSAGE, { rule: OPERATOR_REQUIRED_RULE });
+  }
+
+  if (isNarrowAttendanceRecorder(operator.roleCodes)) {
+    throw new NotPermitted(GENERAL_OPERATOR_MESSAGE, { rule: GENERAL_OPERATOR_RULE });
+  }
+
+  return operator;
+}
+
+/**
+ * The current request's operator, not being a narrow attendance recorder, or
+ * `NotPermitted`.
+ *
+ * The floor for an action that is open to operators generally and that LAN-110
+ * closes to a coaching assignment. Prefer `requireCapability()` wherever a
+ * capability exists; use this only where the ordinary floor was already the
+ * right answer for everybody else.
+ */
+export async function requireGeneralOperator(): Promise<ResolvedOperator> {
+  return assertGeneralOperator(await resolveOperatorAccess().then(toOperatorOrNull));
+}
+
+/** The active operator, or `null` for each of the three unresolved causes. */
+function toOperatorOrNull(access: OperatorAccess): ResolvedOperator | null {
+  return access.state === "active" ? access.operator : null;
 }
 
 /**

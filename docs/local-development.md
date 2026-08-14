@@ -65,6 +65,23 @@ run reports the existing link and changes nothing. Skip it and the app still
 works; `/operate` shows the unlinked account state — “You’re signed in, but this
 account is not connected to a Lancers operator profile” — and no operator data.
 
+`db:link-coach` creates a **second** local login, for the coach surface LAN-110
+builds. It is needed because that surface is shown only to an operator whose sole
+authority is coaching, and the operator login above deliberately holds committee
+seats: signing in as it correctly produces the operator's board, so the coach's
+screens cannot be reached from it at all. The script links a seeded person who
+holds a current-season `head_coach` seat and no other role, and brings that
+appointment forward to today when it has not started yet — the 2026-27 coaches
+are seeded from 1 September, and the local stack's today is usually before that.
+It changes `scripts/seed-local.mjs` not at all; the deterministic dataset other
+suites are written against is untouched. Like the operator link it refuses any
+non-local database, prints no key material, and is safe to run twice.
+
+Both logins share one password, held in the protected machine-local review
+account. There is no hosted counterpart to `db:link-coach`: on hosted, a coaching
+seat is granted by Brian through the supported administrative path, and
+`scripts/pilot/lan-110/README.md` says exactly how.
+
 Sign in at the assigned `/login` URL shown by `db:acquire` with the fixed local
 review account supplied directly in a visual-review handoff. You should reach
 `/operate`, which sends you on to the
@@ -94,6 +111,7 @@ application port is `:3000` for primary and `:3010` for overflow.
 | `npm run db:seed`                            | Load the deterministic synthetic dataset          |
 | `npm run db:seed-user`                       | Create/update the local test user                 |
 | `npm run db:link-operator`                   | Link that test user to a seeded person and roles  |
+| `npm run db:link-coach`                      | Link the second login to a coaching seat only     |
 | `npm run types:generate`                     | Regenerate `src/lib/supabase/database.types.ts`   |
 | `npm run types:check`                        | Fail if those types have drifted                  |
 | `npm run check:rls`                          | Fail if a migration creates a table without RLS   |
