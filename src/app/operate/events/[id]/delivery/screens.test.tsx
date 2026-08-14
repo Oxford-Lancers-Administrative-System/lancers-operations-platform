@@ -275,6 +275,8 @@ const PERMITTED_CONTROLS: Readonly<Record<string, readonly string[]>> = {
     "Failed",
     "Retryable",
   ],
+  /** A search that matches nobody. Renders the filter, and no rows. */
+  "diagnostics (nothing matches)": ["Delivery overview", "Back to event"],
   repair: ["Retry delivery", "Revoke and reissue link", "Delivery overview", "Back to event"],
   /**
    * The reissue disclosure, open.
@@ -359,7 +361,9 @@ describe("every delivery view offers only the controls it is meant to", () => {
    * today. The state where somebody is most tempted to reach for WhatsApp
    * themselves was the one state nothing guarded.
    */
-  const ROW_SHAPES: readonly Partial<DeliveryRow>[] = [
+  const ROW_SHAPES: readonly (Partial<DeliveryRow> | null)[] = [
+    // No rows at all — the empty screen.
+    null,
     { state: "queued", tokenState: "none", retryable: true },
     { state: "attempted", tokenState: "live", retryable: false },
     { state: "delivered", tokenState: "live", retryable: false, responseState: "responded_yes" },
@@ -373,6 +377,7 @@ describe("every delivery view offers only the controls it is meant to", () => {
     overview: {},
     diagnostics: { view: "diagnostics" },
     "diagnostics (filter open)": { view: "diagnostics" },
+    "diagnostics (nothing matches)": { view: "diagnostics", q: "nobody-by-this-name" },
     repair: { invitation: "invitation-1" },
     "repair (reissue open)": { invitation: "invitation-1" },
     unavailable: {},
@@ -382,11 +387,19 @@ describe("every delivery view offers only the controls it is meant to", () => {
    * Every state of these screens that renders a control, including the two that
    * appear only after an interaction or a failure.
    */
-  async function renderState(state: string, shape: Partial<DeliveryRow> = {}) {
+  async function renderState(state: string, shape: Partial<DeliveryRow> | null = {}) {
     if (state === "unavailable") {
       vi.mocked(readEventDelivery).mockRejectedValue(new NotFound("That event no longer exists."));
     } else {
-      vi.mocked(readEventDelivery).mockResolvedValue(delivery({ rows: [row(shape)] }));
+      // `null` means the **empty** screen — no invitations at all. It is a
+      // first-class supported state (the overview says "Nothing has been sent
+      // for this event yet", the diagnostics table says "No invitations exist")
+      // and it was outside the matrix, because every fixture rendered exactly
+      // one row. Review put an external WhatsApp-group link in that branch and
+      // the whole suite stayed green.
+      vi.mocked(readEventDelivery).mockResolvedValue(
+        delivery({ rows: shape === null ? [] : [row(shape)] }),
+      );
     }
 
     const rendered = await renderPage(QUERIES[state]);
@@ -410,6 +423,30 @@ describe("every delivery view offers only the controls it is meant to", () => {
 
   const ALL_STATES = Object.keys(QUERIES);
 
+  /**
+   * Which row shapes are meaningful for a state.
+   *
+   * The empty shape is skipped for the two repair states, because a repair
+   * route with no rows finds no invitation and degrades to the overview — a
+   * real and correct behaviour, asserted on its own below rather than folded
+   * into the repair panel's inventory, where it would mean listing the
+   * overview's controls as permitted on a screen that does not have them.
+   */
+  function shapesFor(state: string): readonly (Partial<DeliveryRow> | null)[] {
+    if (state === "unavailable") return [{}];
+    if (state.startsWith("repair")) return ROW_SHAPES.filter((shape) => shape !== null);
+    return ROW_SHAPES;
+  }
+
+  it("falls back to the overview when the chosen invitation is not there", async () => {
+    const { container } = await renderState("repair", null);
+
+    // Not an error, and not an empty panel: the operator lands on the screen
+    // that can still tell them something.
+    expect(container.querySelector('[data-testid="repair-panel"]')).toBeNull();
+    expect(container.querySelector('[data-testid="delivery-empty"]')).not.toBeNull();
+  });
+
   it("renders every state it claims to cover", () => {
     expect([...ALL_STATES].sort()).toEqual(Object.keys(PERMITTED_CONTROLS).sort());
   });
@@ -426,7 +463,7 @@ describe("every delivery view offers only the controls it is meant to", () => {
   const observed = new Set<string>();
 
   it.each(ALL_STATES)("pins the interactive controls on %s", async (state) => {
-    for (const shape of state === "unavailable" ? [{}] : ROW_SHAPES) {
+    for (const shape of shapesFor(state)) {
       const { baseElement, unmount } = await renderState(state, shape);
 
       // `baseElement`, not `container`: MUI portals a select menu, a dialog or a
@@ -445,7 +482,7 @@ describe("every delivery view offers only the controls it is meant to", () => {
   });
 
   it.each(ALL_STATES)("lets %s point nowhere outside the application", async (state) => {
-    for (const shape of state === "unavailable" ? [{}] : ROW_SHAPES) {
+    for (const shape of shapesFor(state)) {
       const { baseElement, unmount } = await renderState(state, shape);
 
       const destinations: string[] = [];

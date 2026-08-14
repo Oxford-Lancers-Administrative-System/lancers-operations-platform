@@ -225,6 +225,62 @@ describe("nothing in the application can hand a person off to another app", () =
   });
 });
 
+/**
+ * No delivery screen may name an external destination at all.
+ *
+ * The scheme rules above enumerate hosts, and an enumeration is always one host
+ * short: review reached `chat.whatsapp.com`, which is not `api.whatsapp.com`
+ * and not `wa.me`, and nothing matched. The rendered-href check catches any
+ * off-origin URL — but only in the states a fixture renders, which is how that
+ * one got through.
+ *
+ * So this is the same rule at the source level, scoped to the three delivery
+ * screens and their parts, where a legitimate absolute URL has no business
+ * existing. It does not depend on rendering anything, and it does not depend on
+ * knowing which host somebody will pick.
+ */
+describe("the delivery screens name no external destination", () => {
+  const DELIVERY_SOURCES = filesUnder("src/app/operate/events/[id]/delivery", [
+    ".ts",
+    ".tsx",
+  ]).filter((file) => !/\.test\.tsx?$/.test(file));
+
+  it("reads the whole delivery surface", () => {
+    expect(DELIVERY_SOURCES.length).toBeGreaterThanOrEqual(5);
+    for (const expected of [
+      "src/app/operate/events/[id]/delivery/page.tsx",
+      "src/app/operate/events/[id]/delivery/presentation.ts",
+      "src/app/operate/events/[id]/delivery/repair-forms.tsx",
+      "src/app/operate/events/[id]/delivery/delivery-filters.tsx",
+      "src/app/operate/events/[id]/delivery/actions.ts",
+    ]) {
+      expect(DELIVERY_SOURCES).toContain(expected);
+    }
+  });
+
+  it.each(DELIVERY_SOURCES)("%s contains no absolute URL", (file) => {
+    // Every destination these screens produce is an in-application route. The
+    // application's own base URL is configuration, read once in
+    // `src/lib/delivery/config.ts`, and never written down here.
+    const absolute = [...read(file).matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`)]+/gi)].map(
+      (match) => match[0],
+    );
+    expect(absolute).toEqual([]);
+  });
+
+  it("still recognises an absolute URL when there is one", () => {
+    const samples = [
+      "https://chat.whatsapp.com/invite/oxford-lancers",
+      "http://example.org/anything",
+      "whatsapp://send?text=hello",
+      "https://wa.me/447700900123",
+    ];
+    for (const sample of samples) {
+      expect(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`)]+/i.test(sample), sample).toBe(true);
+    }
+  });
+});
+
 describe("no runbook or fixture presents one as a fallback", () => {
   const documents = [
     ...filesUnder("docs", [".md"]),
