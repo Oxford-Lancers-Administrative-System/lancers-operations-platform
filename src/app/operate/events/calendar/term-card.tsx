@@ -8,7 +8,7 @@ import CalendarEntry from "./calendar-entry";
 import {
   formatCellDate,
   formatDayNumber,
-  formatOxfordWeek,
+  formatWeekLabel,
   formatTermName,
   formatWeekRange,
 } from "./presentation";
@@ -104,9 +104,9 @@ export default function TermCard({ card }: { card: TermCardModel }) {
             {card.weeks.map((week) => (
               <Box
                 component="tr"
-                key={week.week}
+                key={week.startsOn}
                 data-testid="term-card-week"
-                data-week={week.week}
+                data-week={week.week === null ? week.outside : week.week}
               >
                 <Box
                   component="th"
@@ -117,11 +117,15 @@ export default function TermCard({ card }: { card: TermCardModel }) {
                     border: 1,
                     borderColor: "divider",
                     textAlign: "left",
-                    bgcolor: "action.hover",
+                    // A context row is quieter than a real Oxford week: it is
+                    // there so an event just outside term is still on the card,
+                    // not to suggest the term runs longer than it does.
+                    bgcolor: week.week === null ? "action.disabledBackground" : "action.hover",
+                    color: week.week === null ? "text.secondary" : "text.primary",
                   }}
                 >
                   <Typography variant="caption" component="p" sx={{ fontWeight: 700 }}>
-                    {formatOxfordWeek(week.week)}
+                    {formatWeekLabel(week)}
                   </Typography>
                   <Typography variant="caption" component="p" color="text.secondary">
                     {formatWeekRange(week.startsOn, week.endsOn)}
@@ -182,14 +186,14 @@ export default function TermCard({ card }: { card: TermCardModel }) {
         <Stack spacing={1.5}>
           {card.weeks.map((week) => (
             <Paper
-              key={week.week}
+              key={week.startsOn}
               variant="outlined"
               sx={{ p: 1 }}
               data-testid="term-card-agenda-week"
-              data-week={week.week}
+              data-week={week.week === null ? week.outside : week.week}
             >
               <Typography variant="subtitle2" component="h3">
-                {formatOxfordWeek(week.week)}
+                {formatWeekLabel(week)}
               </Typography>
               <Typography variant="caption" component="p" color="text.secondary">
                 {formatWeekRange(week.startsOn, week.endsOn)}

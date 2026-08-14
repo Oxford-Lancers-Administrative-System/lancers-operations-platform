@@ -87,19 +87,40 @@ views.
 - Every week row states its exact Gregorian range. The month is repeated when a
   week crosses one and the year when it crosses that, so a row is readable
   without reference to any other row.
-- **Events the card cannot hold are stated, never omitted.** Below the card:
-  events in another configured term, grouped by term with a link to that term's
-  card; events in no configured term at all; and events with no date recorded.
+- **The card reaches past the term.** Every dated event attaches to its nearest
+  term, and the card emits whole Sunday–Saturday **context rows** before its
+  first week and after its last until it covers them. Those rows are labelled
+  "Before term" / "After term" with their dates, and are visually quieter than a
+  real Oxford week — the club has no name for the week before −1st week, and
+  `week_number` is constrained to −1 through 8, so inventing "−2nd" would assert
+  a week the rest of the system would refuse to store. A term with nothing
+  around it renders exactly its own weeks.
+- **Reach is bounded at six weeks** (`MAX_CONTEXT_WEEKS`). The longest gap
+  between consecutive Oxford terms in a real club year is the five-week
+  Christmas vacation, so six reaches any event in any real vacation from either
+  side while stopping an event a year adrift from dragging fifty empty rows onto
+  the screen.
+- **What is left is stated quietly, not omitted.** One line says events in the
+  season's other terms are on those terms' cards. Below it, and only when they
+  exist: events with no date, and dated events too far from any term to reach.
 - **Phone (below `md`):** the same weeks become sections, each listing its seven
   days. Every week, day and event the desktop card shows is present.
 
 ## Status, and colour
 
-Every tile prints its status in words — Draft, Pending approval, Approved,
-Occurred, Not held, Cancelled, Rejected, Withdrawn. The tinted left edge assists
-scanning and carries nothing the text does not already say. Each tile's
-accessible name repeats its date, time and status, because a tile is read out of
-the grid's visual context.
+A tile prints its status **when the status needs acting on** — Draft, Pending
+approval, Cancelled, Not held, Rejected, Withdrawn. The two statuses that mean
+_this is proceeding normally_ — `approved` ahead of us, `occurred` behind us —
+are silent, and share one neutral accent. That pairing is deliberate: colour may
+never be the only carrier, so a status with no word must not have a colour of
+its own either.
+
+Each tile's **accessible name always carries the full status**, including the
+quiet ones, along with the date and time. Quieting the tile is a presentation
+choice; hiding the status from a screen reader would be a loss of information.
+
+Owner review, 14 August 2026: "if an event is in draft, I think it's important.
+If it happened in the past, that's fine. We don't need to see that."
 
 ## Date authority
 

@@ -84,6 +84,24 @@ export function formatOxfordWeek(week: number): string {
   return `${WEEK_ORDINALS[`${week}`] ?? `${week}`} week`;
 }
 
+/**
+ * A term-card row's label — an Oxford week, or the fact that it is not one.
+ *
+ * Context rows say "Before term" and "After term" rather than inventing "−2nd
+ * week". The club has no name for the week before −1st week, `week_number` is
+ * constrained to −1 through 8, and a made-up ordinal would read as an Oxford
+ * week that the rest of the system would refuse to store. The row's date range
+ * sits underneath either way, so a context row is never ambiguous about which
+ * seven days it covers.
+ */
+export function formatWeekLabel(week: {
+  week: number | null;
+  outside: "before" | "after" | null;
+}): string {
+  if (week.week !== null) return formatOxfordWeek(week.week);
+  return week.outside === "before" ? "Before term" : "After term";
+}
+
 /** "Michaelmas 2026-27" — a term named as the club names it. */
 export function formatTermName(term: TermWindow): string {
   return `${labelFor(TERM_LABELS, term.name)} ${term.academicYear}`;
@@ -115,35 +133,30 @@ export const CALENDAR_READ_ONLY_NOTE =
   "and changing events stays with the President, Vice President, Secretary and General " +
   "Manager.";
 
-/** What the Oxford view says about the events its selected card cannot hold. */
-export const OUTSIDE_TERM_HEADLINE = "Not on this term card";
-
-export const OUTSIDE_TERM_DETAIL =
-  "This term card has no cell for these events. Nothing is missing: every one of them is " +
-  "still in the season, and still appears in the list and in the Gregorian calendar. Events " +
-  "belonging to another term are counted here and shown in full on that term’s own card.";
+/**
+ * One line under the card, saying where the rest of the season is.
+ *
+ * The card itself now carries the weeks either side of term, so the only events
+ * it does not show are the ones another term's card does. Naming that in a
+ * sentence is enough — the earlier version listed or counted every other term
+ * and offered links to their cards, which Brian's review found both too
+ * prominent and redundant with the term selector directly above.
+ */
+export const OTHER_TERMS_NOTE =
+  "Events in the season’s other Oxford terms appear on those terms’ cards — use the term " +
+  "selector above. Every event in the season is also in the list and in the Gregorian calendar.";
 
 export const UNDATED_HEADLINE = "No date recorded yet";
 
 export const UNDATED_DETAIL =
-  "An event with no date cannot be placed on either calendar. It appears here and in the " +
-  "list until a date is recorded.";
+  "An event with no date cannot be placed on either calendar. It stays here, and in the list, " +
+  "until a date is recorded.";
 
-export const OUTSIDE_ANY_TERM_LABEL = "Outside Oxford term";
+export const OUTSIDE_ANY_TERM_LABEL = "Too far from any term to show";
 
-/**
- * "62 events in this season fall in Michaelmas 2026-27." — the other terms are
- * counted and linked rather than listed.
- *
- * Those events already have a card of their own, and reproducing all of them
- * under a different term's card would push the genuinely unmapped events —
- * the ones with no term and no date, which are the reason this panel exists —
- * below a page of records that are not lost at all.
- */
-export function describeOtherTerm(count: number, termName: string): string {
-  const events = count === 1 ? "1 event" : `${count} events`;
-  return `${events} in this season ${count === 1 ? "falls" : "fall"} in ${termName}.`;
-}
+export const OUTSIDE_ANY_TERM_DETAIL =
+  "These events are more than six weeks from the nearest Oxford term, so no term card reaches " +
+  "them. They are on their real dates in the Gregorian calendar and in the list.";
 
 /** Empty states — distinguished, because the recovery differs. */
 export const MONTH_EMPTY = "No event in this season falls in this month.";

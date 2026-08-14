@@ -393,31 +393,54 @@ describe("the Oxford term card", () => {
     expect(within(container).getByTestId("term-select")).toBeTruthy();
   });
 
-  it("surfaces an event in another term rather than omitting it", async () => {
+  it("puts an event just outside term on the card, in a dated context row", async () => {
+    // Brian's 14 August 2026 review. 6 December 2026 is the day after
+    // Michaelmas ends; it belongs on the card, not in a list beneath it.
+    givenEvents([listEntry({ name: "Christmas dinner", scheduledOn: "2026-12-12" })]);
+
+    const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
+
+    const cell = container.querySelector('[data-testid="term-card-cell"][data-day="2026-12-12"]');
+    expect(cell).not.toBeNull();
+    expect(flatten(cell!.textContent)).toContain("Christmas dinner");
+
+    const rows = [...container.querySelectorAll('[data-testid="term-card-week"]')];
+    expect(rows[rows.length - 1].getAttribute("data-week")).toBe("after");
+    expect(flatten(rows[rows.length - 1].textContent)).toContain("After term");
+  });
+
+  it("leaves another term's events to that term, and offers no link out", async () => {
     givenEvents([
       listEntry({ name: "Lancers vs Elmswell", scheduledOn: "2027-01-24" }),
-      listEntry({ name: "Lancers vs Fernhurst", scheduledOn: "2027-01-31" }),
-      listEntry({ name: "Summer camp", scheduledOn: "2027-07-15" }),
       listEntry({ name: "Awards night", scheduledOn: null, startsAt: null }),
     ]);
 
     const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
-    const elsewhere = within(container).getByTestId("outside-term");
 
-    // Another term is named, counted and linked — not listed, because those
-    // events are shown in full on their own card.
-    expect(flatten(elsewhere.textContent)).toContain("Hilary 2026-27");
-    expect(flatten(elsewhere.textContent)).toContain("2 events in this season fall in Hilary");
-    expect(within(elsewhere).getByTestId("other-term-link")).toHaveAttribute(
-      "href",
-      `/operate/events/calendar?mode=oxford&term=${HILARY.id}`,
+    // No panel of other terms, and none of the links Brian asked to remove.
+    expect(container.querySelector('[data-testid="other-term-link"]')).toBeNull();
+    expect(flatten(container.textContent)).not.toContain("Lancers vs Elmswell");
+
+    // One quiet line says where they are instead.
+    expect(flatten(within(container).getByTestId("other-terms-note").textContent)).toContain(
+      "appear on those terms’ cards",
     );
 
-    expect(flatten(within(elsewhere).getByTestId("outside-any-term-group").textContent)).toContain(
-      "Summer camp",
-    );
+    // What genuinely has nowhere to go is still stated.
     expect(flatten(within(container).getByTestId("undated-events").textContent)).toContain(
       "Awards night",
+    );
+  });
+
+  it("reports an event too far from any term to reach", async () => {
+    givenEvents([listEntry({ name: "Summer camp", scheduledOn: "2027-09-20" })]);
+
+    const { container } = render(
+      await EventCalendarPage(calendarProps({ mode: "oxford", term: TRINITY.id })),
+    );
+
+    expect(flatten(within(container).getByTestId("far-from-any-term").textContent)).toContain(
+      "Summer camp",
     );
   });
 
@@ -457,15 +480,14 @@ describe("the Oxford term card", () => {
 // ---------------------------------------------------------------------------
 
 describe("what a calendar tile states", () => {
-  it("states every status in words, so colour is never the only carrier", async () => {
+  it("states a status that needs acting on, in words rather than colour", async () => {
     givenEvents([
       listEntry({ name: "Draft practice", status: "draft", scheduledOn: "2026-10-11" }),
       listEntry({ name: "Pending fixture", status: "pending_approval", scheduledOn: "2026-10-12" }),
-      listEntry({ name: "Approved chalk", status: "approved", scheduledOn: "2026-10-13" }),
       listEntry({ name: "Cancelled social", status: "cancelled", scheduledOn: "2026-10-15" }),
-      listEntry({ name: "Occurred camp", status: "occurred", scheduledOn: "2026-10-16" }),
       listEntry({ name: "Not-held meeting", status: "not_held", scheduledOn: "2026-10-17" }),
       listEntry({ name: "Withdrawn taster", status: "withdrawn", scheduledOn: "2026-10-18" }),
+      listEntry({ name: "Rejected trip", status: "rejected", scheduledOn: "2026-10-19" }),
     ]);
 
     const { container } = render(await EventCalendarPage(calendarProps()));
@@ -474,14 +496,44 @@ describe("what a calendar tile states", () => {
     for (const label of [
       "Draft",
       "Pending approval",
-      "Approved",
       "Cancelled",
-      "Occurred",
       "Not held",
       "Withdrawn",
+      "Rejected",
     ]) {
       expect(text).toContain(label);
     }
+  });
+
+  it("stays quiet about an event that is simply proceeding normally", async () => {
+    // Brian's 14 August 2026 review: "if an event is in draft, I think it's
+    // important. If it happened in the past, that's fine. We don't need to see
+    // that." A card of sixty occurred practices should not say so sixty times.
+    givenEvents([
+      listEntry({ name: "Approved chalk", status: "approved", scheduledOn: "2026-10-13" }),
+      listEntry({ name: "Occurred camp", status: "occurred", scheduledOn: "2026-10-16" }),
+    ]);
+
+    const { container } = render(await EventCalendarPage(calendarProps()));
+    const text = flatten(within(container).getByTestId("gregorian-grid").textContent);
+
+    expect(text).toContain("Approved chalk");
+    expect(text).toContain("Occurred camp");
+    expect(text).not.toContain("Approved ·");
+    expect(text).not.toContain("Occurred ·");
+  });
+
+  it("still gives a screen reader the status it does not print", async () => {
+    // Quieting the tile is a presentation choice. Dropping the status from the
+    // accessible name would be a loss of information.
+    givenEvents([
+      listEntry({ name: "Occurred camp", status: "occurred", scheduledOn: "2026-10-16" }),
+    ]);
+
+    const { container } = render(await EventCalendarPage(calendarProps()));
+    const label = within(container).getAllByTestId("calendar-entry")[0].getAttribute("aria-label");
+
+    expect(label).toContain("Occurred");
   });
 
   it("shows a draft and a pending event as ordinary club-calendar records", async () => {

@@ -332,8 +332,18 @@ export interface TermCardDay {
 }
 
 export interface TermCardWeek {
-  /** The Oxford week: −1 and 0 are real values, not placeholders. */
-  week: number;
+  /**
+   * The Oxford week, or `null` for a context row outside the term.
+   *
+   * −1 and 0 are real weeks, not placeholders, which is why "no week" has to be
+   * `null` rather than a number outside the range. A context row genuinely has
+   * no Oxford week: the club does not call the week before Michaelmas "−2nd",
+   * and inventing a number the schema refuses would be a worse answer than
+   * saying the row sits outside term and giving its dates.
+   */
+  week: number | null;
+  /** `"before"` or `"after"` on a context row; `null` on a real Oxford week. */
+  outside: "before" | "after" | null;
   /** The exact Gregorian Sunday this week starts on. */
   startsOn: string;
   /** The exact Gregorian Saturday it ends on. */
@@ -341,15 +351,18 @@ export interface TermCardWeek {
   days: TermCardDay[];
 }
 
-/** Events the selected card cannot show, and the reason each one is elsewhere. */
+/** Events no term card can hold. */
 export interface TermCardElsewhere {
-  /** Events whose date falls in a different configured term. */
-  inOtherTerms: { term: TermWindow; events: CalendarEvent[] }[];
-  /** Events whose date falls in no configured term at all. */
-  outsideTerm: CalendarEvent[];
-  /** Events with no usable date, so no term and no week. */
+  /**
+   * Events with no usable date. They have no week, no term and no cell, and
+   * they are the only thing left over once the card extends to reach the rest.
+   */
   undated: CalendarEvent[];
-  /** The three lists' combined length — what the screen has to account for. */
+  /**
+   * Dated events too far from any term for a card to reach — beyond
+   * `MAX_CONTEXT_WEEKS` from the nearest one. Normally empty.
+   */
+  farFromAnyTerm: CalendarEvent[];
   total: number;
 }
 
@@ -357,7 +370,7 @@ export interface TermCard {
   term: TermWindow;
   weeks: TermCardWeek[];
   elsewhere: TermCardElsewhere;
-  /** Events placed on this card. */
+  /** Events placed on this card, including on its context rows. */
   placedCount: number;
 }
 
@@ -394,20 +407,76 @@ export function termWeeks(term: TermWindow): number[] {
 }
 
 /**
- * One term card: the selected term's weeks as rows, Sunday–Saturday as columns,
- * and an explicit account of every event the card cannot show.
+ * How far past its own weeks a card will reach for an event.
  *
- * ## Nothing is dropped
+ * The longest gap between two consecutive Oxford terms in a real club year is
+ * the Christmas vacation — five weeks between Michaelmas ending on 5 December
+ * 2026 and Hilary starting on 10 January 2027. Six weeks therefore reaches any
+ * event in any real vacation from the term on either side of it, while still
+ * bounding a card: an event a year adrift does not drag fifty empty rows onto
+ * the screen behind it.
+ */
+export const MAX_CONTEXT_WEEKS = 6;
+
+/**
+ * The term whose card should carry a date that falls in no term at all.
  *
- * `elsewhere` is the point of the return type. The issue forbids an event
- * "silently omitted" from the Oxford mode, and a grid alone cannot honour that:
- * a card for Michaelmas has no cell for a Hilary fixture, none for a summer
- * camp, and none for an event whose date is still undecided. So each of those
- * three is collected, named for what it is, and handed to the screen to
- * present — the term card shows the term, and the page still accounts for the
- * whole season.
+ * By distance to the nearest end of each term's window, so a mid-December
+ * social belongs to Michaelmas and a late-January one to Hilary; a tie goes to
+ * the earlier term, which reads as "after Michaelmas" rather than "long before
+ * Hilary". `null` when the date is further than `MAX_CONTEXT_WEEKS` from every
+ * term, which is what the screen reports as unreachable.
+ */
+export function nearestTerm(day: string, terms: readonly TermWindow[]): TermWindow | null {
+  let best: { term: TermWindow; distance: number } | null = null;
+
+  for (const term of terms) {
+    const before = daysBetween(day, term.startsOn);
+    const after = daysBetween(term.endsOn, day);
+    if (before === null || after === null) continue;
+
+    // Inside the window is distance zero; otherwise however many days outside.
+    const distance = Math.max(0, before, after);
+    if (distance > MAX_CONTEXT_WEEKS * 7) continue;
+
+    if (
+      !best ||
+      distance < best.distance ||
+      (distance === best.distance && term.startsOn < best.term.startsOn)
+    ) {
+      best = { term, distance };
+    }
+  }
+
+  return best?.term ?? null;
+}
+
+/**
+ * One term card: the term's Oxford weeks as rows, Sunday–Saturday as columns,
+ * and however many dated context rows either side it takes to reach the events
+ * around the term.
  *
- * ## Placement
+ * ## Why the card reaches past the term
+ *
+ * The first version pushed everything outside the configured weeks into a list
+ * underneath — other terms, vacation events, undated events, all together.
+ * Brian's review on 14 August 2026 was that this is the wrong shape: an event a
+ * few days either side of term should be *on the card*, in its real week, and
+ * the panel underneath should be small and only for what genuinely has nowhere
+ * to go. The links out to other terms' cards went with it; the term selector is
+ * how you reach another term.
+ *
+ * So a card grows. Every dated event in the season attaches to its nearest
+ * term (`nearestTerm`), and the card emits whole Sunday–Saturday rows before
+ * its first week and after its last until it covers the ones attached to it.
+ * Those rows carry `week: null` and an `outside` marker: the club has no name
+ * for the week before −1st week, and inventing "−2nd" would assert an Oxford
+ * week that does not exist and that the schema would refuse.
+ *
+ * Rows are emitted only as far as there is something to show. A term with no
+ * events around it renders exactly its own weeks, as before.
+ *
+ * ## Placement inside the term
  *
  * From `deriveTermCoordinate` over the full term list, never from the event's
  * stored `term_id`. Both agree today, because both are that same function; but
@@ -423,16 +492,51 @@ export function buildTermCard(
 ): TermCard {
   const { byDay, undated } = groupByDay(events);
 
+  const firstRange = oxfordWeekRange(term, term.firstWeek);
+  const lastRange = oxfordWeekRange(term, term.lastWeek);
+  if (!firstRange || !lastRange) {
+    return {
+      term,
+      weeks: [],
+      elsewhere: { undated, farFromAnyTerm: [], total: undated.length },
+      placedCount: 0,
+    };
+  }
+
+  // How far the card has to reach in each direction. Only events this term is
+  // the nearest to count: a Hilary fixture is Hilary's to show, and pulling it
+  // onto the Michaelmas card would put one event on two cards.
+  const farFromAnyTerm: CalendarEvent[] = [];
+  let weeksBefore = 0;
+  let weeksAfter = 0;
+
+  for (const [day, group] of byDay) {
+    const coordinate = deriveTermCoordinate(day, terms);
+    if (coordinate.termId !== null) continue;
+
+    const owner = nearestTerm(day, terms);
+    if (owner === null) {
+      farFromAnyTerm.push(...group);
+      continue;
+    }
+    if (owner.id !== term.id) continue;
+
+    const before = daysBetween(day, firstRange.startsOn);
+    const after = daysBetween(lastRange.endsOn, day);
+    if (before !== null && before > 0) weeksBefore = Math.max(weeksBefore, Math.ceil(before / 7));
+    if (after !== null && after > 0) weeksAfter = Math.max(weeksAfter, Math.ceil(after / 7));
+  }
+
+  weeksBefore = Math.min(weeksBefore, MAX_CONTEXT_WEEKS);
+  weeksAfter = Math.min(weeksAfter, MAX_CONTEXT_WEEKS);
+
   const weeks: TermCardWeek[] = [];
   const placed = new Set<string>();
 
-  for (const week of termWeeks(term)) {
-    const range = oxfordWeekRange(term, week);
-    if (range === null) continue;
-
+  const emit = (startsOn: string, week: number | null, outside: "before" | "after" | null) => {
     const days: TermCardDay[] = [];
     for (let column = 0; column < 7; column += 1) {
-      const day = addDays(range.startsOn, column) as string;
+      const day = addDays(startsOn, column) as string;
       const dayEvents = byDay.get(day) ?? [];
       for (const event of dayEvents) placed.add(event.id);
       days.push({
@@ -442,59 +546,33 @@ export function buildTermCard(
         events: dayEvents,
       });
     }
+    weeks.push({ week, outside, startsOn, endsOn: addDays(startsOn, 6) as string, days });
+  };
 
-    weeks.push({ week, startsOn: range.startsOn, endsOn: range.endsOn, days });
+  for (let offset = weeksBefore; offset >= 1; offset -= 1) {
+    const startsOn = addDays(firstRange.startsOn, -offset * 7);
+    if (startsOn !== null) emit(startsOn, null, "before");
   }
 
-  // Everything the card did not place, sorted into why. The coordinate decides,
-  // so an event inside the term's calendar dates but beyond its configured last
-  // week is reported as outside term — which is exactly what LAN-76 stored for
-  // it, and the two must not disagree.
-  const inOtherTerms = new Map<string, { term: TermWindow; events: CalendarEvent[] }>();
-  const outsideTerm: CalendarEvent[] = [];
-
-  for (const group of byDay.values()) {
-    for (const event of group) {
-      if (placed.has(event.id)) continue;
-
-      const coordinate = deriveTermCoordinate(event.scheduledOn, terms);
-      const other =
-        coordinate.termId === null
-          ? undefined
-          : terms.find((candidate) => candidate.id === coordinate.termId);
-
-      if (!other || other.id === term.id) {
-        outsideTerm.push(event);
-        continue;
-      }
-
-      const bucket = inOtherTerms.get(other.id);
-      if (bucket) bucket.events.push(event);
-      else inOtherTerms.set(other.id, { term: other, events: [event] });
-    }
+  for (const week of termWeeks(term)) {
+    const range = oxfordWeekRange(term, week);
+    if (range !== null) emit(range.startsOn, week, null);
   }
 
-  outsideTerm.sort(byDate);
-  const otherTermList = [...inOtherTerms.values()].sort((left, right) =>
-    left.term.startsOn < right.term.startsOn
-      ? -1
-      : left.term.startsOn > right.term.startsOn
-        ? 1
-        : 0,
-  );
-  for (const bucket of otherTermList) bucket.events.sort(byDate);
+  for (let offset = 1; offset <= weeksAfter; offset += 1) {
+    const startsOn = addDays(lastRange.endsOn, (offset - 1) * 7 + 1);
+    if (startsOn !== null) emit(startsOn, null, "after");
+  }
+
+  farFromAnyTerm.sort(byDate);
 
   return {
     term,
     weeks,
     elsewhere: {
-      inOtherTerms: otherTermList,
-      outsideTerm,
       undated,
-      total:
-        otherTermList.reduce((count, bucket) => count + bucket.events.length, 0) +
-        outsideTerm.length +
-        undated.length,
+      farFromAnyTerm,
+      total: undated.length + farFromAnyTerm.length,
     },
     placedCount: placed.size,
   };

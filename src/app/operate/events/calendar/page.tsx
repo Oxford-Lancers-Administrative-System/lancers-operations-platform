@@ -1,7 +1,6 @@
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { operatorHasCapability } from "@/lib/auth/guards";
@@ -31,13 +30,12 @@ import TermCard from "./term-card";
 import {
   CALENDAR_READ_ONLY_NOTE,
   CALENDAR_SOURCE_NOTE,
-  describeOtherTerm,
   formatTermName,
   MONTH_EMPTY,
   NO_TERMS_CONFIGURED,
   OUTSIDE_ANY_TERM_LABEL,
-  OUTSIDE_TERM_DETAIL,
-  OUTSIDE_TERM_HEADLINE,
+  OUTSIDE_ANY_TERM_DETAIL,
+  OTHER_TERMS_NOTE,
   TERM_CARD_EMPTY,
   UNDATED_DETAIL,
   UNDATED_HEADLINE,
@@ -253,7 +251,12 @@ function GregorianView({
 
       <GregorianMonth grid={grid} />
 
-      <UndatedEvents events={grid.undated} />
+      <LeftOver
+        events={grid.undated}
+        testId="undated-events"
+        headline={UNDATED_HEADLINE}
+        detail={UNDATED_DETAIL}
+      />
     </Stack>
   );
 }
@@ -310,89 +313,67 @@ function OxfordView({
 
       <TermCard card={card} />
 
-      {card.elsewhere.inOtherTerms.length > 0 || card.elsewhere.outsideTerm.length > 0 ? (
-        <Paper variant="outlined" sx={{ p: 2 }} data-testid="outside-term">
-          <Typography variant="subtitle2" component="h2">
-            {OUTSIDE_TERM_HEADLINE}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {OUTSIDE_TERM_DETAIL}
-          </Typography>
+      {/*
+        One quiet line, not a panel. The card now reaches past its own weeks for
+        the events around the term, so the only thing left to say is where the
+        rest of the season is — and Brian's review was that this had become far
+        too prominent for that.
+      */}
+      <Typography variant="caption" color="text.secondary" data-testid="other-terms-note">
+        {OTHER_TERMS_NOTE}
+      </Typography>
 
-          <Stack spacing={2} sx={{ mt: 2 }}>
-            {/*
-              A count and a link, not the events themselves. A season's other
-              two terms hold most of its events — sixty-odd in the seeded
-              dataset — and listing them here would bury the genuinely
-              unmapped events below a page of records that already have a
-              perfectly good home. This is not a silent omission: the term is
-              named, the number is stated, and its own card is one click away,
-              as are the list and the Gregorian calendar.
-            */}
-            {card.elsewhere.inOtherTerms.map((bucket) => (
-              <Box key={bucket.term.id} data-testid="other-term-group">
-                <Typography variant="caption" component="p" sx={{ fontWeight: 700 }}>
-                  {formatTermName(bucket.term)}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {describeOtherTerm(bucket.events.length, formatTermName(bucket.term))}
-                </Typography>
-                <Button
-                  size="small"
-                  variant="text"
-                  href={oxfordHref(bucket.term.id)}
-                  sx={{ px: 0 }}
-                  data-testid="other-term-link"
-                >
-                  {`Open the ${formatTermName(bucket.term)} card`}
-                </Button>
-              </Box>
-            ))}
+      <LeftOver
+        events={card.elsewhere.farFromAnyTerm}
+        testId="far-from-any-term"
+        headline={OUTSIDE_ANY_TERM_LABEL}
+        detail={OUTSIDE_ANY_TERM_DETAIL}
+      />
 
-            {card.elsewhere.outsideTerm.length > 0 ? (
-              <Box data-testid="outside-any-term-group">
-                <Typography variant="caption" component="p" sx={{ fontWeight: 700 }}>
-                  {OUTSIDE_ANY_TERM_LABEL}
-                </Typography>
-                <Stack spacing={0.5} sx={{ mt: 0.5 }}>
-                  {card.elsewhere.outsideTerm.map((event) => (
-                    <CalendarEntry key={event.id} event={event} showDate />
-                  ))}
-                </Stack>
-              </Box>
-            ) : null}
-          </Stack>
-        </Paper>
-      ) : null}
-
-      <UndatedEvents events={card.elsewhere.undated} />
+      <LeftOver
+        events={card.elsewhere.undated}
+        testId="undated-events"
+        headline={UNDATED_HEADLINE}
+        detail={UNDATED_DETAIL}
+      />
     </Stack>
   );
 }
 
 /**
- * Events with no date, on both calendars.
+ * The events no cell can hold — undated ones, and dated ones too far from any
+ * term for a card to reach.
  *
- * Neither grid has a cell for them and neither ever will, so they are stated
- * rather than dropped — the issue's rule against silent omission applies to an
- * undated event exactly as it applies to one outside term.
+ * Deliberately understated: a bordered block rather than the heavy panel this
+ * started as. It exists so nothing is omitted silently, and on a normal season
+ * it renders nothing at all.
  */
-function UndatedEvents({ events }: { events: readonly CalendarEvent[] }) {
+function LeftOver({
+  events,
+  testId,
+  headline,
+  detail,
+}: {
+  events: readonly CalendarEvent[];
+  testId: string;
+  headline: string;
+  detail: string;
+}) {
   if (events.length === 0) return null;
 
   return (
-    <Paper variant="outlined" sx={{ p: 2 }} data-testid="undated-events">
-      <Typography variant="subtitle2" component="h2">
-        {UNDATED_HEADLINE}
+    <Box sx={{ borderLeft: 2, borderColor: "divider", pl: 1.5 }} data-testid={testId}>
+      <Typography variant="caption" component="h2" sx={{ fontWeight: 700, display: "block" }}>
+        {headline}
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-        {UNDATED_DETAIL}
+      <Typography variant="caption" color="text.secondary" component="p">
+        {detail}
       </Typography>
-      <Stack spacing={0.5} sx={{ mt: 1.5 }}>
+      <Stack spacing={0.5} sx={{ mt: 1 }}>
         {events.map((event) => (
-          <CalendarEntry key={event.id} event={event} />
+          <CalendarEntry key={event.id} event={event} showDate />
         ))}
       </Stack>
-    </Paper>
+    </Box>
   );
 }
