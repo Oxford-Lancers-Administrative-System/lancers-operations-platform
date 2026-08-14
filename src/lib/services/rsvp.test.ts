@@ -229,22 +229,20 @@ async function responsesFor(invitationId: string) {
 // ---------------------------------------------------------------------------
 
 describe("composeReason", () => {
-  it("keeps the reason alone when no detail is given", () => {
+  it("keeps what the player typed", () => {
     expect(composeReason("Academic conflict")).toBe("Academic conflict");
-    expect(composeReason("Academic conflict", "   ")).toBe("Academic conflict");
   });
 
-  it("joins the optional detail onto the reason", () => {
-    expect(composeReason("Academic conflict", "Tutorial moved")).toBe(
-      "Academic conflict — Tutorial moved",
-    );
+  it("trims, so that whitespace cannot pass for a reason", () => {
+    // `required` in the browser is satisfied by three spaces. The domain rule
+    // is not, and this is where the two are reconciled.
+    expect(composeReason("  Academic conflict  ")).toBe("Academic conflict");
+    expect(composeReason("   ")).toBe("");
+    expect(composeReason("\t\n")).toBe("");
   });
 
-  it("treats a blank or whitespace-only reason as absent, whatever the detail says", () => {
-    // The detail alone must never satisfy the requirement: a player who types
-    // only into the optional box has still not given a reason.
-    expect(composeReason("", "Tutorial moved")).toBe("");
-    expect(composeReason("   ", "Tutorial moved")).toBe("");
+  it("treats a missing reason as absent rather than as a string", () => {
+    expect(composeReason("")).toBe("");
     expect(composeReason(null)).toBe("");
     expect(composeReason(undefined)).toBe("");
   });
@@ -277,13 +275,13 @@ describe("recordSignedLinkResponse", () => {
 
     await recordSignedLinkResponse(token, {
       response: "no",
-      reason: "Academic conflict",
-      detail: "Tutorial moved",
+      reason: "  Academic conflict  ",
     });
 
     const rows = await responsesFor(invitationId);
     expect(rows[0].response).toBe("no");
-    expect(rows[0].reason).toBe("Academic conflict — Tutorial moved");
+    // Stored exactly as typed, minus the whitespace.
+    expect(rows[0].reason).toBe("Academic conflict");
     expect(await statusOf(invitationId)).toBe("responded");
   });
 
@@ -309,15 +307,17 @@ describe("recordSignedLinkResponse", () => {
     expect(await responsesFor(invitationId)).toHaveLength(0);
   });
 
-  it("refuses a reason supplied only as optional detail", async () => {
+  it("ignores a reason sent with Attending, rather than storing one", async () => {
+    // Nothing in the screen sends this, but the service is the boundary and a
+    // future caller might. A `yes` carries no reason by definition.
     const { invitationId } = await fixture(48);
     const token = await tokenFor(invitationId);
 
-    const error = await caught(() =>
-      recordSignedLinkResponse(token, { response: "no", reason: "  ", detail: "Tutorial moved" }),
-    );
-    expect(error.rule).toBe(NO_REQUIRES_A_REASON_RULE);
-    expect(await responsesFor(invitationId)).toHaveLength(0);
+    await recordSignedLinkResponse(token, { response: "yes", reason: "Academic conflict" });
+
+    const rows = await responsesFor(invitationId);
+    expect(rows[0].response).toBe("yes");
+    expect(rows[0].reason).toBeNull();
   });
 
   it("appends a changed answer and leaves the previous row untouched", async () => {
@@ -491,7 +491,6 @@ describe("recordSignedLinkResponse", () => {
     await recordSignedLinkResponse(token, {
       response: "no",
       reason: "Academic conflict",
-      detail: "Tutorial moved",
     });
 
     const audit = await observer.query<{

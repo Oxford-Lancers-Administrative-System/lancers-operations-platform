@@ -165,8 +165,6 @@ export interface SignedRsvpSubmission {
   readonly response: "yes" | "no";
   /** Required for `no`, ignored for `yes`. */
   readonly reason?: string | null;
-  /** Optional free text the player adds to their reason. */
-  readonly detail?: string | null;
 }
 
 export interface RecordedRsvpResponse {
@@ -186,20 +184,21 @@ export const INVITATION_WITHDRAWN_RULE = "rsvp_invitation_withdrawn";
 const JOB_CANCELLED_REASON = "The invitee responded, so this reminder is no longer needed.";
 
 /**
- * The player's reason, as one column.
+ * The player's reason, normalised.
  *
- * The approved screen collects two fields — a required reason and an optional
- * additional detail — and the domain stores one. Composing them here rather
- * than in the route keeps the database's `no_requires_a_reason` check and this
- * function's refusal talking about the same string, which is what makes the
- * form's validation and the server's validation genuinely equivalent rather
- * than merely similar.
+ * One field, and one column. The approved wireframe paired the reason with an
+ * optional "Additional detail" box; Brian removed it on 14 August 2026 — a
+ * player leaves one reason, and nothing downstream reads the two apart.
+ *
+ * Trimming happens here rather than in the route so that the database's
+ * `no_requires_a_reason` check and this module's refusal are talking about the
+ * same string. That is what makes the form's validation and the server's
+ * validation genuinely equivalent rather than merely similar: a reason of three
+ * spaces satisfies the browser's `required` attribute and must still be
+ * refused.
  */
-export function composeReason(reason: string | null | undefined, detail?: string | null): string {
-  const head = (reason ?? "").trim();
-  const tail = (detail ?? "").trim();
-  if (head === "") return "";
-  return tail === "" ? head : `${head} — ${tail}`;
+export function composeReason(reason: string | null | undefined): string {
+  return (reason ?? "").trim();
 }
 
 /**
@@ -246,8 +245,7 @@ export async function recordSignedLinkResponse(
       );
     }
 
-    const reason =
-      submission.response === "no" ? composeReason(submission.reason, submission.detail) : null;
+    const reason = submission.response === "no" ? composeReason(submission.reason) : null;
 
     // The same rule the database enforces, refused here so the player gets a
     // sentence instead of an integrity error. Both checks are load-bearing:

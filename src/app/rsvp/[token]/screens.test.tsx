@@ -226,10 +226,11 @@ describe("UX-61 — declining", () => {
     expect(reason).toBeTruthy();
     expect(reason?.hasAttribute("required")).toBe(true);
 
-    // The optional detail must NOT be required, or the domain rule becomes two.
-    const detail = container.querySelector('textarea[name="detail"]');
-    expect(detail).toBeTruthy();
-    expect(detail?.hasAttribute("required")).toBe(false);
+    // One reason, and only one. Brian removed the wireframe's optional
+    // "Additional detail" box on 14 August 2026, so a second field reappearing
+    // here is a regression rather than an addition.
+    expect(container.querySelectorAll("input[type='text'], textarea")).toHaveLength(1);
+    expect(container.querySelector('[name="detail"]')).toBeNull();
 
     expect(getByText(SAVE_NOT_ATTENDING)).toBeTruthy();
     expect(container.textContent).toContain(DECLINE_PROMPT);

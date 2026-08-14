@@ -43,8 +43,6 @@ import {
   DEADLINE_NOTE,
   DECLINE_HEADING,
   DECLINE_PROMPT,
-  DETAIL_LABEL,
-  DETAIL_PLACEHOLDER,
   INVITATION_LABEL,
   NOT_ATTENDING,
   PLAYER_LABEL,
@@ -241,8 +239,25 @@ function Invitation({
       <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
         {page.eventName}
       </Typography>
+      {/*
+        When the event is, given the weight it actually carries.
+
+        This started as ordinary secondary text under the title and Brian's
+        visual review found it got lost there — which is the wrong outcome for
+        the one fact a player is opening the page to check. It is now primary
+        colour, heavier and larger than the body text, and it is the only line
+        on the screen treated that way apart from the event's name.
+      */}
       {date ? (
-        <Typography sx={{ fontSize: 15, color: "text.secondary", mt: 0.5 }}>
+        <Typography
+          sx={{
+            fontSize: { xs: 17, sm: 19 },
+            fontWeight: 600,
+            color: "text.primary",
+            mt: 1,
+            lineHeight: 1.35,
+          }}
+        >
           {time ? `${date} · ${time}` : date}
         </Typography>
       ) : null}
@@ -349,15 +364,12 @@ function DecliningStep({
             helperText={missingReason ? DECLINE_PROMPT : undefined}
             slotProps={{ htmlInput: { maxLength: 200 } }}
           />
-          <TextField
-            name="detail"
-            label={DETAIL_LABEL}
-            placeholder={DETAIL_PLACEHOLDER}
-            fullWidth
-            multiline
-            minRows={2}
-            slotProps={{ htmlInput: { maxLength: 500 } }}
-          />
+          {/*
+            One reason, and no second box. The wireframe paired this with an
+            optional "Additional detail"; Brian removed it on 14 August 2026 —
+            the player leaves a reason, and nothing downstream reads the two
+            apart.
+          */}
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
             <Button type="submit" variant="contained" sx={{ minHeight: MIN_TOUCH_TARGET, flex: 1 }}>
               {SAVE_NOT_ATTENDING}

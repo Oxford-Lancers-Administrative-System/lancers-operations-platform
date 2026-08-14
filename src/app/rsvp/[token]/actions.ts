@@ -85,7 +85,6 @@ export async function submitNotAttending(form: FormData): Promise<void> {
     await recordSignedLinkResponse(token, {
       response: "no",
       reason: text(form, "reason"),
-      detail: text(form, "detail"),
     });
   } catch (error) {
     const failure = failureFor(error);

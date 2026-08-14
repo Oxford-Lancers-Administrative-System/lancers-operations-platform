@@ -42,8 +42,10 @@ export const DECLINE_HEADING = "Not attending";
 export const DECLINE_PROMPT = "Choose a reason before saving Not attending.";
 export const REASON_LABEL = "Reason";
 export const REASON_PLACEHOLDER = "Academic conflict";
-export const DETAIL_LABEL = "Additional detail";
-export const DETAIL_PLACEHOLDER = "Optional";
+// There is deliberately no "Additional detail" field. The wireframe showed one
+// beside the reason; Brian removed it on 14 August 2026 — a player leaves one
+// reason, and a second box asking for more is friction on a phone in the rain
+// for a value nothing reads separately.
 export const SAVE_NOT_ATTENDING = "Save Not attending";
 export const BACK = "Back";
 
