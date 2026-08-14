@@ -511,9 +511,26 @@ describe("enterReturningPlayer — a new person", () => {
 
 describe("enterReturningPlayer — an existing person", () => {
   it("creates a membership without a second person row", async () => {
-    const before = await observer.query<{ count: string }>(
-      "select count(*)::text as count from public.people",
-    );
+    // Counted by name, not across the whole table.
+    //
+    // `select count(*) from public.people` is a race, not a measurement: Vitest
+    // runs suites in parallel against one PostgreSQL, so any other suite
+    // inserting a person between the two reads failed this — a test about
+    // *this* intake creating no duplicate, failing because of somebody else's
+    // fixture. It made the shared gate red roughly half the time.
+    //
+    // Counting the people who share this person's name measures exactly what
+    // the test's name claims, and is unaffected by anything else running.
+    const countByName = async () => {
+      const result = await observer.query<{ count: string }>(
+        `select count(*)::text as count from public.people
+          where given_name = $1 and family_name is not distinct from $2`,
+        [withoutMembership.givenName, withoutMembership.familyName],
+      );
+      return result.rows[0].count;
+    };
+
+    const before = await countByName();
 
     const result = await enterReturningPlayer({
       actorPersonId,
@@ -523,11 +540,7 @@ describe("enterReturningPlayer — an existing person", () => {
 
     expect(result.personCreated).toBe(false);
     expect(result.personId).toBe(withoutMembership.id);
-
-    const after = await observer.query<{ count: string }>(
-      "select count(*)::text as count from public.people",
-    );
-    expect(after.rows[0].count).toBe(before.rows[0].count);
+    expect(await countByName()).toBe(before);
 
     const membership = await observer.query<{ person_id: string; entry: string; status: string }>(
       "select person_id, entry::text, status::text from public.season_memberships where id = $1::uuid",
