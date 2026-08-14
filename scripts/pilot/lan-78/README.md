@@ -58,6 +58,27 @@ scenario.
 Setup itself sends nothing at all. It creates no deliverable work: dispatch
 happens at approval, and this event arrives already approved.
 
+## Do not leave this installed in a local database that runs the test suite
+
+Hosted is unaffected, and this is worth knowing anyway because it cost an hour.
+
+`scripts/seed-local.mjs` stamps its people with a **future** `created_at`, so
+this scenario's three people become the oldest rows in `public.people`.
+`src/lib/services/roster.test.ts` resolves its acting operator as "the oldest
+person", adopts one of them, and writes an audit row naming a scenario person as
+the actor — at which point `cleanup.sql` correctly refuses to delete a person who
+appears in audit history, and the scenario cannot be removed without deleting
+that row by hand.
+
+On hosted this cannot happen. The scenario's people have no operator account and
+no auth user, so nothing can ever act as them, and no test suite runs there. The
+scripts are therefore left truthful — `created_at` is the time the rows were
+really created — rather than distorted to suit a local test.
+
+If you do install it locally, run `cleanup.sql` before `npm run test`.
+`tests/pilot-scenario-lan-78.test.ts` installs and rolls back its own copy and is
+unaffected either way.
+
 ## Order of operations
 
 1. Confirm you are connected to the intended database, as the intended user.
