@@ -235,16 +235,44 @@ describe("no runbook or fixture presents one as a fallback", () => {
     expect(documents.length).toBeGreaterThan(15);
   });
 
+  /**
+   * Documents permitted to name a manual affordance, because prohibiting it is
+   * their subject.
+   *
+   * An allowlist, not a heuristic. This was "is there a negating word within
+   * 220 characters?", and `\bno` matches "Note", "nothing" and "November" — so
+   * an instruction reading "Copy link from the repair panel and paste it into
+   * the club WhatsApp group. Note the time you did so." passed, in a runbook
+   * Brian follows by hand against the one production database. Proximity to a
+   * negation is not evidence of anything; being one of the documents that
+   * define the rule is.
+   *
+   * The pilot README is deliberately **not** here. It now describes the absence
+   * of these controls without naming them, which is both safer and better copy.
+   */
+  const DEFINES_THE_PROHIBITION: readonly string[] = [
+    // The locked requirement itself: "An agent may never implement a manual
+    // path, offer it as an interim step, let a 'mark as sent' action stand in
+    // for delivery…". Naming the thing is the whole content of the rule.
+    "docs/adr/0013-supervised-agent-development.md",
+    "docs/adr/0023-rsvp-token-and-whatsapp-delivery.md",
+    "docs/ux/slice-ux.md",
+    "docs/ux/tickets/LAN-78-delivery.md",
+    // Records that LAN-78's UX was validated as having no such action.
+    "docs/ux/review/validation-report.md",
+    "docs/ux/review/lan-78/README.md",
+  ];
+
+  it("allows only documents it actually scans", () => {
+    for (const file of DEFINES_THE_PROHIBITION) {
+      expect(documents, `${file} is allowed but not scanned`).toContain(file);
+    }
+  });
+
   it.each(FORBIDDEN_AFFORDANCES)("instructs nobody to use $name", ({ pattern }) => {
-    const offenders = documents.filter((file) => {
-      const text = read(file);
-      if (!pattern.test(text)) return false;
-      // A document is allowed to say the thing is forbidden. It is not allowed
-      // to tell somebody to do it.
-      return !/\b(never|not|no|without|forbid|prohibit|refus)/i.test(
-        text.slice(Math.max(0, text.search(pattern) - 220), text.search(pattern) + 220),
-      );
-    });
+    const offenders = documents.filter(
+      (file) => !DEFINES_THE_PROHIBITION.includes(file) && pattern.test(read(file)),
+    );
     expect(offenders).toEqual([]);
   });
 

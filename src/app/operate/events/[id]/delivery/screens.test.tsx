@@ -23,7 +23,7 @@
  * it, what it states, and what it offers.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, within } from "@testing-library/react";
+import { fireEvent, render, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -41,6 +41,7 @@ vi.mock("@/lib/services/delivery", async (importOriginal) => {
   return { ...actual, readEventDelivery: vi.fn() };
 });
 
+import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import { readEventDelivery, type DeliveryRow, type EventDelivery } from "@/lib/services/delivery";
 import DeliveryPage from "./page";
@@ -273,6 +274,26 @@ const PERMITTED_CONTROLS: Readonly<Record<string, readonly string[]>> = {
     "Back to event",
     "Sign out",
   ],
+  /**
+   * The reissue disclosure, open.
+   *
+   * Review defeated the inventory here: this branch only renders after a click,
+   * nothing in the suite clicked, and its `Cancel` button was absent from every
+   * permitted set while the tests passed — which is the proof the branch was
+   * never reached. A `wa.me` control beside `Cancel` was invisible to
+   * everything, and an operator pressing **Revoke and reissue link** would have
+   * been looking straight at it.
+   */
+  "repair (reissue open)": [
+    "Retry delivery",
+    "Revoke and reissue link",
+    "Cancel",
+    "Delivery overview",
+    "Back to event",
+    "Sign out",
+  ],
+  /** The service-error branch, reached whenever the read throws. */
+  unavailable: ["Back to events", "Sign out"],
 };
 
 /** Every href the delivery screens are allowed to produce, as a shape. */
@@ -310,14 +331,47 @@ describe("every delivery view offers only the controls it is meant to", () => {
   /** Every attribute that can carry a destination. */
   const URL_ATTRIBUTES = ["href", "src", "action", "formaction", "ping", "data-href"];
 
-  const VIEWS: readonly (readonly [string, Record<string, string>])[] = [
-    ["overview", {}],
-    ["diagnostics", { view: "diagnostics" }],
-    ["repair", { invitation: "invitation-1" }],
-  ];
+  const QUERIES: Readonly<Record<string, Record<string, string>>> = {
+    overview: {},
+    diagnostics: { view: "diagnostics" },
+    repair: { invitation: "invitation-1" },
+    "repair (reissue open)": { invitation: "invitation-1" },
+    unavailable: {},
+  };
 
-  it.each(VIEWS)("pins the interactive controls on %s", async (view, query) => {
-    const { container } = await renderPage(query);
+  /**
+   * Every state of these screens that renders a control, including the two that
+   * appear only after an interaction or a failure.
+   *
+   * The inventory is exactly as wide as the states it renders, and three of
+   * five was enough for review to hide a control in one of the other two.
+   */
+  async function renderState(state: string) {
+    if (state === "unavailable") {
+      vi.mocked(readEventDelivery).mockRejectedValue(new NotFound("That event no longer exists."));
+    }
+
+    const rendered = await renderPage(QUERIES[state]);
+
+    if (state === "repair (reissue open)") {
+      // A client-side branch, opened the way an operator opens it.
+      fireEvent.click(rendered.getByRole("button", { name: "Revoke and reissue link" }));
+    }
+
+    return rendered;
+  }
+
+  const ALL_STATES = Object.keys(QUERIES);
+
+  it("renders every state it claims to cover", () => {
+    // The inventory's reach is what failed twice, so it is asserted rather than
+    // assumed: a permitted set with no fixture fails here instead of quietly
+    // guarding nothing.
+    expect([...ALL_STATES].sort()).toEqual(Object.keys(PERMITTED_CONTROLS).sort());
+  });
+
+  it.each(ALL_STATES)("pins the interactive controls on %s", async (state) => {
+    const { container } = await renderState(state);
 
     const controls = [
       ...container.querySelectorAll(
@@ -325,15 +379,15 @@ describe("every delivery view offers only the controls it is meant to", () => {
       ),
     ].map(accessibleName);
 
-    const permitted = new Set(PERMITTED_CONTROLS[view]);
+    const permitted = new Set(PERMITTED_CONTROLS[state]);
     // No `label !== ""` filter. An unnamed control is a control.
     const unexpected = controls.filter((label) => !permitted.has(label));
 
     expect(unexpected).toEqual([]);
   });
 
-  it.each(VIEWS)("lets %s point nowhere outside the application", async (_view, query) => {
-    const { container } = await renderPage(query);
+  it.each(ALL_STATES)("lets %s point nowhere outside the application", async (state) => {
+    const { container } = await renderState(state);
 
     const destinations: string[] = [];
     for (const attribute of URL_ATTRIBUTES) {
