@@ -887,19 +887,41 @@ export async function applyProviderCallback(
     // `delivery_results` is authoritative under invariant M4.
     if (written.rowCount === 0) return "superseded";
 
-    await tx.query(
+    // Only the **current** attempt may move the job.
+    //
+    // An operator whose delivery is stuck at Attempted cannot retry it — the
+    // service refuses a job that is not pending — so the documented repair is
+    // Revoke and reissue, which returns the job to `pending` and dispatches
+    // attempt 2. Attempt 1's callback then arrives late. Updating
+    // unconditionally let it stamp the job `failed` and clear attempt 2's
+    // fencing claim, so the screen offered Retry on a delivery the provider had
+    // already accepted — pressing it sends the same person a third invitation.
+    // The `delivered` variant is worse in its own way: the job reads Delivered
+    // from an attempt whose token has just been revoked.
+    //
+    // `delivery_results` was always right per attempt (invariant M4). This is
+    // the job row catching up with it.
+    const moved = await tx.query(
       `update public.notification_jobs
           set status = $2::public.notification_job_status,
               last_error = case when $2 = 'completed' then null else $3::text end,
               claimed_at = null, claimed_by = null,
               updated_at = now()
-        where id = $1`,
+        where id = $1
+          and attempt_count = $4`,
       [
         matched.notification_job_id,
         event.outcome === "delivered" ? "completed" : "failed",
         event.detail,
+        matched.attempt_number,
       ],
     );
+
+    if (moved.rowCount === 0) {
+      // The result is recorded against its own attempt and stays authoritative;
+      // the job belongs to a later one.
+      return "superseded";
+    }
 
     await recordAudit(tx, {
       actorLabel: `channel: ${provider} callback`,

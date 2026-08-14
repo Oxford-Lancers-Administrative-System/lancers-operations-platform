@@ -814,6 +814,45 @@ describe("provider callbacks", () => {
     expect(PROVIDER_MESSAGE_PREFIX.startsWith(PROVIDER_MESSAGE_NAMESPACE)).toBe(true);
   });
 
+  it("does not let a late callback move a job a later attempt is holding", async () => {
+    const { eventId, invitationId } = await fixture();
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}FIRST`),
+    });
+    const firstMessage = `${PROVIDER_MESSAGE_PREFIX}FIRST.1`;
+
+    // The documented repair for a delivery stuck at Attempted: it cannot be
+    // retried, so the operator reissues. That returns the job to `pending` and
+    // sends attempt 2.
+    await revokeAndReissue(await anyPerson(), invitationId, "Stuck at attempted", {
+      source: CONFIGURED,
+      transport: accepts(`${PROVIDER_MESSAGE_PREFIX}SECOND`),
+    });
+    expect((await row(eventId)).attemptCount).toBe(2);
+
+    // Attempt 1's callback now arrives, late. It must record its own result and
+    // move nothing: the job belongs to attempt 2, which the provider has
+    // accepted and may still deliver. Moving it offered Retry on a live send —
+    // one press away from a third invitation to the same person.
+    const outcome = await applyProviderCallback(
+      WHATSAPP_CLOUD_PROVIDER,
+      {
+        providerEventId: `${firstMessage}:failed`,
+        providerMessageId: firstMessage,
+        providerStatus: "failed",
+        outcome: "failed",
+        detail: "Stale.",
+      },
+      { signatureVerified: true },
+    );
+
+    expect(outcome).toBe("superseded");
+    const current = await row(eventId);
+    expect(current.state).toBe("attempted");
+    expect(current.attemptCount).toBe(2);
+  });
+
   it("refuses to record anything whose signature was not verified", async () => {
     const error = await caught(() =>
       applyProviderCallback(
