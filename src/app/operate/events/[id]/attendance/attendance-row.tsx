@@ -74,15 +74,31 @@ export function AttendanceRow({
   // reordered the list.
   const mine = state.key === participant.key;
 
-  // The server's value wins over the props on the render immediately after a
-  // save, before revalidation has replaced the board underneath.
-  const committed: AttendancePresence | null =
-    mine && state.presence !== null ? state.presence : participant.presence;
-  const committedAt = mine && state.presence !== null ? state.recordedAt : participant.recordedAt;
-  const committedBy =
-    mine && state.presence !== null ? state.recordedByName : participant.recordedByName;
-
-  const savedLine = describeCommitted(committedAt, committedBy);
+  /**
+   * What is recorded comes from the **server props**, and only from them.
+   *
+   * This row used to prefer its own last save state over the props —
+   * `state.presence ?? participant.presence` in effect — on the reasoning that
+   * the state was fresher for one render after a save. That was unsound, and
+   * independent review demonstrated the failure: `removeAttendanceAction`
+   * revalidates and soft-navigates to the same route, so the row instance
+   * survives under its stable key while the props go to `null`. The stale save
+   * state then won, and the board went on displaying `Saved · … · 20:07` for a
+   * record that no longer existed — with the removal control still offered,
+   * whose second press returned "there is no attendance recorded for that
+   * person" directly beneath it. Two contradictory claims on one row about who
+   * was at a practice.
+   *
+   * The premise was wrong as well as the consequence: `recordAttendanceAction`
+   * calls `revalidatePath` **before** it returns, so the props a save produces
+   * have already been re-rendered by the time the state carrying them arrives.
+   * There was no window to cover.
+   *
+   * So `state` now does the one job props cannot: report a save that **failed**,
+   * which by definition left the server value alone.
+   */
+  const committed: AttendancePresence | null = participant.presence;
+  const savedLine = describeCommitted(participant.recordedAt, participant.recordedByName);
   const mismatch = describeMismatch(participant.mismatch);
   const failure = mine && state.error !== null ? state.error : null;
 

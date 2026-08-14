@@ -441,15 +441,18 @@ function Fact({
  *
  * ## Why it is offered whatever the clock says
  *
- * The wireframe shows "Start time has passed" as one of three facts beside the
- * two buttons, and this renders it as exactly that: a fact, not a condition.
- * Invariant E5 says "the passage of time never equals occurrence", and the rule
- * cuts both ways — time does not make an event occurred, and it does not
- * license the interface to decide when somebody may say what happened. The two
- * real cases settle it: a practice abandoned at 19:55 because the pitch flooded
- * is **not held** before its own start time, and last Wednesday's practice is
- * still waiting to be recorded on Friday. Refusing either would be a rule this
- * repository invented.
+ * The wireframe showed "Start time has passed" beside the two buttons. Brian
+ * removed it on 14 August 2026 — "not useful, they know they're there" — so
+ * nothing here mentions the clock at all.
+ *
+ * The rule it was decorating is untouched, and it is why the decision is
+ * offered without a time condition. Invariant E5 says "the passage of time
+ * never equals occurrence", and that cuts both ways: time does not make an
+ * event occurred, and it does not license the interface to decide when somebody
+ * may say what happened. The two real cases settle it — a practice abandoned at
+ * 19:55 because the pitch flooded is **not held** before its own start time,
+ * and last Wednesday's practice is still waiting to be recorded on Friday.
+ * Refusing either would be a rule this repository invented.
  *
  * ## Why an operator without the capability still sees it
  *

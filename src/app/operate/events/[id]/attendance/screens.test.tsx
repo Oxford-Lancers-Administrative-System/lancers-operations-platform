@@ -13,7 +13,7 @@
  * which is what `container.textContent` gets closest to.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 const routerPush = vi.fn();
@@ -62,12 +62,14 @@ import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operato
 import {
   readAttendanceBoard,
   readWalkUpCandidates,
+  recordAttendance,
   type AttendanceBoard,
   type AttendanceParticipant,
 } from "@/lib/services/attendance";
 import { readEvent, type EventDetail } from "@/lib/services/events";
 import { readEventAudience } from "@/lib/services/event-approval";
 import AttendancePage, { filterParticipants } from "./page";
+import { AttendanceRow } from "./attendance-row";
 import EventDetailPage from "../page";
 
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
@@ -402,6 +404,61 @@ describe("UX-72 — the attendance board", () => {
     expect(screen.getByTestId("remove-attendance-form")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Remove record" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Keep it" })).toBeTruthy();
+  });
+
+  /**
+   * The defect the removal control shipped with, and the reason this row reads
+   * the server props rather than its own memory.
+   *
+   * Removing a record revalidates and soft-navigates to the same route, so the
+   * row component survives under its stable key while the board underneath goes
+   * to `null`. When the row preferred its own last-save state over the props, it
+   * went on showing `Saved · … · 20:07` for a record that no longer existed,
+   * still offered the removal control, and answered a second press with "there
+   * is no attendance recorded for that person" printed beneath the Saved line.
+   *
+   * The sequence has to be real to reproduce it: the row must actually save —
+   * that is the only thing that puts a value in `useActionState` — and only then
+   * see props that say the record is gone. A test that merely re-renders never
+   * populates the state and passes against the defect, which is how the first
+   * attempt at this test fooled itself.
+   *
+   * The row is rendered directly rather than through the page, because what is
+   * under test is one component's state across an action round trip.
+   */
+  it("stops showing a record once the board says it is gone", async () => {
+    vi.mocked(recordAttendance).mockResolvedValue({
+      key: `player:${MEMBERSHIP_ID}`,
+      displayName: "Avery Fielding",
+      presence: "present",
+      recordedAt: "2026-10-14T19:07:00.000Z",
+      recordedByName: "Casey North",
+      previousPresence: null,
+    });
+
+    const { rerender } = render(<AttendanceRow eventId={EVENT_ID} participant={participant()} />);
+
+    // The save is what puts a committed value in `useActionState`. Nothing
+    // revalidates in an isolated render, so the props stay as they are — which
+    // is exactly the shape the board has after a removal, and the shape the
+    // stale-state bug got wrong.
+    fireEvent.click(screen.getByRole("button", { name: "Present" }));
+    await waitFor(() => {
+      expect(recordAttendance).toHaveBeenCalled();
+    });
+
+    // Same participant key, nothing recorded. The component is not remounted —
+    // that is the whole point: a soft navigation keeps this row instance.
+    rerender(<AttendanceRow eventId={EVENT_ID} participant={participant()} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("attendance-row").dataset.presence).toBe("none");
+    });
+    expect(screen.getByTestId("attendance-committed").textContent).toBe("Not marked");
+    expect(screen.getByTestId("attendance-committed").textContent).not.toContain("Casey North");
+    // And the control goes with it, so a second press cannot ask the service to
+    // remove something that is not there.
+    expect(screen.queryByTestId("remove-attendance-open")).toBeNull();
   });
 
   it("says Not marked when nothing has been recorded for somebody", async () => {
