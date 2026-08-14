@@ -31,6 +31,7 @@ import TermCard from "./term-card";
 import {
   CALENDAR_READ_ONLY_NOTE,
   CALENDAR_SOURCE_NOTE,
+  describeOtherTerm,
   formatTermName,
   MONTH_EMPTY,
   NO_TERMS_CONFIGURED,
@@ -319,10 +320,22 @@ function OxfordView({
           </Typography>
 
           <Stack spacing={2} sx={{ mt: 2 }}>
+            {/*
+              A count and a link, not the events themselves. A season's other
+              two terms hold most of its events — sixty-odd in the seeded
+              dataset — and listing them here would bury the genuinely
+              unmapped events below a page of records that already have a
+              perfectly good home. This is not a silent omission: the term is
+              named, the number is stated, and its own card is one click away,
+              as are the list and the Gregorian calendar.
+            */}
             {card.elsewhere.inOtherTerms.map((bucket) => (
               <Box key={bucket.term.id} data-testid="other-term-group">
                 <Typography variant="caption" component="p" sx={{ fontWeight: 700 }}>
                   {formatTermName(bucket.term)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {describeOtherTerm(bucket.events.length, formatTermName(bucket.term))}
                 </Typography>
                 <Button
                   size="small"
@@ -333,11 +346,6 @@ function OxfordView({
                 >
                   {`Open the ${formatTermName(bucket.term)} card`}
                 </Button>
-                <Stack spacing={0.5} sx={{ mt: 0.5 }}>
-                  {bucket.events.map((event) => (
-                    <CalendarEntry key={event.id} event={event} showDate />
-                  ))}
-                </Stack>
               </Box>
             ))}
 

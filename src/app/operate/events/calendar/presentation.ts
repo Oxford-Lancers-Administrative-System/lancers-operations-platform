@@ -119,8 +119,9 @@ export const CALENDAR_READ_ONLY_NOTE =
 export const OUTSIDE_TERM_HEADLINE = "Not on this term card";
 
 export const OUTSIDE_TERM_DETAIL =
-  "These events are still in the season, and still appear in the list and in the Gregorian " +
-  "calendar. They are shown here because this term card has no cell for them.";
+  "This term card has no cell for these events. Nothing is missing: every one of them is " +
+  "still in the season, and still appears in the list and in the Gregorian calendar. Events " +
+  "belonging to another term are counted here and shown in full on that term’s own card.";
 
 export const UNDATED_HEADLINE = "No date recorded yet";
 
@@ -129,6 +130,20 @@ export const UNDATED_DETAIL =
   "list until a date is recorded.";
 
 export const OUTSIDE_ANY_TERM_LABEL = "Outside Oxford term";
+
+/**
+ * "62 events in this season fall in Michaelmas 2026-27." — the other terms are
+ * counted and linked rather than listed.
+ *
+ * Those events already have a card of their own, and reproducing all of them
+ * under a different term's card would push the genuinely unmapped events —
+ * the ones with no term and no date, which are the reason this panel exists —
+ * below a page of records that are not lost at all.
+ */
+export function describeOtherTerm(count: number, termName: string): string {
+  const events = count === 1 ? "1 event" : `${count} events`;
+  return `${events} in this season ${count === 1 ? "falls" : "fall"} in ${termName}.`;
+}
 
 /** Empty states — distinguished, because the recovery differs. */
 export const MONTH_EMPTY = "No event in this season falls in this month.";

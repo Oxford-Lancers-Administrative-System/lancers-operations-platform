@@ -396,6 +396,7 @@ describe("the Oxford term card", () => {
   it("surfaces an event in another term rather than omitting it", async () => {
     givenEvents([
       listEntry({ name: "Lancers vs Elmswell", scheduledOn: "2027-01-24" }),
+      listEntry({ name: "Lancers vs Fernhurst", scheduledOn: "2027-01-31" }),
       listEntry({ name: "Summer camp", scheduledOn: "2027-07-15" }),
       listEntry({ name: "Awards night", scheduledOn: null, startsAt: null }),
     ]);
@@ -403,8 +404,10 @@ describe("the Oxford term card", () => {
     const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
     const elsewhere = within(container).getByTestId("outside-term");
 
+    // Another term is named, counted and linked — not listed, because those
+    // events are shown in full on their own card.
     expect(flatten(elsewhere.textContent)).toContain("Hilary 2026-27");
-    expect(flatten(elsewhere.textContent)).toContain("Lancers vs Elmswell");
+    expect(flatten(elsewhere.textContent)).toContain("2 events in this season fall in Hilary");
     expect(within(elsewhere).getByTestId("other-term-link")).toHaveAttribute(
       "href",
       `/operate/events/calendar?mode=oxford&term=${HILARY.id}`,
