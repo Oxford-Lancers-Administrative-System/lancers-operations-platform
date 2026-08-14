@@ -342,7 +342,7 @@ async function recordUndeliverableIn(
  */
 export async function dispatchJob(
   jobId: string,
-  options: { source?: EnvironmentSource; transport?: Transport } = {},
+  options: { source?: EnvironmentSource; transport?: Transport; claim?: string } = {},
 ): Promise<"accepted" | "refused" | "skipped"> {
   const resolution = resolveDeliveryProvider(options.source ?? process.env, options.transport);
 
@@ -386,9 +386,15 @@ export async function dispatchJob(
 
   const { provider, config } = resolution;
 
-  // One token for this dispatch, threaded through the claim and the late
-  // failure write so the two can tell each other apart from anybody else.
-  const claimToken = dispatchClaim();
+  // One token for this dispatch, and the caller may supply it.
+  //
+  // That matters because `recordDispatchFailure` guards on it, and the guard is
+  // only meaningful if it names the token this dispatch actually wrote to
+  // `claimed_by`. The batch loop previously minted a *second* token for the
+  // guard, so the predicate named a value nothing had ever written and the
+  // disjunct was unreachable — the guard reduced to `claimed_by is null`, which
+  // is what it had been before the fencing token was introduced at all.
+  const claimToken = options.claim ?? dispatchClaim();
 
   const claim = await withTransaction(async (tx) => {
     const outcome = await claimJobIn(tx, jobId, config, provider, claimToken);
@@ -593,13 +599,12 @@ export async function dispatchEventInvitations(
     // recorded nothing, and `approveEventAction`'s deliberate `catch {}`
     // swallowed the reason. A failure that stops forty other people being
     // invited has to be one of forty failures, not one silence.
-    // The token this iteration's failure write will be guarded on. `dispatchJob`
-    // mints its own for the claim; this one only has to be distinct from any
-    // other worker's, which it is.
+    // The token this iteration claims with AND guards on. One value, so the
+    // guard can recognise its own claim.
     const claimToken = dispatchClaim();
 
     try {
-      const outcome = await dispatchJob(job.id, options);
+      const outcome = await dispatchJob(job.id, { ...options, claim: claimToken });
       if (outcome === "accepted") accepted += 1;
       else if (outcome === "refused") refused += 1;
       else skipped += 1;

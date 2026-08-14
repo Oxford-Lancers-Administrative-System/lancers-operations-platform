@@ -1124,6 +1124,60 @@ describe("the late failure write does not stamp another worker's claim", () => {
     expect(after.rows[0].status).toBe("pending");
   });
 
+  it("concludes its own committed claim, which is the case the disjunct exists for", async () => {
+    const { eventId, jobId } = await fixture();
+
+    /**
+     * The only path that distinguishes a working guard from a dead one.
+     *
+     * Both tests around this one reach `recordDispatchFailure` through
+     * `issueTokenIn` refusing, which rolls the claim back — so both exercise
+     * only `claimed_by is null`, and a guard naming a token nothing ever wrote
+     * passes them. The disjunct exists for the case where the claim **commits**
+     * and the dispatch then throws.
+     *
+     * Forced by making the recording transaction fail: another job already owns
+     * the provider message identifier this send will return, and
+     * `delivery_attempts_provider_message_unique` refuses the second. So the
+     * claim commits, the provider accepts, and the write that records it
+     * throws — exactly the shape of a pool exhaustion or a lost connection at
+     * that moment.
+     */
+    const collidingId = `${PROVIDER_MESSAGE_PREFIX}COLLIDE`;
+    const other = await addInvitee("Collider");
+    const otherJob = await observer.query<{ id: string }>(
+      "select id from public.notification_jobs where invitation_id = $1",
+      [other.invitationId],
+    );
+    await observer.query(
+      `insert into public.delivery_attempts
+         (notification_job_id, attempt_number, channel, provider, provider_message_id, accepted_at)
+       values ($1, 1, 'whatsapp', $2, $3, now())`,
+      [otherJob.rows[0].id, WHATSAPP_CLOUD_PROVIDER, collidingId],
+    );
+
+    const reused = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ messages: [{ id: collidingId }] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport: reused });
+
+    // The guard has to recognise the claim this dispatch itself committed. If
+    // it names a value nothing wrote, nothing matches, and the job is left
+    // `processing` with no reason — Attempted for ever, with an audit row
+    // asserting a failure the job denies.
+    const after = await observer.query<{ status: string; last_error: string | null }>(
+      "select status::text as status, last_error from public.notification_jobs where id = $1",
+      [jobId],
+    );
+    expect(after.rows[0].status).toBe("failed");
+    expect(after.rows[0].last_error).not.toBeNull();
+  });
+
   it("does conclude a job nobody else holds", async () => {
     const { eventId, jobId } = await fixture();
     await observer.query(
