@@ -212,6 +212,13 @@ export function CorrectOccurrenceForm({
     EMPTY_TRANSITION_STATE,
   );
   const [open, setOpen] = useState(false);
+  // Controlled, and that is the point. `EventTransitionState` carries only the
+  // error, so an uncontrolled field is at the mercy of what React does to it on
+  // the re-render the action triggers — and the refusal an operator is most
+  // likely to meet here is "this event still has attendance against it", which
+  // they resolve on another screen and come back from. Losing the sentence they
+  // wrote is exactly what § 9's "preserve safe input" forbids.
+  const [reason, setReason] = useState("");
 
   const target = currentStatus === "occurred" ? "not held" : "occurred";
 
@@ -230,6 +237,8 @@ export function CorrectOccurrenceForm({
         <TextField
           label={`Why is this being corrected to ${target}?`}
           name="reason"
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
           multiline
           minRows={2}
           fullWidth
