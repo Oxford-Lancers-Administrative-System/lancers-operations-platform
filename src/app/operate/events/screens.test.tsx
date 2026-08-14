@@ -125,10 +125,6 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     createdByName: "Rowan Ashdown",
     decisionReason: null,
     seasonId: "44444444-4444-4444-8444-444444444444",
-    // LAN-80. A fact UX-70 displays beside the two assertion buttons; the
-    // default is the ordinary case for these fixtures, an event whose date is
-    // in the future relative to the club's calendar.
-    startHasPassed: false,
     ...overrides,
   };
 }

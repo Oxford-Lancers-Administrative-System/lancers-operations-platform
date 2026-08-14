@@ -124,12 +124,28 @@ export function AttendanceRow({
         <input type="hidden" name="eventId" value={eventId} />
         <input type="hidden" name="participantKey" value={participant.key} />
         <Stack spacing={1}>
-          <Stack
-            direction="row"
-            spacing={1}
+          {/*
+            A grid, not a wrapping row. Brian's verdict on the real phone: four
+            buttons flowing until they run out of width put three on the first
+            line and one orphaned underneath, at three different widths — "super
+            janky", and worse than janky at the side of a pitch, because the
+            odd-one-out reads as the important one.
+
+            Two by two, each half the width available, so the block is a
+            predictable target square whichever state you are reaching for. Four
+            across on the desktop, where there is room and a row scans faster.
+          */}
+          <Box
             role="group"
             aria-label={`Attendance for ${participant.displayName}`}
-            sx={{ flexWrap: "wrap", gap: 1 }}
+            sx={{
+              display: "grid",
+              gap: 1,
+              gridTemplateColumns: {
+                xs: "repeat(2, minmax(0, 1fr))",
+                md: "repeat(4, minmax(0, 1fr))",
+              },
+            }}
           >
             {ATTENDANCE_PRESENCES.map((presence) => {
               const selected = committed === presence;
@@ -144,13 +160,13 @@ export function AttendanceRow({
                   aria-pressed={selected}
                   variant={selected ? "contained" : "outlined"}
                   color={selected ? PRESENCE_COLORS[presence] : "inherit"}
-                  sx={{ minHeight: 44, minWidth: 88 }}
+                  sx={{ minHeight: 44, width: "100%" }}
                 >
                   {PRESENCE_LABELS[presence]}
                 </Button>
               );
             })}
-          </Stack>
+          </Box>
 
           {failure ? (
             // § 9's failed save: the attempted value stays visible, and so does

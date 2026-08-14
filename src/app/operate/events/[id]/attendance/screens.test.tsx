@@ -118,7 +118,6 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     createdByName: "Rowan Ashdown",
     decisionReason: null,
     seasonId: "44444444-4444-4444-8444-444444444444",
-    startHasPassed: true,
     ...overrides,
   };
 }
@@ -177,7 +176,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("UX-70 — Confirm what happened", () => {
-  it("offers both assertions on an approved event, and states all three facts", async () => {
+  it("offers both assertions on an approved event, and states the facts around them", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     const { container } = render(await EventDetailPage(detailProps()));
@@ -187,22 +186,30 @@ describe("UX-70 — Confirm what happened", () => {
     expect(within(panel).getByRole("button", { name: "Mark occurred" })).toBeTruthy();
     expect(within(panel).getByRole("button", { name: "Mark not held" })).toBeTruthy();
 
-    // The three facts UX-70 pairs with the buttons.
+    // UX-70 pairs four facts with the buttons. The fourth — "start time has
+    // passed" — Brian cut on the real screen, and the test below holds the
+    // absence so it cannot come back by accident.
+    expect(container.textContent).toContain("Approved");
     expect(container.textContent).toContain("Not yet asserted");
     expect(container.textContent).toContain("Never inferred from time");
     expect(container.textContent).toContain("Opens only after Mark occurred");
-    expect(container.textContent).toContain("Start time has passed");
   });
 
-  it("says the start has not passed rather than hiding the decision", async () => {
-    // Invariant E5 cuts both ways: time is a fact beside the buttons, never a
-    // gate on them. A practice abandoned before its own start is `not_held`.
-    vi.mocked(readEvent).mockResolvedValue(detail({ startHasPassed: false }));
+  it("offers the decision whatever the clock says, and says nothing about it", async () => {
+    // Brian removed the "start time has passed" caption on the real screen: an
+    // operator in front of this decision knows the event has been and gone.
+    // What survives is the property underneath it — invariant E5 keeps time out
+    // of the assertion, so a practice abandoned at 19:55 because the pitch
+    // flooded is still markable as not held before its own start time.
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ scheduledOn: "2099-01-01", startsAt: "20:00" }),
+    );
 
     const { container } = render(await EventDetailPage(detailProps()));
 
-    expect(container.textContent).toContain("Start time has not passed");
     expect(screen.getByRole("button", { name: "Mark occurred" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Mark not held" })).toBeTruthy();
+    expect(container.textContent).not.toMatch(/start time/i);
   });
 
   it("offers no assertion to an operator without the capability, and says who does", async () => {
@@ -484,8 +491,13 @@ describe("UX-73 — add walk-up attendance", () => {
     const note = screen.getByTestId("walk-up-reconciliation-note");
     expect(note.textContent).toContain("flagged for later reconciliation");
     expect(note.textContent).toContain("does not create or activate a membership");
-    // The deferred workflow is named rather than implemented.
-    expect(container.textContent).toContain("LAN-85");
+
+    // And it says that without naming an issue tracker. A sentence pointing at
+    // LAN-85 was here and Brian cut it: an operator on a pitch has no use for
+    // the number, and the club's own screens are not where a backlog belongs.
+    // The deferral is still real — it is in the code and in this ticket's
+    // contract — it is just not something the interface talks about.
+    expect(container.textContent).not.toMatch(/LAN-\d+/);
   });
 
   it("confirms the same two facts after it is committed", async () => {

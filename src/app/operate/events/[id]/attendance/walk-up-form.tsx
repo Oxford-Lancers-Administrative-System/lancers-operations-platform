@@ -14,7 +14,6 @@ import { EMPTY_WALK_UP_STATE } from "./action-state";
 import {
   PRESENCE_LABELS,
   WALK_UP_CONTACT_LABEL,
-  WALK_UP_DEFERRED_WORKFLOW,
   WALK_UP_DETAIL,
   WALK_UP_HEADLINE,
   WALK_UP_MATCH_HELP,
@@ -74,9 +73,6 @@ export function WalkUpForm({
 
         <Alert severity="warning" data-testid="walk-up-reconciliation-note">
           <Typography variant="body2">{WALK_UP_RECONCILIATION_NOTE}</Typography>
-          <Typography variant="body2" sx={{ mt: 1 }}>
-            {WALK_UP_DEFERRED_WORKFLOW}
-          </Typography>
         </Alert>
 
         {state.error ? (

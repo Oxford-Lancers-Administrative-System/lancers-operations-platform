@@ -96,8 +96,71 @@ let client: Client;
 beforeAll(async () => {
   client = await openLocalClient();
 });
+/**
+ * Removes any committed instance of this scenario, inside the test's own
+ * transaction, so every test starts from a database that does not have one.
+ *
+ * This is not a convenience. `setup.sql` refuses to install on top of leftover
+ * attendance — deliberately, because re-installing over a half-worked-through
+ * scenario produces a board that disagrees with the matrix in README.md — and
+ * the local stack is also the **review environment**, where somebody is
+ * expected to install the scenario and press the buttons. Without this, the
+ * suite passes or fails depending on whether a human happened to be part-way
+ * through a review, which is a test that reports on the reviewer rather than on
+ * the code.
+ *
+ * Every statement runs inside `begin … rollback`, so nothing it removes is
+ * really removed: the review environment is exactly as it was when the test
+ * finishes. It deliberately does **not** call `cleanup.sql`, which is one of
+ * the things under test and would abort on a walk-up a reviewer named without
+ * the sentinel.
+ */
+async function blankCanvas() {
+  const events = `('${EVENTS.occurrence}', '${EVENTS.notHeld}')`;
+  const people = `(select id from public.people where known_as like '${SENTINEL}%')`;
+
+  // Walk-up people the application minted, captured before the attendance rows
+  // that identify them are deleted.
+  // Dropped first rather than `if not exists`: a stale table would be reused
+  // silently, and it would hold the previous test's walk-ups.
+  await client.query("drop table if exists pg_temp.blank_canvas_walk_ups");
+  await client.query(
+    `create temporary table blank_canvas_walk_ups on commit drop as
+     select distinct person_id from public.attendance_records
+      where event_id in ${events} and person_id is not null`,
+  );
+
+  await client.query(
+    `delete from public.audit_events
+      where (entity_table = 'events' and entity_id in ${events})
+         or (entity_table = 'attendance_records'
+             and entity_id in (select id from public.attendance_records
+                                where event_id in ${events}))`,
+  );
+  await client.query(`delete from public.attendance_records where event_id in ${events}`);
+  await client.query(
+    `delete from public.contact_points
+      where person_id in (select person_id from blank_canvas_walk_ups)
+         or person_id in ${people}`,
+  );
+  await client.query(
+    `delete from public.people where id in (select person_id from blank_canvas_walk_ups)
+       and id not in ${people}`,
+  );
+  await client.query(
+    `delete from public.rsvp_responses
+      where invitation_id in (select id from public.invitations where event_id in ${events})`,
+  );
+  await client.query(`delete from public.invitations where event_id in ${events}`);
+  await client.query(`delete from public.event_audience_members where event_id in ${events}`);
+  await client.query(`delete from public.season_memberships where person_id in ${people}`);
+  await client.query(`delete from public.events where id in ${events}`);
+  await client.query(`delete from public.people where known_as like '${SENTINEL}%'`);
+}
+
 beforeEach(async () => {
   await client.query("begin isolation level repeatable read");
+  await blankCanvas();
 });
 afterEach(async () => {
   await client.query("rollback");

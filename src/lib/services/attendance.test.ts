@@ -281,7 +281,19 @@ describe("the occurrence assertion", () => {
 
     const reread = await readEvent(event.id);
     expect(reread.status).toBe("approved");
-    expect(reread.startHasPassed).toBe(true);
+
+    // And the date really is in the past, so the assertion above is about a
+    // clock that has passed rather than about one that has not yet. Read from
+    // the database rather than from the event, because nothing on `EventDetail`
+    // carries this any more — the screen's "start time has passed" caption went
+    // when Brian removed it, and the computation went with the caption.
+    const past = await observer.query<{ started: boolean }>(
+      `select (scheduled_on + coalesce(starts_at, '00:00'::time))
+                at time zone 'Europe/London' <= now() as started
+         from public.events where id = $1`,
+      [event.id],
+    );
+    expect(past.rows[0].started).toBe(true);
   });
 });
 

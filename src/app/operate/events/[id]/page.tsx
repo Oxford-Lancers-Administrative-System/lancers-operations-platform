@@ -63,8 +63,6 @@ import {
   OCCURRENCE_HEADLINE,
   OCCURRENCE_NEVER_INFERRED,
   OCCURRENCE_NOT_ASSERTED,
-  START_HAS_PASSED,
-  START_IS_AHEAD,
 } from "./attendance/presentation";
 
 /**
@@ -486,10 +484,17 @@ function OccurrencePanel({
             gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
           }}
         >
+          {/*
+            No "start time has passed" line. The wireframe had one and Brian
+            removed it on the real screen: an operator standing in front of this
+            decision was at the event, or knows perfectly well that it has been
+            and gone, so a computed restatement of the date above adds nothing.
+            Nothing decided from it either — invariant E5 kept time out of the
+            assertion — so the whole computation went with the caption.
+          */}
           <Fact
             label="Event status"
             value={labelFor(STATUS_LABELS, event.status)}
-            note={event.startHasPassed ? START_HAS_PASSED : START_IS_AHEAD}
             testId="occurrence-status-fact"
           />
           <Fact

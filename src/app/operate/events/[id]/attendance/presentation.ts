@@ -76,17 +76,28 @@ export function describeMismatch(mismatch: string | null): string | null {
 
 export const OCCURRENCE_HEADLINE = "Confirm what happened";
 
+/**
+ * The wireframe's sentence, with the issue number taken out of it.
+ *
+ * UX-70 reads "This human assertion is required before attendance. Coaches with
+ * LAN-110 access cannot perform it." Brian's verdict on the equivalent sentence
+ * on the walk-up screen — "the warning names in LAN-85 are stupid, I don't know
+ * why you put that in the app in the first place" — applies to this one for the
+ * same reason: an operator at the side of a pitch has no use for a backlog
+ * identifier, and the club's screens are not where one belongs.
+ *
+ * The information the wireframe was carrying survives whole: the assertion is a
+ * person's, it gates attendance, and a coach who records attendance cannot make
+ * it. Only the tracker reference went. Recorded as a deviation from the SVG in
+ * LAN-80's pull request, under the owner decision that produced it.
+ */
 export const OCCURRENCE_DETAIL =
-  "This human assertion is required before attendance. Coaches with LAN-110 access cannot " +
-  "perform it.";
+  "This is a human assertion and is required before attendance. A coach who records " +
+  "attendance cannot make it.";
 
 export const OCCURRENCE_NOT_ASSERTED = "Not yet asserted";
 
 export const OCCURRENCE_NEVER_INFERRED = "Never inferred from time";
-
-export const START_HAS_PASSED = "Start time has passed";
-
-export const START_IS_AHEAD = "Start time has not passed";
 
 export const ATTENDANCE_UNAVAILABLE = "Unavailable";
 
@@ -184,17 +195,6 @@ export const WALK_UP_DETAIL = "Capture only enough identity to record attendance
 export const WALK_UP_RECONCILIATION_NOTE =
   "The walk-up is visibly flagged for later reconciliation. This does not create or activate " +
   "a membership.";
-
-/**
- * The deferred workflow, named on the screen.
- *
- * Brian's 12 August 2026 decision requires the interface to link the deferred
- * roster/onboarding work to LAN-85 without implementing any of it here, so this
- * says which issue owns it and stops.
- */
-export const WALK_UP_DEFERRED_WORKFLOW =
-  "Turning a walk-up into a member — recruitment, onboarding and the rest of the roster " +
-  "record — is LAN-85 and is not done here.";
 
 export const WALK_UP_NAME_LABEL = "Name";
 

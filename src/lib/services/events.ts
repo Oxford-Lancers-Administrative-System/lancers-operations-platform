@@ -128,23 +128,6 @@ export interface EventDetail extends EventListEntry {
   createdByName: string | null;
   decisionReason: string | null;
   seasonId: string;
-  /**
-   * Has the event's start time passed, in the club's own zone? LAN-80, UX-70.
-   *
-   * Displayed, never decided from. Invariant E5 is emphatic that "the passage
-   * of time never equals occurrence", so this is a **fact shown beside** the
-   * two assertion buttons rather than a condition on them: an operator whose
-   * pitch flooded at 19:55 may report a 20:00 practice as not held, and an
-   * operator who never got round to it may assert last week's. Neither the
-   * interface nor the service infers anything from it.
-   *
-   * Computed by PostgreSQL at `Europe/London` rather than in JavaScript,
-   * because British Summer Time is a wall-clock rule and the same reasoning
-   * that put the RSVP deadline in the database applies here. An event with no
-   * start time is measured from midnight on its date; an event with no date at
-   * all has not started.
-   */
-  startHasPassed: boolean;
 }
 
 export interface EventListFilters {
@@ -234,7 +217,6 @@ interface EventDetailRow extends EventRow {
   created_by_name: string | null;
   decision_reason: string | null;
   season_id: string;
-  start_has_passed: boolean;
 }
 
 /** Escapes the two LIKE metacharacters, and the escape character itself. */
@@ -409,10 +391,6 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
             e.venue, e.is_mandatory, e.solicits_response, e.origin::text as origin,
             e.term_id, t.name::text as term_name, t.academic_year as term_academic_year,
             e.week_number, e.decision_reason, e.season_id,
-            coalesce(
-              (e.scheduled_on + coalesce(e.starts_at, '00:00'::time))
-                at time zone 'Europe/London' <= now(),
-              false) as start_has_passed,
             case
               when o.id is null then null
               when o.family_name is null then coalesce(nullif(btrim(o.known_as), ''), o.given_name)
@@ -441,7 +419,6 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
     createdByName: row.created_by_name,
     decisionReason: row.decision_reason,
     seasonId: row.season_id,
-    startHasPassed: row.start_has_passed,
   };
 }
 
