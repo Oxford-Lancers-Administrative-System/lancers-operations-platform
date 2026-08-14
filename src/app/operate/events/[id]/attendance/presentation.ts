@@ -1,4 +1,7 @@
-import type { AttendancePresence } from "@/lib/services/attendance-vocabulary";
+import type {
+  AttendanceParticipant,
+  AttendancePresence,
+} from "@/lib/services/attendance-vocabulary";
 
 /**
  * The words the attendance screens use — UX-70 through UX-75, LAN-80.
@@ -181,6 +184,90 @@ export const RSVP_STAYS_SEPARATE =
   "RSVP and attendance remain separate. Mismatches are visible and never auto-reconciled.";
 
 export const NOT_MARKED = "Not marked";
+
+// ---------------------------------------------------------------------------
+// The two groups the board is read in — Brian, 14 August 2026
+// ---------------------------------------------------------------------------
+
+/**
+ * Attending first, everyone else after — and why the split is by **standing
+ * RSVP** rather than by anything else.
+ *
+ * A recorder works the register in one direction: they expect the people who
+ * said they were coming, tick them off, and only then deal with the surprises.
+ * Brian's words on the real screen: "I want to look at the people who RSVPed
+ * yes, and then I want everyone else (no or otherwise)… those are not the
+ * people I'm expecting to be there."
+ *
+ * So there are exactly two groups, not three. A "no" and a nonresponse are
+ * different facts and the row still shows which is which, but they are the same
+ * *expectation* — somebody who was not counted on — and splitting them would
+ * put the recorder back to scanning three lists instead of one short one and
+ * one long one.
+ *
+ * A walk-up has no invitation and therefore no standing answer, so it lands in
+ * "everyone else" by the same rule rather than by a special case. That is
+ * right: a walk-up is the definitive person nobody expected.
+ *
+ * ## What this deliberately does not do
+ *
+ * It does not reorder anything by attendance. The groups are fixed by the
+ * standing RSVP, so pressing **Present** on somebody in "Everyone else" leaves
+ * them exactly where they were — a row that jumped to another section under the
+ * recorder's thumb, mid-register, at the side of a pitch, is how the wrong
+ * person gets marked.
+ */
+export type ParticipantGroupKey = "attending" | "everyone_else";
+
+export interface ParticipantGroup {
+  key: ParticipantGroupKey;
+  label: string;
+  /** One line under the label saying who is in here. */
+  detail: string;
+  participants: AttendanceParticipant[];
+}
+
+export const ATTENDING_GROUP_LABEL = "Attending";
+export const ATTENDING_GROUP_DETAIL = "Said yes to this event";
+export const EVERYONE_ELSE_GROUP_LABEL = "Everyone else";
+export const EVERYONE_ELSE_GROUP_DETAIL = "Not attending, no response, and walk-ups";
+
+/**
+ * Sorted by name, within each group.
+ *
+ * `localeCompare` rather than `<`, because the club's real names are not
+ * ASCII-only and a byte comparison puts "Ó" after "Z". `en-GB` with base
+ * sensitivity is the ordering somebody scanning a list expects.
+ *
+ * The `key` tiebreak keeps it total: two people can share a display name — the
+ * club has had two Toms — and an unstable sort would let their rows swap places
+ * on a revalidation, which for a control that records who was present is worse
+ * than untidy.
+ */
+function byName(left: AttendanceParticipant, right: AttendanceParticipant): number {
+  const name = left.displayName.localeCompare(right.displayName, "en-GB", {
+    sensitivity: "base",
+  });
+  return name !== 0 ? name : left.key.localeCompare(right.key);
+}
+
+/** The board's two groups, in reading order, each sorted by name. */
+export function groupParticipants(participants: AttendanceParticipant[]): ParticipantGroup[] {
+  return [
+    {
+      key: "attending" as const,
+      label: ATTENDING_GROUP_LABEL,
+      detail: ATTENDING_GROUP_DETAIL,
+      participants: participants.filter((participant) => participant.rsvp === "yes").sort(byName),
+    },
+    {
+      key: "everyone_else" as const,
+      label: EVERYONE_ELSE_GROUP_LABEL,
+      detail: EVERYONE_ELSE_GROUP_DETAIL,
+      participants: participants.filter((participant) => participant.rsvp !== "yes").sort(byName),
+    },
+  ];
+}
 
 export const NOBODY_INVITED =
   "Nobody was invited to this event, and nothing has been recorded. Anyone who turned up can " +

@@ -54,7 +54,7 @@ Two prerequisites, both of which `setup.sql` checks and refuses without.
 | People                 | 5     | `known_as`                           |
 | Role assignments       | 2     | `note`                               |
 | Season memberships     | 3     | (parent chain)                       |
-| Events                 | 1     | `name`                               |
+| Events                 | 2     | `name`                               |
 | Event audience members | 3     | (parent chain)                       |
 | Invitations            | 3     | (parent chain)                       |
 | RSVP responses         | 2     | `reason`, on the one negative answer |
@@ -77,15 +77,21 @@ seat and LAN-108 forbids inferring permission from a broad "coach" label, so a
 real coaching seat that is no longer in effect is what an unauthorized coach
 honestly looks like in this schema.
 
-The event:
+The two events:
 
-| Event                                     | When       | Status     | Invitees |
-| ----------------------------------------- | ---------- | ---------- | -------- |
-| `PILOT-LAN-110 Coach attendance scenario` | 2 days ago | `approved` | 3        |
+| Event                                     | When       | Status     | Invitees | Lands in       |
+| ----------------------------------------- | ---------- | ---------- | -------- | -------------- |
+| `PILOT-LAN-110 Coach attendance scenario` | 2 days ago | `approved` | 3        | This past week |
+| `PILOT-LAN-110 Today session`             | today      | `approved` | 0        | Today          |
 
-It arrives `approved`, not `occurred`, and that is the point: the coach cannot
-open it until an operator has said the practice happened, and watching that gate
-open is half the exercise.
+Both arrive `approved`, not `occurred`, and that is the point: the coach cannot
+open either until an operator has said the session happened, and watching that
+gate open is half the exercise.
+
+The second one exists so that the coach list's **Today** section — the one
+highlighted at the top — can be seen at all. It carries no audience on purpose:
+the walk-up is the only way onto its register, which is exactly the pitch-side
+case the coach surface is for.
 
 The three invitees:
 
@@ -125,22 +131,24 @@ occurred is an authorized-operator action and you already hold it.
 Work through it in order. Steps 1 and 2 must be done **before** step 3, because
 the gate closing is what they demonstrate.
 
-| #   | Sign in as        | Do this                                                      | Expect                                                                                    |
-| --- | ----------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| 1   | The coach login   | Open the shell                                               | One destination, **Attendance · Occurred events only**. No Roster, no Events, no Report   |
-| 2   | The coach login   | Open the attendance URL for the scenario event               | **Attendance is not open**, and a line saying coach access does not include Mark occurred |
-| 3   | The coach login   | Type `/operate/roster` into the address bar                  | Refused, with no roster on the screen. Navigation was never the boundary                  |
-| 4   | You (operator)    | Open the event and press **Mark occurred**                   | The assertion is recorded against you                                                     |
-| 5   | The coach login   | Open **Attendance**                                          | The scenario event is now listed                                                          |
-| 6   | The coach login   | Open it, and press **Present** for the player who said no    | `Saving…`, then the committed value with your coach's name and the time                   |
-| 7   | The coach login   | Press **Late** for the same person                           | The correction commits; the earlier value stays in the audit trail                        |
-| 8   | The coach login   | Look for the reason behind the **Not attending**             | It is not on the screen, and not in the page source                                       |
-| 9   | The coach login   | Press **Add walk-up**, type `PILOT-LAN-110 Devon Skye`, save | Recorded, flagged for reconciliation, no membership created                               |
-| 10  | The coach login   | Look for a way to remove a record                            | There is none. Removal unwinds the occurrence assertion, which is not a coach's           |
-| 11  | The refused login | Open the same attendance URL                                 | **You cannot record attendance for this event**, no board, no names                       |
-| 12  | Both coach logins | Do steps 5 to 9 again at phone width (375px)                 | Everything reachable, nothing scrolling sideways                                          |
+| #   | Sign in as        | Do this                                                             | Expect                                                                                               |
+| --- | ----------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| 1   | The coach login   | Open the shell                                                      | One destination, **Attendance · Occurred events only**. No Roster, no Events, no Report              |
+| 2   | The coach login   | Open the attendance URL for the scenario event                      | **Attendance is not open**, and a line saying coach access does not include Mark occurred            |
+| 3   | The coach login   | Type `/operate/roster` into the address bar                         | Refused, with no roster on the screen. Navigation was never the boundary                             |
+| 4   | You (operator)    | Open **both** events and press **Mark occurred** on each            | The assertion is recorded against you, twice                                                         |
+| 5   | The coach login   | Open **Attendance**                                                 | Three sections: **Today** at the top, badged and outlined, then **This past week**, then **Earlier** |
+| 6   | The coach login   | Open the scenario event, under This past week                       | The register, **Attending** open and **Everyone else** closed under it, each sorted by name          |
+| 7   | The coach login   | Open Everyone else, press **Present** for the one who said no       | `Saving…`, then the committed value with your coach's name and the time                              |
+| 8   | The coach login   | Press **Late** for the same person                                  | The correction commits; the earlier value stays in the audit trail                                   |
+| 9   | The coach login   | Type part of a name into **Search player**, then clear it           | Both groups open and the person appears; clearing puts the groups back as they were                  |
+| 10  | The coach login   | Look for the reason behind the **Not attending**                    | It is not on the screen, and not in the page source                                                  |
+| 11  | The coach login   | Open **Today session**, **Add walk-up**, `PILOT-LAN-110 Devon Skye` | Recorded, flagged for reconciliation, no membership created                                          |
+| 12  | The coach login   | Look for a way to remove a record                                   | There is none. Removal unwinds the occurrence assertion, which is not a coach's                      |
+| 13  | The refused login | Open either attendance URL                                          | **You cannot record attendance for this event**, no board, no names                                  |
+| 14  | Both coach logins | Do steps 5 to 11 again at phone width (375px)                       | Everything reachable, nothing scrolling sideways                                                     |
 
-**The one thing this asks of you.** In step 9, type the sentinel as the **first
+**The one thing this asks of you.** In step 11, type the sentinel as the **first
 word** of the walk-up's name. That person is minted from what you type and the
 name is the only marker available; cleanup aborts on a walk-up without it rather
 than guess whether it is a real member.
@@ -180,7 +188,8 @@ In this order:
 2. **Run `cleanup.sql`.** It removes this scenario's rows and nothing else: the
    open season, the role catalogue, the durable pilot identities, every other
    access grant and all unrelated audit history are untouched. It is safe to run
-   twice, and its final result set must show five zeroes.
+   twice, and its final result set must show five zeroes. It removes both
+   events, including today's.
 
 Unlike LAN-80's, this cleanup **does** remove two role assignments — its own
 two, by identifier and by the sentinel in `note`. It aborts on any third, because

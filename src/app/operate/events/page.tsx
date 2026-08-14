@@ -27,6 +27,7 @@ import {
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import { gateShellPage } from "../gate";
 import { CoachEligibleEvents } from "./coach-eligible-events";
+import { bucketCoachEvents, londonToday } from "./coach-event-buckets";
 import EventFilters from "./event-filters";
 import {
   AUDIENCE_AND_RESPONSES_COME_LATER,
@@ -327,11 +328,20 @@ async function coachEventList(search: string) {
     <CoachEligibleEvents
       search={search}
       filtered={search !== ""}
-      events={list.events.map((event) => ({
-        id: event.id,
-        name: event.name,
-        when: formatListWhen(event),
-        venue: event.venue,
+      sections={bucketCoachEvents(list.events, londonToday()).map((bucket) => ({
+        key: bucket.key,
+        label: bucket.label,
+        detail: bucket.detail,
+        // Today is the one section drawn out of the page, per Brian's
+        // 14 August 2026 note. "Highlighted" is a property of the section
+        // rather than a second list, so there is one ordering to read.
+        highlighted: bucket.key === "today",
+        events: bucket.events.map((event) => ({
+          id: event.id,
+          name: event.name,
+          when: formatListWhen(event),
+          venue: event.venue,
+        })),
       }))}
     />
   );

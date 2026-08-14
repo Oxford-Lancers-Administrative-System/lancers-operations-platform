@@ -488,6 +488,12 @@ describe("UX-72 — the attendance board", () => {
 
     const { container } = render(await AttendancePage(attendanceProps()));
 
+    // Both of these people are in **Everyone else** — a walk-up has no standing
+    // answer and the mismatch here is somebody who said no — and that group is
+    // closed until the recorder opens it. Opening it is the test: the chips are
+    // what is under the disclosure, not what replaced it.
+    fireEvent.click(screen.getByTestId("attendance-group-toggle-everyone_else"));
+
     expect(screen.getByTestId("walk-up-chip").textContent).toContain("to reconcile");
     expect(screen.getByTestId("mismatch-chip").textContent).toContain("turned up");
     expect(container.textContent).toContain("Walk-up · never invited");
@@ -922,6 +928,196 @@ describe("UX-96 — you cannot record attendance for this event", () => {
 
     expect(screen.queryByTestId("coach-not-permitted")).toBeNull();
     expect(screen.queryByTestId("attendance-board")).toBeNull();
+  });
+});
+
+/**
+ * The two groups — Brian, 14 August 2026.
+ *
+ * "I want to look at the people who RSVPed yes, and then I want everyone else
+ * (no or otherwise)… those are not the people I'm expecting to be there." Both
+ * boards get it: the row list is one implementation and the operator's board
+ * reads the same way.
+ */
+describe("the board is read in two groups", () => {
+  /** Four people whose names sort differently from the order they arrive in. */
+  function mixedBoard() {
+    return board({
+      participants: [
+        participant({ key: "player:d", displayName: "Zara Winterbourne", rsvp: "yes" }),
+        participant({ key: "player:c", displayName: "Alwyn Cholmondley", rsvp: "yes" }),
+        participant({ key: "player:b", displayName: "Samira Quinn", rsvp: null }),
+        participant({ key: "player:a", displayName: "Bar Sedgewick", rsvp: "no" }),
+      ],
+    });
+  }
+
+  function namesIn(group: "attending" | "everyone_else"): string[] {
+    const panel = screen.getByTestId(`attendance-group-${group}`);
+    return [...panel.querySelectorAll("[data-testid='attendance-row']")].map(
+      (row) => row.querySelector("p")?.textContent ?? "",
+    );
+  }
+
+  it("puts the people who said yes in one group and everybody else in the other", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+    fireEvent.click(screen.getByTestId("attendance-group-toggle-everyone_else"));
+
+    expect(namesIn("attending")).toEqual(["Alwyn Cholmondley", "Zara Winterbourne"]);
+    expect(namesIn("everyone_else")).toEqual(["Bar Sedgewick", "Samira Quinn"]);
+  });
+
+  it("sorts each group by name, not by the order the service returned", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    // The fixture arrives Zara, Alwyn, Samira, Bar. Sorted, Alwyn leads.
+    expect(namesIn("attending")).toEqual([...namesIn("attending")].sort());
+  });
+
+  it("puts a walk-up with everyone else, because nobody was expecting them", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        participants: [
+          participant({ key: "player:x", displayName: "Alwyn Cholmondley", rsvp: "yes" }),
+          participant({
+            key: `guest:${WALK_UP_PERSON_ID}`,
+            displayName: "Devon Skye",
+            capacity: "guest",
+            rsvp: null,
+            isWalkUp: true,
+          }),
+        ],
+      }),
+    );
+
+    render(await AttendancePage(attendanceProps()));
+    fireEvent.click(screen.getByTestId("attendance-group-toggle-everyone_else"));
+
+    expect(namesIn("everyone_else")).toEqual(["Devon Skye"]);
+  });
+
+  it("opens Attending and closes Everyone else, and lets either be changed", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("attendance-group-attending")).toHaveAttribute("data-open", "true");
+    expect(screen.getByTestId("attendance-group-everyone_else")).toHaveAttribute(
+      "data-open",
+      "false",
+    );
+
+    fireEvent.click(screen.getByTestId("attendance-group-toggle-attending"));
+    expect(screen.getByTestId("attendance-group-attending")).toHaveAttribute("data-open", "false");
+  });
+
+  it("counts what is under each heading", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("attendance-group-count-attending").textContent).toBe("2");
+    expect(screen.getByTestId("attendance-group-count-everyone_else").textContent).toBe("2");
+  });
+
+  it("draws no heading for a group with nobody in it", async () => {
+    // An empty "Attending (0)" reads as a team nobody said yes to.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({ participants: [participant({ rsvp: "no" })] }),
+    );
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.queryByTestId("attendance-group-attending")).toBeNull();
+    expect(screen.getByTestId("attendance-group-everyone_else")).toBeVisible();
+  });
+
+  it("groups the operator's board the same way", async () => {
+    // One row list, one behaviour — the answer to "does this apply to the
+    // operator's board too", 14 August 2026.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("attendance-board")).toHaveAttribute("data-view", "operator");
+    expect(screen.getByTestId("attendance-group-attending")).toBeVisible();
+  });
+
+  it("groups the coach's board the same way", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("attendance-board")).toHaveAttribute("data-view", "coach");
+    expect(screen.getByTestId("attendance-group-attending")).toBeVisible();
+  });
+
+  it("opens both groups while a search is running", async () => {
+    // A search that only looked inside the open section would be a search that
+    // lies: the recorder types a name, sees nothing, and concludes the person
+    // is not on the event.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    render(await AttendancePage(attendanceProps({ q: "Sedgewick" })));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("attendance-group-everyone_else")).toHaveAttribute(
+        "data-open",
+        "true",
+      );
+    });
+    expect(namesIn("everyone_else")).toEqual(["Bar Sedgewick"]);
+  });
+
+  it("puts the groups back the way they were when the search clears", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    const { rerender } = render(await AttendancePage(attendanceProps({ q: "Sedgewick" })));
+    await waitFor(() => {
+      expect(screen.getByTestId("attendance-group-everyone_else")).toHaveAttribute(
+        "data-open",
+        "true",
+      );
+    });
+
+    rerender(await AttendancePage(attendanceProps()));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("attendance-group-everyone_else")).toHaveAttribute(
+        "data-open",
+        "false",
+      );
+    });
+    expect(screen.getByTestId("attendance-group-attending")).toHaveAttribute("data-open", "true");
+  });
+
+  it("keeps a choice the recorder made during the search", async () => {
+    // The one case where "back to the way it was" would undo something they
+    // just did deliberately: an explicit toggle wins over the restore.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(mixedBoard());
+
+    const { rerender } = render(await AttendancePage(attendanceProps({ q: "e" })));
+    await waitFor(() => {
+      expect(screen.getByTestId("attendance-group-everyone_else")).toHaveAttribute(
+        "data-open",
+        "true",
+      );
+    });
+
+    fireEvent.click(screen.getByTestId("attendance-group-toggle-attending"));
+    rerender(await AttendancePage(attendanceProps()));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("attendance-group-attending")).toHaveAttribute(
+        "data-open",
+        "false",
+      );
+    });
   });
 });
 

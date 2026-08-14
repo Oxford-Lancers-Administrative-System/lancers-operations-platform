@@ -16,7 +16,7 @@ import {
 import { gateShellPage } from "../../../gate";
 import { formatDetailWhen, labelFor, STATUS_LABELS } from "../../presentation";
 import { AttendanceFilters } from "./attendance-filters";
-import { AttendanceRow } from "./attendance-row";
+import { AttendanceGroups } from "./attendance-groups";
 import { WalkUpForm } from "./walk-up-form";
 import {
   ADD_WALK_UP,
@@ -240,17 +240,13 @@ export default async function AttendancePage({
             {NO_MATCHING_PARTICIPANTS}
           </Alert>
         ) : (
-          <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
-            {visible.map((participant) => (
-              <AttendanceRow
-                key={participant.key}
-                eventId={event.id}
-                participant={participant}
-                showMismatch={!isCoachView}
-                mayRemove={mayRemove}
-              />
-            ))}
-          </Box>
+          <AttendanceGroups
+            eventId={event.id}
+            participants={visible}
+            search={search}
+            showMismatch={!isCoachView}
+            mayRemove={mayRemove}
+          />
         )}
       </Paper>
 

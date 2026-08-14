@@ -80,7 +80,7 @@ create temporary table pilot_lan_110_walk_ups on commit drop as
 select distinct a.person_id
   from public.attendance_records a
   join public.events e on e.id = a.event_id
- where a.event_id = '01100110-0110-4110-8110-000000000031'
+ where a.event_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032')
    and e.name like '%PILOT-LAN-110%'
    and a.person_id is not null;
 
@@ -115,7 +115,10 @@ select
 -- ---------------------------------------------------------------------------
 do $preflight$
 declare
-  scenario_event constant uuid := '01100110-0110-4110-8110-000000000031'::uuid;
+  scenario_events constant uuid[] := array[
+    '01100110-0110-4110-8110-000000000031'::uuid,
+    '01100110-0110-4110-8110-000000000032'::uuid
+  ];
   scenario_people constant uuid[] := array[
     '01100110-0110-4110-8110-000000000001'::uuid,
     '01100110-0110-4110-8110-000000000002'::uuid,
@@ -168,7 +171,7 @@ begin
   -- surface, which this scenario does not ask for.
   select count(*) into offending
     from public.schedule_changes
-   where event_id = scenario_event;
+   where event_id = any(scenario_events);
   if offending > 0 then
     raise exception
       'LAN-110 pilot cleanup: % schedule change(s) exist against this scenario''s event. That is history this script did not create and will not remove.',
@@ -179,7 +182,7 @@ begin
   -- screen through the operator shell rather than through a link.
   select count(*) into offending
     from public.notification_jobs
-   where event_id = scenario_event;
+   where event_id = any(scenario_events);
   if offending > 0 then
     raise exception
       'LAN-110 pilot cleanup: % notification job(s) exist against this scenario''s event. Setup creates none; resolve where they came from before cleaning up.',
@@ -204,7 +207,7 @@ begin
   select count(*) into offending
     from public.events
    where name like 'PILOT-LAN-110%'
-     and id <> scenario_event;
+     and id <> all (scenario_events);
   if offending > 0 then
     raise exception
       'LAN-110 pilot cleanup: % event(s) carry the PILOT-LAN-110 sentinel but are not this scenario''s. This script will not guess at them.',
@@ -223,19 +226,19 @@ $preflight$;
 -- that conjunct a colliding identifier in another table would be in scope.
 delete from public.audit_events
  where entity_table = 'attendance_records'
-   and entity_id in (select id from public.attendance_records where event_id = '01100110-0110-4110-8110-000000000031')
+   and entity_id in (select id from public.attendance_records where event_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032'))
    and entity_id in (select id from public.attendance_records where event_id in (select id from public.events where name like '%PILOT-LAN-110%'));
 
 -- The audit rows the occurrence assertion wrote — one per Mark occurred, Mark
 -- not held and correction.
 delete from public.audit_events
  where entity_table = 'events'
-   and entity_id = '01100110-0110-4110-8110-000000000031'
+   and entity_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032')
    and entity_id in (select id from public.events where name like '%PILOT-LAN-110%');
 
 -- The attendance the coach recorded. This is the scenario's whole output.
 delete from public.attendance_records
- where event_id = '01100110-0110-4110-8110-000000000031'
+ where event_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032')
    and event_id in (select id from public.events where name like '%PILOT-LAN-110%');
 
 -- A contact point on a typed-in walk-up, if one was given. Removed before the
@@ -312,10 +315,13 @@ delete from public.season_memberships
    and person_id in (select id from public.people where known_as like 'PILOT-LAN-110%');
 
 -- ---------------------------------------------------------------------------
--- The event
+-- The events
 -- ---------------------------------------------------------------------------
 delete from public.events
  where id = '01100110-0110-4110-8110-000000000031'
+   and name like '%PILOT-LAN-110%';
+delete from public.events
+ where id = '01100110-0110-4110-8110-000000000032'
    and name like '%PILOT-LAN-110%';
 
 -- ---------------------------------------------------------------------------
@@ -353,6 +359,6 @@ select
                  '01100110-0110-4110-8110-000000000052',
                  '01100110-0110-4110-8110-000000000053')) as scenario_invitations,
   (select count(*) from public.attendance_records
-    where event_id = '01100110-0110-4110-8110-000000000031') as scenario_attendance;
+    where event_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032')) as scenario_attendance;
 
 commit;

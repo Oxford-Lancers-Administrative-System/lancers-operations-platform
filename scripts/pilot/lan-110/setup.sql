@@ -126,7 +126,10 @@ declare
   -- migration of its own.
   roles_migration constant text := '20260810120300';
   participation_migration constant text := '20260810120800';
-  scenario_event constant uuid := '01100110-0110-4110-8110-000000000031'::uuid;
+  scenario_events constant uuid[] := array[
+    '01100110-0110-4110-8110-000000000031'::uuid,
+    '01100110-0110-4110-8110-000000000032'::uuid
+  ];
   open_seasons integer;
   offending integer;
 begin
@@ -182,10 +185,10 @@ begin
   select count(*) into offending
     from public.events
    where name like '%PILOT-LAN-110%'
-     and id <> scenario_event;
+     and id <> all (scenario_events);
   if offending > 0 then
     raise exception
-      'LAN-110 pilot setup: % event(s) already carry the PILOT-LAN-110 sentinel but are not this scenario''s. Resolve that before installing the scenario.',
+      'LAN-110 pilot setup: % event(s) already carry the PILOT-LAN-110 sentinel but are not this scenario''s two. Resolve that before installing the scenario.',
       offending;
   end if;
 
@@ -194,10 +197,10 @@ begin
   -- disagrees with the matrix in README.md.
   select count(*) into offending
     from public.attendance_records
-   where event_id = scenario_event;
+   where event_id = any(scenario_events);
   if offending > 0 then
     raise exception
-      'LAN-110 pilot setup: % attendance record(s) already exist against this scenario''s event. Run cleanup.sql first, then install the scenario again.',
+      'LAN-110 pilot setup: % attendance record(s) already exist against this scenario''s events. Run cleanup.sql first, then install the scenario again.',
       offending;
   end if;
 end;
@@ -327,12 +330,12 @@ insert into public.events
    audience_confirmed_at, audience_confirmed_by_person_id,
    approved_at, approved_by_person_id, response_deadline_at)
 select
-  '01100110-0110-4110-8110-000000000031'::uuid,
+  scenario.id::uuid,
   (select id from public.seasons where status in ('open', 'active')),
-  'PILOT-LAN-110 Coach attendance scenario',
+  scenario.name,
   'practice',
   'approved',
-  (current_date - 2)::date,
+  scenario.scheduled_on::date,
   '19:00'::time,
   '21:00'::time,
   'PILOT-LAN-110 synthetic venue',
@@ -342,7 +345,24 @@ select
   '01100110-0110-4110-8110-000000000003',
   now(),
   '01100110-0110-4110-8110-000000000003',
-  (((current_date - 4) + '18:00'::time) at time zone 'Europe/London')::timestamptz
+  scenario.deadline_at::timestamptz
+from (values
+  -- The one with the invitees and the contrasting RSVP answers. Two days ago,
+  -- so once you mark it occurred it lands in **This past week**.
+  ('01100110-0110-4110-8110-000000000031',
+   'PILOT-LAN-110 Coach attendance scenario',
+   (current_date - 2)::text,
+   (((current_date - 4) + '18:00'::time) at time zone 'Europe/London')::text),
+  -- Today's, so that marking it occurred demonstrates the **Today** section at
+  -- the top of the coach's list — the section Brian asked for on 14 August 2026
+  -- and the one that cannot be shown without an event dated today. It carries
+  -- no audience deliberately: the walk-up is the only way onto its register,
+  -- which is the pitch-side case the coach surface exists for.
+  ('01100110-0110-4110-8110-000000000032',
+   'PILOT-LAN-110 Today session',
+   current_date::text,
+   (((current_date - 2) + '18:00'::time) at time zone 'Europe/London')::text)
+) as scenario(id, name, scheduled_on, deadline_at)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
@@ -435,14 +455,17 @@ select
       and (effective_to is null or effective_to > current_date)) as seats_in_effect,
   (select count(*) from public.events
     where name like 'PILOT-LAN-110%') as scenario_events,
-  (select status from public.events
-    where id = '01100110-0110-4110-8110-000000000031') as event_status,
+  (select count(*) from public.events
+    where name like 'PILOT-LAN-110%' and status = 'approved') as events_awaiting_assertion,
+  (select count(*) from public.events
+    where name like 'PILOT-LAN-110%' and scheduled_on = current_date) as events_today,
   (select count(*) from public.invitations
     where event_id = '01100110-0110-4110-8110-000000000031') as scenario_invitations,
   (select count(*) from public.attendance_records
-    where event_id = '01100110-0110-4110-8110-000000000031') as attendance_rows;
+    where event_id in ('01100110-0110-4110-8110-000000000031',
+                       '01100110-0110-4110-8110-000000000032')) as attendance_rows;
 
--- Expected: 5 people, 2 role assignments of which 1 is in effect, 1 event whose
--- status is `approved`, 3 invitations, 0 attendance rows.
+-- Expected: 5 people, 2 role assignments of which 1 is in effect, 2 events both
+-- `approved` and one of them dated today, 3 invitations, 0 attendance rows.
 
 commit;

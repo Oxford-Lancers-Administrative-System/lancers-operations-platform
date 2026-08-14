@@ -58,7 +58,11 @@ const MEMBERSHIPS = [
   "01100110-0110-4110-8110-000000000022",
   "01100110-0110-4110-8110-000000000023",
 ];
+/** The event with the invitees and the contrasting RSVP answers. Two days ago. */
 const EVENT_ID = "01100110-0110-4110-8110-000000000031";
+/** Today's, so the coach list's **Today** section can be demonstrated at all. */
+const TODAY_EVENT_ID = "01100110-0110-4110-8110-000000000032";
+const EVENT_IDS = [EVENT_ID, TODAY_EVENT_ID];
 const INVITATIONS = [
   "01100110-0110-4110-8110-000000000051",
   "01100110-0110-4110-8110-000000000052",
@@ -110,17 +114,19 @@ async function blankCanvas() {
   await client.query(
     `create temporary table blank_canvas_walk_ups on commit drop as
      select distinct person_id from public.attendance_records
-      where event_id = '${EVENT_ID}' and person_id is not null`,
+      where event_id = any('{${EVENT_IDS.join(",")}}'::uuid[]) and person_id is not null`,
   );
 
   await client.query(
     `delete from public.audit_events
-      where (entity_table = 'events' and entity_id = '${EVENT_ID}')
+      where (entity_table = 'events' and entity_id = any('{${EVENT_IDS.join(",")}}'::uuid[]))
          or (entity_table = 'attendance_records'
              and entity_id in (select id from public.attendance_records
-                                where event_id = '${EVENT_ID}'))`,
+                                where event_id = any('{${EVENT_IDS.join(",")}}'::uuid[])))`,
   );
-  await client.query(`delete from public.attendance_records where event_id = '${EVENT_ID}'`);
+  await client.query(
+    `delete from public.attendance_records where event_id = any('{${EVENT_IDS.join(",")}}'::uuid[])`,
+  );
   await client.query(
     `delete from public.contact_points
       where person_id in (select person_id from blank_canvas_walk_ups)
@@ -132,14 +138,20 @@ async function blankCanvas() {
   );
   await client.query(
     `delete from public.rsvp_responses
-      where invitation_id in (select id from public.invitations where event_id = '${EVENT_ID}')`,
+      where invitation_id in (select id from public.invitations where event_id = any('{${EVENT_IDS.join(",")}}'::uuid[]))`,
   );
-  await client.query(`delete from public.invitations where event_id = '${EVENT_ID}'`);
-  await client.query(`delete from public.event_audience_members where event_id = '${EVENT_ID}'`);
+  await client.query(
+    `delete from public.invitations where event_id = any('{${EVENT_IDS.join(",")}}'::uuid[])`,
+  );
+  await client.query(
+    `delete from public.event_audience_members where event_id = any('{${EVENT_IDS.join(",")}}'::uuid[])`,
+  );
   await client.query(`delete from public.season_memberships where person_id in ${people}`);
   await client.query(`delete from public.operator_accounts where person_id in ${people}`);
   await client.query(`delete from public.role_assignments where person_id in ${people}`);
-  await client.query(`delete from public.events where id = '${EVENT_ID}'`);
+  await client.query(
+    `delete from public.events where id = any('{${EVENT_IDS.join(",")}}'::uuid[])`,
+  );
   await client.query(`delete from public.people where known_as like '${SENTINEL}%'`);
 }
 
@@ -336,7 +348,7 @@ describe("setup.sql", () => {
     expect(first).toEqual({
       people: 5,
       assignments: 2,
-      events: 1,
+      events: 2,
       memberships: 3,
       audience: 3,
       invitations: 3,
@@ -431,6 +443,50 @@ describe("setup.sql", () => {
     expect(event.status).toBe("approved");
     expect(event.outcome_recorded_at).toBeNull();
     expect(event.start_passed).toBe(true);
+
+    // Both of them, including today's.
+    const both = await client.query<{ status: string; outcome_recorded_at: Date | null }>(
+      `select status::text as status, outcome_recorded_at
+         from public.events where id = any($1::uuid[])`,
+      [EVENT_IDS],
+    );
+    expect(both.rows).toHaveLength(2);
+    for (const row of both.rows) {
+      expect(row.status).toBe("approved");
+      expect(row.outcome_recorded_at).toBeNull();
+    }
+  });
+
+  /**
+   * The section Brian asked for on 14 August 2026 cannot be demonstrated
+   * without an event dated today, and nothing else in the dataset provides one:
+   * the synthetic seed dates its whole season ahead of its own "today".
+   */
+  it("dates one event today and one in the past week, so both sections appear", async () => {
+    await client.query(SETUP);
+
+    const dates = await client.query<{ id: string; is_today: boolean; in_past_week: boolean }>(
+      `select id::text,
+              scheduled_on = current_date as is_today,
+              (scheduled_on < current_date and scheduled_on >= current_date - 7) as in_past_week
+         from public.events where id = any($1::uuid[]) order by id`,
+      [EVENT_IDS],
+    );
+
+    expect(dates.rows).toHaveLength(2);
+    expect(dates.rows.filter((row) => row.is_today).map((row) => row.id)).toEqual([TODAY_EVENT_ID]);
+    expect(dates.rows.filter((row) => row.in_past_week).map((row) => row.id)).toEqual([EVENT_ID]);
+  });
+
+  it("gives today's event no audience, so the walk-up is the way onto it", async () => {
+    // The pitch-side case the coach surface exists for: somebody turns up to a
+    // session nobody was formally invited to.
+    await client.query(SETUP);
+
+    expect(
+      await count("public.event_audience_members where event_id = $1::uuid", [TODAY_EVENT_ID]),
+    ).toBe(0);
+    expect(await count("public.invitations where event_id = $1::uuid", [TODAY_EVENT_ID])).toBe(0);
   });
 
   it("creates no attendance — the thing under test is not pre-installed", async () => {

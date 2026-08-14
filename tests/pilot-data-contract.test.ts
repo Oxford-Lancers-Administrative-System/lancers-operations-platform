@@ -1120,7 +1120,7 @@ describe("the scenario scripts stay inside the conventions", () => {
         "public.audit_events",
         [
           "entity_table = 'attendance_records'",
-          "entity_id in (select id from public.attendance_records where event_id = '01100110-0110-4110-8110-000000000031')",
+          "entity_id in (select id from public.attendance_records where event_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032'))",
           "entity_id in (select id from public.attendance_records where event_id in (select id from public.events where name like '%PILOT-LAN-110%'))",
         ],
       ],
@@ -1128,14 +1128,14 @@ describe("the scenario scripts stay inside the conventions", () => {
         "public.audit_events",
         [
           "entity_table = 'events'",
-          "entity_id = '01100110-0110-4110-8110-000000000031'",
+          "entity_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032')",
           "entity_id in (select id from public.events where name like '%PILOT-LAN-110%')",
         ],
       ],
       [
         "public.attendance_records",
         [
-          "event_id = '01100110-0110-4110-8110-000000000031'",
+          "event_id in ('01100110-0110-4110-8110-000000000031', '01100110-0110-4110-8110-000000000032')",
           "event_id in (select id from public.events where name like '%PILOT-LAN-110%')",
         ],
       ],
