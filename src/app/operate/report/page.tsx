@@ -18,6 +18,7 @@ import {
   parseReportContent,
   readReportForDate,
   type EventOutcome,
+  type GridCell,
   type StoredReport,
   type UpcomingEvent,
   type WeeklyReportContent,
@@ -35,8 +36,11 @@ import {
   formatSpan,
   GRID_EMPTY,
   GRID_HEADLINE,
-  GRID_LEGEND,
-  GRID_MARKS,
+  NOT_RECORDED,
+  RSVP_LABELS,
+  RSVP_COLUMN,
+  ATTENDANCE_LABELS,
+  ATTENDED_COLUMN,
   labelFor,
   LAST_WEEK_EMPTY,
   LAST_WEEK_HEADLINE,
@@ -183,6 +187,7 @@ function Section({
   count,
   span,
   empty,
+  showCount = true,
   children,
 }: {
   testId: string;
@@ -190,6 +195,12 @@ function Section({
   count: number;
   span?: string;
   empty: string;
+  /**
+   * Brian, 15 August: "Don't include the number. The numbers don't really
+   * help." True of the two sections that already carry a date — the span says
+   * what the section is about better than a tally of its rows does.
+   */
+  showCount?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -202,9 +213,11 @@ function Section({
         <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
           {headline}
         </Typography>
-        <Typography variant="h6" component="p" color="text.secondary" sx={{ fontWeight: 700 }}>
-          {count}
-        </Typography>
+        {showCount ? (
+          <Typography variant="h6" component="p" color="text.secondary" sx={{ fontWeight: 700 }}>
+            {count}
+          </Typography>
+        ) : null}
         {span ? (
           <Typography variant="body2" color="text.secondary">
             {span}
@@ -243,6 +256,7 @@ function LastWeek({ content }: { content: WeeklyReportContent }) {
       count={content.lastWeek.length}
       span={formatSpan(content.lookBack)}
       empty={LAST_WEEK_EMPTY}
+      showCount={false}
     >
       <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
         <Table size="small" aria-label={LAST_WEEK_HEADLINE}>
@@ -320,69 +334,142 @@ function EventRow({ event }: { event: EventOutcome }) {
 // ---------------------------------------------------------------------------
 
 /**
- * People down, last week's events across — Brian's own sketch.
+ * People down, last week's events across — and **two** values under each event.
  *
- * This is what replaced a flat list that had 72 rows for a 50-person roster,
- * because the same people repeated once per event. Here each person is one row
- * and the pattern across the week is the point: three dashes in a row is a
- * different conversation from one.
+ * Brian's own specification, 15 August 2026: "I then want to see RSVP status
+ * and attendance status for the two of them. For each one of the events, did
+ * they come? Did they RSVP, or did they not RSVP? Did they attend, or did they
+ * not attend? We're looking for discrepancies there." Four events gives the
+ * eight values he counted.
  *
- * A reason for not attending sits in the cell's tooltip and its title, so it is
- * present for the operator who needs it without turning the grid into prose.
+ * A single collapsed verdict per event — which is what this was — hides the
+ * comparison that is the whole point of the section. Here the two are side by
+ * side and the eye does the work.
+ *
+ * Only people something went wrong for appear. A reason for declining sits in
+ * the cell's tooltip, so it is there for the operator who needs it without
+ * turning a grid into prose.
  */
 function ChaseGrid({ content }: { content: WeeklyReportContent }) {
   const { columns, rows } = content.grid;
 
   return (
-    <Section testId="grid" headline={GRID_HEADLINE} count={rows.length} empty={GRID_EMPTY}>
-      <Stack spacing={1}>
-        <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
-          <Table size="small" aria-label={GRID_HEADLINE}>
-            <TableHead>
-              <TableRow>
-                <TableCell sx={{ minWidth: 160 }}>Person</TableCell>
-                {columns.map((column) => (
-                  <TableCell key={column.eventId} align="center" sx={{ whiteSpace: "nowrap" }}>
-                    {column.label}
-                    <Typography variant="caption" component="div" color="text.secondary">
-                      {formatShortDay(column.on)}
-                    </Typography>
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.person} data-testid={`grid-row`} data-problems={row.problems}>
-                  <TableCell sx={{ fontWeight: 600 }}>{row.person}</TableCell>
-                  {columns.map((column) => {
-                    const cell = row.cells.find((entry) => entry.eventId === column.eventId);
-                    if (!cell) return <TableCell key={column.eventId} align="center" />;
-                    const mark = GRID_MARKS[cell.state];
-                    return (
-                      <TableCell key={column.eventId} align="center">
-                        {cell.reason ? (
-                          <Tooltip title={cell.reason}>
-                            <Box component="span" sx={{ borderBottom: "1px dotted" }}>
-                              {mark}
-                            </Box>
-                          </Tooltip>
-                        ) : (
-                          mark
-                        )}
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
+    <Section
+      testId="grid"
+      headline={GRID_HEADLINE}
+      count={rows.length}
+      span={formatSpan(content.lookBack)}
+      empty={GRID_EMPTY}
+      showCount={false}
+    >
+      <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
+        <Table size="small" aria-label={GRID_HEADLINE}>
+          <TableHead>
+            <TableRow>
+              <TableCell rowSpan={2} sx={{ minWidth: 160, verticalAlign: "bottom" }}>
+                Person
+              </TableCell>
+              {columns.map((column) => (
+                <TableCell
+                  key={column.eventId}
+                  align="center"
+                  colSpan={2}
+                  sx={{ whiteSpace: "nowrap", borderLeft: 1, borderColor: "divider" }}
+                >
+                  {column.label}
+                  <Typography variant="caption" component="div" color="text.secondary">
+                    {formatShortDay(column.on)}
+                  </Typography>
+                </TableCell>
               ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <Typography variant="body2" color="text.secondary" data-testid="grid-legend">
-          {GRID_LEGEND.map((entry) => `${entry.mark} ${entry.meaning}`).join("   ")}
-        </Typography>
-      </Stack>
+            </TableRow>
+            <TableRow>
+              {columns.map((column) => [
+                <TableCell
+                  key={`${column.eventId}-rsvp`}
+                  align="center"
+                  sx={{ borderLeft: 1, borderColor: "divider" }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    {RSVP_COLUMN}
+                  </Typography>
+                </TableCell>,
+                <TableCell key={`${column.eventId}-attended`} align="center">
+                  <Typography variant="caption" color="text.secondary">
+                    {ATTENDED_COLUMN}
+                  </Typography>
+                </TableCell>,
+              ])}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow key={row.person} data-testid="grid-row" data-problems={row.problems}>
+                <TableCell sx={{ fontWeight: 600 }}>{row.person}</TableCell>
+                {columns.map((column) => {
+                  const cell = row.cells.find((entry) => entry.eventId === column.eventId);
+                  return [
+                    <TableCell
+                      key={`${column.eventId}-rsvp`}
+                      align="center"
+                      sx={{ borderLeft: 1, borderColor: "divider" }}
+                    >
+                      <CellValue cell={cell} of="rsvp" />
+                    </TableCell>,
+                    <TableCell key={`${column.eventId}-attended`} align="center">
+                      <CellValue cell={cell} of="attendance" />
+                    </TableCell>,
+                  ];
+                })}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Section>
+  );
+}
+
+/**
+ * One of the two values under an event.
+ *
+ * A discrepancy is emphasised rather than colour-coded alone: § 9 requires
+ * status not to rely on colour, and a Monday report read on a phone in daylight
+ * is exactly where that matters.
+ */
+function CellValue({ cell, of }: { cell: GridCell | undefined; of: "rsvp" | "attendance" }) {
+  if (!cell) {
+    return (
+      <Typography variant="body2" color="text.disabled" component="span">
+        {NOT_RECORDED}
+      </Typography>
+    );
+  }
+
+  const raw = of === "rsvp" ? cell.rsvp : cell.attendance;
+  const labels = of === "rsvp" ? RSVP_LABELS : ATTENDANCE_LABELS;
+  const text = raw === null ? NOT_RECORDED : (labels[raw] ?? raw);
+
+  const value = (
+    <Typography
+      variant="body2"
+      component="span"
+      color={cell.isDiscrepancy ? "warning.main" : "text.secondary"}
+      sx={{ fontWeight: cell.isDiscrepancy ? 700 : 400 }}
+    >
+      {text}
+    </Typography>
+  );
+
+  // The reason belongs with what they said, not with what they did.
+  return of === "rsvp" && cell.reason ? (
+    <Tooltip title={cell.reason}>
+      <Box component="span" sx={{ borderBottom: "1px dotted" }}>
+        {value}
+      </Box>
+    </Tooltip>
+  ) : (
+    value
   );
 }
 

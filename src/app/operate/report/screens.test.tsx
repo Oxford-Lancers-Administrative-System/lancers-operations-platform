@@ -145,14 +145,29 @@ const GRID_ROWS: GridRow[] = [
     person: "Leo Hartwell",
     problems: 2,
     cells: [
-      { eventId: PRACTICE, state: "said_yes_absent", reason: null },
-      { eventId: SOCIAL, state: "no_rsvp", reason: null },
+      { eventId: PRACTICE, rsvp: "yes", attendance: "absent", reason: null, isDiscrepancy: true },
+      { eventId: SOCIAL, rsvp: null, attendance: null, reason: null, isDiscrepancy: true },
     ],
   },
   {
     person: "Kit Ashdown",
     problems: 1,
-    cells: [{ eventId: SOCIAL, state: "not_attending", reason: "Coursework deadline." }],
+    cells: [
+      {
+        eventId: PRACTICE,
+        rsvp: "yes",
+        attendance: "present",
+        reason: null,
+        isDiscrepancy: false,
+      },
+      {
+        eventId: SOCIAL,
+        rsvp: "no",
+        attendance: null,
+        reason: "Coursework deadline.",
+        isDiscrepancy: true,
+      },
+    ],
   },
 ];
 
@@ -184,7 +199,7 @@ const NEXT_WEEK: UpcomingEvent[] = [
 function content(overrides: Partial<WeeklyReportContent> = {}): WeeklyReportContent {
   return {
     schema: REPORT_CONTENT_SCHEMA,
-    metricDefinitionVersion: "LAN-81.3",
+    metricDefinitionVersion: "LAN-81.4",
     reportOn: REPORT_ON,
     lookBack: { from: "2026-10-12", to: "2026-10-18" },
     lookAhead: { from: "2026-10-19", to: "2026-10-26" },
@@ -225,7 +240,7 @@ function stored(overrides: Partial<StoredReport> = {}): StoredReport {
     reportOn: REPORT_ON,
     version: 2,
     supersedesId: "00810081-0081-4081-8081-000000000001",
-    metricDefinitionVersion: "LAN-81.3",
+    metricDefinitionVersion: "LAN-81.4",
     dataAsOf: "2026-10-19T07:04:00Z",
     generatedAt: "2026-10-19T07:05:00Z",
     generatedByName: "Morgan Pike",
@@ -335,6 +350,9 @@ describe("the report", () => {
   it("counts each section in its own heading", async () => {
     render(await ReportPage(props()));
 
+    // Brian, 15 August: "Don't include the number. The numbers don't really
+    // help." True of the two sections that carry a date instead — the count is
+    // still on the element for tests and for nobody else.
     expect(screen.getByTestId("section-last-week")).toHaveAttribute("data-count", "2");
     expect(screen.getByTestId("section-grid")).toHaveAttribute("data-count", "2");
     expect(screen.getByTestId("section-availability")).toHaveAttribute("data-count", "2");
@@ -388,14 +406,19 @@ describe("last week", () => {
     );
   });
 
-  it("names the week it covers", async () => {
+  it("names the week it covers, and does not count its own rows at the reader", async () => {
     const { container } = render(await ReportPage(props()));
+    const text = container.textContent ?? "";
 
-    expect(container.textContent).toContain("12 – 18 October");
+    expect(text).toContain("12 – 18 October");
+    // The heading is the name and the span. A tally of table rows beside it is
+    // what Brian asked to have taken out.
+    expect(text).not.toMatch(/Last week's events\s*2/);
+    expect(text).not.toMatch(/Attendance\s*2/);
   });
 });
 
-describe("who needs chasing", () => {
+describe("attendance", () => {
   it("gives each person one row, whatever went wrong across the week", async () => {
     render(await ReportPage(props()));
 
@@ -405,27 +428,60 @@ describe("who needs chasing", () => {
     expect(rows[0]).toHaveAttribute("data-problems", "2");
   });
 
-  it("marks each cell, and explains the marks", async () => {
+  /**
+   * Brian's own specification: two values under every event, so four events
+   * gives the eight he counted. A single collapsed verdict hides the comparison
+   * that is the entire subject of the section.
+   */
+  it("puts two sub-columns under each event", async () => {
     render(await ReportPage(props()));
 
-    const grid = screen.getByTestId("section-grid").textContent ?? "";
-    expect(grid).toContain("yes*");
-    expect(grid).toContain("—");
-    expect(screen.getByTestId("grid-legend").textContent).toContain("said yes, did not attend");
+    const heads = screen.getByTestId("section-grid").querySelectorAll("thead tr");
+    expect(heads).toHaveLength(2);
+
+    // Person, then one head per event spanning two columns.
+    const eventHeads = [...heads[0].querySelectorAll("th")].slice(1);
+    expect(eventHeads).toHaveLength(2);
+    expect(eventHeads.every((head) => head.getAttribute("colspan") === "2")).toBe(true);
+
+    const subHeads = [...heads[1].querySelectorAll("th")];
+    expect(subHeads.map((head) => head.textContent)).toEqual([
+      "RSVP",
+      "Attended",
+      "RSVP",
+      "Attended",
+    ]);
   });
 
-  it("keeps the reason with the person who gave it", async () => {
+  it("shows what each person said and what they then did", async () => {
+    render(await ReportPage(props()));
+
+    const leo = screen.getAllByTestId("grid-row")[0];
+    const values = [...leo.querySelectorAll("td")].slice(1).map((cell) => cell.textContent);
+    // Practice: said yes, marked absent. Social: never answered, never recorded.
+    expect(values).toEqual(["Yes", "Absent", "—", "—"]);
+  });
+
+  it("keeps a value that agrees with itself alongside one that does not", async () => {
+    render(await ReportPage(props()));
+
+    const kit = screen.getAllByTestId("grid-row")[1];
+    const values = [...kit.querySelectorAll("td")].slice(1).map((cell) => cell.textContent);
+    expect(values).toEqual(["Yes", "Present", "No", "—"]);
+    // One discrepancy, not two: turning up after saying yes is not one.
+    expect(kit).toHaveAttribute("data-problems", "1");
+  });
+
+  it("keeps the reason with what they said, not with what they did", async () => {
     render(await ReportPage(props()));
 
     expect(screen.getByTestId("section-grid").innerHTML).toContain("Coursework deadline.");
   });
 
-  it("has one column per event, headed and dated", async () => {
+  it("heads each event column with its name and date", async () => {
     render(await ReportPage(props()));
 
-    const head = screen.getByTestId("section-grid").querySelectorAll("thead th");
-    // Person, then one per event.
-    expect(head).toHaveLength(3);
+    const head = screen.getByTestId("section-grid").querySelectorAll("thead tr th");
     expect(head[1].textContent).toContain("Practice");
     expect(head[1].textContent).toContain("Wed 14 Oct");
   });
@@ -611,8 +667,8 @@ describe("the screen reads stored content", () => {
   it("stays readable when the snapshot used earlier metric definitions", async () => {
     vi.mocked(readReportForDate).mockResolvedValue(
       stored({
-        metricDefinitionVersion: "LAN-81.2",
-        content: { schema: "lancers.monday-report.v2", chase: [], fix: [] },
+        metricDefinitionVersion: "LAN-81.3",
+        content: { schema: "lancers.monday-report.v3", lastWeek: [], nextWeek: [], grid: {} },
       }),
     );
 

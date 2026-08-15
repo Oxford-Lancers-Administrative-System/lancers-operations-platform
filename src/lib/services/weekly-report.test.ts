@@ -45,7 +45,6 @@ import {
   readStoredReport,
   REPORT_CONTENT_SCHEMA,
   reportWindow,
-  type GridState,
   type WeeklyReportContent,
 } from "./weekly-report";
 
@@ -235,9 +234,9 @@ async function compute(reportOn = REPORT_ON): Promise<WeeklyReportContent> {
   return withTransaction((tx) => computeReportContent(tx, season, reportOn));
 }
 
-/** Every mark in the grid, whoever it belongs to. */
-function marks(content: WeeklyReportContent): GridState[] {
-  return content.grid.rows.flatMap((row) => row.cells.map((cell) => cell.state));
+/** Every cell in the grid that disagrees with itself, whoever it belongs to. */
+function discrepancies(content: WeeklyReportContent) {
+  return content.grid.rows.flatMap((row) => row.cells.filter((cell) => cell.isDiscrepancy));
 }
 
 /** One of last week's events by name. */
@@ -393,7 +392,7 @@ describe("last week, event by event", () => {
   });
 });
 
-describe("the chasing grid", () => {
+describe("the attendance grid", () => {
   it("gives each person one row and each soliciting event one column", async () => {
     const friday = await occurredEvent(2, {
       name: `${NAME_MARKER} Friday`,
@@ -409,31 +408,16 @@ describe("the chasing grid", () => {
     // Column heads are shortened on purpose — a full event name is far too
     // wide for one — so this asserts identity and order rather than text.
     expect(content.grid.columns.map((column) => column.eventId)).toEqual([friday.id, monday.id]);
-    // The same two people are invited to both events, and they appear once.
+    // The same two people are invited to both, and they appear once each.
     expect(content.grid.rows).toHaveLength(2);
-    expect(content.grid.rows.every((row) => row.problems === 2)).toBe(true);
+    expect(content.grid.rows.every((row) => row.cells.length === 2)).toBe(true);
   });
 
-  it("marks somebody who never answered", async () => {
-    const event = await occurredEvent();
-    const invitations = await invitationsFor(event.id);
-    await answer(invitations[0].id, "yes", null);
-    await answer(invitations[1].id, "yes", null);
-
-    expect(marks(await compute())).toEqual(["no_rsvp"]);
-  });
-
-  it("marks a decline, and keeps the reason with it", async () => {
-    const event = await occurredEvent();
-    const invitations = await invitationsFor(event.id);
-    await answer(invitations[0].id, "no", "Coursework deadline.");
-
-    const cells = (await compute()).grid.rows.flatMap((row) => row.cells);
-    const decline = cells.find((cell) => cell.state === "not_attending");
-    expect(decline?.reason).toBe("Coursework deadline.");
-  });
-
-  it("marks somebody who said yes and was absent", async () => {
+  /**
+   * The section's whole subject, and why one collapsed verdict per event was
+   * wrong: Brian is comparing what somebody said against what they did.
+   */
+  it("carries what they said and what they did, side by side", async () => {
     const event = await occurredEvent();
     const invitations = await invitationsFor(event.id);
     await answer(invitations[0].id, "yes", null);
@@ -444,85 +428,48 @@ describe("the chasing grid", () => {
       "absent",
     );
 
-    expect(marks(await compute())).toContain("said_yes_absent");
+    const cell = discrepancies(await compute()).find((entry) => entry.rsvp === "yes");
+    expect(cell?.rsvp).toBe("yes");
+    expect(cell?.attendance).toBe("absent");
+    expect(cell?.isDiscrepancy).toBe(true);
   });
 
-  /**
-   * The single change that made the first build unreadable, pinned.
-   *
-   * `said_yes_no_attendance_recorded` fires for every invitee of an event whose
-   * register nobody took, and the seeded season produced 163 of them for one
-   * week. None was a person anybody should have contacted: the club's problem
-   * was one uncompleted register, which last week's own row already says.
-   */
-  it("does not mark anybody when the register was simply never taken", async () => {
+  it("flags somebody who never answered", async () => {
     const event = await occurredEvent();
     const invitations = await invitationsFor(event.id);
-    for (const invitation of invitations) await answer(invitation.id, "yes", null);
-
-    const content = await compute();
-    expect(content.grid.rows).toEqual([]);
-    expect(eventNamed(content, `${NAME_MARKER} Wednesday practice`).registerTaken).toBe(false);
-  });
-
-  it("does mark somebody the register was taken without", async () => {
-    const event = await occurredEvent();
-    const invitations = await invitationsFor(event.id);
-    for (const invitation of invitations) await answer(invitation.id, "yes", null);
+    await answer(invitations[0].id, "yes", null);
+    await answer(invitations[1].id, "yes", null);
     await recordAttendance(
       actorPersonId,
       event.id,
       `player:${invitations[0].season_membership_id}`,
       "present",
     );
-
-    const content = await compute();
-    expect(marks(content).filter((mark) => mark === "said_yes_absent")).toHaveLength(2);
-  });
-
-  it("gives one person one cell per event, keeping the worst thing that happened", async () => {
-    const event = await occurredEvent();
-    const invitations = await invitationsFor(event.id);
-    await answer(invitations[0].id, "yes", null);
     await recordAttendance(
       actorPersonId,
       event.id,
-      `player:${invitations[0].season_membership_id}`,
-      "absent",
+      `player:${invitations[1].season_membership_id}`,
+      "present",
     );
 
-    const rows = (await compute()).grid.rows.filter((row) =>
-      row.cells.some((cell) => cell.state === "said_yes_absent"),
-    );
-    expect(rows).toHaveLength(1);
-    expect(rows[0].cells).toHaveLength(1);
+    const flagged = discrepancies(await compute());
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0].rsvp).toBeNull();
   });
 
-  it("puts the people with the most problems at the top", async () => {
-    const first = await occurredEvent(2, {
-      name: `${NAME_MARKER} Friday`,
-      scheduledOn: "2027-03-19",
-    });
-    await occurredEvent(2, { name: `${NAME_MARKER} Monday`, scheduledOn: "2027-03-22" });
+  it("flags a decline regardless of what they then did, and keeps the reason", async () => {
+    // Brian: "They said no to coming there, and I want to see their value
+    // regardless of who it is."
+    const event = await occurredEvent();
+    const invitations = await invitationsFor(event.id);
+    await answer(invitations[0].id, "no", "Coursework deadline.");
 
-    // One of the two answers the first event, so they have one problem instead
-    // of two and must sort below the person who answered neither.
-    const invitations = await invitationsFor(first.id);
-    await observer.query(
-      `insert into public.rsvp_responses (invitation_id, response, source, responded_at)
-       values ($1, 'yes', 'operator', now())`,
-      [invitations[0].id],
-    );
-    await observer.query("update public.invitations set status = 'responded' where id = $1", [
-      invitations[0].id,
-    ]);
-
-    const rows = (await compute()).grid.rows;
-    expect(rows[0].problems).toBe(2);
-    expect(rows[rows.length - 1].problems).toBe(1);
+    const decline = discrepancies(await compute()).find((cell) => cell.rsvp === "no");
+    expect(decline?.isDiscrepancy).toBe(true);
+    expect(decline?.reason).toBe("Coursework deadline.");
   });
 
-  it("is empty when the week went as intended", async () => {
+  it("does not flag somebody who said yes and turned up", async () => {
     const event = await occurredEvent(2);
     const invitations = await invitationsFor(event.id);
     await answer(invitations[0].id, "yes", null);
@@ -538,6 +485,89 @@ describe("the chasing grid", () => {
       event.id,
       `player:${invitations[1].season_membership_id}`,
       "late",
+    );
+
+    // Late is not present, so it is still a discrepancy — "didn't come to the
+    // event, were late, or something else" — and the person who was present is
+    // not on the list at all.
+    const content = await compute();
+    expect(content.grid.rows).toHaveLength(1);
+    expect(content.grid.rows[0].cells[0].attendance).toBe("late");
+  });
+
+  /**
+   * The single change that made the first build unreadable, pinned.
+   *
+   * A yes with nothing on the register matches for *every* invitee of an event
+   * whose register nobody took — 163 of them in one seeded week. None was a
+   * person to contact: the club's problem is one untaken register, which last
+   * week's own row already says.
+   */
+  it("does not flag anybody when the register was simply never taken", async () => {
+    const event = await occurredEvent();
+    const invitations = await invitationsFor(event.id);
+    for (const invitation of invitations) await answer(invitation.id, "yes", null);
+
+    const content = await compute();
+    expect(content.grid.rows).toEqual([]);
+    expect(eventNamed(content, `${NAME_MARKER} Wednesday practice`).registerTaken).toBe(false);
+  });
+
+  it("does flag somebody the register was taken without", async () => {
+    const event = await occurredEvent();
+    const invitations = await invitationsFor(event.id);
+    for (const invitation of invitations) await answer(invitation.id, "yes", null);
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[0].season_membership_id}`,
+      "present",
+    );
+
+    const flagged = discrepancies(await compute());
+    expect(flagged).toHaveLength(2);
+    expect(flagged.every((cell) => cell.rsvp === "yes" && cell.attendance === null)).toBe(true);
+  });
+
+  it("puts the people with the most discrepancies at the top", async () => {
+    const first = await occurredEvent(2, {
+      name: `${NAME_MARKER} Friday`,
+      scheduledOn: "2027-03-19",
+    });
+    await occurredEvent(2, { name: `${NAME_MARKER} Monday`, scheduledOn: "2027-03-22" });
+
+    // One of the two answers the first event and turns up, so they have one
+    // discrepancy instead of two.
+    const invitations = await invitationsFor(first.id);
+    await answer(invitations[0].id, "yes", null);
+    await recordAttendance(
+      actorPersonId,
+      first.id,
+      `player:${invitations[0].season_membership_id}`,
+      "present",
+    );
+
+    const rows = (await compute()).grid.rows;
+    expect(rows[0].problems).toBe(2);
+    expect(rows[rows.length - 1].problems).toBe(1);
+  });
+
+  it("leaves out anybody the week went right for", async () => {
+    const event = await occurredEvent(2);
+    const invitations = await invitationsFor(event.id);
+    await answer(invitations[0].id, "yes", null);
+    await answer(invitations[1].id, "yes", null);
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[0].season_membership_id}`,
+      "present",
+    );
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[1].season_membership_id}`,
+      "present",
     );
 
     const content = await compute();
@@ -802,9 +832,7 @@ describe("invariant M5 — a published report is immutable", () => {
     const generated = await generateWeeklyReport(actorPersonId, REPORT_ON);
     const stored = parseReportContent((await readStoredReport(generated.id)).content);
     expect(
-      stored?.grid.rows.flatMap((row) =>
-        row.cells.filter((cell) => cell.state === "not_attending"),
-      ),
+      stored?.grid.rows.flatMap((row) => row.cells.filter((cell) => cell.rsvp === "no")),
     ).toHaveLength(1);
 
     // Change the world underneath it: two more people decline.
@@ -813,17 +841,13 @@ describe("invariant M5 — a published report is immutable", () => {
 
     // The recomputed picture moved.
     expect(
-      (await compute()).grid.rows.flatMap((row) =>
-        row.cells.filter((cell) => cell.state === "not_attending"),
-      ),
+      (await compute()).grid.rows.flatMap((row) => row.cells.filter((cell) => cell.rsvp === "no")),
     ).toHaveLength(3);
 
     // The snapshot did not. This is the whole of M5.
     const reread = parseReportContent((await readStoredReport(generated.id)).content);
     expect(
-      reread?.grid.rows.flatMap((row) =>
-        row.cells.filter((cell) => cell.state === "not_attending"),
-      ),
+      reread?.grid.rows.flatMap((row) => row.cells.filter((cell) => cell.rsvp === "no")),
     ).toHaveLength(1);
   });
 
@@ -956,7 +980,7 @@ describe("opening the report", () => {
     const first = await readReportForDate(actorPersonId, REPORT_ON);
     expect(
       parseReportContent(first.content)?.grid.rows.flatMap((row) =>
-        row.cells.filter((cell) => cell.state === "not_attending"),
+        row.cells.filter((cell) => cell.rsvp === "no"),
       ),
     ).toHaveLength(1);
 
@@ -967,13 +991,11 @@ describe("opening the report", () => {
     // The live picture has two declines; what leadership sees today still has
     // the one it had when the report was opened.
     expect(
-      (await compute()).grid.rows.flatMap((row) =>
-        row.cells.filter((cell) => cell.state === "not_attending"),
-      ),
+      (await compute()).grid.rows.flatMap((row) => row.cells.filter((cell) => cell.rsvp === "no")),
     ).toHaveLength(2);
     expect(
       parseReportContent(again.content)?.grid.rows.flatMap((row) =>
-        row.cells.filter((cell) => cell.state === "not_attending"),
+        row.cells.filter((cell) => cell.rsvp === "no"),
       ),
     ).toHaveLength(1);
   });
@@ -1006,8 +1028,8 @@ describe("opening the report", () => {
       `insert into public.weekly_reports
          (season_id, report_on, version, metric_definition_version, data_as_of,
           generated_by_person_id, content)
-       values ($1, $2::date, 1, 'LAN-81.1', now(), $3,
-               '{"schema": "lancers.monday-exception-report.v1", "exceptions": []}'::jsonb)
+       values ($1, $2::date, 1, 'LAN-81.3', now(), $3,
+               '{"schema": "lancers.monday-report.v3", "lastWeek": []}'::jsonb)
        returning id`,
       [seasonId, REPORT_ON, actorPersonId],
     );
@@ -1024,7 +1046,7 @@ describe("opening the report", () => {
     // The older row is untouched. It is still what leadership saw under those
     // definitions, and M5 does not permit rewriting it to tidy this up.
     const kept = await readStoredReport(stale.rows[0].id);
-    expect(kept.metricDefinitionVersion).toBe("LAN-81.1");
+    expect(kept.metricDefinitionVersion).toBe("LAN-81.3");
     expect(parseReportContent(kept.content)).toBeNull();
   });
 
@@ -1072,7 +1094,7 @@ describe("a snapshot under other metric definitions stays readable", () => {
     expect(parseReportContent({ schema: REPORT_CONTENT_SCHEMA })).toBeNull();
     // The first build's own shape, which this one no longer understands.
     expect(
-      parseReportContent({ schema: "lancers.monday-report.v2", chase: [], fix: [] }),
+      parseReportContent({ schema: "lancers.monday-report.v3", lastWeek: [], nextWeek: [] }),
     ).toBeNull();
     expect(
       parseReportContent({

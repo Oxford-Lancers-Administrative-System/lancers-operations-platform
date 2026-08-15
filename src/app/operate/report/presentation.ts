@@ -1,5 +1,3 @@
-import type { GridState } from "@/lib/services/weekly-report";
-
 /**
  * The Monday report's copy and formatting.
  *
@@ -21,8 +19,8 @@ import type { GridState } from "@/lib/services/weekly-report";
 
 export const REPORT_HEADLINE = "Monday report";
 
-export const LAST_WEEK_HEADLINE = "Last week";
-export const GRID_HEADLINE = "Who needs chasing";
+export const LAST_WEEK_HEADLINE = "Last week's events";
+export const GRID_HEADLINE = "Attendance";
 export const AVAILABILITY_HEADLINE = "Availability";
 export const NEXT_WEEK_HEADLINE = "Next week";
 export const WALK_UPS_HEADLINE = "Walk-ups";
@@ -31,7 +29,7 @@ export const ONBOARDING_HEADLINE = "Onboarding still outstanding";
 export const WEEK_IN_NUMBERS = "The week in numbers";
 
 export const LAST_WEEK_EMPTY = "No events last week.";
-export const GRID_EMPTY = "Nobody to chase — everyone answered and turned up.";
+export const GRID_EMPTY = "Everybody answered and everybody turned up.";
 export const AVAILABILITY_EMPTY = "Everybody is available.";
 export const NEXT_WEEK_EMPTY = "Nothing scheduled in the next seven days.";
 export const WALK_UPS_EMPTY = "No walk-ups last week.";
@@ -69,18 +67,25 @@ export const OTHER_METRIC_VERSION_NOTE =
   "This report was generated under earlier metric definitions, so it is not organised the way " +
   "the current one is. It is shown unchanged — a filed report is never recomputed.";
 
-/** The grid's cell marks, and the legend that explains them. */
-export const GRID_MARKS: Readonly<Record<GridState, string>> = Object.freeze({
-  no_rsvp: "—",
-  said_yes_absent: "yes*",
-  not_attending: "no",
+/** The two sub-columns under every event. */
+export const RSVP_COLUMN = "RSVP";
+export const ATTENDED_COLUMN = "Attended";
+
+/** What was said. `null` — never answered — is the dash. */
+export const RSVP_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  yes: "Yes",
+  no: "No",
 });
 
-export const GRID_LEGEND: ReadonlyArray<{ mark: string; meaning: string }> = Object.freeze([
-  Object.freeze({ mark: "—", meaning: "no RSVP" }),
-  Object.freeze({ mark: "yes*", meaning: "said yes, did not attend" }),
-  Object.freeze({ mark: "no", meaning: "not attending" }),
-]);
+/** What was done. `null` — not on the register — is the dash. */
+export const ATTENDANCE_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  present: "Present",
+  late: "Late",
+  excused: "Excused",
+  absent: "Absent",
+});
+
+export const NOT_RECORDED = "—";
 
 /**
  * Availability levels, in the words the approved wireframe shows.

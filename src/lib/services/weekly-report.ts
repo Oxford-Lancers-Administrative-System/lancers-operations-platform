@@ -67,20 +67,24 @@ import { readCurrentSeasonIn, type Season } from "./seasons";
  * The metric definitions these numbers were computed under, recorded on every
  * row so that an old snapshot stays readable when the definitions change.
  *
- * `LAN-81.2` rather than `.1` because the 15 August review changed what the
- * report *is*, not merely how it looks: the same five views now produce two
- * action lists instead of six counted categories, and a row written under `.1`
- * does not answer the same question. That is exactly what versioning the
- * definitions is for — the older snapshots stay readable and stay honest about
- * which set produced them.
+ * It has moved four times in a day, and each move earned it. `.1` was six
+ * counted exception categories; `.2` was two action lists; `.3` reorganised
+ * around events with a week either side; `.4` splits every event in the
+ * attendance grid into what somebody said and what they then did.
+ *
+ * Bumping it is not bookkeeping. `readReportForDate` reuses today's snapshot,
+ * and reuse is conditioned on this string — so a shape change that left it
+ * alone would serve the morning's snapshot into an interface that cannot read
+ * it, and the reader would get a page of blanks. That happened once, on `.3`,
+ * and is why the condition exists at all.
  *
  * It is **not** the sixteen definitions recovered from the Master Table; the
  * issue puts those out of scope.
  */
-export const METRIC_DEFINITION_VERSION = "LAN-81.3";
+export const METRIC_DEFINITION_VERSION = "LAN-81.4";
 
 /** The shape of `content`, so a reader can tell a snapshot it understands. */
-export const REPORT_CONTENT_SCHEMA = "lancers.monday-report.v3";
+export const REPORT_CONTENT_SCHEMA = "lancers.monday-report.v4";
 
 /**
  * The report looks a week back and a week forward.
@@ -146,10 +150,32 @@ export interface EventOutcome {
   neverInvited: number;
 }
 
-/** What one person did about one event, where it was worth noticing. */
-export const GRID_STATES = Object.freeze(["no_rsvp", "said_yes_absent", "not_attending"] as const);
-
-export type GridState = (typeof GRID_STATES)[number];
+/**
+ * What one person did about one event: what they said, and what they did.
+ *
+ * Two values per event rather than one verdict, because Brian's whole reason
+ * for the section is the gap between them — "did they RSVP, or did they not
+ * RSVP? Did they attend, or did they not attend? We're looking for
+ * discrepancies there." A single collapsed state hides exactly the comparison
+ * he is making.
+ */
+export interface GridCell {
+  eventId: string;
+  /** `yes`, `no`, or `null` for never answered. */
+  rsvp: string | null;
+  /** `present`, `late`, `excused`, `absent`, or `null` for not on the register. */
+  attendance: string | null;
+  /**
+   * The reason given for not attending, where there is one. The most sensitive
+   * line in the slice, shown to the operator group only.
+   */
+  reason: string | null;
+  /**
+   * `true` where what they said and what they did do not agree, or where they
+   * said nothing at all. What puts the person on the list.
+   */
+  isDiscrepancy: boolean;
+}
 
 export interface GridColumn {
   eventId: string;
@@ -158,20 +184,11 @@ export interface GridColumn {
   on: string | null;
 }
 
-export interface GridCell {
-  eventId: string;
-  state: GridState;
-  /**
-   * The reason given for not attending, where there is one. The most sensitive
-   * line in the slice, shown to the operator group only.
-   */
-  reason: string | null;
-}
-
 export interface GridRow {
   person: string;
+  /** One per column, in column order. A person invited to none has none. */
   cells: GridCell[];
-  /** How many times anything went wrong for this person last week. */
+  /** How many of this person's cells disagree with themselves. */
   problems: number;
 }
 
@@ -366,18 +383,6 @@ const DISPLAY_NAME = `case
     else coalesce(nullif(btrim(p.known_as), ''), p.given_name) || ' ' || p.family_name
   end`;
 
-/**
- * How bad each grid state is, for ordering people down the side.
- *
- * Somebody who said they were coming and did not is a conversation; somebody
- * who never answered is a chase; somebody who declined has at least told you.
- */
-const GRID_SEVERITY: Readonly<Record<GridState, number>> = Object.freeze({
-  said_yes_absent: 0,
-  no_rsvp: 1,
-  not_attending: 2,
-});
-
 interface EventRow {
   id: string;
   name: string;
@@ -393,6 +398,14 @@ interface EventRow {
 interface PersonEventRow {
   event_id: string;
   display_name: string | null;
+  reason: string | null;
+}
+
+interface SaidAndDidRow {
+  event_id: string;
+  display_name: string | null;
+  rsvp: string | null;
+  attendance: string | null;
   reason: string | null;
 }
 
@@ -492,6 +505,20 @@ export async function computeReportContent(
     back,
   );
 
+  // Requirement 6's escalation queue. The "silent" column on each event's row
+  // comes from here rather than from the P7 partition, because this view *is*
+  // the club's definition of somebody who was asked and has not answered, and a
+  // second definition written here would drift from the one the rest of the
+  // slice reads.
+  const silent = await tx.query<{ event_id: string; tally: number }>(
+    `select q.event_id, count(*)::int as tally
+       from public.nonresponse_queue q
+      where q.season_id = $1
+        and q.scheduled_on between $2::date and $3::date
+      group by q.event_id`,
+    back,
+  );
+
   const presence = await tx.query<PresenceRow>(
     `select a.event_id, a.presence::text as presence, count(*)::int as tally
        from public.attendance_records a
@@ -550,7 +577,7 @@ export async function computeReportContent(
       invited: row.invited,
       respondedYes: stateOf(row.id, "responded_yes"),
       respondedNo: stateOf(row.id, "responded_no"),
-      noAnswer: stateOf(row.id, "awaiting_response") + stateOf(row.id, "expired_without_response"),
+      noAnswer: silent.rows.find((entry) => entry.event_id === row.id)?.tally ?? 0,
       present,
       late,
       excused: presenceOf(row.id, "excused"),
@@ -572,36 +599,31 @@ export async function computeReportContent(
   // 2. The grid: people down, last week's events across
   // -------------------------------------------------------------------------
 
-  const noRsvp = await tx.query<PersonEventRow>(
-    `select q.event_id, ${DISPLAY_NAME} as display_name, null::text as reason
-       from public.nonresponse_queue q
-       left join public.season_memberships m on m.id = q.season_membership_id
-       left join public.people p on p.id = coalesce(q.person_id, m.person_id)
-      where q.season_id = $1
-        and q.scheduled_on between $2::date and $3::date`,
-    back,
-  );
-
-  const notAttending = await tx.query<PersonEventRow>(
-    `select s.event_id, ${DISPLAY_NAME} as display_name, s.reason
-       from public.invitation_response_state s
-       join public.events e on e.id = s.event_id
-       left join public.season_memberships m on m.id = s.season_membership_id
-       left join public.people p on p.id = coalesce(s.person_id, m.person_id)
-      where s.season_id = $1
+  // One row per person per event they were asked about: what they said, and
+  // what they did. Two values rather than one verdict, because the gap between
+  // them is the entire subject of this section.
+  //
+  // The pairing is `coalesce(season_membership_id, person_id)` on both sides —
+  // invariant P8 guarantees exactly one of those is set, and it is the same
+  // anchor the attendance board and the corrected mismatch view both use.
+  const said = await tx.query<SaidAndDidRow>(
+    `select i.event_id,
+            ${DISPLAY_NAME} as display_name,
+            r.response::text as rsvp,
+            a.presence::text as attendance,
+            r.reason
+       from public.invitations i
+       join public.events e on e.id = i.event_id
+       left join public.season_memberships m on m.id = i.season_membership_id
+       left join public.people p on p.id = coalesce(i.person_id, m.person_id)
+       left join public.current_rsvp r on r.invitation_id = i.id
+       left join public.attendance_records a
+         on a.event_id = i.event_id
+        and coalesce(a.season_membership_id, a.person_id)
+              = coalesce(i.season_membership_id, i.person_id)
+      where e.season_id = $1
         and e.scheduled_on between $2::date and $3::date
-        and s.response_state = 'responded_no'`,
-    back,
-  );
-
-  const saidYesAbsent = await tx.query<PersonEventRow>(
-    `select x.event_id, ${DISPLAY_NAME} as display_name, null::text as reason
-       from public.rsvp_attendance_mismatches x
-       left join public.season_memberships m on m.id = x.season_membership_id
-       left join public.people p on p.id = coalesce(x.person_id, m.person_id)
-      where x.season_id = $1
-        and x.scheduled_on between $2::date and $3::date
-        and x.mismatch in ('said_yes_marked_absent', 'said_yes_no_attendance_recorded')`,
+        and e.solicits_response`,
     back,
   );
 
@@ -614,50 +636,62 @@ export async function computeReportContent(
     }));
 
   const columnIds = new Set(columns.map((column) => column.eventId));
-  const cellsByPerson = new Map<string, GridCell[]>();
-
-  const addCell = (
-    row: PersonEventRow,
-    state: GridState,
-    predicate: (eventId: string) => boolean = () => true,
-  ) => {
-    const person = row.display_name;
-    if (!person || !columnIds.has(row.event_id) || !predicate(row.event_id)) return;
-    const cells = cellsByPerson.get(person) ?? [];
-    // One cell per person per event: the worst thing that happened wins, so a
-    // person who never answered and was then absent reads as one problem.
-    const existing = cells.find((cell) => cell.eventId === row.event_id);
-    if (existing) {
-      if (GRID_SEVERITY[state] < GRID_SEVERITY[existing.state]) {
-        existing.state = state;
-        existing.reason = row.reason;
-      }
-      return;
-    }
-    cells.push({ eventId: row.event_id, state, reason: row.reason });
-    cellsByPerson.set(person, cells);
-  };
-
   const registerTakenFor = (eventId: string) =>
     lastWeek.find((entry) => entry.id === eventId)?.registerTaken ?? false;
 
-  for (const row of noRsvp.rows) addCell(row, "no_rsvp");
-  for (const row of notAttending.rows) addCell(row, "not_attending");
-  // Only where a register was actually taken. Where nobody took one, every
-  // invitee matches — 163 of them in one seeded week — and the club's problem
-  // is the untaken register, which last week's own row already says.
-  for (const row of saidYesAbsent.rows) addCell(row, "said_yes_absent", registerTakenFor);
+  /**
+   * Does what they said and what they did disagree?
+   *
+   * Three ways, and one deliberate exclusion:
+   *
+   *   * they never answered — Requirement 6's nonresponse, and the one case
+   *     where there is nothing to compare against;
+   *   * they said no — Brian asked to see those "regardless of who it is";
+   *   * they said yes and were not present, which includes late and excused.
+   *
+   * The exclusion: a yes with nothing on the register, where **nobody** was put
+   * on that register. Every invitee matches it, the club's problem is one
+   * untaken register, and last week's own row already says so.
+   */
+  const disagrees = (cell: { eventId: string; rsvp: string | null; attendance: string | null }) => {
+    if (cell.rsvp === null) return true;
+    if (cell.rsvp === "no") return true;
+    if (cell.rsvp !== "yes") return false;
+    if (cell.attendance === "present") return false;
+    if (cell.attendance === null && !registerTakenFor(cell.eventId)) return false;
+    return true;
+  };
+
+  const cellsByPerson = new Map<string, GridCell[]>();
+  for (const row of said.rows) {
+    if (!row.display_name || !columnIds.has(row.event_id)) continue;
+    const reason = (row.reason ?? "").trim();
+    const cell: GridCell = {
+      eventId: row.event_id,
+      rsvp: row.rsvp,
+      attendance: row.attendance,
+      reason: reason === "" ? null : reason,
+      isDiscrepancy: false,
+    };
+    cell.isDiscrepancy = disagrees(cell);
+    const cells = cellsByPerson.get(row.display_name) ?? [];
+    cells.push(cell);
+    cellsByPerson.set(row.display_name, cells);
+  }
+
+  const order = new Map(columns.map((column, at) => [column.eventId, at]));
 
   const rows: GridRow[] = [...cellsByPerson.entries()]
     .map(([person, cells]) => ({
       person,
       cells: cells.sort(
-        (left, right) =>
-          columns.findIndex((column) => column.eventId === left.eventId) -
-          columns.findIndex((column) => column.eventId === right.eventId),
+        (left, right) => (order.get(left.eventId) ?? 0) - (order.get(right.eventId) ?? 0),
       ),
-      problems: cells.length,
+      problems: cells.filter((cell) => cell.isDiscrepancy).length,
     }))
+    // Only people something went wrong for. Everybody else answered and turned
+    // up, and a list of them is not a thing anybody opens a report to read.
+    .filter((row) => row.problems > 0)
     .sort(
       (left, right) => right.problems - left.problems || left.person.localeCompare(right.person),
     );
