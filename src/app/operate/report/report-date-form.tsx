@@ -5,35 +5,26 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
-import { PREVIEW_REPORT } from "./presentation";
+import { CHANGE_DATE_LABEL, CHANGE_DATE_SUBMIT } from "./presentation";
 
 /**
- * Choosing the reporting date — the one control both UX-80 and UX-83 open with.
+ * Choosing the reporting date.
  *
- * A plain `GET` form. Choosing a date changes what is *read* and nothing else,
- * so it belongs in the address bar: the resulting preview is shareable, a
- * refresh re-runs it harmlessly, and the browser's back button does what the
- * operator expects. Making it a server action would have made a read look like
- * a write on a screen whose entire subject is the difference between the two.
+ * A plain `GET` form. Choosing a date changes which report is read, so it
+ * belongs in the address bar: the result is shareable, a refresh re-runs it
+ * harmlessly, and the back button does what the operator expects.
  *
- * `type="date"` rather than a picker component because the field's value is a
- * `YYYY-MM-DD` string either way, the platform control is the accessible one on
- * a phone, and the service refuses anything that is not that shape regardless
- * of what produced it.
+ * Two things the first version got wrong, both of which Brian met on the first
+ * screen he opened. The field carried a visible "Choose another date" label
+ * *and* a button reading the same words, which is one instruction printed
+ * twice; and the button sat in a fixed-height row that its own text overflowed.
+ * The label is now the field's own floating label, the button says what
+ * pressing it does rather than restating the heading, and the row wraps instead
+ * of clipping.
  */
-export function ReportDateForm({
-  date,
-  submitLabel = PREVIEW_REPORT,
-  preview = true,
-}: {
-  date: string;
-  /** The wireframes label this button differently on UX-80 and UX-83. */
-  submitLabel?: string;
-  /** Whether submitting lands on the preview or on the stored report. */
-  preview?: boolean;
-}) {
-  // Held in state so that the operator sees what they picked while the
-  // navigation is in flight, rather than the value snapping back.
+export function ReportDateForm({ date }: { date: string }) {
+  // Held in state so the operator sees what they picked while the navigation is
+  // in flight, rather than the value snapping back.
   const [value, setValue] = useState(date);
 
   return (
@@ -42,22 +33,37 @@ export function ReportDateForm({
       method="get"
       action="/operate/report"
       data-testid="report-date-form"
-      sx={{ maxWidth: 480 }}
+      sx={{ maxWidth: 420 }}
     >
-      {preview ? <input type="hidden" name="preview" value="1" /> : null}
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} sx={{ alignItems: "stretch" }}>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.5}
+        sx={{ alignItems: { sm: "flex-start" }, flexWrap: "wrap" }}
+      >
         <TextField
           type="date"
           name="date"
-          label="Reporting date"
+          label={CHANGE_DATE_LABEL}
           value={value}
           onChange={(event) => setValue(event.target.value)}
           slotProps={{ inputLabel: { shrink: true } }}
-          fullWidth
           size="small"
+          sx={{ flex: 1, minWidth: 180 }}
         />
-        <Button type="submit" variant="outlined" sx={{ minHeight: 44, whiteSpace: "nowrap" }}>
-          {submitLabel}
+        <Button
+          type="submit"
+          variant="outlined"
+          sx={{
+            minHeight: 44,
+            // The overflow Brian hit: a fixed-height outlined button whose
+            // label was longer than the box the row gave it. It gets its own
+            // width now, and never shrinks below its text.
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+            px: 2.5,
+          }}
+        >
+          {CHANGE_DATE_SUBMIT}
         </Button>
       </Stack>
     </Box>

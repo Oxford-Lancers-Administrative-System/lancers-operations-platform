@@ -1,6 +1,6 @@
 // @vitest-environment node
 /**
- * The Monday exception and action report — LAN-81.
+ * The Monday report — LAN-81.
  *
  * Against the **real** local database, because everything worth asserting here
  * is a property of PostgreSQL honouring the schema and of five views computing
@@ -10,6 +10,12 @@
  * partition excluding non-soliciting events. A mocked transaction demonstrates
  * none of it, and a mocked view demonstrates less than none — it would assert
  * that this module reads the fixture the test wrote.
+ *
+ * Rewritten after Brian's 15 August 2026 review, which replaced six counted
+ * categories with two action lists and took the version machinery off the
+ * screen. What did *not* change is what most of this file checks: the snapshot
+ * is still immutable, the reader still reads stored content, and every number
+ * still comes from the view that owns it.
  *
  * Every row hangs off an event whose name carries `NAME_MARKER`, unique to this
  * file: Vitest runs suites in parallel against one database, and a shared
@@ -34,12 +40,12 @@ import {
   METRIC_DEFINITION_VERSION,
   normaliseReportDate,
   parseReportContent,
-  previewWeeklyReport,
   readCurrentReport,
+  readReportForDate,
   readStoredReport,
   REPORT_CONTENT_SCHEMA,
   reportWindow,
-  type ExceptionKey,
+  type ChaseKind,
   type WeeklyReportContent,
 } from "./weekly-report";
 
@@ -108,26 +114,20 @@ afterEach(async () => {
       where (entity_table = 'events' and entity_id in ${events})
          or entity_table = 'attendance_records'
          or (entity_table = 'weekly_reports' and entity_id in
-              (select id from public.weekly_reports where report_on = $2::date))`,
-    [scope, REPORT_ON],
+              (select id from public.weekly_reports
+                where report_on in ($2::date, $3::date)))`,
+    [scope, REPORT_ON, OTHER_REPORT_ON],
   );
   await observer.query(`delete from public.events where name like $1`, [scope]);
 
-  // Newest first, so a superseding row never blocks its predecessor —
-  // `supersedes_id` is `on delete restrict`, and RESTRICT is checked
-  // immediately, so one statement removing a whole chain is refused. `delete`
-  // takes no `order by`, so the chain is unwound a generation at a time.
-  for (let generation = 0; generation < 20; generation += 1) {
-    const removed = await observer.query(
-      `delete from public.weekly_reports
-        where report_on = $1::date
-          and not exists (
-            select 1 from public.weekly_reports later
-             where later.supersedes_id = public.weekly_reports.id)`,
-      [REPORT_ON],
-    );
-    if (removed.rowCount === 0) break;
-  }
+  // The whole version chain in one statement: the composite foreign key binding
+  // a supersession to its own report is `no action`, which is checked at the end
+  // of the statement rather than per row.
+  await observer.query(
+    "delete from public.weekly_reports where report_on in ($1::date, $2::date)",
+    [REPORT_ON, OTHER_REPORT_ON],
+  );
+
   // The walk-up this suite records is a person the application minted, and
   // LAN-110 made it a recruitment prospect too — `person_id` is
   // `on delete restrict`, so without these two the person delete below fails,
@@ -208,12 +208,6 @@ async function answer(invitationId: string, response: "yes" | "no", reason: stri
   ]);
 }
 
-function sectionOf(content: WeeklyReportContent, key: ExceptionKey) {
-  const section = content.exceptions.find((entry) => entry.key === key);
-  if (!section) throw new Error(`No section ${key}`);
-  return section;
-}
-
 async function refusalFrom(run: () => Promise<unknown>): Promise<ServiceError> {
   let thrown: unknown;
   try {
@@ -226,9 +220,14 @@ async function refusalFrom(run: () => Promise<unknown>): Promise<ServiceError> {
   return thrown;
 }
 
-/** The content for this suite's window, computed without writing anything. */
-async function preview(): Promise<WeeklyReportContent> {
-  return (await previewWeeklyReport(REPORT_ON)).content;
+/** The content for this suite's window, computed without filing anything. */
+async function compute(reportOn = REPORT_ON): Promise<WeeklyReportContent> {
+  const season = await readCurrentSeason();
+  return withTransaction((tx) => computeReportContent(tx, season, reportOn));
+}
+
+function kinds(content: WeeklyReportContent): ChaseKind[] {
+  return content.chase.map((item) => item.kind);
 }
 
 // ---------------------------------------------------------------------------
@@ -245,13 +244,379 @@ describe("the reporting window", () => {
     expect(reportWindow("2027-03-01")).toEqual({ from: "2027-02-22", to: "2027-02-28" });
   });
 
-  it("refuses a reporting date PostgreSQL would happily have parsed", async () => {
+  it("refuses a reporting date PostgreSQL would happily have parsed", () => {
     // `date 'yesterday'` and `date '19 October'` both parse. A report filed
     // under a date the operator did not mean is filed there forever.
     for (const value of ["yesterday", "19 October", "2026-13-01", "2026-02-30", "", "  "]) {
       expect(() => normaliseReportDate(value)).toThrow();
     }
     expect(normaliseReportDate(" 2026-10-19 ")).toBe("2026-10-19");
+  });
+
+  it("excludes an event outside it, and includes the same event inside it", async () => {
+    const outside = await occurredEvent(3, {
+      name: `${NAME_MARKER} April practice`,
+      scheduledOn: OUT_OF_WINDOW,
+    });
+
+    expect((await compute()).events.map((entry) => entry.id)).not.toContain(outside.id);
+    expect((await compute(OTHER_REPORT_ON)).events.map((entry) => entry.id)).toContain(outside.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Chase these people
+// ---------------------------------------------------------------------------
+
+describe("the chase list", () => {
+  it("names everybody who was asked and never answered", async () => {
+    const event = await occurredEvent();
+    const invitations = await invitationsFor(event.id);
+    await answer(invitations[0].id, "yes", null);
+
+    const direct = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.nonresponse_queue
+        where season_id = $1 and scheduled_on between $2::date and $3::date`,
+      [seasonId, ...Object.values(reportWindow(REPORT_ON))],
+    );
+
+    const content = await compute();
+    const silent = content.chase.filter((item) => item.kind === "no_answer");
+    expect(silent).toHaveLength(Number(direct.rows[0].count));
+    // Non-vacuous: two of this event's three invitees never answered.
+    expect(silent.length).toBe(2);
+    expect(silent.every((item) => item.person !== "Unnamed member")).toBe(true);
+  });
+
+  it("carries the reason a decline gave, beside the person who gave it", async () => {
+    const event = await occurredEvent();
+    const invitations = await invitationsFor(event.id);
+    await answer(invitations[0].id, "no", "Injury — ankle.");
+    await answer(invitations[1].id, "no", "Academic deadline.");
+
+    const declines = (await compute()).chase.filter((item) => item.kind === "said_no");
+    expect(declines).toHaveLength(2);
+    expect(declines.map((item) => item.reason)).toEqual(
+      expect.arrayContaining(["Injury — ankle.", "Academic deadline."]),
+    );
+    expect(declines.every((item) => item.person !== "Unnamed member")).toBe(true);
+  });
+
+  it("chases somebody who said yes and was marked absent", async () => {
+    const event = await occurredEvent();
+    const invitations = await invitationsFor(event.id);
+    await answer(invitations[0].id, "yes", null);
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[0].season_membership_id}`,
+      "absent",
+    );
+
+    expect(kinds(await compute())).toContain("said_yes_absent");
+  });
+
+  it("chases somebody who said no and turned up", async () => {
+    const event = await occurredEvent();
+    const invitations = await invitationsFor(event.id);
+    await answer(invitations[0].id, "no", "Working.");
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[0].season_membership_id}`,
+      "present",
+    );
+
+    expect(kinds(await compute())).toContain("said_no_attended");
+  });
+
+  /**
+   * The single change that made the first build unreadable, pinned.
+   *
+   * `said_yes_no_attendance_recorded` fires for every invitee of an event whose
+   * register nobody took, and the seeded season produced 163 of them for one
+   * week. None was a person anybody should have contacted: the club's problem
+   * was one uncompleted register. So it becomes a chase only when the register
+   * *was* taken and this person is missing from it.
+   */
+  describe("said yes with no attendance recorded", () => {
+    it("is one thing to fix, not a person to chase, when nobody took the register", async () => {
+      const event = await occurredEvent();
+      const invitations = await invitationsFor(event.id);
+      for (const invitation of invitations) await answer(invitation.id, "yes", null);
+
+      const content = await compute();
+
+      expect(kinds(content)).not.toContain("missing_from_register");
+      expect(content.chase).toHaveLength(0);
+      expect(content.fix.filter((item) => item.kind === "register_not_taken")).toHaveLength(1);
+      expect(content.fix[0].what).toMatch(/Register never taken/);
+      expect(content.fix[0].what).toMatch(/3 people were asked/);
+    });
+
+    it("is a person to chase when somebody took the register and left them off it", async () => {
+      const event = await occurredEvent();
+      const invitations = await invitationsFor(event.id);
+      for (const invitation of invitations) await answer(invitation.id, "yes", null);
+
+      // The register was taken — for one of the three.
+      await recordAttendance(
+        actorPersonId,
+        event.id,
+        `player:${invitations[0].season_membership_id}`,
+        "present",
+      );
+
+      const content = await compute();
+      expect(content.chase.filter((item) => item.kind === "missing_from_register")).toHaveLength(2);
+      expect(content.fix.filter((item) => item.kind === "register_not_taken")).toHaveLength(0);
+    });
+  });
+
+  it("puts the most recent event first, and a mandatory event above an optional one", async () => {
+    // Brian chose "soonest event first" and a window that only looks backwards,
+    // so the ordering is most-recent-first: last night's practice above last
+    // Tuesday's.
+    await occurredEvent(2, {
+      name: `${NAME_MARKER} Monday optional`,
+      scheduledOn: "2027-03-22",
+      isMandatory: false,
+    });
+    await occurredEvent(2, {
+      name: `${NAME_MARKER} Monday mandatory`,
+      scheduledOn: "2027-03-22",
+      isMandatory: true,
+    });
+    await occurredEvent(2, {
+      name: `${NAME_MARKER} Friday practice`,
+      scheduledOn: "2027-03-19",
+      isMandatory: true,
+    });
+
+    const order = (await compute()).chase.map((item) => item.event);
+
+    expect(order[0]).toBe(`${NAME_MARKER} Monday mandatory`);
+    expect(order.indexOf(`${NAME_MARKER} Monday optional`)).toBeLessThan(
+      order.indexOf(`${NAME_MARKER} Friday practice`),
+    );
+  });
+
+  it("puts the worst kind first when two sit on one event", async () => {
+    const event = await occurredEvent();
+    const invitations = await invitationsFor(event.id);
+    await answer(invitations[0].id, "no", "Working.");
+    await answer(invitations[1].id, "yes", null);
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[1].season_membership_id}`,
+      "absent",
+    );
+
+    const order = kinds(await compute());
+    expect(order.indexOf("said_yes_absent")).toBeLessThan(order.indexOf("no_answer"));
+    expect(order.indexOf("no_answer")).toBeLessThan(order.indexOf("said_no"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fix these things
+// ---------------------------------------------------------------------------
+
+describe("the fix list", () => {
+  it("names an occurred event whose register nobody took", async () => {
+    await occurredEvent(2, { name: `${NAME_MARKER} Empty register` });
+
+    const fix = (await compute()).fix;
+    expect(fix.filter((item) => item.kind === "register_not_taken")).toHaveLength(1);
+    expect(fix[0].event).toBe(`${NAME_MARKER} Empty register`);
+    expect(fix[0].person).toBeNull();
+  });
+
+  it("names the approval defect, and never as a chase", async () => {
+    // An audience member with no invitation. Adding the row directly is the
+    // only way to produce it, because the application deliberately invites
+    // everybody it confirms.
+    const event = await occurredEvent();
+    const membership = await observer.query<{ id: string; person_id: string }>(
+      `select m.id, m.person_id from public.season_memberships m
+        where m.season_id = $1 and m.status = 'active'
+          and m.id not in (select season_membership_id from public.event_audience_members
+                            where event_id = $2 and season_membership_id is not null)
+        limit 1`,
+      [seasonId, event.id],
+    );
+    await observer.query(
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, season_membership_id, added_by_person_id)
+       values ($1, $2, 'player', $3, $4)`,
+      [event.id, seasonId, membership.rows[0].id, actorPersonId],
+    );
+
+    const content = await compute();
+    const defects = content.fix.filter((item) => item.kind === "approved_never_invited");
+    expect(defects).toHaveLength(1);
+    expect(defects[0].what).toMatch(/never invited/i);
+    expect(defects[0].what).not.toMatch(/chase|remind/i);
+
+    // And the same person is not on the chase list. They were never asked, so
+    // there is nothing to chase — the distinction the two views exist to draw.
+    const person = await observer.query<{ name: string }>(
+      `select coalesce(nullif(btrim(known_as), ''), given_name) || ' ' || family_name as name
+         from public.people where id = $1`,
+      [membership.rows[0].person_id],
+    );
+    expect(defects[0].person).toBe(person.rows[0].name);
+    expect(content.chase.map((item) => item.person)).not.toContain(person.rows[0].name);
+  });
+
+  it("names a walk-up to reconcile — the classification the corrected view now emits", async () => {
+    const event = await occurredEvent();
+    await recordWalkUpAttendance(actorPersonId, event.id, {
+      givenName: "Devon",
+      familyName: NAME_MARKER,
+      phone: "07700 900081",
+      email: null,
+      presence: "present",
+    });
+
+    const walkUps = (await compute()).fix.filter((item) => item.kind === "walk_up_unreconciled");
+    expect(walkUps).toHaveLength(1);
+    expect(walkUps[0].what).toMatch(/reconciled/);
+  });
+
+  it("is empty when the week went as intended", async () => {
+    const event = await occurredEvent(2);
+    const invitations = await invitationsFor(event.id);
+    await answer(invitations[0].id, "yes", null);
+    await answer(invitations[1].id, "yes", null);
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[0].season_membership_id}`,
+      "present",
+    );
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[1].season_membership_id}`,
+      "late",
+    );
+
+    const content = await compute();
+    expect(content.chase).toEqual([]);
+    expect(content.fix).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The rest of the stored content
+// ---------------------------------------------------------------------------
+
+describe("what the snapshot still stores, whatever the screen leads with", () => {
+  it("stores the window's events, the response breakdown and the attendance", async () => {
+    // `slice-ux.md` § 10 requires all three, and the screen showing two action
+    // lists does not relieve the snapshot of carrying them.
+    const event = await occurredEvent();
+    const invitations = await invitationsFor(event.id);
+    await answer(invitations[0].id, "yes", null);
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[0].season_membership_id}`,
+      "present",
+    );
+
+    const content = await compute();
+    expect(content.events.map((entry) => entry.id)).toContain(event.id);
+    expect(content.events.find((entry) => entry.id === event.id)?.status).toBe("occurred");
+    expect(content.responseBreakdown.find((row) => row.eventId === event.id)?.respondedYes).toBe(1);
+    expect(content.attendance.present).toBe(1);
+  });
+
+  it("lists a member with a required onboarding item outstanding, in its own block", async () => {
+    await occurredEvent();
+    const content = await compute();
+
+    const direct = await observer.query<{ count: string }>(
+      `select count(distinct m.person_id)::text as count
+         from public.onboarding_items oi
+         join public.onboarding_item_types t on t.id = oi.item_type_id
+         join public.season_memberships m on m.id = oi.season_membership_id
+        where m.season_id = $1 and m.status in ('onboarding', 'active')
+          and t.is_required and oi.status not in ('complete', 'waived', 'not_applicable')`,
+      [seasonId],
+    );
+
+    expect(content.onboarding).toHaveLength(Number(direct.rows[0].count));
+    expect(content.onboarding.length).toBeGreaterThan(0);
+    // And they are nowhere near the week's chases: Brian put them in their own
+    // block precisely because they would otherwise swamp it.
+    expect(content.chase.map((item) => item.person)).not.toContain(content.onboarding[0].person);
+  });
+
+  it("reports availability as a level count, and offers nowhere to write a diagnosis", async () => {
+    await occurredEvent();
+    const content = await compute();
+
+    const direct = await observer.query<{ level: string; tally: string }>(
+      `select level::text as level, count(*)::text as tally from public.current_availability
+        where season_id = $1 group by level`,
+      [seasonId],
+    );
+    for (const row of direct.rows) {
+      expect(content.availability[row.level as "green" | "orange" | "red"]).toBe(Number(row.tally));
+    }
+
+    // Three numbers, and nothing else. A note, a narrative or a free-text field
+    // would have to appear as a fourth key.
+    expect(Object.keys(content.availability).sort()).toEqual(["green", "orange", "red"]);
+  });
+
+  it("carries no availability narrative anywhere in the stored content", async () => {
+    await occurredEvent();
+    const generated = await generateWeeklyReport(actorPersonId, REPORT_ON);
+    const raw = await observer.query<{ content: string }>(
+      "select content::text as content from public.weekly_reports where id = $1",
+      [generated.id],
+    );
+
+    for (const forbidden of ["diagnosis", "injuryNote", "injury_note", "narrative", "healthNote"]) {
+      expect(raw.rows[0].content.toLowerCase()).not.toContain(forbidden.toLowerCase());
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Invariant E6
+// ---------------------------------------------------------------------------
+
+describe("invariant E6 — a non-soliciting event never enters the response stream", () => {
+  it("keeps its audience off the chase list and out of the breakdown", async () => {
+    const informational = await approvedEvent(3, {
+      name: `${NAME_MARKER} Committee briefing`,
+      solicitsResponse: false,
+      isMandatory: false,
+    });
+
+    const content = await compute();
+
+    // It is an event in the window, and the snapshot says so — the exclusion is
+    // about responses, not about the event's existence.
+    expect(content.events.map((entry) => entry.id)).toContain(informational.id);
+    expect(content.events.find((entry) => entry.id === informational.id)?.solicitsResponse).toBe(
+      false,
+    );
+
+    // And nobody is being chased about it.
+    expect(content.responseBreakdown.map((row) => row.eventId)).not.toContain(informational.id);
+    expect(content.chase.map((item) => item.event)).not.toContain(informational.name);
+
+    // Non-vacuous: an otherwise identical soliciting event does produce chases.
+    const soliciting = await approvedEvent(3, { name: `${NAME_MARKER} Wednesday practice` });
+    const withBoth = await compute();
+    expect(withBoth.responseBreakdown.map((row) => row.eventId)).toContain(soliciting.id);
+    expect(withBoth.chase.map((item) => item.event)).toContain(soliciting.name);
   });
 });
 
@@ -267,10 +632,8 @@ describe("invariant M5 — a published report is immutable", () => {
     expect(first.version).toBe(1);
     expect(first.supersedesId).toBeNull();
 
-    // Read through a connection that is not the one that wrote it, and read as
-    // the database's own text rather than as a re-serialised object — the point
-    // is the stored bytes, and `JSON.stringify` would compare this module's
-    // formatting to PostgreSQL's instead.
+    // Read as the database's own text rather than as a re-serialised object:
+    // the point is the stored bytes.
     const readRaw = async (id: string) => {
       const result = await observer.query<{
         content: string;
@@ -296,7 +659,8 @@ describe("invariant M5 — a published report is immutable", () => {
     expect(after.generated_at.toISOString()).toBe(before.generated_at.toISOString());
     expect(after.data_as_of.toISOString()).toBe(before.data_as_of.toISOString());
 
-    // And version 1 now reports itself superseded, derived rather than stored.
+    // Superseded-ness is derived from a later row pointing at this one, never
+    // stored — `weekly_reports` has no status column on purpose.
     expect((await readStoredReport(first.id)).isSuperseded).toBe(true);
     expect((await readStoredReport(second.id)).isSuperseded).toBe(false);
   });
@@ -308,20 +672,18 @@ describe("invariant M5 — a published report is immutable", () => {
 
     const generated = await generateWeeklyReport(actorPersonId, REPORT_ON);
     const stored = parseReportContent((await readStoredReport(generated.id)).content);
-    const declinedWhenGenerated = sectionOf(stored as WeeklyReportContent, "not_attending").count;
-    expect(declinedWhenGenerated).toBe(1);
+    expect(stored?.chase.filter((item) => item.kind === "said_no")).toHaveLength(1);
 
     // Change the world underneath it: two more people decline.
     await answer(invitations[1].id, "no", "Injured.");
     await answer(invitations[2].id, "no", "Working.");
 
     // The recomputed picture moved.
-    expect(sectionOf(await preview(), "not_attending").count).toBe(3);
+    expect((await compute()).chase.filter((item) => item.kind === "said_no")).toHaveLength(3);
 
-    // The snapshot did not. This is the whole of M5: "what leadership saw on
-    // the 15th" is still answerable, and the answer is still one.
+    // The snapshot did not. This is the whole of M5.
     const reread = parseReportContent((await readStoredReport(generated.id)).content);
-    expect(sectionOf(reread as WeeklyReportContent, "not_attending").count).toBe(1);
+    expect(reread?.chase.filter((item) => item.kind === "said_no")).toHaveLength(1);
   });
 
   it("records the actor, the definitions version and an audit row", async () => {
@@ -359,8 +721,7 @@ describe("invariant M5 — a published report is immutable", () => {
     const first = await generateWeeklyReport(actorPersonId, REPORT_ON);
 
     // The composite foreign key is the guarantee. What is under test is that a
-    // caller meets a sentence rather than a raw integrity error — the issue
-    // asks for exactly this.
+    // caller meets a sentence rather than a raw integrity error.
     const refusal = await refusalFrom(async () =>
       withTransaction(async (tx) =>
         tx.query(
@@ -368,7 +729,7 @@ describe("invariant M5 — a published report is immutable", () => {
              (season_id, report_on, version, supersedes_id, metric_definition_version,
               data_as_of, content)
            values ($1, $2::date, 2, $3, 'test', now(), '{}'::jsonb)`,
-          [seasonId, "2027-03-22", first.id],
+          [seasonId, OTHER_REPORT_ON, first.id],
         ),
       ),
     );
@@ -398,9 +759,6 @@ describe("invariant M5 — a published report is immutable", () => {
   });
 
   it("has no path that updates or deletes a stored report", async () => {
-    await occurredEvent();
-    await generateWeeklyReport(actorPersonId, REPORT_ON);
-
     // Structural rather than behavioural: the module cannot rewrite a snapshot
     // because it contains no statement that could. A future edit that added one
     // fails here rather than in production, where the evidence would already be
@@ -411,320 +769,93 @@ describe("invariant M5 — a published report is immutable", () => {
     expect(source).not.toMatch(/delete\s+from\s+public\.weekly_reports/i);
   });
 
-  it("lists every version for a date, newest first, with the current one marked", async () => {
+  it("keeps the lineage readable even though no screen shows it", async () => {
+    // Brian's decision removed the version list from the interface, not the
+    // versions from the database.
     await occurredEvent();
     await generateWeeklyReport(actorPersonId, REPORT_ON);
     await generateWeeklyReport(actorPersonId, REPORT_ON);
 
     const versions = await listReportVersions(REPORT_ON);
     expect(versions.map((version) => version.version)).toEqual([2, 1]);
-    expect(versions[0].isSuperseded).toBe(false);
-    expect(versions[1].isSuperseded).toBe(true);
     expect(versions[0].supersedesId).toBe(versions[1].id);
     expect(versions[1].supersedesId).toBeNull();
-
-    const current = await readCurrentReport(REPORT_ON);
-    expect(current?.id).toBe(versions[0].id);
+    expect(versions[0].isSuperseded).toBe(false);
+    expect(versions[1].isSuperseded).toBe(true);
   });
+});
 
-  it("has no stored report before one is generated, which is not an all-clear", async () => {
+// ---------------------------------------------------------------------------
+// Opening the report — the only thing the interface calls
+// ---------------------------------------------------------------------------
+
+describe("opening the report", () => {
+  it("files one snapshot on the first look and reuses it for the rest of the day", async () => {
     await occurredEvent();
     expect(await readCurrentReport(REPORT_ON)).toBeNull();
-    expect(await listReportVersions(REPORT_ON)).toEqual([]);
 
-    // And the exceptions were there the whole time.
-    expect(sectionOf(await preview(), "nonresponses").count).toBeGreaterThan(0);
+    const first = await readReportForDate(actorPersonId, REPORT_ON);
+    expect(first.version).toBe(1);
+
+    const second = await readReportForDate(actorPersonId, REPORT_ON);
+    const third = await readReportForDate(actorPersonId, REPORT_ON);
+
+    // The same row, three times. Brian never presses anything, and the table
+    // does not fill with a near-identical snapshot per page view.
+    expect(second.id).toBe(first.id);
+    expect(third.id).toBe(first.id);
+    expect(await listReportVersions(REPORT_ON)).toHaveLength(1);
   });
-});
 
-// ---------------------------------------------------------------------------
-// Preview writes nothing
-// ---------------------------------------------------------------------------
+  it("returns the stored snapshot, not a recomputation, on the second look", async () => {
+    const event = await occurredEvent();
+    const invitations = await invitationsFor(event.id);
+    await answer(invitations[0].id, "no", "Away at a conference.");
 
-describe("preview and generate are different operations", () => {
-  it("writes nothing at all, however many times it is run", async () => {
+    const first = await readReportForDate(actorPersonId, REPORT_ON);
+    expect(
+      parseReportContent(first.content)?.chase.filter((item) => item.kind === "said_no"),
+    ).toHaveLength(1);
+
+    await answer(invitations[1].id, "no", "Injured.");
+
+    const again = await readReportForDate(actorPersonId, REPORT_ON);
+    expect(again.id).toBe(first.id);
+    // The live picture has two declines; what leadership sees today still has
+    // the one it had when the report was opened.
+    expect((await compute()).chase.filter((item) => item.kind === "said_no")).toHaveLength(2);
+    expect(
+      parseReportContent(again.content)?.chase.filter((item) => item.kind === "said_no"),
+    ).toHaveLength(1);
+  });
+
+  it("files tomorrow's look as the next version, superseding today's", async () => {
     await occurredEvent();
+    const today = await readReportForDate(actorPersonId, REPORT_ON);
 
-    // Scoped to what a preview could conceivably have written, rather than to
-    // whole tables. Vitest runs these suites in parallel against one database
-    // and the other service suites write `audit_events` constantly, so a
-    // table-wide count measures them and fails at random.
-    const countRows = async (from: string) => {
-      const result = await observer.query<{ count: string }>(
-        `select count(*)::text as count from public.${from}`,
-      );
-      return result.rows[0].count;
-    };
-    const scoped = async () => ({
-      reports: await countRows(`weekly_reports where report_on = '${REPORT_ON}'::date`),
-      audit: await countRows("audit_events where entity_table = 'weekly_reports'"),
-      actions: await countRows("follow_up_actions"),
-    });
-
-    const before = await scoped();
-
-    await previewWeeklyReport(REPORT_ON);
-    await previewWeeklyReport(REPORT_ON);
-
-    expect(await scoped()).toEqual(before);
-  });
-
-  it("stores exactly what the preview showed", async () => {
-    const event = await occurredEvent();
-    const invitations = await invitationsFor(event.id);
-    await answer(invitations[0].id, "no", "Away.");
-
-    const shown = await preview();
-    const generated = await generateWeeklyReport(actorPersonId, REPORT_ON);
-    const stored = parseReportContent((await readStoredReport(generated.id)).content);
-
-    for (const key of shown.exceptions.map((section) => section.key)) {
-      expect(sectionOf(stored as WeeklyReportContent, key).count).toBe(sectionOf(shown, key).count);
-    }
-    expect(stored?.window).toEqual(shown.window);
-    expect(stored?.schema).toBe(REPORT_CONTENT_SCHEMA);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// The five views, and what each section is
-// ---------------------------------------------------------------------------
-
-describe("every section comes from the view that owns it", () => {
-  it("counts nonresponses exactly as nonresponse_queue does for the window", async () => {
-    const event = await occurredEvent();
-    const invitations = await invitationsFor(event.id);
-    await answer(invitations[0].id, "yes", null);
-
-    const direct = await observer.query<{ count: string }>(
-      `select count(*)::text as count from public.nonresponse_queue
-        where season_id = $1 and scheduled_on between $2::date and $3::date`,
-      [seasonId, ...Object.values(reportWindow(REPORT_ON))],
-    );
-
-    const content = await preview();
-    expect(sectionOf(content, "nonresponses").count).toBe(Number(direct.rows[0].count));
-    // Non-vacuous: this event contributed two of them.
-    expect(sectionOf(content, "nonresponses").count).toBeGreaterThanOrEqual(2);
-  });
-
-  it("counts declines and carries their reasons, from invitation_response_state", async () => {
-    const event = await occurredEvent();
-    const invitations = await invitationsFor(event.id);
-    await answer(invitations[0].id, "no", "Injury — ankle.");
-    await answer(invitations[1].id, "no", "Academic deadline.");
-
-    const section = sectionOf(await preview(), "not_attending");
-    expect(section.count).toBe(2);
-
-    const details = section.items.map((item) => item.detail);
-    expect(details).toContain("Injury — ankle.");
-    expect(details).toContain("Academic deadline.");
-    // The reason is displayed to the operator group, and the person it belongs
-    // to is displayed with it — an unattributed reason is not actionable.
-    expect(section.items.every((item) => item.person !== null)).toBe(true);
-  });
-
-  it("counts mismatches exactly as rsvp_attendance_mismatches does", async () => {
-    const event = await occurredEvent();
-    const invitations = await invitationsFor(event.id);
-    const key = (index: number) => `player:${invitations[index].season_membership_id}`;
-
-    await answer(invitations[0].id, "yes", null);
-    await answer(invitations[1].id, "no", "Working.");
-    await recordAttendance(actorPersonId, event.id, key(1), "present");
-    await recordAttendance(actorPersonId, event.id, key(2), "present");
-
-    const direct = await observer.query<{ count: string }>(
-      `select count(*)::text as count from public.rsvp_attendance_mismatches
-        where season_id = $1 and scheduled_on between $2::date and $3::date`,
-      [seasonId, ...Object.values(reportWindow(REPORT_ON))],
-    );
-
-    const section = sectionOf(await preview(), "mismatches");
-    expect(section.count).toBe(Number(direct.rows[0].count));
-    expect(section.items.map((item) => item.detail)).toContain("Not attending but turned up");
-  });
-
-  it("includes a walk-up as a mismatch, which the corrected view now emits", async () => {
-    const event = await occurredEvent();
-    await recordWalkUpAttendance(actorPersonId, event.id, {
-      givenName: "Devon",
-      familyName: NAME_MARKER,
-      phone: "07700 900081",
-      email: null,
-      presence: "present",
-    });
-
-    const section = sectionOf(await preview(), "mismatches");
-    expect(section.items.map((item) => item.detail)).toContain("Turned up without an invitation");
-  });
-
-  it("counts absences and the registers nobody completed", async () => {
-    const event = await occurredEvent();
-    const invitations = await invitationsFor(event.id);
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[0].season_membership_id}`,
-      "absent",
-    );
-
-    // A second occurred event with no attendance at all — the half an absence
-    // row can never show, and the one an operator has to be told about.
-    await occurredEvent(2, { name: `${NAME_MARKER} Friday session` });
-
-    const section = sectionOf(await preview(), "absences");
-    expect(section.items.some((item) => item.detail === "Absent")).toBe(true);
-    expect(section.items.some((item) => item.detail?.startsWith("No attendance recorded"))).toBe(
-      true,
-    );
-    expect(section.note).toMatch(/incomplete register/);
-  });
-
-  it("counts uninvited audience members from their own view, and never as a chase", async () => {
-    // An audience member with no invitation: the approval defect. Adding the
-    // row directly is the only way to produce it, because the application
-    // deliberately invites everybody it confirms.
-    const event = await occurredEvent();
-    const membership = await observer.query<{ id: string; person_id: string }>(
-      `select m.id, m.person_id from public.season_memberships m
-        where m.season_id = $1 and m.status = 'active'
-          and m.id not in (select season_membership_id from public.event_audience_members
-                            where event_id = $2 and season_membership_id is not null)
-        limit 1`,
-      [seasonId, event.id],
-    );
+    // Age today's snapshot by a day, which is what tomorrow will look like.
     await observer.query(
-      `insert into public.event_audience_members
-         (event_id, season_id, capacity, season_membership_id, added_by_person_id)
-       values ($1, $2, 'player', $3, $4)`,
-      [event.id, seasonId, membership.rows[0].id, actorPersonId],
+      "update public.weekly_reports set generated_at = generated_at - interval '1 day' where id = $1",
+      [today.id],
     );
 
-    const content = await preview();
-    const defect = sectionOf(content, "uninvited_audience");
-    expect(defect.count).toBe(1);
-    expect(defect.isApprovalDefect).toBe(true);
-    expect(defect.note).toMatch(/never invited/i);
-    expect(defect.note).not.toMatch(/chase|remind/i);
-
-    // And the same person is not counted as a nonresponse. They were never
-    // asked, so there is nothing to chase — which is the distinction the two
-    // views exist to draw.
-    const nonresponders = sectionOf(content, "nonresponses").items.map((item) => item.person);
-    const person = await observer.query<{ name: string }>(
-      `select coalesce(nullif(btrim(known_as), ''), given_name) || ' ' || family_name as name
-         from public.people where id = $1`,
-      [membership.rows[0].person_id],
-    );
-    expect(defect.items.map((item) => item.person)).toContain(person.rows[0].name);
-    expect(nonresponders).not.toContain(person.rows[0].name);
+    const tomorrow = await readReportForDate(actorPersonId, REPORT_ON);
+    expect(tomorrow.id).not.toBe(today.id);
+    expect(tomorrow.version).toBe(2);
+    expect(tomorrow.supersedesId).toBe(today.id);
   });
 
-  it("reports availability as a level count, and offers nowhere to write a diagnosis", async () => {
-    await occurredEvent();
-    const content = await preview();
-
-    const direct = await observer.query<{ level: string; tally: string }>(
-      `select level::text as level, count(*)::text as tally from public.current_availability
-        where season_id = $1 group by level`,
-      [seasonId],
-    );
-    for (const row of direct.rows) {
-      expect(content.availability[row.level as "green" | "orange" | "red"]).toBe(Number(row.tally));
-    }
-
-    // Three numbers, and nothing else. A note, a narrative or a free-text field
-    // would have to appear as a fourth key.
-    expect(Object.keys(content.availability).sort()).toEqual(["green", "orange", "red"]);
-  });
-
-  it("carries no availability narrative anywhere in the stored content", async () => {
-    await occurredEvent();
-    const generated = await generateWeeklyReport(actorPersonId, REPORT_ON);
-    const raw = await observer.query<{ content: string }>(
-      "select content::text as content from public.weekly_reports where id = $1",
-      [generated.id],
+  it("refuses an unparseable date before it writes anything", async () => {
+    const before = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.weekly_reports",
     );
 
-    for (const forbidden of ["diagnosis", "injuryNote", "injury_note", "narrative", "healthNote"]) {
-      expect(raw.rows[0].content.toLowerCase()).not.toContain(forbidden.toLowerCase());
-    }
-  });
-});
+    await expect(readReportForDate(actorPersonId, "last Monday")).rejects.toThrow(/YYYY-MM-DD/);
 
-// ---------------------------------------------------------------------------
-// Invariant E6
-// ---------------------------------------------------------------------------
-
-describe("invariant E6 — a non-soliciting event never enters the response stream", () => {
-  it("keeps its audience out of the breakdown and out of the nonresponse queue", async () => {
-    // Approved, in the window, with an audience, and soliciting nothing.
-    const informational = await approvedEvent(3, {
-      name: `${NAME_MARKER} Committee briefing`,
-      solicitsResponse: false,
-      isMandatory: false,
-    });
-
-    const content = await preview();
-
-    // It is an event in the window, and the report says so — the exclusion is
-    // about responses, not about the event's existence.
-    expect(content.events.map((entry) => entry.id)).toContain(informational.id);
-    expect(content.events.find((entry) => entry.id === informational.id)?.solicitsResponse).toBe(
-      false,
+    const after = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.weekly_reports",
     );
-
-    // And nobody is awaiting a response to it.
-    expect(content.responseBreakdown.map((row) => row.eventId)).not.toContain(informational.id);
-    expect(sectionOf(content, "nonresponses").items.map((item) => item.event)).not.toContain(
-      informational.name,
-    );
-
-    // Non-vacuous: an otherwise identical soliciting event does appear.
-    const soliciting = await approvedEvent(3, { name: `${NAME_MARKER} Wednesday practice` });
-    const withBoth = await preview();
-    expect(withBoth.responseBreakdown.map((row) => row.eventId)).toContain(soliciting.id);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// The window bounds what is counted
-// ---------------------------------------------------------------------------
-
-describe("the window bounds the report", () => {
-  it("excludes an event outside it, and includes the same event inside it", async () => {
-    const outside = await occurredEvent(3, {
-      name: `${NAME_MARKER} February practice`,
-      scheduledOn: OUT_OF_WINDOW,
-    });
-
-    const content = await preview();
-    expect(content.events.map((entry) => entry.id)).not.toContain(outside.id);
-
-    // The same rows, read for a reporting date whose window contains them.
-    const other = await previewWeeklyReport(OTHER_REPORT_ON);
-    expect(other.content.events.map((entry) => entry.id)).toContain(outside.id);
-  });
-
-  it("computes the content for the season it is given, and records which", async () => {
-    await occurredEvent();
-    const season = await readCurrentSeason();
-    const content = await withTransaction((tx) => computeReportContent(tx, season, REPORT_ON));
-
-    expect(content.season).toEqual({ id: season.id, label: season.label });
-    expect(content.reportOn).toBe(REPORT_ON);
-    expect(content.metricDefinitionVersion).toBe(METRIC_DEFINITION_VERSION);
-    expect(content.exceptions.map((section) => section.key)).toEqual([
-      "nonresponses",
-      "not_attending",
-      "mismatches",
-      "absences",
-      "onboarding",
-      "uninvited_audience",
-    ]);
-    expect(content.exceptions.map((section) => section.position)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(after.rows[0].count).toBe(before.rows[0].count);
   });
 });
 
@@ -756,8 +887,17 @@ describe("a snapshot under other metric definitions stays readable", () => {
     expect(parseReportContent("a string")).toBeNull();
     expect(parseReportContent({})).toBeNull();
     expect(parseReportContent({ schema: REPORT_CONTENT_SCHEMA })).toBeNull();
+    // The first build's own shape, which this one no longer understands.
     expect(
-      parseReportContent({ schema: REPORT_CONTENT_SCHEMA, exceptions: [], reportOn: "2027-03-15" }),
+      parseReportContent({ schema: "lancers.monday-exception-report.v1", exceptions: [] }),
+    ).toBeNull();
+    expect(
+      parseReportContent({
+        schema: REPORT_CONTENT_SCHEMA,
+        chase: [],
+        fix: [],
+        reportOn: "2027-03-25",
+      }),
     ).not.toBeNull();
   });
 });

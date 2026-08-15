@@ -1,21 +1,26 @@
 /**
- * UX-80, UX-81, UX-82 and UX-83 — LAN-81.
+ * The Monday report screen — LAN-81.
  *
- * Four screens on one route, and the two properties that matter most are both
- * screen properties rather than service ones:
+ * Rewritten after Brian's 15 August 2026 review. The screen it used to test —
+ * six counted categories, a preview step, a Generate button, a version list and
+ * an "Open first action" that jumped to an anchor — is gone, and so are the
+ * assertions that pinned it. What replaced it is two lists and a date field.
  *
- *   * **The stored report reads stored content.** UX-81 is handed a snapshot
- *     and must render *that*, not a fresh computation. So the preview service
- *     is mocked to throw here: if the screen ever calls it, the test fails
- *     rather than passing on numbers that happen to agree.
+ * Three properties survive the redesign unchanged, and they are the ones worth
+ * having:
+ *
+ *   * **The screen renders stored content.** It is handed a snapshot and must
+ *     render *that*, never a recomputation.
  *
  *   * **The authorization binding.** The capability map is tested exhaustively
  *     elsewhere and the *wiring* is not, so gating this page on the wrong
- *     capability — or on the ordinary-operator floor — would pass typecheck and
- *     the whole suite. These tests drive the real gate with real role codes.
+ *     capability would pass typecheck and the whole suite. These tests drive
+ *     the real gate with real role codes.
  *
- * The service layer is mocked. What is under test is the screen: who reaches
- * it, what it states, and what it offers.
+ *   * **No protected data reaches an unauthorized reader.** Not one name, not
+ *     one reason, in the markup.
+ *
+ * The service layer is mocked. What is under test is the screen.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
@@ -33,37 +38,29 @@ vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("../../login/actions", () => ({ signOut: vi.fn() }));
 vi.mock("@/lib/services/weekly-report", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/weekly-report")>();
-  return {
-    ...actual,
-    previewWeeklyReport: vi.fn(),
-    readCurrentReport: vi.fn(),
-    listReportVersions: vi.fn(),
-  };
+  return { ...actual, readReportForDate: vi.fn() };
 });
 
 import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
-  listReportVersions,
-  previewWeeklyReport,
-  readCurrentReport,
+  readReportForDate,
   REPORT_CONTENT_SCHEMA,
-  type ExceptionSection,
-  type ReportPreview,
+  type ChaseItem,
+  type FixItem,
   type StoredReport,
   type WeeklyReportContent,
 } from "@/lib/services/weekly-report";
 import ReportPage from "./page";
 import {
   AVAILABILITY_NOTE,
-  EMPTY_HEADLINE,
-  EMPTY_IS_NOT_AN_ALL_CLEAR,
-  OPEN_FIRST_ACTION,
-  PREVIEW_HEADLINE,
-  PREVIEW_MEANING,
+  CHASE_EMPTY,
+  CHASE_HEADLINE,
+  FIX_EMPTY,
+  FIX_HEADLINE,
+  NOTHING_AT_ALL,
+  ONBOARDING_HEADLINE,
   REPORT_HEADLINE,
-  STORED_ONLY_NOTE,
-  VERSIONS_HEADLINE,
 } from "./presentation";
 
 const REPORT_ON = "2026-10-19";
@@ -92,91 +89,69 @@ function props(query: Record<string, string> = {}) {
   } as unknown as PageProps<"/operate/report">;
 }
 
-function section(overrides: Partial<ExceptionSection> = {}): ExceptionSection {
-  return {
-    key: "nonresponses",
-    position: 1,
-    title: "Nonresponses",
-    count: 8,
-    summary: "8 players across 2 events",
-    note: "Review queue",
-    isApprovalDefect: false,
-    items: [
-      {
-        person: "Leo Hartwell",
-        event: "Team Practice",
-        on: "2026-10-14",
-        detail: "Outstanding",
-      },
-    ],
-    ...overrides,
-  };
-}
+const CHASE: ChaseItem[] = [
+  {
+    kind: "said_yes_absent",
+    person: "Leo Hartwell",
+    what: "Said yes, marked absent",
+    event: "Team Practice",
+    on: "2026-10-14",
+    isMandatory: true,
+    reason: null,
+  },
+  {
+    kind: "no_answer",
+    person: "Nia Sorrell",
+    what: "Never answered",
+    event: "Team Practice",
+    on: "2026-10-14",
+    isMandatory: true,
+    reason: null,
+  },
+  {
+    kind: "said_no",
+    person: "Kit Ashdown",
+    what: "Not attending",
+    event: "Club social",
+    on: "2026-10-13",
+    isMandatory: false,
+    reason: "Coursework deadline.",
+  },
+];
+
+const FIX: FixItem[] = [
+  {
+    kind: "register_not_taken",
+    event: "Chalk — week 3",
+    on: "2026-10-15",
+    what: "Register never taken — 12 people were asked",
+    person: null,
+  },
+  {
+    kind: "approved_never_invited",
+    event: "Team Practice",
+    on: "2026-10-14",
+    what: "Approved for this event and never invited",
+    person: "Ivo Marchetti",
+  },
+];
 
 function content(overrides: Partial<WeeklyReportContent> = {}): WeeklyReportContent {
   return {
     schema: REPORT_CONTENT_SCHEMA,
-    metricDefinitionVersion: "LAN-81.1",
+    metricDefinitionVersion: "LAN-81.2",
     reportOn: REPORT_ON,
     window: { from: "2026-10-12", to: "2026-10-18" },
     season: { id: "season-1", label: "2026-27" },
-    exceptions: [
-      section(),
-      section({
-        key: "not_attending",
-        position: 2,
-        title: "Not attending",
-        count: 5,
-        summary: "5 responses and reasons",
-        note: "Academic 3 · Injury 2",
-        items: [
-          { person: "Nia Sorrell", event: "Team Practice", on: "2026-10-14", detail: "Injury" },
-        ],
-      }),
-      section({
-        key: "mismatches",
-        position: 3,
-        title: "RSVP / attendance mismatches",
-        count: 3,
-        summary: "3 records",
-        note: "Attending but absent 2",
-        items: [],
-      }),
-      section({
-        key: "absences",
-        position: 4,
-        title: "Absences / missing attendance",
-        count: 2,
-        summary: "2 absences",
-        note: "1 incomplete register",
-        items: [],
-      }),
-      section({
-        key: "onboarding",
-        position: 5,
-        title: "Onboarding exceptions",
-        count: 2,
-        summary: "2 members",
-        note: "Required item outstanding",
-        items: [],
-      }),
-      section({
-        key: "uninvited_audience",
-        position: 6,
-        title: "Uninvited audience defects",
-        count: 1,
-        summary: "1 approval defect",
-        note: "Approved but never invited — requires review",
-        isApprovalDefect: true,
-        items: [
-          {
-            person: "Ivo Marchetti",
-            event: "Team Practice",
-            on: "2026-10-14",
-            detail: "Confirmed in the audience and never invited",
-          },
-        ],
-      }),
+    chase: CHASE,
+    fix: FIX,
+    onboarding: [
+      { person: "Rowan Delacourt", membershipStatus: "active", outstanding: "Kit sorted" },
+      {
+        person: "Sim Trelawney",
+        membershipStatus: "onboarding",
+        outstanding: "BUCS Play registration",
+      },
     ],
     events: [
       {
@@ -186,9 +161,24 @@ function content(overrides: Partial<WeeklyReportContent> = {}): WeeklyReportCont
         status: "occurred",
         on: "2026-10-14",
         solicitsResponse: true,
+        isMandatory: true,
+        invited: 24,
+        recorded: 15,
       },
     ],
-    responseBreakdown: [],
+    responseBreakdown: [
+      {
+        eventId: "event-1",
+        eventName: "Team Practice",
+        on: "2026-10-14",
+        respondedYes: 18,
+        respondedNo: 3,
+        awaitingResponse: 3,
+        expiredWithoutResponse: 0,
+        cancelled: 0,
+        neverInvited: 0,
+      },
+    ],
     attendance: { present: 24, late: 2, excused: 1, absent: 2, eventsWithNoRegister: 1 },
     availability: { green: 31, orange: 4, red: 2 },
     ...overrides,
@@ -202,7 +192,7 @@ function stored(overrides: Partial<StoredReport> = {}): StoredReport {
     reportOn: REPORT_ON,
     version: 2,
     supersedesId: "00810081-0081-4081-8081-000000000001",
-    metricDefinitionVersion: "LAN-81.1",
+    metricDefinitionVersion: "LAN-81.2",
     dataAsOf: "2026-10-19T07:04:00Z",
     generatedAt: "2026-10-19T07:05:00Z",
     generatedByName: "Morgan Pike",
@@ -212,34 +202,10 @@ function stored(overrides: Partial<StoredReport> = {}): StoredReport {
   };
 }
 
-function preview(overrides: Partial<ReportPreview> = {}): ReportPreview {
-  const body = overrides.content ?? content();
-  return {
-    season: { id: "season-1", label: "2026-27", status: "active" },
-    reportOn: REPORT_ON,
-    window: body.window,
-    content: body,
-    computedAt: "2026-10-19T07:05:00Z",
-    ...overrides,
-  };
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
   signedInAs(["secretary"]);
-  vi.mocked(previewWeeklyReport).mockResolvedValue(preview());
-  vi.mocked(readCurrentReport).mockResolvedValue(stored());
-  vi.mocked(listReportVersions).mockResolvedValue([
-    stored(),
-    stored({
-      id: "00810081-0081-4081-8081-000000000001",
-      version: 1,
-      supersedesId: null,
-      dataAsOf: "2026-10-19T06:40:00Z",
-      generatedAt: "2026-10-19T06:42:00Z",
-      isSuperseded: true,
-    }),
-  ]);
+  vi.mocked(readReportForDate).mockResolvedValue(stored());
 });
 
 // ---------------------------------------------------------------------------
@@ -258,32 +224,31 @@ describe("who reaches the report at all", () => {
     },
   );
 
-  it.each(["head_coach", "offence_coach", "defence_coach", "treasurer", "it_officer"])(
-    "refuses %s with UX-05 and no report content",
+  it.each(["treasurer", "it_officer", "social_secretary"])(
+    "refuses %s with no report content at all",
     async (code) => {
       signedInAs([code]);
 
       const { container } = render(await ReportPage(props()));
 
       expect(container.textContent).toContain("You do not have access to this action");
-      expect(container.textContent).not.toContain(REPORT_HEADLINE);
-      // Not a single stored name, count or reason in the payload.
-      expect(container.innerHTML).not.toContain("Leo Hartwell");
-      expect(container.innerHTML).not.toContain("Nia Sorrell");
-      expect(container.innerHTML).not.toContain("Injury");
+      expect(container.textContent).not.toContain(CHASE_HEADLINE);
+      // Not one stored name, and not one reason, in the payload.
+      for (const secret of ["Leo Hartwell", "Kit Ashdown", "Coursework deadline"]) {
+        expect(container.innerHTML).not.toContain(secret);
+      }
     },
   );
 
   it("reads nothing at all for a refused operator", async () => {
-    signedInAs(["head_coach"]);
+    signedInAs(["treasurer"]);
 
     render(await ReportPage(props()));
 
     // The gate runs before the read, so a refused caller does not even cause a
-    // query. Authorization that refuses *after* reading has already read.
-    expect(readCurrentReport).not.toHaveBeenCalled();
-    expect(previewWeeklyReport).not.toHaveBeenCalled();
-    expect(listReportVersions).not.toHaveBeenCalled();
+    // query — and, since opening the report files a snapshot, does not cause a
+    // write either.
+    expect(readReportForDate).not.toHaveBeenCalled();
   });
 
   it("sends a caller with no session to the login page, keeping the route", async () => {
@@ -293,286 +258,213 @@ describe("who reaches the report at all", () => {
       "REDIRECT:/login?redirectTo=%2Foperate%2Freport",
     );
   });
+
+  it("files the snapshot as the operator who opened it", async () => {
+    signedInAs(["president"]);
+
+    await ReportPage(props());
+
+    expect(readReportForDate).toHaveBeenCalledWith(
+      "00000000-0000-4000-8000-000000000002",
+      REPORT_ON,
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
-// UX-81 — the stored snapshot
+// The report
 // ---------------------------------------------------------------------------
 
-describe("UX-81 — the stored snapshot", () => {
-  it("renders the stored content and never recomputes it", async () => {
-    // The one assertion this whole screen exists for. If the page ever asks the
-    // preview for its numbers, this fails.
-    vi.mocked(previewWeeklyReport).mockRejectedValue(
-      new Error("the stored report recomputed its content"),
-    );
-
+describe("the report", () => {
+  it("leads with the two lists, chase before fix", async () => {
     const { container } = render(await ReportPage(props()));
 
-    expect(screen.getByTestId("stored-report")).toBeVisible();
-    expect(container.textContent).toContain(STORED_ONLY_NOTE);
-    expect(previewWeeklyReport).not.toHaveBeenCalled();
+    const text = container.textContent ?? "";
+    expect(text).toContain(CHASE_HEADLINE);
+    expect(text).toContain(FIX_HEADLINE);
+    expect(text.indexOf(CHASE_HEADLINE)).toBeLessThan(text.indexOf(FIX_HEADLINE));
+    expect(text.indexOf(FIX_HEADLINE)).toBeLessThan(text.indexOf(ONBOARDING_HEADLINE));
   });
 
-  it("shows the snapshot metadata the wireframe names", async () => {
+  it("counts each list in its own heading, rather than in a row of tiles", async () => {
     render(await ReportPage(props()));
 
-    expect(screen.getByTestId("meta-version").textContent).toContain("v2");
-    expect(screen.getByTestId("meta-metric-version").textContent).toContain("LAN-81.1");
-    expect(screen.getByTestId("meta-generated-by").textContent).toContain("Morgan Pike");
-    expect(screen.getByTestId("snapshot-stamp").textContent).toBe(
-      "Generated 19 Oct 2026, 08:05 · Data as of 08:04",
-    );
+    expect(screen.getByTestId("section-chase")).toHaveAttribute("data-count", "3");
+    expect(screen.getByTestId("section-fix")).toHaveAttribute("data-count", "2");
+    expect(screen.getByTestId("section-onboarding")).toHaveAttribute("data-count", "2");
   });
 
-  it("leads with the six exception categories, in the approved order", async () => {
+  it("names every person to chase, in the order the snapshot stored them", async () => {
     render(await ReportPage(props()));
 
-    const rendered = [
-      "nonresponses",
-      "not_attending",
-      "mismatches",
-      "absences",
-      "onboarding",
-      "uninvited_audience",
-    ];
-    const positions = rendered.map((key) => {
-      const element = screen.getByTestId(`exception-${key}`);
-      return document.body.innerHTML.indexOf(element.outerHTML.slice(0, 60));
-    });
-    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
-  });
-
-  it("labels the uninvited audience an approval defect, and nothing else one", async () => {
-    render(await ReportPage(props()));
-
-    expect(screen.getByTestId("approval-defect-uninvited_audience")).toBeVisible();
-    for (const key of ["nonresponses", "not_attending", "mismatches", "absences", "onboarding"]) {
-      expect(screen.queryByTestId(`approval-defect-${key}`)).toBeNull();
+    const text = screen.getByTestId("section-chase").textContent ?? "";
+    for (const person of ["Leo Hartwell", "Nia Sorrell", "Kit Ashdown"]) {
+      expect(text).toContain(person);
     }
-    // And it never reads as a chase.
-    const card = screen.getByTestId("exception-uninvited_audience");
-    expect(card.textContent).toMatch(/never invited/i);
-    expect(card.textContent).not.toMatch(/chase|remind|follow up/i);
+    // Stored order is preserved — the service decided it, and re-sorting on
+    // screen would make the snapshot and the screen disagree.
+    expect(text.indexOf("Leo Hartwell")).toBeLessThan(text.indexOf("Nia Sorrell"));
+    expect(text.indexOf("Nia Sorrell")).toBeLessThan(text.indexOf("Kit Ashdown"));
   });
 
-  it("opens each stored list from the snapshot's own items", async () => {
+  it("puts the reason beside the person who gave it", async () => {
     render(await ReportPage(props()));
 
-    // Present rather than visible: the card is collapsed until the reader opens
-    // it, which is what the wireframe's **Open stored list** affordance means
-    // and what keeps six categories legible on a phone. The names come from the
-    // snapshot's own `items`, which is the property under test.
-    const nonresponses = screen.getByTestId("exception-nonresponses");
-    expect(within(nonresponses).getByText(/Leo Hartwell/)).toBeInTheDocument();
-    expect(within(nonresponses).getByTestId("open-stored-list-nonresponses")).toBeVisible();
-
-    const defects = screen.getByTestId("exception-uninvited_audience");
-    expect(within(defects).getByText(/Ivo Marchetti/)).toBeInTheDocument();
+    const chase = screen.getByTestId("section-chase");
+    expect(within(chase).getByText(/Coursework deadline/)).toBeVisible();
+    expect(chase.textContent).toContain("Kit Ashdown");
   });
 
-  it("shows availability as levels only, with the sentence that says why", async () => {
+  it("says what each chase is, and marks a mandatory event as one", async () => {
+    render(await ReportPage(props()));
+
+    const chase = screen.getByTestId("section-chase").textContent ?? "";
+    expect(chase).toContain("Said yes, absent");
+    expect(chase).toContain("Never answered");
+    expect(chase).toContain("Not attending");
+    expect(chase).toContain("(mandatory)");
+  });
+
+  it("names the thing to fix, and the person where the defect is about one", async () => {
+    render(await ReportPage(props()));
+
+    const fix = screen.getByTestId("section-fix").textContent ?? "";
+    expect(fix).toContain("Chalk — week 3");
+    expect(fix).toContain("Register never taken");
+    expect(fix).toContain("Ivo Marchetti");
+    expect(fix).toContain("never invited");
+    // A fix is never worded as somebody to chase.
+    expect(fix).not.toMatch(/chase|remind/i);
+  });
+
+  it("shows the week's numbers, and availability as levels with the sentence saying why", async () => {
     render(await ReportPage(props()));
 
     expect(screen.getByTestId("availability-levels").textContent).toBe(
       "Active 31 · Limited 4 · Unavailable 2",
     );
-    expect(screen.getByTestId("availability-panel").textContent).toContain(AVAILABILITY_NOTE);
+    expect(screen.getByTestId("week-in-numbers").textContent).toContain(AVAILABILITY_NOTE);
+    expect(screen.getByTestId("week-attendance").textContent).toContain("Present 24");
   });
 
-  it("points Open first action at the first category that has anything in it", async () => {
-    vi.mocked(readCurrentReport).mockResolvedValue(
-      stored({
-        content: content({
-          exceptions: content().exceptions.map((entry) =>
-            entry.key === "nonresponses" ? { ...entry, count: 0, items: [] } : entry,
-          ),
-        }),
-      }),
+  it("names the reporting date and the seven days it covers", async () => {
+    const { container } = render(await ReportPage(props()));
+
+    expect(container.textContent).toContain("Monday, 19 October 2026");
+    expect(container.textContent).toContain("Covering Monday 12 – Sunday 18 October 2026");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// What the review removed
+// ---------------------------------------------------------------------------
+
+describe("what the 15 August review removed", () => {
+  it("offers no preview, no generate, no version list and no first action", async () => {
+    const { container } = render(await ReportPage(props()));
+
+    const text = container.textContent ?? "";
+    for (const gone of [
+      "Preview report",
+      "Generate report",
+      "View report versions",
+      "Open first action",
+      "Open stored list",
+      "Snapshot version",
+      "Metric definitions",
+    ]) {
+      expect(text, `"${gone}" is still on the screen`).not.toContain(gone);
+    }
+  });
+
+  it("never puts a version number in front of the reader", async () => {
+    const { container } = render(await ReportPage(props()));
+
+    expect(container.textContent).not.toMatch(/\bv[12]\b/);
+    expect(container.textContent).not.toMatch(/superseded/i);
+  });
+
+  it("has exactly one form, and it only navigates", async () => {
+    render(await ReportPage(props()));
+
+    const forms = [...document.querySelectorAll("form")];
+    expect(forms).toHaveLength(1);
+    expect(forms[0].getAttribute("method")).toBe("get");
+  });
+
+  it("prints the date instruction once, not twice", async () => {
+    // The first build labelled the field "Choose another date" and put a button
+    // reading the same words beside it. Brian met both on the first screen he
+    // opened.
+    const { container } = render(await ReportPage(props()));
+    const text = container.textContent ?? "";
+
+    expect(text).not.toContain("Choose another date");
+    // One control, labelled once. `textContent` finds the words twice because
+    // MUI's outlined field repeats its label in the notch legend, which is its
+    // own markup rather than a second instruction — so this counts controls.
+    expect(screen.getAllByLabelText(/Reporting date/)).toHaveLength(1);
+    expect(container.querySelectorAll("label")).toHaveLength(1);
+    expect(text).toContain("Show report");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stored content, and the states around it
+// ---------------------------------------------------------------------------
+
+describe("the screen reads stored content", () => {
+  it("renders the snapshot it was handed and computes nothing", async () => {
+    // The only service function this page may call is the one that returns a
+    // snapshot. If it ever grows a recompute path, this count changes.
+    const { container } = render(await ReportPage(props()));
+
+    expect(readReportForDate).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("Leo Hartwell");
+    expect(screen.getByTestId("stored-note").textContent).toMatch(/kept exactly as it was/);
+  });
+
+  it("distinguishes a quiet week from a week nobody recorded", async () => {
+    vi.mocked(readReportForDate).mockResolvedValue(
+      stored({ content: content({ chase: [], fix: [] }) }),
     );
 
     render(await ReportPage(props()));
 
-    expect(screen.getByTestId("open-first-action")).toHaveAttribute(
-      "href",
-      "#section-not_attending",
-    );
-    expect(screen.getByTestId("open-first-action").textContent).toBe(OPEN_FIRST_ACTION);
+    expect(screen.getByTestId("nothing-at-all").textContent).toBe(NOTHING_AT_ALL);
+    expect(screen.getByTestId("empty-chase").textContent).toBe(CHASE_EMPTY);
+    expect(screen.getByTestId("empty-fix").textContent).toBe(FIX_EMPTY);
   });
 
-  it("offers no first action when the snapshot records no exception at all", async () => {
-    vi.mocked(readCurrentReport).mockResolvedValue(
-      stored({
-        content: content({
-          exceptions: content().exceptions.map((entry) => ({ ...entry, count: 0, items: [] })),
-        }),
-      }),
-    );
+  it("does not claim an all-clear when only one list is empty", async () => {
+    vi.mocked(readReportForDate).mockResolvedValue(stored({ content: content({ chase: [] }) }));
 
     render(await ReportPage(props()));
 
-    expect(screen.queryByTestId("open-first-action")).toBeNull();
-    expect(screen.getByTestId("view-report-versions")).toBeVisible();
+    expect(screen.queryByTestId("nothing-at-all")).toBeNull();
+    expect(screen.getByTestId("empty-chase")).toBeVisible();
   });
 
-  it("stays readable when the snapshot used other metric definitions", async () => {
-    vi.mocked(readCurrentReport).mockResolvedValue(
+  it("stays readable when the snapshot used earlier metric definitions", async () => {
+    vi.mocked(readReportForDate).mockResolvedValue(
       stored({
-        metricDefinitionVersion: "master-table-v1",
-        content: { squad_size: 42, note: "recovered from the master table" },
+        metricDefinitionVersion: "LAN-81.1",
+        content: { schema: "lancers.monday-exception-report.v1", exceptions: [] },
       }),
     );
 
     const { container } = render(await ReportPage(props()));
 
     expect(screen.getByTestId("other-metric-version")).toBeVisible();
-    expect(screen.getByTestId("meta-metric-version").textContent).toContain("master-table-v1");
     // Its metadata is still there, and nothing was invented to fill the gap.
-    expect(screen.getByTestId("snapshot-stamp")).toBeVisible();
-    expect(container.textContent).not.toContain("Nonresponses");
+    expect(screen.getByTestId("stored-note")).toBeVisible();
+    expect(container.textContent).not.toContain(CHASE_HEADLINE);
   });
 });
-
-// ---------------------------------------------------------------------------
-// UX-80 — the preview
-// ---------------------------------------------------------------------------
-
-describe("UX-80 — the preview", () => {
-  it("computes rather than reading a snapshot, and says so", async () => {
-    const { container } = render(await ReportPage(props({ preview: "1" })));
-
-    expect(screen.getByTestId("report-preview")).toBeVisible();
-    expect(container.textContent).toContain(PREVIEW_HEADLINE);
-    expect(container.textContent).toContain(PREVIEW_MEANING);
-    expect(previewWeeklyReport).toHaveBeenCalledWith(REPORT_ON);
-    expect(readCurrentReport).not.toHaveBeenCalled();
-  });
-
-  it("names the reporting date and the seven days it covers", async () => {
-    const { container } = render(await ReportPage(props({ preview: "1" })));
-
-    expect(container.textContent).toContain("Reporting date · Monday, 19 October 2026");
-    expect(container.textContent).toContain("Covering Monday 12 – Sunday 18 October 2026");
-  });
-
-  it("shows the four summary tiles the wireframe counts", async () => {
-    render(await ReportPage(props({ preview: "1" })));
-
-    expect(screen.getByTestId("tile-nonresponses").textContent).toContain("8");
-    expect(screen.getByTestId("tile-not_attending").textContent).toContain("5");
-    expect(screen.getByTestId("tile-mismatches").textContent).toContain("3");
-    expect(screen.getByTestId("tile-absences").textContent).toContain("2");
-  });
-
-  it("numbers its six cards, as the preview wireframe does", async () => {
-    const { container } = render(await ReportPage(props({ preview: "1" })));
-
-    for (const title of [
-      "1. Nonresponses",
-      "2. Not attending",
-      "3. RSVP / attendance mismatches",
-      "4. Absences / missing attendance",
-      "5. Onboarding exceptions",
-      "6. Audience defects",
-    ]) {
-      expect(container.textContent).toContain(title);
-    }
-  });
-
-  it("shows counts without the stored names, because nothing is stored yet", async () => {
-    const { container } = render(await ReportPage(props({ preview: "1" })));
-
-    expect(screen.queryByTestId("open-stored-list-nonresponses")).toBeNull();
-    expect(container.innerHTML).not.toContain("Leo Hartwell");
-  });
-
-  it("offers exactly one control that writes", async () => {
-    render(await ReportPage(props({ preview: "1" })));
-
-    expect(screen.getByTestId("generate-report")).toBeVisible();
-    const forms = document.querySelectorAll("form");
-    // The generate form, and the two `GET` date forms that navigate. A second
-    // writing form on this route would be a second way to file a snapshot.
-    expect(document.querySelectorAll('form:not([method="get"])')).toHaveLength(1);
-    expect(forms.length).toBeGreaterThan(1);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// UX-82 — the version list
-// ---------------------------------------------------------------------------
-
-describe("UX-82 — report versions", () => {
-  it("lists every version, newest first, with the current one marked", async () => {
-    const { container } = render(await ReportPage(props({ versions: "1" })));
-
-    expect(container.textContent).toContain(VERSIONS_HEADLINE);
-    expect(screen.getByTestId("version-2")).toHaveAttribute("data-current", "true");
-    expect(screen.getByTestId("version-1")).toHaveAttribute("data-current", "false");
-    expect(within(screen.getByTestId("version-2")).getByText("Current")).toBeVisible();
-    expect(within(screen.getByTestId("version-1")).getByText("Superseded")).toBeVisible();
-  });
-
-  it("says what each version supersedes, and shows a dash for the first", async () => {
-    render(await ReportPage(props({ versions: "1" })));
-
-    expect(screen.getByTestId("version-2").textContent).toContain("v1");
-    expect(screen.getByTestId("version-1").textContent).toContain("—");
-  });
-
-  it("shows generated and data-as-of separately, because they differ", async () => {
-    render(await ReportPage(props({ versions: "1" })));
-
-    const row = screen.getByTestId("version-2");
-    expect(row.textContent).toContain("19 Oct, 08:05");
-    expect(row.textContent).toContain("19 Oct, 08:04");
-  });
-
-  it("offers a way back to the current report", async () => {
-    render(await ReportPage(props({ versions: "1" })));
-
-    expect(screen.getByTestId("open-current-report")).toHaveAttribute(
-      "href",
-      `/operate/report?date=${REPORT_ON}`,
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// UX-83 — nothing stored
-// ---------------------------------------------------------------------------
-
-describe("UX-83 — no stored report for this date", () => {
-  beforeEach(() => {
-    vi.mocked(readCurrentReport).mockResolvedValue(null);
-  });
-
-  it("says an absent snapshot is not an all-clear", async () => {
-    const { container } = render(await ReportPage(props()));
-
-    expect(container.textContent).toContain(EMPTY_HEADLINE);
-    expect(screen.getByTestId("not-an-all-clear").textContent).toBe(EMPTY_IS_NOT_AN_ALL_CLEAR);
-  });
-
-  it("offers the preview and another date, and nothing that writes", async () => {
-    render(await ReportPage(props()));
-
-    expect(screen.getByTestId("preview-report")).toHaveAttribute(
-      "href",
-      `/operate/report?date=${REPORT_ON}&preview=1`,
-    );
-    expect(screen.getByTestId("report-date-form")).toBeVisible();
-    expect(screen.queryByTestId("generate-report")).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Refusals
-// ---------------------------------------------------------------------------
 
 describe("a refusal keeps the operator on the route with a way out", () => {
   it("shows the refusal and the date control rather than a stack trace", async () => {
-    vi.mocked(readCurrentReport).mockRejectedValue(
+    vi.mocked(readReportForDate).mockRejectedValue(
       new NotFound("There is no season currently open.", { rule: "no_current_season" }),
     );
 
@@ -585,7 +477,7 @@ describe("a refusal keeps the operator on the route with a way out", () => {
   });
 
   it("does not swallow a failure that is not a refusal", async () => {
-    vi.mocked(readCurrentReport).mockRejectedValue(new TypeError("boom"));
+    vi.mocked(readReportForDate).mockRejectedValue(new TypeError("boom"));
 
     await expect(ReportPage(props())).rejects.toBeInstanceOf(TypeError);
   });

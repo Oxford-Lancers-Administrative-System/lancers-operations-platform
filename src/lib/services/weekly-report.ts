@@ -5,61 +5,48 @@ import { recordAudit } from "./audit";
 import { readCurrentSeasonIn, type Season } from "./seasons";
 
 /**
- * The Monday exception and action report — locked Requirement 9, invariant M5.
- * LAN-81.
+ * The Monday report — locked Requirement 9, invariant M5. LAN-81.
  *
- * ## What this module is, and the one thing it must never become
+ * ## What it is, after Brian's 15 August review
  *
- * Two operations that look similar and are not:
+ * **A to-do list, not a dashboard.** The first build presented six counted
+ * exception categories and asked the operator to open each one; Brian's verdict
+ * on it was that it is "just lists of information, and it's not particularly
+ * well organized". So the report is now two lists in the club's own words —
+ * *chase these people*, *fix these things* — with the onboarding backlog as a
+ * short third block, and nothing else competing with them.
  *
- *   * **Preview** computes the exceptions from current source data and writes
- *     nothing at all. It is a question about right now.
- *   * **Generate** computes the same content and *stores* it, as one immutable
- *     row. It is a statement about what leadership saw on a date.
+ * The six categories still exist: they are what the two lists are built from,
+ * and every one of them is still stored in the snapshot. What changed is that
+ * a category is no longer a thing the reader has to navigate.
  *
- * Invariant M5 is the whole reason for the split. A published report never
- * changes: `weekly_reports` is insert-only, has no `status` column, and derives
- * "superseded" from a later row pointing at it. Regenerating produces a new
- * version — it does not rewrite the old one, and nothing in this module can,
- * because there is no update statement in it and the table grants none.
+ * ## Versioning is real, and invisible
  *
- * The corollary matters as much: **reading a stored report never recomputes
- * it.** `readStoredReport` returns the stored JSONB and the interface renders
- * that. If this module ever grows a "read the report and refresh the numbers"
- * path, "what did leadership see on the 12th?" stops being answerable, which is
- * the question the table exists to answer.
+ * Invariant M5 makes a published report immutable: `weekly_reports` is
+ * insert-only, has no `status` column, and derives "superseded" from a later
+ * row pointing at it. That is unchanged and unchangeable — but Brian's second
+ * verdict was that he should "just have a report for the day of, and that's
+ * it", and he was right that the version machinery had no business on screen.
+ *
+ * So the interface never mentions a version, and `readReportForDate` files one
+ * **at most once per calendar day** per reporting date: the first look files a
+ * snapshot, every later look that day returns the same stored row, and
+ * tomorrow's look files the next version. Nobody presses anything, the table
+ * does not fill with near-identical rows, and "what did leadership see on the
+ * 12th?" still has one answer per day.
+ *
+ * The screen therefore still renders **stored content and never a live
+ * recompute** — the property the whole table exists for, and the one thing that
+ * would have been quietly lost by making the page "just show the numbers".
  *
  * ## Almost none of the query work is here
  *
  * The five views the issue names carry it: `invitation_response_state`
  * (invariant P7's partition, already excluding non-soliciting events per E6),
  * `nonresponse_queue`, `uninvited_audience_members`, `rsvp_attendance_mismatches`
- * and `current_availability`. This module composes them for a season and a
- * window; it re-derives none of them. A second definition of "nonresponse"
- * written here would drift from the one the attendance board reads, and the two
- * would disagree in public.
- *
- * ## Version allocation is deliberately above the database
- *
- * `docs/architecture/data-model.md` § _Rules deliberately left to TypeScript_:
- * that `version` is exactly `predecessor.version + 1`, and that the predecessor
- * is the current latest, are read-then-write decisions that need the
- * transaction to have looked at existing rows.
- *
- * Two operators pressing Generate at the same instant is therefore a real race,
- * and it is closed twice over:
- *
- *   * a transaction-scoped advisory lock on the `(season, reporting date)`
- *     series, so the second generation waits for the first to commit and then
- *     reads its row. An advisory lock rather than `select … for update` because
- *     `weekly_reports` grants `service_role` only `select, insert` — row
- *     locking needs `update`, and widening that grant to take a lock would
- *     hand the append-only table a way to be rewritten;
- *
- *   * the database's own `weekly_reports_one_per_version` and
- *     `weekly_reports_one_superseding_row`, which make a duplicate version and
- *     a forked lineage impossible regardless of what any caller does. The lock
- *     is what turns a collision into a wait; these are what make it safe.
+ * and `current_availability`. This module composes them; it re-derives none of
+ * them. A second definition of "nonresponse" written here would drift from the
+ * one the attendance board reads, and the two would disagree in public.
  *
  * ## Privacy
  *
@@ -67,9 +54,9 @@ import { readCurrentSeasonIn, type Season } from "./seasons";
  * the approved MVP boundary leads the report with them. It contains no
  * availability narrative, no diagnosis and no free-text health field — the
  * schema has no column capable of holding one, `tests/schema-security.test.ts`
- * scans for one, and availability appears here as a count per level and
- * nothing else. Nothing in this module exports, emails or distributes a report;
- * the only reader is an operator holding `leadership_report`.
+ * scans for one, and availability appears here as a count per level and nothing
+ * else. Nothing in this module exports, emails or distributes a report; the only
+ * reader is an operator holding `leadership_report`.
  */
 
 // ---------------------------------------------------------------------------
@@ -80,33 +67,30 @@ import { readCurrentSeasonIn, type Season } from "./seasons";
  * The metric definitions these numbers were computed under, recorded on every
  * row so that an old snapshot stays readable when the definitions change.
  *
- * Defined in exactly one place, which is this line. It is **not** the sixteen
- * definitions recovered from the Master Table — the issue puts those out of
- * scope — and saying so is the point of versioning it: `LAN-81.1` names the
- * narrow exception-and-action set this slice computes, and a later expansion
- * (LAN-109's operating horizon, or the full sixteen) allocates its own version
- * rather than silently changing what an existing snapshot claims to be.
+ * `LAN-81.2` rather than `.1` because the 15 August review changed what the
+ * report *is*, not merely how it looks: the same five views now produce two
+ * action lists instead of six counted categories, and a row written under `.1`
+ * does not answer the same question. That is exactly what versioning the
+ * definitions is for — the older snapshots stay readable and stay honest about
+ * which set produced them.
+ *
+ * It is **not** the sixteen definitions recovered from the Master Table; the
+ * issue puts those out of scope.
  */
-export const METRIC_DEFINITION_VERSION = "LAN-81.1";
+export const METRIC_DEFINITION_VERSION = "LAN-81.2";
 
 /** The shape of `content`, so a reader can tell a snapshot it understands. */
-export const REPORT_CONTENT_SCHEMA = "lancers.monday-exception-report.v1";
+export const REPORT_CONTENT_SCHEMA = "lancers.monday-report.v2";
 
 /**
  * The reporting window: the seven days ending the day before the reporting
  * date.
  *
- * A Monday report covers the Monday-to-Sunday just gone. This is a lead
- * decision recorded on the pull request, not a club fact: nothing in Linear,
- * the UX contract or the frozen model states the window's length, and the
- * wireframes show a reporting date without one. Two things constrain it, and
- * both point the same way — the approved MVP boundary makes this an
- * exception-and-action report about what has already happened, and the
- * current-week and next-week horizon is explicitly LAN-109's.
- *
- * The window is printed on the preview and stored in the snapshot, so no reader
- * has to infer it and a later change to it is visible in old reports rather
- * than retroactive.
+ * Brian's decision of 15 August 2026, chosen over "since the last report" and
+ * "three days either side". A Monday report covers the Monday-to-Sunday just
+ * gone. The window is printed on the report and stored in the snapshot, so no
+ * reader has to infer it and a later change to it is visible in old reports
+ * rather than retroactive.
  */
 export const REPORT_WINDOW_DAYS = 7;
 
@@ -118,47 +102,62 @@ export const REPORT_NOT_FOUND_MESSAGE = "That report does not exist.";
 // The stored content
 // ---------------------------------------------------------------------------
 
-/** The six exception categories, in the order the approved MVP boundary sets. */
-export const EXCEPTION_KEYS = Object.freeze([
-  "nonresponses",
-  "not_attending",
-  "mismatches",
-  "absences",
-  "onboarding",
-  "uninvited_audience",
+/**
+ * Why somebody is on the chase list. Stored rather than rendered from a
+ * category, so the reason survives in the snapshot exactly as the report made
+ * it.
+ */
+export const CHASE_KINDS = Object.freeze([
+  "no_answer",
+  "said_no",
+  "said_yes_absent",
+  "said_no_attended",
+  "missing_from_register",
 ] as const);
 
-export type ExceptionKey = (typeof EXCEPTION_KEYS)[number];
+export type ChaseKind = (typeof CHASE_KINDS)[number];
 
-/** One line in an exception section. Free-form by section, always displayable. */
-export interface ExceptionItem {
-  /** The person the exception is about, already resolved to a display name. */
-  person: string | null;
-  /** The event it happened at, where there is one. */
-  event: string | null;
-  /** `YYYY-MM-DD`, where there is one. */
+export const FIX_KINDS = Object.freeze([
+  "register_not_taken",
+  "approved_never_invited",
+  "walk_up_unreconciled",
+] as const);
+
+export type FixKind = (typeof FIX_KINDS)[number];
+
+/** One person to contact, and what about. */
+export interface ChaseItem {
+  kind: ChaseKind;
+  /** Already resolved to a display name. */
+  person: string;
+  /** What to say to them, in the club's words. */
+  what: string;
+  event: string;
+  /** `YYYY-MM-DD`. */
   on: string | null;
-  /** What is wrong, in the club's language. */
-  detail: string | null;
+  isMandatory: boolean;
+  /**
+   * The reason they gave for not attending, where there is one. The most
+   * sensitive line in the slice, shown to the operator group only.
+   */
+  reason: string | null;
 }
 
-export interface ExceptionSection {
-  key: ExceptionKey;
-  /** 1–6. Stored so the order survives in the snapshot rather than in code. */
-  position: number;
-  title: string;
-  count: number;
-  /** The one-line summary the card shows under its title. */
-  summary: string;
-  /** The second line — the breakdown, or what to do about it. */
-  note: string;
-  /**
-   * `true` only for the uninvited audience: an approval defect, not a chase.
-   * Stored rather than derived on read, so the distinction survives in the
-   * snapshot exactly as the report made it.
-   */
-  isApprovalDefect: boolean;
-  items: ExceptionItem[];
+/** One thing for an operator to correct. Not a person to contact. */
+export interface FixItem {
+  kind: FixKind;
+  event: string;
+  on: string | null;
+  what: string;
+  /** Named where the defect is about somebody, as with an uninvited invitee. */
+  person: string | null;
+}
+
+/** A member with a required onboarding item still outstanding. */
+export interface OnboardingItem {
+  person: string;
+  membershipStatus: string;
+  outstanding: string;
 }
 
 export interface EventInWindow {
@@ -168,6 +167,9 @@ export interface EventInWindow {
   status: string;
   on: string | null;
   solicitsResponse: boolean;
+  isMandatory: boolean;
+  invited: number;
+  recorded: number;
 }
 
 export interface ResponseBreakdownRow {
@@ -204,8 +206,17 @@ export interface WeeklyReportContent {
   reportOn: string;
   window: { from: string; to: string };
   season: { id: string; label: string };
-  /** The lead: the six exception categories, in their approved order. */
-  exceptions: ExceptionSection[];
+  /** The lead. People to contact, most recent event first. */
+  chase: ChaseItem[];
+  /** The second list. Operator corrections, most recent event first. */
+  fix: FixItem[];
+  /** The third block. Not about the week, so not mixed into the two above. */
+  onboarding: OnboardingItem[];
+  /**
+   * Everything below here is stored because `slice-ux.md` § 10 requires the
+   * snapshot to carry it, and shown compactly because it is not what the
+   * operator opens the report to do.
+   */
   events: EventInWindow[];
   responseBreakdown: ResponseBreakdownRow[];
   attendance: AttendanceSummary;
@@ -225,7 +236,8 @@ export interface StoredReport {
   generatedByName: string | null;
   /**
    * Exactly what was stored. Typed as `unknown` on purpose: a snapshot written
-   * under a different `metricDefinitionVersion` — the seed contains two — is a
+   * under a different `metricDefinitionVersion` — the seed contains two, and so
+   * does every report this branch filed before the 15 August review — is a
    * legitimate row this module must read without pretending it matches the
    * current shape. `parseReportContent` is the only thing that narrows it.
    */
@@ -300,100 +312,29 @@ function plural(count: number, one: string, many: string): string {
 }
 
 /**
- * The longest a reason may be in a card's one-line note before it is elided.
+ * How urgent each kind of chase is, when two sit on the same event.
  *
- * UX-80 shows "Academic 3 · Injury 2", which assumes short category words. Real
- * reasons are sentences a player typed — "Recorded as unsure on the channel —
- * treated as a non-acceptance." — and three of those joined by separators is a
- * paragraph pretending to be a summary. The full text is never lost: it is in
- * the stored list under **Open stored list**, beside the person who gave it,
- * which is where an operator can act on it.
+ * Brian chose "soonest event first" on 15 August, and the window looks
+ * backwards, so the event ordering is most-recent-first: last night's practice
+ * above last Tuesday's. This breaks the remaining ties, worst first — somebody
+ * who said they were coming and was marked absent is a conversation, and
+ * somebody who declined with a reason is an acknowledgement.
  */
-const REASON_NOTE_LIMIT = 28;
-
-function elide(text: string): string {
-  const trimmed = text.trim();
-  if (trimmed.length <= REASON_NOTE_LIMIT) return trimmed;
-  return `${trimmed.slice(0, REASON_NOTE_LIMIT - 1).trimEnd()}…`;
-}
-
-/** "Academic 3 · Injury 2" — the two commonest reasons, and nothing about who. */
-function topReasons(reasons: (string | null)[]): string {
-  const tally = new Map<string, number>();
-  for (const reason of reasons) {
-    const key = (reason ?? "").trim();
-    if (key === "") continue;
-    tally.set(key, (tally.get(key) ?? 0) + 1);
-  }
-  const ranked = [...tally.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  if (ranked.length === 0) return "No reason recorded";
-  return ranked
-    .slice(0, 2)
-    .map(([reason, count]) => `${elide(reason)} ${count}`)
-    .join(" · ");
-}
-
-const MISMATCH_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  said_yes_no_attendance_recorded: "Attending, no attendance recorded",
-  said_yes_marked_absent: "Attending but absent",
-  said_no_but_attended: "Not attending but turned up",
-  attended_without_invitation: "Turned up without an invitation",
+const CHASE_SEVERITY: Readonly<Record<ChaseKind, number>> = Object.freeze({
+  said_yes_absent: 0,
+  missing_from_register: 1,
+  no_answer: 2,
+  said_no_attended: 3,
+  said_no: 4,
 });
 
-const PRESENCE_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  present: "Present",
-  absent: "Absent",
-  late: "Late",
-  excused: "Excused",
+const CHASE_WORDS: Readonly<Record<ChaseKind, string>> = Object.freeze({
+  no_answer: "Never answered",
+  said_no: "Not attending",
+  said_yes_absent: "Said yes, marked absent",
+  said_no_attended: "Said no, turned up",
+  missing_from_register: "Said yes, not on the register",
 });
-
-interface NonresponseRow {
-  event_name: string;
-  scheduled_on: Date | string | null;
-  invitation_status: string;
-  display_name: string | null;
-}
-
-interface NotAttendingRow {
-  event_name: string;
-  scheduled_on: Date | string | null;
-  reason: string | null;
-  display_name: string | null;
-}
-
-interface MismatchRow {
-  event_name: string;
-  scheduled_on: Date | string | null;
-  mismatch: string | null;
-  display_name: string | null;
-}
-
-interface AbsenceRow {
-  event_name: string;
-  scheduled_on: Date | string | null;
-  presence: string;
-  display_name: string | null;
-}
-
-interface RegisterGapRow {
-  name: string;
-  scheduled_on: Date | string | null;
-  invited: number;
-}
-
-interface OnboardingRow {
-  display_name: string | null;
-  membership_status: string;
-  outstanding: string;
-  outstanding_count: number;
-}
-
-interface UninvitedRow {
-  event_name: string;
-  scheduled_on: Date | string | null;
-  event_status: string;
-  display_name: string | null;
-}
 
 interface EventRow {
   id: string;
@@ -402,6 +343,45 @@ interface EventRow {
   status: string;
   scheduled_on: Date | string | null;
   solicits_response: boolean;
+  is_mandatory: boolean;
+  invited: number;
+  recorded: number;
+}
+
+interface NonresponseRow {
+  event_id: string;
+  event_name: string;
+  scheduled_on: Date | string | null;
+  display_name: string | null;
+}
+
+interface NotAttendingRow {
+  event_id: string;
+  event_name: string;
+  scheduled_on: Date | string | null;
+  reason: string | null;
+  display_name: string | null;
+}
+
+interface MismatchRow {
+  event_id: string;
+  event_name: string;
+  scheduled_on: Date | string | null;
+  mismatch: string | null;
+  display_name: string | null;
+}
+
+interface OnboardingRow {
+  display_name: string | null;
+  membership_status: string;
+  outstanding: string;
+}
+
+interface UninvitedRow {
+  event_id: string;
+  event_name: string;
+  scheduled_on: Date | string | null;
+  display_name: string | null;
 }
 
 interface BreakdownRow {
@@ -421,9 +401,7 @@ interface CountRow {
  * Everything the report says, computed from the five views for one season and
  * one window.
  *
- * Read-only by construction: there is no insert, update or delete in it. It is
- * shared by preview and generation precisely so that the preview cannot show
- * one thing and the snapshot record another.
+ * Read-only by construction: there is no insert, update or delete in it.
  */
 export async function computeReportContent(
   tx: Tx,
@@ -433,29 +411,40 @@ export async function computeReportContent(
   const { from, to } = reportWindow(reportOn);
   const scope = [season.id, from, to];
 
-  // 1 — Nonresponses. Requirement 6's escalation queue, for the window's
-  //     events only. An audience member who was never invited is deliberately
-  //     NOT here: that is section 6, and it is a different exception.
+  // The window's events, each with the two counts the lists below need: how
+  // many people were asked, and whether anybody took the register at all.
+  const events = await tx.query<EventRow>(
+    `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
+            e.scheduled_on, e.solicits_response, e.is_mandatory,
+            (select count(*)::int from public.invitations i where i.event_id = e.id) as invited,
+            (select count(*)::int from public.attendance_records a where a.event_id = e.id) as recorded
+       from public.events e
+      where e.season_id = $1
+        and e.scheduled_on between $2::date and $3::date
+      order by e.scheduled_on desc, e.name`,
+    scope,
+  );
+
+  const eventById = new Map(events.rows.map((row) => [row.id, row]));
+  const mandatory = (eventId: string) => eventById.get(eventId)?.is_mandatory ?? false;
+
+  // Requirement 6's escalation queue, for the window's events only. An audience
+  // member who was never invited is deliberately NOT here: they were not asked,
+  // so there is nothing to chase, and they are an approval defect below.
   const nonresponses = await tx.query<NonresponseRow>(
-    `select q.event_name,
-            q.scheduled_on,
-            q.invitation_status::text as invitation_status,
-            ${DISPLAY_NAME} as display_name
+    `select q.event_id, q.event_name, q.scheduled_on, ${DISPLAY_NAME} as display_name
        from public.nonresponse_queue q
        left join public.season_memberships m on m.id = q.season_membership_id
        left join public.people p on p.id = coalesce(q.person_id, m.person_id)
       where q.season_id = $1
-        and q.scheduled_on between $2::date and $3::date
-      order by q.scheduled_on, display_name`,
+        and q.scheduled_on between $2::date and $3::date`,
     scope,
   );
 
-  // 2 — Not attending, with the reason. From invariant P7's partition, which
-  //     already excludes non-soliciting events (invariant E6).
+  // From invariant P7's partition, which already excludes non-soliciting
+  // events — invariant E6, and the reason an AGM never reaches this list.
   const notAttending = await tx.query<NotAttendingRow>(
-    `select e.name as event_name,
-            e.scheduled_on,
-            s.reason,
+    `select s.event_id, e.name as event_name, e.scheduled_on, s.reason,
             ${DISPLAY_NAME} as display_name
        from public.invitation_response_state s
        join public.events e on e.id = s.event_id
@@ -463,68 +452,40 @@ export async function computeReportContent(
        left join public.people p on p.id = coalesce(s.person_id, m.person_id)
       where s.season_id = $1
         and e.scheduled_on between $2::date and $3::date
-        and s.response_state = 'responded_no'
-      order by e.scheduled_on, display_name`,
+        and s.response_state = 'responded_no'`,
     scope,
   );
 
-  // 3 — RSVP against attendance. Computed by the view, surfaced here, and
-  //     never reconciled by either.
+  // Computed by the view, surfaced here, and never reconciled by either.
   const mismatches = await tx.query<MismatchRow>(
-    `select x.event_name,
-            x.scheduled_on,
-            x.mismatch,
+    `select x.event_id, x.event_name, x.scheduled_on, x.mismatch,
             ${DISPLAY_NAME} as display_name
        from public.rsvp_attendance_mismatches x
        left join public.season_memberships m on m.id = x.season_membership_id
        left join public.people p on p.id = coalesce(x.person_id, m.person_id)
       where x.season_id = $1
-        and x.scheduled_on between $2::date and $3::date
-      order by x.scheduled_on, display_name`,
+        and x.scheduled_on between $2::date and $3::date`,
     scope,
   );
 
-  // 4a — Absences actually recorded.
-  const absences = await tx.query<AbsenceRow>(
-    `select e.name as event_name,
-            e.scheduled_on,
-            a.presence::text as presence,
-            ${DISPLAY_NAME} as display_name
-       from public.attendance_records a
-       join public.events e on e.id = a.event_id
-       left join public.season_memberships m on m.id = a.season_membership_id
-       left join public.people p on p.id = coalesce(a.person_id, m.person_id)
-      where a.season_id = $1
-        and e.scheduled_on between $2::date and $3::date
-        and a.presence = 'absent'
-      order by e.scheduled_on, display_name`,
+  // The approval defect: somebody the approver confirmed who was never asked.
+  const uninvited = await tx.query<UninvitedRow>(
+    `select u.event_id, u.event_name, u.scheduled_on, ${DISPLAY_NAME} as display_name
+       from public.uninvited_audience_members u
+       left join public.season_memberships m on m.id = u.season_membership_id
+       left join public.people p on p.id = coalesce(u.person_id, m.person_id)
+      where u.season_id = $1
+        and u.scheduled_on between $2::date and $3::date`,
     scope,
   );
 
-  // 4b — And the register nobody filled in. An occurred event with invitations
-  //      and not one attendance row is the other half of "missing attendance",
-  //      and it is the half an absent row can never show.
-  const registerGaps = await tx.query<RegisterGapRow>(
-    `select e.name,
-            e.scheduled_on,
-            (select count(*)::int from public.invitations i where i.event_id = e.id) as invited
-       from public.events e
-      where e.season_id = $1
-        and e.scheduled_on between $2::date and $3::date
-        and e.status = 'occurred'
-        and not exists (select 1 from public.attendance_records a where a.event_id = e.id)
-      order by e.scheduled_on, e.name`,
-    scope,
-  );
-
-  // 5 — Onboarding exceptions. A member who is being operated as part of the
-  //     squad with a required item still outstanding. Not scoped to the window:
-  //     an outstanding item is a standing exception, not an event.
+  // Not scoped to the window: an outstanding required item is a standing
+  // exception rather than something that happened last week, which is why
+  // Brian put it in its own block rather than in the chase list.
   const onboarding = await tx.query<OnboardingRow>(
     `select ${DISPLAY_NAME} as display_name,
             m.status::text as membership_status,
-            string_agg(t.label, ', ' order by t.sort_order) as outstanding,
-            count(*)::int as outstanding_count
+            string_agg(t.label, ', ' order by t.sort_order) as outstanding
        from public.onboarding_items oi
        join public.onboarding_item_types t on t.id = oi.item_type_id
        join public.season_memberships m on m.id = oi.season_membership_id
@@ -538,44 +499,14 @@ export async function computeReportContent(
     [season.id],
   );
 
-  // 6 — The approval defect: somebody the approver confirmed who was never
-  //     asked. Separate from section 1 on purpose — it is not a chase.
-  const uninvited = await tx.query<UninvitedRow>(
-    `select u.event_name,
-            u.scheduled_on,
-            u.event_status::text as event_status,
-            ${DISPLAY_NAME} as display_name
-       from public.uninvited_audience_members u
-       left join public.season_memberships m on m.id = u.season_membership_id
-       left join public.people p on p.id = coalesce(u.person_id, m.person_id)
-      where u.season_id = $1
-        and u.scheduled_on between $2::date and $3::date
-      order by u.scheduled_on, display_name`,
-    scope,
-  );
-
-  const events = await tx.query<EventRow>(
-    `select id, name, event_type::text as event_type, status::text as status,
-            scheduled_on, solicits_response
-       from public.events
-      where season_id = $1
-        and scheduled_on between $2::date and $3::date
-      order by scheduled_on, name`,
-    scope,
-  );
-
   const breakdown = await tx.query<BreakdownRow>(
-    `select s.event_id,
-            e.name as event_name,
-            e.scheduled_on,
-            s.response_state,
+    `select s.event_id, e.name as event_name, e.scheduled_on, s.response_state,
             count(*)::int as tally
        from public.invitation_response_state s
        join public.events e on e.id = s.event_id
       where s.season_id = $1
         and e.scheduled_on between $2::date and $3::date
-      group by s.event_id, e.name, e.scheduled_on, s.response_state
-      order by e.scheduled_on, e.name`,
+      group by s.event_id, e.name, e.scheduled_on, s.response_state`,
     scope,
   );
 
@@ -599,137 +530,112 @@ export async function computeReportContent(
     [season.id],
   );
 
-  const notAttendingItems = notAttending.rows.map((row) => ({
-    person: row.display_name,
-    event: row.event_name,
-    on: asDate(row.scheduled_on),
-    detail: (row.reason ?? "").trim() === "" ? "No reason recorded" : (row.reason as string),
-  }));
+  // -------------------------------------------------------------------------
+  // Chase these people
+  // -------------------------------------------------------------------------
 
-  const mismatchItems = mismatches.rows.map((row) => ({
-    person: row.display_name,
-    event: row.event_name,
-    on: asDate(row.scheduled_on),
-    detail: row.mismatch ? (MISMATCH_LABELS[row.mismatch] ?? row.mismatch) : null,
-  }));
+  const chase: ChaseItem[] = [];
 
-  const absenceItems: ExceptionItem[] = [
-    ...absences.rows.map((row) => ({
-      person: row.display_name,
+  const push = (
+    kind: ChaseKind,
+    row: { event_id: string; event_name: string; scheduled_on: Date | string | null },
+    person: string | null,
+    reason: string | null = null,
+  ) => {
+    chase.push({
+      kind,
+      person: person ?? "Unnamed member",
+      what: CHASE_WORDS[kind],
       event: row.event_name,
       on: asDate(row.scheduled_on),
-      detail: PRESENCE_LABELS[row.presence] ?? row.presence,
-    })),
-    ...registerGaps.rows.map((row) => ({
-      person: null,
+      isMandatory: mandatory(row.event_id),
+      reason,
+    });
+  };
+
+  for (const row of nonresponses.rows) push("no_answer", row, row.display_name);
+  for (const row of notAttending.rows) {
+    const reason = (row.reason ?? "").trim();
+    push("said_no", row, row.display_name, reason === "" ? null : reason);
+  }
+
+  for (const row of mismatches.rows) {
+    if (row.mismatch === "said_yes_marked_absent") {
+      push("said_yes_absent", row, row.display_name);
+    } else if (row.mismatch === "said_no_but_attended") {
+      push("said_no_attended", row, row.display_name);
+    } else if (row.mismatch === "said_yes_no_attendance_recorded") {
+      // Only when somebody *did* take the register and this person is missing
+      // from it. Where the register was never taken at all, every invitee
+      // matches this classification and the club's problem is one uncompleted
+      // register rather than twenty-four people to ring — so it belongs in the
+      // fix list below, once, and these rows are deliberately dropped.
+      //
+      // This is the single largest reason the first build read as noise: the
+      // seeded season produced 163 of these for one week, and none of them was
+      // a person anybody should have contacted.
+      if ((eventById.get(row.event_id)?.recorded ?? 0) > 0) {
+        push("missing_from_register", row, row.display_name);
+      }
+    }
+  }
+
+  // Most recent event first — Brian's "soonest event first", read inside a
+  // window that only looks backwards. A mandatory event outranks an optional
+  // one on the same day, and `CHASE_SEVERITY` breaks what is left.
+  chase.sort((left, right) => {
+    if (left.on !== right.on) return (right.on ?? "").localeCompare(left.on ?? "");
+    if (left.isMandatory !== right.isMandatory) return left.isMandatory ? -1 : 1;
+    if (left.kind !== right.kind) return CHASE_SEVERITY[left.kind] - CHASE_SEVERITY[right.kind];
+    return left.person.localeCompare(right.person);
+  });
+
+  // -------------------------------------------------------------------------
+  // Fix these things
+  // -------------------------------------------------------------------------
+
+  const fix: FixItem[] = [];
+
+  for (const row of events.rows) {
+    if (row.status !== "occurred" || row.recorded > 0) continue;
+    fix.push({
+      kind: "register_not_taken",
       event: row.name,
       on: asDate(row.scheduled_on),
-      detail: `No attendance recorded — ${plural(row.invited, "person was invited", "people were invited")}`,
-    })),
-  ];
-
-  const nonresponseEvents = new Set(nonresponses.rows.map((row) => row.event_name));
-  const mismatchTally = new Map<string, number>();
-  for (const row of mismatches.rows) {
-    if (!row.mismatch) continue;
-    mismatchTally.set(row.mismatch, (mismatchTally.get(row.mismatch) ?? 0) + 1);
+      what: `Register never taken — ${plural(row.invited, "person was asked", "people were asked")}`,
+      person: null,
+    });
   }
-  const commonestMismatch = [...mismatchTally.entries()].sort((a, b) => b[1] - a[1])[0];
 
-  const exceptions: ExceptionSection[] = [
-    {
-      key: "nonresponses",
-      position: 1,
-      title: "Nonresponses",
-      count: nonresponses.rows.length,
-      summary: `${plural(nonresponses.rows.length, "player", "players")} across ${plural(
-        nonresponseEvents.size,
-        "event",
-        "events",
-      )}`,
-      note: nonresponses.rows.length === 0 ? "Nothing outstanding" : "Review queue",
-      isApprovalDefect: false,
-      items: nonresponses.rows.map((row) => ({
-        person: row.display_name,
-        event: row.event_name,
-        on: asDate(row.scheduled_on),
-        detail: row.invitation_status === "expired" ? "Deadline passed" : "Outstanding",
-      })),
-    },
-    {
-      key: "not_attending",
-      position: 2,
-      title: "Not attending",
-      count: notAttendingItems.length,
-      summary: `${plural(notAttendingItems.length, "response", "responses")} and reasons`,
-      note:
-        notAttendingItems.length === 0
-          ? "Nobody declined"
-          : topReasons(notAttending.rows.map((row) => row.reason)),
-      isApprovalDefect: false,
-      items: notAttendingItems,
-    },
-    {
-      key: "mismatches",
-      position: 3,
-      title: "RSVP / attendance mismatches",
-      count: mismatchItems.length,
-      summary: `${plural(mismatchItems.length, "record", "records")}`,
-      note: commonestMismatch
-        ? `${MISMATCH_LABELS[commonestMismatch[0]] ?? commonestMismatch[0]} ${commonestMismatch[1]}`
-        : "Intent and reality agree",
-      isApprovalDefect: false,
-      items: mismatchItems,
-    },
-    {
-      key: "absences",
-      position: 4,
-      title: "Absences / missing attendance",
-      count: absenceItems.length,
-      summary: `${plural(absences.rows.length, "absence", "absences")}`,
-      note:
-        registerGaps.rows.length === 0
-          ? "Every register was completed"
-          : `${plural(registerGaps.rows.length, "incomplete register", "incomplete registers")}`,
-      isApprovalDefect: false,
-      items: absenceItems,
-    },
-    {
-      key: "onboarding",
-      position: 5,
-      title: "Onboarding exceptions",
-      count: onboarding.rows.length,
-      summary: `${plural(onboarding.rows.length, "member", "members")}`,
-      note: onboarding.rows.length === 0 ? "Nothing outstanding" : "Required item outstanding",
-      isApprovalDefect: false,
-      items: onboarding.rows.map((row) => ({
-        person: row.display_name,
-        event: null,
-        on: null,
-        detail: `${row.membership_status} · ${row.outstanding}`,
-      })),
-    },
-    {
-      key: "uninvited_audience",
-      position: 6,
-      title: "Uninvited audience defects",
-      count: uninvited.rows.length,
-      summary: `${plural(uninvited.rows.length, "approval defect", "approval defects")}`,
-      // Never a chase. The approver confirmed these people and nobody asked
-      // them, which is a defect in the approval rather than a nonresponse.
-      note:
-        uninvited.rows.length === 0
-          ? "Everybody confirmed was invited"
-          : "Approved but never invited — requires review",
-      isApprovalDefect: true,
-      items: uninvited.rows.map((row) => ({
-        person: row.display_name,
-        event: row.event_name,
-        on: asDate(row.scheduled_on),
-        detail: "Confirmed in the audience and never invited",
-      })),
-    },
-  ];
+  for (const row of uninvited.rows) {
+    fix.push({
+      kind: "approved_never_invited",
+      event: row.event_name,
+      on: asDate(row.scheduled_on),
+      what: "Approved for this event and never invited",
+      person: row.display_name,
+    });
+  }
+
+  for (const row of mismatches.rows) {
+    if (row.mismatch !== "attended_without_invitation") continue;
+    fix.push({
+      kind: "walk_up_unreconciled",
+      event: row.event_name,
+      on: asDate(row.scheduled_on),
+      what: "Turned up without an invitation — still to be reconciled",
+      person: row.display_name,
+    });
+  }
+
+  fix.sort((left, right) => {
+    if (left.on !== right.on) return (right.on ?? "").localeCompare(left.on ?? "");
+    return left.what.localeCompare(right.what);
+  });
+
+  // -------------------------------------------------------------------------
+  // The rest, stored because § 10 requires it
+  // -------------------------------------------------------------------------
 
   const byEvent = new Map<string, ResponseBreakdownRow>();
   for (const row of breakdown.rows) {
@@ -765,7 +671,13 @@ export async function computeReportContent(
     reportOn,
     window: { from, to },
     season: { id: season.id, label: season.label },
-    exceptions,
+    chase,
+    fix,
+    onboarding: onboarding.rows.map((row) => ({
+      person: row.display_name ?? "Unnamed member",
+      membershipStatus: row.membership_status,
+      outstanding: row.outstanding,
+    })),
     events: events.rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -773,6 +685,9 @@ export async function computeReportContent(
       status: row.status,
       on: asDate(row.scheduled_on),
       solicitsResponse: row.solicits_response,
+      isMandatory: row.is_mandatory,
+      invited: row.invited,
+      recorded: row.recorded,
     })),
     responseBreakdown: [...byEvent.values()],
     attendance: {
@@ -780,7 +695,7 @@ export async function computeReportContent(
       late: presenceOf("late"),
       excused: presenceOf("excused"),
       absent: presenceOf("absent"),
-      eventsWithNoRegister: registerGaps.rows.length,
+      eventsWithNoRegister: fix.filter((item) => item.kind === "register_not_taken").length,
     },
     availability: {
       green: availabilityOf("green"),
@@ -791,43 +706,7 @@ export async function computeReportContent(
 }
 
 // ---------------------------------------------------------------------------
-// Preview — UX-80
-// ---------------------------------------------------------------------------
-
-export interface ReportPreview {
-  season: Season;
-  reportOn: string;
-  window: { from: string; to: string };
-  content: WeeklyReportContent;
-  /** The moment the numbers were read, shown so a preview cannot look stored. */
-  computedAt: string;
-}
-
-/**
- * The computed exceptions for a date, written nowhere.
- *
- * A transaction because the eleven queries must see one consistent picture of
- * the database — a preview whose nonresponse count and response breakdown came
- * from two different instants is a report that contradicts itself.
- */
-export async function previewWeeklyReport(reportOn: string): Promise<ReportPreview> {
-  const on = normaliseReportDate(reportOn);
-  return withTransaction(async (tx) => {
-    const season = await readCurrentSeasonIn(tx);
-    const now = await tx.query<{ at: Date }>("select now() as at");
-    const content = await computeReportContent(tx, season, on);
-    return {
-      season,
-      reportOn: on,
-      window: content.window,
-      content,
-      computedAt: asIso(now.rows[0].at) as string,
-    };
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Generation — the immutable snapshot
+// Filing a snapshot
 // ---------------------------------------------------------------------------
 
 export interface GeneratedReport {
@@ -840,106 +719,26 @@ export interface GeneratedReport {
 /**
  * A 64-bit key for the advisory lock, stable for a `(season, reporting date)`
  * series and derived from nothing else.
- *
- * `hashtextextended` rather than `hashtext` because two series colliding would
- * only cost one of them a wait, but a 32-bit space makes that likely enough to
- * be worth avoiding for one function call.
  */
 const SERIES_LOCK = `select pg_advisory_xact_lock(
     hashtextextended($1::text || ':' || $2::text, 0))`;
 
-/**
- * Generates one immutable snapshot, and returns what it allocated.
- *
- * Everything happens in one transaction: the lock, the reads the numbers come
- * from, the version allocation, the insert and the audit row. A snapshot whose
- * audit row survived a rolled-back insert would be a record of a report that
- * does not exist.
- *
- * `data_as_of` is the transaction's own `now()` rather than a clock read in
- * TypeScript, because it must be the instant the numbers were true at — which
- * is the instant this transaction's snapshot was taken, not the instant the
- * request arrived.
- */
-export async function generateWeeklyReport(
-  actorPersonId: string,
-  reportOn: string,
-): Promise<GeneratedReport> {
-  const on = normaliseReportDate(reportOn);
-
-  return withTransaction(async (tx) => {
-    const season = await readCurrentSeasonIn(tx);
-
-    // Serialises this series against a concurrent generation. Released on
-    // commit or rollback, by the transaction, without anything to remember.
-    await tx.query(SERIES_LOCK, [season.id, on]);
-
-    const latest = await tx.query<{ id: string; version: number }>(
-      `select id, version
-         from public.weekly_reports
-        where season_id = $1 and report_on = $2::date
-        order by version desc
-        limit 1`,
-      [season.id, on],
-    );
-
-    const predecessor = latest.rows[0] ?? null;
-    const version = predecessor ? predecessor.version + 1 : 1;
-    const supersedesId = predecessor ? predecessor.id : null;
-
-    const content = await computeReportContent(tx, season, on);
-    const now = await tx.query<{ at: Date }>("select now() as at");
-    const dataAsOf = now.rows[0].at;
-
-    // No `try` around this. The two constraints that close the race the lock
-    // already narrowed — one row per version, one successor per predecessor —
-    // and the composite foreign key that refuses a cross-season supersession
-    // are all named in `CONSTRAINT_MESSAGES`, so a violation arrives as a
-    // readable `Conflict` or `ConstraintViolated` for every caller rather than
-    // only for this one.
-    const inserted = await tx.query<{ id: string; generated_at: Date }>(
-      `insert into public.weekly_reports
-         (season_id, report_on, version, supersedes_id, metric_definition_version,
-          data_as_of, generated_by_person_id, content)
-       values ($1, $2::date, $3, $4, $5, $6, $7, $8::jsonb)
-       returning id, generated_at`,
-      [
-        season.id,
-        on,
-        version,
-        supersedesId,
-        METRIC_DEFINITION_VERSION,
-        dataAsOf,
-        actorPersonId,
-        JSON.stringify(content),
-      ],
-    );
-
-    const row = inserted.rows[0];
-
-    await recordAudit(tx, {
-      actorPersonId,
-      action: "weekly_report_generated",
-      entityTable: "weekly_reports",
-      entityId: row.id,
-      toState: `version ${version}`,
-      context: {
-        report_on: on,
-        version,
-        supersedes_id: supersedesId,
-        metric_definition_version: METRIC_DEFINITION_VERSION,
-        window_from: content.window.from,
-        window_to: content.window.to,
-      },
-    });
-
-    return { id: row.id, version, supersedesId, reportOn: on };
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Reading a stored snapshot — UX-81 and UX-82
-// ---------------------------------------------------------------------------
+const STORED_SELECT = (where: string) => `select w.id,
+       w.season_id,
+       w.report_on,
+       w.version,
+       w.supersedes_id,
+       w.metric_definition_version,
+       w.data_as_of,
+       w.generated_at,
+       ${DISPLAY_NAME} as generated_by_name,
+       w.content,
+       exists (
+         select 1 from public.weekly_reports later where later.supersedes_id = w.id
+       ) as is_superseded
+  from public.weekly_reports w
+  left join public.people p on p.id = w.generated_by_person_id
+ where ${where}`;
 
 interface StoredRow {
   id: string;
@@ -954,20 +753,6 @@ interface StoredRow {
   content: unknown;
   is_superseded: boolean;
 }
-
-const STORED_COLUMNS = `w.id,
-       w.season_id,
-       w.report_on,
-       w.version,
-       w.supersedes_id,
-       w.metric_definition_version,
-       w.data_as_of,
-       w.generated_at,
-       ${DISPLAY_NAME} as generated_by_name,
-       w.content,
-       exists (
-         select 1 from public.weekly_reports later where later.supersedes_id = w.id
-       ) as is_superseded`;
 
 function toStoredReport(row: StoredRow): StoredReport {
   return {
@@ -986,26 +771,175 @@ function toStoredReport(row: StoredRow): StoredReport {
 }
 
 /**
- * The current version for a reporting date, or `null` when none was ever
- * generated — which is UX-83, and is an absence of a snapshot rather than an
- * all-clear.
+ * Files one immutable snapshot, inside the caller's transaction, and returns
+ * what it allocated.
  *
- * "Current" is the highest version, and superseded-ness is derived from a later
- * row pointing at this one. Neither is stored, because `weekly_reports` has no
- * status column on purpose: a status column would need an update, and the table
- * is insert-only so that a published report cannot be rewritten.
+ * Version allocation is deliberately above the database —
+ * `docs/architecture/data-model.md` § _Rules deliberately left to TypeScript_:
+ * that `version` is exactly `predecessor.version + 1`, and that the predecessor
+ * is the current latest, are read-then-write decisions that need the
+ * transaction to have looked at existing rows.
+ *
+ * Two operators opening the report at the same instant is therefore a real
+ * race, and it is closed twice over:
+ *
+ *   * the caller's transaction-scoped advisory lock on the
+ *     `(season, reporting date)` series, so the second waits for the first to
+ *     commit and then sees its row. An advisory lock rather than
+ *     `select … for update` because `weekly_reports` grants `service_role` only
+ *     `select, insert` — row locking needs `update`, and widening that grant to
+ *     take a lock would hand the append-only table a way to be rewritten;
+ *
+ *   * the database's own `weekly_reports_one_per_version` and
+ *     `weekly_reports_one_superseding_row`, which make a duplicate version and
+ *     a forked lineage impossible regardless of what any caller does.
+ */
+async function fileSnapshot(
+  tx: Tx,
+  season: Season,
+  actorPersonId: string,
+  reportOn: string,
+): Promise<GeneratedReport> {
+  const latest = await tx.query<{ id: string; version: number }>(
+    `select id, version
+       from public.weekly_reports
+      where season_id = $1 and report_on = $2::date
+      order by version desc
+      limit 1`,
+    [season.id, reportOn],
+  );
+
+  const predecessor = latest.rows[0] ?? null;
+  const version = predecessor ? predecessor.version + 1 : 1;
+  const supersedesId = predecessor ? predecessor.id : null;
+
+  const content = await computeReportContent(tx, season, reportOn);
+  const now = await tx.query<{ at: Date }>("select now() as at");
+
+  // No `try` around this. The two constraints that close the race the lock
+  // already narrowed, and the composite foreign key that refuses a cross-season
+  // supersession, are all named in `CONSTRAINT_MESSAGES`, so a violation
+  // arrives as a readable `Conflict` or `ConstraintViolated` for every caller.
+  const inserted = await tx.query<{ id: string }>(
+    `insert into public.weekly_reports
+       (season_id, report_on, version, supersedes_id, metric_definition_version,
+        data_as_of, generated_by_person_id, content)
+     values ($1, $2::date, $3, $4, $5, $6, $7, $8::jsonb)
+     returning id`,
+    [
+      season.id,
+      reportOn,
+      version,
+      supersedesId,
+      METRIC_DEFINITION_VERSION,
+      now.rows[0].at,
+      actorPersonId,
+      JSON.stringify(content),
+    ],
+  );
+
+  await recordAudit(tx, {
+    actorPersonId,
+    action: "weekly_report_generated",
+    entityTable: "weekly_reports",
+    entityId: inserted.rows[0].id,
+    toState: `version ${version}`,
+    context: {
+      report_on: reportOn,
+      version,
+      supersedes_id: supersedesId,
+      metric_definition_version: METRIC_DEFINITION_VERSION,
+      window_from: content.window.from,
+      window_to: content.window.to,
+    },
+  });
+
+  return { id: inserted.rows[0].id, version, supersedesId, reportOn };
+}
+
+/** Files a snapshot unconditionally. The pilot scripts and the tests use this. */
+export async function generateWeeklyReport(
+  actorPersonId: string,
+  reportOn: string,
+): Promise<GeneratedReport> {
+  const on = normaliseReportDate(reportOn);
+  return withTransaction(async (tx) => {
+    const season = await readCurrentSeasonIn(tx);
+    await tx.query(SERIES_LOCK, [season.id, on]);
+    return fileSnapshot(tx, season, actorPersonId, on);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Reading — the only thing the interface calls
+// ---------------------------------------------------------------------------
+
+/**
+ * The report for a date: today's snapshot, filing one first if today has not
+ * produced one yet.
+ *
+ * ## Why a read files a row
+ *
+ * Brian's decision of 15 August 2026. He should "just have a report for the day
+ * of, and that's it" — no Preview, no Generate, no version list — and invariant
+ * M5 still requires the thing he read to be a snapshot rather than a live
+ * query. Filing on first sight of the day is what satisfies both: he presses
+ * nothing, the screen renders stored content, and the table gains at most one
+ * row per reporting date per day instead of one per page view.
+ *
+ * The consequence, stated plainly because it is unusual: **this read writes.**
+ * It is guarded by `leadership_report` at every entry point, it is idempotent
+ * within the day, and the advisory lock makes two simultaneous first-looks
+ * produce one row rather than two. It writes nothing else, ever.
+ *
+ * "Today" is the club's day, in `Europe/London`, because the report belongs to
+ * a Monday morning in Oxford rather than to a UTC boundary at 01:00.
+ */
+export async function readReportForDate(
+  actorPersonId: string,
+  reportOn: string,
+): Promise<StoredReport> {
+  const on = normaliseReportDate(reportOn);
+
+  return withTransaction(async (tx) => {
+    const season = await readCurrentSeasonIn(tx);
+    await tx.query(SERIES_LOCK, [season.id, on]);
+
+    const filedToday = await tx.query<StoredRow>(
+      `${STORED_SELECT(
+        `w.season_id = $1
+           and w.report_on = $2::date
+           and (w.generated_at at time zone 'Europe/London')::date
+                 = (now() at time zone 'Europe/London')::date`,
+      )}
+       order by w.version desc
+       limit 1`,
+      [season.id, on],
+    );
+
+    if (filedToday.rows[0]) return toStoredReport(filedToday.rows[0]);
+
+    const filed = await fileSnapshot(tx, season, actorPersonId, on);
+    const stored = await tx.query<StoredRow>(STORED_SELECT("w.id = $1"), [filed.id]);
+    return toStoredReport(stored.rows[0]);
+  });
+}
+
+/**
+ * The current version for a reporting date, or `null` when none was ever filed.
+ *
+ * Nothing in the interface calls this — opening the report files one — but the
+ * pilot scenario and the M5 tests need to ask the question without causing the
+ * answer.
  */
 export async function readCurrentReport(reportOn: string): Promise<StoredReport | null> {
   const on = normaliseReportDate(reportOn);
   return withTransaction(async (tx) => {
     const season = await readCurrentSeasonIn(tx);
     const result = await tx.query<StoredRow>(
-      `select ${STORED_COLUMNS}
-         from public.weekly_reports w
-         left join public.people p on p.id = w.generated_by_person_id
-        where w.season_id = $1 and w.report_on = $2::date
-        order by w.version desc
-        limit 1`,
+      `${STORED_SELECT("w.season_id = $1 and w.report_on = $2::date")}
+       order by w.version desc
+       limit 1`,
       [season.id, on],
     );
     const row = result.rows[0];
@@ -1013,17 +947,20 @@ export async function readCurrentReport(reportOn: string): Promise<StoredReport 
   });
 }
 
-/** Every version for a reporting date, newest first. UX-82. */
+/**
+ * Every version for a reporting date, newest first.
+ *
+ * Also not reachable from the interface, and deliberately so: Brian's decision
+ * removed the version list from the screen, not the versions from the database.
+ * This is how a test — and, one day, a support question — reads the lineage M5
+ * keeps.
+ */
 export async function listReportVersions(reportOn: string): Promise<StoredReport[]> {
   const on = normaliseReportDate(reportOn);
   return withTransaction(async (tx) => {
     const season = await readCurrentSeasonIn(tx);
     const result = await tx.query<StoredRow>(
-      `select ${STORED_COLUMNS}
-         from public.weekly_reports w
-         left join public.people p on p.id = w.generated_by_person_id
-        where w.season_id = $1 and w.report_on = $2::date
-        order by w.version desc`,
+      `${STORED_SELECT("w.season_id = $1 and w.report_on = $2::date")} order by w.version desc`,
       [season.id, on],
     );
     return result.rows.map(toStoredReport);
@@ -1033,13 +970,7 @@ export async function listReportVersions(reportOn: string): Promise<StoredReport
 /** One stored snapshot by id, or `NotFound`. Reads; never recomputes. */
 export async function readStoredReport(id: string): Promise<StoredReport> {
   return withTransaction(async (tx) => {
-    const result = await tx.query<StoredRow>(
-      `select ${STORED_COLUMNS}
-         from public.weekly_reports w
-         left join public.people p on p.id = w.generated_by_person_id
-        where w.id = $1`,
-      [id],
-    );
+    const result = await tx.query<StoredRow>(STORED_SELECT("w.id = $1"), [id]);
     const row = result.rows[0];
     if (!row) throw new NotFound(REPORT_NOT_FOUND_MESSAGE, { rule: "weekly_report_not_found" });
     return toStoredReport(row);
@@ -1050,17 +981,16 @@ export async function readStoredReport(id: string): Promise<StoredReport> {
  * Narrows a stored snapshot's content, or returns `null`.
  *
  * `null` is not a failure. `weekly_reports` deliberately stores whatever the
- * metric definitions of that version produced — the synthetic seed contains two
- * snapshots under `master-table-v1`, whose shape this issue never wrote — and a
- * reader that threw on one would make an immutable record unreadable, which is
- * the opposite of what M5 is for. The interface renders what it recognises and
- * says plainly when a snapshot predates the current definitions.
+ * metric definitions of that version produced — the seed contains two under
+ * `master-table-v1`, and this branch filed several under `LAN-81.1` before the
+ * review changed the shape — and a reader that threw on one would make an
+ * immutable record unreadable, which is the opposite of what M5 is for.
  */
 export function parseReportContent(content: unknown): WeeklyReportContent | null {
   if (typeof content !== "object" || content === null) return null;
   const candidate = content as Partial<WeeklyReportContent>;
   if (candidate.schema !== REPORT_CONTENT_SCHEMA) return null;
-  if (!Array.isArray(candidate.exceptions)) return null;
+  if (!Array.isArray(candidate.chase) || !Array.isArray(candidate.fix)) return null;
   if (typeof candidate.reportOn !== "string") return null;
   return candidate as WeeklyReportContent;
 }

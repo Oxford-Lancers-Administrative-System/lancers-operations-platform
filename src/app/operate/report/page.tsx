@@ -1,98 +1,73 @@
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import {
-  listReportVersions,
   parseReportContent,
-  previewWeeklyReport,
-  readCurrentReport,
-  type ExceptionSection,
-  type ReportPreview,
+  readReportForDate,
+  type ChaseItem,
+  type FixItem,
   type StoredReport,
   type WeeklyReportContent,
 } from "@/lib/services/weekly-report";
 import { gateShellPage } from "../gate";
-import { ExceptionCard } from "./exception-card";
-import { GenerateForm } from "./generate-form";
 import { ReportDateForm } from "./report-date-form";
 import {
   AVAILABILITY_HEADLINE,
   AVAILABILITY_LABELS,
   AVAILABILITY_NOTE,
-  CHANGE_REPORTING_DATE,
-  CHOOSE_ANOTHER_DATE,
-  EMPTY_DETAIL,
-  EMPTY_HEADLINE,
-  EMPTY_IS_NOT_AN_ALL_CLEAR,
-  formatPlainDate,
+  CHASE_EMPTY,
+  CHASE_HEADLINE,
+  CHASE_LABELS,
+  FIX_EMPTY,
+  FIX_HEADLINE,
+  FIX_LABELS,
+  formatInstant,
   formatReportDate,
-  formatSnapshotStamp,
-  formatTableInstant,
+  formatShortDay,
   formatWindow,
-  METRIC_DEFINITIONS_LABEL,
-  OPEN_CURRENT_REPORT,
-  OPEN_FIRST_ACTION,
+  NOTHING_AT_ALL,
+  ONBOARDING_EMPTY,
+  ONBOARDING_HEADLINE,
   OTHER_METRIC_VERSION_NOTE,
-  PREVIEW_HEADLINE,
-  PREVIEW_MEANING,
-  PREVIEW_REPORT,
-  PREVIEW_SECTION_TITLES,
-  PREVIEW_TILES,
   REPORT_HEADLINE,
-  SNAPSHOT_VERSION_LABEL,
-  STORED_ONLY_NOTE,
+  STORED_NOTE,
   todayInClubZone,
-  VERSION_CURRENT,
-  VERSION_SUPERSEDED,
-  VERSIONS_HEADLINE,
-  VERSIONS_NOTE,
-  VIEW_REPORT_VERSIONS,
+  WEEK_IN_NUMBERS,
 } from "./presentation";
 
 /**
- * `/operate/report` — UX-80, UX-81, UX-82 and UX-83. LAN-81.
+ * `/operate/report` — the Monday report. LAN-81.
  *
- * ## One route, four screens
+ * ## One screen
  *
- * The screen registry gives all four the same route, and they are states of one
- * thing rather than four pages:
+ * Open it and the report is there. There is no preview step, no Generate
+ * button, no version list and no "Open first action" — Brian's review of
+ * 15 August 2026 removed all four, and every one of them was something the
+ * first build asked him to understand before it would tell him anything.
  *
- *   * **UX-81** by default, when a snapshot exists for the date — the stored
- *     report, read from `content` and never recomputed;
- *   * **UX-83** by default, when none does — an absence of a snapshot, which
- *     the copy is careful to say is not an all-clear;
- *   * **UX-80** at `?preview=1` — the computed exceptions and the one control
- *     that writes;
- *   * **UX-82** at `?versions=1` — every version for the date, current marked.
+ * What is left is what he asked for: **chase these people**, then **fix these
+ * things**, then the onboarding backlog, then the week's numbers in one small
+ * block at the bottom for anybody who wants them.
  *
- * ## The rule this page exists to keep
+ * ## It still reads a stored snapshot
  *
- * **A stored report is rendered from stored content.** UX-81 reads
- * `report.content` and nothing else — it does not call the preview, and there
- * is no path on it that touches a view. That is what makes "what did leadership
- * see on the 12th?" answerable, and it is asserted by a test that changes the
- * underlying data after generation and re-renders the same snapshot.
- *
- * The preview is the opposite by design, and says so on the screen: computed
- * from current source data, and stored only when somebody presses Generate.
+ * `readReportForDate` returns the snapshot filed for this date today, filing
+ * one first if today has not produced one. So the screen renders stored content
+ * and never a live recompute — invariant M5's whole point, and the property
+ * that would have been quietly lost by making the page "just show the numbers".
+ * The reader is never told any of that; the one line at the bottom says the
+ * report is kept as it was, which is the part that matters to them.
  *
  * ## Authorization
  *
  * `leadership_report` — the four calendar roles. It is the one destination in
- * the shell that is capability-gated, and § 3 names the report among the
- * surfaces a coaching seat never receives. The write re-checks it in its own
- * server action; this gate decides what is drawn.
+ * the shell that is capability-gated, and `slice-ux.md` § 3 names the report,
+ * and RSVP reasons, among the surfaces a coaching seat never receives.
  */
 export default async function ReportPage({ searchParams }: PageProps<"/operate/report">) {
   const gate = await gateShellPage("/operate/report", "leadership_report");
@@ -101,50 +76,16 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
   const query = await searchParams;
   const requested = typeof query.date === "string" && query.date !== "" ? query.date : null;
   const date = requested ?? todayInClubZone();
-  const wantsPreview = query.preview === "1";
-  const wantsVersions = query.versions === "1";
 
-  // Every branch reads here and renders a synchronous component, rather than
-  // returning an async component for React to resolve. Both work in the
-  // application; only this one is renderable by a test, and a screen nobody can
-  // render is a screen nobody checks.
-  if (wantsVersions) {
-    return withRefusal(date, async () => {
-      const versions = await listReportVersions(date);
-      return <VersionsScreen date={date} versions={versions} />;
-    });
-  }
-
-  if (wantsPreview) {
-    return withRefusal(date, async () => {
-      const previewed = await previewWeeklyReport(date);
-      return <PreviewScreen preview={previewed} />;
-    });
-  }
-
-  return withRefusal(date, async () => {
-    const stored = await readCurrentReport(date);
-    return stored ? <StoredScreen report={stored} /> : <EmptyScreen date={date} />;
-  });
-}
-
-/**
- * A refusal the service raised — an unparseable date, no open season — becomes
- * a sentence and the date control, rather than a stack trace.
- *
- * The date control is the point: every refusal on this route is recoverable by
- * choosing a different date, and § 9 asks an error state to offer the smallest
- * authorized recovery rather than a dead end.
- */
-async function withRefusal(date: string, render: () => Promise<React.ReactElement>) {
+  let report: StoredReport;
   try {
-    return await render();
+    report = await readReportForDate(gate.operator.personId, date);
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
-      <Stack spacing={3} sx={{ maxWidth: 720 }}>
+      <Stack spacing={3} sx={{ maxWidth: 720 }} data-testid="report-unavailable-screen">
         <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {PREVIEW_HEADLINE}
+          {REPORT_HEADLINE}
         </Typography>
         <Alert severity="warning" data-testid="report-unavailable">
           {error.message}
@@ -153,444 +94,274 @@ async function withRefusal(date: string, render: () => Promise<React.ReactElemen
       </Stack>
     );
   }
-}
 
-function isDate(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
-
-// ---------------------------------------------------------------------------
-// UX-80 — Prepare Monday report
-// ---------------------------------------------------------------------------
-
-function PreviewScreen({ preview }: { preview: ReportPreview }) {
-  const { content } = preview;
-
-  return (
-    <Stack spacing={3} sx={{ maxWidth: 1100 }} data-testid="report-preview">
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {PREVIEW_HEADLINE}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {`Reporting date · ${formatReportDate(preview.reportOn)}`}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {formatWindow(content.window)}
-        </Typography>
-      </Box>
-
-      {/*
-        Not a footnote. The difference between these numbers and a snapshot's is
-        the whole subject of the screen, and an operator who reads a preview as
-        a filed report has read the opposite of what it is.
-      */}
-      <Alert severity="info" data-testid="preview-meaning">
-        {PREVIEW_MEANING}
-      </Alert>
-
-      <Box
-        sx={{
-          display: "grid",
-          gap: 2,
-          gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" },
-        }}
-      >
-        {PREVIEW_TILES.map((tile) => {
-          const section = content.exceptions.find((entry) => entry.key === tile.key);
-          return (
-            <Paper key={tile.key} variant="outlined" sx={{ p: 2 }} data-testid={`tile-${tile.key}`}>
-              <Typography variant="h4" component="p" sx={{ fontWeight: 700 }}>
-                {section?.count ?? 0}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {tile.label}
-              </Typography>
-            </Paper>
-          );
-        })}
-      </Box>
-
-      <Stack spacing={2}>
-        {content.exceptions.map((section) => (
-          <ExceptionCard
-            key={section.key}
-            section={section}
-            title={PREVIEW_SECTION_TITLES[section.key]}
-            showList={false}
-          />
-        ))}
-      </Stack>
-
-      <AvailabilityPanel content={content} />
-
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ alignItems: { sm: "center" } }}
-      >
-        <GenerateForm reportOn={preview.reportOn} />
-        <Button
-          variant="text"
-          href={`/operate/report?date=${encodeURIComponent(preview.reportOn)}`}
-          sx={{ minHeight: 44 }}
-          data-testid="change-reporting-date"
-        >
-          {CHANGE_REPORTING_DATE}
-        </Button>
-      </Stack>
-
-      <ReportDateForm date={preview.reportOn} />
-    </Stack>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// UX-81 — the stored snapshot
-// ---------------------------------------------------------------------------
-
-function StoredScreen({ report }: { report: StoredReport }) {
   const content = parseReportContent(report.content);
-  const sections: ExceptionSection[] = content?.exceptions ?? [];
-  const firstAction = sections.find((section) => section.count > 0);
 
   return (
-    <Stack spacing={3} sx={{ maxWidth: 1100 }} data-testid="stored-report" data-report={report.id}>
+    <Stack spacing={4} sx={{ maxWidth: 860 }} data-testid="monday-report" data-report={report.id}>
       <Box>
         <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
           {REPORT_HEADLINE}
         </Typography>
-        <Typography variant="body2" color="text.secondary" data-testid="snapshot-stamp">
-          {formatSnapshotStamp(report.generatedAt, report.dataAsOf)}
-        </Typography>
         <Typography variant="body2" color="text.secondary">
-          {`Reporting date · ${formatPlainDate(report.reportOn)}${
-            content ? ` · ${formatWindow(content.window)}` : ""
-          }`}
+          {formatReportDate(report.reportOn)}
+          {content ? ` · ${formatWindow(content.window)}` : ""}
         </Typography>
       </Box>
 
-      <Alert severity="info" data-testid="stored-only-note">
-        {STORED_ONLY_NOTE}
-      </Alert>
-
-      <Stack direction="row" spacing={2} sx={{ flexWrap: "wrap", gap: 1 }}>
-        <Metadata label={SNAPSHOT_VERSION_LABEL} value={`v${report.version}`} testId="version" />
-        <Metadata
-          label={METRIC_DEFINITIONS_LABEL}
-          value={report.metricDefinitionVersion}
-          testId="metric-version"
-        />
-        <Metadata
-          label="Generated by"
-          value={report.generatedByName ?? "Not recorded"}
-          testId="generated-by"
-        />
-        {report.isSuperseded ? (
-          <Metadata label="Status" value={VERSION_SUPERSEDED} testId="superseded" />
-        ) : null}
-      </Stack>
+      <ReportDateForm date={report.reportOn} />
 
       {content === null ? (
         <Alert severity="info" data-testid="other-metric-version">
           {OTHER_METRIC_VERSION_NOTE}
         </Alert>
       ) : (
-        <>
-          <Stack spacing={2}>
-            {sections.map((section) => (
-              <ExceptionCard
-                key={section.key}
-                section={section}
-                title={section.title}
-                showList
-                anchorId={`section-${section.key}`}
-              />
-            ))}
-          </Stack>
-          <AvailabilityPanel content={content} />
-        </>
+        <ReportBody content={content} />
       )}
 
-      <Stack
-        direction={{ xs: "column", sm: "row" }}
-        spacing={2}
-        sx={{ alignItems: { sm: "center" } }}
-      >
-        {firstAction ? (
-          <Button
-            variant="contained"
-            href={`#section-${firstAction.key}`}
-            sx={{ minHeight: 44 }}
-            data-testid="open-first-action"
-          >
-            {OPEN_FIRST_ACTION}
-          </Button>
-        ) : null}
-        <Button
-          variant="outlined"
-          href={`/operate/report?date=${encodeURIComponent(report.reportOn)}&versions=1`}
-          sx={{ minHeight: 44 }}
-          data-testid="view-report-versions"
-        >
-          {VIEW_REPORT_VERSIONS}
-        </Button>
-        <Button
-          variant="text"
-          href={`/operate/report?date=${encodeURIComponent(report.reportOn)}&preview=1`}
-          sx={{ minHeight: 44 }}
-          data-testid="preview-again"
-        >
-          {PREVIEW_REPORT}
-        </Button>
-      </Stack>
+      <Box>
+        <Divider sx={{ mb: 1.5 }} />
+        <Typography variant="body2" color="text.secondary" data-testid="stored-note">
+          {`${STORED_NOTE} Opened ${formatInstant(report.generatedAt)}.`}
+        </Typography>
+      </Box>
     </Stack>
   );
 }
 
-function Metadata({ label, value, testId }: { label: string; value: string; testId: string }) {
+function isDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function ReportBody({ content }: { content: WeeklyReportContent }) {
+  const nothingAtAll = content.chase.length === 0 && content.fix.length === 0;
+
   return (
-    <Paper variant="outlined" sx={{ px: 2, py: 1.5, minWidth: 160 }} data-testid={`meta-${testId}`}>
-      <Typography variant="h6" component="p" sx={{ fontWeight: 700 }}>
-        {value}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        {label}
-      </Typography>
-    </Paper>
+    <>
+      {nothingAtAll ? (
+        <Alert severity="info" data-testid="nothing-at-all">
+          {NOTHING_AT_ALL}
+        </Alert>
+      ) : null}
+
+      <Section
+        testId="chase"
+        headline={CHASE_HEADLINE}
+        count={content.chase.length}
+        empty={CHASE_EMPTY}
+      >
+        {content.chase.map((item, index) => (
+          <ChaseRow key={`chase-${index}`} item={item} />
+        ))}
+      </Section>
+
+      <Section testId="fix" headline={FIX_HEADLINE} count={content.fix.length} empty={FIX_EMPTY}>
+        {content.fix.map((item, index) => (
+          <FixRow key={`fix-${index}`} item={item} />
+        ))}
+      </Section>
+
+      <Section
+        testId="onboarding"
+        headline={ONBOARDING_HEADLINE}
+        count={content.onboarding.length}
+        empty={ONBOARDING_EMPTY}
+      >
+        {content.onboarding.map((item, index) => (
+          <Row
+            key={`onboarding-${index}`}
+            primary={item.person}
+            secondary={item.outstanding}
+            badge={item.membershipStatus === "onboarding" ? "Onboarding" : null}
+          />
+        ))}
+      </Section>
+
+      <WeekInNumbers content={content} />
+    </>
   );
 }
 
 /**
- * Availability, as a count per level and nothing else.
+ * One block: a heading that carries its own count, and either its rows or the
+ * sentence that says there are none.
  *
- * There is no note here because there is no note anywhere: the schema has no
- * column capable of holding a diagnosis, the Oxford guidance that would
- * authorise a bounded one is still outstanding, and
- * `tests/schema-security.test.ts` scans the whole schema for one. The sentence
- * under the counts says so on the screen, so that nobody reads the absence as
- * an omission and helpfully fills it in.
+ * The count is in the heading rather than in a tile above it. A row of big
+ * numbers was the first thing on the old screen and the last thing anybody
+ * needed: "Chase these people · 8" says the same thing in the place the reader
+ * is already looking.
  */
-function AvailabilityPanel({ content }: { content: WeeklyReportContent }) {
-  const entries = [
-    { key: "green", value: content.availability.green },
-    { key: "orange", value: content.availability.orange },
-    { key: "red", value: content.availability.red },
-  ];
-
+function Section({
+  testId,
+  headline,
+  count,
+  empty,
+  children,
+}: {
+  testId: string;
+  headline: string;
+  count: number;
+  empty: string;
+  children: React.ReactNode;
+}) {
   return (
-    <Paper variant="outlined" sx={{ p: 2 }} data-testid="availability-panel">
-      <Typography component="h3" variant="subtitle1" sx={{ fontWeight: 700 }}>
-        {AVAILABILITY_HEADLINE}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" data-testid="availability-levels">
-        {entries.map((entry) => `${AVAILABILITY_LABELS[entry.key]} ${entry.value}`).join(" · ")}
-      </Typography>
-      <Typography variant="body2" color="text.secondary">
-        {AVAILABILITY_NOTE}
-      </Typography>
-    </Paper>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// UX-82 — Report versions
-// ---------------------------------------------------------------------------
-
-function VersionsScreen({ date, versions }: { date: string; versions: StoredReport[] }) {
-  const current = versions[0] ?? null;
-  const byId = new Map(versions.map((version) => [version.id, version.version]));
-
-  return (
-    <Stack spacing={3} sx={{ maxWidth: 1100 }} data-testid="report-versions">
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {VERSIONS_HEADLINE}
+    <Box component="section" data-testid={`section-${testId}`} data-count={count}>
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: "baseline", mb: 1.5 }}>
+        <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
+          {headline}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {`Reporting date · ${formatPlainDate(date)}`}
+        <Typography variant="h6" component="p" color="text.secondary" sx={{ fontWeight: 700 }}>
+          {count}
         </Typography>
-      </Box>
+      </Stack>
 
-      <Alert severity="info" data-testid="versions-note">
-        {VERSIONS_NOTE}
-      </Alert>
-
-      {versions.length === 0 ? (
-        <Alert severity="info" data-testid="no-versions">
-          {EMPTY_IS_NOT_AN_ALL_CLEAR}
-        </Alert>
+      {count === 0 ? (
+        <Typography variant="body2" color="text.secondary" data-testid={`empty-${testId}`}>
+          {empty}
+        </Typography>
       ) : (
-        /*
-          Two presentations of the same rows, because the approved wireframes
-          show two. Desktop UX-82 is the six-column table; phone UX-82 is a
-          short list of version, standing and generated time.
-
-          The phone list is not the table with columns hidden. A six-column
-          table at 375px scrolls sideways inside its own box, and the columns
-          that fall off the right are the ones nobody scrolls to find — so the
-          list keeps all six facts and simply stacks the last three under the
-          first three, which is what the wireframe's hierarchy is.
-        */
-        <>
-          <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
-            {versions.map((version) => (
-              <Paper
-                key={version.id}
-                variant="outlined"
-                sx={{ p: 2 }}
-                data-testid={`version-card-${version.version}`}
-                data-current={version.isSuperseded ? "false" : "true"}
-              >
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{ alignItems: "center", flexWrap: "wrap", gap: 1 }}
-                >
-                  <Typography variant="h6" component="p" sx={{ fontWeight: 700 }}>
-                    {`v${version.version}`}
-                  </Typography>
-                  <Chip
-                    size="small"
-                    label={version.isSuperseded ? VERSION_SUPERSEDED : VERSION_CURRENT}
-                    color={version.isSuperseded ? "default" : "primary"}
-                    variant={version.isSuperseded ? "outlined" : "filled"}
-                  />
-                  <Typography variant="body2" color="text.secondary">
-                    {formatTableInstant(version.generatedAt)}
-                  </Typography>
-                </Stack>
-                <Typography variant="body2" color="text.secondary">
-                  {`Data as of ${formatTableInstant(version.dataAsOf)}`}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {`${version.generatedByName ?? "Not recorded"} · supersedes ${
-                    version.supersedesId ? `v${byId.get(version.supersedesId) ?? "?"}` : "—"
-                  }`}
-                </Typography>
-              </Paper>
-            ))}
-          </Stack>
-
-          <TableContainer
-            component={Paper}
-            variant="outlined"
-            sx={{ overflowX: "auto", display: { xs: "none", md: "block" } }}
-          >
-            <Table size="small" aria-label={VERSIONS_HEADLINE}>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Version</TableCell>
-                  <TableCell>Current</TableCell>
-                  <TableCell>Generated</TableCell>
-                  <TableCell>Data as of</TableCell>
-                  <TableCell>Generated by</TableCell>
-                  <TableCell>Supersedes</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {versions.map((version) => (
-                  <TableRow
-                    key={version.id}
-                    data-testid={`version-${version.version}`}
-                    data-current={version.isSuperseded ? "false" : "true"}
-                  >
-                    <TableCell sx={{ fontWeight: 700 }}>{`v${version.version}`}</TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        label={version.isSuperseded ? VERSION_SUPERSEDED : VERSION_CURRENT}
-                        color={version.isSuperseded ? "default" : "primary"}
-                        variant={version.isSuperseded ? "outlined" : "filled"}
-                      />
-                    </TableCell>
-                    <TableCell>{formatTableInstant(version.generatedAt)}</TableCell>
-                    <TableCell>{formatTableInstant(version.dataAsOf)}</TableCell>
-                    <TableCell>{version.generatedByName ?? "Not recorded"}</TableCell>
-                    <TableCell>
-                      {version.supersedesId
-                        ? `v${byId.get(version.supersedesId) ?? "?"}`
-                        : /* An em dash, exactly as UX-82 shows it: version 1
-                           supersedes nothing, and the database refuses a
-                           version 1 that claims to. */
-                          "—"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </>
+        <Paper variant="outlined">
+          <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
+            {children}
+          </Box>
+        </Paper>
       )}
-
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-        {current ? (
-          <Button
-            variant="contained"
-            href={`/operate/report?date=${encodeURIComponent(date)}`}
-            sx={{ minHeight: 44 }}
-            data-testid="open-current-report"
-          >
-            {OPEN_CURRENT_REPORT}
-          </Button>
-        ) : null}
-        <Button
-          variant="outlined"
-          href={`/operate/report?date=${encodeURIComponent(date)}&preview=1`}
-          sx={{ minHeight: 44 }}
-        >
-          {PREVIEW_REPORT}
-        </Button>
-      </Stack>
-    </Stack>
+    </Box>
   );
 }
 
-// ---------------------------------------------------------------------------
-// UX-83 — no stored report for this date
-// ---------------------------------------------------------------------------
-
-function EmptyScreen({ date }: { date: string }) {
+/**
+ * A row is a name, what it is about, and where it came from — in that order,
+ * because the operator is reading down a column of names deciding who to
+ * message.
+ */
+function Row({
+  primary,
+  secondary,
+  badge,
+  badgeColor = "default",
+}: {
+  primary: string;
+  secondary: string;
+  badge: string | null;
+  badgeColor?: "default" | "warning";
+}) {
   return (
-    <Stack spacing={3} sx={{ maxWidth: 720 }} data-testid="report-empty">
-      <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {EMPTY_HEADLINE}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {EMPTY_DETAIL}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {`Reporting date · ${formatPlainDate(date)}`}
-        </Typography>
-      </Box>
+    <Box
+      component="li"
+      sx={{
+        px: 2,
+        py: 1.5,
+        display: "flex",
+        flexDirection: { xs: "column", sm: "row" },
+        gap: { xs: 0.5, sm: 2 },
+        alignItems: { sm: "baseline" },
+        borderTop: 1,
+        borderColor: "divider",
+        "&:first-of-type": { borderTop: 0 },
+      }}
+    >
+      <Typography variant="body1" sx={{ fontWeight: 600, minWidth: { sm: 180 } }}>
+        {primary}
+      </Typography>
+      {badge ? (
+        <Chip
+          size="small"
+          label={badge}
+          color={badgeColor}
+          variant="outlined"
+          sx={{ alignSelf: { xs: "flex-start", sm: "auto" } }}
+        />
+      ) : null}
+      <Typography variant="body2" color="text.secondary" sx={{ flex: 1 }}>
+        {secondary}
+      </Typography>
+    </Box>
+  );
+}
 
-      {/*
-        The distinction § 9 asks an empty state to draw, and the one that
-        actually costs the club something if it is blurred: nothing generated
-        and nothing wrong look the same on a screen and mean opposite things.
-      */}
-      <Alert severity="info" data-testid="not-an-all-clear">
-        {EMPTY_IS_NOT_AN_ALL_CLEAR}
-      </Alert>
+function ChaseRow({ item }: { item: ChaseItem }) {
+  const where = `${item.event}${item.isMandatory ? " (mandatory)" : ""} · ${formatShortDay(item.on)}`;
+  return (
+    <Row
+      primary={item.person}
+      badge={CHASE_LABELS[item.kind]}
+      badgeColor={item.kind === "said_yes_absent" ? "warning" : "default"}
+      // The reason sits with the person who gave it. It is the most sensitive
+      // line in the slice and the most useful one on the screen: "not attending"
+      // is a fact, and "not attending — coursework deadline" is a decision.
+      secondary={item.reason ? `${where} · “${item.reason}”` : where}
+    />
+  );
+}
 
-      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-        <Button
-          variant="contained"
-          href={`/operate/report?date=${encodeURIComponent(date)}&preview=1`}
-          sx={{ minHeight: 44 }}
-          data-testid="preview-report"
-        >
-          {PREVIEW_REPORT}
-        </Button>
-      </Stack>
+function FixRow({ item }: { item: FixItem }) {
+  return (
+    <Row
+      primary={item.person ?? item.event}
+      badge={FIX_LABELS[item.kind]}
+      badgeColor={item.kind === "approved_never_invited" ? "warning" : "default"}
+      secondary={
+        item.person
+          ? `${item.what} · ${item.event} · ${formatShortDay(item.on)}`
+          : `${item.what} · ${formatShortDay(item.on)}`
+      }
+    />
+  );
+}
 
-      <Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          {CHOOSE_ANOTHER_DATE}
+/**
+ * The week's numbers, kept because `slice-ux.md` § 10 requires the snapshot to
+ * carry them and a reader may want them — and kept *small*, because they are
+ * not what anybody opens this report to do.
+ *
+ * Availability appears as a count per level and nothing else. There is no note
+ * here because there is no note anywhere: the schema has no column capable of
+ * holding a diagnosis, the Oxford guidance that would authorise a bounded one is
+ * still outstanding, and `tests/schema-security.test.ts` scans the whole schema
+ * for one. The sentence under the counts says so, so nobody reads the absence
+ * as an omission and helpfully fills it in.
+ */
+function WeekInNumbers({ content }: { content: WeeklyReportContent }) {
+  const attendance = content.attendance;
+  const soliciting = content.events.filter((event) => event.solicitsResponse);
+  const asked = content.responseBreakdown.reduce(
+    (total, row) =>
+      total +
+      row.respondedYes +
+      row.respondedNo +
+      row.awaitingResponse +
+      row.expiredWithoutResponse +
+      row.cancelled +
+      row.neverInvited,
+    0,
+  );
+  const yes = content.responseBreakdown.reduce((total, row) => total + row.respondedYes, 0);
+
+  return (
+    <Box component="section" data-testid="week-in-numbers">
+      <Typography variant="subtitle2" component="h2" color="text.secondary" sx={{ mb: 1 }}>
+        {WEEK_IN_NUMBERS}
+      </Typography>
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Typography variant="body2" color="text.secondary" data-testid="week-events">
+          {`${content.events.length} events · ${soliciting.length} asked for a response · ${asked} people asked · ${yes} said yes`}
         </Typography>
-        <ReportDateForm date={date} preview={false} submitLabel={CHOOSE_ANOTHER_DATE} />
-      </Box>
-    </Stack>
+        <Typography variant="body2" color="text.secondary" data-testid="week-attendance">
+          {`Present ${attendance.present} · Late ${attendance.late} · Excused ${attendance.excused} · Absent ${attendance.absent}`}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          <Box component="span" sx={{ fontWeight: 600 }}>
+            {`${AVAILABILITY_HEADLINE}: `}
+          </Box>
+          <Box component="span" data-testid="availability-levels">
+            {`${AVAILABILITY_LABELS.green} ${content.availability.green} · ${AVAILABILITY_LABELS.orange} ${content.availability.orange} · ${AVAILABILITY_LABELS.red} ${content.availability.red}`}
+          </Box>
+        </Typography>
+        <Typography variant="caption" color="text.secondary">
+          {AVAILABILITY_NOTE}
+        </Typography>
+      </Paper>
+    </Box>
   );
 }
