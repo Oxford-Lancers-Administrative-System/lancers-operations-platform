@@ -88,14 +88,26 @@ function dayMs(day: string): number | null {
   return formatDay(parsed) === day ? parsed : null;
 }
 
+/**
+ * `YYYY-MM-DD` for an instant, or `""` past year 9999.
+ *
+ * `toISOString` switches to an expanded six-digit year outside 0000–9999, so
+ * `addDays("9999-12-31", 1)` would otherwise return the string `"+010000-01"`.
+ * `dayMs`'s round-trip guard cannot catch that, because the *input* parsed
+ * fine. Unreachable from any plausible `scheduled_on`, and cheaper to close
+ * than to reason about again later.
+ */
 function formatDay(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 10);
+  const iso = new Date(ms).toISOString();
+  return iso.startsWith("+") || iso.startsWith("-") ? "" : iso.slice(0, 10);
 }
 
 /** `day` plus `count` days, as `YYYY-MM-DD`. `null` for an unparseable day. */
 export function addDays(day: string, count: number): string | null {
   const ms = dayMs(day);
-  return ms === null ? null : formatDay(ms + count * MS_PER_DAY);
+  if (ms === null) return null;
+  const shifted = formatDay(ms + count * MS_PER_DAY);
+  return shifted === "" ? null : shifted;
 }
 
 /** 0 for Sunday through 6 for Saturday, or `null` for an unparseable day. */
@@ -452,6 +464,61 @@ export function nearestTerm(day: string, terms: readonly TermWindow[]): TermWind
 }
 
 /**
+ * The one term whose card a day belongs on.
+ *
+ * The term whose Oxford weeks actually contain the day, and otherwise the
+ * nearest one. `null` for a day no card can reach.
+ *
+ * This is what makes "every event is on exactly one card" true rather than
+ * merely intended. Independent review found the first implementation placing an
+ * event on two cards: growth was decided by ownership, but *placement* was not,
+ * so a context row showed everything that fell in its seven days. Two events in
+ * the Christmas vacation — one nearer Michaelmas, one nearer Hilary — grew both
+ * cards into the same week, and each card then showed both. Asking this
+ * question at the cell rather than only at the edge is the fix.
+ */
+export function termOwning(day: string, terms: readonly TermWindow[]): TermWindow | null {
+  const coordinate = deriveTermCoordinate(day, terms);
+  if (coordinate.termId !== null) {
+    return terms.find((candidate) => candidate.id === coordinate.termId) ?? null;
+  }
+  return nearestTerm(day, terms);
+}
+
+/** The whole weeks either side of its own that a term's card has to emit. */
+function reachOf(
+  term: TermWindow,
+  terms: readonly TermWindow[],
+  days: Iterable<string>,
+): { before: number; after: number; from: string; to: string } | null {
+  const firstRange = oxfordWeekRange(term, term.firstWeek);
+  const lastRange = oxfordWeekRange(term, term.lastWeek);
+  if (!firstRange || !lastRange) return null;
+
+  let before = 0;
+  let after = 0;
+
+  for (const day of days) {
+    if (termOwning(day, terms)?.id !== term.id) continue;
+
+    const toStart = daysBetween(day, firstRange.startsOn);
+    const fromEnd = daysBetween(lastRange.endsOn, day);
+    if (toStart !== null && toStart > 0) before = Math.max(before, Math.ceil(toStart / 7));
+    if (fromEnd !== null && fromEnd > 0) after = Math.max(after, Math.ceil(fromEnd / 7));
+  }
+
+  before = Math.min(before, MAX_CONTEXT_WEEKS);
+  after = Math.min(after, MAX_CONTEXT_WEEKS);
+
+  return {
+    before,
+    after,
+    from: (addDays(firstRange.startsOn, -before * 7) ?? firstRange.startsOn) as string,
+    to: (addDays(lastRange.endsOn, after * 7) ?? lastRange.endsOn) as string,
+  };
+}
+
+/**
  * One term card: the term's Oxford weeks as rows, Sunday–Saturday as columns,
  * and however many dated context rows either side it takes to reach the events
  * around the term.
@@ -476,13 +543,15 @@ export function nearestTerm(day: string, terms: readonly TermWindow[]): TermWind
  * Rows are emitted only as far as there is something to show. A term with no
  * events around it renders exactly its own weeks, as before.
  *
- * ## Placement inside the term
+ * ## Placement
  *
- * From `deriveTermCoordinate` over the full term list, never from the event's
- * stored `term_id`. Both agree today, because both are that same function; but
- * the issue makes the actual date authoritative and the coordinate derived, and
- * reading the derived column back would quietly make a stored value the source
- * of truth for its own projection.
+ * Every cell asks `termOwning` whether the day is this term's, and shows the
+ * day's events only if it is. That function starts from `deriveTermCoordinate`
+ * over the full term list — never from the event's stored `term_id`. Both agree
+ * today, because both are that same function; but the issue makes the actual
+ * date authoritative and the coordinate derived, and reading the derived column
+ * back would quietly make a stored value the source of truth for its own
+ * projection.
  */
 export function buildTermCard(
   term: TermWindow,
@@ -503,32 +572,15 @@ export function buildTermCard(
     };
   }
 
-  // How far the card has to reach in each direction. Only events this term is
-  // the nearest to count: a Hilary fixture is Hilary's to show, and pulling it
-  // onto the Michaelmas card would put one event on two cards.
-  const farFromAnyTerm: CalendarEvent[] = [];
-  let weeksBefore = 0;
-  let weeksAfter = 0;
-
-  for (const [day, group] of byDay) {
-    const coordinate = deriveTermCoordinate(day, terms);
-    if (coordinate.termId !== null) continue;
-
-    const owner = nearestTerm(day, terms);
-    if (owner === null) {
-      farFromAnyTerm.push(...group);
-      continue;
-    }
-    if (owner.id !== term.id) continue;
-
-    const before = daysBetween(day, firstRange.startsOn);
-    const after = daysBetween(lastRange.endsOn, day);
-    if (before !== null && before > 0) weeksBefore = Math.max(weeksBefore, Math.ceil(before / 7));
-    if (after !== null && after > 0) weeksAfter = Math.max(weeksAfter, Math.ceil(after / 7));
+  const reach = reachOf(term, terms, byDay.keys());
+  if (reach === null) {
+    return {
+      term,
+      weeks: [],
+      elsewhere: { undated, farFromAnyTerm: [], total: undated.length },
+      placedCount: 0,
+    };
   }
-
-  weeksBefore = Math.min(weeksBefore, MAX_CONTEXT_WEEKS);
-  weeksAfter = Math.min(weeksAfter, MAX_CONTEXT_WEEKS);
 
   const weeks: TermCardWeek[] = [];
   const placed = new Set<string>();
@@ -537,8 +589,15 @@ export function buildTermCard(
     const days: TermCardDay[] = [];
     for (let column = 0; column < 7; column += 1) {
       const day = addDays(startsOn, column) as string;
-      const dayEvents = byDay.get(day) ?? [];
+
+      // Ownership is asked here, at the cell, and not only when deciding how
+      // far to grow. A context row covers seven days that may belong to the
+      // term on the other side of the vacation, and showing them here would
+      // put one event on two cards.
+      const ours = termOwning(day, terms)?.id === term.id;
+      const dayEvents = ours ? (byDay.get(day) ?? []) : [];
       for (const event of dayEvents) placed.add(event.id);
+
       days.push({
         day,
         weekday: column,
@@ -549,7 +608,7 @@ export function buildTermCard(
     weeks.push({ week, outside, startsOn, endsOn: addDays(startsOn, 6) as string, days });
   };
 
-  for (let offset = weeksBefore; offset >= 1; offset -= 1) {
+  for (let offset = reach.before; offset >= 1; offset -= 1) {
     const startsOn = addDays(firstRange.startsOn, -offset * 7);
     if (startsOn !== null) emit(startsOn, null, "before");
   }
@@ -559,9 +618,23 @@ export function buildTermCard(
     if (range !== null) emit(range.startsOn, week, null);
   }
 
-  for (let offset = 1; offset <= weeksAfter; offset += 1) {
+  for (let offset = 1; offset <= reach.after; offset += 1) {
     const startsOn = addDays(lastRange.endsOn, (offset - 1) * 7 + 1);
     if (startsOn !== null) emit(startsOn, null, "after");
+  }
+
+  // What no card in the season can hold, computed from the terms rather than
+  // inferred from this one. A day is unreachable when it has no owning term at
+  // all, or when its owner's card — capped at `MAX_CONTEXT_WEEKS` — does not
+  // stretch to it. Deriving it this way rather than assuming the cap is the
+  // only cause is what keeps a term whose `ends_on` runs past its last week
+  // from dropping an event silently.
+  const farFromAnyTerm: CalendarEvent[] = [];
+  for (const [day, group] of byDay) {
+    const owner = termOwning(day, terms);
+    const ownerReach = owner === null ? null : reachOf(owner, terms, byDay.keys());
+    const covered = ownerReach !== null && ownerReach.from <= day && day <= ownerReach.to;
+    if (!covered) farFromAnyTerm.push(...group);
   }
 
   farFromAnyTerm.sort(byDate);
@@ -576,6 +649,28 @@ export function buildTermCard(
     },
     placedCount: placed.size,
   };
+}
+
+/**
+ * Every event a month grid actually renders — the cells, and the undated list
+ * beneath it.
+ *
+ * For the type legend, which claims to name "the types actually in view" and
+ * has to be handed the same events the reader can see. Independent review found
+ * it being fed the whole season instead, which named colours for types that
+ * were nowhere on the screen.
+ */
+export function monthGridEvents(grid: MonthGrid): CalendarEvent[] {
+  return [...grid.weeks.flat().flatMap((day) => day.events), ...grid.undated];
+}
+
+/** The same, for a term card: its cells, plus everything stated beneath it. */
+export function termCardEvents(card: TermCard): CalendarEvent[] {
+  return [
+    ...card.weeks.flatMap((week) => week.days.flatMap((day) => day.events)),
+    ...card.elsewhere.farFromAnyTerm,
+    ...card.elsewhere.undated,
+  ];
 }
 
 /** Date first, then the within-day order. For the lists beside the card. */

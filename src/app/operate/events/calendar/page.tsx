@@ -13,9 +13,11 @@ import {
   defaultTerm,
   findTerm,
   groupTermsByAcademicYear,
+  monthGridEvents,
   parseMonth,
   shiftMonth,
   monthOf,
+  termCardEvents,
   type CalendarEvent,
 } from "@/lib/services/calendar";
 import { listCurrentSeasonEvents, type EventList } from "@/lib/services/events";
@@ -169,7 +171,12 @@ export default async function EventCalendarPage({
           choices={[
             { href: "/operate/events", label: "List", active: false, testId: "view-list" },
             {
-              href: mode === "oxford" ? oxfordHref(first(params.term) || null) : BASE_PATH,
+              // Carries where you are, so re-clicking the view you are already
+              // in does not quietly send you back to the default month or term.
+              href:
+                mode === "oxford"
+                  ? oxfordHref(first(params.term) || null)
+                  : gregorianHref(parseMonth(first(params.month)) ?? defaultMonth(events, today)),
               label: "Calendar",
               active: true,
               testId: "view-calendar",
@@ -250,7 +257,7 @@ function GregorianView({
         </Alert>
       ) : null}
 
-      <TypeLegend events={events} />
+      <TypeLegend events={monthGridEvents(grid)} />
 
       <GregorianMonth grid={grid} />
 
@@ -314,7 +321,7 @@ function OxfordView({
         </Alert>
       ) : null}
 
-      <TypeLegend events={events} />
+      <TypeLegend events={termCardEvents(card)} />
 
       <TermCard card={card} />
 

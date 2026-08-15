@@ -146,6 +146,13 @@ describe("bare-date arithmetic", () => {
     expect(monthOf("2027-02-30")).toBeNull();
   });
 
+  it("refuses to run off the end of the four-digit years", () => {
+    // `toISOString` switches to an expanded six-digit year past 9999, which
+    // would otherwise come back as the string "+010000-01".
+    expect(addDays("9999-12-31", 1)).toBeNull();
+    expect(addDays("9999-12-30", 1)).toBe("9999-12-31");
+  });
+
   it("shifts months across a year boundary in both directions", () => {
     expect(shiftMonth("2026-12", 1)).toBe("2027-01");
     expect(shiftMonth("2027-01", -1)).toBe("2026-12");
@@ -419,6 +426,47 @@ describe("buildTermCard", () => {
     expect(card.weeks).toHaveLength(9 + MAX_CONTEXT_WEEKS);
   });
 
+  it("does not show a vacation event on both of the terms around it", () => {
+    // Independent review found this: growth was decided by ownership but
+    // placement was not, so two events in the week of 20–26 December 2026 — one
+    // nearer Michaelmas, one nearer Hilary — grew both cards into that week and
+    // each card then showed both. 23 December is 18 days from either term, so
+    // the tie-break gives it to Michaelmas; 24 December is 19 from Michaelmas
+    // and 17 from Hilary, so it is Hilary's. They land in the same seven days.
+    const dec23 = event({ scheduledOn: "2026-12-23", name: "Christmas dinner" });
+    const dec24 = event({ scheduledOn: "2026-12-24", name: "Boxing Day eve social" });
+    const events = [dec23, dec24];
+
+    const michaelmas = buildTermCard(MICHAELMAS_2026, TERMS, events);
+    const hilary = buildTermCard(HILARY_2027, TERMS, events);
+
+    expect(placedIds(michaelmas)).toEqual([dec23.id]);
+    expect(placedIds(hilary)).toEqual([dec24.id]);
+
+    // Both cards do reach the same week; only the ownership of each day differs.
+    const inWeek = (card: ReturnType<typeof buildTermCard>) =>
+      card.weeks.find((week) => week.startsOn === "2026-12-20");
+    expect(inWeek(michaelmas)).toBeDefined();
+    expect(inWeek(hilary)).toBeDefined();
+    expect(michaelmas.elsewhere.total).toBe(0);
+    expect(hilary.elsewhere.total).toBe(0);
+  });
+
+  it("reports an event its owning term cannot stretch to, rather than dropping it", () => {
+    // Also from review: `nearestTerm` measures from the term's `ends_on`, and
+    // the card's reach measures from its last week's Saturday. A term whose
+    // `ends_on` runs past that Saturday could keep an event nothing then showed.
+    const longTailed: TermWindow = { ...MICHAELMAS_2026, endsOn: "2026-12-20" };
+    const terms = [longTailed];
+    const stranded = event({ scheduledOn: "2027-01-31", name: "Stranded" });
+
+    const card = buildTermCard(longTailed, terms, [stranded]);
+
+    expect(placedIds(card)).toEqual([]);
+    expect(card.elsewhere.farFromAnyTerm.map((e) => e.name)).toEqual(["Stranded"]);
+    expect(card.elsewhere.total).toBe(1);
+  });
+
   it("accounts for every event exactly once across the season's cards", () => {
     // The real invariant, now that a card reaches past its own term: every
     // event appears on exactly one term card, or is reported as having no
@@ -427,6 +475,10 @@ describe("buildTermCard", () => {
       event({ scheduledOn: "2026-10-14", name: "Michaelmas week 1" }),
       event({ scheduledOn: "2026-09-27", name: "Michaelmas week −1" }),
       event({ scheduledOn: "2026-12-12", name: "Christmas dinner" }),
+      // The overlap week both Michaelmas and Hilary reach into. Without
+      // ownership at the cell, these two are each counted twice.
+      event({ scheduledOn: "2026-12-23", name: "Nearer Michaelmas" }),
+      event({ scheduledOn: "2026-12-24", name: "Nearer Hilary" }),
       event({ scheduledOn: "2027-01-24", name: "Hilary week 1" }),
       event({ scheduledOn: "2027-04-25", name: "Trinity week 1" }),
       event({ scheduledOn: "2027-08-20", name: "Far from any term" }),

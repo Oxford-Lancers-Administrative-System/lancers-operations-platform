@@ -243,6 +243,13 @@ describe("the Gregorian calendar", () => {
       "/operate/events/calendar?mode=gregorian&month=2026-10",
     );
     expect(within(container).getByTestId("month-input")).toBeTruthy();
+
+    // The Calendar switch keeps the month you are on, rather than sending you
+    // back to the default one.
+    expect(within(container).getByTestId("view-calendar")).toHaveAttribute(
+      "href",
+      "/operate/events/calendar?mode=gregorian&month=2026-11",
+    );
   });
 
   it("falls back to a sensible month rather than failing on an unreadable one", async () => {
@@ -552,24 +559,45 @@ describe("what a calendar tile states", () => {
   });
 
   it("explains the colours it is using, and only those", async () => {
+    // The season holds a fixture and a camp too, but they are in other months.
+    // Independent review found the legend being fed the whole season, so it
+    // named colours for types nowhere on the screen; the out-of-month events
+    // here are what makes this test able to tell the difference.
     givenEvents([
       listEntry({ eventType: "practice", scheduledOn: "2026-10-11" }),
       listEntry({ eventType: "social", scheduledOn: "2026-10-12" }),
       listEntry({ eventType: "practice", scheduledOn: "2026-10-13" }),
+      listEntry({ eventType: "fixture", scheduledOn: "2027-01-24" }),
+      listEntry({ eventType: "camp", scheduledOn: "2027-04-25" }),
     ]);
 
-    const { container } = render(await EventCalendarPage(calendarProps()));
+    const { container } = render(await EventCalendarPage(calendarProps({ month: "2026-10" })));
     const legend = within(container).getByTestId("type-legend");
     const items = within(legend).getAllByTestId("type-legend-item");
 
-    // Two types are in view, so the legend names two — not all ten.
     expect(items.map((item) => item.getAttribute("data-event-type"))).toEqual([
       "practice",
       "social",
     ]);
-    expect(flatten(legend.textContent)).toContain("Practice");
-    expect(flatten(legend.textContent)).toContain("Social");
+    expect(flatten(legend.textContent)).not.toContain("Fixture");
+    expect(flatten(legend.textContent)).not.toContain("Camp");
     expect(legend).toHaveAttribute("aria-label", "What the calendar colours mean");
+  });
+
+  it("names an undated event's type, because that block is on the screen too", async () => {
+    givenEvents([
+      listEntry({ eventType: "practice", scheduledOn: "2026-10-11" }),
+      listEntry({ eventType: "social", scheduledOn: null, startsAt: null }),
+    ]);
+
+    const { container } = render(await EventCalendarPage(calendarProps({ month: "2026-10" })));
+    const items = within(within(container).getByTestId("type-legend")).getAllByTestId(
+      "type-legend-item",
+    );
+    expect(items.map((item) => item.getAttribute("data-event-type"))).toEqual([
+      "practice",
+      "social",
+    ]);
   });
 
   it("shows the same legend on the term card", async () => {

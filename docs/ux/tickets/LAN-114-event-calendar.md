@@ -100,6 +100,13 @@ views.
   Christmas vacation, so six reaches any event in any real vacation from either
   side while stopping an event a year adrift from dragging fifty empty rows onto
   the screen.
+- **Exactly one card per event.** Each day belongs to one term — the one whose
+  Oxford weeks contain it, or failing that the nearest — and a cell shows a day's
+  events only if that day is the card's own. Two cards can reach into the same
+  vacation week without either showing the other's events. Independent review
+  caught the first implementation deciding ownership only when growing the card
+  and not when filling it, which put a Christmas-vacation event on both
+  Michaelmas and Hilary; the regression test covers that week specifically.
 - **What is left is stated quietly, not omitted.** One line says events in the
   season's other terms are on those terms' cards. Below it, and only when they
   exist: events with no date, and dated events too far from any term to reach.
@@ -152,6 +159,23 @@ configuration the mapping needs for any academic year.
 
 Which day is _today_ is asked once, in the club's zone, in `src/lib/club-time.ts`.
 The calendar components never consult a clock themselves.
+
+## Known limitations, from independent review
+
+- **A term card's columns are positional.** A week row is seven consecutive days
+  from the term's start, rendered under Sunday…Saturday headings. Every term the
+  schema, the seed and all three sources contain starts on a Sunday, so the
+  headings are correct — but `public.terms` does not _require_ it, and a term
+  configured to start on a Monday would file each event one column to the left.
+  Fixing it properly means deciding whether an Oxford week is "seven days from
+  the term's start" or "the Sunday–Saturday week containing it", which is a
+  question about the club's calendar rather than about this code. Left as it is,
+  and recorded here rather than guessed at.
+- **`nearestTerm` measures from `terms.ends_on`; a card's reach measures from
+  its last week's Saturday.** For every real term those are the same date. Where
+  they are not, an event can be owned by a term whose card cannot stretch to it;
+  it is then reported under "Too far from any term to show" rather than dropped,
+  and a test covers that.
 
 ## Deliberately out of scope
 
