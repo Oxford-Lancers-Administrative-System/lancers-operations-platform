@@ -14,14 +14,18 @@ The current live LAN-81 issue, comments, relationships and recorded owner decisi
 
 ## Owned screens and routes
 
-| Screen | Route             | Audience                   |
-| ------ | ----------------- | -------------------------- |
-| UX-80  | `/operate/report` | Authorized report operator |
-| UX-81  | `/operate/report` | Authorized report operator |
-| UX-82  | `/operate/report` | Authorized report operator |
-| UX-83  | `/operate/report` | Authorized report operator |
+| Screen | Route             | Audience                   | Status                    |
+| ------ | ----------------- | -------------------------- | ------------------------- |
+| UX-80  | `/operate/report` | Authorized report operator | **Withdrawn 15 Aug 2026** |
+| UX-81  | `/operate/report` | Authorized report operator | Superseded 15 Aug 2026    |
+| UX-82  | `/operate/report` | Authorized report operator | **Withdrawn 15 Aug 2026** |
+| UX-83  | `/operate/report` | Authorized report operator | Superseded 15 Aug 2026    |
 
 ## Wireframes
+
+These are the 12 August package and remain the record of what was approved
+then. Since the 15 August amendment below they are **not** the specification for
+`/operate/report`.
 
 - **UX-80 - Prepare Monday report:** [`desktop`](../wireframes/UX-80-report-preview-desktop.svg) / [`phone`](../wireframes/UX-80-report-preview-phone.svg)
 - **UX-81 - Monday exception and action report:** [`desktop`](../wireframes/UX-81-stored-report-desktop.svg) / [`phone`](../wireframes/UX-81-stored-report-phone.svg)
@@ -54,9 +58,32 @@ The current live LAN-81 issue, comments, relationships and recorded owner decisi
 - Before implementation, re-read the live owning issue and comments and reconcile any changes recorded after Brian’s 12 August 2026 approval.
 - In implementation review, provide LAN-81, implemented screen IDs, desktop and 375px phone screenshots, acceptance-criteria results, and every deviation or assumption.
 
+## Owner amendment — 15 August 2026
+
+Brian reviewed the built report over four rounds and changed what it is. The
+full record, screen by screen, is in
+[`../slice-ux.md`](../slice-ux.md) under **LAN-81 owner amendment**. In short:
+
+- **UX-80 and UX-82 are withdrawn.** There is no preview step, no **Generate
+  report** button and no version list. Opening `/operate/report` shows the
+  report; pressing **Show Report** files a snapshot. Versions are still filed
+  and still immutable — invariant M5 is untouched — and are never shown.
+- **UX-81 and UX-83 are superseded** by the structure Brian specified: last
+  week's events with RSVP counts and turnout, an attendance grid of people
+  against events with two values per event, availability, next week, walk-ups,
+  recruitment, onboarding, and the week in numbers.
+- **One week forward** is added, read-only. This amends the criterion that the
+  report adds no planning horizon; the three-week horizon stays LAN-109's.
+
+The wireframes remain as the record of what was approved on 12 August. They are
+no longer the specification for this route.
+
 ## Acceptance criteria
 
-- All owned screen IDs render at their registered routes for the correct role and record scope.
+- The route renders for the correct role and record scope. UX-80 and UX-82 are
+  withdrawn and render nowhere; UX-81 and UX-83 are superseded by the structure
+  in the amendment above. This criterion is amended by that decision — it was
+  written when four screens were expected.
 - Primary and secondary actions use the exact approved labels shown in the wireframes.
 - Material alternate states shown in the owned screens are reachable and testable.
 - Keyboard focus, labels, status meaning, error association, and touch targets are accessible.

@@ -1106,6 +1106,55 @@ describe("the scenario scripts stay inside the conventions", () => {
         ],
       ],
     ],
+    /**
+     * LAN-81's Monday report. Its setup script writes thirty rows with
+     * deterministic identifiers, and cleanup removes every one of those by
+     * `id = '…'` — no relaxation is needed for them.
+     *
+     * These three remove what the APPLICATION writes while the scenario is in
+     * use: the immutable snapshots a tester generates by pressing **Generate
+     * report**, the audit rows those generations write, and the audit rows the
+     * scenario's own events collected. None has an identifier any script can
+     * know, because PostgreSQL generates it inside the generating transaction.
+     *
+     * The two report-shaped statements are qualified on the open season and on
+     * the sentinel inside the report's own **stored content**, which is a
+     * marker nothing else puts there: every section of a report for that week
+     * names this scenario's events and people, and `setup.sql` refuses to
+     * install unless the reporting window contains no event but its own. The
+     * cleanup additionally aborts if it meets a report in that date range whose
+     * content does not carry the sentinel — a real snapshot is never guessed at.
+     *
+     * This is the only scenario permitted to delete from `public.weekly_reports`
+     * at all. Invariant M5 makes a published report immutable and nothing in the
+     * application can remove one; a synthetic rehearsal week is scenario data
+     * the runbook requires to be removable, and no statement here changes a
+     * report rather than removing it whole.
+     */
+    "lan-81": [
+      [
+        "public.audit_events",
+        [
+          "entity_table = 'weekly_reports'",
+          "entity_id in (select id from public.weekly_reports where content::text like '%PILOT-LAN-81%')",
+        ],
+      ],
+      [
+        "public.weekly_reports",
+        [
+          "season_id in (select id from public.seasons where status in ('open', 'active'))",
+          "content::text like '%PILOT-LAN-81%'",
+        ],
+      ],
+      [
+        "public.audit_events",
+        [
+          "entity_table = 'events'",
+          "entity_id in ('00810081-0081-4081-8081-000000000021', '00810081-0081-4081-8081-000000000022', '00810081-0081-4081-8081-000000000023')",
+          "entity_id in (select id from public.events where name like '%PILOT-LAN-81%')",
+        ],
+      ],
+    ],
     // LAN-110's coach attendance recorder. The same four application-created
     // tables LAN-80 has — the coach's board writes exactly what the operator's
     // board writes — plus the recruitment prospect a walk-on now creates.
@@ -1461,6 +1510,16 @@ describe("the scenario scripts stay inside the conventions", () => {
     // this scenario cannot prove is synthetic stops the script rather than
     // being deleted on a guess.
     ["lan-80/cleanup.sql", read("scripts/pilot/lan-80/cleanup.sql"), 6] as const,
+    // Seven, and two of them are this scenario's alone: the reporting window has
+    // to contain no event but its own, and no report may already be filed for
+    // the date. Both exist because cleanup identifies the generated snapshots by
+    // the sentinel inside their stored content, which is unambiguous only while
+    // the week belongs entirely to the scenario.
+    ["lan-81/setup.sql", read("scripts/pilot/lan-81/setup.sql"), 7] as const,
+    // One, and it is the one that matters: a weekly report filed in this
+    // scenario's date range whose content carries no sentinel stops the script
+    // rather than being deleted on a guess. It might be real leadership history.
+    ["lan-81/cleanup.sql", read("scripts/pilot/lan-81/cleanup.sql"), 1] as const,
     // Seven, and the two extra are what makes this scenario different from
     // LAN-80's: it grants access, so its setup refuses a database whose role
     // catalogue does not have the seat it is about to grant, and refuses one

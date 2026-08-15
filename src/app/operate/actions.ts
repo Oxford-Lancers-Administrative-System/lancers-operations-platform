@@ -100,8 +100,21 @@ export async function administerDelivery(): Promise<never> {
   notImplemented("LAN-78", "administer WhatsApp delivery, retries and revocation");
 }
 
-/** Read the Monday exception and action report. Nobody, pending LAN-81. */
-export async function readLeadershipReport(): Promise<never> {
-  await requireCapability("leadership_report");
-  notImplemented("LAN-81", "read the Monday exception and action report");
-}
+/*
+ * `readLeadershipReport` used to be here, gated on `leadership_report` and
+ * raising `ActionNotImplemented` past the guard. LAN-81 built the report, so
+ * the claim it made — "authorization is in place and the behaviour is not" —
+ * stopped being true, and a placeholder that lies is worse than no placeholder.
+ *
+ * The capability did not go anywhere and neither did its enforcement, but the
+ * shape of the enforcement changed twice during LAN-81's review and this
+ * comment described a middle version of it. There is no server action: Brian's
+ * 15 August decision removed the Generate button, so the report both reads and
+ * files its snapshot through `src/app/operate/report/page.tsx`, behind
+ * `gateShellPage(..., "leadership_report")`.
+ *
+ * That gate is the whole boundary, and it is tested as one:
+ * `report/screens.test.tsx` drives it with real role codes and asserts that a
+ * refused reader causes no read — and therefore no write, since filing a
+ * snapshot happens inside the read.
+ */

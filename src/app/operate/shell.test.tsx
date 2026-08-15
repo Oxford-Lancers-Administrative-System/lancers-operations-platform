@@ -130,6 +130,18 @@ function rosterProps() {
   } as unknown as PageProps<"/operate/roster">;
 }
 
+/**
+ * The report reads its reporting date, preview and versions flags from the
+ * query string. LAN-81 gave it that shape; these tests are about who reaches
+ * the page at all, so every one of them passes an empty query.
+ */
+function reportProps() {
+  return {
+    params: Promise.resolve({}),
+    searchParams: Promise.resolve({}),
+  } as unknown as PageProps<"/operate/report">;
+}
+
 /** Text with runs of whitespace collapsed, so wrapping cannot break a match. */
 function flatten(text: string | null): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
@@ -374,7 +386,7 @@ describe("row 14 — an operator with no relevant role is refused, and told what
   it("refuses the report destination and names the requirement (UX-05)", async () => {
     givenAccess({ state: "active", operator: actor([]) });
 
-    const { container } = render(await ReportPage());
+    const { container } = render(await ReportPage(reportProps()));
 
     expect(
       screen.getByRole("heading", { name: "You do not have access to this action" }),
@@ -382,15 +394,27 @@ describe("row 14 — an operator with no relevant role is refused, and told what
     expect(flatten(container.textContent)).toContain(
       "Your operator profile is active, but your current role assignments do not permit this action.",
     );
-    // The requirement, not the holdings.
-    expect(container.textContent).toContain("No club role is currently authorized");
+    // The requirement, not the holdings. Until LAN-81 the grant was empty and
+    // this read "No club role is currently authorized"; the sentence changed
+    // when the decision was made, and the property it demonstrates did not —
+    // the screen describes what the action needs and never what the reader has.
+    expect(flatten(container.textContent)).toContain(
+      "This action requires one of these roles: President, Vice-President, Secretary or " +
+        "General Manager.",
+    );
     expect(container.textContent).not.toContain("not built yet");
   });
 
-  it("refuses the President too, because nobody holds the report capability yet", async () => {
-    givenAccess({ state: "active", operator: actor(["president"]) });
+  it("refuses the Treasurer, whom the report capability does not name", async () => {
+    // This was the President while `leadership_report` was an empty grant.
+    // LAN-81 decided the grant and the President holds it, so the refusal has
+    // to be demonstrated by a role that is genuinely outside it. The Treasurer
+    // is that role here for the same reason they are outside event approval and
+    // delivery administration: no recorded decision puts them on the club's
+    // event workflow.
+    givenAccess({ state: "active", operator: actor(["treasurer"]) });
 
-    const { container } = render(await ReportPage());
+    const { container } = render(await ReportPage(reportProps()));
 
     expect(container.textContent).toContain("You do not have access to this action");
   });
@@ -398,26 +422,31 @@ describe("row 14 — an operator with no relevant role is refused, and told what
   it("is a refusal, not a 404 and not a silent no-op", async () => {
     givenAccess({ state: "active", operator: actor(["head_coach"]) });
 
-    const { container } = render(await ReportPage());
+    const { container } = render(await ReportPage(reportProps()));
 
     expect(container.textContent).toContain("You do not have access to this action");
     expect(container.textContent).not.toMatch(/not found|404/i);
   });
 
   it("does not say who does hold the missing role", async () => {
-    givenAccess({ state: "active", operator: actor(["secretary"]) });
+    // The refused actor was the Secretary while nobody held the capability.
+    // The Secretary holds it now, so the refusal is demonstrated by a role
+    // outside the grant — and what is asserted is unchanged: the screen names
+    // the requirement, and says nothing about the reader or about who to ask.
+    givenAccess({ state: "active", operator: actor(["it_officer"]) });
 
-    const { container } = render(await ReportPage());
+    const { container } = render(await ReportPage(reportProps()));
     const text = flatten(container.textContent);
 
     expect(text).not.toMatch(/held by|ask the|contact the president|the president can/i);
-    expect(container.innerHTML.toLowerCase()).not.toContain("secretary");
+    expect(container.innerHTML.toLowerCase()).not.toContain("it_officer");
+    expect(container.innerHTML.toLowerCase()).not.toContain("it officer");
   });
 
   it("offers a way back to somewhere the operator can actually go", async () => {
     givenAccess({ state: "active", operator: actor([]) });
 
-    render(await ReportPage());
+    render(await ReportPage(reportProps()));
 
     const back = screen.getByRole("link", { name: "Return to an authorized area" });
     expect(back).toHaveAttribute("href", "/operate/roster");
@@ -436,7 +465,7 @@ describe("row 1 — no session reaches nothing, from the layout or from any page
   it.each([
     [() => RosterPage(rosterProps()), "%2Foperate%2Froster"],
     [() => EventsPage(eventsProps()), "%2Foperate%2Fevents"],
-    [() => ReportPage(), "%2Foperate%2Freport"],
+    [() => ReportPage(reportProps()), "%2Foperate%2Freport"],
   ])("redirects a page to the login page, keeping where it was going", async (page, encoded) => {
     givenAccess({ state: "no_session" });
 
@@ -453,7 +482,7 @@ describe("row 6 — the refusal screen names the requirement, never the reader's
     const held = ["it_officer", "social_secretary", "kit_manager", "head_coach"];
     givenAccess({ state: "active", operator: actor(held) });
 
-    const { container } = render(await ReportPage());
+    const { container } = render(await ReportPage(reportProps()));
     const html = container.innerHTML.toLowerCase();
 
     for (const code of held) {
@@ -475,20 +504,28 @@ describe("row 6 — the refusal screen names the requirement, never the reader's
     );
   });
 
-  it("names the empty grant, and no role, for a non-coaching operator", async () => {
+  it("names the report's requirement, and no role, for a non-coaching operator", async () => {
     // The same property on the other path: an operator with seats that carry no
-    // capability at all reaches Report's empty grant, and that refusal must be
+    // capability at all reaches Report's own refusal, and that refusal must be
     // just as silent about what they hold.
+    //
+    // Until LAN-81 this read "No club role is currently authorized", because the
+    // report grant was empty. LAN-81 decided it, so the sentence now names four
+    // roles — which sharpens the assertion rather than blunting it: the screen
+    // names four seats and still names none of the three the reader holds.
     const held = ["it_officer", "social_secretary", "kit_manager"];
     givenAccess({ state: "active", operator: actor(held) });
 
-    const { container } = render(await ReportPage());
+    const { container } = render(await ReportPage(reportProps()));
     const html = container.innerHTML.toLowerCase();
 
     for (const label of ["it_officer", "it officer", "social secretary", "kit manager"]) {
       expect(html, `the refusal screen names "${label}"`).not.toContain(label);
     }
-    expect(container.textContent).toContain("No club role is currently authorized");
+    expect(flatten(container.textContent)).toContain(
+      "This action requires one of these roles: President, Vice-President, Secretary or " +
+        "General Manager.",
+    );
   });
 });
 
@@ -713,7 +750,7 @@ describe("LAN-110 — the coach shell", () => {
   it("refuses the report", async () => {
     givenAccess({ state: "active", operator: actor(COACH) });
 
-    render(await ReportPage());
+    render(await ReportPage(reportProps()));
 
     expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
   });

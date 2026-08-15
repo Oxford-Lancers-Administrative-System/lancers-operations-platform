@@ -902,17 +902,24 @@ describe("the wall between RSVP and attendance", () => {
       "select mismatch from public.rsvp_attendance_mismatches where event_id = $1",
       [event.id],
     );
+    // All four classifications, since LAN-81 corrected the view. Until then
+    // `attended_without_invitation` was absent from this list and from every
+    // other, because the view could not emit it for an event that had any
+    // invitations at all — which is every approved event.
     expect(view.rows.map((row) => row.mismatch).sort()).toEqual([
+      "attended_without_invitation",
       "said_no_but_attended",
       "said_yes_marked_absent",
       "said_yes_no_attendance_recorded",
     ]);
 
     const withMismatches = await readAttendanceBoard(event.id);
-    expect(withMismatches.mismatchCount).toBe(3);
+    expect(withMismatches.mismatchCount).toBe(4);
 
-    // The fourth case — the walk-up — is surfaced by the board from the
-    // structure rather than by the view. See the test below for why.
+    // The walk-up is now flagged twice over, by two independent routes: the
+    // board derives it from the absence of an invitation, and the view
+    // classifies it. Both are asserted, because the board's derivation is what
+    // kept the screen honest while the view was wrong.
     expect(withMismatches.walkUpCount).toBe(1);
     expect(withMismatches.participants.some((participant) => participant.isWalkUp)).toBe(true);
 
@@ -922,7 +929,7 @@ describe("the wall between RSVP and attendance", () => {
       "select mismatch from public.rsvp_attendance_mismatches where event_id = $1",
       [event.id],
     );
-    expect(after.rows).toHaveLength(3);
+    expect(after.rows).toHaveLength(4);
     expect(await attendanceRows(event.id)).toHaveLength(3);
 
     const responses = await observer.query<{ count: string }>(
@@ -934,33 +941,29 @@ describe("the wall between RSVP and attendance", () => {
   });
 
   /**
-   * A gap in the frozen view, pinned rather than worked around.
+   * The gap LAN-80 pinned, and LAN-81 closed.
    *
-   * `public.rsvp_attendance_mismatches` defines `attended_without_invitation`,
-   * and it can never emit it for any event that has at least one invitation —
-   * which is every approved event. The reason is structural: the view joins
-   * attendance to invitations and admits an unmatched attendance row only
-   * through `or i.id is null`, and `i.id` is null only when the event has no
-   * invitations at all. The walk-up row therefore pairs with nothing and is
-   * never emitted.
+   * `public.rsvp_attendance_mismatches` defined `attended_without_invitation`
+   * and could not emit it for any event with at least one invitation — which is
+   * every approved event. The view joined attendance to invitations and
+   * admitted an unmatched attendance row only through `or i.id is null`, and
+   * `i.id` is null only when the event has no invitations at all, so the
+   * walk-up paired with nothing and was never returned. It was real rather than
+   * theoretical: the synthetic seed contains two walk-ups and the view reported
+   * the classification zero times.
    *
-   * It is real rather than theoretical: the seeded dataset contains two
-   * walk-ups and the view reports the classification zero times.
+   * LAN-80 reported it rather than authoring a migration, on Brian's decision
+   * of 14 August 2026, and asserted the defect here so it could not be
+   * forgotten. LAN-81 is the issue that reads the view, so LAN-81 corrected it,
+   * and this assertion is the inversion that comment promised: the count is now
+   * greater than zero for exactly the case that used to vanish.
    *
-   * Fixing it is a migration against a view in the domain baseline, and LAN-80
-   * says a discovered schema gap goes to Brian before anybody writes one. So
-   * this test **asserts the defect**, which is deliberate and uncomfortable: it
-   * is here so the gap cannot be forgotten, so the pull request has evidence
-   * rather than an assertion, and so that whoever is authorised to correct the
-   * view has a test that fails the moment they do — at which point it inverts
-   * to `toBeGreaterThan(0)` and this comment goes.
-   *
-   * Nothing on the screen depends on the broken classification. The board
-   * derives the walk-up flag from the absence of an invitation, which is the
-   * same fact the view was trying to express, so the operator sees it either
-   * way.
+   * Both routes stay asserted. The board derives the walk-up flag from the
+   * absence of an invitation, which is what kept the screen honest while the
+   * view was wrong, and a correction to one must not quietly become the only
+   * evidence for the other.
    */
-  it("cannot report attended_without_invitation — a gap in the frozen view, reported to Brian", async () => {
+  it("reports attended_without_invitation — the gap LAN-80 pinned, corrected in LAN-81", async () => {
     const event = await occurredEvent(2);
     await recordWalkUpAttendance(actorPersonId, event.id, {
       givenName: "Devon",
@@ -970,17 +973,51 @@ describe("the wall between RSVP and attendance", () => {
       presence: "present",
     });
 
+    // The event has invitations — which is the whole point. Under the old view
+    // this fact alone was enough to make the classification unreachable.
+    const invited = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.invitations where event_id = $1",
+      [event.id],
+    );
+    expect(Number(invited.rows[0].count)).toBeGreaterThan(0);
+
     const view = await observer.query<{ count: string }>(
       `select count(*)::text as count from public.rsvp_attendance_mismatches
         where event_id = $1 and mismatch = 'attended_without_invitation'`,
       [event.id],
     );
-    expect(Number(view.rows[0].count)).toBe(0);
+    expect(Number(view.rows[0].count)).toBeGreaterThan(0);
 
     const board = await readAttendanceBoard(event.id);
     const walkUp = board.participants.find((participant) => participant.isWalkUp);
     expect(walkUp).toBeDefined();
     expect(board.walkUpCount).toBe(1);
+  });
+
+  /**
+   * The correction did not widen the view.
+   *
+   * A full outer join is a bigger population than a left join, so the risk of
+   * the fix is the opposite of the defect: classifications that used to be
+   * right becoming over-counted, or an invitee pairing with somebody else's
+   * attendance row. An event where every invitee answered and every answer was
+   * honoured must still report nothing at all.
+   */
+  it("reports nothing when intent and reality agree", async () => {
+    const event = await occurredEvent(3);
+    const invitations = await invitationsFor(event.id);
+    const keyFor = (index: number) => `player:${invitations[index].season_membership_id}`;
+
+    await answer(invitations[0].id, "yes", null);
+    await answer(invitations[1].id, "yes", null);
+    await recordAttendance(actorPersonId, event.id, keyFor(0), "present");
+    await recordAttendance(actorPersonId, event.id, keyFor(1), "late");
+
+    const view = await observer.query<{ mismatch: string }>(
+      "select mismatch from public.rsvp_attendance_mismatches where event_id = $1",
+      [event.id],
+    );
+    expect(view.rows).toEqual([]);
   });
 });
 

@@ -38,7 +38,6 @@ import {
   administerDelivery,
   approveEvent,
   manageRoles,
-  readLeadershipReport,
   recordAttendance,
 } from "./actions";
 import { ActionNotImplemented } from "./not-implemented";
@@ -91,12 +90,13 @@ const ACTIONS: ReadonlyArray<{
     capability: "delivery_administration",
     permitted: [],
   },
-  {
-    name: "readLeadershipReport",
-    action: readLeadershipReport,
-    capability: "leadership_report",
-    permitted: [],
-  },
+  // `readLeadershipReport` was here until LAN-81 built the report. Its
+  // authorization coverage did not disappear with it, but it did move: the
+  // report has no server action, because Brian's 15 August decision removed the
+  // Generate button. Reading and filing both happen in
+  // `src/app/operate/report/page.tsx` behind the shell gate, and
+  // `report/screens.test.tsx` drives that gate with real role codes — including
+  // an assertion that a refused reader causes no read, and so no write.
 ];
 
 function actor(roleCodes: string[]): ResolvedOperator {
