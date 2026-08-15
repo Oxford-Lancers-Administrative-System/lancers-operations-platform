@@ -33,13 +33,42 @@ export async function connect(target) {
  * into `buildPlan` as an argument — which keeps the plan a pure function of
  * (workbooks, parameters, what is already there) and keeps the preview honest.
  */
-export async function readExisting(client) {
+export async function readExisting(client, { authUserIds = [] } = {}) {
   const map = async (sql, keyOf) => {
     const result = await client.query(sql);
     return new Map(result.rows.map((row) => [keyOf(row), row.id]));
   };
 
+  // The durable identities. `docs/pilot-data-manifest.md` is explicit that
+  // Brian's existing hosted Auth user, Person and operator link are
+  // "inventoried, not duplicated. The first provisioning action is to look, not
+  // to insert." A second `people` row for somebody who already has one is
+  // invariant I1's failure mode and is undone by an audited merge, not a delete.
+  //
+  // Keyed on the Auth user identifier because that is the only thing that
+  // identifies the same human across a name change — and because
+  // `operator_accounts_auth_user_key` is a unique constraint the loader's
+  // `on conflict (id)` clause does not cover, so an unnoticed existing link
+  // aborts the whole load after preflight has said it would not.
+  const operators = new Map();
+  if (authUserIds.length > 0) {
+    const linked = await client.query(
+      `select oa.id as operator_account_id, oa.auth_user_id, oa.person_id, oa.is_active
+         from public.operator_accounts oa
+        where oa.auth_user_id = any($1)`,
+      [authUserIds],
+    );
+    for (const row of linked.rows) {
+      operators.set(row.auth_user_id, {
+        operatorAccountId: row.operator_account_id,
+        personId: row.person_id,
+        isActive: row.is_active,
+      });
+    }
+  }
+
   return {
+    operators,
     roles: await map("select id, code from public.roles", (row) => row.code),
     // Seasons carry their own position vocabulary, and
     // `position_assignments_vocabulary_is_the_seasons` enforces that an
@@ -159,6 +188,79 @@ export async function upsert(client, ledger, table, columns, { dryRun = false } 
  * Nothing here deletes by pattern. Every statement names identifiers the loader
  * computed, which is why it cannot remove a row it did not create.
  */
+/**
+ * Rows the **application** creates that hang off rows the loader created.
+ *
+ * The walkthrough writes these. Approving the Leadership Walkthrough mints a
+ * token and queues a job; Stewart answering writes a response; pressing **Show
+ * report** writes a `weekly_reports` row and an `audit_events` row attributed to
+ * the showcase Person. Every one of them carries an identifier the loader did
+ * not compute and therefore cannot name.
+ *
+ * They matter in two opposite ways, and both are why this exists:
+ *
+ *   * under `on delete restrict` — `audit_events.actor_person_id`,
+ *     `weekly_reports.season_id`, `notification_jobs.invitation_id`,
+ *     `rsvp_access_tokens.invitation_id`, `rsvp_responses.invitation_id` — the
+ *     delete aborts with a raw PostgreSQL error and removes nothing;
+ *   * under `on delete cascade` — `event_audience_members.event_id`,
+ *     `event_questions.event_id` — the delete **silently removes** them, which
+ *     is the widening `docs/pilot-data-runbook.md` says a cleanup must refuse.
+ *
+ * So rollback counts them first and refuses by name. A cleanup that cannot
+ * complete has to say which row is holding it, not surface a constraint name.
+ *
+ * `[table, column, what the loader owns it points at]`
+ */
+export const FOREIGN_ROW_CHECKS = Object.freeze([
+  ["public.audit_events", "actor_person_id", "public.people"],
+  ["public.weekly_reports", "season_id", "public.seasons"],
+  ["public.weekly_reports", "generated_by_person_id", "public.people"],
+  ["public.notification_jobs", "invitation_id", "public.invitations"],
+  ["public.notification_jobs", "event_id", "public.events"],
+  ["public.notification_jobs", "person_id", "public.people"],
+  ["public.rsvp_access_tokens", "invitation_id", "public.invitations"],
+  ["public.rsvp_responses", "invitation_id", "public.invitations"],
+  ["public.attendance_records", "event_id", "public.events"],
+  ["public.event_audience_members", "event_id", "public.events"],
+  ["public.event_questions", "event_id", "public.events"],
+  ["public.invitations", "event_id", "public.events"],
+  ["public.season_memberships", "person_id", "public.people"],
+  ["public.role_assignments", "person_id", "public.people"],
+]);
+
+/**
+ * Finds rows the loader does not own that point at rows it does.
+ *
+ * Returns one entry per table/column with a count and a sample identifier, so
+ * the refusal can name something a human can go and look at.
+ */
+export async function findForeignRows(client, ownedIdsByTable) {
+  const blockers = [];
+
+  for (const [table, column, target] of FOREIGN_ROW_CHECKS) {
+    const targetIds = ownedIdsByTable.get(target) ?? [];
+    if (targetIds.length === 0) continue;
+
+    const ownIds = ownedIdsByTable.get(table) ?? [];
+
+    const result = await client.query(
+      `select count(*)::int as count, min(id::text) as sample
+         from ${table}
+        where ${column} = any($1)
+          and not (id = any($2))`,
+      [targetIds, ownIds],
+    );
+
+    const count = result.rows[0].count;
+    if (count > 0) {
+      blockers.push({ table, column, target, count, sample: result.rows[0].sample });
+    }
+  }
+
+  return blockers;
+}
+
 export const ROLLBACK_ORDER = Object.freeze([
   "public.attendance_records",
   "public.rsvp_responses",

@@ -12,6 +12,23 @@ near production. A procedure that legitimately needs the hosted database is
 therefore a separate, deliberately awkward thing that names its target out loud,
 rather than a flag on a tool used every day.
 
+## `showcase.mjs` and `showcase/`
+
+The Monday showcase loader — LAN-124. Reads the club's two workbooks and loads a
+season's worth of data into a database, with `preflight`, `preview`, `load`,
+`verify`, `manifest` and `rollback` phases.
+
+Same rules as everything else here: Brian runs it by hand, a hosted run names the
+project with `--confirm-target`, and nothing automated may invoke it. A local run
+needs no confirmation because the loopback check refuses anything else.
+
+The procedure a human follows is [`OWNER-RUNBOOK.md`](../../OWNER-RUNBOOK.md) at
+the repository root, not this file. What it loads and how those rows are
+identified is recorded in
+[`docs/pilot-data-manifest.md`](../../docs/pilot-data-manifest.md) § The Monday
+showcase — worth reading before running it, because these rows carry no
+`PILOT-` sentinel and no sweep will find them.
+
 ## `connection-smoke-test.mjs`
 
 Proves the hosted runtime credential actually works, once, after activation.

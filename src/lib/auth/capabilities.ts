@@ -300,8 +300,9 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
    * ## What it is not
    *
    * It is not a replacement for `attendance_recorder`, and it does not widen it.
-   * That capability stays exactly the three coaching seats, because LAN-110
-   * uses it to decide who gets the **narrow** surface — a Secretary holds this
+   * That capability stays the three coaching seats plus the administrative seat
+   * LAN-124 added, because LAN-110 uses it to decide who gets the **narrow**
+   * surface — a Secretary holds this
    * one and not that one, and should get the operator's board rather than the
    * coach's. Two grants, two questions: "may you record at all", and "is the
    * constrained screen yours".

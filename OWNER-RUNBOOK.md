@@ -390,6 +390,39 @@ It deletes only identifiers it computed itself. It cannot remove a row it did
 not create, because it cannot name one. Running it twice is safe — the second
 run removes 0.
 
+### If it refuses instead
+
+**This is the normal case after a walkthrough, not a fault.** You will see:
+
+```
+STOP. Rows this loader did not create are attached to rows it did:
+
+      1  public.notification_jobs.invitation_id → public.invitations   (for example …)
+      2  public.audit_events.actor_person_id → public.people           (for example …)
+
+Nothing was deleted.
+```
+
+Approving the event, sending the message, taking Stewart's answer and pressing
+**Show report** all wrote rows the _application_ created. Some of them the
+database refuses to orphan; two it would silently delete. Rollback stops rather
+than doing either.
+
+- [ ] Keep any evidence you want from those rows first — the report snapshot,
+      the delivery record.
+- [ ] Then re-run the same command with `--force` on the end, which removes them
+      deliberately along with the showcase:
+
+```
+node scripts/production/showcase.mjs rollback --force --confirm-target fggbgeraiadetyiyjlvb --roster "$HOME/Downloads/OULAFC Master Table.xlsx" --termcard "$HOME/Downloads/260720 OULAFC MT26 Term Card v0.xlsx" --params ~/lancers-showcase-params.json
+```
+
+`--force` prints how many attached rows it is removing before it removes them.
+
+**What it never removes**, with or without `--force`: reference rows it adopted
+rather than created, and any Person or operator link that already existed before
+the load.
+
 - [ ] Confirm:
 
 ```
@@ -406,12 +439,14 @@ and yours to decide.
 
 ## 12. If something goes wrong
 
-| Problem                 | What to do                                                                                                                                                                                                                                                       |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Message does not arrive | Check the delivery page's failure reason first. `132000` means the template's parameters do not match — check `WHATSAPP_TEMPLATE_PARAMETERS`. `131030` means the recipient is not verified in Meta. "approved list of recipients" means your allowlist is wrong. |
-| Application is broken   | `gh workflow run deploy.yml -f image_tag=<previous-commit-sha>`. Safe — no schema changed.                                                                                                                                                                       |
-| Data is wrong           | Roll back (§ 11), fix, load again. It is idempotent.                                                                                                                                                                                                             |
-| Something is very wrong | Restore the § 5 backup. That is what it is for.                                                                                                                                                                                                                  |
+| Problem                            | What to do                                                                                                                                                                                                                                                       |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Message does not arrive            | Check the delivery page's failure reason first. `132000` means the template's parameters do not match — check `WHATSAPP_TEMPLATE_PARAMETERS`. `131030` means the recipient is not verified in Meta. "approved list of recipients" means your allowlist is wrong. |
+| Application is broken              | `gh workflow run deploy.yml -f image_tag=<previous-commit-sha>`. Safe — no schema changed.                                                                                                                                                                       |
+| Data is wrong                      | Roll back (§ 11), fix, load again. It is idempotent.                                                                                                                                                                                                             |
+| Rollback refuses                   | Expected after a walkthrough — see § 11 "If it refuses instead". Nothing was deleted.                                                                                                                                                                            |
+| Live edits vanished after a reload | Re-running `load` rewrites loader-owned rows, so it reverts what you changed in § 10 step 6. Roll back and reload only when you no longer need those edits.                                                                                                      |
+| Something is very wrong            | Restore the § 5 backup. That is what it is for.                                                                                                                                                                                                                  |
 
 ---
 

@@ -372,10 +372,155 @@ describe("rollback", () => {
 
   it("leaves audit history behind", async () => {
     // `audit_events` is append-only at the privilege level and an actor it
-    // references must stay resolvable. Rollback never touches it.
-    const audit = await client.query<{ n: number }>(
-      "select count(*)::int as n from public.audit_events",
+    // references must stay resolvable, so rollback never names one.
+    //
+    // This assertion was `toBeGreaterThanOrEqual(0)`, which is true of every
+    // possible number and could not fail. Independent review caught it. It now
+    // counts the rows attributed to a showcase person specifically, and proves
+    // rollback did not remove them.
+    const current = await plan();
+    const peopleIds = current.rows
+      .filter((row: { table: string }) => row.table === "public.people")
+      .map((row: { columns: { id: string } }) => row.columns.id);
+
+    run("load");
+
+    const actor = peopleIds[0];
+    await client.query(
+      `insert into public.audit_events
+         (actor_person_id, actor_label, action, entity_table, entity_id)
+       values ($1, 'test', 'showcase.test', 'people', $1)`,
+      [actor],
     );
-    expect(audit.rows[0].n).toBeGreaterThanOrEqual(0);
-  });
+
+    const before = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.audit_events where actor_person_id = $1",
+      [actor],
+    );
+    expect(before.rows[0].n).toBeGreaterThan(0);
+
+    // Rollback must now refuse: an audit row references a person it would
+    // delete, under `on delete restrict`.
+    expect(() => run("rollback")).toThrow();
+
+    const after = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.audit_events where actor_person_id = $1",
+      [actor],
+    );
+    expect(after.rows[0].n).toBe(before.rows[0].n);
+
+    await client.query("delete from public.audit_events where action = 'showcase.test'");
+    run("rollback");
+  }, 60_000);
+});
+
+describe("rollback against a database the walkthrough has been performed on", () => {
+  /**
+   * The case that was missing, and the one that matters most.
+   *
+   * `OWNER-RUNBOOK.md` § 10 has Brian approve an event, send a message, take an
+   * answer and regenerate the report — and § 11 then tells him rollback is the
+   * default closing move. Every one of those writes rows the *application*
+   * creates, carrying identifiers the loader never computed, hanging off rows it
+   * did. Some restrict, so the delete aborts and removes nothing; two cascade,
+   * so the delete silently takes rows the loader never created.
+   *
+   * The original suite only ever rolled back a clean database — the one state in
+   * which none of this can happen.
+   */
+  it("refuses by name rather than failing on a constraint", async () => {
+    run("load");
+    const current = await plan();
+
+    const invitationId = current.rows.find(
+      (row: { table: string }) => row.table === "public.invitations",
+    )?.columns.id;
+    expect(invitationId, "the plan writes no invitation to attach to").toBeDefined();
+
+    // Exactly what approving an event and messaging somebody produces.
+    await client.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, channel)
+       values ('showcase-test-foreign', 'invitation', 'completed', $1, 'whatsapp')`,
+      [invitationId],
+    );
+
+    let output = "";
+    try {
+      run("rollback");
+      throw new Error("rollback should have refused");
+    } catch (error) {
+      output = String((error as { stdout?: string; stderr?: string }).stderr ?? "");
+    }
+
+    // It names the table and the column, not a PostgreSQL constraint name.
+    expect(output).toMatch(/STOP\./);
+    expect(output).toMatch(/notification_jobs\.invitation_id/);
+    expect(output).toMatch(/Nothing was deleted/);
+
+    // And it really did delete nothing.
+    const survived = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.invitations where id = $1",
+      [invitationId],
+    );
+    expect(survived.rows[0].n).toBe(1);
+
+    // `--force` removes them deliberately, which is the documented way out.
+    run("rollback", ["--force"]);
+
+    const gone = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.notification_jobs where idempotency_key = $1",
+      ["showcase-test-foreign"],
+    );
+    expect(gone.rows[0].n).toBe(0);
+  }, 60_000);
+
+  it("does not let a cascade quietly remove an audience row it did not create", async () => {
+    // `event_audience_members.event_id` cascades. Without the check, deleting a
+    // showcase event would take an audience row somebody added afterwards with
+    // no error and no record — the widening the pilot runbook exists to refuse.
+    run("load");
+    const current = await plan();
+
+    const event = current.rows.find(
+      (row: { table: string; columns: { status: string } }) =>
+        row.table === "public.events" && row.columns.status === "draft",
+    );
+    // The membership has to be in the event's own season —
+    // `event_audience_members_membership_same_season` is a composite key, not
+    // two independent ones.
+    const membership = current.rows.find(
+      (row: { table: string; columns: { season_id: string } }) =>
+        row.table === "public.season_memberships" &&
+        row.columns.season_id === event.columns.season_id,
+    );
+    expect(event).toBeDefined();
+    expect(membership, "no membership in the event's season").toBeDefined();
+
+    const added = await client.query<{ id: string }>(
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, season_membership_id)
+       values ($1, $2, 'player', $3) returning id`,
+      [event.columns.id, event.columns.season_id, membership.columns.id],
+    );
+
+    let stderr = "";
+    try {
+      run("rollback");
+    } catch (error) {
+      stderr = String((error as { stderr?: string }).stderr ?? "");
+    }
+    expect(stderr).toMatch(/event_audience_members\.event_id/);
+
+    const survived = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.event_audience_members where id = $1",
+      [added.rows[0].id],
+    );
+    expect(survived.rows[0].n).toBe(1);
+
+    await client.query("delete from public.event_audience_members where id = $1", [
+      added.rows[0].id,
+    ]);
+    run("rollback");
+  }, 60_000);
 });

@@ -88,7 +88,7 @@ export async function recordAttendance(): Promise<never> {
   notImplemented("LAN-80", "record attendance for an occurred event");
 }
 
-/** Manage operator accounts and role assignments. Nobody, pending an owner decision. */
+/** Manage operator accounts and role assignments. The IT Officer, per LAN-124. */
 export async function manageRoles(): Promise<never> {
   await requireCapability("role_management");
   notImplemented("none yet", "manage operator accounts and role assignments");

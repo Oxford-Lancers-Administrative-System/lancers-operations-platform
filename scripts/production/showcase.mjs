@@ -17,7 +17,8 @@
  *     load        writes, in one transaction. Idempotent.
  *     verify      read-only. Counts what is there and checks it reconciles.
  *     manifest    read-only. Writes the source-to-record manifest to a file.
- *     rollback    deletes exactly the rows this loader would create.
+ *     rollback    deletes exactly the rows this loader would create, and
+ *                 refuses when rows it did not create are attached to them.
  *
  * Options:
  *
@@ -26,6 +27,8 @@
  *     --params <path>          the private parameter file (never committed)
  *     --anchor <YYYY-MM-DD>    the walkthrough date; defaults to 17 Aug 2026
  *     --out <path>             where `manifest` writes
+ *     --force                  rollback only: also remove the rows the
+ *                              walkthrough itself created
  *     --database-url <url>     a loopback database, for a local rehearsal
  *     --confirm-target <ref>   the hosted project, named out loud
  *
@@ -35,8 +38,17 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
-import { connect, newLedger, readExisting, ROLLBACK_ORDER, upsert } from "./showcase/db.mjs";
+import {
+  connect,
+  findForeignRows,
+  FOREIGN_ROW_CHECKS,
+  newLedger,
+  readExisting,
+  ROLLBACK_ORDER,
+  upsert,
+} from "./showcase/db.mjs";
 import { buildPlan } from "./showcase/plan.mjs";
 import { readRoster, readTermCard } from "./showcase/sources.mjs";
 import { resolveTarget } from "./showcase/target.mjs";
@@ -164,6 +176,55 @@ async function preflight(client, target, params, sources) {
       "  note: brian has no authUserId, so no operator account will be linked. " +
         "Create the Auth user in Supabase first if you intend to sign in as him.",
     );
+  }
+
+  // Durable identities. The manifest binds the loader to inventorying rather
+  // than duplicating these, so preflight says out loud what is already there —
+  // "Preflight passed. Nothing was written." must not be the last thing Brian
+  // reads before a load discovers an existing link and aborts.
+  const authUserIds = ["brian", "stewart", "coach"]
+    .map((key) => params[key]?.authUserId)
+    .filter(Boolean);
+
+  if (authUserIds.length === 0) {
+    notes.push(
+      "No authUserId supplied for anybody. Nobody will be able to sign in, and no " +
+        "operator account will be created or adopted.",
+    );
+  } else {
+    const linked = await client.query(
+      `select oa.auth_user_id, oa.is_active, p.given_name, p.family_name
+         from public.operator_accounts oa
+         join public.people p on p.id = oa.person_id
+        where oa.auth_user_id = any($1)`,
+      [authUserIds],
+    );
+
+    notes.push(
+      `Durable identities: ${linked.rowCount} of ${authUserIds.length} supplied Auth ` +
+        "users already resolve to a Person. Those are adopted, not duplicated.",
+    );
+
+    for (const row of linked.rows) {
+      const key = ["brian", "stewart", "coach"].find(
+        (candidate) => params[candidate]?.authUserId === row.auth_user_id,
+      );
+      const supplied = `${params[key].givenName} ${params[key].familyName ?? ""}`.trim();
+      const actual = `${row.given_name} ${row.family_name ?? ""}`.trim();
+      if (supplied.toLowerCase() !== actual.toLowerCase()) {
+        problems.push(
+          `The Auth user supplied as \`${key}\` is already linked to a different ` +
+            "Person than the parameters describe. Resolve that by hand before loading — " +
+            "the loader will not repoint somebody's login.",
+        );
+      }
+      if (!row.is_active) {
+        problems.push(
+          `The operator account for \`${key}\` exists but is deactivated. Reactivate it ` +
+            "in the database before loading; the loader does not.",
+        );
+      }
+    }
   }
 
   // The notification allowlist. The loader does not send anything, but it
@@ -419,11 +480,58 @@ function manifest(plan, path) {
  * Every statement names identifiers computed from the plan. There is no pattern
  * match anywhere, which is why this cannot remove a row it did not write.
  */
-async function rollback(client, plan) {
+async function rollback(client, plan, { force = false } = {}) {
   const byTable = new Map();
   for (const row of plan.rows) {
     if (!byTable.has(row.table)) byTable.set(row.table, []);
     byTable.get(row.table).push(row.columns.id);
+  }
+
+  // Refuse before deleting, rather than aborting on a constraint name.
+  //
+  // After the walkthrough this is the normal case, not an edge: approving an
+  // event mints a token and queues a job, an answer writes a response, and
+  // pressing Show report writes a report and an audit row against the showcase
+  // person. Some of those foreign keys restrict — the delete would fail and
+  // remove nothing — and two cascade, where it would silently remove rows the
+  // loader never created. Both are reasons to stop and say so.
+  const blockers = await findForeignRows(client, byTable);
+  if (blockers.length > 0 && !force) {
+    console.error("\nSTOP. Rows this loader did not create are attached to rows it did:\n");
+    for (const blocker of blockers) {
+      console.error(
+        `  ${String(blocker.count).padStart(5)}  ${blocker.table}.${blocker.column} ` +
+          `→ ${blocker.target}   (for example ${blocker.sample})`,
+      );
+    }
+    console.error(
+      "\nNothing was deleted. This is what the walkthrough itself produces — an " +
+        "approval, a message, an answer, a generated report — and removing the showcase " +
+        "underneath it would either fail halfway or take those rows with it.\n" +
+        "\nSee OWNER-RUNBOOK.md § 11. Once you have kept whatever evidence you want " +
+        "from those rows, re-run with --force to remove them along with the showcase.",
+    );
+    return { removed: 0, blockers };
+  }
+
+  if (blockers.length > 0) {
+    console.log(
+      `\n--force: removing ${blockers.reduce((total, blocker) => total + blocker.count, 0)} ` +
+        "attached rows the walkthrough created, as well as the showcase.",
+    );
+    // Deleted deliberately and in dependency order, rather than left to a
+    // cascade to take silently.
+    for (const [table, column] of FOREIGN_ROW_CHECKS) {
+      const targetIds =
+        byTable.get(FOREIGN_ROW_CHECKS.find(([t, c]) => t === table && c === column)[2]) ?? [];
+      if (targetIds.length === 0) continue;
+      byTable.set(table, [
+        ...(byTable.get(table) ?? []),
+        ...(
+          await client.query(`select id from ${table} where ${column} = any($1)`, [targetIds])
+        ).rows.map((row) => row.id),
+      ]);
+    }
   }
 
   let removed = 0;
@@ -444,8 +552,11 @@ async function rollback(client, plan) {
     throw error;
   }
 
-  console.log(`\nRemoved ${removed} rows. Audit history and approved identities are untouched.`);
-  return removed;
+  console.log(
+    `\nRemoved ${removed} rows. Approved identities the loader adopted rather than ` +
+      "created are untouched.",
+  );
+  return { removed, blockers: [] };
 }
 
 async function main() {
@@ -471,7 +582,10 @@ async function main() {
     // present rather than inserting a competing copy, so it is a pure function
     // of (workbooks, parameters, what is there) — and the preview stays honest
     // because it is built from exactly the same three things as the load.
-    const existing = await readExisting(client);
+    const authUserIds = ["brian", "stewart", "coach"]
+      .map((key) => params[key]?.authUserId)
+      .filter(Boolean);
+    const existing = await readExisting(client, { authUserIds });
     const plan = buildPlan({ ...sources, params, existing, anchor });
 
     const adopted = plan.provenance.filter((entry) => entry.note?.startsWith("adopted")).length;
@@ -521,11 +635,16 @@ async function main() {
     }
 
     if (phase === "rollback") {
-      await rollback(client, plan);
+      const { blockers } = await rollback(client, plan, { force: argv.includes("--force") });
+      if (blockers.length > 0) process.exitCode = 1;
     }
   } finally {
     await client.end();
   }
 }
 
-await main();
+// Only when run directly, mirroring `connection-smoke-test.mjs`. Importing this
+// module — which a test does — must never open a connection or write anything.
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  await main();
+}

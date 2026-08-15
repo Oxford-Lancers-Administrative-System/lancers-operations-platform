@@ -403,18 +403,36 @@ export function buildPlan({
     const person = params[key];
     if (!person) continue;
 
-    const personId = id("people", `operator:${key}`);
-    add(
-      "public.people",
-      {
+    // Look before inserting. `docs/pilot-data-manifest.md` binds this: an
+    // existing hosted Auth user, Person and operator link are inventoried, not
+    // duplicated. Creating a second Person for somebody who already has one is
+    // invariant I1's failure mode, and it is undone by an audited merge rather
+    // than by a delete — so the loader must never be the thing that does it.
+    const linked = person.authUserId ? existing.operators?.get(person.authUserId) : undefined;
+
+    const personId = linked ? linked.personId : id("people", `operator:${key}`);
+
+    if (linked) {
+      provenance.push({
+        table: "public.people",
         id: personId,
-        given_name: person.givenName,
-        family_name: person.familyName ?? null,
-        known_as: person.knownAs ?? null,
-      },
-      "illustrative",
-      { source: `private parameters (${key})` },
-    );
+        classification: "illustrative",
+        source: `private parameters (${key})`,
+        note: "adopted — this Auth user already resolves to a Person, which is not this loader's to replace",
+      });
+    } else {
+      add(
+        "public.people",
+        {
+          id: personId,
+          given_name: person.givenName,
+          family_name: person.familyName ?? null,
+          known_as: person.knownAs ?? null,
+        },
+        "illustrative",
+        { source: `private parameters (${key})` },
+      );
+    }
 
     if (person.phone) {
       add(
@@ -433,7 +451,20 @@ export function buildPlan({
       );
     }
 
-    if (person.authUserId) {
+    if (person.authUserId && linked) {
+      // The link is already there and already points somewhere. Left alone:
+      // `operator_accounts_auth_user_key` is unique on `auth_user_id`, which the
+      // loader's `on conflict (id)` clause does not cover, so writing a second
+      // row would abort the entire load — and rewriting the existing one would
+      // repoint a real person's login.
+      provenance.push({
+        table: "public.operator_accounts",
+        id: linked.operatorAccountId,
+        classification: "illustrative",
+        source: `private parameters (${key})`,
+        note: "adopted — this Auth user is already linked to a Person",
+      });
+    } else if (person.authUserId) {
       add(
         "public.operator_accounts",
         {

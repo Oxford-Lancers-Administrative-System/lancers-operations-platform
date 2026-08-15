@@ -154,8 +154,8 @@ it("checks every catalogue code against every settled capability", () => {
   }
 });
 
-describe("row 9 — the attendance-recorder grant is exactly the three coaching seats", () => {
-  it("permits Head Coach, Offence Coach and Defence Coach, and nothing else", () => {
+describe("row 9 — the attendance-recorder grant is the coaching seats plus the administrator", () => {
+  it("permits Head Coach, Offence Coach, Defence Coach and the IT Officer, and nothing else", () => {
     expect(permittedSet("attendance_recorder")).toEqual([...COACHES, ADMIN].sort());
   });
 
