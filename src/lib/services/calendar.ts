@@ -488,8 +488,8 @@ export function termOwning(day: string, terms: readonly TermWindow[]): TermWindo
 /** The whole weeks either side of its own that a term's card has to emit. */
 function reachOf(
   term: TermWindow,
-  terms: readonly TermWindow[],
   days: Iterable<string>,
+  ownerOf: (day: string) => TermWindow | null,
 ): { before: number; after: number; from: string; to: string } | null {
   const firstRange = oxfordWeekRange(term, term.firstWeek);
   const lastRange = oxfordWeekRange(term, term.lastWeek);
@@ -499,7 +499,7 @@ function reachOf(
   let after = 0;
 
   for (const day of days) {
-    if (termOwning(day, terms)?.id !== term.id) continue;
+    if (ownerOf(day)?.id !== term.id) continue;
 
     const toStart = daysBetween(day, firstRange.startsOn);
     const fromEnd = daysBetween(lastRange.endsOn, day);
@@ -572,7 +572,30 @@ export function buildTermCard(
     };
   }
 
-  const reach = reachOf(term, terms, byDay.keys());
+  // Both answers are asked once per distinct day and once per term, rather
+  // than recomputed at every cell and every accounting step. Independent review
+  // measured the unmemoised version at 944ms for a 400-day season — the season
+  // read has no `LIMIT`, so that grows with the club year rather than staying
+  // small. Caching makes the same work 15ms and changes no result.
+  const ownerCache = new Map<string, TermWindow | null>();
+  const ownerOf = (day: string): TermWindow | null => {
+    const cached = ownerCache.get(day);
+    if (cached !== undefined) return cached;
+    const owner = termOwning(day, terms);
+    ownerCache.set(day, owner);
+    return owner;
+  };
+
+  const reachCache = new Map<string, ReturnType<typeof reachOf>>();
+  const reachFor = (candidate: TermWindow): ReturnType<typeof reachOf> => {
+    const cached = reachCache.get(candidate.id);
+    if (cached !== undefined) return cached;
+    const computed = reachOf(candidate, byDay.keys(), ownerOf);
+    reachCache.set(candidate.id, computed);
+    return computed;
+  };
+
+  const reach = reachFor(term);
   if (reach === null) {
     return {
       term,
@@ -594,7 +617,7 @@ export function buildTermCard(
       // far to grow. A context row covers seven days that may belong to the
       // term on the other side of the vacation, and showing them here would
       // put one event on two cards.
-      const ours = termOwning(day, terms)?.id === term.id;
+      const ours = ownerOf(day)?.id === term.id;
       const dayEvents = ours ? (byDay.get(day) ?? []) : [];
       for (const event of dayEvents) placed.add(event.id);
 
@@ -631,8 +654,8 @@ export function buildTermCard(
   // from dropping an event silently.
   const farFromAnyTerm: CalendarEvent[] = [];
   for (const [day, group] of byDay) {
-    const owner = termOwning(day, terms);
-    const ownerReach = owner === null ? null : reachOf(owner, terms, byDay.keys());
+    const owner = ownerOf(day);
+    const ownerReach = owner === null ? null : reachFor(owner);
     const covered = ownerReach !== null && ownerReach.from <= day && day <= ownerReach.to;
     if (!covered) farFromAnyTerm.push(...group);
   }
