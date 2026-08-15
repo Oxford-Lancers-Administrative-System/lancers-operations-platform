@@ -92,6 +92,47 @@ application port is `:3000` for primary and `:3010` for overflow.
 > not club secrets — but `.env.local` is git-ignored and stays that way. A
 > **production** secret key must never appear on a development machine.
 
+## Optional: address search on the event venue field
+
+The event editor's venue field (LAN-115) offers searchable place and address
+suggestions when a provider is configured, and is an ordinary free-text field
+when one is not. **Nothing needs configuring for the application to work**, and
+the unconfigured state is the correct one for CI and for any deployment nobody
+has chosen a provider for — no request is made to anybody.
+
+To turn it on locally, add one line to `.env.local`:
+
+```bash
+VENUE_SEARCH_PROVIDER=photon
+```
+
+There is no API key, no account and no cost. The provider is
+[Photon](https://photon.komoot.io), Komoot's open-source OpenStreetMap
+geocoder; `src/lib/venue-search/photon.ts` records why it was chosen over the
+keyed alternatives and why Nominatim — whose usage policy forbids autocomplete
+— is not offered. Restart `npm run dev` after adding the line: it is read
+server-side, per request, by `src/lib/venue-search/config.ts` alone.
+
+| Variable                | Required  | Meaning                                                                                                                                                            |
+| ----------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `VENUE_SEARCH_PROVIDER` | to enable | `photon` is the only implemented value. Unset, blank, or anything else means no address search — never a default.                                                  |
+| `VENUE_SEARCH_BASE_URL` | no        | A self-hosted Photon instance, no trailing slash. Blank uses the free public one. Must be `http(s)`, with no credentials or query string, or the search stays off. |
+
+**What using the public instance obliges.** It is free, with a fair-use
+expectation and no availability guarantee. The field debounces so that typing a
+venue is a handful of requests rather than one per keystroke, and the endpoint
+is authorized with `event_calendar_management` so only calendar operators reach
+it. If the club's usage ever outgrows fair use, the answer is a self-hosted
+instance through `VENUE_SEARCH_BASE_URL`, not a busier public one. Suggestions
+come from OpenStreetMap, which is ODbL-licensed; one chosen address stored on an
+event is ordinary use.
+
+**How it fails.** Every failure ends in the same place — type the venue by hand
+— with a different sentence under the field: unconfigured, busy (the provider
+rate-limited us), or unavailable (down, timed out, or answering with something
+unusable). None of them blocks filling in or saving the draft, and the club's
+own pitches, which no geocoder indexes, are typed rather than searched.
+
 ## Everyday commands
 
 | Command                                      | What it does                                      |

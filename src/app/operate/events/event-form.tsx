@@ -23,6 +23,7 @@ import {
 } from "@/lib/services/event-input";
 import { createEventDraftAction, updateEventDraftAction } from "./actions";
 import { EMPTY_FORM_STATE, type EventFormState } from "./form-state";
+import VenueField from "./venue-field";
 import {
   AUDIENCE_COMES_LATER,
   describeTermCoordinate,
@@ -246,17 +247,16 @@ export default function EventForm({
               )}
             </Alert>
 
-            <TextField
-              label="Venue"
+            {/*
+              LAN-115 replaced the plain venue text field with a searchable
+              place/address combobox. It is still one `name="venue"` input
+              posting one line of text, so nothing about how this form is read,
+              validated, saved or audited changed with it.
+            */}
+            <VenueField
               name="venue"
-              data-field="venue"
               defaultValue={value("venue")}
-              error={Boolean(issueFor(state, "venue"))}
-              helperText={
-                issueFor(state, "venue") ??
-                "Where it happens — a pitch, a room, or an address. Free text for now."
-              }
-              fullWidth
+              errorMessage={issueFor(state, "venue")}
             />
           </Stack>
         </Paper>
