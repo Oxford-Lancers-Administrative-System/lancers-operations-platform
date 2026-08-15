@@ -128,6 +128,7 @@ jobs:
           # workflow, the image, or the repository.
           secrets: |
             SUPABASE_SECRET_KEY=${{ vars.SUPABASE_SECRET_KEY_SECRET || 'supabase-secret-key' }}:latest
+            DATABASE_URL=${{ vars.DATABASE_URL_SECRET || 'database-url' }}:latest
 
       - name: Smoke test the deployed revision
         env:
@@ -143,6 +144,12 @@ jobs:
                 || echo "::warning title=Commit mismatch::Serving revision does not report the expected commit."
               echo "$BODY" | grep -q '"secretsLoaded":true' \
                 || { echo "Secret Manager value was not injected at runtime"; exit 1; }
+              # The service layer is the only path to domain data, so a revision
+              # without DATABASE_URL serves pages and fails on the first write.
+              # It fails here instead. Presence only: the endpoint deliberately
+              # reports no host, mode or credential detail, and does not connect.
+              echo "$BODY" | grep -q '"databaseConfigured":true' \
+                || { echo "DATABASE_URL was not injected at runtime — see docs/deployment.md"; exit 1; }
               exit 0
             fi
             sleep 5

@@ -2,7 +2,7 @@ import "server-only";
 
 import pg from "pg";
 
-import { resolveDatabaseUrl } from "./url";
+import { resolveRuntimeDatabaseUrl } from "./runtime-target";
 
 /**
  * The service layer's pooled PostgreSQL connection.
@@ -39,13 +39,23 @@ import { resolveDatabaseUrl } from "./url";
  * a server-only secret; a module reachable from the browser bundle would be a
  * privileged path with a password in it.
  *
- * ## What is deliberately left configurable
+ * ## Which database this opens
  *
- * Pool size and prepared-statement use are read from the environment rather
- * than hard-coded, because the hosted connection mode is **not chosen yet**
- * (LAN-83 owns it) and Supabase documents that transaction-mode pooling does
- * not support prepared statements. Hard-coding either would quietly decide a
- * question this issue is not allowed to decide.
+ * `resolveRuntimeDatabaseUrl()` decides, and the decision is not this module's
+ * to influence. Outside the deployed Cloud Run service it is loopback-only and
+ * not configurable; inside it, it is the single approved hosted target and
+ * nothing else. See `./runtime-target.ts`.
+ *
+ * ## Pool tuning stays configurable
+ *
+ * Pool size and timeouts are read from the environment rather than hard-coded,
+ * so the hosted revision can be tuned against real connection limits without a
+ * code change. The connection *target* is not tunable that way, and deliberately
+ * so — that is the whole distinction this layer draws.
+ *
+ * Transaction-mode pooling forbids prepared statements. This module needs no
+ * setting for that: `Tx` exposes only `query(sql, params)`, so no caller can
+ * name a statement in the first place.
  */
 
 /**
@@ -70,14 +80,15 @@ function readPositiveInteger(name: string, fallback: number): number {
  *
  * One pool per process is the point: a per-request pool would defeat pooling
  * entirely, and Cloud Run's many short-lived instances make connection count
- * the scarce resource. How scarce, and therefore what `max` should be in
- * production, is one of the open questions routed to LAN-83.
+ * the scarce resource. In production `max` is set to 5, which across the three
+ * instances `--max-instances` allows is 15 client connections — inside both the
+ * project's 15-connection pool size and its 200 client cap.
  */
 export function getPool(): pg.Pool {
   if (pool) return pool;
 
   pool = new pg.Pool({
-    connectionString: resolveDatabaseUrl(),
+    connectionString: resolveRuntimeDatabaseUrl(),
     max: readPositiveInteger("DATABASE_POOL_MAX", 10),
     idleTimeoutMillis: readPositiveInteger("DATABASE_IDLE_TIMEOUT_MS", 10_000),
     connectionTimeoutMillis: readPositiveInteger("DATABASE_CONNECT_TIMEOUT_MS", 5_000),

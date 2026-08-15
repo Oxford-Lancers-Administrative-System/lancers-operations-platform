@@ -70,14 +70,40 @@ describe("row 16 — the record exists and is reachable", () => {
     expect(index).toContain("0014-transactional-data-access.md");
   });
 
-  it("routes every hosted question to LAN-83 rather than answering it", () => {
+  it("still names the four hosted questions, and now points at the ADR that answers them", () => {
+    // These were open when ADR 0014 was written and are decided by ADR 0026.
+    // The questions stay on the record — each one turned out to matter — but a
+    // reader must not be left believing they are still open.
     const adr = read(ADR);
-    expect(adr).toContain("LAN-83");
-    // The four the issue names explicitly.
     expect(adr).toMatch(/runtime PostgreSQL role/i);
     expect(adr).toMatch(/grants/i);
     expect(adr).toMatch(/bypasses RLS/i);
     expect(adr).toMatch(/connection mode|pooling/i);
+
+    expect(adr).toContain("0026-hosted-runtime-database-connection.md");
+    expect(adr).not.toContain("LAN-83");
+  });
+
+  it("no longer claims the local suite proves nothing about the hosted posture", () => {
+    // It still says so of every test that connects as `postgres` — which is
+    // nearly all of them — but two files now build the approved role
+    // deliberately, and the record has to say which is which.
+    const adr = read(ADR);
+    expect(adr).toMatch(/hosted-role-posture\.test\.ts/);
+    expect(adr).toMatch(/negative control/i);
+  });
+
+  it("has ADR 0026, listed in the index, deciding the hosted credential", () => {
+    const decision = read("docs/adr/0026-hosted-runtime-database-connection.md");
+
+    expect(read("docs/adr/README.md")).toContain("0026-hosted-runtime-database-connection.md");
+    expect(decision).toMatch(/app_runtime/);
+    expect(decision).toMatch(/service_role/);
+    expect(decision).toMatch(/BYPASSRLS/);
+    expect(decision).toMatch(/transaction mode/i);
+    // The distinction the issue requires the record to draw explicitly.
+    expect(decision).toMatch(/accident prevention/i);
+    expect(decision).toMatch(/security boundary/i);
   });
 
   it("does not claim the two credentials are the same principal", () => {

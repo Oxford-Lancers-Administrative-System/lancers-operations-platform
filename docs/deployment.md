@@ -93,6 +93,7 @@ None of these are secrets.
 | `CLOUD_RUN_SERVICE`                    | `lancers-operations-platform`                                  |
 | `CLOUD_RUN_MAX_INSTANCES`              | `3`                                                            |
 | `SUPABASE_SECRET_KEY_SECRET`           | `supabase-secret-key`                                          |
+| `DATABASE_URL_SECRET`                  | `database-url` (the default; set only to override)             |
 | `NEXT_PUBLIC_SUPABASE_URL`             | hosted Supabase URL                                            |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | hosted publishable key                                         |
 
@@ -107,20 +108,23 @@ reach**. Both live in **Secret Manager** and are injected into the Cloud Run
 revision at runtime (`--set-secrets`). Neither is baked into the image, present
 in the workflow environment, or in the repository.
 
-| Variable              | Secret Manager id     | What it is                                                                                                                                                                | Status                          |
-| --------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| `SUPABASE_SECRET_KEY` | `supabase-secret-key` | Presented to the Data API. PostgREST connects as `authenticator`, switches to `service_role`. Bypasses RLS.                                                               | **Provisioned**                 |
-| `DATABASE_URL`        | not created yet       | Direct PostgreSQL connection for the service layer's transactions. A PostgreSQL login in its own right — a **second** privileged credential, broader than `service_role`. | **Not provisioned. See below.** |
+| Variable              | Secret Manager id     | What it is                                                                                                                                                                                                 | Status                            |
+| --------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `SUPABASE_SECRET_KEY` | `supabase-secret-key` | Presented to the Data API. PostgREST connects as `authenticator`, switches to `service_role`. Bypasses RLS.                                                                                                | **Provisioned**                   |
+| `DATABASE_URL`        | `database-url`        | Direct PostgreSQL connection for the service layer's transactions. A PostgreSQL login in its own right — a **second** privileged credential, scoped by ADR 0026 to reach exactly as far as `service_role`. | **Owner-provisioned. See below.** |
 
-**`DATABASE_URL` has no hosted value, and creating one is not a deployment
-task.** Which PostgreSQL role the hosted runtime uses, the minimum grants it
-needs, whether it bypasses RLS, how the secret is rotated, and which connection
-mode suits Cloud Run's scale-to-zero profile are all open questions owned by
-LAN-83 and recorded in
-[ADR 0014](adr/0014-transactional-data-access.md). Do not invent one: locally
-the connection is `postgres`, which has admin privileges, and copying that shape
-to production would hand the runtime a database superuser. Until LAN-83 closes,
-no deployed code path reads this variable.
+**`DATABASE_URL` is required.** The service layer is the only path to domain
+data, so a revision without it serves pages and fails on the first write. The
+deploy gate refuses such a revision — see § Activating the runtime database
+connection.
+
+The value names `app_runtime`, a least-privilege login created by hand in the
+hosted project: it owns no table, holds neither `CREATEROLE` nor `CREATEDB`, and
+takes its privileges from membership of `service_role`. Do **not** use
+`postgres`: locally that is what the connection is, it has admin privileges, and
+copying that shape to production would hand the runtime a database
+administrator. [ADR 0026](adr/0026-hosted-runtime-database-connection.md) records
+the role, the grants, the `BYPASSRLS` decision and the connection mode.
 
 Rotate the Supabase secret key with:
 
@@ -129,9 +133,103 @@ printf '%s' 'NEW_KEY' | gcloud secrets versions add supabase-secret-key --data-f
 gcloud run services update lancers-operations-platform --region europe-west2
 ```
 
-`/api/health` reports `secretsLoaded: true|false` — presence only, never the
-value — so a deploy can be verified without anyone reading a secret. The deploy
-workflow fails if that is `false`.
+`/api/health` reports `secretsLoaded: true|false` and
+`databaseConfigured: true|false` — presence only, never the value — so a deploy
+can be verified without anyone reading a secret. The deploy workflow fails if
+either is `false`. Neither field reveals the host, port, connection mode, role
+or any error, and the endpoint never connects to the database.
+
+## Activating the runtime database connection
+
+Run **once**, by Brian, in this order. Steps 1–3 must be complete **before the
+pull request that adds the deploy gate is merged**, or the next deploy of `main`
+fails on a revision with no `DATABASE_URL`.
+
+Nothing in this sequence is performed by an agent, and no secret value appears in
+the repository, in Linear, or in a prompt.
+
+**1 — Create the role in the hosted project.** Supabase → SQL Editor. Invent a
+long password and keep it in your password manager; it appears in this statement
+and in step 2 and nowhere else.
+
+```sql
+create role app_runtime login password 'REPLACE-WITH-A-LONG-PASSWORD' nocreatedb nocreaterole noreplication connection limit 20;
+grant service_role to app_runtime;
+alter role app_runtime bypassrls;
+alter role app_runtime set statement_timeout = '15s';
+```
+
+Verify it, in the same editor:
+
+```sql
+select rolsuper, rolcreaterole, rolcreatedb, rolbypassrls, rolconnlimit from pg_roles where rolname = 'app_runtime';
+```
+
+Expect `false, false, false, true, 20`. Anything else, stop.
+
+**2 — Create the secret.** Build the connection string from Supabase → **Connect**
+→ **Transaction pooler**, with **Use IPv4 connection** switched on. Take that
+string and make two substitutions:
+
+- the user is shown as `postgres.<project-ref>` — change the role part to
+  `app_runtime`, keeping the project reference and the dot;
+- replace the password placeholder with the password from step 1.
+
+Leave the host, the port `6543` and the database `postgres` exactly as shown.
+Those four components must match
+[`src/lib/db/runtime-target.ts`](../src/lib/db/runtime-target.ts) or the deployed
+runtime refuses to open it — deliberately, so a mistake here fails at startup
+rather than silently reaching the wrong database.
+
+Paste the finished string into your own terminal, in place of the placeholder
+below. It must not be typed into a file, a ticket, or a chat.
+
+```bash
+printf '%s' 'PASTE-THE-CONNECTION-STRING-HERE' | gcloud secrets create database-url --data-file=- --replication-policy=automatic
+```
+
+**3 — Let the runtime read it.**
+
+```bash
+gcloud secrets add-iam-policy-binding database-url --member="serviceAccount:$(gcloud run services describe lancers-operations-platform --region europe-west2 --format='value(spec.template.spec.serviceAccountName)')" --role=roles/secretmanager.secretAccessor
+```
+
+**4 — Merge the pull request.** The deploy workflow injects the secret and fails
+the revision unless `/api/health` reports both `secretsLoaded` and
+`databaseConfigured` as true.
+
+**5 — Prove the credential actually works.** Presence is not correctness: a wrong
+password, a role without `BYPASSRLS`, or a pooler refusing the login all pass the
+gate and fail on the first transaction an operator attempts.
+
+```bash
+DATABASE_URL="$(gcloud secrets versions access latest --secret=database-url)" node scripts/production/connection-smoke-test.mjs --confirm-target <project-ref>
+```
+
+Expect seven `PASS` lines. See
+[`scripts/production/README.md`](../scripts/production/README.md).
+
+**6 — Sign in to the deployed app and open one page that reads club data.** If
+the role could not bypass RLS the pages render empty rather than erroring, which
+is the one failure the smoke test names explicitly and the health check cannot.
+
+### Rotating it
+
+```bash
+printf '%s' '<new connection string>' | gcloud secrets versions add database-url --data-file=-
+gcloud run services update lancers-operations-platform --region europe-west2
+```
+
+Reset the role's password in Supabase first (`alter role app_runtime password
+'…'`). The previous secret version stays enabled until you disable it, so a
+rotation is reversible.
+
+### If the deploy fails on `databaseConfigured`
+
+The revision has no `DATABASE_URL`. Either the secret does not exist, or the
+runtime service account cannot read it — steps 2 and 3. Roll back with
+`gh workflow run deploy.yml -f image_tag=<previous-commit-sha>`; the previous
+image does not require the variable.
 
 `NEXT_PUBLIC_*` values are browser-safe by definition and are inlined into the
 client bundle at build time, so they are build arguments, not runtime secrets.
@@ -165,7 +263,7 @@ limits.
 
 ## Health check and logging
 
-- `GET /api/health` → `{ status, service, revision, commit, secretsLoaded, timestamp }`.
+- `GET /api/health` → `{ status, service, revision, commit, secretsLoaded, databaseConfigured, timestamp }`.
 - It touches no dependency on purpose: a health check that fails when the
   database blips turns a blip into an outage.
 - `commit` is the Git SHA baked into the image at build time, so a running

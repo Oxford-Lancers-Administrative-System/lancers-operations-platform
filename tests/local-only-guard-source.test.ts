@@ -457,3 +457,114 @@ describe("the check itself still bites", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Row 7 — the hosted branch lives in a third function, and is not configurable
+// ---------------------------------------------------------------------------
+
+/**
+ * LAN-94 gave the *deployed* application one hosted target. Everything above
+ * still applies unchanged, because the hosted branch was deliberately not added
+ * to either guard — it went into a separate module that calls them.
+ *
+ * That separation is the whole control, so it is pinned here in the same
+ * source-reading style. A behavioural test cannot tell the difference between
+ * "the local guard is intact and a third function handles hosted" and "the
+ * local guard grew a hosted branch that happens to be false right now".
+ */
+const RUNTIME_POLICY = "src/lib/db/runtime-target.ts";
+
+describe("the hosted-runtime policy is separate from the local guards", () => {
+  it("the local guards know nothing about the hosted target", () => {
+    // If either guard learned the approved host, role or Cloud Run marker, the
+    // seed path would be one edit away from reaching production.
+    for (const file of [SCRIPTS_GUARD, SERVICE_GUARD]) {
+      const source = read(file);
+      expect(source).not.toMatch(/pooler\.supabase\.com/);
+      expect(source).not.toMatch(/K_SERVICE/);
+      expect(source).not.toMatch(/app_runtime/);
+      expect(source).not.toMatch(/APPROVED_HOSTED_TARGET/);
+    }
+  });
+
+  it("the approved target is a literal, with no environment lookup in it", () => {
+    const source = read(RUNTIME_POLICY);
+    const literal = /APPROVED_HOSTED_TARGET\s*=\s*\{(.*?)\}\s*as const;/.exec(normalise(source));
+
+    expect(literal, "the approved target must be readable as a literal").not.toBe(null);
+    expect(literal![1]).not.toMatch(ENVIRONMENT_LOOKUP);
+    // Configuration is the thing being defended against: a host that arrived
+    // from the environment would mean setting a variable widens the policy.
+    expect(literal![1]).toMatch(/hostname: "aws-0-eu-west-2\.pooler\.supabase\.com"/);
+    expect(literal![1]).toMatch(/port: "6543"/);
+    expect(literal![1]).toMatch(/username: "app_runtime\.fggbgeraiadetyiyjlvb"/);
+  });
+
+  it("the non-deployed branch delegates to the unconditional local resolver", () => {
+    // The single most important line in the policy: everything that is not the
+    // deployed service falls through to the guard this file pins above.
+    const body = normalise(functionBody(read(RUNTIME_POLICY), "resolveRuntimeDatabaseUrl"));
+
+    expect(body).toContain("if (!isDeployedRuntime(env)) { return resolveDatabaseUrl(env); }");
+  });
+
+  it("the deployed check is an exact service-name match and consults nothing else", () => {
+    const body = normalise(functionBody(read(RUNTIME_POLICY), "isDeployedRuntime"));
+
+    expect(body).toBe("return env.K_SERVICE === CLOUD_RUN_SERVICE;");
+    // Not `Boolean(env.K_SERVICE)`, and not an OR of several markers: a second
+    // Cloud Run service must not inherit this database policy by accident.
+    expect(body).not.toMatch(/\|\||startsWith|includes/);
+  });
+
+  it("the hosted comparison reads no environment variable at all", () => {
+    const body = functionBody(read(RUNTIME_POLICY), "assertApprovedHostedDatabaseUrl");
+
+    expect(body).not.toMatch(ENVIRONMENT_LOOKUP);
+    expect(normalise(body)).toContain("APPROVED_HOSTED_TARGET[component]");
+  });
+
+  it("fails closed on a missing secret rather than falling through", () => {
+    const body = normalise(functionBody(read(RUNTIME_POLICY), "resolveRuntimeDatabaseUrl"));
+
+    // The refusal must come before any return, and must not name the local
+    // default. A `?? DEFAULT_URL` here is the exact defect this pins.
+    expect(body).toMatch(/if \(!configured\) \{ throw new Error\(/);
+    expect(body).not.toMatch(/DEFAULT_URL|127\.0\.0\.1/);
+  });
+});
+
+describe("the hosted-policy checks still bite", () => {
+  it("catches a hosted target moved into the environment", () => {
+    const source = read(RUNTIME_POLICY).replace(
+      'hostname: "aws-0-eu-west-2.pooler.supabase.com",',
+      "hostname: process.env.APPROVED_DB_HOST,",
+    );
+    expect(source, "the splice must have applied").not.toBe(read(RUNTIME_POLICY));
+
+    const literal = /APPROVED_HOSTED_TARGET\s*=\s*\{(.*?)\}\s*as const;/.exec(normalise(source));
+    expect(literal![1]).toMatch(ENVIRONMENT_LOOKUP);
+  });
+
+  it("catches the deployed check widened to any Cloud Run service", () => {
+    const source = read(RUNTIME_POLICY).replace(
+      "return env.K_SERVICE === CLOUD_RUN_SERVICE;",
+      "return Boolean(env.K_SERVICE);",
+    );
+    expect(source).not.toBe(read(RUNTIME_POLICY));
+
+    expect(normalise(functionBody(source, "isDeployedRuntime"))).not.toBe(
+      "return env.K_SERVICE === CLOUD_RUN_SERVICE;",
+    );
+  });
+
+  it("catches a local-default fallback spliced into the hosted branch", () => {
+    const source = read(RUNTIME_POLICY).replace(
+      "  if (!configured) {",
+      "  if (!configured) return DEFAULT_URL;\n  if (false) {",
+    );
+    expect(source).not.toBe(read(RUNTIME_POLICY));
+
+    expect(normalise(functionBody(source, "resolveRuntimeDatabaseUrl"))).toMatch(/DEFAULT_URL/);
+  });
+});
