@@ -144,6 +144,31 @@ export function buildMessageBody(
     };
   }
 
+  // A template with no body parameters at all — LAN-124.
+  //
+  // Meta matches what is sent against what the approved template declares and
+  // answers 132000 when they disagree, so a parameterless template needs the
+  // `components` key *absent*, not present and empty. This is the shape that
+  // `hello_world` takes, and `hello_world` is what proves a live provider path
+  // before the club's own template has cleared approval.
+  //
+  // It carries no RSVP link, because there is nowhere in a parameterless
+  // template to put one. That is a real limitation of this shape and not an
+  // oversight here: a message sent this way demonstrates that delivery works
+  // and demonstrates nothing else.
+  if (config.templateParameters === "none") {
+    return {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "template",
+      template: {
+        name: config.templateName,
+        language: { code: config.templateLanguage },
+      },
+    };
+  }
+
   // The approved template's four body parameters, in order. The club creates
   // the template to match this contract; the order is part of the handoff.
   return {

@@ -57,6 +57,42 @@ describe("outbound configuration", () => {
     expect(resolution.configured).toBe(false);
   });
 
+  describe("LAN-124 — the template parameter shape", () => {
+    it("defaults to the club's own invitation, which is the shape with the link", () => {
+      // The direction of this default is the point. An unset or misspelled
+      // value must resolve to the message that carries an RSVP link, never to
+      // the one that does not — invitations nobody can answer, all reported
+      // delivered, is the failure worth engineering against.
+      for (const raw of [undefined, "", "   ", "invitation", "INVITATION", "nonsense", "no"]) {
+        const resolution = resolveOutboundConfig({
+          ...DEPLOYED,
+          ...(raw === undefined ? {} : { WHATSAPP_TEMPLATE_PARAMETERS: raw }),
+        });
+        expect(resolution.configured).toBe(true);
+        if (!resolution.configured) return;
+        expect(resolution.config.templateParameters, JSON.stringify(raw)).toBe("invitation");
+      }
+    });
+
+    it("takes the parameterless shape only when asked for it exactly", () => {
+      // Trimmed and lowercased, so a value pasted with a trailing space still
+      // means what the person typing it meant.
+      for (const raw of ["none", "NONE", "None", " none ", "None "]) {
+        const resolution = resolveOutboundConfig({
+          ...DEPLOYED,
+          WHATSAPP_TEMPLATE_PARAMETERS: raw,
+        });
+        expect(resolution.configured).toBe(true);
+        if (!resolution.configured) return;
+        expect(resolution.config.templateParameters, raw).toBe("none");
+      }
+    });
+
+    it("is not required, because it has a safe default", () => {
+      expect(OUTBOUND_ENVIRONMENT_VARIABLES).not.toContain("WHATSAPP_TEMPLATE_PARAMETERS");
+    });
+  });
+
   describe("LAN-124 — the recipient allowlist is required, and its absence is a refusal", () => {
     it("resolves the allowlist onto the configuration", () => {
       const resolution = resolveOutboundConfig(DEPLOYED);

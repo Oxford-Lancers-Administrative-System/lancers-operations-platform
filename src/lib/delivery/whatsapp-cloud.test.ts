@@ -42,6 +42,7 @@ const config = (overrides: Partial<OutboundConfig> = {}): OutboundConfig => ({
   // path rather than the LAN-124 refusal. The refusal has its own describe
   // block, which narrows this deliberately.
   recipientAllowlist: ["447700900123"],
+  templateParameters: "invitation",
   localTest: { recipientOverride: null, messageMode: "template" },
   ...overrides,
 });
@@ -175,6 +176,57 @@ describe("interpreting a response", () => {
     expect(outcome.status).toBe("refused");
     if (outcome.status !== "refused") return;
     expect(outcome.reason).toMatch(/no open conversation/i);
+  });
+});
+
+describe("LAN-124 — a template that takes no parameters", () => {
+  /**
+   * Meta's pre-approved `hello_world`. The reason this shape exists at all is
+   * that the club's own template has to clear approval before it can be sent,
+   * and a demonstration cannot be scheduled around Meta's review queue.
+   */
+  it("omits components entirely rather than sending an empty list", () => {
+    // `components: []` is not the same request. Meta matches parameters against
+    // the approved template and answers 132000 when they disagree, which is the
+    // failure this shape exists to avoid.
+    const body = buildMessageBody(
+      config({
+        templateName: "hello_world",
+        templateLanguage: "en_US",
+        templateParameters: "none",
+      }),
+      MESSAGE,
+    );
+
+    expect(body).toEqual({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: "447700900123",
+      type: "template",
+      template: { name: "hello_world", language: { code: "en_US" } },
+    });
+    expect(body.template).not.toHaveProperty("components");
+  });
+
+  it("still sends the four-parameter body for the club's own template", () => {
+    const body = buildMessageBody(config(), MESSAGE) as {
+      template: { components: { parameters: { text: string }[] }[] };
+    };
+
+    expect(body.template.components[0].parameters.map((p) => p.text)).toEqual([
+      "Alex",
+      "Team Practice",
+      "Wednesday 19 November, 19:00",
+      "https://lancers.example.org/rsvp/abc123",
+    ]);
+  });
+
+  it("carries no RSVP link in the parameterless shape, which is the whole limitation", () => {
+    // Asserted rather than left implicit: somebody reading the runbook needs to
+    // know that this proves delivery and proves nothing about the RSVP loop.
+    const body = buildMessageBody(config({ templateParameters: "none" }), MESSAGE);
+
+    expect(JSON.stringify(body)).not.toContain(MESSAGE.rsvpUrl);
   });
 });
 
