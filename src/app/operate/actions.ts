@@ -106,10 +106,15 @@ export async function administerDelivery(): Promise<never> {
  * the claim it made — "authorization is in place and the behaviour is not" —
  * stopped being true, and a placeholder that lies is worse than no placeholder.
  *
- * The capability did not go anywhere and neither did its enforcement. Reading
- * is `src/app/operate/report/page.tsx`, through the same shell gate; writing is
- * `generateReportAction` in `report/actions.ts`, which re-checks the capability
- * itself. `report/actions.test.ts` calls that action directly with an
- * under-privileged actor, which is LAN-73's criterion held against the thing
- * that can now actually write.
+ * The capability did not go anywhere and neither did its enforcement, but the
+ * shape of the enforcement changed twice during LAN-81's review and this
+ * comment described a middle version of it. There is no server action: Brian's
+ * 15 August decision removed the Generate button, so the report both reads and
+ * files its snapshot through `src/app/operate/report/page.tsx`, behind
+ * `gateShellPage(..., "leadership_report")`.
+ *
+ * That gate is the whole boundary, and it is tested as one:
+ * `report/screens.test.tsx` drives it with real role codes and asserts that a
+ * refused reader causes no read — and therefore no write, since filing a
+ * snapshot happens inside the read.
  */

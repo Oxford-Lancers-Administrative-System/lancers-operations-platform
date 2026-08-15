@@ -216,6 +216,29 @@ async function answer(invitationId: string, response: "yes" | "no", reason: stri
   ]);
 }
 
+/** A second invitation to one event for one person, anchored to the person. */
+async function secondInvitationFor(eventId: string, invitationId: string) {
+  const person = await observer.query<{ person_id: string }>(
+    `select m.person_id from public.invitations i
+       join public.season_memberships m on m.id = i.season_membership_id
+      where i.id = $1`,
+    [invitationId],
+  );
+  const audience = await observer.query<{ id: string }>(
+    `insert into public.event_audience_members
+       (event_id, season_id, capacity, person_id, added_by_person_id)
+     values ($1, $2, 'coach', $3, $4) returning id`,
+    [eventId, seasonId, person.rows[0].person_id, actorPersonId],
+  );
+  await observer.query(
+    `insert into public.invitations
+       (event_id, event_status, solicits_response, season_id, capacity, person_id,
+        audience_member_id, status, issued_at)
+     values ($1, 'occurred', true, $2, 'coach', $3, $4, 'issued', now())`,
+    [eventId, seasonId, person.rows[0].person_id, audience.rows[0].id],
+  );
+}
+
 async function refusalFrom(run: () => Promise<unknown>): Promise<ServiceError> {
   let thrown: unknown;
   try {
@@ -531,62 +554,132 @@ describe("the attendance grid", () => {
 
   /**
    * A person can hold two invitations to one event, and the grid must still
-   * give them one cell.
+   * give them one cell — with the disagreement in it, whichever invitation the
+   * database hands over first.
    *
    * Invariant P8 anchors a player to their membership and a coach or committee
-   * member to their person, and the same human is routinely both — the seeded
-   * week has 32 such pairs. Before this, each invitation pushed its own cell:
-   * the table rendered the first and the problem count counted both, so a real
-   * discrepancy could hide behind a benign second invitation and the ordering
-   * was skewed by double counting.
+   * member to their person, and the same human is routinely both; the seeded
+   * week has 32 such pairs. Before the merge, each invitation pushed its own
+   * cell: the table rendered the first and the problem count counted both.
+   *
+   * This runs the same scenario twice, with the ids arranged so that the
+   * benign invitation sorts first in one and the disagreeing one first in the
+   * other. Independent review caught the earlier version passing only because
+   * PostgreSQL happened to return the disagreeing row first — deleting the
+   * promote branch entirely left all 3,154 tests green.
    */
-  it("gives one cell per person per event when they hold two invitations to it", async () => {
+  describe("one cell per person per event, when they hold two invitations to it", () => {
+    /**
+     * Gives one member of `event` a second invitation, anchored to their person
+     * rather than their membership, with an id chosen so the caller controls
+     * which of the two the ordered query returns first.
+     */
+    async function secondInvitation(eventId: string, invitationId: string, id: string) {
+      const person = await observer.query<{ person_id: string }>(
+        `select m.person_id from public.invitations i
+           join public.season_memberships m on m.id = i.season_membership_id
+          where i.id = $1`,
+        [invitationId],
+      );
+      const audience = await observer.query<{ id: string }>(
+        `insert into public.event_audience_members
+           (event_id, season_id, capacity, person_id, added_by_person_id)
+         values ($1, $2, 'coach', $3, $4) returning id`,
+        [eventId, seasonId, person.rows[0].person_id, actorPersonId],
+      );
+      await observer.query(
+        `insert into public.invitations
+           (id, event_id, event_status, solicits_response, season_id, capacity, person_id,
+            audience_member_id, status, issued_at)
+         values ($1, $2, 'occurred', true, $3, 'coach', $4, $5, 'issued', now())`,
+        [id, eventId, seasonId, person.rows[0].person_id, audience.rows[0].id],
+      );
+    }
+
+    /**
+     * `coachId` decides the order: the player invitation's id is a random uuid
+     * from the application, so an all-zeroes id always sorts before it and an
+     * all-fs id always after.
+     */
+    async function runWith(coachId: string) {
+      const event = await occurredEvent(2);
+      const invitations = await invitationsFor(event.id);
+      await secondInvitation(event.id, invitations[0].id, coachId);
+
+      // The other invitee never answers either, so their cell is on the grid
+      // too — everything below is scoped to the person under test.
+      const named = await observer.query<{ display_name: string }>(
+        `select coalesce(nullif(btrim(p.known_as), ''), p.given_name)
+                || case when p.family_name is null then '' else ' ' || p.family_name end
+                  as display_name
+           from public.invitations i
+           join public.season_memberships m on m.id = i.season_membership_id
+           join public.people p on p.id = m.person_id
+          where i.id = $1`,
+        [invitations[0].id],
+      );
+      const person = named.rows[0].display_name;
+
+      // The membership invitation is answered and honoured. The coach one is
+      // never answered, so it disagrees — and must be what shows.
+      await answer(invitations[0].id, "yes", null);
+      await recordAttendance(
+        actorPersonId,
+        event.id,
+        `player:${invitations[0].season_membership_id}`,
+        "present",
+      );
+
+      const content = await compute();
+      const row = content.grid.rows.find((entry) => entry.person === person);
+      const cells = (row?.cells ?? []).filter((cell) => cell.eventId === event.id);
+      return { content, cells, row, eventId: event.id, person };
+    }
+
+    it("keeps the disagreement when the disagreeing invitation arrives first", async () => {
+      // An all-zeroes id always sorts before the application's random uuid, so
+      // the never-answered coach invitation is the one the merge sees first.
+      const { cells } = await runWith("00000000-0000-4000-8000-000000000081");
+
+      expect(cells).toHaveLength(1);
+      expect(cells[0].isDiscrepancy).toBe(true);
+      expect(cells[0].rsvp).toBeNull();
+    });
+
+    it("keeps the disagreement when the benign invitation arrives first", async () => {
+      // All-fs sorts after, so the honoured player invitation is seen first and
+      // the disagreement has to displace it. This is the case that exercises
+      // the promote branch, and the one that used to pass by luck: independent
+      // review disabled the branch and all 3,154 tests stayed green.
+      const { cells } = await runWith("ffffffff-ffff-4fff-8fff-ffffffffff81");
+
+      expect(cells).toHaveLength(1);
+      expect(cells[0].isDiscrepancy).toBe(true);
+      expect(cells[0].rsvp).toBeNull();
+    });
+
+    it("counts the merged cell once, with the benign invitation first", async () => {
+      const { row } = await runWith("ffffffff-ffff-4fff-8fff-ffffffffff82");
+
+      expect(row?.problems).toBe(1);
+    });
+  });
+
+  /**
+   * The snapshot is immutable, so computing it twice from unchanged data must
+   * produce the same bytes. Without an order on the query behind the grid, a
+   * person with two invitations to one event could be filed either way round.
+   */
+  it("computes the same content twice from unchanged data", async () => {
     const event = await occurredEvent(2);
     const invitations = await invitationsFor(event.id);
+    await secondInvitationFor(event.id, invitations[0].id);
+    await answer(invitations[0].id, "no", "Coursework deadline.");
 
-    // A second invitation to the same event for the same human, anchored to the
-    // person rather than the membership — the shape a coaching seat produces.
-    const person = await observer.query<{ person_id: string; audience_member_id: string }>(
-      `select m.person_id, i.audience_member_id
-         from public.invitations i
-         join public.season_memberships m on m.id = i.season_membership_id
-        where i.id = $1`,
-      [invitations[0].id],
-    );
-    const audience = await observer.query<{ id: string }>(
-      `insert into public.event_audience_members
-         (event_id, season_id, capacity, person_id, added_by_person_id)
-       values ($1, $2, 'coach', $3, $4) returning id`,
-      [event.id, seasonId, person.rows[0].person_id, actorPersonId],
-    );
-    await observer.query(
-      `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity, person_id,
-          audience_member_id, status, issued_at)
-       values ($1, 'occurred', true, $2, 'coach', $3, $4, 'issued', now())`,
-      [event.id, seasonId, person.rows[0].person_id, audience.rows[0].id],
-    );
+    const first = await compute();
+    const second = await compute();
 
-    // The membership invitation is answered and honoured; the coach one is not.
-    await answer(invitations[0].id, "yes", null);
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[0].season_membership_id}`,
-      "present",
-    );
-
-    const content = await compute();
-    const row = content.grid.rows.find((entry) =>
-      entry.cells.some((cell) => cell.eventId === event.id),
-    );
-
-    // One cell for that event, not two.
-    expect(row?.cells.filter((cell) => cell.eventId === event.id)).toHaveLength(1);
-    // And the unanswered coach invitation is what shows, because it is the one
-    // that disagrees — it must not be hidden behind the honoured one.
-    expect(row?.cells[0].isDiscrepancy).toBe(true);
-    expect(row?.problems).toBe(1);
+    expect(JSON.stringify(second)).toBe(JSON.stringify(first));
   });
 
   it("puts the people with the most discrepancies at the top", async () => {

@@ -644,7 +644,15 @@ export async function computeReportContent(
               = coalesce(i.season_membership_id, i.person_id)
       where e.season_id = $1
         and e.scheduled_on between $2::date and $3::date
-        and e.solicits_response`,
+        and e.solicits_response
+      -- Deterministic, because a snapshot is immutable and has to be
+      -- reproducible. A person can hold two invitations to one event, and
+      -- without an order the database may return them either way round, which
+      -- decides whose reason is kept — so the same data could be filed two
+      -- different ways. The invitation id is arbitrary and stable, which is
+      -- exactly what is wanted here: nothing about the order should mean
+      -- anything.
+      order by i.event_id, i.id`,
     back,
   );
 

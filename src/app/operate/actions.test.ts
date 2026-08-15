@@ -91,11 +91,12 @@ const ACTIONS: ReadonlyArray<{
     permitted: [],
   },
   // `readLeadershipReport` was here until LAN-81 built the report. Its
-  // authorization coverage did not disappear with it: the write path is
-  // `generateReportAction`, and `src/app/operate/report/actions.test.ts` calls
-  // that directly with an under-privileged actor — the same criterion, held
-  // against an action that can actually write. It cannot live in this list
-  // because every entry here is a zero-argument stub and that one takes a form.
+  // authorization coverage did not disappear with it, but it did move: the
+  // report has no server action, because Brian's 15 August decision removed the
+  // Generate button. Reading and filing both happen in
+  // `src/app/operate/report/page.tsx` behind the shell gate, and
+  // `report/screens.test.tsx` drives that gate with real role codes — including
+  // an assertion that a refused reader causes no read, and so no write.
 ];
 
 function actor(roleCodes: string[]): ResolvedOperator {

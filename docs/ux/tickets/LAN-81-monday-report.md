@@ -54,6 +54,26 @@ The current live LAN-81 issue, comments, relationships and recorded owner decisi
 - Before implementation, re-read the live owning issue and comments and reconcile any changes recorded after Brian’s 12 August 2026 approval.
 - In implementation review, provide LAN-81, implemented screen IDs, desktop and 375px phone screenshots, acceptance-criteria results, and every deviation or assumption.
 
+## Owner amendment — 15 August 2026
+
+Brian reviewed the built report over four rounds and changed what it is. The
+full record, screen by screen, is in
+[`../slice-ux.md`](../slice-ux.md) under **LAN-81 owner amendment**. In short:
+
+- **UX-80 and UX-82 are withdrawn.** There is no preview step, no **Generate
+  report** button and no version list. Opening `/operate/report` shows the
+  report; pressing **Show Report** files a snapshot. Versions are still filed
+  and still immutable — invariant M5 is untouched — and are never shown.
+- **UX-81 and UX-83 are superseded** by the structure Brian specified: last
+  week's events with RSVP counts and turnout, an attendance grid of people
+  against events with two values per event, availability, next week, walk-ups,
+  recruitment, onboarding, and the week in numbers.
+- **One week forward** is added, read-only. This amends the criterion that the
+  report adds no planning horizon; the three-week horizon stays LAN-109's.
+
+The wireframes remain as the record of what was approved on 12 August. They are
+no longer the specification for this route.
+
 ## Acceptance criteria
 
 - All owned screen IDs render at their registered routes for the correct role and record scope.

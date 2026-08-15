@@ -244,7 +244,7 @@ The report view reads stored JSON content only. Regeneration creates a new versi
 | UX-75     | Event marked not held                               | `/operate/events/[id]`            | Authorized occurrence operator                     | LAN-80          | [`desktop`](wireframes/UX-75-event-not-held-desktop.svg) / [`375px phone`](wireframes/UX-75-event-not-held-phone.svg)                                           |
 | UX-80     | Prepare Monday report                               | `/operate/report`                 | Authorized report operator                         | LAN-81          | [`desktop`](wireframes/UX-80-report-preview-desktop.svg) / [`375px phone`](wireframes/UX-80-report-preview-phone.svg)                                           |
 | UX-81     | Monday exception and action report                  | `/operate/report`                 | Authorized report operator                         | LAN-81          | [`desktop`](wireframes/UX-81-stored-report-desktop.svg) / [`375px phone`](wireframes/UX-81-stored-report-phone.svg)                                             |
-| UX-82     | Report versions                                     | `/operate/report`                 | Authorized report operator                         | LAN-81          | [`desktop`](wireframes/UX-82-report-versions-desktop.svg) / [`375px phone`](wireframes/UX-82-report-versions-phone.svg)                                         |
+| UX-82     | Report versions — **withdrawn 15 Aug 2026**         | `/operate/report`                 | Authorized report operator                         | LAN-81          | [`desktop`](wireframes/UX-82-report-versions-desktop.svg) / [`375px phone`](wireframes/UX-82-report-versions-phone.svg)                                         |
 | UX-83     | No stored report for this date                      | `/operate/report`                 | Authorized report operator                         | LAN-81          | [`desktop`](wireframes/UX-83-report-empty-desktop.svg) / [`375px phone`](wireframes/UX-83-report-empty-phone.svg)                                               |
 | UX-90     | Attendance is not open                              | `/operate/events/[id]/attendance` | Head Coach, OC or DC                               | LAN-110         | [`desktop`](wireframes/UX-90-coach-occurrence-locked-desktop.svg) / [`375px phone`](wireframes/UX-90-coach-occurrence-locked-phone.svg)                         |
 | UX-91     | Team Practice attendance                            | `/operate/events/[id]/attendance` | Head Coach, OC or DC                               | LAN-110         | [`desktop`](wireframes/UX-91-coach-attendance-desktop.svg) / [`375px phone`](wireframes/UX-91-coach-attendance-phone.svg)                                       |
@@ -254,6 +254,37 @@ The report view reads stored JSON content only. Regeneration creates a new versi
 | UX-95     | Correct attendance                                  | `/operate/events/[id]/attendance` | Head Coach, OC or DC                               | LAN-110         | [`desktop`](wireframes/UX-95-coach-correction-desktop.svg) / [`375px phone`](wireframes/UX-95-coach-correction-phone.svg)                                       |
 | UX-96     | You cannot record attendance for this event         | `/operate/events/[id]/attendance` | Signed-in coach without LAN-110 capability         | LAN-110         | [`desktop`](wireframes/UX-96-coach-unauthorized-desktop.svg) / [`375px phone`](wireframes/UX-96-coach-unauthorized-phone.svg)                                   |
 | UX-97     | Add walk-up attendance                              | `/operate/events/[id]/attendance` | Head Coach, OC or DC                               | LAN-80, LAN-110 | [`desktop`](wireframes/UX-97-coach-walk-up-desktop.svg) / [`375px phone`](wireframes/UX-97-coach-walk-up-phone.svg)                                             |
+
+### LAN-81 owner amendment — 15 August 2026
+
+Brian reviewed the built report over four rounds on 15 August 2026 and changed
+what it is. The screens registered above were designed before it existed and no
+longer describe it. Recorded here rather than left to be discovered as a
+contradiction between the register and the running application.
+
+| Screen                                     | Approved 12 August                                            | After 15 August                                                                                                                                                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UX-80 _Prepare Monday report_              | A preview step with a **Generate report** button              | Withdrawn. There is no preview and no Generate: the report is what `/operate/report` shows, and pressing **Show Report** files the snapshot.                                                                     |
+| UX-81 _Monday exception and action report_ | Six counted exception categories, each opening a stored list  | Superseded. Last week's events with RSVP counts and turnout; an attendance grid of people against events, two values per event; availability; next week; walk-ups; recruitment; onboarding; the week in numbers. |
+| UX-82 _Report versions_                    | A version list with supersession, generated-by and data-as-of | **Withdrawn.** "I should just have a report for the day of, and that's it." Versions are still filed and still immutable — invariant M5 is untouched — and the interface never mentions them.                    |
+| UX-83 _No stored report for this date_     | An empty state offering **Preview report**                    | Superseded. Opening a date always yields a report; a week with nothing in it says so, and says that an empty report is not an all-clear.                                                                         |
+
+Two further amendments, both recorded on LAN-81:
+
+- **One week forward.** The report shows the seven days after the reporting
+  date, read-only, with links into each event. This amends LAN-81's criterion
+  that "the report does not add the three-week event-planning horizon" — Brian,
+  15 August: "we don't have to do the 3 weeks, but can we do 1 week". The
+  three-week planning horizon and any comparison between weeks remain
+  [LAN-109](https://linear.app/brian-schuster/issue/LAN-109)'s.
+- **The availability caption is removed.** The screen no longer explains that no
+  narrative or diagnosis is recorded. The absence is structural and unchanged:
+  `availability_statuses` has no column that could hold one, and
+  `tests/schema-security.test.ts` scans the whole schema for one.
+
+The wireframes are kept for provenance. They are the approved 12 August package
+and are the record of what was agreed then; they are no longer the specification
+for `/operate/report`.
 
 ## 12. Review protocol and approved handoff
 
