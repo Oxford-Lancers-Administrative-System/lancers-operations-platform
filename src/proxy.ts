@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/env";
+import { isRecoveryAuthenticatedSession, RESET_PASSWORD_PATH } from "@/lib/auth/recovery";
 
 /**
  * Next.js 16 renamed the `middleware` convention to `proxy`. This runs before
@@ -39,24 +40,57 @@ const PROTECTED_PREFIXES = ["/dashboard", "/operate"];
  */
 const RSVP_PREFIX = "/rsvp";
 
-const PUBLIC_RSVP_HEADERS: ReadonlyArray<readonly [string, string]> = [
-  // The page names a person and shows their answer. Nothing may keep a copy:
-  // not the browser, not a shared proxy, not a CDN.
+/**
+ * The three headers a page reached by a private link must carry. Named for what
+ * they do rather than for the first route that needed them: `/rsvp` (LAN-79)
+ * and the recovery surfaces (LAN-125) both hold a one-time secret in a URL or a
+ * password in a form, and both need exactly this set.
+ */
+const PRIVATE_LINK_HEADERS: ReadonlyArray<readonly [string, string]> = [
+  // One page names a person and shows their answer; another takes a new
+  // password. Nothing may keep a copy of either: not the browser, not a shared
+  // proxy, not a CDN.
   ["Cache-Control", "no-store, no-cache, must-revalidate, private"],
-  // The token is in the URL, so any outbound request from this page would hand
-  // it to a third party in the Referer header — the club contact link is
-  // exactly such a request.
+  // A one-time token is in the URL, so any outbound request from the page would
+  // hand it to a third party in the Referer header — the club contact link on
+  // the RSVP page is exactly such a request.
   ["Referrer-Policy", "no-referrer"],
-  // A signed RSVP link is not a public document, and an indexed one would
-  // outlive its own expiry.
+  // Neither a signed RSVP link nor a password-reset link is a public document,
+  // and an indexed one would outlive its own expiry.
   ["X-Robots-Tag", "noindex, nofollow"],
 ];
+
+/**
+ * The password-recovery surfaces — LAN-125.
+ *
+ * They get the same three headers as the RSVP page, and for the same reasons in
+ * a different order:
+ *
+ *   * `/auth/recovery` carries a one-time token in its request URL, so
+ *     `no-referrer` is what stops that token reaching a third party's access
+ *     log, and `no-store` stops the URL being kept.
+ *   * `/reset-password` is where a password is typed. Nothing may keep a copy
+ *     of the response, and it must not be indexed.
+ *   * `/forgot-password` holds no secret today, but it is the entry to both, and
+ *     a recovery journey with one uncached page in the middle is a confusing
+ *     thing to reason about later.
+ *
+ * Unlike `/rsvp`, these do **not** return early: `/auth/recovery` needs the
+ * Supabase session work this function does, and the two pages are ordinary
+ * unauthenticated pages that benefit from it. The headers are applied to
+ * whatever response the rest of this function produces.
+ */
+const RECOVERY_PREFIXES = ["/forgot-password", "/reset-password", "/auth/recovery"];
+
+function matchesPrefix(pathname: string, prefixes: readonly string[]): boolean {
+  return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   if (path === RSVP_PREFIX || path.startsWith(`${RSVP_PREFIX}/`)) {
     const rsvp = NextResponse.next({ request });
-    for (const [key, value] of PUBLIC_RSVP_HEADERS) rsvp.headers.set(key, value);
+    for (const [key, value] of PRIVATE_LINK_HEADERS) rsvp.headers.set(key, value);
     return rsvp;
   }
 
@@ -86,15 +120,35 @@ export async function proxy(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
 
   const { pathname } = request.nextUrl;
-  const isProtected = PROTECTED_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
 
-  if (isProtected && !data?.claims) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("redirectTo", pathname);
-    return NextResponse.redirect(url);
+  if (matchesPrefix(pathname, PROTECTED_PREFIXES)) {
+    if (!data?.claims) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("redirectTo", pathname);
+      return NextResponse.redirect(url);
+    }
+
+    // LAN-125. A password-recovery link mints an ordinary session, so the check
+    // above is satisfied by one — and a mailbox alone would then reach the
+    // whole shell. `resolveOperatorAccess()` is what actually refuses it, in
+    // `src/lib/auth/operator.ts`, because this file is a convenience and not
+    // the authorization boundary. This is here so that the person who really is
+    // mid-recovery is sent to the one page their session is for, rather than to
+    // a sign-in form they cannot yet use.
+    //
+    // No `redirectTo`: the destination they asked for is not somewhere this
+    // session may go, and carrying it forward would only offer it back.
+    if (isRecoveryAuthenticatedSession(data.claims)) {
+      const url = request.nextUrl.clone();
+      url.pathname = RESET_PASSWORD_PATH;
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  if (matchesPrefix(pathname, RECOVERY_PREFIXES)) {
+    for (const [key, value] of PRIVATE_LINK_HEADERS) response.headers.set(key, value);
   }
 
   return response;

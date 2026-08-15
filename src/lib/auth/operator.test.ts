@@ -113,10 +113,42 @@ const OTHER_PERSON_ID = "33333333-3333-4333-8333-333333333333";
  */
 const LONG_STARTED = "2020-09-01";
 
-/** Installs the verified-user answer that `supabase.auth.getUser()` returns. */
-function givenVerifiedUser(user: { id: string } | null, error: { message: string } | null = null) {
+/**
+ * Installs the verified-user answer that `supabase.auth.getUser()` returns.
+ *
+ * `getClaims()` is stubbed alongside it and defaults to a password sign-in,
+ * because LAN-125 made how the session was authenticated part of this
+ * function's answer. A stub that returned no `amr` would let the recovery
+ * refusal below pass while the guard was reading the wrong claim.
+ */
+function givenVerifiedUser(
+  user: { id: string } | null,
+  error: { message: string } | null = null,
+  amr: unknown = [{ method: "password" }],
+) {
   vi.mocked(createClient).mockResolvedValue({
-    auth: { getUser: () => Promise.resolve({ data: { user }, error }) },
+    auth: {
+      getUser: () => Promise.resolve({ data: { user }, error }),
+      getClaims: () => Promise.resolve({ data: user ? { claims: { sub: user.id, amr } } : null }),
+    },
+  } as unknown as Awaited<ReturnType<typeof createClient>>);
+}
+
+/**
+ * A verified user whose *claims* cannot be read.
+ *
+ * `getClaims()` is a separate network call from `getUser()` — JWKS on a cold
+ * instance, or a second `getUser` round trip on symmetric keys — so this pair
+ * of answers is a real state, not a contrived one. Its exact return shape is
+ * `{ data: null, error }`, which is what made the first version of the recovery
+ * guard fail open: the predicate simply read `false` and the operator resolved.
+ */
+function givenUnreadableClaims(claimsResult: { data: unknown; error: { message: string } | null }) {
+  vi.mocked(createClient).mockResolvedValue({
+    auth: {
+      getUser: () => Promise.resolve({ data: { user: { id: AUTH_USER_ID } }, error: null }),
+      getClaims: () => Promise.resolve(claimsResult),
+    },
   } as unknown as Awaited<ReturnType<typeof createClient>>);
 }
 
@@ -184,6 +216,91 @@ describe("resolveOperator — no session", () => {
     givenDatabase(linkedOperatorTables());
 
     await expect(resolveOperator()).resolves.toBeNull();
+  });
+
+  /**
+   * LAN-125, and the finding independent review walked to before this guard
+   * existed: a password-recovery link mints an *ordinary* Supabase session, so
+   * `getUser()` confirms it and this function would resolve the operator behind
+   * it. Following the emailed link and navigating to `/operate/roster` — never
+   * setting a password — opened the shell and its members' email addresses, and
+   * because no password was set the operator was never locked out.
+   *
+   * A recovery session buys one thing: the right to set a password. Everywhere
+   * else it is no session at all.
+   */
+  it("refuses a session that came from a recovery link", async () => {
+    givenVerifiedUser({ id: AUTH_USER_ID }, null, [{ method: "otp", timestamp: 1 }]);
+    givenDatabase(linkedOperatorTables());
+
+    await expect(resolveOperatorAccess()).resolves.toEqual({ state: "no_session" });
+    await expect(resolveOperator()).resolves.toBeNull();
+  });
+
+  it("refuses it even when the operator behind it is perfectly good", async () => {
+    // The fixture is a linked, active operator with a current seat — the same
+    // one every passing test above uses. Nothing about the *account* is wrong;
+    // the refusal is about how this request authenticated.
+    givenVerifiedUser({ id: AUTH_USER_ID }, null, [{ method: "otp" }]);
+    givenDatabase(linkedOperatorTables());
+
+    const refused = await resolveOperatorAccess();
+
+    expect(refused.state).toBe("no_session");
+    expect(JSON.stringify(refused)).not.toContain(PERSON_ID);
+  });
+
+  it("reports it as no session rather than as an account state", async () => {
+    // LAN-107's unlinked and inactive copy is approved for two specific
+    // situations, and this is neither. Borrowing one would tell an operator
+    // mid-recovery that their access had been revoked.
+    givenVerifiedUser({ id: AUTH_USER_ID }, null, [{ method: "otp" }]);
+    givenDatabase(linkedOperatorTables());
+
+    const refused = await resolveOperatorAccess();
+
+    expect(refused.state).not.toBe("unlinked");
+    expect(refused.state).not.toBe("inactive");
+  });
+
+  /**
+   * The correction's own defect, found by independent review by injecting the
+   * real error shape rather than by reading the code.
+   *
+   * The guard used to ask "is this provably a recovery session?" and refuse only
+   * then. An unanswerable `getClaims()` returns `{ data: null, error }`, which
+   * made that question read `false` — so a failed claims lookup resolved the
+   * operator exactly as a password sign-in would, and the whole exposure came
+   * back for the length of that request, silently.
+   *
+   * `getClaims()` is a *separate* network call from the `getUser()` above it, so
+   * one can fail while the other succeeds: JWKS is fetched on every cold
+   * instance, and symmetric keys make a second round trip. The question is now
+   * "is this provably *not* a recovery session?", and absent claims are a
+   * refusal whatever the reason.
+   */
+  it.each([
+    ["the claims lookup errors", { data: null, error: { message: "jwks fetch failed" } }],
+    ["the claims lookup returns nothing", { data: null, error: null }],
+    ["the payload carries no claims", { data: {}, error: null }],
+    ["the claims are not an object", { data: { claims: null }, error: null }],
+  ])("refuses the session when %s", async (_why, claimsResult) => {
+    givenUnreadableClaims(claimsResult);
+    givenDatabase(linkedOperatorTables());
+
+    const refused = await resolveOperatorAccess();
+
+    expect(refused).toEqual({ state: "no_session" });
+    expect(JSON.stringify(refused)).not.toContain(PERSON_ID);
+  });
+
+  it("still resolves an ordinary password session", async () => {
+    // The counterweight. A guard that refused every session would satisfy all
+    // three assertions above and break the application.
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase(linkedOperatorTables());
+
+    await expect(resolveOperatorAccess()).resolves.toMatchObject({ state: "active" });
   });
 
   it("trusts the verified user, not a cookie that merely claims one", async () => {

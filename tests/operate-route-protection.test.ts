@@ -27,12 +27,23 @@ import { config, proxy } from "@/proxy";
 const ORIGIN = "https://lancers.example";
 
 function givenSignedIn(signedIn: boolean) {
+  givenClaims(signedIn ? { sub: "auth-user-id", amr: [{ method: "password" }] } : null);
+}
+
+/**
+ * LAN-125. `amr` is what separates a session that came from a password sign-in
+ * from one that came from a recovery link, so the stub carries it — a stub that
+ * omitted it would make every assertion below pass whatever the proxy did with
+ * a recovery session.
+ */
+function givenClaims(claims: Record<string, unknown> | null) {
   vi.mocked(createServerClient).mockReturnValue({
-    auth: {
-      getClaims: () =>
-        Promise.resolve({ data: signedIn ? { claims: { sub: "auth-user-id" } } : null }),
-    },
+    auth: { getClaims: () => Promise.resolve({ data: claims === null ? null : { claims } }) },
   } as unknown as ReturnType<typeof createServerClient>);
+}
+
+function givenRecoverySession() {
+  givenClaims({ sub: "auth-user-id", amr: [{ method: "otp" }] });
 }
 
 function requestFor(path: string): NextRequest {
@@ -151,13 +162,16 @@ describe("row 15 — /operate is in the protected set, and nothing else changed"
     expect(location.searchParams.get("redirectTo")).toBe("/dashboard");
   });
 
-  it.each(["/", "/login"])("leaves %s public", async (path) => {
-    givenSignedIn(false);
+  it.each(["/", "/login", "/forgot-password", "/reset-password", "/auth/recovery"])(
+    "leaves %s public",
+    async (path) => {
+      givenSignedIn(false);
 
-    const response = await proxy(requestFor(path));
+      const response = await proxy(requestFor(path));
 
-    expect(response.headers.get("location")).toBeNull();
-  });
+      expect(response.headers.get("location")).toBeNull();
+    },
+  );
 
   it("does not protect a path that merely starts with the same letters", async () => {
     // `/operations` is not `/operate`, and prefix matching must not treat it as
@@ -175,6 +189,152 @@ describe("row 15 — /operate is in the protected set, and nothing else changed"
     expect(matcherRuns("/api/health")).toBe(false);
     expect(matcherRuns("/_next/static/chunk.js")).toBe(false);
     expect(matcherRuns("/favicon.ico")).toBe(false);
+  });
+});
+
+/**
+ * A recovery session may not roam the application — LAN-125.
+ *
+ * Independent review found this by walking it, and it was reproduced in a
+ * browser before the guard existed: following the emailed link and then simply
+ * navigating to `/operate/roster` — without ever setting a password — opened
+ * the shell and the members' email addresses. Because no password was set, the
+ * operator was never locked out and nothing signalled the intrusion.
+ *
+ * The real refusal is `resolveOperatorAccess()`, which every page under
+ * `/operate` goes through; `src/lib/auth/operator.test.ts` owns that half. This
+ * half is the proxy's, and its job is only to send the person somewhere useful.
+ */
+describe("a recovery session reaches the reset page and nothing else", () => {
+  it.each(["/operate", "/operate/roster", "/operate/events/8f2/attendance", "/dashboard"])(
+    "sends %s to the reset page",
+    async (path) => {
+      givenRecoverySession();
+
+      const response = await proxy(requestFor(path));
+      const location = new URL(response.headers.get("location") ?? "");
+
+      expect(response.status).toBe(307);
+      expect(location.pathname).toBe("/reset-password");
+    },
+  );
+
+  it("does not offer the refused destination back", async () => {
+    // A `redirectTo` here would hand the session a link to the very place it has
+    // just been refused, to be followed the moment a password is set.
+    givenRecoverySession();
+
+    const response = await proxy(requestFor("/operate/roster"));
+    const location = new URL(response.headers.get("location") ?? "");
+
+    expect(location.search).toBe("");
+    expect(location.href).not.toContain("roster");
+  });
+
+  it("still lets an ordinary session through", async () => {
+    // The counterweight. A guard that refused every session would pass every
+    // assertion above and break the application.
+    givenSignedIn(true);
+
+    const response = await proxy(requestFor("/operate/roster"));
+
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.status).toBe(200);
+  });
+
+  it("leaves the recovery journey itself reachable", async () => {
+    // Refusing `/reset-password` to the one session that is allowed there would
+    // be a redirect loop, which is how this kind of guard usually goes wrong.
+    givenRecoverySession();
+
+    for (const path of ["/reset-password", "/forgot-password", "/auth/recovery", "/login"]) {
+      const response = await proxy(requestFor(path));
+      expect(response.headers.get("location"), `${path} should stay reachable`).toBeNull();
+    }
+  });
+});
+
+/**
+ * The password-recovery surfaces — LAN-125.
+ *
+ * These three are public and stay public: a person who cannot sign in is
+ * precisely who needs them. What they must carry is the same header set the
+ * signed RSVP page carries, and for a sharper reason on `/auth/recovery` — the
+ * one-time token is in that request's URL, so without `no-referrer` the next
+ * outbound request from the page would hand it to a third party's access log.
+ *
+ * Unlike `/rsvp` they do not return early, because `/auth/recovery` needs the
+ * cookie machinery this proxy sets up in order to persist what `verifyOtp`
+ * produces. The counterweight is asserted below, in both directions.
+ */
+describe("the recovery surfaces are public, and keep no trace", () => {
+  const RECOVERY = ["/forgot-password", "/reset-password", "/auth/recovery"];
+
+  it.each(RECOVERY)("%s is matched by the proxy, or none of the below would run", (path) => {
+    expect(matcherRuns(path)).toBe(true);
+  });
+
+  it.each(RECOVERY)("%s never redirects an anonymous visitor to sign in", async (path) => {
+    // The people who need these pages are the ones who cannot sign in. A
+    // redirect here would be a closed loop.
+    givenSignedIn(false);
+
+    const response = await proxy(requestFor(path));
+
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it.each(RECOVERY)("%s stops a one-time token leaving in a Referer header", async (path) => {
+    givenSignedIn(false);
+
+    const response = await proxy(requestFor(`${path}?token_hash=abc123&type=recovery`));
+
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  it.each(RECOVERY)("%s lets nothing keep a copy", async (path) => {
+    givenSignedIn(false);
+
+    const cacheControl = (await proxy(requestFor(path))).headers.get("cache-control") ?? "";
+
+    expect(cacheControl).toContain("no-store");
+    expect(cacheControl).toContain("private");
+  });
+
+  it.each(RECOVERY)("%s is not indexable", async (path) => {
+    givenSignedIn(false);
+
+    expect((await proxy(requestFor(path))).headers.get("x-robots-tag")).toContain("noindex");
+  });
+
+  it("still runs the session machinery on the callback, which is what writes its cookies", async () => {
+    // The counterweight to the early return `/rsvp` gets. `verifyOtp` in the
+    // route handler needs the Supabase cookie handling this function sets up;
+    // an early return here would leave the exchange with nowhere to write.
+    givenSignedIn(false);
+
+    await proxy(requestFor("/auth/recovery?token_hash=abc123&type=recovery"));
+
+    expect(createServerClient).toHaveBeenCalled();
+  });
+
+  it("does not hand these headers to every other page", async () => {
+    // Scoped, not global. `/login` is an ordinary page and a blanket `no-store`
+    // would be a silent change to everything nobody asked for.
+    givenSignedIn(false);
+
+    const response = await proxy(requestFor("/login"));
+
+    expect(response.headers.get("cache-control")).toBeNull();
+    expect(response.headers.get("referrer-policy")).toBeNull();
+  });
+
+  it("does not treat a path that merely starts with the same letters as one of them", async () => {
+    givenSignedIn(false);
+
+    const response = await proxy(requestFor("/reset-password-please"));
+
+    expect(response.headers.get("cache-control")).toBeNull();
   });
 });
 

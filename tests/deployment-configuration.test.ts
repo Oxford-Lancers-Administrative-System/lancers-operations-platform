@@ -131,6 +131,10 @@ describe("the deploy turns on what the code refuses to run without", () => {
       PROVIDER_VARIABLE,
       "the deployed venue field tells operators that address search is not set up",
     ],
+    [
+      "APP_BASE_URL",
+      "password recovery has no trusted origin to build a link from and silently sends nobody anything (LAN-125)",
+    ],
   ];
 
   it.each(REQUIRED_ON_EVERY_REVISION)("sets %s on every revision", (name, why) => {
@@ -164,11 +168,13 @@ describe("the deploy turns on what the code refuses to run without", () => {
     // must never happen is their absence going unrecorded, because the visible
     // symptom — approval delivering nothing — looks like a code fault.
     for (const variable of OUTBOUND_ENVIRONMENT_VARIABLES) {
-      // `APP_BASE_URL` is skipped, and the reason is worth writing down: it is
-      // the only one of the four that is not a Meta credential, so it *could*
-      // be set today. It is not, because setting it alone would enable nothing
-      // — delivery needs all four — and a half-configured provider is a worse
-      // signal than an unconfigured one. It goes in with LAN-101, not before.
+      // `APP_BASE_URL` is skipped, and the reason changed with LAN-125. It is
+      // the only one of the four that is not a Meta credential, and it is now
+      // set — password recovery needs a trusted origin to build its link from,
+      // and `--set-env-vars` replaces the environment, so a value typed into
+      // the console by hand would be erased by the next deploy. Setting it
+      // still enables no delivery: the three Meta credentials remain absent and
+      // the sender refuses without all four. It is asserted as required above.
       if (variable === "APP_BASE_URL") continue;
       expect(
         configured.has(variable),

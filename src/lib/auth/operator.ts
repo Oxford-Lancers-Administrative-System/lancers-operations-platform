@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { isRecoveryAuthenticatedSession } from "./recovery";
 
 /**
  * Server-side resolution from a Supabase auth session to the club Person it
@@ -180,6 +181,54 @@ export async function resolveOperatorAccess(): Promise<OperatorAccess> {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   const user = userError ? null : (userData?.user ?? null);
   if (!user) return { state: "no_session" };
+
+  // LAN-125. A password-recovery link mints an ordinary Supabase session, and
+  // that session is a real, verified one — `getUser()` above confirms it and
+  // would happily resolve the operator behind it. It must not.
+  //
+  // Whoever can read an operator's mailbox can follow the emailed link, decline
+  // to set a password, and walk into the shell: roster, contact points,
+  // availability, events, the report, and every action that operator's roles
+  // permit. Because they never set a password, the operator is not locked out
+  // and nothing anywhere signals the intrusion. Independent review found this
+  // by walking it, and it was reproduced in a browser before this guard was
+  // written — a recovery link alone reached `/operate/roster` and its members'
+  // email addresses.
+  //
+  // So a recovery session buys exactly one thing: the right to set a password.
+  // `/reset-password` asks `isRecoveryAuthenticatedSession` for permission;
+  // this asks the same question and refuses the answer it wants. The two are
+  // deliberately mirror images, and both consult the verified `amr` claim
+  // rather than anything the browser can write.
+  //
+  // Reported as `no_session`, not as a fifth state, because it is the truthful
+  // answer to the question this function is asked — "is there an operator
+  // behind this request?" — and because the account states are LAN-107's
+  // approved copy for two specific situations, neither of which is this one.
+  // Nothing legitimate is refused: a completed reset signs the recovery session
+  // out, and the operator returns with `amr: password`.
+  // Written as "resolve only if this is provably not a recovery session",
+  // never as "refuse only if recovery can be proved". The first version of this
+  // guard was the second shape — it discarded the error and asked
+  // `isRecoveryAuthenticatedSession(claimsData?.claims)` — and independent
+  // review reproduced the whole exposure above by making `getClaims()` fail:
+  // `{ data: null, error }` makes the predicate `false`, and the operator
+  // resolved as if the session had been a password sign-in.
+  //
+  // That is reachable, not theoretical. `getClaims()` is a *separate* network
+  // call from `getUser()` four lines up: with asymmetric signing keys it
+  // fetches JWKS, whose cache is empty on every cold Cloud Run instance, and
+  // with symmetric keys it makes a second `getUser` round trip. One transient
+  // failure would have silently reopened a hole for the length of that request.
+  //
+  // So: absent claims are a refusal, for any reason — an error, a null, an
+  // expiry between the two calls. This is what `getUser()` above already does
+  // with its own error, and what `/reset-password` already does with a missing
+  // recovery context. An operator inconvenienced by a blip signs in again; the
+  // alternative is a mailbox reading the roster.
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const claims = claimsError ? null : (claimsData?.claims ?? null);
+  if (!claims || isRecoveryAuthenticatedSession(claims)) return { state: "no_session" };
 
   const admin = createAdminClient();
 
