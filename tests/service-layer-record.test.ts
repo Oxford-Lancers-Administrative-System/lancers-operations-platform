@@ -83,6 +83,14 @@ describe("the deployed revision matches what the documents claim about it", () =
     expect(buildBranch, "the build path must fail closed").toMatch(
       /grep -q '"databaseConfigured":true'[\s\S]*?exit 1/,
     );
+    // The assertion above spans the whole branch, so its `exit 1` need not
+    // belong to the databaseConfigured check. A future edit that adds a second
+    // hard-gated health field while downgrading this one to a warning would
+    // satisfy it and silently stop the deploy failing closed on DATABASE_URL.
+    // Found by independent review, which built exactly that edit.
+    expect(buildBranch, "the build path must not merely warn").not.toMatch(
+      /::warning title=Database not configured::/,
+    );
     expect(rollbackBranch, "the rollback path must only warn").toMatch(
       /::warning title=Database not configured::/,
     );
