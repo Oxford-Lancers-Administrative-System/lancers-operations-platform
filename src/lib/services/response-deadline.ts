@@ -1,5 +1,6 @@
 import "server-only";
 
+import { CLUB_TIME_ZONE } from "@/lib/club-time";
 import { ConstraintViolated, type Tx } from "@/lib/db";
 
 /**
@@ -59,8 +60,15 @@ export interface ResponseDeadlineRule {
   readonly atTime: string;
 }
 
-/** The zone every rule's `atTime` is expressed in. The club is in Oxford. */
-export const RESPONSE_DEADLINE_ZONE = "Europe/London";
+/**
+ * The zone every rule's `atTime` is expressed in. The club is in Oxford.
+ *
+ * Re-pointed at `CLUB_TIME_ZONE` by LAN-114, which needed the calendar to use
+ * "the application's configured club timezone" rather than declare a second
+ * one. Same value; one declaration. The name stays because the deadline rules
+ * read better naming their own zone, and callers already import it.
+ */
+export const RESPONSE_DEADLINE_ZONE = CLUB_TIME_ZONE;
 
 function rule(daysBefore: number, atTime: string): ResponseDeadlineRule {
   return Object.freeze({ daysBefore, atTime });

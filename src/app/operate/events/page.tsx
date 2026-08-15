@@ -34,6 +34,7 @@ import {
   londonToday,
 } from "./coach-event-buckets";
 import EventFilters from "./event-filters";
+import ViewSwitch from "./view-switch";
 import {
   AUDIENCE_AND_RESPONSES_COME_LATER,
   describeAttendance,
@@ -177,6 +178,20 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
           </Button>
         ) : null}
       </Stack>
+
+      <ViewSwitch
+        label="Events view"
+        testId="events-view-switch"
+        choices={[
+          { href: "/operate/events", label: "List", active: true, testId: "view-list" },
+          {
+            href: "/operate/events/calendar",
+            label: "Calendar",
+            active: false,
+            testId: "view-calendar",
+          },
+        ]}
+      />
 
       <EventFilters
         statuses={FILTERABLE_STATUSES}
