@@ -55,6 +55,13 @@ it does not land in shell history with the password in it. The
 it, or with anything else, the script refuses. It also refuses to run inside CI
 or a test runner.
 
+**The string may carry no `?` and no `#`.** `pg` copies query parameters into its
+connection configuration, where `host`, `port` and `user` override the address in
+front of them — so a string that reads as the approved target can open a
+different database entirely. Both this script and the deployed runtime refuse any
+string carrying one. If the value in Secret Manager has a `?`, fix it there
+rather than working around it here.
+
 Expected output is seven `PASS` lines. Any `FAIL` means the credential is not
 correct — nothing has been left behind, but the deployment is not verified.
 Diagnosis and the exact activation steps are in

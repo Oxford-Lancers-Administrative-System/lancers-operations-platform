@@ -55,11 +55,38 @@ describe("the deployed revision matches what the documents claim about it", () =
     // Gating the rollback path would turn every rollback red during the
     // incident the rollback exists to fix: an image built before this field
     // existed cannot report it, and the revision is already serving by then.
-    expect(deploy).toMatch(/if \[ -z "\$\{\{ inputs\.image_tag \}\}" \]; then/);
-    expect(deploy).toMatch(/::warning title=Database not configured::/);
+    // Line-based, because substring search for the shell keywords finds them
+    // inside words — `fi` matches inside "con**fi**gured", which silently
+    // truncated the rollback branch to nothing and made the assertion below
+    // vacuous on the first attempt at this test.
+    const lines = deploy.split("\n");
+    const isKeyword = (line: string, keyword: string) => line.trim() === keyword;
 
-    const gated = deploy.slice(deploy.indexOf('if [ -z "${{ inputs.image_tag }}" ]; then'));
-    expect(gated).toMatch(/grep -q '"databaseConfigured":true'[\s\S]*?exit 1/);
+    const start = lines.findIndex((line) =>
+      line.includes('if [ -z "${{ inputs.image_tag }}" ]; then'),
+    );
+    expect(start, "the conditional must exist").toBeGreaterThan(-1);
+
+    const elseAt = lines.findIndex((line, index) => index > start && isKeyword(line, "else"));
+    const endAt = lines.findIndex((line, index) => index > elseAt && isKeyword(line, "fi"));
+    expect(elseAt, "an else branch must exist").toBeGreaterThan(start);
+    expect(endAt, "the conditional must be closed").toBeGreaterThan(elseAt);
+
+    // Scoped to each branch separately. Slicing to end-of-file instead let the
+    // retry loop's own trailing `exit 1` satisfy the assertion, so inverting the
+    // branches — build warns, rollback fails, the precise inversion of the
+    // defect this gate exists to fix — passed. Independent review found that by
+    // performing the inversion.
+    const buildBranch = lines.slice(start, elseAt).join("\n");
+    const rollbackBranch = lines.slice(elseAt, endAt).join("\n");
+
+    expect(buildBranch, "the build path must fail closed").toMatch(
+      /grep -q '"databaseConfigured":true'[\s\S]*?exit 1/,
+    );
+    expect(rollbackBranch, "the rollback path must only warn").toMatch(
+      /::warning title=Database not configured::/,
+    );
+    expect(rollbackBranch, "the rollback path must not fail the workflow").not.toMatch(/exit 1/);
   });
 
   it("says so in the runbook, so the rollback instructions are not contradicted", () => {

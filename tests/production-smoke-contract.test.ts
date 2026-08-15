@@ -110,8 +110,26 @@ describe("the script refuses any database but the approved one", () => {
       "another project on the approved pooler",
       `postgresql://app_runtime.abcdefghijklmnop:pw@${APPROVED_HOSTED_TARGET.hostname}:6543/postgres`,
     ],
+    // Query smuggling. `pg-connection-string` copies these into the client
+    // config, where `host`, `port` and `user` override the authority — so each
+    // reads as the approved target and opens something else. This script is the
+    // one thing permitted to open production, which made its copy of the guard
+    // the least-tested of the four until independent review said so.
+    ["a host smuggled through the query string", `${APPROVED}?host=attacker.example.com`],
+    ["host and port smuggled", `${APPROVED}?host=attacker.example.com&port=5432`],
+    ["the admin role smuggled", `${APPROVED}?user=postgres`],
+    ["smuggling hidden behind a fragment", `${APPROVED}#?host=attacker.example.com`],
   ])("refuses %s", (_label, url) => {
     expect(() => assertApprovedTarget(url)).toThrow();
+  });
+
+  it("refuses query and fragment components by name, not incidentally", () => {
+    // Pins the reason, so a future change that drops the refusal but still
+    // happens to reject these strings for some other reason fails here.
+    expect(() => assertApprovedTarget(`${APPROVED}?host=attacker.example.com`)).toThrow(
+      /query or fragment/i,
+    );
+    expect(() => assertApprovedTarget(`${APPROVED}#x`)).toThrow(/query or fragment/i);
   });
 
   it("never echoes the connection string, which carries a password", () => {

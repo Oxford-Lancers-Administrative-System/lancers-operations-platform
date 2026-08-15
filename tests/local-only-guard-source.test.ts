@@ -185,6 +185,16 @@ const REFUSALS: readonly Refusal[] = [
     marker: /supabase\\\.|pooler/,
     expected: "/supabase\\.(co|com|in)/i.test(value) || /pooler/i.test(parsed.hostname)",
   },
+  {
+    // Added by LAN-94. `pg-connection-string` copies query parameters into the
+    // client config, where `host`, `port` and `user` override the authority, so
+    // a loopback URL carrying `?host=` connects off the machine. This refusal
+    // is the same security class as the two above and needs the same protection
+    // against being made conditional — which is the whole subject of this file.
+    name: "the query-and-fragment refusal",
+    marker: /search|hash/,
+    expected: 'parsed.search !== "" || parsed.hash !== ""',
+  },
 ];
 
 /** The four loopback hosts, and no others. ADR 0001. */
@@ -382,6 +392,22 @@ describe("the check itself still bites", () => {
       /hosted-connection-string refusal consults the environment/,
     );
   });
+
+  it.each(GUARDS)(
+    "$label: an env conjunct on the query-and-fragment refusal is caught",
+    ({ file, fn }) => {
+      // Independent review found this one unpinned: the refusal was added to
+      // both guards without a row in REFUSALS, so `!process.env.ALLOW_… &&` in
+      // front of it left the whole suite green — the exact LAN-97 defect this
+      // file's header describes, reintroduced by the fix for a different one.
+      const bypassed = withBypass(read(file), 'parsed.search !== ""');
+      expect(bypassed, "the splice must have applied").not.toBe(read(file));
+
+      const findings = inspectGuard("under test", bypassed, fn);
+      expect(findings.join("\n")).toMatch(/query-and-fragment refusal consults the environment/);
+      expect(findings.join("\n")).toMatch(/2 top-level conditions/);
+    },
+  );
 
   it.each(GUARDS)("$label: a widened allow-list is caught", ({ file, fn }) => {
     const widened = read(file).replace(`"[::1]"`, `"[::1]", "10.0.0.7"`);

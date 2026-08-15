@@ -181,6 +181,16 @@ Those four components must match
 runtime refuses to open it — deliberately, so a mistake here fails at startup
 rather than silently reaching the wrong database.
 
+**The string must also carry no `?` and no `#`.** Supabase's Connect dialog
+appends query parameters for some driver presets — `?sslmode=…`,
+`?pgbouncer=true` and similar — and the runtime refuses any string that has one.
+That is not fussiness: `pg` copies query parameters into its connection
+configuration, where `host`, `port` and `user` **override** the address in front
+of them, so a string that reads as the approved target can open a completely
+different database. If the string you copied has a `?`, delete it and everything
+after it. If the deployed revision reports a refusal mentioning "query or
+fragment", this is why.
+
 Paste the finished string into your own terminal, in place of the placeholder
 below. It must not be typed into a file, a ticket, or a chat.
 
