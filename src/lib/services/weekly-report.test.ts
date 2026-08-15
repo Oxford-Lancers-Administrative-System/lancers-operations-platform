@@ -109,10 +109,19 @@ afterEach(async () => {
   await observer.query(`delete from public.event_audience_members where event_id in ${events}`, [
     scope,
   ]);
+  // Every clause is scoped to this suite's own rows.
+  //
+  // The attendance clause was `entity_table = 'attendance_records'` with no
+  // scope at all, copied from the attendance suite's cleanup where the whole
+  // file owns those rows. Here it deleted *every* attendance audit row in the
+  // database, and Vitest runs these suites in parallel against one stack — so
+  // it removed LAN-110's audit rows out from under its assertions. It passed
+  // locally on timing and failed in CI, which is the wrong way round.
   await observer.query(
     `delete from public.audit_events
       where (entity_table = 'events' and entity_id in ${events})
-         or entity_table = 'attendance_records'
+         or (entity_table = 'attendance_records' and entity_id in
+              (select id from public.attendance_records where event_id in ${events}))
          or (entity_table = 'weekly_reports' and entity_id in
               (select id from public.weekly_reports
                 where report_on in ($2::date, $3::date)))`,
