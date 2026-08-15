@@ -70,7 +70,8 @@ import { readCurrentSeasonIn, type Season } from "./seasons";
  * It has moved four times in a day, and each move earned it. `.1` was six
  * counted exception categories; `.2` was two action lists; `.3` reorganised
  * around events with a week either side; `.4` splits every event in the
- * attendance grid into what somebody said and what they then did.
+ * attendance grid into what somebody said and what they then did; `.5` turns
+ * onboarding into the same kind of grid.
  *
  * Bumping it is not bookkeeping. `readReportForDate` reuses today's snapshot,
  * and reuse is conditioned on this string — so a shape change that left it
@@ -81,10 +82,10 @@ import { readCurrentSeasonIn, type Season } from "./seasons";
  * It is **not** the sixteen definitions recovered from the Master Table; the
  * issue puts those out of scope.
  */
-export const METRIC_DEFINITION_VERSION = "LAN-81.4";
+export const METRIC_DEFINITION_VERSION = "LAN-81.5";
 
 /** The shape of `content`, so a reader can tell a snapshot it understands. */
-export const REPORT_CONTENT_SCHEMA = "lancers.monday-report.v4";
+export const REPORT_CONTENT_SCHEMA = "lancers.monday-report.v5";
 
 /**
  * The report looks a week back and a week forward.
@@ -236,11 +237,29 @@ export interface RecruitmentEntry {
   firstContactOn: string | null;
 }
 
-/** A member with a required onboarding item still outstanding. */
-export interface OnboardingItem {
+/** One of the club's onboarding items, as a column head. */
+export interface OnboardingColumn {
+  code: string;
+  label: string;
+}
+
+/** Where one member has got to with one item. */
+export interface OnboardingCell {
+  code: string;
+  /** `complete`, `waived`, `not_applicable`, `pending`, `invited`. */
+  status: string;
+  /** Anything that is not done, waived, or not their problem. */
+  isOutstanding: boolean;
+}
+
+export interface OnboardingRow {
   person: string;
   membershipStatus: string;
-  outstanding: string;
+  /** One per column, in column order. */
+  cells: OnboardingCell[];
+  outstanding: number;
+  /** Items that actually apply to them — the denominator. */
+  applicable: number;
 }
 
 export interface AttendanceSummary {
@@ -285,7 +304,7 @@ export interface WeeklyReportContent {
   /** 5, 6, 7. Named for what they are, not for what to do about them. */
   walkUps: WalkUpEntry[];
   recruitment: RecruitmentEntry[];
-  onboarding: OnboardingItem[];
+  onboarding: { columns: OnboardingColumn[]; rows: OnboardingRow[] };
   /** 8. The week in numbers. */
   attendance: AttendanceSummary;
   availabilityCounts: AvailabilitySummary;
@@ -409,10 +428,13 @@ interface SaidAndDidRow {
   reason: string | null;
 }
 
-interface OnboardingRow {
+interface OnboardingItemRow {
+  code: string;
+  label: string;
+  sort_order: number;
+  status: string;
   display_name: string | null;
   membership_status: string;
-  outstanding: string;
 }
 
 interface AvailabilityRow {
@@ -778,22 +800,71 @@ export async function computeReportContent(
     [season.id],
   );
 
-  const onboarding = await tx.query<OnboardingRow>(
-    `select ${DISPLAY_NAME} as display_name,
-            m.status::text as membership_status,
-            string_agg(t.label, ', ' order by t.sort_order) as outstanding
+  // Every onboarding item the club has, not only the required ones. Brian,
+  // 15 August 2026: "It should just be all the things that are considered
+  // onboarding things." Subscription paid is the reason that matters — it is
+  // not `is_required`, because subscription never gates activation, and it is
+  // still the thing a treasurer opens this section to find.
+  const onboardingItems = await tx.query<OnboardingItemRow>(
+    `select t.code, t.label, t.sort_order, oi.status::text as status,
+            ${DISPLAY_NAME} as display_name, m.status::text as membership_status
        from public.onboarding_items oi
        join public.onboarding_item_types t on t.id = oi.item_type_id
        join public.season_memberships m on m.id = oi.season_membership_id
        join public.people p on p.id = m.person_id
       where m.season_id = $1
         and m.status in ('onboarding', 'active')
-        and t.is_required
-        and oi.status not in ('complete', 'waived', 'not_applicable')
-      group by p.id, p.given_name, p.family_name, p.known_as, m.status
-      order by display_name`,
+      order by t.sort_order`,
     [season.id],
   );
+
+  const onboardingColumns: OnboardingColumn[] = [];
+  for (const row of onboardingItems.rows) {
+    if (!onboardingColumns.some((column) => column.code === row.code)) {
+      onboardingColumns.push({ code: row.code, label: row.label });
+    }
+  }
+
+  /** Done, waived, or not theirs to do. Everything else is outstanding. */
+  const settled = new Set(["complete", "waived", "not_applicable"]);
+
+  const onboardingByPerson = new Map<string, OnboardingRow>();
+  for (const row of onboardingItems.rows) {
+    const person = row.display_name ?? "Unnamed member";
+    const entry = onboardingByPerson.get(person) ?? {
+      person,
+      membershipStatus: row.membership_status,
+      cells: [],
+      outstanding: 0,
+      applicable: 0,
+    };
+    entry.cells.push({
+      code: row.code,
+      status: row.status,
+      isOutstanding: !settled.has(row.status),
+    });
+    onboardingByPerson.set(person, entry);
+  }
+
+  const onboardingRows = [...onboardingByPerson.values()]
+    .map((entry) => ({
+      ...entry,
+      outstanding: entry.cells.filter((cell) => cell.isOutstanding).length,
+      // Not applicable is not a thing anybody has to do, so it is not part of
+      // the denominator either — otherwise a member excused from half the list
+      // reads as better-organised than one who simply is not.
+      applicable: entry.cells.filter((cell) => cell.status !== "not_applicable").length,
+    }))
+    // Only members with something outstanding. Everybody else is done, and a
+    // list of people who are done is not what this section is for.
+    .filter((entry) => entry.outstanding > 0)
+    .sort(
+      (left, right) =>
+        right.outstanding / Math.max(right.applicable, 1) -
+          left.outstanding / Math.max(left.applicable, 1) ||
+        right.outstanding - left.outstanding ||
+        left.person.localeCompare(right.person),
+    );
 
   // -------------------------------------------------------------------------
   // 8. The week in numbers
@@ -846,11 +917,7 @@ export async function computeReportContent(
       source: row.source,
       firstContactOn: asDate(row.first_contact_on),
     })),
-    onboarding: onboarding.rows.map((row) => ({
-      person: row.display_name ?? "Unnamed member",
-      membershipStatus: row.membership_status,
-      outstanding: row.outstanding,
-    })),
+    onboarding: { columns: onboardingColumns, rows: onboardingRows },
     attendance: {
       present: sum((entry) => entry.present),
       late: sum((entry) => entry.late),

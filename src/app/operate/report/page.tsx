@@ -20,6 +20,7 @@ import {
   type EventOutcome,
   type GridCell,
   type GridRow,
+  type OnboardingRow,
   type StoredReport,
   type UpcomingEvent,
   type WeeklyReportContent,
@@ -39,6 +40,8 @@ import {
   GRID_HEADLINE,
   formatIssues,
   ISSUES_COLUMN,
+  ONBOARDING_STATUS_LABELS,
+  OUTSTANDING_COLUMN,
   isGridSort,
   NOT_RECORDED,
   RSVP_LABELS,
@@ -106,6 +109,11 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
   const sortBy = typeof query.sort === "string" && isGridSort(query.sort) ? query.sort : "issues";
   const ascending = query.dir === "asc";
 
+  // Its own pair, so ordering one grid never reorders the other.
+  const onboardingBy =
+    typeof query.osort === "string" && isGridSort(query.osort) ? query.osort : "issues";
+  const onboardingAscending = query.odir === "asc";
+
   let report: StoredReport;
   try {
     report = await readReportForDate(gate.operator.personId, date);
@@ -144,7 +152,11 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
           {OTHER_METRIC_VERSION_NOTE}
         </Alert>
       ) : (
-        <ReportBody content={content} sort={{ by: sortBy, ascending }} />
+        <ReportBody
+          content={content}
+          sort={{ by: sortBy, ascending }}
+          onboardingSort={{ by: onboardingBy, ascending: onboardingAscending }}
+        />
       )}
 
       <Box>
@@ -166,7 +178,15 @@ interface GridSortState {
   ascending: boolean;
 }
 
-function ReportBody({ content, sort }: { content: WeeklyReportContent; sort: GridSortState }) {
+function ReportBody({
+  content,
+  sort,
+  onboardingSort,
+}: {
+  content: WeeklyReportContent;
+  sort: GridSortState;
+  onboardingSort: GridSortState;
+}) {
   const quiet =
     content.lastWeek.length === 0 &&
     content.grid.rows.length === 0 &&
@@ -186,7 +206,7 @@ function ReportBody({ content, sort }: { content: WeeklyReportContent; sort: Gri
       <NextWeek content={content} />
       <WalkUps content={content} />
       <Recruitment content={content} />
-      <Onboarding content={content} />
+      <Onboarding content={content} sort={onboardingSort} />
       <WeekInNumbers content={content} />
     </>
   );
@@ -765,28 +785,143 @@ function Recruitment({ content }: { content: WeeklyReportContent }) {
   );
 }
 
-function Onboarding({ content }: { content: WeeklyReportContent }) {
+/**
+ * Onboarding as a grid, the same shape as attendance: the club's items across,
+ * the members who still owe something down, and a sortable count on the right.
+ *
+ * Every item, not only the required ones — Brian, 15 August 2026: "It should
+ * just be all the things that are considered onboarding things." Subscription
+ * paid is why that matters: it is deliberately not `is_required`, because
+ * subscription never gates activation, and it is still the thing somebody opens
+ * this section to find.
+ */
+function Onboarding({ content, sort }: { content: WeeklyReportContent; sort: GridSortState }) {
+  const { columns } = content.onboarding;
+  const rows = sortOnboarding(content.onboarding.rows, sort);
+  const link = (by: GridSortState["by"]) => {
+    const flip = sort.by === by && !sort.ascending;
+    return `/operate/report?date=${encodeURIComponent(content.reportOn)}&osort=${by}${
+      flip ? "&odir=asc" : ""
+    }`;
+  };
+  const direction = (by: GridSortState["by"]) =>
+    sort.by === by ? (sort.ascending ? "ascending" : "descending") : undefined;
+
   return (
     <Section
       testId="onboarding"
       headline={ONBOARDING_HEADLINE}
-      count={content.onboarding.length}
+      count={rows.length}
       empty={ONBOARDING_EMPTY}
+      showCount={false}
     >
-      <Paper variant="outlined">
-        <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
-          {content.onboarding.map((entry, index) => (
-            <Row
-              key={`onboarding-${index}`}
-              primary={entry.person}
-              badge={entry.membershipStatus === "onboarding" ? "Onboarding" : null}
-              secondary={entry.outstanding}
-            />
-          ))}
-        </Box>
-      </Paper>
+      <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
+        <Table size="small" aria-label={ONBOARDING_HEADLINE}>
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ minWidth: 160 }} aria-sort={direction("person")}>
+                <SortHeader label="Person" href={link("person")} active={sort.by === "person"} />
+              </TableCell>
+              {columns.map((column) => (
+                <TableCell
+                  key={column.code}
+                  align="center"
+                  sx={{
+                    borderLeft: 1,
+                    borderColor: "divider",
+                    // Seven items is a lot of columns, so the heads wrap rather
+                    // than forcing the table wider than a laptop.
+                    whiteSpace: "normal",
+                    minWidth: 88,
+                    verticalAlign: "bottom",
+                  }}
+                >
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                    {column.label}
+                  </Typography>
+                </TableCell>
+              ))}
+              <TableCell
+                align="right"
+                sx={{ borderLeft: 1, borderColor: "divider", verticalAlign: "bottom" }}
+                aria-sort={direction("issues")}
+              >
+                <SortHeader
+                  label={OUTSTANDING_COLUMN}
+                  href={link("issues")}
+                  active={sort.by === "issues"}
+                />
+              </TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.map((row) => (
+              <TableRow
+                key={row.person}
+                data-testid="onboarding-row"
+                data-outstanding={row.outstanding}
+              >
+                <TableCell sx={{ fontWeight: 600 }}>
+                  {row.person}
+                  {row.membershipStatus === "onboarding" ? (
+                    <Chip size="small" label="Onboarding" variant="outlined" sx={{ ml: 1 }} />
+                  ) : null}
+                </TableCell>
+                {columns.map((column) => {
+                  const cell = row.cells.find((entry) => entry.code === column.code);
+                  return (
+                    <TableCell
+                      key={column.code}
+                      align="center"
+                      sx={{ borderLeft: 1, borderColor: "divider" }}
+                    >
+                      <Typography
+                        variant="body2"
+                        component="span"
+                        color={cell?.isOutstanding ? "warning.main" : "text.secondary"}
+                        sx={{ fontWeight: cell?.isOutstanding ? 700 : 400 }}
+                      >
+                        {cell ? labelFor(ONBOARDING_STATUS_LABELS, cell.status) : NOT_RECORDED}
+                      </Typography>
+                    </TableCell>
+                  );
+                })}
+                <TableCell
+                  align="right"
+                  sx={{ borderLeft: 1, borderColor: "divider", whiteSpace: "nowrap" }}
+                  data-testid="onboarding-outstanding"
+                >
+                  <Typography
+                    variant="body2"
+                    component="span"
+                    sx={{ fontWeight: row.outstanding === row.applicable ? 700 : 400 }}
+                    color={row.outstanding === row.applicable ? "warning.main" : "text.secondary"}
+                  >
+                    {formatIssues(row.outstanding, row.applicable)}
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     </Section>
   );
+}
+
+/** The same ordering rule as the attendance grid: proportion, then count. */
+function sortOnboarding(rows: OnboardingRow[], sort: GridSortState): OnboardingRow[] {
+  const ordered = [...rows].sort((left, right) => {
+    if (sort.by === "person") return left.person.localeCompare(right.person);
+    const share = (row: OnboardingRow) =>
+      row.applicable === 0 ? 0 : row.outstanding / row.applicable;
+    return (
+      share(right) - share(left) ||
+      right.outstanding - left.outstanding ||
+      left.person.localeCompare(right.person)
+    );
+  });
+  return sort.ascending ? ordered.reverse() : ordered;
 }
 
 /** A name, an optional badge, and a line of detail. */

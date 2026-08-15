@@ -98,10 +98,25 @@ export const NOT_RECORDED = "—";
  * bare count of two would rank them the same.
  */
 export const ISSUES_COLUMN = "Issues";
+export const OUTSTANDING_COLUMN = "Outstanding";
 
 export function formatIssues(problems: number, asked: number): string {
   return `${problems} of ${asked}`;
 }
+
+/**
+ * Where an onboarding item has got to.
+ *
+ * `Done`, `Waived` and `N/A` are settled; `Pending` and `Invited` are not, and
+ * are what the count on the right adds up.
+ */
+export const ONBOARDING_STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  complete: "Done",
+  waived: "Waived",
+  not_applicable: "N/A",
+  pending: "Pending",
+  invited: "Invited",
+});
 
 /** How the attendance grid may be ordered. The default matches the snapshot. */
 export const GRID_SORTS = Object.freeze(["issues", "person"] as const);

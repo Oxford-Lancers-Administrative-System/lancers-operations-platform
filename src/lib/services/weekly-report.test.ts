@@ -751,25 +751,71 @@ describe("what the snapshot still stores, whatever the screen leads with", () =>
     expect(content.attendance.present).toBe(1);
   });
 
-  it("lists a member with a required onboarding item outstanding, in its own block", async () => {
+  it("gives onboarding a column per item and a row per member who owes one", async () => {
     await occurredEvent();
     const content = await compute();
 
-    const direct = await observer.query<{ count: string }>(
-      `select count(distinct m.person_id)::text as count
-         from public.onboarding_items oi
-         join public.onboarding_item_types t on t.id = oi.item_type_id
-         join public.season_memberships m on m.id = oi.season_membership_id
-        where m.season_id = $1 and m.status in ('onboarding', 'active')
-          and t.is_required and oi.status not in ('complete', 'waived', 'not_applicable')`,
+    // Every item the club has, not only the required ones — Brian's
+    // instruction, and the reason subscription paid is visible at all.
+    const types = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.onboarding_item_types where season_id = $1`,
       [seasonId],
     );
+    expect(content.onboarding.columns).toHaveLength(Number(types.rows[0].count));
+    expect(content.onboarding.columns.map((column) => column.code)).toContain("subs_paid");
 
-    expect(content.onboarding).toHaveLength(Number(direct.rows[0].count));
-    expect(content.onboarding.length).toBeGreaterThan(0);
-    // And they are nowhere near the week's chases: Brian put them in their own
-    // block precisely because they would otherwise swamp it.
-    expect(content.grid.rows.map((row) => row.person)).not.toContain(content.onboarding[0].person);
+    const owing = await observer.query<{ count: string }>(
+      `select count(distinct m.person_id)::text as count
+         from public.onboarding_items oi
+         join public.season_memberships m on m.id = oi.season_membership_id
+        where m.season_id = $1 and m.status in ('onboarding', 'active')
+          and oi.status not in ('complete', 'waived', 'not_applicable')`,
+      [seasonId],
+    );
+    expect(content.onboarding.rows).toHaveLength(Number(owing.rows[0].count));
+    expect(content.onboarding.rows.length).toBeGreaterThan(0);
+  });
+
+  it("counts what a member still owes out of what actually applies to them", async () => {
+    await occurredEvent();
+    const row = (await compute()).onboarding.rows[0];
+
+    expect(row.outstanding).toBe(row.cells.filter((cell) => cell.isOutstanding).length);
+    expect(row.applicable).toBe(
+      row.cells.filter((cell) => cell.status !== "not_applicable").length,
+    );
+    // Not applicable is not something anybody has to do, so it is not part of
+    // the denominator either.
+    expect(row.applicable).toBeLessThanOrEqual(row.cells.length);
+    expect(row.outstanding).toBeGreaterThan(0);
+  });
+
+  it("treats done, waived and not-applicable as settled, and nothing else", async () => {
+    await occurredEvent();
+    const cells = (await compute()).onboarding.rows.flatMap((row) => row.cells);
+
+    for (const cell of cells) {
+      const settled = ["complete", "waived", "not_applicable"].includes(cell.status);
+      expect(cell.isOutstanding).toBe(!settled);
+    }
+  });
+
+  it("puts the member who owes the largest share of their list first", async () => {
+    await occurredEvent();
+    const rows = (await compute()).onboarding.rows;
+
+    const share = (row: (typeof rows)[number]) =>
+      row.applicable === 0 ? 0 : row.outstanding / row.applicable;
+    for (let at = 1; at < rows.length; at += 1) {
+      expect(share(rows[at - 1])).toBeGreaterThanOrEqual(share(rows[at]));
+    }
+  });
+
+  it("leaves out anybody with nothing outstanding", async () => {
+    await occurredEvent();
+    const rows = (await compute()).onboarding.rows;
+
+    expect(rows.every((row) => row.outstanding > 0)).toBe(true);
   });
 
   it("reports availability as a level count, and offers nowhere to write a diagnosis", async () => {
@@ -1088,8 +1134,8 @@ describe("opening the report", () => {
       `insert into public.weekly_reports
          (season_id, report_on, version, metric_definition_version, data_as_of,
           generated_by_person_id, content)
-       values ($1, $2::date, 1, 'LAN-81.3', now(), $3,
-               '{"schema": "lancers.monday-report.v3", "lastWeek": []}'::jsonb)
+       values ($1, $2::date, 1, 'LAN-81.4', now(), $3,
+               '{"schema": "lancers.monday-report.v4", "lastWeek": []}'::jsonb)
        returning id`,
       [seasonId, REPORT_ON, actorPersonId],
     );
@@ -1106,7 +1152,7 @@ describe("opening the report", () => {
     // The older row is untouched. It is still what leadership saw under those
     // definitions, and M5 does not permit rewriting it to tidy this up.
     const kept = await readStoredReport(stale.rows[0].id);
-    expect(kept.metricDefinitionVersion).toBe("LAN-81.3");
+    expect(kept.metricDefinitionVersion).toBe("LAN-81.4");
     expect(parseReportContent(kept.content)).toBeNull();
   });
 
@@ -1154,7 +1200,7 @@ describe("a snapshot under other metric definitions stays readable", () => {
     expect(parseReportContent({ schema: REPORT_CONTENT_SCHEMA })).toBeNull();
     // The first build's own shape, which this one no longer understands.
     expect(
-      parseReportContent({ schema: "lancers.monday-report.v3", lastWeek: [], nextWeek: [] }),
+      parseReportContent({ schema: "lancers.monday-report.v4", lastWeek: [], nextWeek: [] }),
     ).toBeNull();
     expect(
       parseReportContent({

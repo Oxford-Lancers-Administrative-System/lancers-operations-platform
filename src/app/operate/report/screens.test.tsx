@@ -23,7 +23,7 @@
  * The service layer is mocked. What is under test is the screen.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -228,14 +228,37 @@ function content(overrides: Partial<WeeklyReportContent> = {}): WeeklyReportCont
     nextWeek: NEXT_WEEK,
     walkUps: [{ person: "Devon Skye", event: "Practice — week 3", on: "2026-10-14" }],
     recruitment: [],
-    onboarding: [
-      { person: "Rowan Delacourt", membershipStatus: "active", outstanding: "Kit sorted" },
-      {
-        person: "Sim Trelawney",
-        membershipStatus: "onboarding",
-        outstanding: "BUCS Play registration",
-      },
-    ],
+    onboarding: {
+      columns: [
+        { code: "subs_invoiced", label: "Subscription invoiced" },
+        { code: "subs_paid", label: "Subscription paid" },
+        { code: "kit_sorted", label: "Kit sorted" },
+      ],
+      rows: [
+        {
+          person: "Rowan Delacourt",
+          membershipStatus: "active",
+          cells: [
+            { code: "subs_invoiced", status: "complete", isOutstanding: false },
+            { code: "subs_paid", status: "pending", isOutstanding: true },
+            { code: "kit_sorted", status: "invited", isOutstanding: true },
+          ],
+          outstanding: 2,
+          applicable: 3,
+        },
+        {
+          person: "Sim Trelawney",
+          membershipStatus: "onboarding",
+          cells: [
+            { code: "subs_invoiced", status: "complete", isOutstanding: false },
+            { code: "subs_paid", status: "not_applicable", isOutstanding: false },
+            { code: "kit_sorted", status: "pending", isOutstanding: true },
+          ],
+          outstanding: 1,
+          applicable: 2,
+        },
+      ],
+    },
     attendance: { present: 14, late: 1, excused: 1, absent: 2, eventsWithNoRegister: 1 },
     availabilityCounts: { green: 31, orange: 4, red: 2 },
     ...overrides,
@@ -249,7 +272,7 @@ function stored(overrides: Partial<StoredReport> = {}): StoredReport {
     reportOn: REPORT_ON,
     version: 2,
     supersedesId: "00810081-0081-4081-8081-000000000001",
-    metricDefinitionVersion: "LAN-81.4",
+    metricDefinitionVersion: "LAN-81.5",
     dataAsOf: "2026-10-19T07:04:00Z",
     generatedAt: "2026-10-19T07:05:00Z",
     generatedByName: "Morgan Pike",
@@ -538,7 +561,9 @@ describe("attendance", () => {
       "href",
       `/operate/report?date=${REPORT_ON}&sort=issues&dir=asc`,
     );
-    expect(screen.getByRole("link", { name: "Person" })).toHaveAttribute(
+    // Both grids have a Person head now, so this scopes to the one under test.
+    const grid = within(screen.getByTestId("section-grid"));
+    expect(grid.getByRole("link", { name: "Person" })).toHaveAttribute(
       "href",
       `/operate/report?date=${REPORT_ON}&sort=person`,
     );
@@ -620,6 +645,57 @@ describe("availability, walk-ups, recruitment and onboarding", () => {
     // The abstract bucket Brian rejected is gone, and not renamed.
     expect(text).not.toMatch(/fix these things/i);
     expect(text).not.toMatch(/needs correcting/i);
+  });
+
+  it("gives onboarding a column per item and a row per member who owes one", async () => {
+    render(await ReportPage(props()));
+
+    const heads = [...screen.getByTestId("section-onboarding").querySelectorAll("thead th")];
+    // Person, three items, Outstanding.
+    expect(heads).toHaveLength(5);
+    expect(heads[1].textContent).toBe("Subscription invoiced");
+    // Every item, not only the required ones — subscription paid is the one
+    // that is deliberately not required and still worth finding.
+    expect(heads[2].textContent).toBe("Subscription paid");
+
+    expect(screen.getAllByTestId("onboarding-row")).toHaveLength(2);
+  });
+
+  it("counts what each member owes out of what applies to them", async () => {
+    render(await ReportPage(props()));
+
+    const counts = screen.getAllByTestId("onboarding-outstanding").map((cell) => cell.textContent);
+    // Rowan owes two of three; Sim owes one of two, because one item is not
+    // applicable and so is not part of their denominator.
+    expect(counts).toEqual(["2 of 3", "1 of 2"]);
+  });
+
+  it("shows where each item has got to, and marks the ones still owed", async () => {
+    render(await ReportPage(props()));
+
+    const first = screen.getAllByTestId("onboarding-row")[0];
+    const values = [...first.querySelectorAll("td")].slice(1, -1).map((cell) => cell.textContent);
+    expect(values).toEqual(["Done", "Pending", "Invited"]);
+  });
+
+  it("sorts onboarding independently of the attendance grid", async () => {
+    render(await ReportPage(props()));
+
+    // Its own query parameters, so ordering one never reorders the other.
+    const outstanding = screen.getByRole("link", { name: "Outstanding" });
+    expect(outstanding).toHaveAttribute(
+      "href",
+      `/operate/report?date=${REPORT_ON}&osort=issues&odir=asc`,
+    );
+  });
+
+  it("orders onboarding by the share of the list still owed", async () => {
+    const byName = render(await ReportPage(props({ osort: "person" })));
+    const names = [...byName.container.querySelectorAll('[data-testid="onboarding-row"]')].map(
+      (row) => row.querySelector("td")?.textContent,
+    );
+    expect(names[0]).toContain("Rowan Delacourt");
+    expect(names[1]).toContain("Sim Trelawney");
   });
 
   it("says so plainly when a section is empty", async () => {
@@ -733,8 +809,8 @@ describe("the screen reads stored content", () => {
   it("stays readable when the snapshot used earlier metric definitions", async () => {
     vi.mocked(readReportForDate).mockResolvedValue(
       stored({
-        metricDefinitionVersion: "LAN-81.3",
-        content: { schema: "lancers.monday-report.v3", lastWeek: [], nextWeek: [], grid: {} },
+        metricDefinitionVersion: "LAN-81.4",
+        content: { schema: "lancers.monday-report.v4", lastWeek: [], nextWeek: [], grid: {} },
       }),
     );
 
