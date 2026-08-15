@@ -23,7 +23,7 @@
  * The service layer is mocked. What is under test is the screen.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -46,21 +46,24 @@ import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operato
 import {
   readReportForDate,
   REPORT_CONTENT_SCHEMA,
-  type ChaseItem,
-  type FixItem,
+  type EventOutcome,
+  type GridRow,
   type StoredReport,
+  type UpcomingEvent,
   type WeeklyReportContent,
 } from "@/lib/services/weekly-report";
 import ReportPage from "./page";
 import {
-  AVAILABILITY_NOTE,
-  CHASE_EMPTY,
-  CHASE_HEADLINE,
-  FIX_EMPTY,
-  FIX_HEADLINE,
+  AVAILABILITY_HEADLINE,
+  GRID_EMPTY,
+  GRID_HEADLINE,
+  LAST_WEEK_HEADLINE,
+  NEXT_WEEK_HEADLINE,
   NOTHING_AT_ALL,
   ONBOARDING_HEADLINE,
+  RECRUITMENT_HEADLINE,
   REPORT_HEADLINE,
+  WALK_UPS_HEADLINE,
 } from "./presentation";
 
 const REPORT_ON = "2026-10-19";
@@ -89,62 +92,118 @@ function props(query: Record<string, string> = {}) {
   } as unknown as PageProps<"/operate/report">;
 }
 
-const CHASE: ChaseItem[] = [
+const PRACTICE = "event-practice";
+const SOCIAL = "event-social";
+
+const LAST_WEEK: EventOutcome[] = [
   {
-    kind: "said_yes_absent",
-    person: "Leo Hartwell",
-    what: "Said yes, marked absent",
-    event: "Team Practice",
+    id: PRACTICE,
+    name: "Practice — week 3",
+    eventType: "practice",
+    status: "occurred",
     on: "2026-10-14",
     isMandatory: true,
-    reason: null,
+    solicitsResponse: true,
+    invited: 24,
+    respondedYes: 18,
+    respondedNo: 3,
+    noAnswer: 3,
+    present: 14,
+    late: 1,
+    excused: 1,
+    absent: 2,
+    turnoutPercent: 63,
+    registerTaken: true,
+    walkUps: 1,
+    neverInvited: 1,
   },
   {
-    kind: "no_answer",
-    person: "Nia Sorrell",
-    what: "Never answered",
-    event: "Team Practice",
-    on: "2026-10-14",
-    isMandatory: true,
-    reason: null,
-  },
-  {
-    kind: "said_no",
-    person: "Kit Ashdown",
-    what: "Not attending",
-    event: "Club social",
-    on: "2026-10-13",
+    id: SOCIAL,
+    name: "Club social",
+    eventType: "social",
+    status: "occurred",
+    on: "2026-10-16",
     isMandatory: false,
-    reason: "Coursework deadline.",
+    solicitsResponse: true,
+    invited: 30,
+    respondedYes: 22,
+    respondedNo: 5,
+    noAnswer: 3,
+    present: 0,
+    late: 0,
+    excused: 0,
+    absent: 0,
+    turnoutPercent: null,
+    registerTaken: false,
+    walkUps: 0,
+    neverInvited: 0,
   },
 ];
 
-const FIX: FixItem[] = [
+const GRID_ROWS: GridRow[] = [
   {
-    kind: "register_not_taken",
-    event: "Chalk — week 3",
-    on: "2026-10-15",
-    what: "Register never taken — 12 people were asked",
-    person: null,
+    person: "Leo Hartwell",
+    problems: 2,
+    cells: [
+      { eventId: PRACTICE, state: "said_yes_absent", reason: null },
+      { eventId: SOCIAL, state: "no_rsvp", reason: null },
+    ],
   },
   {
-    kind: "approved_never_invited",
-    event: "Team Practice",
-    on: "2026-10-14",
-    what: "Approved for this event and never invited",
-    person: "Ivo Marchetti",
+    person: "Kit Ashdown",
+    problems: 1,
+    cells: [{ eventId: SOCIAL, state: "not_attending", reason: "Coursework deadline." }],
+  },
+];
+
+const NEXT_WEEK: UpcomingEvent[] = [
+  {
+    id: "event-next-practice",
+    name: "Practice — week 4",
+    eventType: "practice",
+    status: "approved",
+    on: "2026-10-21",
+    isMandatory: true,
+    solicitsResponse: true,
+    invited: 24,
+    answered: 9,
+  },
+  {
+    id: "event-next-draft",
+    name: "Varsity warm-up",
+    eventType: "fixture",
+    status: "draft",
+    on: "2026-10-24",
+    isMandatory: false,
+    solicitsResponse: true,
+    invited: 0,
+    answered: 0,
   },
 ];
 
 function content(overrides: Partial<WeeklyReportContent> = {}): WeeklyReportContent {
   return {
     schema: REPORT_CONTENT_SCHEMA,
-    metricDefinitionVersion: "LAN-81.2",
+    metricDefinitionVersion: "LAN-81.3",
     reportOn: REPORT_ON,
-    window: { from: "2026-10-12", to: "2026-10-18" },
+    lookBack: { from: "2026-10-12", to: "2026-10-18" },
+    lookAhead: { from: "2026-10-19", to: "2026-10-26" },
     season: { id: "season-1", label: "2026-27" },
-    chase: CHASE,
-    fix: FIX,
+    lastWeek: LAST_WEEK,
+    grid: {
+      columns: [
+        { eventId: PRACTICE, label: "Practice", on: "2026-10-14" },
+        { eventId: SOCIAL, label: "Club social", on: "2026-10-16" },
+      ],
+      rows: GRID_ROWS,
+    },
+    availability: [
+      { person: "Emrys Netherby", level: "red", since: "2026-10-01", reviewOn: "2026-11-01" },
+      { person: "Zephyr", level: "orange", since: "2026-09-28", reviewOn: null },
+    ],
+    nextWeek: NEXT_WEEK,
+    walkUps: [{ person: "Devon Skye", event: "Practice — week 3", on: "2026-10-14" }],
+    recruitment: [],
     onboarding: [
       { person: "Rowan Delacourt", membershipStatus: "active", outstanding: "Kit sorted" },
       {
@@ -153,34 +212,8 @@ function content(overrides: Partial<WeeklyReportContent> = {}): WeeklyReportCont
         outstanding: "BUCS Play registration",
       },
     ],
-    events: [
-      {
-        id: "event-1",
-        name: "Team Practice",
-        eventType: "practice",
-        status: "occurred",
-        on: "2026-10-14",
-        solicitsResponse: true,
-        isMandatory: true,
-        invited: 24,
-        recorded: 15,
-      },
-    ],
-    responseBreakdown: [
-      {
-        eventId: "event-1",
-        eventName: "Team Practice",
-        on: "2026-10-14",
-        respondedYes: 18,
-        respondedNo: 3,
-        awaitingResponse: 3,
-        expiredWithoutResponse: 0,
-        cancelled: 0,
-        neverInvited: 0,
-      },
-    ],
-    attendance: { present: 24, late: 2, excused: 1, absent: 2, eventsWithNoRegister: 1 },
-    availability: { green: 31, orange: 4, red: 2 },
+    attendance: { present: 14, late: 1, excused: 1, absent: 2, eventsWithNoRegister: 1 },
+    availabilityCounts: { green: 31, orange: 4, red: 2 },
     ...overrides,
   };
 }
@@ -192,7 +225,7 @@ function stored(overrides: Partial<StoredReport> = {}): StoredReport {
     reportOn: REPORT_ON,
     version: 2,
     supersedesId: "00810081-0081-4081-8081-000000000001",
-    metricDefinitionVersion: "LAN-81.2",
+    metricDefinitionVersion: "LAN-81.3",
     dataAsOf: "2026-10-19T07:04:00Z",
     generatedAt: "2026-10-19T07:05:00Z",
     generatedByName: "Morgan Pike",
@@ -232,9 +265,14 @@ describe("who reaches the report at all", () => {
       const { container } = render(await ReportPage(props()));
 
       expect(container.textContent).toContain("You do not have access to this action");
-      expect(container.textContent).not.toContain(CHASE_HEADLINE);
+      expect(container.textContent).not.toContain(GRID_HEADLINE);
       // Not one stored name, and not one reason, in the payload.
-      for (const secret of ["Leo Hartwell", "Kit Ashdown", "Coursework deadline"]) {
+      for (const secret of [
+        "Leo Hartwell",
+        "Kit Ashdown",
+        "Coursework deadline",
+        "Emrys Netherby",
+      ]) {
         expect(container.innerHTML).not.toContain(secret);
       }
     },
@@ -276,91 +314,205 @@ describe("who reaches the report at all", () => {
 // ---------------------------------------------------------------------------
 
 describe("the report", () => {
-  it("leads with the two lists, chase before fix", async () => {
+  it("puts the sections in the order Brian asked for", async () => {
     const { container } = render(await ReportPage(props()));
-
     const text = container.textContent ?? "";
-    expect(text).toContain(CHASE_HEADLINE);
-    expect(text).toContain(FIX_HEADLINE);
-    expect(text.indexOf(CHASE_HEADLINE)).toBeLessThan(text.indexOf(FIX_HEADLINE));
-    expect(text.indexOf(FIX_HEADLINE)).toBeLessThan(text.indexOf(ONBOARDING_HEADLINE));
+
+    const order = [
+      LAST_WEEK_HEADLINE,
+      GRID_HEADLINE,
+      AVAILABILITY_HEADLINE,
+      NEXT_WEEK_HEADLINE,
+      WALK_UPS_HEADLINE,
+      RECRUITMENT_HEADLINE,
+      ONBOARDING_HEADLINE,
+    ].map((headline) => text.indexOf(headline));
+
+    expect(order.every((at) => at >= 0)).toBe(true);
+    expect([...order].sort((left, right) => left - right)).toEqual(order);
   });
 
-  it("counts each list in its own heading, rather than in a row of tiles", async () => {
+  it("counts each section in its own heading", async () => {
     render(await ReportPage(props()));
 
-    expect(screen.getByTestId("section-chase")).toHaveAttribute("data-count", "3");
-    expect(screen.getByTestId("section-fix")).toHaveAttribute("data-count", "2");
+    expect(screen.getByTestId("section-last-week")).toHaveAttribute("data-count", "2");
+    expect(screen.getByTestId("section-grid")).toHaveAttribute("data-count", "2");
+    expect(screen.getByTestId("section-availability")).toHaveAttribute("data-count", "2");
+    expect(screen.getByTestId("section-next-week")).toHaveAttribute("data-count", "2");
+    expect(screen.getByTestId("section-walk-ups")).toHaveAttribute("data-count", "1");
     expect(screen.getByTestId("section-onboarding")).toHaveAttribute("data-count", "2");
   });
+});
 
-  it("names every person to chase, in the order the snapshot stored them", async () => {
+describe("last week", () => {
+  it("shows the RSVP numbers and the turnout for each event", async () => {
     render(await ReportPage(props()));
 
-    const text = screen.getByTestId("section-chase").textContent ?? "";
-    for (const person of ["Leo Hartwell", "Nia Sorrell", "Kit Ashdown"]) {
-      expect(text).toContain(person);
-    }
-    // Stored order is preserved — the service decided it, and re-sorting on
-    // screen would make the snapshot and the screen disagree.
-    expect(text.indexOf("Leo Hartwell")).toBeLessThan(text.indexOf("Nia Sorrell"));
-    expect(text.indexOf("Nia Sorrell")).toBeLessThan(text.indexOf("Kit Ashdown"));
+    const row = screen.getByTestId(`event-${PRACTICE}`);
+    const text = row.textContent ?? "";
+    expect(text).toContain("Practice — week 3");
+    expect(text).toContain("24");
+    expect(text).toContain("18");
+    expect(text).toContain("63%");
   });
 
-  it("puts the reason beside the person who gave it", async () => {
+  /**
+   * A register nobody took must never read as nobody turning up. Those are
+   * opposite operational facts and the same 0%.
+   */
+  it("says no register rather than nought per cent", async () => {
     render(await ReportPage(props()));
 
-    const chase = screen.getByTestId("section-chase");
-    expect(within(chase).getByText(/Coursework deadline/)).toBeVisible();
-    expect(chase.textContent).toContain("Kit Ashdown");
+    const row = screen.getByTestId(`event-${SOCIAL}`);
+    expect(row).toHaveAttribute("data-register", "missing");
+    expect(row.textContent).toContain("no register");
+    expect(row.textContent).not.toContain("0%");
   });
 
-  it("says what each chase is, and marks a mandatory event as one", async () => {
+  it("carries the walk-up and the approval defect on the event's own row", async () => {
     render(await ReportPage(props()));
 
-    const chase = screen.getByTestId("section-chase").textContent ?? "";
-    expect(chase).toContain("Said yes, absent");
-    expect(chase).toContain("Never answered");
-    expect(chase).toContain("Not attending");
-    expect(chase).toContain("(mandatory)");
+    const flags = screen.getByTestId(`flags-${PRACTICE}`).textContent ?? "";
+    expect(flags).toContain("1 walk-up");
+    expect(flags).toContain("1 approved, never invited");
+    // And there is no bucket collecting them elsewhere.
+    expect(screen.queryByTestId("section-fix")).toBeNull();
   });
 
-  it("names the thing to fix, and the person where the defect is about one", async () => {
+  it("links each event to itself", async () => {
     render(await ReportPage(props()));
 
-    const fix = screen.getByTestId("section-fix").textContent ?? "";
-    expect(fix).toContain("Chalk — week 3");
-    expect(fix).toContain("Register never taken");
-    expect(fix).toContain("Ivo Marchetti");
-    expect(fix).toContain("never invited");
-    // A fix is never worded as somebody to chase.
-    expect(fix).not.toMatch(/chase|remind/i);
-  });
-
-  it("shows the week's numbers, and availability as levels with the sentence saying why", async () => {
-    render(await ReportPage(props()));
-
-    expect(screen.getByTestId("availability-levels").textContent).toBe(
-      "Active 31 · Limited 4 · Unavailable 2",
+    expect(screen.getByRole("link", { name: "Practice — week 3" })).toHaveAttribute(
+      "href",
+      `/operate/events/${PRACTICE}`,
     );
-    expect(screen.getByTestId("week-in-numbers").textContent).toContain(AVAILABILITY_NOTE);
-    expect(screen.getByTestId("week-attendance").textContent).toContain("Present 24");
   });
 
-  it("names the reporting date and the seven days it covers", async () => {
+  it("names the week it covers", async () => {
     const { container } = render(await ReportPage(props()));
 
-    expect(container.textContent).toContain("Monday, 19 October 2026");
-    expect(container.textContent).toContain("Covering Monday 12 – Sunday 18 October 2026");
+    expect(container.textContent).toContain("12 – 18 October");
+  });
+});
+
+describe("who needs chasing", () => {
+  it("gives each person one row, whatever went wrong across the week", async () => {
+    render(await ReportPage(props()));
+
+    const rows = screen.getAllByTestId("grid-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain("Leo Hartwell");
+    expect(rows[0]).toHaveAttribute("data-problems", "2");
+  });
+
+  it("marks each cell, and explains the marks", async () => {
+    render(await ReportPage(props()));
+
+    const grid = screen.getByTestId("section-grid").textContent ?? "";
+    expect(grid).toContain("yes*");
+    expect(grid).toContain("—");
+    expect(screen.getByTestId("grid-legend").textContent).toContain("said yes, did not attend");
+  });
+
+  it("keeps the reason with the person who gave it", async () => {
+    render(await ReportPage(props()));
+
+    expect(screen.getByTestId("section-grid").innerHTML).toContain("Coursework deadline.");
+  });
+
+  it("has one column per event, headed and dated", async () => {
+    render(await ReportPage(props()));
+
+    const head = screen.getByTestId("section-grid").querySelectorAll("thead th");
+    // Person, then one per event.
+    expect(head).toHaveLength(3);
+    expect(head[1].textContent).toContain("Practice");
+    expect(head[1].textContent).toContain("Wed 14 Oct");
+  });
+});
+
+describe("next week", () => {
+  it("shows what is coming, with its state and whether anything has gone out", async () => {
+    render(await ReportPage(props()));
+
+    const approved = screen.getByTestId("upcoming-event-next-practice");
+    expect(approved).toHaveAttribute("data-status", "approved");
+    expect(approved.textContent).toContain("9 of 24 answered");
+
+    const draft = screen.getByTestId("upcoming-event-next-draft");
+    expect(draft).toHaveAttribute("data-status", "draft");
+    expect(draft.textContent).toContain("No invitations sent");
+  });
+
+  it("links each one to itself, because this screen does not edit", async () => {
+    render(await ReportPage(props()));
+
+    expect(screen.getByRole("link", { name: "Practice — week 4" })).toHaveAttribute(
+      "href",
+      "/operate/events/event-next-practice",
+    );
+  });
+
+  it("names the week ahead it covers", async () => {
+    const { container } = render(await ReportPage(props()));
+
+    expect(container.textContent).toContain("19 – 26 October");
+  });
+});
+
+describe("availability, walk-ups, recruitment and onboarding", () => {
+  it("names who is not available, since when, and when to review", async () => {
+    render(await ReportPage(props()));
+
+    const availability = screen.getByTestId("section-availability").textContent ?? "";
+    expect(availability).toContain("Emrys Netherby");
+    expect(availability).toContain("Unavailable");
+    expect(availability).toContain("since Thu 1 Oct");
+    expect(availability).toContain("review Sun 1 Nov");
+  });
+
+  /**
+   * Brian, 15 August 2026, on the caption under the availability counts:
+   * "You should level only, no narrative or diagnosis record anywhere. Get
+   * that shit out of there."
+   *
+   * The absence is still real — the schema has no column that could hold a
+   * note — and the sentence explaining it now lives in the code that maintains
+   * it rather than on his Monday morning.
+   */
+  it("does not explain the absence of a narrative", async () => {
+    const { container } = render(await ReportPage(props()));
+    const text = container.textContent ?? "";
+
+    expect(text).not.toMatch(/narrative/i);
+    expect(text).not.toMatch(/diagnosis/i);
+  });
+
+  it("names each remaining section for a thing the club has a word for", async () => {
+    const { container } = render(await ReportPage(props()));
+    const text = container.textContent ?? "";
+
+    expect(text).toContain(WALK_UPS_HEADLINE);
+    expect(text).toContain(RECRUITMENT_HEADLINE);
+    expect(text).toContain(ONBOARDING_HEADLINE);
+    // The abstract bucket Brian rejected is gone, and not renamed.
+    expect(text).not.toMatch(/fix these things/i);
+    expect(text).not.toMatch(/needs correcting/i);
+  });
+
+  it("says so plainly when a section is empty", async () => {
+    render(await ReportPage(props()));
+
+    expect(screen.getByTestId("empty-recruitment")).toBeVisible();
   });
 });
 
 // ---------------------------------------------------------------------------
-// What the review removed
+// What successive reviews removed
 // ---------------------------------------------------------------------------
 
-describe("what the 15 August review removed", () => {
-  it("offers no preview, no generate, no version list and no first action", async () => {
+describe("what the reviews removed", () => {
+  it("offers no preview, no generate, no version list and no abstract buckets", async () => {
     const { container } = render(await ReportPage(props()));
 
     const text = container.textContent ?? "";
@@ -372,6 +524,8 @@ describe("what the 15 August review removed", () => {
       "Open stored list",
       "Snapshot version",
       "Metric definitions",
+      "Chase these people",
+      "Fix these things",
     ]) {
       expect(text, `"${gone}" is still on the screen`).not.toContain(gone);
     }
@@ -421,35 +575,44 @@ describe("the screen reads stored content", () => {
 
     expect(readReportForDate).toHaveBeenCalledTimes(1);
     expect(container.textContent).toContain("Leo Hartwell");
+    expect(container.textContent).toContain("Practice — week 3");
     expect(screen.getByTestId("stored-note").textContent).toMatch(/kept exactly as it was/);
   });
 
   it("distinguishes a quiet week from a week nobody recorded", async () => {
     vi.mocked(readReportForDate).mockResolvedValue(
-      stored({ content: content({ chase: [], fix: [] }) }),
+      stored({
+        content: content({
+          lastWeek: [],
+          nextWeek: [],
+          grid: { columns: [], rows: [] },
+        }),
+      }),
     );
 
     render(await ReportPage(props()));
 
     expect(screen.getByTestId("nothing-at-all").textContent).toBe(NOTHING_AT_ALL);
-    expect(screen.getByTestId("empty-chase").textContent).toBe(CHASE_EMPTY);
-    expect(screen.getByTestId("empty-fix").textContent).toBe(FIX_EMPTY);
+    expect(screen.getByTestId("empty-grid").textContent).toBe(GRID_EMPTY);
   });
 
-  it("does not claim an all-clear when only one list is empty", async () => {
-    vi.mocked(readReportForDate).mockResolvedValue(stored({ content: content({ chase: [] }) }));
+  it("does not claim a quiet week when only the grid is empty", async () => {
+    vi.mocked(readReportForDate).mockResolvedValue(
+      stored({ content: content({ grid: { columns: [], rows: [] } }) }),
+    );
 
     render(await ReportPage(props()));
 
+    // Last week and next week still have events, so the week was not quiet.
     expect(screen.queryByTestId("nothing-at-all")).toBeNull();
-    expect(screen.getByTestId("empty-chase")).toBeVisible();
+    expect(screen.getByTestId("empty-grid")).toBeVisible();
   });
 
   it("stays readable when the snapshot used earlier metric definitions", async () => {
     vi.mocked(readReportForDate).mockResolvedValue(
       stored({
-        metricDefinitionVersion: "LAN-81.1",
-        content: { schema: "lancers.monday-exception-report.v1", exceptions: [] },
+        metricDefinitionVersion: "LAN-81.2",
+        content: { schema: "lancers.monday-report.v2", chase: [], fix: [] },
       }),
     );
 
@@ -458,7 +621,7 @@ describe("the screen reads stored content", () => {
     expect(screen.getByTestId("other-metric-version")).toBeVisible();
     // Its metadata is still there, and nothing was invented to fill the gap.
     expect(screen.getByTestId("stored-note")).toBeVisible();
-    expect(container.textContent).not.toContain(CHASE_HEADLINE);
+    expect(container.textContent).not.toContain(GRID_HEADLINE);
   });
 });
 

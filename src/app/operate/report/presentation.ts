@@ -1,4 +1,4 @@
-import type { ChaseKind, FixKind } from "@/lib/services/weekly-report";
+import type { GridState } from "@/lib/services/weekly-report";
 
 /**
  * The Monday report's copy and formatting.
@@ -8,25 +8,34 @@ import type { ChaseKind, FixKind } from "@/lib/services/weekly-report";
  * functions. Nothing in this file touches the database, so importing it never
  * drags `pg` into the browser bundle.
  *
- * The wording is Brian's, from the 15 August 2026 review — "chase these people"
- * and "fix these things" are what he asked for, in that order, and the earlier
- * six-category vocabulary is gone with the screen that used it.
+ * Every heading names a thing the club already has a word for — an event, a
+ * walk-up, recruitment, onboarding, availability. Brian's instruction of
+ * 15 August 2026, after an abstract "Fix these things" bucket: "I'm organizing
+ * around things that they would know how to use."
  *
  * Dates are formatted in `en-GB` at UTC and instants in `Europe/London`, the
- * same split the events screens use and for the same reason: `report_on` is a
- * `date` with no zone and means the day it says, while `generated_at` is a real
- * instant and means the moment the club was at.
+ * same split the events screens use and for the same reason: `scheduled_on` is
+ * a `date` with no zone and means the day it says, while `generated_at` is a
+ * real instant and means the moment the club was at.
  */
 
 export const REPORT_HEADLINE = "Monday report";
 
-/** The two lists, and the third block. */
-export const CHASE_HEADLINE = "Chase these people";
-export const FIX_HEADLINE = "Fix these things";
+export const LAST_WEEK_HEADLINE = "Last week";
+export const GRID_HEADLINE = "Who needs chasing";
+export const AVAILABILITY_HEADLINE = "Availability";
+export const NEXT_WEEK_HEADLINE = "Next week";
+export const WALK_UPS_HEADLINE = "Walk-ups";
+export const RECRUITMENT_HEADLINE = "Recruitment";
 export const ONBOARDING_HEADLINE = "Onboarding still outstanding";
+export const WEEK_IN_NUMBERS = "The week in numbers";
 
-export const CHASE_EMPTY = "Nobody to chase this week.";
-export const FIX_EMPTY = "Nothing to fix this week.";
+export const LAST_WEEK_EMPTY = "No events last week.";
+export const GRID_EMPTY = "Nobody to chase — everyone answered and turned up.";
+export const AVAILABILITY_EMPTY = "Everybody is available.";
+export const NEXT_WEEK_EMPTY = "Nothing scheduled in the next seven days.";
+export const WALK_UPS_EMPTY = "No walk-ups last week.";
+export const RECRUITMENT_EMPTY = "No open prospects.";
 export const ONBOARDING_EMPTY = "Every active member is up to date.";
 
 /**
@@ -36,27 +45,20 @@ export const ONBOARDING_EMPTY = "Every active member is up to date.";
  * nobody ran look identical on a screen and mean opposite things.
  */
 export const NOTHING_AT_ALL =
-  "Nothing to chase and nothing to fix. If that is a surprise, check that last week's events " +
-  "were approved and marked occurred — an empty report can mean a quiet week or a week nobody " +
-  "recorded.";
+  "No events last week and nothing outstanding. If that is a surprise, check that last " +
+  "week's events were approved and marked occurred — an empty report can mean a quiet week " +
+  "or a week nobody recorded.";
 
 export const CHANGE_DATE_LABEL = "Reporting date";
 export const CHANGE_DATE_SUBMIT = "Show report";
-
-export const WINDOW_PREFIX = "Covering";
 
 /** Said once, at the bottom, where it explains rather than interrupts. */
 export const STORED_NOTE =
   "This is the report as it stood when it was first opened today. It is kept exactly as it was.";
 
-export const WEEK_IN_NUMBERS = "The week in numbers";
-export const AVAILABILITY_HEADLINE = "Availability";
-export const AVAILABILITY_NOTE = "Level only — no narrative or diagnosis is recorded anywhere.";
-
 /**
  * What a reader sees when the stored content was written under metric
- * definitions this build does not know — the seed contains two, and this branch
- * filed several under `LAN-81.1` before the review changed the report's shape.
+ * definitions this build does not know.
  *
  * The snapshot is still shown, with its metadata, rather than hidden or
  * "upgraded". Invariant M5 exists so that an old report stays readable, and
@@ -67,20 +69,18 @@ export const OTHER_METRIC_VERSION_NOTE =
   "This report was generated under earlier metric definitions, so it is not organised the way " +
   "the current one is. It is shown unchanged — a filed report is never recomputed.";
 
-/** What each chase is, in the club's words, for the badge beside the name. */
-export const CHASE_LABELS: Readonly<Record<ChaseKind, string>> = Object.freeze({
-  no_answer: "Never answered",
-  said_no: "Not attending",
-  said_yes_absent: "Said yes, absent",
-  said_no_attended: "Said no, turned up",
-  missing_from_register: "Not on the register",
+/** The grid's cell marks, and the legend that explains them. */
+export const GRID_MARKS: Readonly<Record<GridState, string>> = Object.freeze({
+  no_rsvp: "—",
+  said_yes_absent: "yes*",
+  not_attending: "no",
 });
 
-export const FIX_LABELS: Readonly<Record<FixKind, string>> = Object.freeze({
-  register_not_taken: "Register",
-  approved_never_invited: "Approval defect",
-  walk_up_unreconciled: "Walk-up",
-});
+export const GRID_LEGEND: ReadonlyArray<{ mark: string; meaning: string }> = Object.freeze([
+  Object.freeze({ mark: "—", meaning: "no RSVP" }),
+  Object.freeze({ mark: "yes*", meaning: "said yes, did not attend" }),
+  Object.freeze({ mark: "no", meaning: "not attending" }),
+]);
 
 /**
  * Availability levels, in the words the approved wireframe shows.
@@ -95,6 +95,22 @@ export const AVAILABILITY_LABELS: Readonly<Record<string, string>> = Object.free
   orange: "Limited",
   red: "Unavailable",
 });
+
+/** `event_status`, in the club's words. Matches the events screens. */
+export const EVENT_STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  draft: "Draft",
+  pending_approval: "Awaiting approval",
+  approved: "Approved",
+  occurred: "Occurred",
+  not_held: "Not held",
+  cancelled: "Cancelled",
+  rejected: "Rejected",
+  withdrawn: "Withdrawn",
+});
+
+export function labelFor(labels: Readonly<Record<string, string>>, key: string): string {
+  return labels[key] ?? key;
+}
 
 // ---------------------------------------------------------------------------
 // Formatting
@@ -115,7 +131,7 @@ export function formatReportDate(day: string): string {
   return `${weekday}, ${date} ${month} ${year}`;
 }
 
-/** "Wed 14 Oct" — beside a person, where the year is already established. */
+/** "Wed 14 Oct" — beside an event, where the year is already established. */
 export function formatShortDay(day: string | null): string {
   if (!day) return "No date";
   return `${datePart(day, { weekday: "short" })} ${datePart(day, { day: "numeric" })} ${datePart(
@@ -124,15 +140,15 @@ export function formatShortDay(day: string | null): string {
   )}`;
 }
 
-/** "Covering Monday 12 – Sunday 18 October 2026". */
-export function formatWindow(window: { from: string; to: string }): string {
-  const from = `${datePart(window.from, { weekday: "long" })} ${datePart(window.from, { day: "numeric" })}`;
-  const to = `${datePart(window.to, { weekday: "long" })} ${datePart(window.to, { day: "numeric" })}`;
-  const month = datePart(window.to, { month: "long" });
-  const year = datePart(window.to, { year: "numeric" });
+/** "12 – 18 October" — a window, said as briefly as it can be. */
+export function formatSpan(window: { from: string; to: string }): string {
+  const fromDay = datePart(window.from, { day: "numeric" });
   const fromMonth = datePart(window.from, { month: "long" });
-  const left = fromMonth === month ? from : `${from} ${fromMonth}`;
-  return `${WINDOW_PREFIX} ${left} – ${to} ${month} ${year}`;
+  const toDay = datePart(window.to, { day: "numeric" });
+  const toMonth = datePart(window.to, { month: "long" });
+  return fromMonth === toMonth
+    ? `${fromDay} – ${toDay} ${toMonth}`
+    : `${fromDay} ${fromMonth} – ${toDay} ${toMonth}`;
 }
 
 function instantPart(iso: string, options: Intl.DateTimeFormatOptions): string {

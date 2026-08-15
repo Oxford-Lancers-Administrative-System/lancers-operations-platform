@@ -77,22 +77,31 @@ import { readCurrentSeasonIn, type Season } from "./seasons";
  * It is **not** the sixteen definitions recovered from the Master Table; the
  * issue puts those out of scope.
  */
-export const METRIC_DEFINITION_VERSION = "LAN-81.2";
+export const METRIC_DEFINITION_VERSION = "LAN-81.3";
 
 /** The shape of `content`, so a reader can tell a snapshot it understands. */
-export const REPORT_CONTENT_SCHEMA = "lancers.monday-report.v2";
+export const REPORT_CONTENT_SCHEMA = "lancers.monday-report.v3";
 
 /**
- * The reporting window: the seven days ending the day before the reporting
- * date.
+ * The report looks a week back and a week forward.
  *
- * Brian's decision of 15 August 2026, chosen over "since the last report" and
- * "three days either side". A Monday report covers the Monday-to-Sunday just
- * gone. The window is printed on the report and stored in the snapshot, so no
- * reader has to infer it and a later change to it is visible in old reports
+ * **Back** is the seven days ending the day before the reporting date: the week
+ * just gone, which is what the attendance and the chasing are about.
+ *
+ * **Forward** is the reporting date and the seven days after it: what is coming,
+ * so an operator can see which of next week's events are still drafts and which
+ * have already gone out.
+ *
+ * The forward half is a bounded amendment to LAN-81, made by Brian on 15 August
+ * 2026 after seeing the backward-only report — "we don't have to do the 3
+ * weeks, but can we do 1 week". It is deliberately **one** week and read-only:
+ * the three-week planning horizon, and anything that edits from here, remain
+ * LAN-109's. Both halves are printed on the report and stored in the snapshot,
+ * so no reader has to infer them and a later change is visible in old reports
  * rather than retroactive.
  */
 export const REPORT_WINDOW_DAYS = 7;
+export const REPORT_LOOKAHEAD_DAYS = 7;
 
 export const REPORT_DATE_INVALID_MESSAGE = "Choose a reporting date in the form YYYY-MM-DD.";
 
@@ -103,54 +112,111 @@ export const REPORT_NOT_FOUND_MESSAGE = "That report does not exist.";
 // ---------------------------------------------------------------------------
 
 /**
- * Why somebody is on the chase list. Stored rather than rendered from a
- * category, so the reason survives in the snapshot exactly as the report made
- * it.
+ * What one of last week's events did.
+ *
+ * The report opens with these because Brian opens the report with these: "I
+ * want to see the last week in attendance. I want to see the event. I want to
+ * see the RSVP numbers. I want to see the attendance percentage." Everything
+ * that used to live under a heading called "Fix these things" is a property of
+ * an event, so it is a property of this row.
  */
-export const CHASE_KINDS = Object.freeze([
-  "no_answer",
-  "said_no",
-  "said_yes_absent",
-  "said_no_attended",
-  "missing_from_register",
-] as const);
-
-export type ChaseKind = (typeof CHASE_KINDS)[number];
-
-export const FIX_KINDS = Object.freeze([
-  "register_not_taken",
-  "approved_never_invited",
-  "walk_up_unreconciled",
-] as const);
-
-export type FixKind = (typeof FIX_KINDS)[number];
-
-/** One person to contact, and what about. */
-export interface ChaseItem {
-  kind: ChaseKind;
-  /** Already resolved to a display name. */
-  person: string;
-  /** What to say to them, in the club's words. */
-  what: string;
-  event: string;
-  /** `YYYY-MM-DD`. */
+export interface EventOutcome {
+  id: string;
+  name: string;
+  eventType: string;
+  status: string;
   on: string | null;
   isMandatory: boolean;
+  solicitsResponse: boolean;
+  invited: number;
+  respondedYes: number;
+  respondedNo: number;
+  noAnswer: number;
+  present: number;
+  late: number;
+  excused: number;
+  absent: number;
+  /** Present plus late, over invited. `null` when nobody took the register. */
+  turnoutPercent: number | null;
+  /** `false` when the event occurred and not one attendance row was written. */
+  registerTaken: boolean;
+  /** Attended with no invitation — invariant P6's walk-up. */
+  walkUps: number;
+  /** Confirmed in the audience and never invited: an approval defect. */
+  neverInvited: number;
+}
+
+/** What one person did about one event, where it was worth noticing. */
+export const GRID_STATES = Object.freeze(["no_rsvp", "said_yes_absent", "not_attending"] as const);
+
+export type GridState = (typeof GRID_STATES)[number];
+
+export interface GridColumn {
+  eventId: string;
+  /** Short enough for a column head. */
+  label: string;
+  on: string | null;
+}
+
+export interface GridCell {
+  eventId: string;
+  state: GridState;
   /**
-   * The reason they gave for not attending, where there is one. The most
-   * sensitive line in the slice, shown to the operator group only.
+   * The reason given for not attending, where there is one. The most sensitive
+   * line in the slice, shown to the operator group only.
    */
   reason: string | null;
 }
 
-/** One thing for an operator to correct. Not a person to contact. */
-export interface FixItem {
-  kind: FixKind;
+export interface GridRow {
+  person: string;
+  cells: GridCell[];
+  /** How many times anything went wrong for this person last week. */
+  problems: number;
+}
+
+/**
+ * Somebody whose standing availability is not green, and when it became so.
+ *
+ * A level and two dates. There is no note, because `availability_statuses` has
+ * no column that could hold one and none is to be added until the Oxford
+ * guidance arrives.
+ */
+export interface AvailabilityEntry {
+  person: string;
+  level: string;
+  since: string | null;
+  reviewOn: string | null;
+}
+
+/** An event in the week ahead. Read-only here; the link is where you change it. */
+export interface UpcomingEvent {
+  id: string;
+  name: string;
+  eventType: string;
+  status: string;
+  on: string | null;
+  isMandatory: boolean;
+  solicitsResponse: boolean;
+  /** Invitations that exist. Zero means nothing has gone out yet. */
+  invited: number;
+  /** Of those, how many have answered either way. */
+  answered: number;
+}
+
+/** Somebody who turned up without an invitation, and has not been reconciled. */
+export interface WalkUpEntry {
+  person: string;
   event: string;
   on: string | null;
-  what: string;
-  /** Named where the defect is about somebody, as with an uninvited invitee. */
-  person: string | null;
+}
+
+/** An open recruitment prospect. Empty in most weeks, and that is fine. */
+export interface RecruitmentEntry {
+  person: string;
+  status: string;
+  source: string | null;
+  firstContactOn: string | null;
 }
 
 /** A member with a required onboarding item still outstanding. */
@@ -160,36 +226,12 @@ export interface OnboardingItem {
   outstanding: string;
 }
 
-export interface EventInWindow {
-  id: string;
-  name: string;
-  eventType: string;
-  status: string;
-  on: string | null;
-  solicitsResponse: boolean;
-  isMandatory: boolean;
-  invited: number;
-  recorded: number;
-}
-
-export interface ResponseBreakdownRow {
-  eventId: string;
-  eventName: string;
-  on: string | null;
-  respondedYes: number;
-  respondedNo: number;
-  awaitingResponse: number;
-  expiredWithoutResponse: number;
-  cancelled: number;
-  neverInvited: number;
-}
-
 export interface AttendanceSummary {
   present: number;
   late: number;
   excused: number;
   absent: number;
-  /** Occurred events in the window for which not one row was recorded. */
+  /** Occurred events in the look-back week for which not one row was recorded. */
   eventsWithNoRegister: number;
 }
 
@@ -200,27 +242,36 @@ export interface AvailabilitySummary {
   red: number;
 }
 
+/**
+ * The stored snapshot, in the order the report reads.
+ *
+ * Every section is named for a thing the club already has a word for — an
+ * event, a walk-up, recruitment, onboarding. Brian's instruction on 15 August
+ * 2026, after an abstract "Fix these things" bucket: "I'm organizing around
+ * things that they would know how to use."
+ */
 export interface WeeklyReportContent {
   schema: string;
   metricDefinitionVersion: string;
   reportOn: string;
-  window: { from: string; to: string };
+  lookBack: { from: string; to: string };
+  lookAhead: { from: string; to: string };
   season: { id: string; label: string };
-  /** The lead. People to contact, most recent event first. */
-  chase: ChaseItem[];
-  /** The second list. Operator corrections, most recent event first. */
-  fix: FixItem[];
-  /** The third block. Not about the week, so not mixed into the two above. */
+  /** 1. Last week, event by event. */
+  lastWeek: EventOutcome[];
+  /** 2. Who needs chasing: people down, last week's events across. */
+  grid: { columns: GridColumn[]; rows: GridRow[] };
+  /** 3. Availability that is not green. */
+  availability: AvailabilityEntry[];
+  /** 4. The week ahead. */
+  nextWeek: UpcomingEvent[];
+  /** 5, 6, 7. Named for what they are, not for what to do about them. */
+  walkUps: WalkUpEntry[];
+  recruitment: RecruitmentEntry[];
   onboarding: OnboardingItem[];
-  /**
-   * Everything below here is stored because `slice-ux.md` § 10 requires the
-   * snapshot to carry it, and shown compactly because it is not what the
-   * operator opens the report to do.
-   */
-  events: EventInWindow[];
-  responseBreakdown: ResponseBreakdownRow[];
+  /** 8. The week in numbers. */
   attendance: AttendanceSummary;
-  availability: AvailabilitySummary;
+  availabilityCounts: AvailabilitySummary;
 }
 
 /** A stored row, with its content read back as it was written. */
@@ -295,6 +346,14 @@ export function reportWindow(reportOn: string): { from: string; to: string } {
   return { from: asDate(start) as string, to: asDate(end) as string };
 }
 
+/** The reporting date and the seven days after it. */
+export function lookaheadWindow(reportOn: string): { from: string; to: string } {
+  const start = new Date(`${reportOn}T00:00:00Z`);
+  const end = new Date(start.getTime());
+  end.setUTCDate(end.getUTCDate() + REPORT_LOOKAHEAD_DAYS);
+  return { from: asDate(start) as string, to: asDate(end) as string };
+}
+
 // ---------------------------------------------------------------------------
 // Computing the content
 // ---------------------------------------------------------------------------
@@ -307,33 +366,16 @@ const DISPLAY_NAME = `case
     else coalesce(nullif(btrim(p.known_as), ''), p.given_name) || ' ' || p.family_name
   end`;
 
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`;
-}
-
 /**
- * How urgent each kind of chase is, when two sit on the same event.
+ * How bad each grid state is, for ordering people down the side.
  *
- * Brian chose "soonest event first" on 15 August, and the window looks
- * backwards, so the event ordering is most-recent-first: last night's practice
- * above last Tuesday's. This breaks the remaining ties, worst first — somebody
- * who said they were coming and was marked absent is a conversation, and
- * somebody who declined with a reason is an acknowledgement.
+ * Somebody who said they were coming and did not is a conversation; somebody
+ * who never answered is a chase; somebody who declined has at least told you.
  */
-const CHASE_SEVERITY: Readonly<Record<ChaseKind, number>> = Object.freeze({
+const GRID_SEVERITY: Readonly<Record<GridState, number>> = Object.freeze({
   said_yes_absent: 0,
-  missing_from_register: 1,
-  no_answer: 2,
-  said_no_attended: 3,
-  said_no: 4,
-});
-
-const CHASE_WORDS: Readonly<Record<ChaseKind, string>> = Object.freeze({
-  no_answer: "Never answered",
-  said_no: "Not attending",
-  said_yes_absent: "Said yes, marked absent",
-  said_no_attended: "Said no, turned up",
-  missing_from_register: "Said yes, not on the register",
+  no_rsvp: 1,
+  not_attending: 2,
 });
 
 interface EventRow {
@@ -348,27 +390,10 @@ interface EventRow {
   recorded: number;
 }
 
-interface NonresponseRow {
+interface PersonEventRow {
   event_id: string;
-  event_name: string;
-  scheduled_on: Date | string | null;
   display_name: string | null;
-}
-
-interface NotAttendingRow {
-  event_id: string;
-  event_name: string;
-  scheduled_on: Date | string | null;
   reason: string | null;
-  display_name: string | null;
-}
-
-interface MismatchRow {
-  event_id: string;
-  event_name: string;
-  scheduled_on: Date | string | null;
-  mismatch: string | null;
-  display_name: string | null;
 }
 
 interface OnboardingRow {
@@ -377,18 +402,41 @@ interface OnboardingRow {
   outstanding: string;
 }
 
-interface UninvitedRow {
-  event_id: string;
-  event_name: string;
-  scheduled_on: Date | string | null;
+interface AvailabilityRow {
   display_name: string | null;
+  level: string;
+  effective_from: Date | string | null;
+  review_on: Date | string | null;
+}
+
+interface RecruitmentRow {
+  display_name: string | null;
+  status: string;
+  source: string | null;
+  first_contact_on: Date | string | null;
+}
+
+interface UpcomingRow {
+  id: string;
+  name: string;
+  event_type: string;
+  status: string;
+  scheduled_on: Date | string | null;
+  solicits_response: boolean;
+  is_mandatory: boolean;
+  invited: number;
+  answered: number;
 }
 
 interface BreakdownRow {
   event_id: string;
-  event_name: string;
-  scheduled_on: Date | string | null;
   response_state: string;
+  tally: number;
+}
+
+interface PresenceRow {
+  event_id: string;
+  presence: string;
   tally: number;
 }
 
@@ -397,9 +445,15 @@ interface CountRow {
   tally: number;
 }
 
+/** "Practice — hilary week 1" is too long for a column head; this is not. */
+function columnLabel(name: string): string {
+  const head = name.split(/\s+[—-]\s+/)[0].trim();
+  return head.length > 18 ? `${head.slice(0, 17)}…` : head;
+}
+
 /**
- * Everything the report says, computed from the five views for one season and
- * one window.
+ * Everything the report says, computed from the five views for one season, the
+ * week just gone and the week ahead.
  *
  * Read-only by construction: there is no insert, update or delete in it.
  */
@@ -408,11 +462,14 @@ export async function computeReportContent(
   season: Season,
   reportOn: string,
 ): Promise<WeeklyReportContent> {
-  const { from, to } = reportWindow(reportOn);
-  const scope = [season.id, from, to];
+  const lookBack = reportWindow(reportOn);
+  const lookAhead = lookaheadWindow(reportOn);
+  const back = [season.id, lookBack.from, lookBack.to];
 
-  // The window's events, each with the two counts the lists below need: how
-  // many people were asked, and whether anybody took the register at all.
+  // -------------------------------------------------------------------------
+  // 1. Last week, event by event
+  // -------------------------------------------------------------------------
+
   const events = await tx.query<EventRow>(
     `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
             e.scheduled_on, e.solicits_response, e.is_mandatory,
@@ -421,31 +478,112 @@ export async function computeReportContent(
        from public.events e
       where e.season_id = $1
         and e.scheduled_on between $2::date and $3::date
-      order by e.scheduled_on desc, e.name`,
-    scope,
+      order by e.scheduled_on, e.name`,
+    back,
   );
 
-  const eventById = new Map(events.rows.map((row) => [row.id, row]));
-  const mandatory = (eventId: string) => eventById.get(eventId)?.is_mandatory ?? false;
+  const breakdown = await tx.query<BreakdownRow>(
+    `select s.event_id, s.response_state, count(*)::int as tally
+       from public.invitation_response_state s
+       join public.events e on e.id = s.event_id
+      where s.season_id = $1
+        and e.scheduled_on between $2::date and $3::date
+      group by s.event_id, s.response_state`,
+    back,
+  );
 
-  // Requirement 6's escalation queue, for the window's events only. An audience
-  // member who was never invited is deliberately NOT here: they were not asked,
-  // so there is nothing to chase, and they are an approval defect below.
-  const nonresponses = await tx.query<NonresponseRow>(
-    `select q.event_id, q.event_name, q.scheduled_on, ${DISPLAY_NAME} as display_name
+  const presence = await tx.query<PresenceRow>(
+    `select a.event_id, a.presence::text as presence, count(*)::int as tally
+       from public.attendance_records a
+       join public.events e on e.id = a.event_id
+      where a.season_id = $1
+        and e.scheduled_on between $2::date and $3::date
+      group by a.event_id, a.presence`,
+    back,
+  );
+
+  // The two event-level exceptions. Both are properties of an event, which is
+  // why they are columns on its row rather than a list of their own.
+  const walkUpRows = await tx.query<PersonEventRow>(
+    `select x.event_id, ${DISPLAY_NAME} as display_name, null::text as reason
+       from public.rsvp_attendance_mismatches x
+       left join public.season_memberships m on m.id = x.season_membership_id
+       left join public.people p on p.id = coalesce(x.person_id, m.person_id)
+      where x.season_id = $1
+        and x.scheduled_on between $2::date and $3::date
+        and x.mismatch = 'attended_without_invitation'`,
+    back,
+  );
+
+  const neverInvited = await tx.query<PersonEventRow>(
+    `select u.event_id, ${DISPLAY_NAME} as display_name, null::text as reason
+       from public.uninvited_audience_members u
+       left join public.season_memberships m on m.id = u.season_membership_id
+       left join public.people p on p.id = coalesce(u.person_id, m.person_id)
+      where u.season_id = $1
+        and u.scheduled_on between $2::date and $3::date`,
+    back,
+  );
+
+  const tally = (rows: { event_id: string }[], eventId: string) =>
+    rows.filter((row) => row.event_id === eventId).length;
+
+  const stateOf = (eventId: string, state: string) =>
+    breakdown.rows.find((row) => row.event_id === eventId && row.response_state === state)?.tally ??
+    0;
+
+  const presenceOf = (eventId: string, value: string) =>
+    presence.rows.find((row) => row.event_id === eventId && row.presence === value)?.tally ?? 0;
+
+  const lastWeek: EventOutcome[] = events.rows.map((row) => {
+    const present = presenceOf(row.id, "present");
+    const late = presenceOf(row.id, "late");
+    const registerTaken = row.recorded > 0;
+    return {
+      id: row.id,
+      name: row.name,
+      eventType: row.event_type,
+      status: row.status,
+      on: asDate(row.scheduled_on),
+      isMandatory: row.is_mandatory,
+      solicitsResponse: row.solicits_response,
+      invited: row.invited,
+      respondedYes: stateOf(row.id, "responded_yes"),
+      respondedNo: stateOf(row.id, "responded_no"),
+      noAnswer: stateOf(row.id, "awaiting_response") + stateOf(row.id, "expired_without_response"),
+      present,
+      late,
+      excused: presenceOf(row.id, "excused"),
+      absent: presenceOf(row.id, "absent"),
+      // Turnout over invited, because that is the question an operator asks:
+      // of the people we asked, how many came. `null` where nobody took the
+      // register, so an untaken register never reads as nobody turning up.
+      turnoutPercent:
+        registerTaken && row.invited > 0
+          ? Math.round(((present + late) / row.invited) * 100)
+          : null,
+      registerTaken,
+      walkUps: tally(walkUpRows.rows, row.id),
+      neverInvited: tally(neverInvited.rows, row.id),
+    };
+  });
+
+  // -------------------------------------------------------------------------
+  // 2. The grid: people down, last week's events across
+  // -------------------------------------------------------------------------
+
+  const noRsvp = await tx.query<PersonEventRow>(
+    `select q.event_id, ${DISPLAY_NAME} as display_name, null::text as reason
        from public.nonresponse_queue q
        left join public.season_memberships m on m.id = q.season_membership_id
        left join public.people p on p.id = coalesce(q.person_id, m.person_id)
       where q.season_id = $1
         and q.scheduled_on between $2::date and $3::date`,
-    scope,
+    back,
   );
 
-  // From invariant P7's partition, which already excludes non-soliciting
-  // events — invariant E6, and the reason an AGM never reaches this list.
-  const notAttending = await tx.query<NotAttendingRow>(
-    `select s.event_id, e.name as event_name, e.scheduled_on, s.reason,
-            ${DISPLAY_NAME} as display_name
+  const notAttending = await tx.query<PersonEventRow>(
+    `select s.event_id, ${DISPLAY_NAME} as display_name, s.reason
        from public.invitation_response_state s
        join public.events e on e.id = s.event_id
        left join public.season_memberships m on m.id = s.season_membership_id
@@ -453,35 +591,136 @@ export async function computeReportContent(
       where s.season_id = $1
         and e.scheduled_on between $2::date and $3::date
         and s.response_state = 'responded_no'`,
-    scope,
+    back,
   );
 
-  // Computed by the view, surfaced here, and never reconciled by either.
-  const mismatches = await tx.query<MismatchRow>(
-    `select x.event_id, x.event_name, x.scheduled_on, x.mismatch,
-            ${DISPLAY_NAME} as display_name
+  const saidYesAbsent = await tx.query<PersonEventRow>(
+    `select x.event_id, ${DISPLAY_NAME} as display_name, null::text as reason
        from public.rsvp_attendance_mismatches x
        left join public.season_memberships m on m.id = x.season_membership_id
        left join public.people p on p.id = coalesce(x.person_id, m.person_id)
       where x.season_id = $1
-        and x.scheduled_on between $2::date and $3::date`,
-    scope,
+        and x.scheduled_on between $2::date and $3::date
+        and x.mismatch in ('said_yes_marked_absent', 'said_yes_no_attendance_recorded')`,
+    back,
   );
 
-  // The approval defect: somebody the approver confirmed who was never asked.
-  const uninvited = await tx.query<UninvitedRow>(
-    `select u.event_id, u.event_name, u.scheduled_on, ${DISPLAY_NAME} as display_name
-       from public.uninvited_audience_members u
-       left join public.season_memberships m on m.id = u.season_membership_id
-       left join public.people p on p.id = coalesce(u.person_id, m.person_id)
-      where u.season_id = $1
-        and u.scheduled_on between $2::date and $3::date`,
-    scope,
+  const columns: GridColumn[] = events.rows
+    .filter((row) => row.solicits_response)
+    .map((row) => ({
+      eventId: row.id,
+      label: columnLabel(row.name),
+      on: asDate(row.scheduled_on),
+    }));
+
+  const columnIds = new Set(columns.map((column) => column.eventId));
+  const cellsByPerson = new Map<string, GridCell[]>();
+
+  const addCell = (
+    row: PersonEventRow,
+    state: GridState,
+    predicate: (eventId: string) => boolean = () => true,
+  ) => {
+    const person = row.display_name;
+    if (!person || !columnIds.has(row.event_id) || !predicate(row.event_id)) return;
+    const cells = cellsByPerson.get(person) ?? [];
+    // One cell per person per event: the worst thing that happened wins, so a
+    // person who never answered and was then absent reads as one problem.
+    const existing = cells.find((cell) => cell.eventId === row.event_id);
+    if (existing) {
+      if (GRID_SEVERITY[state] < GRID_SEVERITY[existing.state]) {
+        existing.state = state;
+        existing.reason = row.reason;
+      }
+      return;
+    }
+    cells.push({ eventId: row.event_id, state, reason: row.reason });
+    cellsByPerson.set(person, cells);
+  };
+
+  const registerTakenFor = (eventId: string) =>
+    lastWeek.find((entry) => entry.id === eventId)?.registerTaken ?? false;
+
+  for (const row of noRsvp.rows) addCell(row, "no_rsvp");
+  for (const row of notAttending.rows) addCell(row, "not_attending");
+  // Only where a register was actually taken. Where nobody took one, every
+  // invitee matches — 163 of them in one seeded week — and the club's problem
+  // is the untaken register, which last week's own row already says.
+  for (const row of saidYesAbsent.rows) addCell(row, "said_yes_absent", registerTakenFor);
+
+  const rows: GridRow[] = [...cellsByPerson.entries()]
+    .map(([person, cells]) => ({
+      person,
+      cells: cells.sort(
+        (left, right) =>
+          columns.findIndex((column) => column.eventId === left.eventId) -
+          columns.findIndex((column) => column.eventId === right.eventId),
+      ),
+      problems: cells.length,
+    }))
+    .sort(
+      (left, right) => right.problems - left.problems || left.person.localeCompare(right.person),
+    );
+
+  // -------------------------------------------------------------------------
+  // 3. Availability that is not green
+  // -------------------------------------------------------------------------
+
+  const availabilityRows = await tx.query<AvailabilityRow>(
+    `select ${DISPLAY_NAME} as display_name, a.level::text as level,
+            a.effective_from, a.review_on
+       from public.current_availability a
+       join public.season_memberships m on m.id = a.season_membership_id
+       join public.people p on p.id = m.person_id
+      where a.season_id = $1
+        and a.level <> 'green'
+      order by a.effective_from desc, display_name`,
+    [season.id],
   );
 
-  // Not scoped to the window: an outstanding required item is a standing
-  // exception rather than something that happened last week, which is why
-  // Brian put it in its own block rather than in the chase list.
+  // -------------------------------------------------------------------------
+  // 4. The week ahead
+  // -------------------------------------------------------------------------
+
+  const upcoming = await tx.query<UpcomingRow>(
+    `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
+            e.scheduled_on, e.solicits_response, e.is_mandatory,
+            (select count(*)::int from public.invitations i where i.event_id = e.id) as invited,
+            (select count(*)::int from public.invitations i
+              join public.current_rsvp r on r.invitation_id = i.id
+             where i.event_id = e.id) as answered
+       from public.events e
+      where e.season_id = $1
+        and e.scheduled_on between $2::date and $3::date
+        and e.status <> 'withdrawn'
+      order by e.scheduled_on, e.name`,
+    [season.id, lookAhead.from, lookAhead.to],
+  );
+
+  // -------------------------------------------------------------------------
+  // 5, 6, 7. Things the club already has words for
+  // -------------------------------------------------------------------------
+
+  const walkUps: WalkUpEntry[] = walkUpRows.rows.map((row) => {
+    const event = lastWeek.find((entry) => entry.id === row.event_id);
+    return {
+      person: row.display_name ?? "Unnamed",
+      event: event?.name ?? "Unknown event",
+      on: event?.on ?? null,
+    };
+  });
+
+  const recruitment = await tx.query<RecruitmentRow>(
+    `select ${DISPLAY_NAME} as display_name, r.status::text as status, r.source,
+            r.first_contact_on
+       from public.recruitment_prospects r
+       join public.people p on p.id = r.person_id
+      where r.season_id = $1
+        and r.converted_membership_id is null
+      order by r.first_contact_on desc nulls last, display_name`,
+    [season.id],
+  );
+
   const onboarding = await tx.query<OnboardingRow>(
     `select ${DISPLAY_NAME} as display_name,
             m.status::text as membership_status,
@@ -499,30 +738,11 @@ export async function computeReportContent(
     [season.id],
   );
 
-  const breakdown = await tx.query<BreakdownRow>(
-    `select s.event_id, e.name as event_name, e.scheduled_on, s.response_state,
-            count(*)::int as tally
-       from public.invitation_response_state s
-       join public.events e on e.id = s.event_id
-      where s.season_id = $1
-        and e.scheduled_on between $2::date and $3::date
-      group by s.event_id, e.name, e.scheduled_on, s.response_state`,
-    scope,
-  );
+  // -------------------------------------------------------------------------
+  // 8. The week in numbers
+  // -------------------------------------------------------------------------
 
-  const presence = await tx.query<CountRow>(
-    `select a.presence::text as key, count(*)::int as tally
-       from public.attendance_records a
-       join public.events e on e.id = a.event_id
-      where a.season_id = $1
-        and e.scheduled_on between $2::date and $3::date
-      group by a.presence`,
-    scope,
-  );
-
-  // Availability is the standing level per membership — a count per level and
-  // nothing else. There is no note column to select and none is to be added.
-  const availability = await tx.query<CountRow>(
+  const availabilityCounts = await tx.query<CountRow>(
     `select level::text as key, count(*)::int as tally
        from public.current_availability
       where season_id = $1
@@ -530,177 +750,63 @@ export async function computeReportContent(
     [season.id],
   );
 
-  // -------------------------------------------------------------------------
-  // Chase these people
-  // -------------------------------------------------------------------------
+  const levelOf = (key: string) =>
+    availabilityCounts.rows.find((row) => row.key === key)?.tally ?? 0;
 
-  const chase: ChaseItem[] = [];
-
-  const push = (
-    kind: ChaseKind,
-    row: { event_id: string; event_name: string; scheduled_on: Date | string | null },
-    person: string | null,
-    reason: string | null = null,
-  ) => {
-    chase.push({
-      kind,
-      person: person ?? "Unnamed member",
-      what: CHASE_WORDS[kind],
-      event: row.event_name,
-      on: asDate(row.scheduled_on),
-      isMandatory: mandatory(row.event_id),
-      reason,
-    });
-  };
-
-  for (const row of nonresponses.rows) push("no_answer", row, row.display_name);
-  for (const row of notAttending.rows) {
-    const reason = (row.reason ?? "").trim();
-    push("said_no", row, row.display_name, reason === "" ? null : reason);
-  }
-
-  for (const row of mismatches.rows) {
-    if (row.mismatch === "said_yes_marked_absent") {
-      push("said_yes_absent", row, row.display_name);
-    } else if (row.mismatch === "said_no_but_attended") {
-      push("said_no_attended", row, row.display_name);
-    } else if (row.mismatch === "said_yes_no_attendance_recorded") {
-      // Only when somebody *did* take the register and this person is missing
-      // from it. Where the register was never taken at all, every invitee
-      // matches this classification and the club's problem is one uncompleted
-      // register rather than twenty-four people to ring — so it belongs in the
-      // fix list below, once, and these rows are deliberately dropped.
-      //
-      // This is the single largest reason the first build read as noise: the
-      // seeded season produced 163 of these for one week, and none of them was
-      // a person anybody should have contacted.
-      if ((eventById.get(row.event_id)?.recorded ?? 0) > 0) {
-        push("missing_from_register", row, row.display_name);
-      }
-    }
-  }
-
-  // Most recent event first — Brian's "soonest event first", read inside a
-  // window that only looks backwards. A mandatory event outranks an optional
-  // one on the same day, and `CHASE_SEVERITY` breaks what is left.
-  chase.sort((left, right) => {
-    if (left.on !== right.on) return (right.on ?? "").localeCompare(left.on ?? "");
-    if (left.isMandatory !== right.isMandatory) return left.isMandatory ? -1 : 1;
-    if (left.kind !== right.kind) return CHASE_SEVERITY[left.kind] - CHASE_SEVERITY[right.kind];
-    return left.person.localeCompare(right.person);
-  });
-
-  // -------------------------------------------------------------------------
-  // Fix these things
-  // -------------------------------------------------------------------------
-
-  const fix: FixItem[] = [];
-
-  for (const row of events.rows) {
-    if (row.status !== "occurred" || row.recorded > 0) continue;
-    fix.push({
-      kind: "register_not_taken",
-      event: row.name,
-      on: asDate(row.scheduled_on),
-      what: `Register never taken — ${plural(row.invited, "person was asked", "people were asked")}`,
-      person: null,
-    });
-  }
-
-  for (const row of uninvited.rows) {
-    fix.push({
-      kind: "approved_never_invited",
-      event: row.event_name,
-      on: asDate(row.scheduled_on),
-      what: "Approved for this event and never invited",
-      person: row.display_name,
-    });
-  }
-
-  for (const row of mismatches.rows) {
-    if (row.mismatch !== "attended_without_invitation") continue;
-    fix.push({
-      kind: "walk_up_unreconciled",
-      event: row.event_name,
-      on: asDate(row.scheduled_on),
-      what: "Turned up without an invitation — still to be reconciled",
-      person: row.display_name,
-    });
-  }
-
-  fix.sort((left, right) => {
-    if (left.on !== right.on) return (right.on ?? "").localeCompare(left.on ?? "");
-    return left.what.localeCompare(right.what);
-  });
-
-  // -------------------------------------------------------------------------
-  // The rest, stored because § 10 requires it
-  // -------------------------------------------------------------------------
-
-  const byEvent = new Map<string, ResponseBreakdownRow>();
-  for (const row of breakdown.rows) {
-    const existing = byEvent.get(row.event_id) ?? {
-      eventId: row.event_id,
-      eventName: row.event_name,
-      on: asDate(row.scheduled_on),
-      respondedYes: 0,
-      respondedNo: 0,
-      awaitingResponse: 0,
-      expiredWithoutResponse: 0,
-      cancelled: 0,
-      neverInvited: 0,
-    };
-    if (row.response_state === "responded_yes") existing.respondedYes = row.tally;
-    if (row.response_state === "responded_no") existing.respondedNo = row.tally;
-    if (row.response_state === "awaiting_response") existing.awaitingResponse = row.tally;
-    if (row.response_state === "expired_without_response") {
-      existing.expiredWithoutResponse = row.tally;
-    }
-    if (row.response_state === "cancelled") existing.cancelled = row.tally;
-    if (row.response_state === "never_invited") existing.neverInvited = row.tally;
-    byEvent.set(row.event_id, existing);
-  }
-
-  const presenceOf = (key: string) => presence.rows.find((row) => row.key === key)?.tally ?? 0;
-  const availabilityOf = (key: string) =>
-    availability.rows.find((row) => row.key === key)?.tally ?? 0;
+  const sum = (value: (entry: EventOutcome) => number) =>
+    lastWeek.reduce((total, entry) => total + value(entry), 0);
 
   return {
     schema: REPORT_CONTENT_SCHEMA,
     metricDefinitionVersion: METRIC_DEFINITION_VERSION,
     reportOn,
-    window: { from, to },
+    lookBack,
+    lookAhead,
     season: { id: season.id, label: season.label },
-    chase,
-    fix,
-    onboarding: onboarding.rows.map((row) => ({
+    lastWeek,
+    grid: { columns, rows },
+    availability: availabilityRows.rows.map((row) => ({
       person: row.display_name ?? "Unnamed member",
-      membershipStatus: row.membership_status,
-      outstanding: row.outstanding,
+      level: row.level,
+      since: asDate(row.effective_from),
+      reviewOn: asDate(row.review_on),
     })),
-    events: events.rows.map((row) => ({
+    nextWeek: upcoming.rows.map((row) => ({
       id: row.id,
       name: row.name,
       eventType: row.event_type,
       status: row.status,
       on: asDate(row.scheduled_on),
-      solicitsResponse: row.solicits_response,
       isMandatory: row.is_mandatory,
+      solicitsResponse: row.solicits_response,
       invited: row.invited,
-      recorded: row.recorded,
+      answered: row.answered,
     })),
-    responseBreakdown: [...byEvent.values()],
+    walkUps,
+    recruitment: recruitment.rows.map((row) => ({
+      person: row.display_name ?? "Unnamed",
+      status: row.status,
+      source: row.source,
+      firstContactOn: asDate(row.first_contact_on),
+    })),
+    onboarding: onboarding.rows.map((row) => ({
+      person: row.display_name ?? "Unnamed member",
+      membershipStatus: row.membership_status,
+      outstanding: row.outstanding,
+    })),
     attendance: {
-      present: presenceOf("present"),
-      late: presenceOf("late"),
-      excused: presenceOf("excused"),
-      absent: presenceOf("absent"),
-      eventsWithNoRegister: fix.filter((item) => item.kind === "register_not_taken").length,
+      present: sum((entry) => entry.present),
+      late: sum((entry) => entry.late),
+      excused: sum((entry) => entry.excused),
+      absent: sum((entry) => entry.absent),
+      eventsWithNoRegister: lastWeek.filter(
+        (entry) => entry.status === "occurred" && !entry.registerTaken,
+      ).length,
     },
-    availability: {
-      green: availabilityOf("green"),
-      orange: availabilityOf("orange"),
-      red: availabilityOf("red"),
+    availabilityCounts: {
+      green: levelOf("green"),
+      orange: levelOf("orange"),
+      red: levelOf("red"),
     },
   };
 }
@@ -849,8 +955,9 @@ async function fileSnapshot(
       version,
       supersedes_id: supersedesId,
       metric_definition_version: METRIC_DEFINITION_VERSION,
-      window_from: content.window.from,
-      window_to: content.window.to,
+      look_back_from: content.lookBack.from,
+      look_back_to: content.lookBack.to,
+      look_ahead_to: content.lookAhead.to,
     },
   });
 
@@ -1006,7 +1113,8 @@ export function parseReportContent(content: unknown): WeeklyReportContent | null
   if (typeof content !== "object" || content === null) return null;
   const candidate = content as Partial<WeeklyReportContent>;
   if (candidate.schema !== REPORT_CONTENT_SCHEMA) return null;
-  if (!Array.isArray(candidate.chase) || !Array.isArray(candidate.fix)) return null;
+  if (!Array.isArray(candidate.lastWeek) || !Array.isArray(candidate.nextWeek)) return null;
+  if (typeof candidate.grid !== "object" || candidate.grid === null) return null;
   if (typeof candidate.reportOn !== "string") return null;
   return candidate as WeeklyReportContent;
 }

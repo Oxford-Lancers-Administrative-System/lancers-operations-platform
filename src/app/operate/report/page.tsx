@@ -1,73 +1,88 @@
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import {
   parseReportContent,
   readReportForDate,
-  type ChaseItem,
-  type FixItem,
+  type EventOutcome,
   type StoredReport,
+  type UpcomingEvent,
   type WeeklyReportContent,
 } from "@/lib/services/weekly-report";
 import { gateShellPage } from "../gate";
 import { ReportDateForm } from "./report-date-form";
 import {
+  AVAILABILITY_EMPTY,
   AVAILABILITY_HEADLINE,
   AVAILABILITY_LABELS,
-  AVAILABILITY_NOTE,
-  CHASE_EMPTY,
-  CHASE_HEADLINE,
-  CHASE_LABELS,
-  FIX_EMPTY,
-  FIX_HEADLINE,
-  FIX_LABELS,
+  EVENT_STATUS_LABELS,
   formatInstant,
   formatReportDate,
   formatShortDay,
-  formatWindow,
+  formatSpan,
+  GRID_EMPTY,
+  GRID_HEADLINE,
+  GRID_LEGEND,
+  GRID_MARKS,
+  labelFor,
+  LAST_WEEK_EMPTY,
+  LAST_WEEK_HEADLINE,
+  NEXT_WEEK_EMPTY,
+  NEXT_WEEK_HEADLINE,
   NOTHING_AT_ALL,
   ONBOARDING_EMPTY,
   ONBOARDING_HEADLINE,
   OTHER_METRIC_VERSION_NOTE,
+  RECRUITMENT_EMPTY,
+  RECRUITMENT_HEADLINE,
   REPORT_HEADLINE,
   STORED_NOTE,
   todayInClubZone,
+  WALK_UPS_EMPTY,
+  WALK_UPS_HEADLINE,
   WEEK_IN_NUMBERS,
 } from "./presentation";
 
 /**
  * `/operate/report` — the Monday report. LAN-81.
  *
- * ## One screen
+ * ## The order, and whose order it is
  *
- * Open it and the report is there. There is no preview step, no Generate
- * button, no version list and no "Open first action" — Brian's review of
- * 15 August 2026 removed all four, and every one of them was something the
- * first build asked him to understand before it would tell him anything.
+ * Brian's, from the 15 August 2026 review, in his words: last week's events
+ * with their RSVP numbers and attendance percentage at the very top; then the
+ * people who need chasing, as a grid; then availability; then the week ahead;
+ * then walk-ups, recruitment and onboarding.
  *
- * What is left is what he asked for: **chase these people**, then **fix these
- * things**, then the onboarding backlog, then the week's numbers in one small
- * block at the bottom for anybody who wants them.
+ * Every heading names a thing the club already has a word for. There is no
+ * "Fix these things" — his objection to it was exact: those items "all look
+ * like events", so they are properties of an event's row, not a bucket of
+ * their own. A register nobody took is a missing percentage on that event. A
+ * person approved and never invited is a flag on that event.
  *
  * ## It still reads a stored snapshot
  *
  * `readReportForDate` returns the snapshot filed for this date today, filing
  * one first if today has not produced one. So the screen renders stored content
- * and never a live recompute — invariant M5's whole point, and the property
- * that would have been quietly lost by making the page "just show the numbers".
- * The reader is never told any of that; the one line at the bottom says the
- * report is kept as it was, which is the part that matters to them.
+ * and never a live recompute — invariant M5's whole point. The reader is never
+ * told any of that; one line at the bottom says the report is kept as it was.
  *
  * ## Authorization
  *
- * `leadership_report` — the four calendar roles. It is the one destination in
- * the shell that is capability-gated, and `slice-ux.md` § 3 names the report,
- * and RSVP reasons, among the surfaces a coaching seat never receives.
+ * `leadership_report` — the four calendar roles. `slice-ux.md` § 3 names the
+ * report, and RSVP reasons, among the surfaces a coaching seat never receives.
  */
 export default async function ReportPage({ searchParams }: PageProps<"/operate/report">) {
   const gate = await gateShellPage("/operate/report", "leadership_report");
@@ -98,14 +113,13 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
   const content = parseReportContent(report.content);
 
   return (
-    <Stack spacing={4} sx={{ maxWidth: 860 }} data-testid="monday-report" data-report={report.id}>
+    <Stack spacing={4} sx={{ maxWidth: 1000 }} data-testid="monday-report" data-report={report.id}>
       <Box>
         <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
           {REPORT_HEADLINE}
         </Typography>
         <Typography variant="body2" color="text.secondary">
           {formatReportDate(report.reportOn)}
-          {content ? ` · ${formatWindow(content.window)}` : ""}
         </Typography>
       </Box>
 
@@ -134,85 +148,68 @@ function isDate(value: string): boolean {
 }
 
 function ReportBody({ content }: { content: WeeklyReportContent }) {
-  const nothingAtAll = content.chase.length === 0 && content.fix.length === 0;
+  const quiet =
+    content.lastWeek.length === 0 &&
+    content.grid.rows.length === 0 &&
+    content.nextWeek.length === 0;
 
   return (
     <>
-      {nothingAtAll ? (
+      {quiet ? (
         <Alert severity="info" data-testid="nothing-at-all">
           {NOTHING_AT_ALL}
         </Alert>
       ) : null}
 
-      <Section
-        testId="chase"
-        headline={CHASE_HEADLINE}
-        count={content.chase.length}
-        empty={CHASE_EMPTY}
-      >
-        {content.chase.map((item, index) => (
-          <ChaseRow key={`chase-${index}`} item={item} />
-        ))}
-      </Section>
-
-      <Section testId="fix" headline={FIX_HEADLINE} count={content.fix.length} empty={FIX_EMPTY}>
-        {content.fix.map((item, index) => (
-          <FixRow key={`fix-${index}`} item={item} />
-        ))}
-      </Section>
-
-      <Section
-        testId="onboarding"
-        headline={ONBOARDING_HEADLINE}
-        count={content.onboarding.length}
-        empty={ONBOARDING_EMPTY}
-      >
-        {content.onboarding.map((item, index) => (
-          <Row
-            key={`onboarding-${index}`}
-            primary={item.person}
-            secondary={item.outstanding}
-            badge={item.membershipStatus === "onboarding" ? "Onboarding" : null}
-          />
-        ))}
-      </Section>
-
+      <LastWeek content={content} />
+      <ChaseGrid content={content} />
+      <Availability content={content} />
+      <NextWeek content={content} />
+      <WalkUps content={content} />
+      <Recruitment content={content} />
+      <Onboarding content={content} />
       <WeekInNumbers content={content} />
     </>
   );
 }
 
 /**
- * One block: a heading that carries its own count, and either its rows or the
- * sentence that says there are none.
- *
- * The count is in the heading rather than in a tile above it. A row of big
- * numbers was the first thing on the old screen and the last thing anybody
- * needed: "Chase these people · 8" says the same thing in the place the reader
- * is already looking.
+ * A section: a heading that carries its own count and the span it covers, and
+ * either its body or the one sentence that says there is none.
  */
 function Section({
   testId,
   headline,
   count,
+  span,
   empty,
   children,
 }: {
   testId: string;
   headline: string;
   count: number;
+  span?: string;
   empty: string;
   children: React.ReactNode;
 }) {
   return (
     <Box component="section" data-testid={`section-${testId}`} data-count={count}>
-      <Stack direction="row" spacing={1.5} sx={{ alignItems: "baseline", mb: 1.5 }}>
+      <Stack
+        direction="row"
+        spacing={1.5}
+        sx={{ alignItems: "baseline", mb: 1.5, flexWrap: "wrap" }}
+      >
         <Typography variant="h6" component="h2" sx={{ fontWeight: 700 }}>
           {headline}
         </Typography>
         <Typography variant="h6" component="p" color="text.secondary" sx={{ fontWeight: 700 }}>
           {count}
         </Typography>
+        {span ? (
+          <Typography variant="body2" color="text.secondary">
+            {span}
+          </Typography>
+        ) : null}
       </Stack>
 
       {count === 0 ? (
@@ -220,21 +217,392 @@ function Section({
           {empty}
         </Typography>
       ) : (
-        <Paper variant="outlined">
-          <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
-            {children}
-          </Box>
-        </Paper>
+        children
       )}
     </Box>
   );
 }
 
+// ---------------------------------------------------------------------------
+// 1. Last week
+// ---------------------------------------------------------------------------
+
 /**
- * A row is a name, what it is about, and where it came from — in that order,
- * because the operator is reading down a column of names deciding who to
- * message.
+ * The event table Brian opens the report to read: what happened, who was asked,
+ * who said yes, who came, and what percentage that is.
+ *
+ * The two event-level exceptions ride on the row rather than in a list of their
+ * own. A register nobody took shows as "not taken" where the percentage would
+ * be — never as 0%, which would read as nobody turning up.
  */
+function LastWeek({ content }: { content: WeeklyReportContent }) {
+  return (
+    <Section
+      testId="last-week"
+      headline={LAST_WEEK_HEADLINE}
+      count={content.lastWeek.length}
+      span={formatSpan(content.lookBack)}
+      empty={LAST_WEEK_EMPTY}
+    >
+      <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
+        <Table size="small" aria-label={LAST_WEEK_HEADLINE}>
+          <TableHead>
+            <TableRow>
+              <TableCell>Event</TableCell>
+              <TableCell align="right">Asked</TableCell>
+              <TableCell align="right">Yes</TableCell>
+              <TableCell align="right">No</TableCell>
+              <TableCell align="right">Silent</TableCell>
+              <TableCell align="right">Turned up</TableCell>
+              <TableCell align="right">Turnout</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {content.lastWeek.map((event) => (
+              <EventRow key={event.id} event={event} />
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Section>
+  );
+}
+
+function EventRow({ event }: { event: EventOutcome }) {
+  const flags: string[] = [];
+  if (event.walkUps > 0) flags.push(`${event.walkUps} walk-up${event.walkUps === 1 ? "" : "s"}`);
+  if (event.neverInvited > 0) flags.push(`${event.neverInvited} approved, never invited`);
+
+  return (
+    <TableRow
+      data-testid={`event-${event.id}`}
+      data-register={event.registerTaken ? "taken" : "missing"}
+    >
+      <TableCell>
+        <Button
+          href={`/operate/events/${event.id}`}
+          size="small"
+          sx={{ p: 0, minWidth: 0, textAlign: "left", fontWeight: 600, textTransform: "none" }}
+        >
+          {event.name}
+        </Button>
+        <Typography variant="body2" color="text.secondary">
+          {`${formatShortDay(event.on)} · ${labelFor(EVENT_STATUS_LABELS, event.status)}${
+            event.isMandatory ? " · mandatory" : ""
+          }`}
+        </Typography>
+        {flags.length > 0 ? (
+          <Typography variant="body2" color="warning.main" data-testid={`flags-${event.id}`}>
+            {flags.join(" · ")}
+          </Typography>
+        ) : null}
+      </TableCell>
+      <TableCell align="right">{event.invited}</TableCell>
+      <TableCell align="right">{event.solicitsResponse ? event.respondedYes : "—"}</TableCell>
+      <TableCell align="right">{event.solicitsResponse ? event.respondedNo : "—"}</TableCell>
+      <TableCell align="right">{event.solicitsResponse ? event.noAnswer : "—"}</TableCell>
+      <TableCell align="right">{event.registerTaken ? event.present + event.late : "—"}</TableCell>
+      <TableCell align="right" sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>
+        {event.turnoutPercent === null ? (
+          <Typography variant="body2" color="warning.main" component="span">
+            {event.status === "occurred" ? "no register" : "—"}
+          </Typography>
+        ) : (
+          `${event.turnoutPercent}%`
+        )}
+      </TableCell>
+    </TableRow>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 2. Who needs chasing
+// ---------------------------------------------------------------------------
+
+/**
+ * People down, last week's events across — Brian's own sketch.
+ *
+ * This is what replaced a flat list that had 72 rows for a 50-person roster,
+ * because the same people repeated once per event. Here each person is one row
+ * and the pattern across the week is the point: three dashes in a row is a
+ * different conversation from one.
+ *
+ * A reason for not attending sits in the cell's tooltip and its title, so it is
+ * present for the operator who needs it without turning the grid into prose.
+ */
+function ChaseGrid({ content }: { content: WeeklyReportContent }) {
+  const { columns, rows } = content.grid;
+
+  return (
+    <Section testId="grid" headline={GRID_HEADLINE} count={rows.length} empty={GRID_EMPTY}>
+      <Stack spacing={1}>
+        <TableContainer component={Paper} variant="outlined" sx={{ overflowX: "auto" }}>
+          <Table size="small" aria-label={GRID_HEADLINE}>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ minWidth: 160 }}>Person</TableCell>
+                {columns.map((column) => (
+                  <TableCell key={column.eventId} align="center" sx={{ whiteSpace: "nowrap" }}>
+                    {column.label}
+                    <Typography variant="caption" component="div" color="text.secondary">
+                      {formatShortDay(column.on)}
+                    </Typography>
+                  </TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.person} data-testid={`grid-row`} data-problems={row.problems}>
+                  <TableCell sx={{ fontWeight: 600 }}>{row.person}</TableCell>
+                  {columns.map((column) => {
+                    const cell = row.cells.find((entry) => entry.eventId === column.eventId);
+                    if (!cell) return <TableCell key={column.eventId} align="center" />;
+                    const mark = GRID_MARKS[cell.state];
+                    return (
+                      <TableCell key={column.eventId} align="center">
+                        {cell.reason ? (
+                          <Tooltip title={cell.reason}>
+                            <Box component="span" sx={{ borderBottom: "1px dotted" }}>
+                              {mark}
+                            </Box>
+                          </Tooltip>
+                        ) : (
+                          mark
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        <Typography variant="body2" color="text.secondary" data-testid="grid-legend">
+          {GRID_LEGEND.map((entry) => `${entry.mark} ${entry.meaning}`).join("   ")}
+        </Typography>
+      </Stack>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 3. Availability
+// ---------------------------------------------------------------------------
+
+/**
+ * Who is not fully available, and since when.
+ *
+ * A level and two dates, and nothing else — `availability_statuses` has no
+ * column that could hold a note and none is to be added until the Oxford
+ * guidance arrives. The screen no longer says so: Brian's instruction on
+ * 15 August was to take the caption out, and a sentence explaining an absence
+ * belongs in the code that maintains it rather than on his Monday morning.
+ */
+function Availability({ content }: { content: WeeklyReportContent }) {
+  return (
+    <Section
+      testId="availability"
+      headline={AVAILABILITY_HEADLINE}
+      count={content.availability.length}
+      empty={AVAILABILITY_EMPTY}
+    >
+      <Paper variant="outlined">
+        <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
+          {content.availability.map((entry, index) => (
+            <Row
+              key={`availability-${index}`}
+              primary={entry.person}
+              badge={labelFor(AVAILABILITY_LABELS, entry.level)}
+              badgeColor={entry.level === "red" ? "warning" : "default"}
+              secondary={[
+                entry.since ? `since ${formatShortDay(entry.since)}` : null,
+                entry.reviewOn ? `review ${formatShortDay(entry.reviewOn)}` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            />
+          ))}
+        </Box>
+      </Paper>
+    </Section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 4. Next week
+// ---------------------------------------------------------------------------
+
+/**
+ * The week ahead, read-only, with a link into each event.
+ *
+ * Brian's bounded amendment of 15 August: one week forward, so he can see which
+ * of next week's events are still drafts and which have already gone out. The
+ * three-week planning horizon remains LAN-109's, and nothing here edits.
+ */
+function NextWeek({ content }: { content: WeeklyReportContent }) {
+  return (
+    <Section
+      testId="next-week"
+      headline={NEXT_WEEK_HEADLINE}
+      count={content.nextWeek.length}
+      span={formatSpan(content.lookAhead)}
+      empty={NEXT_WEEK_EMPTY}
+    >
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, minmax(0, 1fr))",
+            lg: "repeat(3, minmax(0, 1fr))",
+          },
+        }}
+      >
+        {content.nextWeek.map((event) => (
+          <UpcomingCard key={event.id} event={event} />
+        ))}
+      </Box>
+    </Section>
+  );
+}
+
+function UpcomingCard({ event }: { event: UpcomingEvent }) {
+  // What an operator needs to know at a glance: has anything gone out, and how
+  // many people have answered if so.
+  const invitations =
+    event.invited === 0 ? "No invitations sent" : `${event.answered} of ${event.invited} answered`;
+
+  return (
+    <Paper
+      variant="outlined"
+      sx={{ p: 2 }}
+      data-testid={`upcoming-${event.id}`}
+      data-status={event.status}
+    >
+      <Stack spacing={0.75}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.5 }}
+        >
+          <Chip
+            size="small"
+            label={labelFor(EVENT_STATUS_LABELS, event.status)}
+            color={event.status === "approved" ? "primary" : "default"}
+            variant={event.status === "approved" ? "filled" : "outlined"}
+          />
+          <Typography variant="body2" color="text.secondary">
+            {formatShortDay(event.on)}
+          </Typography>
+        </Stack>
+        <Button
+          href={`/operate/events/${event.id}`}
+          size="small"
+          sx={{
+            p: 0,
+            minWidth: 0,
+            justifyContent: "flex-start",
+            fontWeight: 700,
+            textTransform: "none",
+          }}
+        >
+          {event.name}
+        </Button>
+        <Typography variant="body2" color="text.secondary">
+          {event.solicitsResponse ? invitations : "No response asked for"}
+          {event.isMandatory ? " · mandatory" : ""}
+        </Typography>
+      </Stack>
+    </Paper>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 5, 6, 7. Named for what they are
+// ---------------------------------------------------------------------------
+
+function WalkUps({ content }: { content: WeeklyReportContent }) {
+  return (
+    <Section
+      testId="walk-ups"
+      headline={WALK_UPS_HEADLINE}
+      count={content.walkUps.length}
+      empty={WALK_UPS_EMPTY}
+    >
+      <Paper variant="outlined">
+        <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
+          {content.walkUps.map((entry, index) => (
+            <Row
+              key={`walk-up-${index}`}
+              primary={entry.person}
+              badge={null}
+              secondary={`${entry.event} · ${formatShortDay(entry.on)}`}
+            />
+          ))}
+        </Box>
+      </Paper>
+    </Section>
+  );
+}
+
+function Recruitment({ content }: { content: WeeklyReportContent }) {
+  return (
+    <Section
+      testId="recruitment"
+      headline={RECRUITMENT_HEADLINE}
+      count={content.recruitment.length}
+      empty={RECRUITMENT_EMPTY}
+    >
+      <Paper variant="outlined">
+        <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
+          {content.recruitment.map((entry, index) => (
+            <Row
+              key={`recruit-${index}`}
+              primary={entry.person}
+              badge={entry.status}
+              secondary={[
+                entry.source,
+                entry.firstContactOn
+                  ? `first contact ${formatShortDay(entry.firstContactOn)}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            />
+          ))}
+        </Box>
+      </Paper>
+    </Section>
+  );
+}
+
+function Onboarding({ content }: { content: WeeklyReportContent }) {
+  return (
+    <Section
+      testId="onboarding"
+      headline={ONBOARDING_HEADLINE}
+      count={content.onboarding.length}
+      empty={ONBOARDING_EMPTY}
+    >
+      <Paper variant="outlined">
+        <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0 }}>
+          {content.onboarding.map((entry, index) => (
+            <Row
+              key={`onboarding-${index}`}
+              primary={entry.person}
+              badge={entry.membershipStatus === "onboarding" ? "Onboarding" : null}
+              secondary={entry.outstanding}
+            />
+          ))}
+        </Box>
+      </Paper>
+    </Section>
+  );
+}
+
+/** A name, an optional badge, and a line of detail. */
 function Row({
   primary,
   secondary,
@@ -280,63 +648,14 @@ function Row({
   );
 }
 
-function ChaseRow({ item }: { item: ChaseItem }) {
-  const where = `${item.event}${item.isMandatory ? " (mandatory)" : ""} · ${formatShortDay(item.on)}`;
-  return (
-    <Row
-      primary={item.person}
-      badge={CHASE_LABELS[item.kind]}
-      badgeColor={item.kind === "said_yes_absent" ? "warning" : "default"}
-      // The reason sits with the person who gave it. It is the most sensitive
-      // line in the slice and the most useful one on the screen: "not attending"
-      // is a fact, and "not attending — coursework deadline" is a decision.
-      secondary={item.reason ? `${where} · “${item.reason}”` : where}
-    />
-  );
-}
+// ---------------------------------------------------------------------------
+// 8. The week in numbers
+// ---------------------------------------------------------------------------
 
-function FixRow({ item }: { item: FixItem }) {
-  return (
-    <Row
-      primary={item.person ?? item.event}
-      badge={FIX_LABELS[item.kind]}
-      badgeColor={item.kind === "approved_never_invited" ? "warning" : "default"}
-      secondary={
-        item.person
-          ? `${item.what} · ${item.event} · ${formatShortDay(item.on)}`
-          : `${item.what} · ${formatShortDay(item.on)}`
-      }
-    />
-  );
-}
-
-/**
- * The week's numbers, kept because `slice-ux.md` § 10 requires the snapshot to
- * carry them and a reader may want them — and kept *small*, because they are
- * not what anybody opens this report to do.
- *
- * Availability appears as a count per level and nothing else. There is no note
- * here because there is no note anywhere: the schema has no column capable of
- * holding a diagnosis, the Oxford guidance that would authorise a bounded one is
- * still outstanding, and `tests/schema-security.test.ts` scans the whole schema
- * for one. The sentence under the counts says so, so nobody reads the absence
- * as an omission and helpfully fills it in.
- */
 function WeekInNumbers({ content }: { content: WeeklyReportContent }) {
   const attendance = content.attendance;
-  const soliciting = content.events.filter((event) => event.solicitsResponse);
-  const asked = content.responseBreakdown.reduce(
-    (total, row) =>
-      total +
-      row.respondedYes +
-      row.respondedNo +
-      row.awaitingResponse +
-      row.expiredWithoutResponse +
-      row.cancelled +
-      row.neverInvited,
-    0,
-  );
-  const yes = content.responseBreakdown.reduce((total, row) => total + row.respondedYes, 0);
+  const asked = content.lastWeek.reduce((total, event) => total + event.invited, 0);
+  const yes = content.lastWeek.reduce((total, event) => total + event.respondedYes, 0);
 
   return (
     <Box component="section" data-testid="week-in-numbers">
@@ -345,21 +664,13 @@ function WeekInNumbers({ content }: { content: WeeklyReportContent }) {
       </Typography>
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="body2" color="text.secondary" data-testid="week-events">
-          {`${content.events.length} events · ${soliciting.length} asked for a response · ${asked} people asked · ${yes} said yes`}
+          {`${content.lastWeek.length} events · ${asked} people asked · ${yes} said yes`}
         </Typography>
         <Typography variant="body2" color="text.secondary" data-testid="week-attendance">
           {`Present ${attendance.present} · Late ${attendance.late} · Excused ${attendance.excused} · Absent ${attendance.absent}`}
         </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          <Box component="span" sx={{ fontWeight: 600 }}>
-            {`${AVAILABILITY_HEADLINE}: `}
-          </Box>
-          <Box component="span" data-testid="availability-levels">
-            {`${AVAILABILITY_LABELS.green} ${content.availability.green} · ${AVAILABILITY_LABELS.orange} ${content.availability.orange} · ${AVAILABILITY_LABELS.red} ${content.availability.red}`}
-          </Box>
-        </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {AVAILABILITY_NOTE}
+        <Typography variant="body2" color="text.secondary" data-testid="availability-levels">
+          {`${AVAILABILITY_LABELS.green} ${content.availabilityCounts.green} · ${AVAILABILITY_LABELS.orange} ${content.availabilityCounts.orange} · ${AVAILABILITY_LABELS.red} ${content.availabilityCounts.red}`}
         </Typography>
       </Paper>
     </Box>
