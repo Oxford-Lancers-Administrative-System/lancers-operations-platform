@@ -674,8 +674,31 @@ export async function computeReportContent(
       isDiscrepancy: false,
     };
     cell.isDiscrepancy = disagrees(cell);
+
     const cells = cellsByPerson.get(row.display_name) ?? [];
-    cells.push(cell);
+
+    // One cell per person per event, and the disagreement wins.
+    //
+    // A person can hold **two invitations to one event** — invariant P8 anchors
+    // a player to their membership and a coach or committee member to their
+    // person, and the same human is often both. The seeded week has 32 of them:
+    // player + committee, player + coach. Pushing a cell each produced two
+    // cells in one column, of which the table rendered the first and the
+    // problem count counted both — so a real discrepancy could be hidden behind
+    // a benign second invitation, and the ordering was skewed by double
+    // counting.
+    //
+    // Merging keeps the row honest: if either invitation disagrees, the person
+    // is on the list and it is the disagreement they see.
+    const existing = cells.find((entry) => entry.eventId === cell.eventId);
+    if (!existing) {
+      cells.push(cell);
+    } else if (cell.isDiscrepancy && !existing.isDiscrepancy) {
+      Object.assign(existing, cell);
+    } else if (cell.isDiscrepancy && existing.isDiscrepancy && existing.reason === null) {
+      existing.reason = cell.reason;
+    }
+
     cellsByPerson.set(row.display_name, cells);
   }
 

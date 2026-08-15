@@ -529,6 +529,66 @@ describe("the attendance grid", () => {
     expect(flagged.every((cell) => cell.rsvp === "yes" && cell.attendance === null)).toBe(true);
   });
 
+  /**
+   * A person can hold two invitations to one event, and the grid must still
+   * give them one cell.
+   *
+   * Invariant P8 anchors a player to their membership and a coach or committee
+   * member to their person, and the same human is routinely both — the seeded
+   * week has 32 such pairs. Before this, each invitation pushed its own cell:
+   * the table rendered the first and the problem count counted both, so a real
+   * discrepancy could hide behind a benign second invitation and the ordering
+   * was skewed by double counting.
+   */
+  it("gives one cell per person per event when they hold two invitations to it", async () => {
+    const event = await occurredEvent(2);
+    const invitations = await invitationsFor(event.id);
+
+    // A second invitation to the same event for the same human, anchored to the
+    // person rather than the membership — the shape a coaching seat produces.
+    const person = await observer.query<{ person_id: string; audience_member_id: string }>(
+      `select m.person_id, i.audience_member_id
+         from public.invitations i
+         join public.season_memberships m on m.id = i.season_membership_id
+        where i.id = $1`,
+      [invitations[0].id],
+    );
+    const audience = await observer.query<{ id: string }>(
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, person_id, added_by_person_id)
+       values ($1, $2, 'coach', $3, $4) returning id`,
+      [event.id, seasonId, person.rows[0].person_id, actorPersonId],
+    );
+    await observer.query(
+      `insert into public.invitations
+         (event_id, event_status, solicits_response, season_id, capacity, person_id,
+          audience_member_id, status, issued_at)
+       values ($1, 'occurred', true, $2, 'coach', $3, $4, 'issued', now())`,
+      [event.id, seasonId, person.rows[0].person_id, audience.rows[0].id],
+    );
+
+    // The membership invitation is answered and honoured; the coach one is not.
+    await answer(invitations[0].id, "yes", null);
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[0].season_membership_id}`,
+      "present",
+    );
+
+    const content = await compute();
+    const row = content.grid.rows.find((entry) =>
+      entry.cells.some((cell) => cell.eventId === event.id),
+    );
+
+    // One cell for that event, not two.
+    expect(row?.cells.filter((cell) => cell.eventId === event.id)).toHaveLength(1);
+    // And the unanswered coach invitation is what shows, because it is the one
+    // that disagrees — it must not be hidden behind the honoured one.
+    expect(row?.cells[0].isDiscrepancy).toBe(true);
+    expect(row?.problems).toBe(1);
+  });
+
   it("puts the people with the most discrepancies at the top", async () => {
     const first = await occurredEvent(2, {
       name: `${NAME_MARKER} Friday`,
