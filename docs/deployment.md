@@ -136,6 +136,37 @@ workflow fails if that is `false`.
 `NEXT_PUBLIC_*` values are browser-safe by definition and are inlined into the
 client bundle at build time, so they are build arguments, not runtime secrets.
 
+## Runtime configuration that is not a secret
+
+Some features refuse to run until a deployment says which external service they
+may talk to. That refusal is deliberate — an unconfigured deployment reaches out
+to nobody — but it means **shipping the code is not the same as turning the
+feature on**, and the two can drift apart silently. Every such variable is set
+on the Cloud Run revision by `deploy.yml` (`env_vars`), not in Secret Manager,
+because none of them is a credential.
+
+| Variable                | Set by the deploy  | What happens if it is absent                                                               |
+| ----------------------- | ------------------ | ------------------------------------------------------------------------------------------ |
+| `VENUE_SEARCH_PROVIDER` | **Yes** — `photon` | Event venue entry degrades to plain text and says "address search is not set up here"      |
+| `VENUE_SEARCH_BASE_URL` | No, on purpose     | Blank means the free public Photon instance; set it only to point at a self-hosted one     |
+| `WHATSAPP_*` (four)     | **No — not yet**   | Approval creates invitations and **delivers nothing**, recorded as a configuration failure |
+
+`tests/deployment-configuration.test.ts` compares this table's reality against
+the workflow: a feature that refuses to run unconfigured must either be
+configured here or be listed below as knowingly absent. It fails if a new one
+appears and neither happens.
+
+**The WhatsApp variables are knowingly absent.** They are not a configuration
+oversight and cannot be fixed by editing this workflow: they need the club's own
+Meta business portfolio, WhatsApp Business Account, Cloud API access and an
+approved message template, which is **LAN-101** and is Brian's. Until it closes,
+a deployed approval queues delivery jobs that fail with a sentence naming the
+missing settings, and the invitation stays retryable. Nothing is silently lost,
+and no hand-sent message stands in for it.
+
+This gap was found by LAN-82's walk: LAN-115's address search had merged and
+worked locally, and no deployed revision had ever been told to enable it.
+
 ## Cost and capacity controls
 
 | Control              | Value                         | Why                                                                            |

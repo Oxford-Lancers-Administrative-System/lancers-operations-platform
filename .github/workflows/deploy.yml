@@ -124,6 +124,27 @@ jobs:
             --memory=512Mi
             --timeout=60s
             --port=8080
+          # Non-secret runtime configuration.
+          #
+          # `VENUE_SEARCH_PROVIDER` turns LAN-115's address search on. Without
+          # it the deployed venue field silently degrades to plain text and tells
+          # the operator "address search is not set up here" — which is the
+          # correct behaviour for an unconfigured deployment and the wrong
+          # behaviour for ours, because the club chose the provider when LAN-115
+          # was approved. Found during LAN-82's walk: the code shipped, the
+          # configuration never followed it.
+          #
+          # No key, no account, no billing relationship — `photon` is the one
+          # implemented provider and it needs none, which is why this is an
+          # environment variable and not a Secret Manager entry.
+          #
+          # `VENUE_SEARCH_BASE_URL` is deliberately absent: blank means the free
+          # public instance at https://photon.komoot.io, which carries a fair-use
+          # expectation and no availability guarantee. Searches are debounced and
+          # every failure falls back to typing the venue by hand. Set it to a
+          # self-hosted Photon if the club's usage ever outgrows that.
+          env_vars: |-
+            VENUE_SEARCH_PROVIDER=photon
           # Read from Secret Manager at runtime — the value never enters this
           # workflow, the image, or the repository.
           secrets: |
