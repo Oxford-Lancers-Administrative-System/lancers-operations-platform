@@ -19,6 +19,7 @@ import {
   readReportForDate,
   type EventOutcome,
   type GridCell,
+  type GridRow,
   type StoredReport,
   type UpcomingEvent,
   type WeeklyReportContent,
@@ -36,6 +37,9 @@ import {
   formatSpan,
   GRID_EMPTY,
   GRID_HEADLINE,
+  formatIssues,
+  ISSUES_COLUMN,
+  isGridSort,
   NOT_RECORDED,
   RSVP_LABELS,
   RSVP_COLUMN,
@@ -96,6 +100,12 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
   const requested = typeof query.date === "string" && query.date !== "" ? query.date : null;
   const date = requested ?? todayInClubZone();
 
+  // How the attendance grid is ordered. In the URL rather than in component
+  // state so that a sorted view survives a refresh, can be shared, and needs no
+  // JavaScript — the same reasoning as the date form beside it.
+  const sortBy = typeof query.sort === "string" && isGridSort(query.sort) ? query.sort : "issues";
+  const ascending = query.dir === "asc";
+
   let report: StoredReport;
   try {
     report = await readReportForDate(gate.operator.personId, date);
@@ -134,7 +144,7 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
           {OTHER_METRIC_VERSION_NOTE}
         </Alert>
       ) : (
-        <ReportBody content={content} />
+        <ReportBody content={content} sort={{ by: sortBy, ascending }} />
       )}
 
       <Box>
@@ -151,7 +161,12 @@ function isDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-function ReportBody({ content }: { content: WeeklyReportContent }) {
+interface GridSortState {
+  by: "issues" | "person";
+  ascending: boolean;
+}
+
+function ReportBody({ content, sort }: { content: WeeklyReportContent; sort: GridSortState }) {
   const quiet =
     content.lastWeek.length === 0 &&
     content.grid.rows.length === 0 &&
@@ -166,7 +181,7 @@ function ReportBody({ content }: { content: WeeklyReportContent }) {
       ) : null}
 
       <LastWeek content={content} />
-      <ChaseGrid content={content} />
+      <ChaseGrid content={content} sort={sort} />
       <Availability content={content} />
       <NextWeek content={content} />
       <WalkUps content={content} />
@@ -350,8 +365,22 @@ function EventRow({ event }: { event: EventOutcome }) {
  * the cell's tooltip, so it is there for the operator who needs it without
  * turning a grid into prose.
  */
-function ChaseGrid({ content }: { content: WeeklyReportContent }) {
-  const { columns, rows } = content.grid;
+function ChaseGrid({ content, sort }: { content: WeeklyReportContent; sort: GridSortState }) {
+  const { columns } = content.grid;
+
+  // Ordering is a view concern, so it happens here rather than in the snapshot.
+  // The stored order is `issues` descending, which is what an unsorted visit
+  // shows — so the default view and the filed record agree, and any other order
+  // is something the reader asked for in the URL.
+  const rows = sortRows(content.grid.rows, sort);
+  const link = (by: GridSortState["by"]) => {
+    const flip = sort.by === by && !sort.ascending;
+    return `/operate/report?date=${encodeURIComponent(content.reportOn)}&sort=${by}${
+      flip ? "&dir=asc" : ""
+    }`;
+  };
+  const direction = (by: GridSortState["by"]) =>
+    sort.by === by ? (sort.ascending ? "ascending" : "descending") : undefined;
 
   return (
     <Section
@@ -366,8 +395,12 @@ function ChaseGrid({ content }: { content: WeeklyReportContent }) {
         <Table size="small" aria-label={GRID_HEADLINE}>
           <TableHead>
             <TableRow>
-              <TableCell rowSpan={2} sx={{ minWidth: 160, verticalAlign: "bottom" }}>
-                Person
+              <TableCell
+                rowSpan={2}
+                sx={{ minWidth: 160, verticalAlign: "bottom" }}
+                aria-sort={direction("person")}
+              >
+                <SortHeader label="Person" href={link("person")} active={sort.by === "person"} />
               </TableCell>
               {columns.map((column) => (
                 <TableCell
@@ -382,6 +415,18 @@ function ChaseGrid({ content }: { content: WeeklyReportContent }) {
                   </Typography>
                 </TableCell>
               ))}
+              <TableCell
+                rowSpan={2}
+                align="right"
+                sx={{ verticalAlign: "bottom", borderLeft: 1, borderColor: "divider" }}
+                aria-sort={direction("issues")}
+              >
+                <SortHeader
+                  label={ISSUES_COLUMN}
+                  href={link("issues")}
+                  active={sort.by === "issues"}
+                />
+              </TableCell>
             </TableRow>
             <TableRow>
               {columns.map((column) => [
@@ -421,6 +466,20 @@ function ChaseGrid({ content }: { content: WeeklyReportContent }) {
                     </TableCell>,
                   ];
                 })}
+                <TableCell
+                  align="right"
+                  sx={{ borderLeft: 1, borderColor: "divider", whiteSpace: "nowrap" }}
+                  data-testid="grid-issues"
+                >
+                  <Typography
+                    variant="body2"
+                    component="span"
+                    sx={{ fontWeight: row.problems === row.cells.length ? 700 : 400 }}
+                    color={row.problems === row.cells.length ? "warning.main" : "text.secondary"}
+                  >
+                    {formatIssues(row.problems, row.cells.length)}
+                  </Typography>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -470,6 +529,47 @@ function CellValue({ cell, of }: { cell: GridCell | undefined; of: "rsvp" | "att
     </Tooltip>
   ) : (
     value
+  );
+}
+
+/**
+ * Orders the grid.
+ *
+ * `issues` sorts on the **proportion** rather than the count, because that is
+ * the comparison Brian asked for: four of four is a worse week than two of
+ * five, and ranking on the bare count would put them the other way round. The
+ * count breaks ties, so two people at 100% are ordered by how many events that
+ * covers.
+ */
+function sortRows(rows: GridRow[], sort: GridSortState): GridRow[] {
+  const ordered = [...rows].sort((left, right) => {
+    if (sort.by === "person") return left.person.localeCompare(right.person);
+    const share = (row: GridRow) => (row.cells.length === 0 ? 0 : row.problems / row.cells.length);
+    return (
+      share(right) - share(left) ||
+      right.problems - left.problems ||
+      left.person.localeCompare(right.person)
+    );
+  });
+  return sort.ascending ? ordered.reverse() : ordered;
+}
+
+/** A column head that is also the control for ordering by it. */
+function SortHeader({ label, href, active }: { label: string; href: string; active: boolean }) {
+  return (
+    <Button
+      href={href}
+      size="small"
+      sx={{
+        p: 0,
+        minWidth: 0,
+        textTransform: "none",
+        fontWeight: active ? 700 : 600,
+        color: active ? "primary.main" : "text.primary",
+      }}
+    >
+      {label}
+    </Button>
   );
 }
 

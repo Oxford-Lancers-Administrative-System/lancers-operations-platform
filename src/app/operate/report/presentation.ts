@@ -88,6 +88,31 @@ export const ATTENDANCE_LABELS: Readonly<Record<string, string>> = Object.freeze
 export const NOT_RECORDED = "—";
 
 /**
+ * The right-hand column: how many of this person's events went wrong, out of
+ * how many they were asked to.
+ *
+ * Brian, 15 August 2026: "If they have 4 events and they don't attend any of
+ * the events, that's a 4 out of 4, right? Versus 3 to 1." The denominator is
+ * their own week, not the club's — somebody asked to two events and absent from
+ * both is a worse week than somebody asked to five and absent from two, and a
+ * bare count of two would rank them the same.
+ */
+export const ISSUES_COLUMN = "Issues";
+
+export function formatIssues(problems: number, asked: number): string {
+  return `${problems} of ${asked}`;
+}
+
+/** How the attendance grid may be ordered. The default matches the snapshot. */
+export const GRID_SORTS = Object.freeze(["issues", "person"] as const);
+
+export type GridSort = (typeof GRID_SORTS)[number];
+
+export function isGridSort(value: string): value is GridSort {
+  return (GRID_SORTS as readonly string[]).includes(value);
+}
+
+/**
  * Availability levels, in the words the approved wireframe shows.
  *
  * The stored snapshot keeps the frozen model's own level names — `green`,

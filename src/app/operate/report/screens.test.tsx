@@ -171,6 +171,15 @@ const GRID_ROWS: GridRow[] = [
   },
 ];
 
+const CLEAN_AND_ONE_BAD = {
+  person: "Wren Aldercott",
+  problems: 1,
+  cells: [
+    { eventId: PRACTICE, rsvp: "yes", attendance: "present", reason: null, isDiscrepancy: false },
+    { eventId: SOCIAL, rsvp: "no", attendance: null, reason: null, isDiscrepancy: true },
+  ],
+};
+
 const NEXT_WEEK: UpcomingEvent[] = [
   {
     id: "event-next-practice",
@@ -210,7 +219,7 @@ function content(overrides: Partial<WeeklyReportContent> = {}): WeeklyReportCont
         { eventId: PRACTICE, label: "Practice", on: "2026-10-14" },
         { eventId: SOCIAL, label: "Club social", on: "2026-10-16" },
       ],
-      rows: GRID_ROWS,
+      rows: [...GRID_ROWS, CLEAN_AND_ONE_BAD],
     },
     availability: [
       { person: "Emrys Netherby", level: "red", since: "2026-10-01", reviewOn: "2026-11-01" },
@@ -354,7 +363,7 @@ describe("the report", () => {
     // help." True of the two sections that carry a date instead — the count is
     // still on the element for tests and for nobody else.
     expect(screen.getByTestId("section-last-week")).toHaveAttribute("data-count", "2");
-    expect(screen.getByTestId("section-grid")).toHaveAttribute("data-count", "2");
+    expect(screen.getByTestId("section-grid")).toHaveAttribute("data-count", "3");
     expect(screen.getByTestId("section-availability")).toHaveAttribute("data-count", "2");
     expect(screen.getByTestId("section-next-week")).toHaveAttribute("data-count", "2");
     expect(screen.getByTestId("section-walk-ups")).toHaveAttribute("data-count", "1");
@@ -423,7 +432,7 @@ describe("attendance", () => {
     render(await ReportPage(props()));
 
     const rows = screen.getAllByTestId("grid-row");
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(3);
     expect(rows[0].textContent).toContain("Leo Hartwell");
     expect(rows[0]).toHaveAttribute("data-problems", "2");
   });
@@ -439,8 +448,8 @@ describe("attendance", () => {
     const heads = screen.getByTestId("section-grid").querySelectorAll("thead tr");
     expect(heads).toHaveLength(2);
 
-    // Person, then one head per event spanning two columns.
-    const eventHeads = [...heads[0].querySelectorAll("th")].slice(1);
+    // Person, then one head per event spanning two columns, then Issues.
+    const eventHeads = [...heads[0].querySelectorAll("th")].slice(1, -1);
     expect(eventHeads).toHaveLength(2);
     expect(eventHeads.every((head) => head.getAttribute("colspan") === "2")).toBe(true);
 
@@ -457,8 +466,9 @@ describe("attendance", () => {
     render(await ReportPage(props()));
 
     const leo = screen.getAllByTestId("grid-row")[0];
-    const values = [...leo.querySelectorAll("td")].slice(1).map((cell) => cell.textContent);
+    const values = [...leo.querySelectorAll("td")].slice(1, -1).map((cell) => cell.textContent);
     // Practice: said yes, marked absent. Social: never answered, never recorded.
+    // The trailing cell is the Issues count, checked separately.
     expect(values).toEqual(["Yes", "Absent", "—", "—"]);
   });
 
@@ -466,7 +476,7 @@ describe("attendance", () => {
     render(await ReportPage(props()));
 
     const kit = screen.getAllByTestId("grid-row")[1];
-    const values = [...kit.querySelectorAll("td")].slice(1).map((cell) => cell.textContent);
+    const values = [...kit.querySelectorAll("td")].slice(1, -1).map((cell) => cell.textContent);
     expect(values).toEqual(["Yes", "Present", "No", "—"]);
     // One discrepancy, not two: turning up after saying yes is not one.
     expect(kit).toHaveAttribute("data-problems", "1");
@@ -476,6 +486,62 @@ describe("attendance", () => {
     render(await ReportPage(props()));
 
     expect(screen.getByTestId("section-grid").innerHTML).toContain("Coursework deadline.");
+  });
+
+  /**
+   * Brian, 15 August 2026: "I want to do a count for the week of the number of
+   * discrepancies … If they have 4 events and they don't attend any of the
+   * events, that's a 4 out of 4, right? Versus 3 to 1."
+   *
+   * The denominator is their own week rather than the club's, which is what
+   * makes the two comparable at all.
+   */
+  it("counts each person's discrepancies out of the events they were asked to", async () => {
+    render(await ReportPage(props()));
+
+    const issues = screen.getAllByTestId("grid-issues").map((cell) => cell.textContent);
+    expect(issues).toContain("2 of 2");
+    expect(issues).toContain("1 of 2");
+  });
+
+  it("orders by the proportion, so a bad short week outranks a mixed long one", async () => {
+    render(await ReportPage(props()));
+
+    const rows = screen.getAllByTestId("grid-row");
+    // Leo is 2 of 2; Kit and Wren are each 1 of 2, split by name.
+    expect(rows[0].textContent).toContain("Leo Hartwell");
+    expect(rows[0].querySelector('[data-testid="grid-issues"]')?.textContent).toBe("2 of 2");
+  });
+
+  it("sorts the other way when asked, and by name when asked", async () => {
+    const ascending = render(await ReportPage(props({ sort: "issues", dir: "asc" })));
+    expect(
+      ascending.container
+        .querySelectorAll('[data-testid="grid-row"]')[0]
+        ?.querySelector('[data-testid="grid-issues"]')?.textContent,
+    ).toBe("1 of 2");
+    ascending.unmount();
+
+    const byName = render(await ReportPage(props({ sort: "person" })));
+    const names = [...byName.container.querySelectorAll('[data-testid="grid-row"]')].map(
+      (row) => row.querySelector("td")?.textContent,
+    );
+    expect(names).toEqual([...names].sort());
+  });
+
+  it("offers the ordering as links, so a sorted view survives a refresh", async () => {
+    render(await ReportPage(props()));
+
+    // In the URL rather than in component state: shareable, refreshable, and it
+    // needs no JavaScript — the same reasoning as the date form beside it.
+    expect(screen.getByRole("link", { name: "Issues" })).toHaveAttribute(
+      "href",
+      `/operate/report?date=${REPORT_ON}&sort=issues&dir=asc`,
+    );
+    expect(screen.getByRole("link", { name: "Person" })).toHaveAttribute(
+      "href",
+      `/operate/report?date=${REPORT_ON}&sort=person`,
+    );
   });
 
   it("heads each event column with its name and date", async () => {
