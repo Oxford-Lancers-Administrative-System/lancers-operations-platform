@@ -7,7 +7,7 @@ import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import Typography from "@mui/material/Typography";
-import { DESTINATIONS } from "./destinations";
+import type { Destination } from "./destinations";
 
 /**
  * The shell's navigation: Roster, Events, Report — and no Home destination.
@@ -26,8 +26,31 @@ import { DESTINATIONS } from "./destinations";
  * **This is not an authorization boundary and must never become one.** Every
  * destination guards itself server-side; hiding a link would be a courtesy.
  * All three are shown to every operator, per `slice-ux.md` § 3.
+ *
+ * The one exception § 3 itself writes is the coaching assignment, which
+ * "receives only the occurred-event attendance surface". That is why the
+ * destinations arrive as a prop rather than being imported here: LAN-110's
+ * coach shell is a different *list*, resolved on the server from the verified
+ * session, and a client component must not be the thing that decides it. The
+ * section and role captions travel the same way and for the same reason.
+ *
+ * What arrives is still display text and hrefs alone — no role codes, no
+ * capability map, no ids — because a client component's props are serialized
+ * into the page and readable by anyone holding it.
  */
-export default function ShellNav({ operatorName }: { operatorName: string }) {
+export default function ShellNav({
+  operatorName,
+  destinations,
+  sectionLabel,
+  roleCaption,
+}: {
+  operatorName: string;
+  destinations: readonly Destination[];
+  /** The word under "Lancers" in the sidebar: "Operations", or "Attendance". */
+  sectionLabel: string;
+  /** The line under the signed-in name: "Authorized operator", or "Head Coach". */
+  roleCaption: string;
+}) {
   const pathname = usePathname();
 
   return (
@@ -74,7 +97,7 @@ export default function ShellNav({ operatorName }: { operatorName: string }) {
           Lancers
         </Typography>
         <Typography component="p" variant="h6" sx={{ fontWeight: 700 }}>
-          Operations
+          {sectionLabel}
         </Typography>
       </Box>
 
@@ -87,7 +110,7 @@ export default function ShellNav({ operatorName }: { operatorName: string }) {
           width: "100%",
         }}
       >
-        {DESTINATIONS.map((destination) => {
+        {destinations.map((destination) => {
           const current =
             pathname === destination.href || pathname?.startsWith(`${destination.href}/`);
           return (
@@ -109,8 +132,19 @@ export default function ShellNav({ operatorName }: { operatorName: string }) {
             >
               <ListItemText
                 primary={destination.label}
+                // The second line is the sidebar's alone. In the phone bottom
+                // bar the destinations sit side by side in a 48px strip, and a
+                // caption there would either wrap or truncate — UX-91's phone
+                // wireframe shows the label by itself, which is why this is a
+                // responsive `display` rather than a different element set.
+                secondary={destination.detail}
                 sx={{ flex: "none" }}
-                slotProps={{ primary: { sx: { fontWeight: current ? 700 : 500 } } }}
+                slotProps={{
+                  primary: { sx: { fontWeight: current ? 700 : 500 } },
+                  secondary: {
+                    sx: { color: "grey.400", display: { xs: "none", md: "block" } },
+                  },
+                }}
               />
             </ListItemButton>
           );
@@ -130,8 +164,8 @@ export default function ShellNav({ operatorName }: { operatorName: string }) {
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
           {operatorName}
         </Typography>
-        <Typography variant="caption" sx={{ color: "grey.400" }}>
-          Authorized operator
+        <Typography variant="caption" sx={{ color: "grey.400" }} data-testid="shell-role-caption">
+          {roleCaption}
         </Typography>
       </Box>
     </Box>

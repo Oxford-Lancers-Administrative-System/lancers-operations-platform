@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireCapability, requireOperator } from "@/lib/auth/guards";
+import { requireCapability, requireGeneralOperator } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
 import {
   ACTIVATION_NEEDS_OVERRIDE_RULE,
@@ -42,8 +42,15 @@ import type { MembershipActionState } from "./action-state";
  * Resolving an onboarding item is deliberately **not** gated that way. UX-21's
  * audience is "Authorized roster operator" and UX-22's is "Exec or GM"; marking
  * the kit sorted is ordinary roster work, and only the declaration of
- * operational readiness is privileged. `requireOperator()` is still a real
- * boundary — a linked, active operator and nobody else.
+ * operational readiness is privileged. `requireGeneralOperator()` is still a
+ * real boundary — a linked, active operator and nobody else.
+ *
+ * LAN-110 narrowed that floor by exactly one actor. A coaching assignment is
+ * refused, because its fixed boundaries name "recruitment/onboarding state"
+ * among the things a coach cannot edit, and the ordinary floor admitted a Head
+ * Coach as readily as the Kit Manager. Hiding the roster from the coach's
+ * navigation would not have been enough: this is a server action, and LAN-110
+ * says in terms that hidden controls are not an authorization boundary.
  *
  * ## Why a refusal is never a form message
  *
@@ -165,7 +172,7 @@ export async function resolveOnboardingItemAction(
   _previous: MembershipActionState,
   formData: FormData,
 ): Promise<MembershipActionState> {
-  const operator = await requireOperator();
+  const operator = await requireGeneralOperator();
   const membershipId = text(formData, "membershipId");
 
   try {

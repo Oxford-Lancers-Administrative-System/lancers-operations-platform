@@ -12,7 +12,6 @@ import {
   isAttendancePresence,
   type AttendanceParticipant,
   type AttendancePresence,
-  type WalkUpCandidate,
   type WalkUpInput,
 } from "./attendance-vocabulary";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
@@ -89,7 +88,6 @@ export {
   isAttendancePresence,
   type AttendanceParticipant,
   type AttendancePresence,
-  type WalkUpCandidate,
   type WalkUpInput,
 } from "./attendance-vocabulary";
 
@@ -292,44 +290,6 @@ export async function readAttendanceBoard(eventId: string): Promise<AttendanceBo
   });
 }
 
-/**
- * Active memberships in the event's season that this event has no invitation
- * and no attendance record for — UX-73's **Possible roster match**.
- *
- * The list exists so that a player who turned up without being invited is
- * recorded *as that player*, against their membership, rather than as a second
- * person with the same name who then has to be merged. It is an aid to getting
- * the anchor right, not a second audience builder: choosing one records
- * attendance and creates no invitation, because they genuinely were not asked.
- */
-export async function readWalkUpCandidates(eventId: string): Promise<WalkUpCandidate[]> {
-  return withTransaction(async (tx) => {
-    const event = await readEventIn(tx, eventId);
-
-    const result = await tx.query<{ id: string; display_name: string | null }>(
-      `select sm.id, ${displayName("p")} as display_name
-         from public.season_memberships sm
-         join public.people p on p.id = sm.person_id
-        where sm.season_id = $2
-          and sm.status = 'active'
-          and p.merged_into_person_id is null
-          and not exists (
-            select 1 from public.invitations i
-             where i.event_id = $1 and i.season_membership_id = sm.id)
-          and not exists (
-            select 1 from public.attendance_records a
-             where a.event_id = $1 and a.season_membership_id = sm.id)
-        order by display_name`,
-      [eventId, event.seasonId],
-    );
-
-    return result.rows.map((row) => ({
-      membershipId: row.id,
-      displayName: row.display_name ?? "Unnamed member",
-    }));
-  });
-}
-
 // ---------------------------------------------------------------------------
 // Writes
 // ---------------------------------------------------------------------------
@@ -392,30 +352,52 @@ export async function recordAttendance(
   });
 }
 
-export const WALK_UP_NAME_REQUIRED =
-  "Enter a name. It is the minimum needed to tell this person apart from anybody else.";
+export const WALK_UP_GIVEN_NAME_REQUIRED = "Enter a first name.";
 
-export const WALK_UP_CONTACT_SHAPE =
-  "This does not look like an email address or a phone number. Enter it as it was given, " +
+export const WALK_UP_FAMILY_NAME_REQUIRED =
+  "Enter a last name. A walk-on has to be findable afterwards.";
+
+export const WALK_UP_PHONE_REQUIRED =
+  "Enter a phone number. It is how the club follows this person up.";
+
+export const WALK_UP_PHONE_SHAPE =
+  "This does not look like a phone number. Enter it as it was given.";
+
+export const WALK_UP_EMAIL_SHAPE =
+  "This does not look like an email address. Enter it as it was given, including the @, " +
   "or leave it blank.";
 
-export const WALK_UP_MATCH_NOT_FOUND =
-  "That roster match is no longer available for this event. Choose another, or record the " +
-  "walk-up without one.";
-
 /**
- * Records somebody who turned up and was never invited — invariant P6.
+ * Records somebody who turned up and was never invited — invariant P6 — and
+ * puts them into recruitment.
  *
- * ## What it deliberately does not do
+ * ## What changed, and who decided it
  *
- * It does not create a season membership, a recruitment prospect, an onboarding
- * item or an invitation, and it does not ask for anything a person standing on
- * a wet pitch cannot be asked for. Brian's 12 August 2026 decision: capture the
- * minimum identity needed to tell them apart, record the attendance now, flag
- * it for later reconciliation, and do not launch the recruitment workflow on
- * the field. LAN-85 owns turning a walk-up into a member.
+ * Brian, 14 August 2026, reviewing the built screen. The first version captured
+ * a single name and an optional contact and wrote nothing but a `people` row,
+ * on his 12 August decision that the recruitment workflow must not be launched
+ * at the side of a pitch. Looking at it, he changed his mind about where the
+ * person lands: "add walk-on attendance should go in like a new person is being
+ * added, not in the roster, not in the season roster, but in the person in the
+ * recruitment… they're not on the team yet. That's how they're a walk-on."
  *
- * ## How the flag works, and why it is not a column
+ * So this now writes three things and still not a fourth:
+ *
+ *   * the **person**, with first and last name;
+ *   * their **contact points** — phone always, email when given;
+ *   * a **recruitment prospect** for the event's season, at `identified`.
+ *
+ * And **no season membership**. Somebody who turned up once is not on the
+ * roster, and putting them there would mean somebody had to take them off
+ * again. Conversion is the only route from prospect to member, and the schema
+ * enforces that; this is the near end of it.
+ *
+ * LAN-85 still owns everything after this point — following the prospect up,
+ * converting them, and what the club does with them across future events. What
+ * this owes that work is a person with a number and a record saying where they
+ * came from, which is what it now leaves behind.
+ *
+ * ## How the walk-up flag works, and why it is not a column
  *
  * There is none. A walk-up is an attendance record with no invitation, and
  * `public.rsvp_attendance_mismatches` already classifies exactly that as
@@ -424,15 +406,20 @@ export const WALK_UP_MATCH_NOT_FOUND =
  * that could be set to `false` on a row that still had no invitation. The
  * board reads the view, so the flag cannot disagree with reality.
  *
- * ## Which anchor, and therefore which capacity
+ * ## Which capacity, and why it moved
  *
- * If the operator recognised them as somebody already on the roster, the row
- * anchors to that **membership** at `player` capacity — the same person, one
- * record, nothing to merge later. If not, a person is minted and the row
- * anchors to them at `guest` capacity. `guest` rather than `recruit` on
- * purpose: `recruit` asserts the club is recruiting them, which is a judgement
- * nobody made at the moment somebody wrote a name on a phone, and it is
- * LAN-85's to make properly.
+ * `recruit`, anchored to the person. It used to be `guest`, and the reason
+ * given was that "`recruit` asserts the club is recruiting them, which is a
+ * judgement nobody made at the moment somebody wrote a name on a phone". That
+ * judgement is now exactly what the form makes: the same act creates the
+ * prospect record. `guest` would leave the attendance row disagreeing with the
+ * recruitment row about what this person is.
+ *
+ * There is no longer a roster-match path. It offered to anchor the row to an
+ * existing membership at `player` capacity, and Brian removed it — "they know
+ * who's on their roster, there are only 40 people". A walk-on is now always a
+ * new person; a duplicate is reconciliation's problem, which is what the
+ * prospect record exists for.
  */
 export async function recordWalkUpAttendance(
   actorPersonId: string,
@@ -442,15 +429,20 @@ export async function recordWalkUpAttendance(
   requireActor(actorPersonId);
   requirePresence(input.presence);
 
-  const name = splitName(input.name);
-  const contact = classifyContact(input.contact);
+  const givenName = requireWalkUpField(input.givenName, WALK_UP_GIVEN_NAME_REQUIRED, "given_name");
+  const familyName = requireWalkUpField(
+    input.familyName,
+    WALK_UP_FAMILY_NAME_REQUIRED,
+    "family_name",
+  );
+  const phone = requireWalkUpField(input.phone, WALK_UP_PHONE_REQUIRED, "phone");
+  requirePhoneShape(phone);
+  const email = input.email === null || input.email.trim() === "" ? null : input.email.trim();
+  if (email !== null) requireEmailShape(email);
 
   return withTransaction(async (tx) => {
     const event = await requireOccurredEvent(tx, eventId);
-
-    const target = input.membershipId
-      ? await resolveWalkUpMembership(tx, event, input.membershipId)
-      : await mintWalkUpPerson(tx, name, contact);
+    const target = await mintWalkUpProspect(tx, event, { givenName, familyName, phone, email });
 
     return writeAttendance(tx, {
       actorPersonId,
@@ -702,93 +694,88 @@ async function resolveParticipant(tx: Tx, eventId: string, key: string): Promise
   };
 }
 
-/** A roster match, re-checked here rather than believed from the form. */
-async function resolveWalkUpMembership(
+/**
+ * Mints the person, their contact points and their recruitment prospect, and
+ * returns the anchor the attendance row hangs off.
+ *
+ * All three in the caller's transaction, so a walk-on is one atomic act: there
+ * is no state in which the club has a person nobody is following up, or a
+ * prospect who was never at anything.
+ *
+ * `season_id` comes from the **event**, not from "the open season". They are
+ * the same row today, and the event's is the one this person is actually
+ * connected to — if the club ever runs an event outside the open season, a
+ * prospect filed against the wrong one would be a prospect nobody finds.
+ */
+async function mintWalkUpProspect(
   tx: Tx,
   event: EventDetail,
-  membershipId: string,
-): Promise<ResolvedTarget> {
-  const result = await tx.query<{ id: string }>(
-    `select id from public.season_memberships
-      where id = $1::uuid and season_id = $2 and status = 'active'`,
-    [membershipId, event.seasonId],
-  );
-
-  if (result.rowCount === 0) {
-    throw new NotFound(WALK_UP_MATCH_NOT_FOUND, { rule: "walk_up_membership_unavailable" });
-  }
-
-  return { capacity: "player", membershipId, personId: null };
-}
-
-/** Mints the minimum identity, and nothing else. */
-async function mintWalkUpPerson(
-  tx: Tx,
-  name: { givenName: string; familyName: string | null },
-  contact: { kind: "email" | "phone"; rawValue: string } | null,
+  input: { givenName: string; familyName: string; phone: string; email: string | null },
 ): Promise<ResolvedTarget> {
   const person = await tx.query<{ id: string }>(
     `insert into public.people (given_name, family_name) values ($1, $2) returning id`,
-    [name.givenName, name.familyName],
+    [input.givenName, input.familyName],
   );
   const personId = person.rows[0].id;
 
-  if (contact) {
-    // `is_preferred` is true because this is the person's only contact point —
-    // there is nothing to supersede. `normalised_value` stays null for the same
-    // reason it does at intake: normalisation is a separate, reversible step,
-    // and a phone-format policy does not belong beside a pitch.
+  // The phone is preferred because it is the one the club insisted on and the
+  // one somebody will actually use. `normalised_value` stays null for the same
+  // reason it does at intake: normalisation is a separate, reversible step, and
+  // a phone-format policy does not belong beside a pitch.
+  await tx.query(
+    `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
+     values ($1::uuid, 'phone', $2, true, 'walk-on attendance')`,
+    [personId, input.phone],
+  );
+
+  if (input.email !== null) {
     await tx.query(
       `insert into public.contact_points (person_id, kind, raw_value, is_preferred, source)
-       values ($1::uuid, $2::public.contact_point_kind, $3, true, 'walk-up attendance')`,
-      [personId, contact.kind, contact.rawValue],
+       values ($1::uuid, 'email', $2, false, 'walk-on attendance')`,
+      [personId, input.email],
     );
   }
 
-  return { capacity: "guest", membershipId: null, personId };
+  // `identified` is the honest status: somebody turned up and gave a number.
+  // Nothing about that says they have engaged or committed, and the schema
+  // requires a date for either of those. `source` records where they came from
+  // in the club's own words, because "walk-on" and the event name are what
+  // whoever picks this up next will recognise.
+  await tx.query(
+    `insert into public.recruitment_prospects
+       (person_id, season_id, status, source, first_contact_on)
+     values ($1::uuid, $2::uuid, 'identified', $3, $4::date)`,
+    [personId, event.seasonId, `Walk-on at ${event.name}`, event.scheduledOn],
+  );
+
+  return { capacity: "recruit", membershipId: null, personId };
+}
+
+/** Trims, and refuses a field the walk-on form requires. */
+function requireWalkUpField(value: string, message: string, rule: string): string {
+  const trimmed = (value ?? "").trim();
+  if (trimmed === "") throw new ConstraintViolated(message, { rule: `walk_up_${rule}_required` });
+  return trimmed;
 }
 
 /**
- * "Devon Skye" → given "Devon", family "Skye". "Devon" → given "Devon", no
- * family name.
- *
- * One field on screen because one field is what somebody can fill in while
- * holding a phone in the rain, and `people.family_name` is nullable precisely
- * because a quarter of the club's real records are first-name-only. The split
- * is on the **first** space, so "Devon van Skye" keeps "van Skye" together
- * rather than being rearranged into something nobody typed.
- */
-function splitName(value: string): { givenName: string; familyName: string | null } {
-  const trimmed = value.trim().replace(/\s+/g, " ");
-  if (trimmed === "") {
-    throw new ConstraintViolated(WALK_UP_NAME_REQUIRED, { rule: "people_given_name_not_blank" });
-  }
-
-  const space = trimmed.indexOf(" ");
-  if (space === -1) return { givenName: trimmed, familyName: null };
-  return { givenName: trimmed.slice(0, space), familyName: trimmed.slice(space + 1) };
-}
-
-/**
- * Decides whether one field holds an email address or a phone number.
- *
- * Deliberately as forgiving as LAN-74's intake, and for the same recorded
+ * Shape checks as forgiving as LAN-74's intake, and for the same recorded
  * reason: the club's real files contain a reversed top-level domain and a
  * number one digit short, `contact_points.raw_value` has no format constraint,
- * and a contact the club cannot store is a contact the club loses. So an `@`
- * means email, seven digits mean phone, and only something that is neither is
- * refused — which is almost certainly a slip rather than a contact.
+ * and a contact the club cannot store is a contact the club loses. So these
+ * catch a slip at the keyboard — an address with no `@`, a number with no
+ * digits — and let everything else through exactly as typed.
  */
-function classifyContact(
-  value: string | null,
-): { kind: "email" | "phone"; rawValue: string } | null {
-  const raw = (value ?? "").trim();
-  if (raw === "") return null;
+function requirePhoneShape(value: string): void {
+  if (value.replace(/\D/g, "").length < 7) {
+    throw new ConstraintViolated(WALK_UP_PHONE_SHAPE, { rule: "walk_up_phone_shape" });
+  }
+}
 
-  if (/^[^\s@]+@[^\s@]+$/.test(raw)) return { kind: "email", rawValue: raw };
-  if (raw.replace(/\D/g, "").length >= 7) return { kind: "phone", rawValue: raw };
-
-  throw new ConstraintViolated(WALK_UP_CONTACT_SHAPE, { rule: "walk_up_contact_shape" });
+function requireEmailShape(value: string): void {
+  if (!/^[^\s@]+@[^\s@]+$/.test(value.trim())) {
+    throw new ConstraintViolated(WALK_UP_EMAIL_SHAPE, { rule: "walk_up_email_shape" });
+  }
 }
 
 function requireActor(actorPersonId: string): void {

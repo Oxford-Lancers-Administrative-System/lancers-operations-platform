@@ -89,10 +89,10 @@ function walkUpForm(overrides: Record<string, string> = {}): FormData {
   const form = new FormData();
   const fields: Record<string, string> = {
     eventId: EVENT_ID,
-    name: "Devon Skye",
-    contact: "+44 7700 900105",
-    presence: "present",
-    membershipId: "",
+    givenName: "Devon",
+    familyName: "Skye",
+    phone: "+44 7700 900105",
+    email: "devon@example.ac.ox",
     ...overrides,
   };
   for (const [key, value] of Object.entries(fields)) form.set(key, value);
@@ -213,6 +213,52 @@ describe("who may record attendance", () => {
 
     expect(recordWalkUpAttendance).not.toHaveBeenCalled();
     expect(removeAttendance).not.toHaveBeenCalled();
+  });
+
+  /**
+   * LAN-110 narrowed removal, and only removal.
+   *
+   * Removing a record is the way back out of an occurrence assertion — the
+   * assertion cannot be corrected while attendance hangs off it — and LAN-110's
+   * fixed boundary is that "coaches cannot mark an event occurred or not held
+   * unless a separate authorization rule explicitly grants that action". It is
+   * also absent from what LAN-110 permits, which is recording and correcting
+   * the four states.
+   */
+  it("admits a coach to the save and the walk-up, and refuses them the removal", async () => {
+    for (const role of ["head_coach", "offence_coach", "defence_coach"]) {
+      vi.mocked(recordAttendance).mockClear();
+      vi.mocked(recordWalkUpAttendance).mockClear();
+      vi.mocked(removeAttendance).mockClear();
+      givenAccess({ state: "active", operator: actor([role]) });
+
+      expect((await recordAttendanceAction(EMPTY_SAVE_STATE, saveForm())).error, role).toBeNull();
+      await expect(recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm())).rejects.toThrow(
+        /REDIRECT:/,
+      );
+
+      const refusal = await refusalFrom(() => removeAttendanceAction(EMPTY_SAVE_STATE, saveForm()));
+
+      expect(refusal, role).toBeInstanceOf(NotPermitted);
+      expect(refusal.rule).toBe("capability:event_occurrence_assertion");
+      expect(recordAttendance).toHaveBeenCalled();
+      expect(recordWalkUpAttendance).toHaveBeenCalled();
+      expect(removeAttendance).not.toHaveBeenCalled();
+    }
+  });
+
+  it("keeps the removal open to the operators who may assert occurrence", async () => {
+    // The narrowing reaches the coach and nobody else.
+    for (const role of ["president", "vice_president", "secretary", "general_manager"]) {
+      vi.mocked(removeAttendance).mockClear();
+      givenAccess({ state: "active", operator: actor([role]) });
+
+      await expect(removeAttendanceAction(EMPTY_SAVE_STATE, saveForm())).rejects.toThrow(
+        /REDIRECT:/,
+      );
+
+      expect(removeAttendance, role).toHaveBeenCalled();
+    }
   });
 
   it("refuses a signed-in account with no operator profile", async () => {
@@ -343,72 +389,98 @@ describe("recordWalkUpAction", () => {
     givenAccess({ state: "active", operator: actor(["secretary"]) });
   });
 
-  it("passes the minimum identity, and an empty match as no match", async () => {
+  it("passes the four fields the form now collects", async () => {
     await expect(recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm())).rejects.toThrow(
       `REDIRECT:/operate/events/${EVENT_ID}/attendance?added=walk-up`,
     );
 
     expect(recordWalkUpAttendance).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID, {
-      name: "Devon Skye",
-      contact: "+44 7700 900105",
+      givenName: "Devon",
+      familyName: "Skye",
+      phone: "+44 7700 900105",
+      email: "devon@example.ac.ox",
       presence: "present",
-      membershipId: null,
     });
   });
 
-  it("passes a chosen roster match through", async () => {
+  it("treats a blank email as no email rather than as an empty one", async () => {
     await expect(
-      recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ membershipId: "abc" })),
+      recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ email: "" })),
     ).rejects.toThrow("REDIRECT:");
 
     expect(recordWalkUpAttendance).toHaveBeenCalledWith(
       OPERATOR_PERSON_ID,
       EVENT_ID,
-      expect.objectContaining({ membershipId: "abc" }),
+      expect.objectContaining({ email: null }),
     );
   });
 
-  it("treats a blank contact as no contact rather than as an empty one", async () => {
+  it("sends the required fields through untouched for the service to refuse", async () => {
+    // The action does not second-guess them. One place decides what a walk-on
+    // must have, and it is the service — so a direct call is held to the same
+    // rule as the form.
     await expect(
-      recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ contact: "" })),
+      recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ familyName: "", phone: "" })),
     ).rejects.toThrow("REDIRECT:");
 
     expect(recordWalkUpAttendance).toHaveBeenCalledWith(
       OPERATOR_PERSON_ID,
       EVENT_ID,
-      expect.objectContaining({ contact: null }),
+      expect.objectContaining({ familyName: "", phone: "" }),
     );
   });
 
   it("keeps everything typed when it is refused", async () => {
     vi.mocked(recordWalkUpAttendance).mockRejectedValue(
-      new ConstraintViolated("This does not look like an email address or a phone number.", {
-        rule: "walk_up_contact_shape",
+      new ConstraintViolated("This does not look like an email address.", {
+        rule: "walk_up_email_shape",
       }),
     );
 
-    const state = await recordWalkUpAction(
-      EMPTY_WALK_UP_STATE,
-      walkUpForm({ contact: "ask Sam", presence: "late" }),
-    );
+    const state = await recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ email: "ask Sam" }));
 
-    expect(state.error).toContain("email address or a phone number");
+    expect(state.error).toContain("email address");
     expect(state.values).toEqual({
-      name: "Devon Skye",
-      contact: "ask Sam",
-      presence: "late",
-      membershipId: "",
+      givenName: "Devon",
+      familyName: "Skye",
+      phone: "+44 7700 900105",
+      email: "ask Sam",
     });
   });
 
-  it("refuses a state the club has no word for, before the service is called", async () => {
-    const state = await recordWalkUpAction(
-      EMPTY_WALK_UP_STATE,
-      walkUpForm({ presence: "turned up" }),
-    );
+  /**
+   * Brian, 14 August 2026: a walk-up is recorded Present and the form no longer
+   * asks. So a `presence` in the request body did not come from the form, and a
+   * server action is a POST endpoint anybody holding a session can call — the
+   * value the club's rule produces is the value that gets written.
+   */
+  it("records Present whatever the body says, because the form no longer asks", async () => {
+    for (const forged of ["absent", "late", "excused", "turned up", ""]) {
+      vi.mocked(recordWalkUpAttendance).mockClear();
 
-    expect(state.error).toBe("Choose Present, Late, Excused or Absent.");
-    expect(recordWalkUpAttendance).not.toHaveBeenCalled();
+      await expect(
+        recordWalkUpAction(EMPTY_WALK_UP_STATE, walkUpForm({ presence: forged })),
+      ).rejects.toThrow(/REDIRECT:/);
+
+      expect(recordWalkUpAttendance, forged).toHaveBeenCalledWith(
+        OPERATOR_PERSON_ID,
+        EVENT_ID,
+        expect.objectContaining({ presence: "present" }),
+      );
+    }
+  });
+
+  it("records Present when the body carries no presence at all", async () => {
+    const form = walkUpForm();
+    form.delete("presence");
+
+    await expect(recordWalkUpAction(EMPTY_WALK_UP_STATE, form)).rejects.toThrow(/REDIRECT:/);
+
+    expect(recordWalkUpAttendance).toHaveBeenCalledWith(
+      OPERATOR_PERSON_ID,
+      EVENT_ID,
+      expect.objectContaining({ presence: "present" }),
+    );
   });
 });
 

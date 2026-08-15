@@ -3,10 +3,17 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { describeHeldCoachingSeats, isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import { resolveOperatorAccess } from "@/lib/auth/operator";
 import { signOut } from "../login/actions";
 import OperatorAccountState from "./account-state";
+import { destinationsFor } from "./destinations";
 import ShellNav from "./shell-nav";
+
+/** The sidebar's second line, and the caption under the signed-in name. */
+export const OPERATOR_SECTION = "Operations";
+export const OPERATOR_CAPTION = "Authorized operator";
+export const COACH_SECTION = "Attendance";
 
 /**
  * The `/operate` shell — UX-02, and the frame the account states are shown in.
@@ -47,6 +54,16 @@ export default async function OperateLayout({ children }: LayoutProps<"/operate"
     return <OperatorAccountState state={access.state} />;
   }
 
+  // LAN-110. A coaching assignment gets the coach shell — one destination, and
+  // the sidebar captioned with the seat they hold rather than with the general
+  // "Authorized operator", because they are not one and the shell should not
+  // imply that they are. Resolved here, on the server, from the verified
+  // session; `ShellNav` is handed the answer and never the roles.
+  const isCoachShell = isNarrowAttendanceRecorder(access.operator.roleCodes);
+  const roleCaption = isCoachShell
+    ? describeHeldCoachingSeats(access.operator.roleCodes)
+    : OPERATOR_CAPTION;
+
   return (
     <Box
       sx={{
@@ -56,7 +73,12 @@ export default async function OperateLayout({ children }: LayoutProps<"/operate"
         alignItems: "stretch",
       }}
     >
-      <ShellNav operatorName={access.operator.displayName} />
+      <ShellNav
+        operatorName={access.operator.displayName}
+        destinations={destinationsFor(access.operator.roleCodes)}
+        sectionLabel={isCoachShell ? COACH_SECTION : OPERATOR_SECTION}
+        roleCaption={roleCaption}
+      />
       <Box
         component="main"
         sx={{

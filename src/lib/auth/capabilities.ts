@@ -411,6 +411,97 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
 });
 
 /**
+ * The capabilities a **narrow attendance recorder** may hold, and the whole of
+ * what that phrase means. LAN-110.
+ *
+ * ## The question this answers
+ *
+ * `docs/ux/slice-ux.md` § 3 says an active Head Coach, OC or DC assignment
+ * "receives only the occurred-event attendance surface. No general operator
+ * navigation, roster editing, event administration, delivery, report, contact,
+ * RSVP-reason, or availability data is exposed."
+ *
+ * That is a **narrowing**, and it is the only thing LAN-110 adds to this file:
+ * no new grant, no new role code, no widening of anything. `attendance_recorder`
+ * and `attendance_recording` already say what a coach may *do*; this says what
+ * a coach may *see*, which the two capabilities above cannot express on their
+ * own because the surfaces being withheld — Roster, Report, the event detail —
+ * are open to any linked active operator and have no capability to fail.
+ *
+ * ## Why it is derived rather than a fourth grant
+ *
+ * The alternative was to give Roster and the event list a capability of their
+ * own and leave the coaching seats off it. That would have been a decision
+ * about who may read the roster — a decision nobody has taken, which would have
+ * quietly removed the Social Secretary's roster access as a side effect of a
+ * coaching ticket. Narrowing by derivation touches exactly one actor: the one
+ * whose only authority is coaching.
+ *
+ * ## The rule, and the case it deliberately does not catch
+ *
+ * An operator is a narrow recorder when they hold `attendance_recorder` **and**
+ * hold no capability outside this set. So:
+ *
+ *   * Head Coach alone, OC alone, DC alone, or any combination — narrow. They
+ *     get the coach shell.
+ *   * Head Coach **and** Secretary — not narrow. § 3 describes what a coach
+ *     receives, not a rule for stripping authority a recorded decision granted
+ *     to somebody who also coaches, and `attendance_recorder`'s own note above
+ *     already says a Secretary "should get the operator's board rather than the
+ *     coach's". Their Secretary authority is unchanged and each of its actions
+ *     still guards itself.
+ *   * Nobody else. An operator holding no capability at all is not a narrow
+ *     recorder — they are an ordinary operator with nothing granted, and they
+ *     keep the ordinary shell and its refusals.
+ *
+ * Because the rule can only ever *remove* surfaces from one actor, getting the
+ * boundary case wrong in the permissive direction cannot grant anything: a
+ * misclassified operator sees the ordinary shell, where every privileged action
+ * still refuses them individually.
+ *
+ * Recorded as a lead derivation on LAN-110, from § 3 and from LAN-110's fixed
+ * boundaries. Widening it back is an edit to this one set.
+ */
+export const NARROW_RECORDER_CAPABILITIES: readonly CapabilityKey[] = Object.freeze([
+  "attendance_recorder",
+  "attendance_recording",
+]);
+
+/**
+ * Is this operator's authority *only* the coaching attendance recorder?
+ *
+ * Pure, and takes role codes rather than a session, for the same reason
+ * `roleCodesPermit` does: the shell, a page, a server action and a test with an
+ * arbitrary actor must all get the same answer from the same function.
+ *
+ * This is never an authorization decision on its own. It decides what to
+ * **render** and which surfaces to withhold; every action behind every surface
+ * still calls its own guard.
+ */
+export function isNarrowAttendanceRecorder(roleCodes: readonly string[]): boolean {
+  if (!roleCodesPermit(roleCodes, "attendance_recorder")) return false;
+
+  return CAPABILITY_KEYS.every(
+    (key) => NARROW_RECORDER_CAPABILITIES.includes(key) || !roleCodesPermit(roleCodes, key),
+  );
+}
+
+/**
+ * The coaching seats this operator actually holds, for the shell to caption the
+ * signed-in name with — "Head Coach", as UX-91's sidebar shows.
+ *
+ * A disclosure to the holder of the account about their own account, after the
+ * session has been verified, and nothing else: it never names another person,
+ * and it never appears in a refusal, where naming what the reader holds is
+ * forbidden.
+ */
+export function describeHeldCoachingSeats(roleCodes: readonly string[]): string {
+  return describeRoles(
+    capabilityRoleCodes("attendance_recorder").filter((code) => roleCodes.includes(code)),
+  );
+}
+
+/**
  * The `roles.code` values that make somebody a **coach** when an event's
  * audience is built.
  *

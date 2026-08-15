@@ -33,6 +33,7 @@
     "db:seed": "node scripts/local-supabase-command.mjs seed",
     "db:seed:ci": "node scripts/ci-local-command.mjs seed",
     "db:link-operator": "node scripts/local-supabase-command.mjs link-operator",
+    "db:link-coach": "node scripts/local-supabase-command.mjs link-coach",
     "types:generate": "node scripts/local-supabase-command.mjs types-generate",
     "types:check": "node scripts/generate-types.mjs --check",
     "check:rls": "node scripts/check-rls-migrations.mjs"

@@ -38,6 +38,11 @@ function provisionReviewState(lease, account) {
     "scripts/seed-local.mjs",
     "scripts/create-test-user.mjs",
     "scripts/link-test-operator.mjs",
+    // LAN-110's coach login. The operator login above holds committee seats and
+    // therefore gets the operator's board, which is correct — so the coach
+    // surface needs its own login or it cannot be looked at at all. Local only,
+    // same protected password, no hosted counterpart.
+    "scripts/link-review-coach.mjs",
   ])
     run(process.execPath, [script], env);
 }
@@ -89,14 +94,17 @@ try {
         running: Boolean(status.API_URL && status.DB_URL),
       }),
     );
-  } else if (["seed", "seed-user", "link-operator", "types-generate"].includes(operation)) {
+  } else if (
+    ["seed", "seed-user", "link-operator", "link-coach", "types-generate"].includes(operation)
+  ) {
     const scripts = {
       seed: "scripts/seed-local.mjs",
       "seed-user": "scripts/create-test-user.mjs",
       "link-operator": "scripts/link-test-operator.mjs",
+      "link-coach": "scripts/link-review-coach.mjs",
       "types-generate": "scripts/generate-types.mjs",
     };
-    const env = ["seed-user", "link-operator"].includes(operation)
+    const env = ["seed-user", "link-operator", "link-coach"].includes(operation)
       ? localEnvironment(lease, readLocalReviewAccount(repoPath))
       : localEnvironment(lease);
     run(process.execPath, [scripts[operation]], env);

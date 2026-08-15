@@ -76,19 +76,30 @@ export interface AttendanceParticipant {
   mismatch: string | null;
 }
 
-/** A current-season membership a walk-up might turn out to be — UX-73. */
-export interface WalkUpCandidate {
-  membershipId: string;
-  displayName: string;
-}
-
-/** What UX-73 collects. One name, one optional contact, one state. */
+/**
+ * What the walk-on form collects — Brian, 14 August 2026.
+ *
+ * The same four fields the returner intake asks for, in the same order, because
+ * adding somebody who turned up should not be a different act from adding
+ * anybody else: "it should be almost identical to adding a player… first name,
+ * last name, phone, and email, to grab as much as they can".
+ *
+ * Stricter than intake in one direction, and that is deliberate too. Intake
+ * requires only a first name, because the club's own files are full of records
+ * that never had more. A walk-on is different: they are standing in front of
+ * you, and the whole point of recording them is that somebody follows them up
+ * afterwards — a walk-on with no surname and no number is a row nobody can act
+ * on. So first name, last name and phone are all required, and only the email
+ * is optional.
+ */
 export interface WalkUpInput {
-  /** The whole name as typed. Split on the first space, never rearranged. */
-  name: string;
-  /** An email address or a phone number, or nothing. Stored exactly as typed. */
-  contact: string | null;
+  /** Required. `people.given_name`. */
+  givenName: string;
+  /** Required here, though the column is nullable. See above. */
+  familyName: string;
+  /** Required. Stored exactly as typed — normalisation is a separate step. */
+  phone: string;
+  /** Optional. Stored exactly as typed. */
+  email: string | null;
   presence: AttendancePresence;
-  /** An existing current-season membership this walk-up turns out to be. */
-  membershipId: string | null;
 }

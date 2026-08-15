@@ -24,7 +24,15 @@ import {
   type EventList,
   type EventListEntry,
 } from "@/lib/services/events";
+import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import { gateShellPage } from "../gate";
+import { CoachEligibleEvents } from "./coach-eligible-events";
+import {
+  bucketCoachEvents,
+  isOpenForAttendance,
+  isToday,
+  londonToday,
+} from "./coach-event-buckets";
 import EventFilters from "./event-filters";
 import ViewSwitch from "./view-switch";
 import {
@@ -106,11 +114,20 @@ function statusColour(status: string): "default" | "info" | "success" | "warning
 }
 
 export default async function EventsPage({ searchParams }: PageProps<"/operate/events">) {
-  const gate = await gateShellPage("/operate/events");
+  // LAN-110. The coach shell's one destination is this route, so it opts in —
+  // and then renders something else entirely. See `./coach-eligible-events.tsx`
+  // for why the coach list lives on the operator's route rather than on a new
+  // one, and for what it withholds.
+  const gate = await gateShellPage("/operate/events", undefined, { narrowRecorder: "allow" });
   if ("screen" in gate) return gate.screen;
 
   const params = await searchParams;
   const search = first(params.q);
+
+  if (isNarrowAttendanceRecorder(gate.operator.roleCodes)) {
+    return await coachEventList(search);
+  }
+
   const status = first(params.status);
   const eventType = first(params.type);
   const sort = first(params.sort) || DEFAULT_EVENT_SORT;
@@ -282,6 +299,68 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
         </>
       )}
     </Stack>
+  );
+}
+
+/**
+ * The coaching assignment's event list. LAN-110.
+ *
+ * It reads through `listCurrentSeasonEvents` — the same service, the same
+ * season resolution, the same query — rather than through a second reader of
+ * its own, and filters the statuses in `./coach-event-buckets.ts`. LAN-110's own criterion is that "no code
+ * path duplicates LAN-80's attendance model", and a private events query for
+ * coaches would be the first step towards two answers to "which events are
+ * there".
+ *
+ * No status comes from the query string, so `?status=draft` on this route
+ * cannot show a coach a draft. Which statuses they see is decided in
+ * `./coach-event-buckets.ts` and applied there — approved and occurred, and
+ * nothing else.
+ *
+ * A function the page awaits rather than a component it returns. An async
+ * component element returned from another async component is resolved by the
+ * framework but not by a direct `render(await Page())`, so writing it that way
+ * would have made the coach's list untestable at exactly the level the rest of
+ * this screen is tested at.
+ */
+async function coachEventList(search: string) {
+  let list: EventList;
+  try {
+    list = await listCurrentSeasonEvents({ search, sort: "date", direction: "desc" });
+  } catch (error) {
+    if (!isServiceError(error)) throw error;
+    return (
+      <Stack spacing={2} sx={{ maxWidth: 720 }}>
+        <Typography variant="h6" component="h1">
+          Attendance
+        </Typography>
+        <Alert severity="warning" data-testid="events-unavailable">
+          {error.message}
+        </Alert>
+      </Stack>
+    );
+  }
+
+  const today = londonToday();
+
+  return (
+    <CoachEligibleEvents
+      search={search}
+      filtered={search !== ""}
+      sections={bucketCoachEvents(list.events, today).map((bucket) => ({
+        key: bucket.key,
+        label: bucket.label,
+        detail: bucket.detail,
+        events: bucket.events.map((event) => ({
+          id: event.id,
+          name: event.name,
+          when: formatListWhen(event),
+          venue: event.venue,
+          isToday: isToday(event, today),
+          isOpen: isOpenForAttendance(event),
+        })),
+      }))}
+    />
   );
 }
 

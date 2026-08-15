@@ -246,6 +246,29 @@ Four properties this arrangement is built to have, and which tests hold it to:
 An operator with no currently-effective seat is still a legitimate operator: they
 open the shell, and are refused each privileged action individually.
 
+**One actor is narrowed rather than granted** (LAN-110). An operator whose only
+capability-bearing seat is a coaching one — Head Coach, Offensive Coordinator,
+Defensive Coordinator — receives the occurred-event attendance surface and
+nothing else, per `docs/ux/slice-ux.md` § 3. That cannot be expressed as a
+capability, because the surfaces being withheld (Roster, the event detail) are
+open to any linked operator and so have no capability to fail. It is derived
+instead, in the same module: `isNarrowAttendanceRecorder()` is true when the
+operator holds `attendance_recorder` and holds no capability outside the
+attendance pair. Three consequences worth knowing:
+
+- It only ever **removes** surfaces, and only from that one actor. Somebody who
+  coaches _and_ holds a committee seat keeps the operator's board, deliberately —
+  narrowing a coach's surface is not a licence to withdraw authority a recorded
+  decision granted.
+- The `/operate` gate **fails closed**: a page says nothing and is closed to a
+  coach, and the three that are open say so explicitly. A page added later
+  inherits the refusal by doing nothing at all.
+- Two actions that are correctly open to any linked operator — roster intake and
+  onboarding resolution — sit on `requireGeneralOperator()`, the same floor with
+  that one actor removed. Hiding the roster from the coach's navigation would not
+  have been enough: a Server Action is reachable whether or not a screen offered
+  it.
+
 **The role catalogue is seeded, not migrated.** `public.roles` is populated only
 by `scripts/seed-local.mjs`; no migration defines it, so a hosted database has no
 role rows until somebody creates them, and every capability keys on codes that do
