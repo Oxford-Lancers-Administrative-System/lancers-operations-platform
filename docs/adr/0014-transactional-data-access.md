@@ -73,7 +73,7 @@ produced a false security record. Per Supabase's own documentation, consulted
 | What authenticates        | A secret (or legacy `service_role`) key presented to PostgREST                                                                                | A PostgreSQL username and password                                                      |
 | Which role runs the query | PostgREST connects as `authenticator` and switches to the role named in the JWT — `service_role`, documented as bypassing RLS via `BYPASSRLS` | Whatever PostgreSQL login the string names, with that login's own attributes and grants |
 | Locally                   | `service_role`                                                                                                                                | `postgres` — "the default Postgres role. This has admin privileges."                    |
-| Governed by               | ADR 0003, ADR 0010's grant posture                                                                                                            | This ADR, and — for hosted — LAN-83                                                     |
+| Governed by               | ADR 0003, ADR 0010's grant posture                                                                                                            | This ADR, and — for hosted — ADR 0026                                                   |
 
 So a connection string is **a broader credential than `service_role`, not an
 equivalent one**, and it reaches the database by a route PostgREST's grants do
@@ -87,12 +87,22 @@ pass unchanged. The new module imports `server-only`, so reaching it from a
 Client Component is a build error, and `src/lib/db/server-only.test.ts` asserts
 that rather than trusting it.
 
-## What this ADR deliberately does not decide
+## What this ADR deliberately did not decide — now decided in ADR 0026
 
-**The hosted runtime database credential is not chosen here, and nothing in this
-repository should be read as choosing it.**
-[LAN-83](https://linear.app/brian-schuster/issue/LAN-83) owns resolving and
-validating all of the following, and must do so before anything hosted runs:
+> **Resolved on 2026-08-15 by
+> [ADR 0026](0026-hosted-runtime-database-connection.md).** The hosted runtime
+> connects as `app_runtime`, a least-privilege login that owns nothing and
+> inherits its grants through membership of `service_role`, carrying `BYPASSRLS`
+> for the reason recorded there, over the shared Supavisor pooler in transaction
+> mode. The open questions below are kept as written because they are the
+> questions ADR 0026 answers, and because each one turned out to matter.
+>
+> Read the two together: this ADR is why a second privileged credential exists,
+> ADR 0026 is what that credential actually is.
+
+**The hosted runtime database credential was not chosen here, and nothing
+written before 2026-08-15 should be read as choosing it.** All of the following
+had to be resolved and validated before anything hosted ran:
 
 - **the runtime PostgreSQL role, and the minimum grants it actually needs** —
   the local answer (`postgres`, admin) is a local convenience and is not a
@@ -121,9 +131,19 @@ rows**, even holding full `select` grants.
 which owns the tables _and_ has admin privileges, so RLS never bites and every
 test in this repository passes regardless of what a hosted role would do. **The
 local test suite proves nothing whatsoever about the hosted posture**, and must
-never be cited as though it does. Whichever hosted role LAN-83 selects, this has
-to be resolved deliberately — by ownership, by `BYPASSRLS`, or by policies — and
-verified against a real environment, not discovered in staging.
+never be cited as though it does. This had to be resolved deliberately — by
+ownership, by `BYPASSRLS`, or by policies — and verified against a real
+environment, not discovered in staging.
+
+> **Resolved by [ADR 0026](0026-hosted-runtime-database-connection.md):
+> `BYPASSRLS`, with the reasoning on the record.** The paragraph above is still
+> true of every test that connects as `postgres`, which is nearly all of them.
+> It is no longer true of `tests/hosted-role-posture.test.ts` and
+> `tests/production-smoke-contract.test.ts`, which build the approved role in
+> the local database on purpose and run as it — including a negative control
+> that reproduces the empty-club failure this section describes. Those two files
+> are evidence about the posture. They are still not evidence about the hosted
+> database's actual configuration; only the owner-run smoke test is that.
 
 ## Consequences
 

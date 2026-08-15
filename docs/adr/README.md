@@ -35,3 +35,4 @@ accident. Routine implementation choices do not need an ADR.
 | [0023](0023-rsvp-token-and-whatsapp-delivery.md)              | RSVP links are hash-only and single-live; delivery is official 1:1 WhatsApp behind a provider boundary | Accepted                                            |
 | [0024](0024-bounded-lineage-aware-review.md)                  | Bounded, lineage-aware independent review                                                              | Accepted; finding classification superseded by 0025 |
 | [0025](0025-separate-finding-impact-from-gate-disposition.md) | Finding impact is separate from correction-review gate disposition                                     | Accepted                                            |
+| [0026](0026-hosted-runtime-database-connection.md)            | The hosted runtime is a least-privilege login on the shared transaction pooler                         | Accepted                                            |

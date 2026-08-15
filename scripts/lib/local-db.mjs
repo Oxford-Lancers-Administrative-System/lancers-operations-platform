@@ -24,6 +24,21 @@ export function resolveLocalDatabaseUrl(raw = process.env.SUPABASE_DB_URL) {
     throw new Error(`SUPABASE_DB_URL is not a valid URL: ${value}`);
   }
 
+  // The host in the authority is not necessarily the host `pg` opens.
+  // `pg-connection-string` copies every query parameter into the client
+  // configuration, where `host`, `port`, `user` and `password` override the
+  // authority, so `…@127.0.0.1:54322/postgres?host=203.0.113.9` reads as
+  // loopback here and connects off the machine — defeating ADR 0001 through
+  // this exact module, which seeds and runs the schema tests. Mirrored in
+  // src/lib/db/url.ts; tests/service-layer-guard-parity.test.ts proves they
+  // agree.
+  if (parsed.search !== "" || parsed.hash !== "") {
+    throw new Error(
+      "Refusing a connection string that carries query or fragment parameters. " +
+        "They can redirect the driver to a different host than the one checked here.",
+    );
+  }
+
   if (!LOOPBACK_HOSTS.has(parsed.hostname)) {
     throw new Error(
       `Refusing to run against a non-local database host "${parsed.hostname}". ` +
