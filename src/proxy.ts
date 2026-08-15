@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/env";
+import { isRecoveryAuthenticatedSession, RESET_PASSWORD_PATH } from "@/lib/auth/recovery";
 
 /**
  * Next.js 16 renamed the `middleware` convention to `proxy`. This runs before
@@ -120,11 +121,30 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if (matchesPrefix(pathname, PROTECTED_PREFIXES) && !data?.claims) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("redirectTo", pathname);
-    return NextResponse.redirect(url);
+  if (matchesPrefix(pathname, PROTECTED_PREFIXES)) {
+    if (!data?.claims) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("redirectTo", pathname);
+      return NextResponse.redirect(url);
+    }
+
+    // LAN-125. A password-recovery link mints an ordinary session, so the check
+    // above is satisfied by one — and a mailbox alone would then reach the
+    // whole shell. `resolveOperatorAccess()` is what actually refuses it, in
+    // `src/lib/auth/operator.ts`, because this file is a convenience and not
+    // the authorization boundary. This is here so that the person who really is
+    // mid-recovery is sent to the one page their session is for, rather than to
+    // a sign-in form they cannot yet use.
+    //
+    // No `redirectTo`: the destination they asked for is not somewhere this
+    // session may go, and carrying it forward would only offer it back.
+    if (isRecoveryAuthenticatedSession(data.claims)) {
+      const url = request.nextUrl.clone();
+      url.pathname = RESET_PASSWORD_PATH;
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
   }
 
   if (matchesPrefix(pathname, RECOVERY_PREFIXES)) {

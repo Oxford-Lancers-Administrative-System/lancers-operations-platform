@@ -76,6 +76,8 @@ RSVP is a direct scoped journey at `/rsvp/[token]`; it never enters `/operate` a
 | Route                             | Purpose                                                                   |
 | --------------------------------- | ------------------------------------------------------------------------- |
 | `/login`                          | Operator authentication                                                   |
+| `/forgot-password`                | Request a password-reset link (LAN-125 amendment below)                   |
+| `/reset-password`                 | Choose a new password from a recovery link (LAN-125 amendment below)      |
 | `/operate`                        | Protected shell/account-state resolution; not a Home page                 |
 | `/operate/roster`                 | Current-season roster                                                     |
 | `/operate/roster/new`             | Operator-entered returning player                                         |
@@ -90,6 +92,33 @@ RSVP is a direct scoped journey at `/rsvp/[token]`; it never enters `/operate` a
 | `/rsvp/[token]`                   | Private player response and all token/event terminal states               |
 
 Routes do not authorize. Server/service actions enforce account, role, capability, record scope and transition rules.
+
+`/auth/recovery` exists as well and is deliberately not in this table: it is not
+a screen. It is the internal one-time exchange the emailed link enters through,
+and it renders nothing — it verifies the token, writes the session and redirects
+to `/reset-password` with the token stripped from the address bar.
+
+### LAN-125 amendment — 15 August 2026
+
+The register approved on 12 August named `/login` and no way back into it. An
+operator who forgot their password had no recovery path at all, and the club's
+only recourse was an administrator editing the account by hand. LAN-125 adds the
+two public routes above and completes UX-01, whose wireframe already showed a
+**Forgot password?** action that led nowhere.
+
+| Route              | What it is                                                                                                                                                |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/forgot-password` | One email field. Every outcome — account, no account, provider refusal, rate limit — returns one confirmation, with one status and one duration.          |
+| `/reset-password`  | New password and confirmation, reachable only by a session that came from a recovery link. Any other session, signed in or not, gets one generic refusal. |
+
+No wireframe was drawn for either: LAN-90's register is workflow direction, and
+these two screens were approved by Brian at the visual checkpoint on 15 August
+2026 rather than in advance. The action labels he approved there are **Reset
+password** and **Cancel** on the request screen, and **Set new password** on the
+reset screen.
+
+Recorded here rather than left to be discovered as a contradiction between the
+register and the running application.
 
 ## 5. Complete end-to-end workflow
 

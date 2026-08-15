@@ -2,6 +2,7 @@ import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { isRecoveryAuthenticatedSession } from "./recovery";
 
 /**
  * Server-side resolution from a Supabase auth session to the club Person it
@@ -180,6 +181,34 @@ export async function resolveOperatorAccess(): Promise<OperatorAccess> {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   const user = userError ? null : (userData?.user ?? null);
   if (!user) return { state: "no_session" };
+
+  // LAN-125. A password-recovery link mints an ordinary Supabase session, and
+  // that session is a real, verified one — `getUser()` above confirms it and
+  // would happily resolve the operator behind it. It must not.
+  //
+  // Whoever can read an operator's mailbox can follow the emailed link, decline
+  // to set a password, and walk into the shell: roster, contact points,
+  // availability, events, the report, and every action that operator's roles
+  // permit. Because they never set a password, the operator is not locked out
+  // and nothing anywhere signals the intrusion. Independent review found this
+  // by walking it, and it was reproduced in a browser before this guard was
+  // written — a recovery link alone reached `/operate/roster` and its members'
+  // email addresses.
+  //
+  // So a recovery session buys exactly one thing: the right to set a password.
+  // `/reset-password` asks `isRecoveryAuthenticatedSession` for permission;
+  // this asks the same question and refuses the answer it wants. The two are
+  // deliberately mirror images, and both consult the verified `amr` claim
+  // rather than anything the browser can write.
+  //
+  // Reported as `no_session`, not as a fifth state, because it is the truthful
+  // answer to the question this function is asked — "is there an operator
+  // behind this request?" — and because the account states are LAN-107's
+  // approved copy for two specific situations, neither of which is this one.
+  // Nothing legitimate is refused: a completed reset signs the recovery session
+  // out, and the operator returns with `amr: password`.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  if (isRecoveryAuthenticatedSession(claimsData?.claims)) return { state: "no_session" };
 
   const admin = createAdminClient();
 
