@@ -134,6 +134,19 @@ export function assertApprovedTarget(value) {
     throw new Error("DATABASE_URL is not a valid connection string.");
   }
 
+  // See the same refusal in src/lib/db/runtime-target.ts. `pg-connection-string`
+  // copies query parameters into the client config, where `host`, `port` and
+  // `user` override the authority — so a string that reads as the approved
+  // target here would open a different database. This script is the one thing
+  // permitted to touch production, which makes it the worst place to get this
+  // wrong.
+  if (parsed.search !== "" || parsed.hash !== "") {
+    throw new Error(
+      "Refusing a connection string that carries query or fragment parameters. " +
+        "They can redirect the driver to a different host, port or user than the one checked here.",
+    );
+  }
+
   const actual = {
     hostname: parsed.hostname,
     port: parsed.port,

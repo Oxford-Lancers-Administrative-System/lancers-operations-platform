@@ -124,6 +124,13 @@ jobs:
             --memory=512Mi
             --timeout=60s
             --port=8080
+            --set-env-vars=DATABASE_POOL_MAX=5
+          # Five per instance against --max-instances=3 is 15 client
+          # connections, matched to the project's 15-connection pooler size and
+          # to app_runtime's own `connection limit 20` (ADR 0026). Without this
+          # the code default of 10 applies, which is 30 — over both. The failure
+          # would appear only under concurrency, and only in production.
+          #
           # Read from Secret Manager at runtime — the value never enters this
           # workflow, the image, or the repository.
           secrets: |
@@ -148,8 +155,20 @@ jobs:
               # without DATABASE_URL serves pages and fails on the first write.
               # It fails here instead. Presence only: the endpoint deliberately
               # reports no host, mode or credential detail, and does not connect.
-              echo "$BODY" | grep -q '"databaseConfigured":true' \
-                || { echo "DATABASE_URL was not injected at runtime — see docs/deployment.md"; exit 1; }
+              #
+              # Build path only. A rollback deploys an image built before this
+              # field existed, whose /api/health cannot report it — gating that
+              # would turn every rollback red during the incident the rollback
+              # is fixing, and give the operator no way to tell "rolled back"
+              # from "rollback failed". The image is already serving by then, so
+              # the check would not have prevented anything either.
+              if [ -z "${{ inputs.image_tag }}" ]; then
+                echo "$BODY" | grep -q '"databaseConfigured":true' \
+                  || { echo "DATABASE_URL was not injected at runtime — see docs/deployment.md"; exit 1; }
+              else
+                echo "$BODY" | grep -q '"databaseConfigured":true' \
+                  || echo "::warning title=Database not configured::Rolled-back image does not report databaseConfigured. Expected for images built before LAN-94."
+              fi
               exit 0
             fi
             sleep 5

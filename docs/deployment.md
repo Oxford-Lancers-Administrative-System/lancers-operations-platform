@@ -231,6 +231,12 @@ runtime service account cannot read it — steps 2 and 3. Roll back with
 `gh workflow run deploy.yml -f image_tag=<previous-commit-sha>`; the previous
 image does not require the variable.
 
+The `databaseConfigured` gate applies to the build path only. On a rollback it
+degrades to a warning, because an image built before this field existed cannot
+report it and the revision is already serving by the time the check runs —
+gating it would turn every rollback red during the incident the rollback is
+fixing, and leave no way to tell "rolled back" from "rollback failed".
+
 `NEXT_PUBLIC_*` values are browser-safe by definition and are inlined into the
 client bundle at build time, so they are build arguments, not runtime secrets.
 

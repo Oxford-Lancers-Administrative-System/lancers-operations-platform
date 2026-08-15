@@ -108,8 +108,16 @@ so the application structurally cannot issue one.
 
 Five connections per instance, against `--max-instances=3`, is 15 client
 connections — matched to the project's own 15-connection pool size and well
-inside its 200-client cap, both read from the project's pooler settings. Idle
-and connect timeouts stay at 10s and 5s.
+inside its 200-client cap, both read from the project's pooler settings, and
+inside the role's own `connection limit 20`. Idle and connect timeouts stay at
+10s and 5s.
+
+**`DATABASE_POOL_MAX=5` is set on the revision by `.github/workflows/deploy.yml`,
+not merely written down here.** The code default is 10, which across three
+instances is 30 — over the pooler's pool size and over the role's connection
+limit, failing only under concurrency and only in production. An earlier draft
+of this ADR asserted the value without anything setting it; independent review
+caught that, and the workflow flag is what makes the sentence above true.
 
 ### The secret: Secret Manager, injected at runtime
 

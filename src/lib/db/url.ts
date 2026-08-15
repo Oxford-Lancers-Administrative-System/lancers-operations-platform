@@ -77,6 +77,27 @@ export function assertLocalDatabaseUrl(value: string): string {
     );
   }
 
+  // The host in the authority is not necessarily the host `pg` opens.
+  // `pg-connection-string` copies every query parameter into the client
+  // configuration, where `host`, `port`, `user` and `password` override the
+  // authority — so
+  //
+  //     postgresql://postgres:postgres@127.0.0.1:54322/postgres?host=203.0.113.9
+  //
+  // reads as loopback here and connects off the machine. That defeats ADR 0001
+  // through the seed path and the schema tests, which is the thing this guard
+  // exists to make impossible. Refusing any query or fragment closes it without
+  // this file having to track which parameters the driver honours.
+  //
+  // Found by independent review of LAN-94, in the hosted policy that copied
+  // this shape; it was here first.
+  if (parsed.search !== "" || parsed.hash !== "") {
+    throw new Error(
+      "Refusing a connection string that carries query or fragment parameters. " +
+        "They can redirect the driver to a different host than the one checked here.",
+    );
+  }
+
   if (!LOOPBACK_HOSTS.has(parsed.hostname)) {
     throw new Error(
       `Refusing to run against a non-local database host "${parsed.hostname}". ` +

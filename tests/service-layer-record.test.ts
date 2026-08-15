@@ -20,6 +20,53 @@ const read = (relative: string) => readFileSync(path.join(root, relative), "utf8
 
 const ADR = "docs/adr/0014-transactional-data-access.md";
 
+describe("the deployed revision matches what the documents claim about it", () => {
+  // Three artifacts state the production pool size as fact — ADR 0026,
+  // src/lib/db/connection.ts, and .env.example — and for one round none of them
+  // was true: nothing set the variable, so the code default of 10 shipped.
+  // Across three instances that is 30 client connections, over both the
+  // pooler's 15-connection pool and the role's `connection limit 20`, failing
+  // only under concurrency and only in production. A document asserting a
+  // number no deployment sets is worse than no document.
+  const deploy = read(".github/workflows/deploy.yml");
+
+  it("sets DATABASE_POOL_MAX on the revision", () => {
+    expect(deploy).toMatch(/--set-env-vars=DATABASE_POOL_MAX=5/);
+  });
+
+  it("sets the value the documents say it does", () => {
+    const claimed = /DATABASE_POOL_MAX=(\d+)/.exec(deploy)?.[1];
+    expect(claimed).toBe("5");
+
+    expect(read("docs/adr/0026-hosted-runtime-database-connection.md")).toMatch(
+      /Five connections per instance/,
+    );
+    expect(read("src/lib/db/connection.ts")).toMatch(/`max` is set to 5/);
+    expect(read(".env.example")).toMatch(/Hosted uses 5/);
+  });
+
+  it("injects the database secret into the revision", () => {
+    expect(deploy).toMatch(
+      /DATABASE_URL=\$\{\{ vars\.DATABASE_URL_SECRET \|\| 'database-url' \}\}/,
+    );
+  });
+
+  it("gates on databaseConfigured for a build, and only warns on a rollback", () => {
+    // Gating the rollback path would turn every rollback red during the
+    // incident the rollback exists to fix: an image built before this field
+    // existed cannot report it, and the revision is already serving by then.
+    expect(deploy).toMatch(/if \[ -z "\$\{\{ inputs\.image_tag \}\}" \]; then/);
+    expect(deploy).toMatch(/::warning title=Database not configured::/);
+
+    const gated = deploy.slice(deploy.indexOf('if [ -z "${{ inputs.image_tag }}" ]; then'));
+    expect(gated).toMatch(/grep -q '"databaseConfigured":true'[\s\S]*?exit 1/);
+  });
+
+  it("says so in the runbook, so the rollback instructions are not contradicted", () => {
+    expect(read("docs/deployment.md")).toMatch(/build path only[\s\S]*?degrades to a warning/i);
+  });
+});
+
 describe("row 15 — .env.example carries placeholders, never values", () => {
   const envExample = read(".env.example");
 

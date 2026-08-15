@@ -64,6 +64,14 @@ const CASES: readonly string[] = [
   "postgresql://u:p@127.0.0.1.nip.io:5432/db",
   "host=db.example port=5432 user=postgres",
   "not a url at all",
+  // Query-parameter smuggling. `pg-connection-string` copies these into the
+  // client config, where they override the authority — so each of these reads
+  // as loopback and opens something else. Both guards must refuse them, and
+  // must refuse them together.
+  "postgresql://postgres:postgres@127.0.0.1:54322/postgres?host=203.0.113.9",
+  "postgresql://postgres:postgres@127.0.0.1:54322/postgres?host=203.0.113.9&port=5432",
+  "postgresql://postgres:postgres@localhost:54322/postgres?user=postgres&host=db.example",
+  "postgresql://postgres:postgres@127.0.0.1:54322/postgres#?host=203.0.113.9",
   APPROVED_HOSTED,
   // The club's own project reached the other three documented ways. None of
   // them is the approved target, and none of them may be reachable locally.

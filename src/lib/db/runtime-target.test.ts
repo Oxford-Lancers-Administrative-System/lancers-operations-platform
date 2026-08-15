@@ -17,6 +17,7 @@
  * covers the policy layered above it. `src/lib/db/connection.test.ts` covers
  * the call site, because a sound helper nobody calls proves nothing.
  */
+import pg from "pg";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -212,6 +213,90 @@ describe("refusals never echo the connection string", () => {
         `postgresql://${APPROVED_HOSTED_TARGET.username}:pw@${APPROVED_HOSTED_TARGET.hostname}:5432/postgres`,
       ),
     ).toThrow(/port/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The guard and the driver must agree about the same string
+// ---------------------------------------------------------------------------
+
+/**
+ * The defect this suite exists for.
+ *
+ * The first version of this guard compared only the four components
+ * `new URL()` exposes. `pg` does not parse that way: `pg-connection-string`
+ * copies every query parameter into the client configuration, and `host`,
+ * `port`, `user` and `password` each override the authority. So a string whose
+ * authority is the approved pooler, carrying `?host=…&port=…&user=…`, passed
+ * every check here and opened an entirely different database as an entirely
+ * different role.
+ *
+ * Asserting against `new pg.Client(...)` rather than against a hand-written
+ * expectation is the point: the question is not "does the guard agree with my
+ * reading of the string" but "does the guard agree with the code that opens the
+ * socket". Those are different questions, and the difference was the bug.
+ */
+describe("what the guard approves is what pg actually opens", () => {
+  /** The connection parameters `pg` derives, via the real client class. */
+  function driverTarget(connectionString: string) {
+    const client = new pg.Client({ connectionString });
+    return {
+      hostname: client.host,
+      port: String(client.port),
+      database: client.database,
+      username: client.user,
+    };
+  }
+
+  it("resolves the accepted string to the approved target, in the driver's own terms", () => {
+    const accepted = resolveRuntimeDatabaseUrl({ ...DEPLOYED, DATABASE_URL: APPROVED });
+
+    expect(driverTarget(accepted)).toEqual({
+      hostname: APPROVED_HOSTED_TARGET.hostname,
+      port: APPROVED_HOSTED_TARGET.port,
+      database: APPROVED_HOSTED_TARGET.database,
+      username: APPROVED_HOSTED_TARGET.username,
+    });
+  });
+
+  const SMUGGLED: readonly (readonly [string, string])[] = [
+    [
+      "host, port and user smuggled through the query string",
+      `${APPROVED}?host=attacker.example.com&port=5432&user=postgres`,
+    ],
+    ["host alone smuggled", `${APPROVED}?host=attacker.example.com`],
+    ["redirected to loopback", `${APPROVED}?host=127.0.0.1&port=54322`],
+    ["port alone smuggled", `${APPROVED}?port=5432`],
+    ["the admin role smuggled", `${APPROVED}?user=postgres`],
+    ["a different database smuggled", `${APPROVED}?database=template1`],
+    ["hidden behind a fragment", `${APPROVED}#?host=attacker.example.com`],
+  ];
+
+  it.each(SMUGGLED)("refuses %s", (_label, url) => {
+    expect(() => resolveRuntimeDatabaseUrl({ ...DEPLOYED, DATABASE_URL: url })).toThrow(
+      /query or fragment/i,
+    );
+  });
+
+  it("the smuggling really would have redirected the driver, so this is not theatre", () => {
+    // Without the refusal these strings are accepted by a component comparison
+    // and opened somewhere else entirely. Proving the driver's behaviour here
+    // means the test fails if a future `pg` stops honouring the override *and*
+    // if the guard stops refusing — either way a human looks at it.
+    const smuggled = driverTarget(`${APPROVED}?host=attacker.example.com&port=5432&user=postgres`);
+
+    expect(smuggled.hostname).toBe("attacker.example.com");
+    expect(smuggled.port).toBe("5432");
+    expect(smuggled.username).toBe("postgres");
+    expect(smuggled.hostname).not.toBe(APPROVED_HOSTED_TARGET.hostname);
+  });
+
+  it("refuses a query string outside the deployed service too", () => {
+    // The loopback guard refuses it for its own reason — a non-loopback host —
+    // but a loopback URL carrying `?host=` must not slip through either.
+    expect(() =>
+      resolveRuntimeDatabaseUrl({ DATABASE_URL: `${LOCAL}?host=attacker.example.com` }),
+    ).toThrow();
   });
 });
 

@@ -123,6 +123,28 @@ export function assertApprovedHostedDatabaseUrl(value: string): string {
     );
   }
 
+  // A connection string's authority is not the whole story, and comparing only
+  // the authority is how this guard was first written and was wrong.
+  //
+  // `pg` parses with `pg-connection-string`, which copies **every query
+  // parameter** into the client configuration and lets `host`, `port`, `user`
+  // and `password` override what the authority said. So
+  //
+  //     …@aws-0-eu-west-2.pooler.supabase.com:6543/postgres?host=elsewhere&port=5432
+  //
+  // reads as the approved target to `new URL()` while `pg` opens `elsewhere`.
+  // Every component below would have matched.
+  //
+  // Refusing any query or fragment closes that completely, and does so without
+  // this module having to track which parameter names the driver honours today.
+  // Nothing legitimate is lost: the approved target carries neither.
+  if (parsed.search !== "" || parsed.hash !== "") {
+    throw new Error(
+      "Refusing a connection string that carries query or fragment parameters. " +
+        "They can redirect the driver to a different host, port or user than the one checked here.",
+    );
+  }
+
   const actual = {
     hostname: parsed.hostname,
     port: parsed.port,
