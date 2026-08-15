@@ -352,7 +352,40 @@ describe("who reaches the report at all", () => {
     expect(readReportForDate).toHaveBeenCalledWith(
       "00000000-0000-4000-8000-000000000002",
       REPORT_ON,
+      { fileNew: false },
     );
+  });
+
+  /**
+   * Brian's rule, 15 August 2026: pressing Show Report files a snapshot every
+   * time; arriving, sorting and refreshing do not.
+   */
+  it("does not file a snapshot for somebody merely arriving", async () => {
+    await ReportPage(props());
+
+    expect(readReportForDate).toHaveBeenCalledWith(expect.any(String), REPORT_ON, {
+      fileNew: false,
+    });
+  });
+
+  it("does not file a snapshot for a re-sort", async () => {
+    await ReportPage(props({ sort: "person" }));
+
+    expect(readReportForDate).toHaveBeenCalledWith(expect.any(String), REPORT_ON, {
+      fileNew: false,
+    });
+  });
+
+  it("files one when Show Report was pressed, then takes the marker out of the URL", async () => {
+    // The redirect is what stops a refresh filing a second snapshot nobody
+    // asked for, which would record the browser rather than the club.
+    await expect(ReportPage(props({ show: "1" }))).rejects.toThrow(
+      `REDIRECT:/operate/report?date=${REPORT_ON}`,
+    );
+
+    expect(readReportForDate).toHaveBeenCalledWith(expect.any(String), REPORT_ON, {
+      fileNew: true,
+    });
   });
 });
 
@@ -752,6 +785,8 @@ describe("what the reviews removed", () => {
     const text = container.textContent ?? "";
 
     expect(text).not.toContain("Choose another date");
+    // And the form marks a press, so the page can tell one from a visit.
+    expect(document.querySelector('input[name="show"]')).toHaveAttribute("value", "1");
     // One control, labelled once. `textContent` finds the words twice because
     // MUI's outlined field repeats its label in the notch legend, which is its
     // own markup rather than a second instruction — so this counts controls.

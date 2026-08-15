@@ -13,6 +13,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import { redirect } from "next/navigation";
 import { isServiceError } from "@/lib/db";
 import {
   parseReportContent,
@@ -114,9 +115,13 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
     typeof query.osort === "string" && isGridSort(query.osort) ? query.osort : "issues";
   const onboardingAscending = query.odir === "asc";
 
+  // Pressing Show Report files a snapshot; arriving, sorting and refreshing do
+  // not. See `readReportForDate` for the rule and why it is that one.
+  const pressed = query.show === "1";
+
   let report: StoredReport;
   try {
-    report = await readReportForDate(gate.operator.personId, date);
+    report = await readReportForDate(gate.operator.personId, date, { fileNew: pressed });
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
@@ -130,6 +135,13 @@ export default async function ReportPage({ searchParams }: PageProps<"/operate/r
         <ReportDateForm date={isDate(date) ? date : todayInClubZone()} />
       </Stack>
     );
+  }
+
+  // Filed, so take the marker out of the address bar. Without this a refresh
+  // would file a second snapshot the reader never asked for, and the version
+  // chain would record the browser rather than the club.
+  if (pressed) {
+    redirect(`/operate/report?date=${encodeURIComponent(report.reportOn)}`);
   }
 
   const content = parseReportContent(report.content);

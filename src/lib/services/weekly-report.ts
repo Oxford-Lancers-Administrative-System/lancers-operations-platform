@@ -29,11 +29,10 @@ import { readCurrentSeasonIn, type Season } from "./seasons";
  * it", and he was right that the version machinery had no business on screen.
  *
  * So the interface never mentions a version, and `readReportForDate` files one
- * **at most once per calendar day** per reporting date: the first look files a
- * snapshot, every later look that day returns the same stored row, and
- * tomorrow's look files the next version. Nobody presses anything, the table
- * does not fill with near-identical rows, and "what did leadership see on the
- * 12th?" still has one answer per day.
+ * whenever **Show Report** is pressed — and only then, aside from the cases
+ * where nothing readable is on file. Arriving, sorting and refreshing show what
+ * is already stored. Nobody is asked about versions, and "what did leadership
+ * see on the 12th?" is answered by the snapshot they were looking at.
  *
  * The screen therefore still renders **stored content and never a live
  * recompute** — the property the whole table exists for, and the one thing that
@@ -1106,44 +1105,34 @@ export async function generateWeeklyReport(
 // ---------------------------------------------------------------------------
 
 /**
- * The report for a date: today's snapshot, filing one first if today has not
- * produced one yet.
+ * The report for a date: the snapshot on file, or a new one.
  *
- * ## Why a read files a row
+ * ## When a snapshot is filed
  *
- * Brian's decision of 15 August 2026. He should "just have a report for the day
- * of, and that's it" — no Preview, no Generate, no version list — and invariant
- * M5 still requires the thing he read to be a snapshot rather than a live
- * query. Filing on first sight of the day is what satisfies both: he presses
- * nothing, the screen renders stored content, and the table gains at most one
- * row per reporting date per day instead of one per page view.
+ * Brian's decision of 15 August 2026, taken after the cost was measured rather
+ * than guessed at — one snapshot is 6.6 KB stored and 36 ms of querying, against
+ * a full season of 110 events and 4,892 invitations. Being frugal about filing
+ * them was protecting the meaning of the version chain, not the disk.
  *
- * The consequence, stated plainly because it is unusual: **this read writes.**
- * It is guarded by `leadership_report` at every entry point, it is idempotent
- * within the day, and the advisory lock makes two simultaneous first-looks
- * produce one row rather than two. It writes nothing else, ever.
+ * So: **pressing Show Report files one, every time.** Arriving at the route,
+ * changing how a grid is sorted, or refreshing does not — those show what is
+ * already on file. The three cases where a read files anyway are the ones where
+ * there is nothing honest to show: no snapshot exists for that date at all, or
+ * the newest was written under superseded metric definitions.
  *
- * "Today" is the club's day, in `Europe/London`, because the report belongs to
- * a Monday morning in Oxford rather than to a UTC boundary at 01:00.
+ * The consequence, stated plainly because it is unusual: **this read can
+ * write.** It is guarded by `leadership_report` at every entry point and
+ * serialized by an advisory lock, so two people pressing at once get two
+ * versions in a line rather than a fork. It writes nothing else, ever.
  *
- * ## And only today's snapshot *under the current definitions*
- *
- * The reuse is additionally conditioned on `metric_definition_version`, which
- * looks like belt and braces and is not. Brian opened the report on the morning
- * the definitions changed and got an empty screen: a snapshot filed hours
- * earlier under the previous set was still "today's", so it was handed back, and
- * the current build does not understand its shape — so the page correctly
- * reported that it could not organise it, and correctly showed nothing.
- *
- * Without this term that happens on every definitions change, to whoever opened
- * the report first that day, for the rest of that day. With it, a snapshot from
- * an older set is left exactly where it is — still immutable, still readable as
- * the record of what leadership saw — and a new version is filed under the
- * definitions now in force.
+ * The screen therefore still renders **stored content and never a live
+ * recompute** — invariant M5's whole point, and the property that would have
+ * been quietly lost by making the page "just show the numbers".
  */
 export async function readReportForDate(
   actorPersonId: string,
   reportOn: string,
+  options: { fileNew?: boolean } = {},
 ): Promise<StoredReport> {
   const on = normaliseReportDate(reportOn);
 
@@ -1151,20 +1140,25 @@ export async function readReportForDate(
     const season = await readCurrentSeasonIn(tx);
     await tx.query(SERIES_LOCK, [season.id, on]);
 
-    const filedToday = await tx.query<StoredRow>(
-      `${STORED_SELECT(
-        `w.season_id = $1
-           and w.report_on = $2::date
-           and w.metric_definition_version = $3
-           and (w.generated_at at time zone 'Europe/London')::date
-                 = (now() at time zone 'Europe/London')::date`,
-      )}
+    const latest = await tx.query<StoredRow>(
+      `${STORED_SELECT("w.season_id = $1 and w.report_on = $2::date")}
        order by w.version desc
        limit 1`,
-      [season.id, on, METRIC_DEFINITION_VERSION],
+      [season.id, on],
     );
 
-    if (filedToday.rows[0]) return toStoredReport(filedToday.rows[0]);
+    const existing = latest.rows[0];
+    const reusable =
+      existing !== undefined &&
+      !options.fileNew &&
+      // A snapshot from superseded definitions is not one this interface can
+      // organise, so it is shown to nobody by default — it stays on file, and a
+      // current one is filed beside it. Without this, the first person to open
+      // the report on a definitions-change day would see a page it could not
+      // lay out, all day.
+      existing.metric_definition_version === METRIC_DEFINITION_VERSION;
+
+    if (reusable) return toStoredReport(existing);
 
     const filed = await fileSnapshot(tx, season, actorPersonId, on);
     const stored = await tx.query<StoredRow>(STORED_SELECT("w.id = $1"), [filed.id]);

@@ -35,6 +35,13 @@ export function ReportDateForm({ date }: { date: string }) {
       data-testid="report-date-form"
       sx={{ maxWidth: 420 }}
     >
+      {/*
+        What tells the page this was a press rather than a visit. Sorting and
+        refreshing navigate to the same route without it, and show what is
+        already on file; this files a new snapshot. The page strips it again
+        immediately, so a refresh afterwards does not file a second one.
+      */}
+      <input type="hidden" name="show" value="1" />
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={1.5}

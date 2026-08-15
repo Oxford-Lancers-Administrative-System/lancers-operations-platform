@@ -1061,24 +1061,46 @@ describe("invariant M5 — a published report is immutable", () => {
 // ---------------------------------------------------------------------------
 
 describe("opening the report", () => {
-  it("files one snapshot on the first look and reuses it for the rest of the day", async () => {
+  it("files one on the first look, because there is nothing else to show", async () => {
     await occurredEvent();
     expect(await readCurrentReport(REPORT_ON)).toBeNull();
 
     const first = await readReportForDate(actorPersonId, REPORT_ON);
     expect(first.version).toBe(1);
+  });
+
+  it("shows what is on file when somebody arrives, sorts or refreshes", async () => {
+    await occurredEvent();
+    const first = await readReportForDate(actorPersonId, REPORT_ON);
 
     const second = await readReportForDate(actorPersonId, REPORT_ON);
     const third = await readReportForDate(actorPersonId, REPORT_ON);
 
-    // The same row, three times. Brian never presses anything, and the table
-    // does not fill with a near-identical snapshot per page view.
+    // The same row, three times. Landing on the route, re-sorting a grid and
+    // refreshing are all reads.
     expect(second.id).toBe(first.id);
     expect(third.id).toBe(first.id);
     expect(await listReportVersions(REPORT_ON)).toHaveLength(1);
   });
 
-  it("returns the stored snapshot, not a recomputation, on the second look", async () => {
+  /**
+   * Brian's decision of 15 August 2026, once the cost was measured: a snapshot
+   * is 6.6 KB and 36 ms, so pressing the button files one every time.
+   */
+  it("files a new one every time Show Report is pressed", async () => {
+    await occurredEvent();
+
+    const first = await readReportForDate(actorPersonId, REPORT_ON, { fileNew: true });
+    const second = await readReportForDate(actorPersonId, REPORT_ON, { fileNew: true });
+    const third = await readReportForDate(actorPersonId, REPORT_ON, { fileNew: true });
+
+    expect([first.version, second.version, third.version]).toEqual([1, 2, 3]);
+    expect(second.supersedesId).toBe(first.id);
+    expect(third.supersedesId).toBe(second.id);
+    expect(await listReportVersions(REPORT_ON)).toHaveLength(3);
+  });
+
+  it("returns the stored snapshot, not a recomputation, until the next press", async () => {
     const event = await occurredEvent();
     const invitations = await invitationsFor(event.id);
     await answer(invitations[0].id, "no", "Away at a conference.");
@@ -1092,42 +1114,37 @@ describe("opening the report", () => {
 
     await answer(invitations[1].id, "no", "Injured.");
 
+    // A plain read still shows what was filed.
     const again = await readReportForDate(actorPersonId, REPORT_ON);
     expect(again.id).toBe(first.id);
-    // The live picture has two declines; what leadership sees today still has
-    // the one it had when the report was opened.
-    expect(
-      (await compute()).grid.rows.flatMap((row) => row.cells.filter((cell) => cell.rsvp === "no")),
-    ).toHaveLength(2);
     expect(
       parseReportContent(again.content)?.grid.rows.flatMap((row) =>
         row.cells.filter((cell) => cell.rsvp === "no"),
       ),
     ).toHaveLength(1);
+
+    // Pressing the button files the newer picture, and leaves the older one
+    // exactly where it is — which is the whole of M5.
+    const pressed = await readReportForDate(actorPersonId, REPORT_ON, { fileNew: true });
+    expect(pressed.id).not.toBe(first.id);
+    expect(
+      parseReportContent(pressed.content)?.grid.rows.flatMap((row) =>
+        row.cells.filter((cell) => cell.rsvp === "no"),
+      ),
+    ).toHaveLength(2);
+    expect(
+      parseReportContent((await readStoredReport(first.id)).content)?.grid.rows.flatMap((row) =>
+        row.cells.filter((cell) => cell.rsvp === "no"),
+      ),
+    ).toHaveLength(1);
   });
 
-  it("files tomorrow's look as the next version, superseding today's", async () => {
-    await occurredEvent();
-    const today = await readReportForDate(actorPersonId, REPORT_ON);
-
-    // Age today's snapshot by a day, which is what tomorrow will look like.
-    await observer.query(
-      "update public.weekly_reports set generated_at = generated_at - interval '1 day' where id = $1",
-      [today.id],
-    );
-
-    const tomorrow = await readReportForDate(actorPersonId, REPORT_ON);
-    expect(tomorrow.id).not.toBe(today.id);
-    expect(tomorrow.version).toBe(2);
-    expect(tomorrow.supersedesId).toBe(today.id);
-  });
-
-  it("files a fresh snapshot when today's was filed under earlier definitions", async () => {
+  it("files a fresh snapshot when the newest was written under earlier definitions", async () => {
     // Brian opened the report on the morning the definitions changed and got an
     // empty screen: a snapshot filed hours earlier under the previous set was
-    // still "today's", so it was handed back, and this build cannot organise
-    // its shape. Without the version term in the reuse condition that happens
-    // on every definitions change, to whoever looks first, for the whole day.
+    // handed back, and this build cannot organise its shape. Without the
+    // version term in the reuse condition that happens on every definitions
+    // change, to whoever looks first, until somebody presses the button.
     await occurredEvent();
 
     const stale = await observer.query<{ id: string }>(
