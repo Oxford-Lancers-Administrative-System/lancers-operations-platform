@@ -16,6 +16,7 @@ import {
   type Transport,
 } from "@/lib/delivery";
 import type { EnvironmentSource, OutboundConfig } from "@/lib/delivery/config";
+import { RECIPIENT_NOT_PERMITTED_REASON, recipientPermitted } from "@/lib/delivery/allowlist";
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
 import type { InvitationMessage, ProviderCallbackEvent } from "@/lib/delivery/provider";
 import { recordAudit } from "./audit";
@@ -254,6 +255,14 @@ async function claimJobIn(
   // supersede a previous, possibly working one for nothing.
   if (!recipient)
     return { claimed: false, reason: "undeliverable", detail: NO_USABLE_NUMBER_REASON };
+
+  // LAN-124. Also before a token is minted, and for a stronger reason: a person
+  // this deployment may not message must not have a live RSVP link in existence
+  // at all. Refusing at the send would leave a working link that had been
+  // issued, recorded and superseded whatever came before it.
+  if (!recipientPermitted(recipient, config.recipientAllowlist, config.defaultCallingCode)) {
+    return { claimed: false, reason: "undeliverable", detail: RECIPIENT_NOT_PERMITTED_REASON };
+  }
 
   const token = await issueTokenIn(tx, job.invitation_id, { actorLabel: DISPATCH_ACTOR_LABEL });
 

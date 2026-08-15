@@ -1,5 +1,7 @@
 import "server-only";
 
+import { parseRecipientAllowlist, RECIPIENT_ALLOWLIST_VARIABLE } from "./allowlist";
+
 /**
  * Delivery configuration, read from the environment and from nowhere else.
  *
@@ -79,6 +81,15 @@ export interface OutboundConfig {
   /** The approved template's language code, e.g. `en_GB`. */
   readonly templateLanguage: string;
   /**
+   * The only telephone numbers this deployment may send to, in E.164 digits.
+   *
+   * Never empty on a configured deployment: an allowlist that parsed to nothing
+   * is treated as absent, so `resolveOutboundConfig` returns
+   * `{ configured: false }` rather than a configuration permitting nobody. See
+   * `allowlist.ts`.
+   */
+  readonly recipientAllowlist: readonly string[];
+  /**
    * Local-only test affordances, resolved to their inert values unless
    * `appBaseUrl` is a loopback host. See `resolveLocalTestOverrides`.
    */
@@ -130,12 +141,21 @@ export type WebhookResolution =
   | { readonly configured: true; readonly config: WebhookConfig }
   | { readonly configured: false; readonly missing: readonly string[] };
 
-/** Variables the sending path refuses to run without. */
+/**
+ * Variables the sending path refuses to run without.
+ *
+ * `DELIVERY_RECIPIENT_ALLOWLIST` is here rather than among the defaults for the
+ * reason the whole file is built on: a missing value is a refusal, never a
+ * default. An absent allowlist that meant "send to everybody" would be the one
+ * variable in this list whose absence *widened* what the deployment does. See
+ * `allowlist.ts`.
+ */
 export const OUTBOUND_ENVIRONMENT_VARIABLES = Object.freeze([
   "APP_BASE_URL",
   "WHATSAPP_PHONE_NUMBER_ID",
   "WHATSAPP_ACCESS_TOKEN",
   "WHATSAPP_TEMPLATE_NAME",
+  RECIPIENT_ALLOWLIST_VARIABLE,
 ] as const);
 
 /** Variables the callback path refuses to run without. */
@@ -220,12 +240,30 @@ export function resolveOutboundConfig(source: EnvironmentSource = process.env): 
   if (missing.length > 0) return { configured: false, missing };
 
   const appBaseUrl = trimmed("APP_BASE_URL", source).replace(/\/+$/, "");
+  const defaultCallingCode = withDefault("DELIVERY_DEFAULT_CALLING_CODE", source).replace(
+    /^\+/,
+    "",
+  );
+
+  // Parsed before the configuration is declared complete, because an allowlist
+  // of "," or of one unparseable entry is present as a string and absent as a
+  // control. Treating it as configured would produce a deployment that refuses
+  // every recipient while reporting itself ready, which is the failure this is
+  // hardest to notice in.
+  const recipientAllowlist = parseRecipientAllowlist(
+    trimmed(RECIPIENT_ALLOWLIST_VARIABLE, source),
+    defaultCallingCode,
+  );
+  if (recipientAllowlist.length === 0) {
+    return { configured: false, missing: [RECIPIENT_ALLOWLIST_VARIABLE] };
+  }
 
   return {
     configured: true,
     config: {
       appBaseUrl,
-      defaultCallingCode: withDefault("DELIVERY_DEFAULT_CALLING_CODE", source).replace(/^\+/, ""),
+      recipientAllowlist,
+      defaultCallingCode,
       graphBaseUrl: withDefault("WHATSAPP_GRAPH_BASE_URL", source).replace(/\/+$/, ""),
       graphVersion: withDefault("WHATSAPP_GRAPH_VERSION", source),
       phoneNumberId: trimmed("WHATSAPP_PHONE_NUMBER_ID", source),

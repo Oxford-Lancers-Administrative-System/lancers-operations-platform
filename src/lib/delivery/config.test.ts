@@ -29,6 +29,8 @@ const DEPLOYED: EnvironmentSource = {
   WHATSAPP_PHONE_NUMBER_ID: "1234567890",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
+  // LAN-124. Ofcom's reserved drama range, which can never be dialled.
+  DELIVERY_RECIPIENT_ALLOWLIST: "447700900001,447700900002",
 };
 
 describe("outbound configuration", () => {
@@ -53,6 +55,71 @@ describe("outbound configuration", () => {
   it("treats whitespace as absence rather than as a value", () => {
     const resolution = resolveOutboundConfig({ ...DEPLOYED, WHATSAPP_ACCESS_TOKEN: "   " });
     expect(resolution.configured).toBe(false);
+  });
+
+  describe("LAN-124 — the recipient allowlist is required, and its absence is a refusal", () => {
+    it("resolves the allowlist onto the configuration", () => {
+      const resolution = resolveOutboundConfig(DEPLOYED);
+      expect(resolution.configured).toBe(true);
+      if (!resolution.configured) return;
+      expect(resolution.config.recipientAllowlist).toEqual(["447700900001", "447700900002"]);
+    });
+
+    it("refuses the whole outbound path when the allowlist is absent", () => {
+      // Not "sends to everybody", which is what an allowlist bolted on as an
+      // optional filter would do. This is the single most important assertion
+      // in the file: it is the difference between an unconfigured deployment
+      // sending nothing and an unconfigured deployment messaging the roster.
+      const resolution = resolveOutboundConfig({
+        ...DEPLOYED,
+        DELIVERY_RECIPIENT_ALLOWLIST: "",
+      });
+      expect(resolution.configured).toBe(false);
+      if (resolution.configured) return;
+      expect(resolution.missing).toContain("DELIVERY_RECIPIENT_ALLOWLIST");
+    });
+
+    it("refuses a value that is present but parses to nobody", () => {
+      // Present as a string, absent as a control. A deployment that reported
+      // itself configured here would refuse every recipient at send time, which
+      // looks like a provider fault rather than a missing setting.
+      for (const raw of ["   ", ",", ",,;", "not-a-number"]) {
+        const resolution = resolveOutboundConfig({
+          ...DEPLOYED,
+          DELIVERY_RECIPIENT_ALLOWLIST: raw,
+        });
+        expect(resolution.configured, JSON.stringify(raw)).toBe(false);
+        if (resolution.configured) return;
+        expect(resolution.missing).toContain("DELIVERY_RECIPIENT_ALLOWLIST");
+      }
+    });
+
+    it("keeps one usable number when another entry is unparseable", () => {
+      const resolution = resolveOutboundConfig({
+        ...DEPLOYED,
+        DELIVERY_RECIPIENT_ALLOWLIST: "nonsense, 07700900001",
+      });
+      expect(resolution.configured).toBe(true);
+      if (!resolution.configured) return;
+      expect(resolution.config.recipientAllowlist).toEqual(["447700900001"]);
+    });
+
+    it("normalises against the deployment's own calling code", () => {
+      const resolution = resolveOutboundConfig({
+        ...DEPLOYED,
+        DELIVERY_DEFAULT_CALLING_CODE: "1",
+        DELIVERY_RECIPIENT_ALLOWLIST: "05550100",
+      });
+      expect(resolution.configured).toBe(true);
+      if (!resolution.configured) return;
+      expect(resolution.config.recipientAllowlist).toEqual(["15550100"]);
+    });
+
+    it("never names a number in the sentence an operator reads", () => {
+      const sentence = describeMissingConfiguration(["DELIVERY_RECIPIENT_ALLOWLIST"]);
+      expect(sentence).toContain("DELIVERY_RECIPIENT_ALLOWLIST");
+      expect(sentence).not.toMatch(/\d{6,}/);
+    });
   });
 
   it("strips a trailing slash so a link never carries a double slash", () => {

@@ -2,6 +2,7 @@ import "server-only";
 
 import crypto from "node:crypto";
 
+import { RECIPIENT_NOT_PERMITTED_REASON, recipientPermitted } from "./allowlist";
 import type { OutboundConfig, WebhookConfig } from "./config";
 import type {
   DeliveryProvider,
@@ -241,6 +242,29 @@ export function createWhatsAppCloudProvider(
     channel: "whatsapp",
 
     async send(message: InvitationMessage): Promise<SendOutcome> {
+      // LAN-124. The service layer refuses a recipient outside the allowlist
+      // before it mints a token, and this is the same refusal at the last point
+      // it can be made: the statement immediately below opens a connection to
+      // Meta. The duplication is deliberate — the check above protects the
+      // workflow, and this one protects the egress from any future caller that
+      // reaches the adapter without going through `claimNextJobIn`.
+      //
+      // `localTest.recipientOverride` is checked rather than `message.recipient`
+      // where one is set, because the override is the number that would
+      // actually be dialled; allowing an unlisted override would be a hole in
+      // the shape of a test affordance.
+      const dialled = config.localTest.recipientOverride ?? message.recipient;
+      if (!recipientPermitted(dialled, config.recipientAllowlist, config.defaultCallingCode)) {
+        return {
+          status: "refused",
+          reason: RECIPIENT_NOT_PERMITTED_REASON,
+          // Not retryable: retrying changes nothing until the allowlist does,
+          // and a retryable refusal would put the job back in the queue to be
+          // refused again on a schedule.
+          retryable: false,
+        };
+      }
+
       let response: Response;
       try {
         response = await transport(messagesEndpoint(config), {

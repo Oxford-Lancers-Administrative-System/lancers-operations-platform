@@ -38,6 +38,10 @@ const config = (overrides: Partial<OutboundConfig> = {}): OutboundConfig => ({
   accessToken: "not-a-real-token",
   templateName: "event_invitation",
   templateLanguage: "en_GB",
+  // Permits `MESSAGE.recipient`, so that every test below exercises the send
+  // path rather than the LAN-124 refusal. The refusal has its own describe
+  // block, which narrows this deliberately.
+  recipientAllowlist: ["447700900123"],
   localTest: { recipientOverride: null, messageMode: "template" },
   ...overrides,
 });
@@ -171,6 +175,86 @@ describe("interpreting a response", () => {
     expect(outcome.status).toBe("refused");
     if (outcome.status !== "refused") return;
     expect(outcome.reason).toMatch(/no open conversation/i);
+  });
+});
+
+describe("LAN-124 — the allowlist at the egress", () => {
+  /**
+   * The service layer refuses an unlisted recipient before it mints a token,
+   * and that is where the workflow behaves well. This block is about the other
+   * half: the adapter is the only code in the repository that opens a
+   * connection to Meta, so it refuses on its own account rather than trusting
+   * that every future caller came through `claimNextJobIn`.
+   *
+   * Each of these asserts the transport was **never called**. "Returned
+   * refused" is not the property under test — not sending is.
+   */
+  it("refuses a recipient outside the allowlist without contacting the provider", async () => {
+    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
+    const provider = createWhatsAppCloudProvider(
+      config({ recipientAllowlist: ["447700900999"] }),
+      transport,
+    );
+
+    const outcome = await provider.send(MESSAGE);
+
+    expect(transport).not.toHaveBeenCalled();
+    expect(outcome.status).toBe("refused");
+    expect(outcome.status === "refused" && outcome.retryable).toBe(false);
+  });
+
+  it("refuses everybody when the allowlist is empty", async () => {
+    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
+    const provider = createWhatsAppCloudProvider(config({ recipientAllowlist: [] }), transport);
+
+    await provider.send(MESSAGE);
+
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it("checks the number that would actually be dialled, not the invitation's", async () => {
+    // A local test override redirects the send. Checking `message.recipient`
+    // while dialling the override would leave a hole exactly the shape of a
+    // test affordance: an allowlisted invitee whose message goes elsewhere.
+    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
+    const provider = createWhatsAppCloudProvider(
+      config({
+        recipientAllowlist: ["447700900123"],
+        localTest: { recipientOverride: "447700900999", messageMode: "text" },
+      }),
+      transport,
+    );
+
+    const outcome = await provider.send(MESSAGE);
+
+    expect(transport).not.toHaveBeenCalled();
+    expect(outcome.status).toBe("refused");
+  });
+
+  it("sends when the override itself is allowlisted", async () => {
+    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
+    const provider = createWhatsAppCloudProvider(
+      config({
+        recipientAllowlist: ["447700900999"],
+        localTest: { recipientOverride: "447700900999", messageMode: "text" },
+      }),
+      transport,
+    );
+
+    const outcome = await provider.send(MESSAGE);
+
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(outcome.status).toBe("accepted");
+  });
+
+  it("names no telephone number in the reason it records", async () => {
+    const provider = createWhatsAppCloudProvider(
+      config({ recipientAllowlist: ["447700900999"] }),
+      vi.fn(async () => respond(200, {})),
+    );
+
+    const outcome = await provider.send(MESSAGE);
+    expect(outcome.status === "refused" && outcome.reason).not.toMatch(/\d{4,}/);
   });
 });
 
