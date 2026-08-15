@@ -122,10 +122,15 @@ export default function VenueField({
   const sequenceRef = useRef(0);
   const controllerRef = useRef<AbortController | null>(null);
 
-  // What was last chosen from the list. Setting the input to a suggestion would
-  // otherwise look exactly like typing it, and the field would immediately
-  // search for the answer it had just been given.
-  const chosenRef = useRef<string | null>(null);
+  // The venue the field is already showing, as opposed to one being typed.
+  //
+  // Seeded with the stored value, which matters on the edit screen: a venue
+  // loaded from the database is indistinguishable from one just typed unless
+  // something says otherwise, so opening **Edit** would search the provider for
+  // the address it had itself just displayed — a request per page load, on a
+  // free service, for an answer nobody asked for. It is updated when a
+  // suggestion is chosen, for the same reason in the other direction.
+  const chosenRef = useRef<string | null>(defaultValue.trim() === "" ? null : defaultValue.trim());
 
   const run = useCallback(async (query: string) => {
     controllerRef.current?.abort();

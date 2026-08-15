@@ -73,13 +73,32 @@ afterEach(() => {
 });
 
 describe("VenueField", () => {
-  it("shows the stored venue when an existing event is edited", () => {
-    vi.stubGlobal("fetch", answering({ status: "ok", suggestions: [] }));
+  it("shows the stored venue when an existing event is edited, and never searches for it", async () => {
+    const fetchImpl = answering({ status: "ok", suggestions: [] });
+    vi.stubGlobal("fetch", fetchImpl);
     render(<VenueField name="venue" defaultValue="University Parks, Oxford" />);
 
     expect(venueInput()).toHaveValue("University Parks, Oxford");
-    // Displaying a stored venue is not a reason to go and search for it.
-    expect(fetch).not.toHaveBeenCalled();
+
+    // Past the debounce, not merely on the first render — the browser preflight
+    // found the edit screen searching the provider for the address it had just
+    // displayed, which an assertion taken before the timer fired had missed.
+    await act(async () => {
+      vi.advanceTimersByTime(DEBOUNCE_MS * 4);
+    });
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("searches again once the operator edits a stored venue", async () => {
+    const fetchImpl = answering({ status: "ok", suggestions: [HORSPATH] });
+    vi.stubGlobal("fetch", fetchImpl);
+    render(<VenueField name="venue" defaultValue="University Parks, Oxford" />);
+
+    // Not searching for the value it was given must not become never searching.
+    await type("horspath sports ground");
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
   it("submits under the same field name the action already reads", () => {
