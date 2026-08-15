@@ -8,10 +8,23 @@ imports this file; do not duplicate anything from here into it.
 Operations platform for the **Oxford Lancers**, a contact football club. Release
 one covers the club's eight approved operational workflows.
 
-The repository holds the infrastructure scaffold **and the domain schema
-baseline**: the frozen conceptual domain model v1.2 implemented as PostgreSQL
+The repository holds the infrastructure scaffold, **the domain schema
+baseline** — the frozen conceptual domain model v1.2 implemented as PostgreSQL
 migrations, with a deterministic synthetic seed and the tests that prove the
-invariants. No application workflow is built on it yet.
+invariants — and **the first operational vertical slice built on it**.
+
+That slice is one complete workflow, and it runs: link an operator to a Person
+and their club roles; enter a returning player and activate their membership;
+draft a practice; confirm its audience and approve it in one transaction;
+deliver the invitations automatically over the official 1:1 WhatsApp Business
+Platform; collect answers through signed no-login links; assert that the event
+occurred; let an authorized coach take the register from a narrow phone-width
+surface; and generate the Monday leadership report as an immutable snapshot.
+
+[`docs/operating-the-slice.md`](docs/operating-the-slice.md) walks it by hand
+and lists what is genuinely absent. `tests/slice-walkthrough.test.ts` walks the
+same path through the service layer in one run and asserts the hand-offs between
+the steps. Read one of them before changing anything the workflow touches.
 
 Read [`docs/architecture/data-model.md`](docs/architecture/data-model.md) before
 touching `supabase/migrations/`. It maps every conceptual entity and every
@@ -66,6 +79,7 @@ directly on components — use `sx`.
 
 | Question                                              | Source of truth                             |
 | ----------------------------------------------------- | ------------------------------------------- |
+| What the application actually does, walked by hand    | `docs/operating-the-slice.md`               |
 | Stack, layout, request path, security model           | `docs/architecture.md`                      |
 | What each table means, and where each invariant lives | `docs/architecture/data-model.md`           |
 | Clean machine → running app; every script; migrations | `docs/local-development.md`                 |
@@ -141,14 +155,17 @@ npm run verify             # format:check → lint → typecheck → test → bu
 First run on a new machine:
 
 ```bash
-npm install
+npm ci
 npm run db:acquire -- LAN-1  # replace with the issue being worked
-npm run db:start
-npm run db:seed              # synthetic domain data
-npm run db:seed-user         # the one local auth user
-npm run db:link-operator
+npm run db:start             # migrations, synthetic data, .env.local, both review logins
 npm run dev:slot
 ```
+
+`db:start` and `db:reset` both seed the dataset, create the fixed review user,
+and link the operator and coach logins — so the individual `db:seed`,
+`db:seed-user`, `db:link-operator` and `db:link-coach` commands above exist for
+repairing one piece, not for first-run setup. Running them after `db:start` is
+harmless and unnecessary.
 
 ## Deployment
 
