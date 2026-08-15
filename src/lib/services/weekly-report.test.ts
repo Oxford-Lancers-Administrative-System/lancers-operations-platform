@@ -670,6 +670,27 @@ describe("the attendance grid", () => {
    * produce the same bytes. Without an order on the query behind the grid, a
    * person with two invitations to one event could be filed either way round.
    */
+  /**
+   * The determinism above cannot fail for the reason it exists.
+   *
+   * Two identical queries in one session return the same physical order anyway,
+   * so removing the `order by` leaves that test green — independent review
+   * proved it. This one is structural, in the style of the M5 no-mutation scan
+   * below: it fails deterministically and says what it means.
+   *
+   * The ordering is load-bearing twice over. It makes an immutable snapshot
+   * reproducible, and it is what makes the two duplicate-invitation tests above
+   * discriminate at all — without it the "benign arrives first" case degenerates
+   * into the other one and passes trivially.
+   */
+  it("orders the query behind the grid, so a snapshot is reproducible", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync(new URL("./weekly-report.ts", import.meta.url), "utf8");
+    const query = source.slice(source.indexOf("const said = await tx.query"));
+
+    expect(query.slice(0, query.indexOf("`,"))).toMatch(/order by i\.event_id, i\.id/);
+  });
+
   it("computes the same content twice from unchanged data", async () => {
     const event = await occurredEvent(2);
     const invitations = await invitationsFor(event.id);
