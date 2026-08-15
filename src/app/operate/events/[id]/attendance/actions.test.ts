@@ -185,7 +185,8 @@ describe("who may record attendance", () => {
       ["gameday_secretary"],
       ["kit_manager"],
       ["media_secretary"],
-      ["it_officer"],
+      // Not `it_officer`: LAN-124 made it the administrative seat, so it is on
+      // this workflow by decision rather than being one of the seats that is not.
     ]) {
       vi.mocked(recordAttendance).mockClear();
       givenAccess({ state: "active", operator: actor(roleCodes) });

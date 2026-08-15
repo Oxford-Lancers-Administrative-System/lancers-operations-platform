@@ -12,14 +12,17 @@
  *
  *   * **It grants nothing implicitly.** A capability whose `roleCodes` is empty
  *     is refused to everybody, including the President. Absence of a decision
- *     is never permission — see `role_management` below, the one entry still
- *     undecided, which names the decision it owes rather than guessing at it.
+ *     is never permission. No entry is empty today: `role_management` was the
+ *     last one, and Brian decided it on 15 August 2026.
  *
  *   * **It is data, not code.** No conditionals, no inheritance between
  *     capabilities, no "admin implies everything". An operator holding
  *     `head_coach` receives exactly the capabilities that list `head_coach`,
  *     which is what makes LAN-110's narrow attendance-recorder boundary
- *     checkable by reading twenty lines.
+ *     checkable by reading twenty lines. `it_officer` holds every capability
+ *     here, and it holds each one because it is written into that entry's list
+ *     — not because an administrator rule grants it implicitly. Taking one
+ *     action back off the seat stays a one-line edit to one array.
  *
  *   * **It is frozen at runtime.** `Object.freeze` on the map, on each entry
  *     and on each role list, so no later module can push a code onto a grant.
@@ -47,10 +50,24 @@
  * | Occurrence assertion      | President, VP, Secretary, General Manager      | Lead, 14 Aug 2026  |
  * | Delivery administration   | President, VP, Secretary, General Manager      | Lead, 13 Aug 2026  |
  * | Leadership report         | President, VP, Secretary, General Manager      | Lead, 14 Aug 2026  |
+ * | Role management           | `it_officer` alone                             | Brian, 15 Aug 2026 |
+ *
+ * **Every capability above also lists `it_officer`.** Brian decided on 15
+ * August 2026 (LAN-124) that the IT Officer is the club's administrative seat
+ * and holds every privileged action in the slice. That is an administrative
+ * grant rather than a demonstration affordance: until it existed
+ * `role_management` was held by nobody at all, so no operator could add an
+ * operator account or assign a role through the application — only by writing
+ * to the database by hand. The seat is a real, non-constitutional committee
+ * office in `ROLE_SPEC`, so holding it is truthful.
+ *
+ * It is also the widest grant in the file, and worth narrowing later: whoever
+ * holds `role_management` can assign themselves anything else. Brian recorded
+ * that consequence when he took the decision.
  *
  * None of them is re-derived here, and none may be re-derived by a later
- * implementer: they are recorded owner and lead decisions on LAN-73, LAN-77 and
- * LAN-78.
+ * implementer: they are recorded owner and lead decisions on LAN-73, LAN-77,
+ * LAN-78 and LAN-124.
  */
 
 /** The privileged actions this slice knows about. */
@@ -101,6 +118,7 @@ const ROLE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   secretary: "Secretary",
   treasurer: "Treasurer",
   general_manager: "General Manager",
+  it_officer: "IT Officer",
   head_coach: "Head Coach",
   offence_coach: "Offence Coach",
   defence_coach: "Defence Coach",
@@ -127,11 +145,13 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   attendance_recorder: capability({
     key: "attendance_recorder",
     action: "record attendance for an occurred event",
-    roleCodes: ["head_coach", "offence_coach", "defence_coach"],
+    roleCodes: ["head_coach", "offence_coach", "defence_coach", "it_officer"],
     decision:
       "Brian, 12 August 2026 (LAN-108/LAN-110): the Head Coach, Offensive Coordinator " +
       "and Defensive Coordinator seats only. Assistant coaches do not hold them, and no " +
-      "assistant role exists in the catalogue.",
+      "assistant role exists in the catalogue. " +
+      "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
+      "holds every capability in this file.",
   }),
 
   /**
@@ -146,11 +166,20 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   membership_activation: capability({
     key: "membership_activation",
     action: "activate a season membership",
-    roleCodes: ["president", "vice_president", "secretary", "treasurer", "general_manager"],
+    roleCodes: [
+      "president",
+      "vice_president",
+      "secretary",
+      "treasurer",
+      "general_manager",
+      "it_officer",
+    ],
     decision:
       "Lead, 12 August 2026: 'Exec' = the four constitutional offices, plus the General " +
       "Manager, whom slice-ux.md § 8 names for this transition. Stated as an assumption " +
-      "on LAN-73.",
+      "on LAN-73. " +
+      "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
+      "holds every capability in this file.",
   }),
 
   /**
@@ -186,11 +215,13 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   event_calendar_management: capability({
     key: "event_calendar_management",
     action: "create, edit, submit or withdraw an event draft",
-    roleCodes: ["president", "vice_president", "secretary", "general_manager"],
+    roleCodes: ["president", "vice_president", "secretary", "general_manager", "it_officer"],
     decision:
       "Brian, 12 August 2026 (LAN-76 owner clarification): the club calendar is managed by " +
       "the President, Vice-President, Secretary and General Manager only. The Treasurer is " +
-      "deliberately not included, and no coaching seat is.",
+      "deliberately not included, and no coaching seat is. " +
+      "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
+      "holds every capability in this file.",
   }),
 
   /**
@@ -219,12 +250,14 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   event_approval: capability({
     key: "event_approval",
     action: "approve an event and release its invitations",
-    roleCodes: ["president", "vice_president", "secretary", "general_manager"],
+    roleCodes: ["president", "vice_president", "secretary", "general_manager", "it_officer"],
     decision:
       "Brian, 12 August 2026 (LAN-77 owner clarification): the President, Vice-President, " +
       "Secretary and General Manager are each authorized for the approval workflow, and an " +
       "authorized operator may approve their own draft in the MVP. Supersedes the lead's " +
-      "President-only assumption recorded on LAN-73.",
+      "President-only assumption recorded on LAN-73. " +
+      "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
+      "holds every capability in this file.",
   }),
 
   /**
@@ -286,13 +319,16 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
       "head_coach",
       "offence_coach",
       "defence_coach",
+      "it_officer",
     ],
     decision:
       "Lead, 14 August 2026 (LAN-80), after independent review: the union of the four " +
       "calendar roles — so the Exec is not locked out of their own screen — and the three " +
       "coaching seats Brian's 12 August 2026 decision put on this workflow. Replaces an " +
       "any-linked-operator floor that failed LAN-80's criterion that an ordinary player is " +
-      "refused at the service boundary. Recorded as an assumption on LAN-80.",
+      "refused at the service boundary. Recorded as an assumption on LAN-80. " +
+      "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
+      "holds every capability in this file.",
   }),
 
   /**
@@ -326,11 +362,13 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   event_occurrence_assertion: capability({
     key: "event_occurrence_assertion",
     action: "assert that an event occurred or was not held",
-    roleCodes: ["president", "vice_president", "secretary", "general_manager"],
+    roleCodes: ["president", "vice_president", "secretary", "general_manager", "it_officer"],
     decision:
       "Lead, 14 August 2026 (LAN-80): derived from Brian's LAN-77 event-workflow authority " +
       "and from LAN-110's boundary that no coaching seat may assert occurrence. Recorded as " +
-      "an assumption on LAN-80 and narrowed by editing this list.",
+      "an assumption on LAN-80 and narrowed by editing this list. " +
+      "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
+      "holds every capability in this file.",
   }),
 
   /**
@@ -346,8 +384,14 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   role_management: capability({
     key: "role_management",
     action: "manage operator accounts and role assignments",
-    roleCodes: [],
-    decision: "Undecided. Out of scope for the slice; no role holds it. Owner decision required.",
+    roleCodes: ["it_officer"],
+    decision:
+      "Brian, 15 August 2026 (LAN-124): the IT Officer is the club's administrative seat and " +
+      "holds this. It was the one entry the slice left open, and leaving it empty meant " +
+      "no operator could add an operator account or assign a role through the application at " +
+      "all — only by writing to the database by hand. Deliberately the narrowest list in this " +
+      "file and the widest grant in it: whoever holds this can assign themselves every other " +
+      "capability, which is why no calendar role was added alongside.",
   }),
 
   /**
@@ -385,12 +429,14 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   delivery_administration: capability({
     key: "delivery_administration",
     action: "inspect delivery, retry a failed invitation, and reissue a link",
-    roleCodes: ["president", "vice_president", "secretary", "general_manager"],
+    roleCodes: ["president", "vice_president", "secretary", "general_manager", "it_officer"],
     decision:
       "Lead, 13 August 2026 (LAN-78): derived from Brian's LAN-77 event-workflow authority — " +
       "delivery repair is the continuation of the approval that released the invitations — and " +
       "from slice-ux.md § 3, which names delivery among the surfaces a coaching seat never " +
-      "receives. Recorded as an assumption on LAN-78 and narrowed by editing this list.",
+      "receives. Recorded as an assumption on LAN-78 and narrowed by editing this list. " +
+      "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
+      "holds every capability in this file.",
   }),
 
   /**
@@ -440,13 +486,15 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   leadership_report: capability({
     key: "leadership_report",
     action: "read the Monday exception and action report",
-    roleCodes: ["president", "vice_president", "secretary", "general_manager"],
+    roleCodes: ["president", "vice_president", "secretary", "general_manager", "it_officer"],
     decision:
       "Lead, 14 August 2026 (LAN-81): derived from Brian's LAN-77 event-workflow authority — " +
       "the group that ran the week reads and acts on its exceptions — and from slice-ux.md " +
       "§ 3, which names the report and RSVP reasons among the surfaces a coaching seat never " +
       "receives. Replaces the empty grant LAN-73 recorded and LAN-81 owed. Recorded as an " +
-      "assumption on LAN-81 and narrowed by editing this list.",
+      "assumption on LAN-81 and narrowed by editing this list. " +
+      "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
+      "holds every capability in this file.",
   }),
 });
 

@@ -245,19 +245,29 @@ describe("rows 9 to 12 — requireCapability() over the map", () => {
   );
 
   it.each(["role_management"] as CapabilityKey[])(
-    "refuses %s to the President, because nobody has been granted it",
+    "refuses %s to the President, who is not the seat that holds it",
     async (key) => {
-      // `leadership_report` was here until LAN-81 decided its grant. The
-      // property is unchanged and is asserted below against a role that is
-      // genuinely outside it: an empty grant refuses everybody, and a decided
-      // grant refuses everybody it does not name.
+      // `leadership_report` was here until LAN-81 decided its grant, and this
+      // entry was the empty-grant example until LAN-124 decided its. The
+      // property under test survives both: a decided grant refuses everybody it
+      // does not name, and the President is the strongest role that this one
+      // does not name.
       givenSession({ state: "active", operator: actor(["president"]) });
 
       const refusal = await refusalFrom(() => requireCapability(key));
       expect(refusal.rule).toBe(capabilityRule(key));
-      expect(refusal.message).toContain("No club role is currently authorized");
+      expect(refusal.message).toContain("This action requires the IT Officer role");
+      // The refusal names what the action needs, never what the caller holds.
+      expect(refusal.message).not.toMatch(/president/i);
     },
   );
+
+  it("permits role management to the IT Officer, the one seat LAN-124 granted it", async () => {
+    const operator = actor(["it_officer"]);
+    givenSession({ state: "active", operator });
+
+    await expect(requireCapability("role_management")).resolves.toBe(operator);
+  });
 
   it("permits the Monday report to the four roles LAN-81 granted it", async () => {
     for (const code of ["president", "vice_president", "secretary", "general_manager"]) {

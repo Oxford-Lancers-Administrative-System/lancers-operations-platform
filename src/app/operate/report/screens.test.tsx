@@ -293,7 +293,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("who reaches the report at all", () => {
-  it.each(["president", "vice_president", "secretary", "general_manager"])(
+  it.each(["president", "vice_president", "secretary", "general_manager", "it_officer"])(
     "admits %s",
     async (code) => {
       signedInAs([code]);
@@ -304,7 +304,10 @@ describe("who reaches the report at all", () => {
     },
   );
 
-  it.each(["treasurer", "it_officer", "social_secretary"])(
+  // `it_officer` moved to the admitted list above: LAN-124 made it the club's
+  // administrative seat. `media_secretary` replaces it here so the refusal
+  // still has three seats to prove itself against.
+  it.each(["treasurer", "media_secretary", "social_secretary"])(
     "refuses %s with no report content at all",
     async (code) => {
       signedInAs([code]);
