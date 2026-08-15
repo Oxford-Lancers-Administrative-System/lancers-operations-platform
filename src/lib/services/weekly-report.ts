@@ -894,6 +894,21 @@ export async function generateWeeklyReport(
  *
  * "Today" is the club's day, in `Europe/London`, because the report belongs to
  * a Monday morning in Oxford rather than to a UTC boundary at 01:00.
+ *
+ * ## And only today's snapshot *under the current definitions*
+ *
+ * The reuse is additionally conditioned on `metric_definition_version`, which
+ * looks like belt and braces and is not. Brian opened the report on the morning
+ * the definitions changed and got an empty screen: a snapshot filed hours
+ * earlier under the previous set was still "today's", so it was handed back, and
+ * the current build does not understand its shape — so the page correctly
+ * reported that it could not organise it, and correctly showed nothing.
+ *
+ * Without this term that happens on every definitions change, to whoever opened
+ * the report first that day, for the rest of that day. With it, a snapshot from
+ * an older set is left exactly where it is — still immutable, still readable as
+ * the record of what leadership saw — and a new version is filed under the
+ * definitions now in force.
  */
 export async function readReportForDate(
   actorPersonId: string,
@@ -909,12 +924,13 @@ export async function readReportForDate(
       `${STORED_SELECT(
         `w.season_id = $1
            and w.report_on = $2::date
+           and w.metric_definition_version = $3
            and (w.generated_at at time zone 'Europe/London')::date
                  = (now() at time zone 'Europe/London')::date`,
       )}
        order by w.version desc
        limit 1`,
-      [season.id, on],
+      [season.id, on, METRIC_DEFINITION_VERSION],
     );
 
     if (filedToday.rows[0]) return toStoredReport(filedToday.rows[0]);

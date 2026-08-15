@@ -845,6 +845,40 @@ describe("opening the report", () => {
     expect(tomorrow.supersedesId).toBe(today.id);
   });
 
+  it("files a fresh snapshot when today's was filed under earlier definitions", async () => {
+    // Brian opened the report on the morning the definitions changed and got an
+    // empty screen: a snapshot filed hours earlier under the previous set was
+    // still "today's", so it was handed back, and this build cannot organise
+    // its shape. Without the version term in the reuse condition that happens
+    // on every definitions change, to whoever looks first, for the whole day.
+    await occurredEvent();
+
+    const stale = await observer.query<{ id: string }>(
+      `insert into public.weekly_reports
+         (season_id, report_on, version, metric_definition_version, data_as_of,
+          generated_by_person_id, content)
+       values ($1, $2::date, 1, 'LAN-81.1', now(), $3,
+               '{"schema": "lancers.monday-exception-report.v1", "exceptions": []}'::jsonb)
+       returning id`,
+      [seasonId, REPORT_ON, actorPersonId],
+    );
+
+    const opened = await readReportForDate(actorPersonId, REPORT_ON);
+
+    expect(opened.id).not.toBe(stale.rows[0].id);
+    expect(opened.metricDefinitionVersion).toBe(METRIC_DEFINITION_VERSION);
+    expect(opened.version).toBe(2);
+    expect(opened.supersedesId).toBe(stale.rows[0].id);
+    // And it is readable, which is the whole point.
+    expect(parseReportContent(opened.content)).not.toBeNull();
+
+    // The older row is untouched. It is still what leadership saw under those
+    // definitions, and M5 does not permit rewriting it to tidy this up.
+    const kept = await readStoredReport(stale.rows[0].id);
+    expect(kept.metricDefinitionVersion).toBe("LAN-81.1");
+    expect(parseReportContent(kept.content)).toBeNull();
+  });
+
   it("refuses an unparseable date before it writes anything", async () => {
     const before = await observer.query<{ count: string }>(
       "select count(*)::text as count from public.weekly_reports",
