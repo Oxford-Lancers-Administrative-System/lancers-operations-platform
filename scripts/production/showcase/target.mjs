@@ -44,6 +44,14 @@ const REPO_ROOT = path.resolve(HERE, "../../..");
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 /**
+ * The default local stack, mirroring `DEFAULT_URL` in `scripts/lib/local-db.mjs`.
+ *
+ * Safe as a default precisely because it is loopback: the check below still
+ * applies to it, so this can never become a route to anything hosted.
+ */
+const LOCAL_DEFAULT_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+
+/**
  * Is this connection string pointed at this machine?
  *
  * Parsed rather than pattern-matched, for the reason `isLoopbackBaseUrl` gives
@@ -101,20 +109,23 @@ export function resolveTarget(argv = process.argv.slice(2), env = process.env) {
   }
 
   const explicitIndex = argv.indexOf("--database-url");
-  // `SUPABASE_DB_URL` is the name the local stack actually writes into
-  // `.env.local` — the coordinator generates it — so it is read before the
-  // generic one. A rehearsal that silently found no database and asked for
-  // `--confirm-target` would be a confusing way to learn that.
+  // `SUPABASE_DB_URL` is the name the local stack uses — the coordinator writes
+  // it into `.env.local`, and CI exports it into the environment with no
+  // `.env.local` at all. Both are read, environment first, and the loopback
+  // default last: that default is `scripts/lib/local-db.mjs`'s, and without it
+  // the automated test failed in CI while passing on a developer machine.
   const connectionString =
     (explicitIndex === -1 ? null : argv[explicitIndex + 1]) ??
     env.SHOWCASE_DATABASE_URL ??
+    env.SUPABASE_DB_URL ??
     env.DATABASE_URL ??
     fromEnvLocal("SUPABASE_DB_URL") ??
-    fromEnvLocal("DATABASE_URL");
+    fromEnvLocal("DATABASE_URL") ??
+    LOCAL_DEFAULT_URL;
 
   if (!connectionString) {
     throw new Error(
-      "No database to work against. Either set DATABASE_URL in .env.local for a local run, " +
+      "No database to work against. Either set SUPABASE_DB_URL for a local run, " +
         `or name the hosted project explicitly with --confirm-target ${PRODUCTION_PROJECT_REF}.`,
     );
   }
