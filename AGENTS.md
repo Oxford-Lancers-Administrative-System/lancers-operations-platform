@@ -192,6 +192,8 @@ supabase/migrations/     SQL migrations — the domain schema baseline
 scripts/                 type generation, RLS gate, seed, test user, GCP bootstrap
 scripts/lib/             shared local-database access, with the non-local guard
 scripts/pilot/<issue>/   hosted pilot-data setup.sql / cleanup.sql — RUN BY HAND
+scripts/production/      owner-run production procedures — RUN BY HAND, never by
+                         a workflow, migration, npm script, test or agent
 scripts/fast-lane/       fast-lane classifier and merge gate (governance — protected)
 .github/fast-lane-rules.json  the checked-in fast-lane eligibility rules
 tests/                   integration, schema, and security tests
@@ -421,6 +423,15 @@ and no staging. Never point local work, a test, or an agent at production; never
 apply a migration to production as part of ordinary work. Scripts and tests that
 touch Supabase refuse to run against a non-local URL by design — do not weaken
 those guards. See `docs/adr/0001-local-supabase-only.md`.
+
+The **deployed Cloud Run revision** is the one exception, and it is narrow:
+since `docs/adr/0026-hosted-runtime-database-connection.md` it opens one approved
+hosted target, as a least-privilege login, identified by Cloud Run's own
+`K_SERVICE`. That branch lives in `src/lib/db/runtime-target.ts` alone. The
+loopback-only guards in `src/lib/db/url.ts` and `scripts/lib/local-db.mjs` are
+unchanged and still refuse the approved production target on every developer
+machine, in CI, and in every test. Do not add a hosted branch to either, and do
+not make the approved target configurable.
 
 **Never expose a secret.** No secret value may appear in the repository, in
 Notion, in a prompt, in logs, in fixtures, in a commit message, or in a client

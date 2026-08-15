@@ -124,31 +124,40 @@ jobs:
             --memory=512Mi
             --timeout=60s
             --port=8080
-          # Non-secret runtime configuration.
+            --set-env-vars=DATABASE_POOL_MAX=5,VENUE_SEARCH_PROVIDER=photon
+          # Two non-secret runtime settings, in one `--set-env-vars` because the
+          # flag REPLACES the revision's environment rather than adding to it —
+          # declaring them separately, or mixing this flag with the action's
+          # `env_vars` input, would leave whichever ran last as the only one
+          # standing. One authoritative list, and a test that reads it.
           #
-          # `VENUE_SEARCH_PROVIDER` turns LAN-115's address search on. Without
-          # it the deployed venue field silently degrades to plain text and tells
-          # the operator "address search is not set up here" — which is the
-          # correct behaviour for an unconfigured deployment and the wrong
-          # behaviour for ours, because the club chose the provider when LAN-115
-          # was approved. Found during LAN-82's walk: the code shipped, the
-          # configuration never followed it.
+          # DATABASE_POOL_MAX=5 — five per instance against --max-instances=3 is
+          # 15 client connections, matched to the project's 15-connection pooler
+          # size and to app_runtime's own `connection limit 20` (ADR 0026).
+          # Without it the code default of 10 applies, which is 30 — over both.
+          # The failure would appear only under concurrency, and only in
+          # production.
           #
-          # No key, no account, no billing relationship — `photon` is the one
-          # implemented provider and it needs none, which is why this is an
-          # environment variable and not a Secret Manager entry.
+          # VENUE_SEARCH_PROVIDER=photon — turns LAN-115's address search on.
+          # Without it the deployed venue field degrades to plain text and tells
+          # the operator "address search is not set up here", which is correct
+          # for an unconfigured deployment and wrong for ours: the club chose the
+          # provider when LAN-115 was approved. Found during LAN-82's walk — the
+          # code shipped and the configuration never followed it. No key, no
+          # account and no billing relationship, which is why it is here and not
+          # in Secret Manager.
           #
-          # `VENUE_SEARCH_BASE_URL` is deliberately absent: blank means the free
+          # VENUE_SEARCH_BASE_URL is deliberately absent: blank means the free
           # public instance at https://photon.komoot.io, which carries a fair-use
           # expectation and no availability guarantee. Searches are debounced and
           # every failure falls back to typing the venue by hand. Set it to a
           # self-hosted Photon if the club's usage ever outgrows that.
-          env_vars: |-
-            VENUE_SEARCH_PROVIDER=photon
+          #
           # Read from Secret Manager at runtime — the value never enters this
           # workflow, the image, or the repository.
           secrets: |
             SUPABASE_SECRET_KEY=${{ vars.SUPABASE_SECRET_KEY_SECRET || 'supabase-secret-key' }}:latest
+            DATABASE_URL=${{ vars.DATABASE_URL_SECRET || 'database-url' }}:latest
 
       - name: Smoke test the deployed revision
         env:
@@ -164,6 +173,24 @@ jobs:
                 || echo "::warning title=Commit mismatch::Serving revision does not report the expected commit."
               echo "$BODY" | grep -q '"secretsLoaded":true' \
                 || { echo "Secret Manager value was not injected at runtime"; exit 1; }
+              # The service layer is the only path to domain data, so a revision
+              # without DATABASE_URL serves pages and fails on the first write.
+              # It fails here instead. Presence only: the endpoint deliberately
+              # reports no host, mode or credential detail, and does not connect.
+              #
+              # Build path only. A rollback deploys an image built before this
+              # field existed, whose /api/health cannot report it — gating that
+              # would turn every rollback red during the incident the rollback
+              # is fixing, and give the operator no way to tell "rolled back"
+              # from "rollback failed". The image is already serving by then, so
+              # the check would not have prevented anything either.
+              if [ -z "${{ inputs.image_tag }}" ]; then
+                echo "$BODY" | grep -q '"databaseConfigured":true' \
+                  || { echo "DATABASE_URL was not injected at runtime — see docs/deployment.md"; exit 1; }
+              else
+                echo "$BODY" | grep -q '"databaseConfigured":true' \
+                  || echo "::warning title=Database not configured::Rolled-back image does not report databaseConfigured. Expected for images built before LAN-94."
+              fi
               exit 0
             fi
             sleep 5

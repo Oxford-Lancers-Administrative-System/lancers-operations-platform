@@ -139,6 +139,53 @@ describe("getPool() applies the guard, and no environment variable turns it off"
   });
 });
 
+describe("getPool() inside the deployed service opens only the approved target", () => {
+  // The call site's half of the hosted policy. `runtime-target.test.ts` proves
+  // the helper decides correctly; this proves `getPool()` still asks it, and
+  // that a refusal means no pool — not a pool built from a rejected string.
+  const DEPLOYED_SERVICE = "lancers-operations-platform";
+  const APPROVED =
+    "postgresql://app_runtime.fggbgeraiadetyiyjlvb:pw@aws-0-eu-west-2.pooler.supabase.com:6543/postgres";
+
+  it("builds a pool for the approved hosted target", () => {
+    setEnv("K_SERVICE", DEPLOYED_SERVICE);
+    setEnv("DATABASE_URL", APPROVED);
+
+    const { pool, error } = buildPool();
+
+    expect(error).toBeUndefined();
+    expect(pool?.options.connectionString).toBe(APPROVED);
+  });
+
+  it("refuses a near-miss hosted target and hands out no pool", () => {
+    setEnv("K_SERVICE", DEPLOYED_SERVICE);
+    setEnv("DATABASE_URL", POOLER); // approved host and port, foreign project
+    setBypassEnvironment();
+
+    const { pool, error } = buildPool();
+
+    expect(error).toBeDefined();
+    expect((error as Error).message).toMatch(/not the approved target/i);
+    expect(pool).toBeNull();
+    expect(JSON.stringify(pool?.options ?? {})).not.toContain("abcdefghijklmnop");
+  });
+
+  it("refuses to fall back to loopback when the secret is missing", () => {
+    setEnv("K_SERVICE", DEPLOYED_SERVICE);
+    setEnv("DATABASE_URL", "");
+    setEnv("SUPABASE_DB_URL", LOCAL);
+
+    const { pool, error } = buildPool();
+
+    expect(error).toBeDefined();
+    expect((error as Error).message).toMatch(/has no DATABASE_URL/i);
+    expect(pool).toBeNull();
+    // The specific failure this prevents: a revision with no secret quietly
+    // trying to reach a database inside its own container.
+    expect(JSON.stringify(pool?.options ?? {})).not.toContain("127.0.0.1");
+  });
+});
+
 describe("connection.ts reads no environment variable beyond pool tuning", () => {
   // The structural half. A behavioural test can only probe the branches it
   // thinks to set; this catches a bypass keyed on a variable nobody guessed,
@@ -163,6 +210,6 @@ describe("connection.ts reads no environment variable beyond pool tuning", () =>
 
   it("builds the connection string only from the guarded resolver", () => {
     // The injected defect replaces exactly this line with a ternary.
-    expect(source).toContain("connectionString: resolveDatabaseUrl(),");
+    expect(source).toContain("connectionString: resolveRuntimeDatabaseUrl(),");
   });
 });

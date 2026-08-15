@@ -26,4 +26,11 @@ export {
   type ServiceErrorKind,
 } from "./errors";
 export { currentTx, withTransaction, type Tx } from "./transaction";
+export {
+  APPROVED_HOSTED_TARGET,
+  assertApprovedHostedDatabaseUrl,
+  CLOUD_RUN_SERVICE,
+  isDeployedRuntime,
+  resolveRuntimeDatabaseUrl,
+} from "./runtime-target";
 export { assertLocalDatabaseUrl, resolveDatabaseUrl } from "./url";

@@ -156,6 +156,10 @@ jobs:
           grep -q '"status":"ok"' /tmp/health.json
           grep -q '"commit":"${{ github.sha }}"' /tmp/health.json
           grep -q '"secretsLoaded":true' /tmp/health.json
+          # The container is started with no DATABASE_URL, so the flag the deploy
+          # gate reads must report false here. Asserting the false case is what
+          # proves the flag reports presence rather than being hard-coded true.
+          grep -q '"databaseConfigured":false' /tmp/health.json
 
           check() {
             actual=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "http://localhost:8080$1")

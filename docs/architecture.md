@@ -139,8 +139,10 @@ the second authenticates as a PostgreSQL login in its own right — locally
 [ADR 0014](adr/0014-transactional-data-access.md), and
 `src/lib/services/README.md` for the conventions a service module follows.
 
-The hosted runtime role for that second path, its grants, its RLS treatment and
-its pooling mode are **deliberately unresolved** and owned by LAN-83.
+Hosted, that second path connects as `app_runtime` — a least-privilege login
+that owns no table and inherits its grants through membership of `service_role`,
+over the shared pooler in transaction mode. See
+[ADR 0026](adr/0026-hosted-runtime-database-connection.md).
 
 ## Security model
 
@@ -160,16 +162,28 @@ connects as `authenticator` and switches to `service_role`, which bypasses RLS
 via `BYPASSRLS`. `DATABASE_URL` is a direct PostgreSQL connection authenticating
 as a PostgreSQL login in its own right, with that login's own attributes and
 grants — locally `postgres`, which owns every table and has admin privileges.
-The second is a **broader** credential and reaches the database by a route
-PostgREST's grants do not mediate. [ADR 0010](adr/0010-domain-table-access-posture.md)'s
-posture is extended by it, not preserved unchanged — see
+It reaches the database by a route PostgREST's grants do not mediate.
+[ADR 0010](adr/0010-domain-table-access-posture.md)'s posture is extended by it,
+not preserved unchanged — see
 [ADR 0014](adr/0014-transactional-data-access.md).
 
-The hosted role for `DATABASE_URL`, its grants, whether it bypasses RLS, and its
-pooling mode are **open questions owned by LAN-83**. No hosted value exists, and
-none may be created without that decision. Locally the guard in
-`src/lib/db/url.ts` refuses any non-loopback host and any hosted Supabase
-connection string, and is not configurable.
+Hosted, `DATABASE_URL` names `app_runtime`: a login that owns no table, holds
+neither `CREATEROLE` nor `CREATEDB`, and takes its privileges from membership of
+`service_role` — so it reaches **exactly as far as the secret key, and no
+further**. It carries `BYPASSRLS`, because every domain table has RLS enabled
+with zero policies and a role that neither owns them nor bypasses reads zero
+rows. [ADR 0026](adr/0026-hosted-runtime-database-connection.md) records the
+grants, the connection mode and why the alternatives were rejected.
+
+**Two guards, deliberately separate.** `src/lib/db/url.ts` refuses any
+non-loopback host unconditionally, and governs every local tool, seed command,
+test and CI job — the approved production target included.
+`src/lib/db/runtime-target.ts` is the only thing that may accept a hosted
+target, only when Cloud Run's own `K_SERVICE` identifies the deployed service,
+and only for the one target pinned in its source. No environment variable
+widens either. That guard prevents accidental targeting; the security boundary
+is the credential's grants, who may read the secret, and production change
+control.
 
 - Anything prefixed `NEXT_PUBLIC_` is public. Assume the internet reads it.
 - `admin.ts` and `src/lib/db/` import `server-only`, so importing either from a

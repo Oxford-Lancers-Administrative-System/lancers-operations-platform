@@ -20,6 +20,88 @@ const read = (relative: string) => readFileSync(path.join(root, relative), "utf8
 
 const ADR = "docs/adr/0014-transactional-data-access.md";
 
+describe("the deployed revision matches what the documents claim about it", () => {
+  // Three artifacts state the production pool size as fact — ADR 0026,
+  // src/lib/db/connection.ts, and .env.example — and for one round none of them
+  // was true: nothing set the variable, so the code default of 10 shipped.
+  // Across three instances that is 30 client connections, over both the
+  // pooler's 15-connection pool and the role's `connection limit 20`, failing
+  // only under concurrency and only in production. A document asserting a
+  // number no deployment sets is worse than no document.
+  const deploy = read(".github/workflows/deploy.yml");
+
+  it("sets DATABASE_POOL_MAX on the revision", () => {
+    expect(deploy).toMatch(/--set-env-vars=DATABASE_POOL_MAX=5/);
+  });
+
+  it("sets the value the documents say it does", () => {
+    const claimed = /DATABASE_POOL_MAX=(\d+)/.exec(deploy)?.[1];
+    expect(claimed).toBe("5");
+
+    expect(read("docs/adr/0026-hosted-runtime-database-connection.md")).toMatch(
+      /Five connections per instance/,
+    );
+    expect(read("src/lib/db/connection.ts")).toMatch(/`max` is set to 5/);
+    expect(read(".env.example")).toMatch(/Hosted uses 5/);
+  });
+
+  it("injects the database secret into the revision", () => {
+    expect(deploy).toMatch(
+      /DATABASE_URL=\$\{\{ vars\.DATABASE_URL_SECRET \|\| 'database-url' \}\}/,
+    );
+  });
+
+  it("gates on databaseConfigured for a build, and only warns on a rollback", () => {
+    // Gating the rollback path would turn every rollback red during the
+    // incident the rollback exists to fix: an image built before this field
+    // existed cannot report it, and the revision is already serving by then.
+    // Line-based, because substring search for the shell keywords finds them
+    // inside words — `fi` matches inside "con**fi**gured", which silently
+    // truncated the rollback branch to nothing and made the assertion below
+    // vacuous on the first attempt at this test.
+    const lines = deploy.split("\n");
+    const isKeyword = (line: string, keyword: string) => line.trim() === keyword;
+
+    const start = lines.findIndex((line) =>
+      line.includes('if [ -z "${{ inputs.image_tag }}" ]; then'),
+    );
+    expect(start, "the conditional must exist").toBeGreaterThan(-1);
+
+    const elseAt = lines.findIndex((line, index) => index > start && isKeyword(line, "else"));
+    const endAt = lines.findIndex((line, index) => index > elseAt && isKeyword(line, "fi"));
+    expect(elseAt, "an else branch must exist").toBeGreaterThan(start);
+    expect(endAt, "the conditional must be closed").toBeGreaterThan(elseAt);
+
+    // Scoped to each branch separately. Slicing to end-of-file instead let the
+    // retry loop's own trailing `exit 1` satisfy the assertion, so inverting the
+    // branches — build warns, rollback fails, the precise inversion of the
+    // defect this gate exists to fix — passed. Independent review found that by
+    // performing the inversion.
+    const buildBranch = lines.slice(start, elseAt).join("\n");
+    const rollbackBranch = lines.slice(elseAt, endAt).join("\n");
+
+    expect(buildBranch, "the build path must fail closed").toMatch(
+      /grep -q '"databaseConfigured":true'[\s\S]*?exit 1/,
+    );
+    // The assertion above spans the whole branch, so its `exit 1` need not
+    // belong to the databaseConfigured check. A future edit that adds a second
+    // hard-gated health field while downgrading this one to a warning would
+    // satisfy it and silently stop the deploy failing closed on DATABASE_URL.
+    // Found by independent review, which built exactly that edit.
+    expect(buildBranch, "the build path must not merely warn").not.toMatch(
+      /::warning title=Database not configured::/,
+    );
+    expect(rollbackBranch, "the rollback path must only warn").toMatch(
+      /::warning title=Database not configured::/,
+    );
+    expect(rollbackBranch, "the rollback path must not fail the workflow").not.toMatch(/exit 1/);
+  });
+
+  it("says so in the runbook, so the rollback instructions are not contradicted", () => {
+    expect(read("docs/deployment.md")).toMatch(/build path only[\s\S]*?degrades to a warning/i);
+  });
+});
+
 describe("row 15 — .env.example carries placeholders, never values", () => {
   const envExample = read(".env.example");
 
@@ -70,14 +152,40 @@ describe("row 16 — the record exists and is reachable", () => {
     expect(index).toContain("0014-transactional-data-access.md");
   });
 
-  it("routes every hosted question to LAN-83 rather than answering it", () => {
+  it("still names the four hosted questions, and now points at the ADR that answers them", () => {
+    // These were open when ADR 0014 was written and are decided by ADR 0026.
+    // The questions stay on the record — each one turned out to matter — but a
+    // reader must not be left believing they are still open.
     const adr = read(ADR);
-    expect(adr).toContain("LAN-83");
-    // The four the issue names explicitly.
     expect(adr).toMatch(/runtime PostgreSQL role/i);
     expect(adr).toMatch(/grants/i);
     expect(adr).toMatch(/bypasses RLS/i);
     expect(adr).toMatch(/connection mode|pooling/i);
+
+    expect(adr).toContain("0026-hosted-runtime-database-connection.md");
+    expect(adr).not.toContain("LAN-83");
+  });
+
+  it("no longer claims the local suite proves nothing about the hosted posture", () => {
+    // It still says so of every test that connects as `postgres` — which is
+    // nearly all of them — but two files now build the approved role
+    // deliberately, and the record has to say which is which.
+    const adr = read(ADR);
+    expect(adr).toMatch(/hosted-role-posture\.test\.ts/);
+    expect(adr).toMatch(/negative control/i);
+  });
+
+  it("has ADR 0026, listed in the index, deciding the hosted credential", () => {
+    const decision = read("docs/adr/0026-hosted-runtime-database-connection.md");
+
+    expect(read("docs/adr/README.md")).toContain("0026-hosted-runtime-database-connection.md");
+    expect(decision).toMatch(/app_runtime/);
+    expect(decision).toMatch(/service_role/);
+    expect(decision).toMatch(/BYPASSRLS/);
+    expect(decision).toMatch(/transaction mode/i);
+    // The distinction the issue requires the record to draw explicitly.
+    expect(decision).toMatch(/accident prevention/i);
+    expect(decision).toMatch(/security boundary/i);
   });
 
   it("does not claim the two credentials are the same principal", () => {

@@ -52,13 +52,23 @@ const deployCode = deploy
   .map((line) => line.replace(/(^|\s)#.*$/, ""))
   .join("\n");
 
-/** The `env_vars:` block the Cloud Run deploy step passes, as a set of names. */
+/**
+ * Every environment variable the Cloud Run deploy step sets, by name.
+ *
+ * Read from `--set-env-vars` in the `flags:` block, which is where they are
+ * declared and where they must stay. That flag **replaces** the revision's
+ * environment rather than adding to it, so a second `--set-env-vars`, or mixing
+ * it with the action's `env_vars:` input, would silently leave only whichever
+ * ran last — the exact class of failure this file exists to catch. The single
+ * declaration is asserted below rather than assumed here.
+ */
 function configuredVariables(): Set<string> {
-  const block = /\n\s*env_vars:\s*\|-?\n([\s\S]*?)\n\s{10}[a-z_]+:/.exec(deployCode)?.[1] ?? "";
   const names = new Set<string>();
-  for (const line of block.split("\n")) {
-    const name = /^\s*([A-Z0-9_]+)=/.exec(line)?.[1];
-    if (name) names.add(name);
+  for (const match of deployCode.matchAll(/--set-env-vars=(\S+)/g)) {
+    for (const pair of match[1].split(",")) {
+      const name = /^([A-Z0-9_]+)=/.exec(pair)?.[1];
+      if (name) names.add(name);
+    }
   }
   return names;
 }
@@ -66,10 +76,19 @@ function configuredVariables(): Set<string> {
 describe("the deploy turns on what the code refuses to run without", () => {
   const configured = configuredVariables();
 
-  it("parses the workflow's env_vars block at all", () => {
+  it("parses the workflow's environment declaration at all", () => {
     // A parser that silently found nothing would pass every test below by
     // reporting that nothing is configured and nothing needs to be.
     expect(configured.size).toBeGreaterThan(0);
+  });
+
+  it("declares the environment exactly once", () => {
+    // `--set-env-vars` replaces the revision's environment. Two of them, or one
+    // of them alongside the action's `env_vars:` input, means one list quietly
+    // wins and the other's variables are simply absent from the revision —
+    // which looks exactly like the defect this file was written for.
+    expect([...deployCode.matchAll(/--set-env-vars=/g)]).toHaveLength(1);
+    expect(deployCode, "env_vars: and --set-env-vars would fight").not.toMatch(/^\s*env_vars:/m);
   });
 
   it("enables address search on the deployed revision", () => {
