@@ -186,11 +186,27 @@ describe("verify-clean.sql is read-only", () => {
     }
   });
 
-  it("fails closed on a survivor and on a missing foundation", () => {
-    const raises = [...code.matchAll(/raise exception/gi)];
-    expect(raises.length).toBeGreaterThanOrEqual(3);
+  it("fails closed on a survivor", () => {
+    expect([...code.matchAll(/raise exception/gi)].length).toBeGreaterThanOrEqual(1);
     expect(code).toMatch(/synthetic scenario rows survive cleanup/);
-    expect(code).toMatch(/no operator accounts remain/);
+  });
+
+  it("reports the foundation rather than guarding it, and says why", () => {
+    // This was a guard — "zero operator accounts means a cleanup ate the
+    // foundation" — and CI failed on it, correctly: CI seeds an Auth user and
+    // never links an operator, and so does a freshly migrated hosted project
+    // before anyone is provisioned. A count taken afterwards cannot tell
+    // "never provisioned" from "destroyed".
+    //
+    // The reasoning is pinned here as well as written in the file, so that
+    // somebody restoring the guard has to delete an explanation rather than
+    // just add an `if`.
+    expect(code).not.toMatch(/no operator accounts remain/);
+    expect(code).toMatch(/operator_accounts\) as operator_accounts/);
+    expect(code).toMatch(/from auth\.users\) as auth_users/);
+    expect(VERIFY).toMatch(/cannot tell "never provisioned" from "destroyed"/);
+    // And what does protect it: a property of the scripts, not of the wreckage.
+    expect(VERIFY).toMatch(/tests\/pilot-data-contract\.test\.ts fails if one appears/);
   });
 
   it("reports tables and columns, never values", () => {
@@ -283,14 +299,27 @@ describe("verify-clean.sql, against a real database", () => {
     );
   });
 
-  it("refuses a database whose operator accounts have all gone", async () => {
-    // "Nothing left at all" must not read as a very clean result. Removing the
-    // durable foundation is the failure this half exists to catch, so it is
-    // exercised rather than asserted — inside a transaction that is rolled
-    // back, and audit rows first, because `actor_person_id` restricts.
+  it("passes whether or not a pilot foundation has been provisioned", async () => {
+    // The case CI found. A database with no operator accounts is a database
+    // where nobody has been linked yet — CI's, and a freshly migrated hosted
+    // project's — and that is not a cleanup failure. Exercised in both states
+    // rather than argued about, inside a transaction that is rolled back.
+    // Two transactions, because the script creates a temporary table that lives
+    // for one — running it twice inside a single transaction fails on the
+    // second `create`, which is an artefact of the harness and not of the SQL.
+    await client.query("begin");
+    const before = await client.query<{ count: string }>(
+      "select count(*)::text as count from public.operator_accounts",
+    );
+    await expect(client.query(VERIFY_BODY)).resolves.toBeDefined();
+    await client.query("rollback");
+
     await client.query("begin");
     await client.query("delete from public.operator_accounts");
+    await expect(client.query(VERIFY_BODY)).resolves.toBeDefined();
 
-    await expect(client.query(VERIFY_BODY)).rejects.toThrow(/no operator accounts remain/);
+    // The count is still *reported* in both states — it is evidence for the
+    // person holding the manifest, and dropping the guard must not drop that.
+    expect(Number(before.rows[0].count)).toBeGreaterThanOrEqual(0);
   });
 });

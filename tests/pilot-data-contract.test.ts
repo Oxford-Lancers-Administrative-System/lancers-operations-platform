@@ -1532,13 +1532,15 @@ describe("the scenario scripts stay inside the conventions", () => {
     // may delete quietly.
     ["lan-110/cleanup.sql", read("scripts/pilot/lan-110/cleanup.sql"), 7] as const,
     // The consolidated verification, and the only file here that installs and
-    // removes nothing. Its three guards are its whole purpose rather than a
-    // preflight before a write: a surviving scenario row, a database whose
-    // operator accounts have all gone, and an operator account that no longer
-    // resolves to a Person. Shrinking it to two would mean one of those had
-    // stopped being checked, which is exactly the failure a verification script
-    // fails silently at.
-    ["lan-82/verify-clean.sql", read("scripts/pilot/lan-82/verify-clean.sql"), 3] as const,
+    // removes nothing. One guard, and it is the whole point of the file rather
+    // than a preflight before a write: a scenario row that survived every
+    // cleanup. It briefly had two more — an empty `operator_accounts` and a
+    // dangling one — and both were removed as unsound rather than weakened: a
+    // count taken after a cleanup cannot tell "never provisioned" from
+    // "destroyed", and the second was a restatement of a foreign key. The
+    // foundation is reported for a human to compare against the manifest, and
+    // is protected by the rules above forbidding any cleanup from touching it.
+    ["lan-82/verify-clean.sql", read("scripts/pilot/lan-82/verify-clean.sql"), 1] as const,
   ];
 
   it("checks the preflight of every scenario in the repository", () => {

@@ -84,8 +84,12 @@ cleanup order is its exact reverse, because every foreign key here is
 `on delete restrict`, so a cleanup run out of order aborts rather than
 corrupting. After the last cleanup, `scripts/pilot/lan-82/verify-clean.sql`
 sweeps every character and JSON column in `public` for every scenario sentinel
-and confirms the durable pilot foundation is still intact. It fails closed in
-both directions.
+and raises if one survives. It then **prints** the durable pilot foundation's
+counts — Auth users, operator accounts, roles, role assignments, audit rows —
+for comparison against the tables above. That comparison is the reader's: a
+count taken after a cleanup cannot tell _never provisioned_ from _destroyed_,
+and what actually keeps the foundation safe is that no `cleanup.sql` here
+deletes from those tables at all.
 
 > **This register currently lags the repository.** Ten scenario directories
 > exist — `lan-93`, `lan-74`, `lan-75`, `lan-76`, `lan-77`, `lan-78`, `lan-79`,

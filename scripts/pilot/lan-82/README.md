@@ -133,14 +133,26 @@ is added to it. It does two things:
    of the ten scenario sentinels. It is derived rather than listed on purpose: a
    hand-maintained list of columns is correct until the next scenario stamps a
    new one, and its failure mode is reporting clean because it never looked.
-2. **Confirms the foundation survived.** Auth users, operator accounts, roles,
-   role assignments and audit history are counted, every operator account is
-   checked to still resolve to a Person, and "nothing left at all" is treated as
-   a failure rather than as a very clean result.
+2. **Reports the foundation.** Auth users, operator accounts, roles, role
+   assignments and audit history are counted and printed. **Compare those
+   numbers with [`docs/pilot-data-manifest.md`](../../../docs/pilot-data-manifest.md)** —
+   that comparison is yours, and it is the half a query cannot do.
 
-It **fails closed**: a surviving row raises, naming the table, column and
-sentinel — never the value. So does a missing foundation. A pass prints a notice
-and nothing else.
+   It is deliberately not a guard. It was one — "zero operator accounts means a
+   cleanup ate the foundation" — and CI failed on it, correctly: CI's database
+   seeds an Auth user and never links an operator, and so does a freshly
+   migrated hosted project before anyone is provisioned. A count taken after the
+   fact cannot tell _never provisioned_ from _destroyed_, and every conditional
+   that tries to is a guess at prior state dressed up as a check.
+
+   What protects the foundation is stronger and is checked before any script
+   runs: no `cleanup.sql` in this repository contains a delete against
+   `auth.users`, `public.operator_accounts`, `public.role_assignments` or
+   `public.roles`, and `tests/pilot-data-contract.test.ts` fails if one appears.
+
+It **fails closed on the question it can decide**: a surviving row raises, naming
+the table, column and sentinel — never the value. A pass prints a notice and the
+two evidence tables.
 
 If it reports a survivor, establish what the row is and run the owning scenario's
 cleanup. Do not delete it from the verification script; a row nobody can prove
