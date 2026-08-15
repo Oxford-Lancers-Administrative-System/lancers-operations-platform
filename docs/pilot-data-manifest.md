@@ -74,6 +74,28 @@ scenario event can be in, declared in the scenario's own README and enforced by
 | `LAN-74` | `scripts/pilot/lan-74/` | 8 by script — 2 `people` (one deliberately first-name-only), 3 `contact_points`, 1 `season_memberships` in the **existing** open season, 2 `season_membership_status_events`. All ids in the block `00740074-0074-4074-8074-…`; the sentinel is carried in `known_as` on the two people, `source` on the contacts and `actor_label` on the status events, and the membership is owned by its person rather than by a sentinel of its own. **Plus** the returner Brian creates through the interface while testing, which carries the sentinel in `family_name` because that is the field the form has                                                                                                                                                                                                                                                                                                                                    | **No**, until Brian runs the feature test against the deployed container | Retain while roster work continues — LAN-75 builds on the same rows; `cleanup.sql` removes both kinds when the scenario stops being useful                                                                                                                                                                                             |
 | `LAN-75` | `scripts/pilot/lan-75/` | 8 or 9 by script — 2 or 3 `onboarding_item_types` on the **existing** open season (the subscription type only when the season has none of its own; a season may hold one) (two required, one the season's subscription item), 1 `people`, 2 `contact_points`, 1 `season_memberships` in `confirmed`, 2 `season_membership_status_events`, and the 3 `onboarding_items` those types produce for that membership. All ids in the block `00750075-0075-4075-8075-…`; the sentinel is carried in `label` on the item types, `known_as` on the person, `source` on the contacts and `actor_label` on the status events. The `onboarding_items` rows carry the id half plus a two-way ownership chain instead of a text sentinel, because a `pending` row has no free text column. **Plus** the returner Brian creates through the interface while testing, which carries the sentinel in `family_name` because that is the field the form has | **No**, until Brian runs the feature test against the deployed container | **Shorter than the others.** The three item types belong to the _season_, so while the scenario is installed every membership confirmed through the application also receives its items. `cleanup.sql` removes those wherever they landed and leaves their memberships untouched — but run it once the scenario has served its purpose |
 
+## The order, and the proof
+
+The rows above are per-scenario detail. **The order the scenarios are installed
+and removed in, and the query that proves the removal worked, are in
+[`scripts/pilot/lan-82/README.md`](../scripts/pilot/lan-82/README.md).** Install
+order matters because each scenario builds on the state the one before it leaves;
+cleanup order is its exact reverse, because every foreign key here is
+`on delete restrict`, so a cleanup run out of order aborts rather than
+corrupting. After the last cleanup, `scripts/pilot/lan-82/verify-clean.sql`
+sweeps every character and JSON column in `public` for every scenario sentinel
+and confirms the durable pilot foundation is still intact. It fails closed in
+both directions.
+
+> **This register currently lags the repository.** Ten scenario directories
+> exist — `lan-93`, `lan-74`, `lan-75`, `lan-76`, `lan-77`, `lan-78`, `lan-79`,
+> `lan-80`, `lan-110`, `lan-81` — and the table above details four of them. The
+> six missing rows are owed by their own issues, which each carry the
+> requirement to update this file. None of them has been applied to hosted, so
+> nothing is unrecorded _there_; what is missing is the description. Recorded
+> here rather than guessed at: LAN-82 integrates the slice and does not invent
+> another issue's row counts.
+
 ## Retired scenarios
 
 None yet. A scenario moves here when its cleanup has been run against hosted and

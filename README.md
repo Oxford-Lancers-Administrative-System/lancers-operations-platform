@@ -2,14 +2,25 @@
 
 Operations platform for the **Oxford Lancers**.
 
-> **Current state: infrastructure plus the domain schema baseline.** The
-> approved conceptual domain model is implemented as PostgreSQL migrations, with
-> a deterministic synthetic dataset and tests that prove its invariants are
-> enforced by the database rather than merely documented. Independently verified
-> on 2026-08-10, with two findings corrected in a forward-only migration. **No application
-> workflow is built on it yet** — no screens, no API routes, no notification
-> delivery, and no real roster data anywhere.
-> See [docs/architecture/data-model.md](docs/architecture/data-model.md).
+> **Current state: the first operational vertical slice, on the domain schema
+> baseline.** The approved conceptual domain model is implemented as PostgreSQL
+> migrations, with a deterministic synthetic dataset and tests that prove its
+> invariants are enforced by the database rather than merely documented. On top
+> of it, one complete workflow now runs end to end: an operator enters a
+> returning player and activates their membership, drafts a practice, confirms
+> its audience and approves it, the application delivers the invitations over
+> the official 1:1 WhatsApp Business Platform, players answer through a signed
+> no-login link, an operator asserts the event occurred, an authorized coach
+> takes the register from a narrow phone-width surface, and the Monday
+> leadership report is generated as an immutable snapshot.
+>
+> Walk it yourself: **[docs/operating-the-slice.md](docs/operating-the-slice.md)**.
+> The same path runs as one automated test in `tests/slice-walkthrough.test.ts`.
+>
+> **No real roster data is present in any environment**, and the workflow's
+> boundaries — no reminders, no export, no season close — are listed in the
+> runbook's known limitations and under [Known limitations](#known-limitations)
+> below. See [docs/architecture/data-model.md](docs/architecture/data-model.md).
 
 |                 |                                                                         |
 | --------------- | ----------------------------------------------------------------------- |
@@ -23,20 +34,25 @@ Operations platform for the **Oxford Lancers**.
 Requires Node ≥ 20.9, npm, and a running Docker daemon.
 
 ```bash
-npm install
-npm run db:start            # local Supabase; first run pulls images
-cp .env.example .env.local  # fill from `npm run db:status`
-npm run db:seed             # synthetic domain data (local only)
-npm run db:seed-user        # the one pre-provisioned test user
-npm run dev                 # http://localhost:3000
+npm ci
+npm run db:acquire -- LAN-1  # claim a local database slot for what you are working on
+npm run db:start             # containers, migrations, synthetic data, .env.local and the review logins
+npm run dev:slot             # on the primary slot, http://localhost:3000
 ```
 
+`db:start` does the whole setup: it applies every migration, loads the
+deterministic synthetic dataset, writes `.env.local`, and provisions the local
+review login and the coach login. There is no separate seeding step to remember.
+
 Full walkthrough and troubleshooting: **[docs/local-development.md](docs/local-development.md)**.
+To see the application actually do something, follow
+**[docs/operating-the-slice.md](docs/operating-the-slice.md)**.
 
 ## Documentation
 
 | Document                                                           | What it covers                                                                                   |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| [docs/operating-the-slice.md](docs/operating-the-slice.md)         | **The complete workflow, walked by hand** — and every checkpoint that is Brian's                 |
 | [docs/local-development.md](docs/local-development.md)             | Clean machine → running app; every npm script; migrations                                        |
 | [docs/architecture.md](docs/architecture.md)                       | Stack, layout, request path, security model                                                      |
 | [docs/architecture/data-model.md](docs/architecture/data-model.md) | **Every table, every invariant, and where each rule is enforced**                                |
@@ -131,3 +147,9 @@ assume all rights reserved.
 - **Two styling systems** — Material UI is the component baseline; Tailwind is
   also available for layout and utility styling. Never style one element with
   both. ([ADR 0004](docs/adr/0004-styling-baseline.md))
+- **The slice is one workflow, not the club's whole year** — no reminders or
+  escalation, no export, no recruitment intake beyond flagging a walk-up, no
+  season close, no amendment or cancellation of an already-approved event, and
+  nothing schedules delivery: a job left queued waits for a person to retry it.
+  Each is stated with what it means for an operator in
+  [docs/operating-the-slice.md § 14](docs/operating-the-slice.md#14-known-limitations).
