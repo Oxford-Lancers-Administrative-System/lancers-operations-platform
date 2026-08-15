@@ -14,11 +14,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-// @ts-expect-error — plain ESM helper.
 import { workbook } from "./helpers/xlsx-builder.mjs";
-// @ts-expect-error — plain ESM operator script.
 import { readWorkbook } from "../scripts/production/showcase/workbook.mjs";
-// @ts-expect-error — plain ESM operator script.
 import {
   classifyEvent,
   extractTimes,
@@ -354,11 +351,16 @@ describe("readTermCard", () => {
     );
 
     const entries = readTermCard(book, { year: 2026, sheetName: "MT26" });
-    const sunday = entries.find((e: { source: { cell: string } }) => e.source.cell === "C7");
-    const wednesday = entries.find((e: { source: { cell: string } }) => e.source.cell === "H7");
+    const cell = (address: string) =>
+      entries.find((entry: { source: { cell: string } }) => entry.source.cell === address);
 
-    expect(sunday.scheduledOn).toBe("2026-10-11");
-    expect(wednesday.scheduledOn).toBe("2026-10-14");
+    // Asserted present before being read: a `find` that missed would otherwise
+    // fail on a property access rather than saying the entry is absent.
+    expect(cell("C7"), "no entry read from C7").toBeDefined();
+    expect(cell("H7"), "no entry read from H7").toBeDefined();
+
+    expect(cell("C7")?.scheduledOn).toBe("2026-10-11");
+    expect(cell("H7")?.scheduledOn).toBe("2026-10-14");
   });
 
   it("reads a day's second column as the same day", () => {

@@ -35,6 +35,15 @@ function crc32(buffer) {
  *
  * `deflate` is opt-in per entry so a test can prove the reader inflates as well
  * as reads stored data.
+ *
+ * The JSDoc types are load-bearing rather than decorative: `tsc` checks this
+ * file from the TypeScript suites that import it, and infers a parameter's type
+ * from its default value when none is given — so `{ sharedStrings = [] }` alone
+ * becomes `never[]`, and every caller passing a string fails to compile.
+ *
+ * @param {Record<string, string>} entries
+ * @param {{ deflate?: boolean }} [options]
+ * @returns {Buffer}
  */
 export function zip(entries, { deflate = false } = {}) {
   const locals = [];
@@ -95,6 +104,10 @@ export function zip(entries, { deflate = false } = {}) {
  * where the body is the inside of a `<c>` element including its attributes —
  * so a test can write a shared string, an inline string, an error or a number
  * without this helper deciding for it.
+ *
+ * @param {Record<string, [string, string][]>} sheets
+ * @param {{ sharedStrings?: string[], deflate?: boolean }} [options]
+ * @returns {Buffer}
  */
 export function workbook(sheets, { sharedStrings = [], deflate = false } = {}) {
   const names = Object.keys(sheets);

@@ -22,9 +22,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-// @ts-expect-error — plain ESM helper, deliberately untyped.
 import { workbook, zip } from "./helpers/xlsx-builder.mjs";
-// @ts-expect-error — the reader under test is a plain ESM script.
 import {
   cellsInReadingOrder,
   cellText_,

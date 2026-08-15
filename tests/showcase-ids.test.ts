@@ -17,7 +17,6 @@
  */
 import { describe, expect, it } from "vitest";
 
-// @ts-expect-error — plain ESM operator script, deliberately untyped.
 import { id, personKey, SHOWCASE_NAMESPACE, uuidV5 } from "../scripts/production/showcase/ids.mjs";
 
 describe("the namespace", () => {
