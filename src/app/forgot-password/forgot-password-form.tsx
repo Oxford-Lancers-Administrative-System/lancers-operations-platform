@@ -18,6 +18,14 @@ const initialState: ForgotPasswordState = { status: "idle" };
  * also removes the resend button, which is the control that would otherwise
  * make the per-address frequency limit easy to probe. Someone who genuinely
  * needs a second email reloads the page, which is one deliberate step.
+ *
+ * The two states name their secondary action differently, on purpose. While the
+ * form is on screen the pair is **Reset password** and **Cancel** — Brian's
+ * wording, approved on 15 August 2026 — because there is something in progress
+ * to abandon. Once the request has been answered there is not: the only thing
+ * left is to go back, so the confirmation says **Back to sign in**. Offering to
+ * cancel something that has already happened would be a lie about what the
+ * button does.
  */
 export default function ForgotPasswordForm({ signInHref }: { signInHref: string }) {
   const [state, formAction, pending] = useActionState(requestPasswordReset, initialState);
@@ -48,10 +56,10 @@ export default function ForgotPasswordForm({ signInHref }: { signInHref: string 
         />
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
           <Button type="submit" variant="contained" disabled={pending}>
-            {pending ? "Sending…" : "Send reset instructions"}
+            {pending ? "Resetting…" : "Reset password"}
           </Button>
           <Button href={signInHref} variant="outlined">
-            Back to sign in
+            Cancel
           </Button>
         </Stack>
       </Stack>

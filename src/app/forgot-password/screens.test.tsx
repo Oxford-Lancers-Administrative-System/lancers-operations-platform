@@ -51,14 +51,16 @@ describe("the request screen", () => {
 
     expect(screen.getByRole("heading", { name: "Reset your password" })).toBeVisible();
     expect(screen.getByLabelText(/email address/i)).toBeRequired();
-    expect(screen.getByRole("button", { name: "Send reset instructions" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Back to sign in" })).toBeVisible();
+    // Brian's wording, approved on 15 August 2026: while the form is on screen
+    // the pair is Reset password / Cancel, not "Send reset instructions".
+    expect(screen.getByRole("button", { name: "Reset password" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Cancel" })).toBeVisible();
   });
 
   it("keeps a safe destination on the way back to sign in", async () => {
     await showPage({ redirectTo: "/operate/roster" });
 
-    expect(screen.getByRole("link", { name: "Back to sign in" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute(
       "href",
       "/login?redirectTo=%2Foperate%2Froster",
     );
@@ -69,7 +71,7 @@ describe("the request screen", () => {
     async (candidate) => {
       await showPage({ redirectTo: candidate });
 
-      expect(screen.getByRole("link", { name: "Back to sign in" })).toHaveAttribute(
+      expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute(
         "href",
         "/login?redirectTo=%2Foperate",
       );
@@ -93,7 +95,7 @@ describe("the confirmation is one confirmation", () => {
 
     expect(screen.getByText(PUBLIC_RECOVERY_CONFIRMATION)).toBeVisible();
     expect(screen.queryByLabelText(/email address/i)).toBeNull();
-    expect(screen.queryByRole("button", { name: /send|resend|try again/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /reset|send|resend|try again/i })).toBeNull();
   });
 
   it("says nothing about the account, the address or the email having been sent", () => {
@@ -106,9 +108,13 @@ describe("the confirmation is one confirmation", () => {
     expect(container.textContent).not.toMatch(/@|\bwe sent\b|\bno account\b|\bnot found\b/i);
   });
 
-  it("still offers a safe way back to sign in", () => {
+  it("still offers a safe way back to sign in, and does not call it Cancel", () => {
+    // Named differently from the form's Cancel, deliberately: once the request
+    // has been answered there is nothing left to cancel, so the button says
+    // what it actually does.
     showForm({ status: "confirmed", message: PUBLIC_RECOVERY_CONFIRMATION });
 
+    expect(screen.queryByRole("link", { name: "Cancel" })).toBeNull();
     expect(screen.getByRole("link", { name: "Back to sign in" })).toHaveAttribute(
       "href",
       "/login?redirectTo=%2Foperate",
