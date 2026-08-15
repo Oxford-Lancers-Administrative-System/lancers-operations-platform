@@ -33,9 +33,14 @@ function fixture() {
   const repo = path.join(root, "repo");
   fs.mkdirSync(path.join(repo, "supabase", "migrations"), { recursive: true });
   fs.writeFileSync(path.join(repo, "supabase", "seed.sql"), "-- synthetic\n");
+  fs.mkdirSync(path.join(repo, "supabase", "templates"), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, "supabase", "templates", "recovery.html"),
+    '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=recovery">reset</a>\n',
+  );
   fs.writeFileSync(
     path.join(repo, "supabase", "config.toml"),
-    'project_id = "tracked"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[db.pooler]\nport = 54329\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[edge_runtime]\nenabled = true\ninspector_port = 8083\n[auth]\nsite_url = "http://localhost:3000"\nadditional_redirect_urls = ["http://localhost:3000"]\n[analytics]\nport = 54327\n',
+    'project_id = "tracked"\n[api]\nport = 54321\n[db]\nport = 54322\nshadow_port = 54320\n[db.pooler]\nport = 54329\n[studio]\nport = 54323\n[local_smtp]\nport = 54324\n[edge_runtime]\nenabled = true\ninspector_port = 8083\n[auth]\nsite_url = "http://localhost:3000"\nadditional_redirect_urls = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3000/auth/recovery", "http://127.0.0.1:3000/auth/recovery"]\n[analytics]\nport = 54327\n',
   );
   execFileSync("git", ["init", "-q"], { cwd: repo });
   execFileSync("git", ["remote", "add", "origin", "git@example.test:oxford/lancers.git"], {
@@ -302,5 +307,83 @@ describe("two-slot local Supabase coordinator", () => {
     expect(fs.readFileSync(path.join(repo, "supabase", "config.toml"), "utf8")).toContain(
       'project_id = "tracked"',
     );
+  });
+});
+
+/**
+ * LAN-125. Two things the recovery flow depends on, and both fail silently.
+ *
+ * The rendered config used to replace the whole redirect line with a fixed pair
+ * of bare origins, which would have dropped the exact `/auth/recovery` entries
+ * the tracked config lists. Supabase substitutes its Site URL for a destination
+ * it does not recognise, so the symptom is not an error: every recovery email
+ * lands on the sign-in page instead of the reset page. The template link is the
+ * same shape of failure — without it Supabase sends its own email, which the
+ * application cannot complete.
+ */
+describe("the rendered slot config keeps what password recovery needs", () => {
+  async function renderedFor(pid: number) {
+    const { repo, env } = fixture();
+    const lease = await acquireLease({
+      issueId: `LAN-${pid}`,
+      repoPath: repo,
+      pid,
+      env,
+      probe: () => true,
+    });
+    return {
+      repo,
+      lease: lease!,
+      config: fs.readFileSync(path.join(lease!.runtimeRoot, "supabase", "config.toml"), "utf8"),
+    };
+  }
+
+  it("re-ports every allow-listed URL and keeps its path", async () => {
+    const { lease, config } = await renderedFor(201);
+    const line = /^additional_redirect_urls = (.+)$/m.exec(config)![1];
+    const urls = JSON.parse(line) as string[];
+
+    expect(urls).toEqual([
+      `http://localhost:${lease.applicationPort}`,
+      `http://127.0.0.1:${lease.applicationPort}`,
+      `http://localhost:${lease.applicationPort}/auth/recovery`,
+      `http://127.0.0.1:${lease.applicationPort}/auth/recovery`,
+    ]);
+  });
+
+  it("re-ports the same way for whichever slot is assigned", async () => {
+    const { repo, env } = fixture();
+    const primary = await acquireLease({
+      issueId: "LAN-1",
+      repoPath: repo,
+      pid: 301,
+      env,
+      probe: () => true,
+    });
+    const overflow = await acquireLease({
+      issueId: "LAN-2",
+      repoPath: repo,
+      pid: 302,
+      env,
+      probe: () => true,
+    });
+
+    for (const lease of [primary!, overflow!]) {
+      const config = fs.readFileSync(
+        path.join(lease.runtimeRoot, "supabase", "config.toml"),
+        "utf8",
+      );
+      expect(config).toContain(`"http://127.0.0.1:${lease.applicationPort}/auth/recovery"`);
+      expect(config).toContain(`site_url = "http://localhost:${lease.applicationPort}"`);
+    }
+    expect(primary!.applicationPort).not.toBe(overflow!.applicationPort);
+  });
+
+  it("links the email templates beside the migrations, so content_path resolves", async () => {
+    const { lease } = await renderedFor(203);
+    const linked = path.join(lease.runtimeRoot, "supabase", "templates", "recovery.html");
+
+    expect(fs.existsSync(linked)).toBe(true);
+    expect(fs.readFileSync(linked, "utf8")).toContain("{{ .TokenHash }}");
   });
 });

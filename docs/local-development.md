@@ -217,6 +217,54 @@ local stack instead, build with your real `.env.local` values and run with
 - Supabase Studio — <http://127.0.0.1:54323>
 - Mailpit (all local outbound mail) — <http://127.0.0.1:54324>
 
+On the overflow database slot every port is different — Studio is 55323 and
+Mailpit 55324. `npm run db:status` prints the set your slot actually has.
+
+## Password recovery, locally
+
+Nothing leaves your machine: Supabase's local stack posts every email to Mailpit
+instead of sending it, so the whole recovery journey is exercisable by hand.
+
+1. Sign-in page → **Forgot password?**, or go straight to
+   <http://localhost:3000/forgot-password>.
+2. Enter the local review address. Any address is accepted and answered
+   identically — that is deliberate, and it is why the confirmation says "if an
+   account exists" rather than "sent".
+3. Open Mailpit at <http://127.0.0.1:54324> and click the link in **Reset your
+   Lancers Operations password**.
+4. The link lands on `/auth/recovery`, which exchanges the one-time token and
+   sends the browser to `/reset-password` with the token stripped from the URL.
+5. Choose a new password. You are signed out and returned to `/login`, where the
+   new password works and the old one does not.
+
+Because it changes the password, do this against a synthetic account rather than
+the fixed review login unless you intend to change that login's password — the
+review login's password lives in protected machine-local state and is what
+`npm run db:seed-user` restores.
+
+### The Auth configuration this depends on
+
+Two entries in `supabase/config.toml`, and both are **local only** — the hosted
+project's equivalents are set in the Supabase dashboard and are listed in
+[`deployment.md`](deployment.md) § Password recovery.
+
+| Setting                           | Value                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `[auth] additional_redirect_urls` | includes `http://localhost:3000/auth/recovery` and `http://127.0.0.1:3000/auth/recovery`         |
+| `[auth.email.template.recovery]`  | `./supabase/templates/recovery.html`, which links `{{ .RedirectTo }}?token_hash=…&type=recovery` |
+
+The port is rewritten per slot when the coordinator renders the runtime config,
+so the overflow slot allow-lists `http://localhost:3010/auth/recovery` instead.
+Both loopback spellings are listed because a browser opened on either must work.
+
+Exact URLs, not a wildcard. A destination Supabase does not recognise is silently
+replaced with the Site URL, so the symptom of getting this wrong is a recovery
+link that lands on the sign-in page with no error anywhere.
+
+An edit to `supabase/config.toml` reaches the running stack on the next
+`npm run db:start` or `npm run db:reset`, which re-render the slot's runtime copy
+before the CLI reads it.
+
 ## Migrations
 
 ```bash

@@ -160,7 +160,25 @@ site_url = "http://localhost:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["http://localhost:3000", "http://127.0.0.1:3000"]
+#
+# LAN-125. The two bare origins were here before and stay: they are what Supabase
+# falls back to. The two `/auth/recovery` entries are the ones that matter — that
+# is the exact destination `resetPasswordForEmail` asks for, and an origin
+# Supabase does not recognise is silently replaced with `site_url`, which would
+# send every recovery link to the sign-in page instead of the reset page.
+#
+# Exact paths, not a wildcard: this flow needs one destination and a wildcard
+# would allow-list every future one by accident.
+#
+# The port is rewritten per database slot by `scripts/lib/local-supabase-
+# coordinator.mjs`, which re-ports each entry and preserves its path — the
+# overflow slot serves the application on 3010. Both loopback spellings are
+# listed because a reviewer may open either.
+#
+# The hosted project's allow-list is configured in the Supabase dashboard and is
+# NOT read from this file. docs/deployment.md § Password recovery holds the exact
+# hosted entries.
+additional_redirect_urls = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3000/auth/recovery", "http://127.0.0.1:3000/auth/recovery"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -253,6 +271,26 @@ otp_expiry = 3600
 # [auth.email.template.invite]
 # subject = "You have been invited"
 # content_path = "./supabase/templates/invite.html"
+
+# LAN-125. The recovery email must link to THIS application carrying
+# `{{ .TokenHash }}`, not to Supabase's own /verify endpoint. The default link
+# returns the session in a URL fragment, which a server-rendered application
+# cannot read; a token hash can be presented from any device, which is what an
+# operator who requests the reset on one and opens the email on another needs.
+# The template records the full reasoning.
+#
+# `content_path` is relative to the CLI's project root — the same form the
+# commented example above uses — which is the repository in CI and the per-slot
+# runtime root under `--workdir` locally. `scripts/lib/local-supabase-
+# coordinator.mjs` links `templates/` into that runtime root beside `migrations`
+# for exactly that reason: a template that is not there makes Supabase send its
+# built-in recovery email, whose link this application cannot complete, and it
+# does so without an error.
+#
+# The hosted project needs the same body pasted into its dashboard template.
+[auth.email.template.recovery]
+subject = "Reset your Lancers Operations password"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

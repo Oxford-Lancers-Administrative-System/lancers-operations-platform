@@ -172,6 +172,20 @@ async function withAllocatorLock(paths, action) {
   }
 }
 
+/**
+ * The same URL, served by this slot's application port. Anything that will not
+ * parse is passed through untouched rather than silently mangled.
+ */
+function reportedUrl(url, applicationPort) {
+  try {
+    const parsed = new URL(url);
+    parsed.port = String(applicationPort);
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return url;
+  }
+}
+
 function renderConfig(source, slot) {
   let section = "";
   return source
@@ -196,8 +210,18 @@ function renderConfig(source, slot) {
         return `inspector_port = ${slot.ports.inspector}`;
       if (/^site_url\s*=/.test(line))
         return `site_url = "http://localhost:${slot.applicationPort}"`;
-      if (/^additional_redirect_urls\s*=/.test(line))
-        return `additional_redirect_urls = ["http://localhost:${slot.applicationPort}", "http://127.0.0.1:${slot.applicationPort}"]`;
+      // LAN-125. Re-port each allow-listed URL and keep its path. Rewriting the
+      // line to a fixed pair of bare origins — which is what this did — silently
+      // dropped the exact `/auth/recovery` destinations the tracked config
+      // lists, and Supabase substitutes site_url for a destination it does not
+      // recognise, so every recovery link would have landed on the sign-in page.
+      // The tracked config stays the single source of which paths are allowed.
+      if (/^additional_redirect_urls\s*=/.test(line)) {
+        const urls = [...line.matchAll(/"([^"]+)"/g)].map(([, url]) =>
+          reportedUrl(url, slot.applicationPort),
+        );
+        return `additional_redirect_urls = [${urls.map((url) => `"${url}"`).join(", ")}]`;
+      }
       return line;
     })
     .join("\n");
@@ -212,7 +236,12 @@ export function prepareRuntime(repoPath, slot) {
     path.join(runtimeSupabase, "config.toml"),
     renderConfig(fs.readFileSync(path.join(tracked, "config.toml"), "utf8"), slot),
   );
-  for (const entry of ["migrations", "seed.sql"]) {
+  // `templates` joins the list for LAN-125: `[auth.email.template.recovery]`
+  // resolves `content_path` relative to the config file, and the config file the
+  // CLI reads is this generated copy. Without the link Supabase falls back to
+  // its built-in recovery email, whose link shape this application cannot
+  // complete — and it does so without an error.
+  for (const entry of ["migrations", "seed.sql", "templates"]) {
     const target = path.join(runtimeSupabase, entry);
     fs.rmSync(target, { recursive: true, force: true });
     fs.symlinkSync(path.join(tracked, entry), target);

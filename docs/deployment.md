@@ -265,12 +265,13 @@ action's `env_vars:` input, leaves whichever ran last as the only environment th
 revision has — and the variables in the other list are simply absent, which looks
 exactly like the defect below.
 
-| Variable                | Set by the deploy  | What happens if it is absent                                                               |
-| ----------------------- | ------------------ | ------------------------------------------------------------------------------------------ |
-| `DATABASE_POOL_MAX`     | **Yes** — `5`      | The code default of 10 applies: 30 connections over three instances, past the pooler's 15  |
-| `VENUE_SEARCH_PROVIDER` | **Yes** — `photon` | Event venue entry degrades to plain text and says "address search is not set up here"      |
-| `VENUE_SEARCH_BASE_URL` | No, on purpose     | Blank means the free public Photon instance; set it only to point at a self-hosted one     |
-| `WHATSAPP_*` (four)     | **No — not yet**   | Approval creates invitations and **delivers nothing**, recorded as a configuration failure |
+| Variable                | Set by the deploy            | What happens if it is absent                                                                   |
+| ----------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| `DATABASE_POOL_MAX`     | **Yes** — `5`                | The code default of 10 applies: 30 connections over three instances, past the pooler's 15      |
+| `VENUE_SEARCH_PROVIDER` | **Yes** — `photon`           | Event venue entry degrades to plain text and says "address search is not set up here"          |
+| `VENUE_SEARCH_BASE_URL` | No, on purpose               | Blank means the free public Photon instance; set it only to point at a self-hosted one         |
+| `APP_BASE_URL`          | **Yes** — the Cloud Run host | Password recovery has no trusted origin to build a link from and quietly sends nobody anything |
+| `WHATSAPP_*` (three)    | **No — not yet**             | Approval creates invitations and **delivers nothing**, recorded as a configuration failure     |
 
 `tests/deployment-configuration.test.ts` compares this table's reality against
 the workflow: a feature that refuses to run unconfigured must either be
@@ -287,6 +288,83 @@ and no hand-sent message stands in for it.
 
 This gap was found by LAN-82's walk: LAN-115's address search had merged and
 worked locally, and no deployed revision had ever been told to enable it.
+
+**`APP_BASE_URL` is the fourth WhatsApp variable and is now set** — LAN-125 needs
+it for password recovery, and the sender still refuses without the other three,
+so setting it enables no delivery. It is in the workflow rather than typed into
+the Cloud Run console because `--set-env-vars` replaces the environment: a value
+set by hand would be erased by the next merge to `main`, and recovery would stop
+sending without any error appearing anywhere.
+
+## Password recovery — hosted Supabase Auth
+
+Password recovery is the one feature whose configuration lives **outside this
+repository as well as in it**. The application half ships with the code; the
+Supabase project half is set in the hosted dashboard, by Brian, and this section
+is the exact list.
+
+The deployed service answers on its Cloud Run default hostname:
+
+```
+https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app
+```
+
+That value appears in exactly two places and they must agree: `APP_BASE_URL` in
+`.github/workflows/deploy.yml`, and the redirect allow-list below.
+`tests/auth-recovery-configuration.test.ts` fails if they drift.
+
+**1. Authentication → URL Configuration.**
+
+| Field                | Value                                                                       |
+| -------------------- | --------------------------------------------------------------------------- |
+| Site URL             | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app`               |
+| Redirect URL (exact) | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app/auth/recovery` |
+
+One exact URL, not a wildcard. The application asks for that destination and no
+other; anything Supabase does not recognise it silently replaces with the Site
+URL, which would land every recovery link on the sign-in page rather than the
+reset page — a failure with no error message anywhere.
+
+The local CLI equivalent is `[auth] site_url` and `additional_redirect_urls` in
+`supabase/config.toml`, which is **local only**. Nothing in this repository
+configures the hosted project's Auth settings, and nothing should.
+
+**2. Authentication → Email Templates → Reset Password.**
+
+Set the subject to `Reset your Lancers Operations password` and paste the body
+from [`supabase/templates/recovery.html`](../supabase/templates/recovery.html).
+The link in it must stay in this shape:
+
+```
+{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery
+```
+
+The default template links to Supabase's own `/verify` endpoint, which returns
+the session in a URL fragment a server-rendered page cannot read. The token-hash
+form also works from a different device than the one that asked for the reset,
+which is what an operator who requests it on a laptop and opens the email on a
+phone actually does.
+
+**3. Project Settings → Authentication → SMTP Settings.**
+
+Supabase's built-in email sender is for development traffic only: it is rate
+limited to a handful of messages an hour and its deliverability to real mailboxes
+is not guaranteed. Dependable recovery for the pilot needs a custom SMTP provider
+(Resend, Postmark, SendGrid or similar) configured here, with a sender address on
+a domain the club controls. Until that is done, hosted recovery email should be
+treated as **untested in production** — see the known limitation on LAN-125's
+pull request.
+
+The SMTP credential is Brian's to enter directly into the Supabase dashboard. It
+must not be added to this repository, to Secret Manager, to a workflow, or to any
+prompt.
+
+**4. Authentication → Rate Limits.** The hosted project enforces an
+emails-per-hour limit that the local stack does not. Leave it at the project
+default unless the pilot proves it too low; the application already normalises a
+rate-limited request into the same public confirmation as every other outcome, so
+the symptom of a limit being hit is an email that does not arrive, not an error
+on screen.
 
 ## Cost and capacity controls
 

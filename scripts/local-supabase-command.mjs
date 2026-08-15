@@ -2,7 +2,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { readSession, updateLease } from "./lib/local-supabase-coordinator.mjs";
+import {
+  prepareRuntime,
+  readSession,
+  SLOT_DEFINITIONS,
+  updateLease,
+} from "./lib/local-supabase-coordinator.mjs";
 import { ensureLocalReviewAccount, readLocalReviewAccount } from "./lib/local-review-account.mjs";
 
 const repoPath = process.cwd();
@@ -57,6 +62,19 @@ try {
     SUPABASE_TELEMETRY_DISABLED: "1",
   };
   const cliArgs = (command, extra = []) => [command, ...extra, "--workdir", lease.runtimeRoot];
+
+  // The per-slot runtime config is rendered from the tracked one, and until
+  // LAN-125 it was rendered only when the lease was first acquired. An edit to
+  // `supabase/config.toml` — a redirect allow-list entry, an email template —
+  // then had no effect until the slot happened to be released and taken again,
+  // which is a stale-configuration bug that looks like a code fault. Re-render
+  // before anything that reads it.
+  if (["start", "reset"].includes(operation)) {
+    prepareRuntime(
+      repoPath,
+      SLOT_DEFINITIONS.find((slot) => slot.name === lease.slot),
+    );
+  }
 
   if (operation === "start") {
     const reviewAccount = ensureLocalReviewAccount(repoPath);

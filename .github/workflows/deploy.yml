@@ -124,8 +124,8 @@ jobs:
             --memory=512Mi
             --timeout=60s
             --port=8080
-            --set-env-vars=DATABASE_POOL_MAX=5,VENUE_SEARCH_PROVIDER=photon
-          # Two non-secret runtime settings, in one `--set-env-vars` because the
+            --set-env-vars=DATABASE_POOL_MAX=5,VENUE_SEARCH_PROVIDER=photon,APP_BASE_URL=https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app
+          # Three non-secret runtime settings, in one `--set-env-vars` because the
           # flag REPLACES the revision's environment rather than adding to it —
           # declaring them separately, or mixing this flag with the action's
           # `env_vars` input, would leave whichever ran last as the only one
@@ -157,6 +157,24 @@ jobs:
           # here and not in Secret Manager. Operator-typed venue text does reach
           # a third party (photon.komoot.io) as a result — that is the substance
           # of what was authorized.
+          #
+          # APP_BASE_URL — LAN-125. The origin this deployment answers on, and
+          # the only origin a password-recovery email may be built from. It is
+          # here rather than set by hand on the service because `--set-env-vars`
+          # replaces the revision's environment: a value Brian typed into the
+          # console would be erased by the next merge to main, and recovery would
+          # start silently sending nobody anything.
+          #
+          # It is the Cloud Run default hostname, observed from the deploy that
+          # shipped commit ad12251 and stable for the service. When the custom
+          # domain arrives it replaces this value here, in the same commit that
+          # adds the matching entry to the hosted Supabase redirect allow-list —
+          # the two are one change, and docs/deployment.md § Password recovery
+          # says so.
+          #
+          # It is also one of the four settings the WhatsApp sender requires.
+          # Setting it alone enables nothing: LAN-92's three credentials are
+          # still absent, so delivery still refuses and names what is missing.
           #
           # VENUE_SEARCH_BASE_URL is deliberately absent: blank means the free
           # public instance at https://photon.komoot.io, which carries a fair-use

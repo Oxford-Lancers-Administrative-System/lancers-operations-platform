@@ -1,0 +1,36 @@
+<!--
+  The password-recovery email — LAN-125.
+
+  This template exists for one reason: the link must carry `{{ .TokenHash }}`
+  to this application, not `{{ .ConfirmationURL }}` to Supabase's own /verify
+  endpoint. The default link lands back on the application with the session in
+  the URL *fragment*, which a server cannot read, and a PKCE link only works in
+  the browser that asked for the reset. A token hash works from any device,
+  which is what an operator who requests a reset on a laptop and opens the email
+  on a phone actually needs. `src/lib/auth/recovery.ts` records the reasoning.
+
+  `.RedirectTo` is the exact URL `resetPasswordForEmail` was given — this
+  application's `/auth/recovery` on the origin the request came from. Supabase
+  validates it against the redirect allow-list before this template is rendered
+  and substitutes the project's Site URL for anything not on it, so the link
+  cannot be aimed at another host.
+
+  The hosted project needs the same template, set by hand in the Supabase
+  dashboard. docs/deployment.md § Password recovery has the exact steps.
+-->
+<h2>Reset your Lancers Operations password</h2>
+
+<p>
+  Someone asked to reset the password for the Oxford Lancers operations account using this email
+  address. Choose a new one here:
+</p>
+
+<p>
+  <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=recovery"
+    >Choose a new password</a
+  >
+</p>
+
+<p>The link can be used once, and expires shortly.</p>
+
+<p>If you did not ask for this, you can ignore this email. Your password has not changed.</p>
