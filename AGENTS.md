@@ -155,14 +155,17 @@ npm run verify             # format:check → lint → typecheck → test → bu
 First run on a new machine:
 
 ```bash
-npm install
+npm ci
 npm run db:acquire -- LAN-1  # replace with the issue being worked
-npm run db:start
-npm run db:seed              # synthetic domain data
-npm run db:seed-user         # the one local auth user
-npm run db:link-operator
+npm run db:start             # migrations, synthetic data, .env.local, both review logins
 npm run dev:slot
 ```
+
+`db:start` and `db:reset` both seed the dataset, create the fixed review user,
+and link the operator and coach logins — so the individual `db:seed`,
+`db:seed-user`, `db:link-operator` and `db:link-coach` commands above exist for
+repairing one piece, not for first-run setup. Running them after `db:start` is
+harmless and unnecessary.
 
 ## Deployment
 

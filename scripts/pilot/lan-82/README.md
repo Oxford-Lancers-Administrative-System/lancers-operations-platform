@@ -118,12 +118,58 @@ club data.
 
 ---
 
+## What the hosted walk cannot clean up
+
+**Read this before performing the hosted walk, not after.**
+
+The scenarios' cleanups can only remove application-created rows they can prove
+they own, and for events that proof is two conjuncts, both pinned in
+`tests/pilot-data-contract.test.ts`: the `PILOT-LAN-76` sentinel in the name
+**and** a status in `draft`, `pending_approval` or `withdrawn`.
+
+`docs/operating-the-slice.md` § 6 approves the event and § 9 marks it occurred.
+An approved or occurred event therefore falls outside that restriction, and
+**no script in this repository can remove it** — correctly named or not. It is
+not an oversight in `lan-76/cleanup.sql`: an approved event has invitations,
+delivery jobs, responses and attendance hanging off it, and a cleanup that
+deleted one out from under its own audit history would be doing something far
+worse than leaving it.
+
+So the hosted walk has three honest options, and choosing one is Brian's:
+
+1. **Stop the hosted walk at the draft.** Perform §§ 4–5 against hosted to prove
+   intake and drafting, and leave approval, delivery, RSVP, attendance and the
+   report to the local walk and to `tests/slice-walkthrough.test.ts`. The draft
+   is then removable by `lan-76/cleanup.sql` in the ordinary way. **This is the
+   recommended option**, and it is the only one that leaves the database
+   returnable to a clean state by script alone.
+2. **Use the pre-installed scenarios instead of creating anything.** `lan-77`
+   through `lan-81` already install approved events, delivered invitations,
+   responses, attendance and a reporting week, each owned by a deterministic
+   identifier and removable by its own cleanup. Walking those proves the same
+   screens without creating a single unownable row.
+3. **Accept a permanent synthetic event**, and record it in
+   `docs/pilot-data-manifest.md` under a new "Retained by decision" heading with
+   the date and the reason. `verify-clean.sql` will raise on it at every future
+   run until it is removed by hand, so this option makes the verification noisy
+   for ever and should be a last resort.
+
+What must not happen is the fourth path: approving an event on hosted, finding
+the cleanup refuses it, and deleting the row by hand to make the verification
+pass. That is exactly the "fix it by deleting the blocking row" the scenario
+cleanups refuse to do for themselves, and the audit history it would orphan is
+invariant M2's problem, not a tidiness one.
+
 ## The verification
 
-```sql
--- After every cleanup above, in the hosted SQL editor:
-\i scripts/pilot/lan-82/verify-clean.sql
-```
+After every cleanup above: open `verify-clean.sql`, **paste the whole file** into
+the hosted SQL editor — including its `begin;` and `commit;` — and run it. Do not
+paste fragments; the transaction is the safety property, and the temporary table
+the sweep collects into does not outlive it.
+
+(`\i` is a psql meta-command. It does not work in the Supabase SQL editor, and
+`docs/pilot-data-runbook.md` § Running a script safely, by hand says to paste the
+whole file for every script here.)
 
 `verify-clean.sql` is read-only, and the test suite fails if a mutating statement
 is added to it. It does two things:

@@ -82,13 +82,61 @@ describe("the deploy turns on what the code refuses to run without", () => {
     expect(configured.size).toBeGreaterThan(0);
   });
 
-  it("declares the environment exactly once", () => {
-    // `--set-env-vars` replaces the revision's environment. Two of them, or one
-    // of them alongside the action's `env_vars:` input, means one list quietly
+  it("declares the environment exactly once, by any mechanism", () => {
+    // `--set-env-vars` replaces the revision's environment. A second one, or any
+    // of the action's own environment inputs beside it, means one list quietly
     // wins and the other's variables are simply absent from the revision —
     // which looks exactly like the defect this file was written for.
-    expect([...deployCode.matchAll(/--set-env-vars=/g)]).toHaveLength(1);
-    expect(deployCode, "env_vars: and --set-env-vars would fight").not.toMatch(/^\s*env_vars:/m);
+    //
+    // Enumerated rather than spot-checked, because the first version of this
+    // test named `env_vars:` alone: review added `env_vars_file:` and all seven
+    // tests still passed. Every mechanism that can set or clear a Cloud Run
+    // environment is listed here, and a new one is a deliberate edit.
+    expect([...deployCode.matchAll(/--set-env-vars[= ]/g)]).toHaveLength(1);
+    for (const competing of [
+      /^\s*env_vars:/m,
+      /^\s*env_vars_file:/m,
+      /^\s*env_vars_update_strategy:/m,
+      /--update-env-vars[= ]/,
+      /--remove-env-vars[= ]/,
+      /--clear-env-vars\b/,
+    ]) {
+      expect(
+        deployCode,
+        `${competing} sets or clears the environment alongside --set-env-vars, and one of them will lose`,
+      ).not.toMatch(competing);
+    }
+  });
+
+  /**
+   * Every variable the deployed revision is REQUIRED to carry, by name.
+   *
+   * The list is the point. Without it this file asserted only that address
+   * search was configured, so deleting `DATABASE_POOL_MAX=5` from the flag left
+   * all seven tests passing — shipping the code default of 10 per instance
+   * against `--max-instances=3`, which is 30 client connections into a
+   * 15-connection pooler and `app_runtime`'s `connection limit 20` (ADR 0026).
+   * A failure visible only under production concurrency, from a one-line edit,
+   * with a green suite. Review found it by injection.
+   *
+   * A variable belongs here when a revision without it is wrong — not merely
+   * different. Adding one is a deliberate edit and so is removing one.
+   */
+  const REQUIRED_ON_EVERY_REVISION: readonly (readonly [name: string, why: string])[] = [
+    [
+      "DATABASE_POOL_MAX",
+      "the code default of 10 per instance is 30 connections against a 15-connection pooler (ADR 0026)",
+    ],
+    [
+      PROVIDER_VARIABLE,
+      "the deployed venue field tells operators that address search is not set up",
+    ],
+  ];
+
+  it.each(REQUIRED_ON_EVERY_REVISION)("sets %s on every revision", (name, why) => {
+    expect(configured.has(name), `${name} is not set on the Cloud Run revision — ${why}`).toBe(
+      true,
+    );
   });
 
   it("enables address search on the deployed revision", () => {

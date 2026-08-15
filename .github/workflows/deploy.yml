@@ -141,11 +141,22 @@ jobs:
           # VENUE_SEARCH_PROVIDER=photon — turns LAN-115's address search on.
           # Without it the deployed venue field degrades to plain text and tells
           # the operator "address search is not set up here", which is correct
-          # for an unconfigured deployment and wrong for ours: the club chose the
-          # provider when LAN-115 was approved. Found during LAN-82's walk — the
-          # code shipped and the configuration never followed it. No key, no
-          # account and no billing relationship, which is why it is here and not
-          # in Secret Manager.
+          # for an unconfigured deployment and was wrong for ours.
+          #
+          # Enabling it in production is an OWNER decision, not an engineering
+          # one: LAN-115 selected and built the provider but put "production-
+          # provider configuration" out of scope and reserved enablement —
+          # "do not configure a hosted or production provider account without
+          # separate authorization". That authorization was given by Brian on
+          # 15 August 2026, during LAN-82's walk, after the walk showed the
+          # deployed venue field would have been degraded: he directed that it
+          # is an error rather than a new feature and must be fixed in LAN-82's
+          # pull request. Recorded on LAN-82 and in PR #36.
+          #
+          # No key, no account and no billing relationship, which is why it is
+          # here and not in Secret Manager. Operator-typed venue text does reach
+          # a third party (photon.komoot.io) as a result — that is the substance
+          # of what was authorized.
           #
           # VENUE_SEARCH_BASE_URL is deliberately absent: blank means the free
           # public instance at https://photon.komoot.io, which carries a fair-use

@@ -36,9 +36,38 @@ code.
 ## 1. Before you start
 
 **Where this runs.** Against the **local** Supabase stack and the local
-application only. Nothing in this document is performed against the hosted
-project; § 15 lists every action that is Brian's, and no step below asks a reader
-to take one.
+application only. Nothing in §§ 2–12 is performed against the hosted project;
+§ 15 lists every action that is Brian's, and no step below asks a reader to take
+one.
+
+> ### If you are walking this against hosted, read this first
+>
+> § 15 checkpoint 6 sends Brian through the same walk against the **one
+> production database**, and there the names below are not free text. Every row
+> the application creates during a hosted walk must carry its scenario's
+> `PILOT-` sentinel, because that sentinel is the **only** handle the cleanup
+> scripts have on a row a script did not write:
+> `scripts/pilot/lan-74/cleanup.sql` finds application-created people by
+> `PILOT-LAN-74` in the surname or known-as, and `scripts/pilot/lan-76/cleanup.sql`
+> finds application-created events by `PILOT-LAN-76` in the name.
+>
+> So on hosted, and only on hosted:
+>
+> | Step | Type this instead                        |
+> | ---- | ---------------------------------------- |
+> | § 4  | Last name **`PILOT-LAN-74`**             |
+> | § 5  | Event name **`PILOT-LAN-76 slice walk`** |
+> | § 10 | Walk-up last name **`PILOT-LAN-74`**     |
+>
+> A row created without one cannot be removed by any script in this repository,
+> and `scripts/pilot/lan-82/verify-clean.sql` will report the database clean
+> while it survives — the sweep looks for sentinels, and an unmarked row has
+> none. That is not a gap in the sweep; it is what the ownership rule in
+> [`pilot-data-runbook.md`](pilot-data-runbook.md) exists to prevent.
+>
+> **And read [`../scripts/pilot/lan-82/README.md`](../scripts/pilot/lan-82/README.md)
+> § "What the hosted walk cannot clean up" before you start**, because one step
+> of this walk creates something no cleanup can remove whatever you name it.
 
 You need Node 20.9 or later (22 recommended), npm 10+, a running
 Docker-compatible runtime, and this repository checked out. Nothing else — no
@@ -572,16 +601,16 @@ is the credentials, and the application says so in those words.
 Every action below is a human one, is Brian's alone, and no agent performs any of
 them. A reader of this repository must never infer one from its contents.
 
-| #   | Checkpoint                 | What it means                                                                                                                                                                                                                                                                                    |
-| --- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | **Merged migrations**      | Nothing in this issue adds a migration. Before a hosted walk, confirm every migration named by the merged slice PRs has been applied to the one production database, in order, per [`migration-runbook.md`](migration-runbook.md).                                                               |
-| 2   | **Reference data**         | `public.roles` is created by the local seed, which is local only. How the role vocabulary reaches hosted is Brian's decision — see [`pilot-data-manifest.md`](pilot-data-manifest.md).                                                                                                           |
-| 3   | **Pilot setup SQL**        | Each hosted scenario is installed by hand from `scripts/pilot/<issue>/setup.sql`, in the order given in [`../scripts/pilot/lan-82/README.md`](../scripts/pilot/lan-82/README.md). No agent runs one against hosted.                                                                              |
-| 4   | **Provider configuration** | The club's Meta business portfolio, WhatsApp Business Account, Cloud API access, approved template and webhook secrets (LAN-101). Secrets go to GCP Secret Manager by Brian; no value is ever printed to verify it.                                                                              |
-| 5   | **Application deployment** | Merging to `main` builds and deploys a Cloud Run revision. Confirm `/api/health` reports `status: ok` and `secretsLoaded: true`.                                                                                                                                                                 |
-| 6   | **Feature verification**   | Perform this walk against hosted with the synthetic scenarios, and retain the evidence.                                                                                                                                                                                                          |
-| 7   | **Consolidated cleanup**   | Run every scenario cleanup in the order in [`../scripts/pilot/lan-82/README.md`](../scripts/pilot/lan-82/README.md), then `verify-clean.sql`. It raises if any scenario row survived; it prints the pilot foundation's counts, and comparing those with `pilot-data-manifest.md` is yours to do. |
-| 8   | **Real-data gate**         | Real roster data and real club operations stay prohibited in every environment until LAN-86 authorizes them.                                                                                                                                                                                     |
+| #   | Checkpoint                 | What it means                                                                                                                                                                                                                                                                                                                                                                                                             |
+| --- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Merged migrations**      | Nothing in this issue adds a migration. Before a hosted walk, confirm every migration named by the merged slice PRs has been applied to the one production database, in order, per [`migration-runbook.md`](migration-runbook.md).                                                                                                                                                                                        |
+| 2   | **Reference data**         | `public.roles` is created by the local seed, which is local only. How the role vocabulary reaches hosted is Brian's decision — see [`pilot-data-manifest.md`](pilot-data-manifest.md).                                                                                                                                                                                                                                    |
+| 3   | **Pilot setup SQL**        | Each hosted scenario is installed by hand from `scripts/pilot/<issue>/setup.sql`, in the order given in [`../scripts/pilot/lan-82/README.md`](../scripts/pilot/lan-82/README.md). No agent runs one against hosted.                                                                                                                                                                                                       |
+| 4   | **Provider configuration** | The club's Meta business portfolio, WhatsApp Business Account, Cloud API access, approved template and webhook secrets (LAN-101). Secrets go to GCP Secret Manager by Brian; no value is ever printed to verify it.                                                                                                                                                                                                       |
+| 5   | **Application deployment** | Merging to `main` builds and deploys a Cloud Run revision. Confirm `/api/health` reports `status: ok` and `secretsLoaded: true`.                                                                                                                                                                                                                                                                                          |
+| 6   | **Feature verification**   | Perform this walk against hosted with the synthetic scenarios, and retain the evidence. **Read § 1's hosted box first**: every row you create must carry its `PILOT-` sentinel, or no cleanup can find it and `verify-clean.sql` will call the database clean while it survives. One step creates something no cleanup can remove at all — see `scripts/pilot/lan-82/README.md` § "What the hosted walk cannot clean up". |
+| 7   | **Consolidated cleanup**   | Run every scenario cleanup in the order in [`../scripts/pilot/lan-82/README.md`](../scripts/pilot/lan-82/README.md), then `verify-clean.sql`. It raises if any scenario row survived; it prints the pilot foundation's counts, and comparing those with `pilot-data-manifest.md` is yours to do.                                                                                                                          |
+| 8   | **Real-data gate**         | Real roster data and real club operations stay prohibited in every environment until LAN-86 authorizes them.                                                                                                                                                                                                                                                                                                              |
 
 **Commands Brian must run for the local walk: none beyond § 2.** Everything in
 §§ 3–12 happens in a browser.
