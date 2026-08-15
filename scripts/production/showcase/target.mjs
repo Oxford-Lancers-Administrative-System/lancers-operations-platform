@@ -101,10 +101,15 @@ export function resolveTarget(argv = process.argv.slice(2), env = process.env) {
   }
 
   const explicitIndex = argv.indexOf("--database-url");
+  // `SUPABASE_DB_URL` is the name the local stack actually writes into
+  // `.env.local` — the coordinator generates it — so it is read before the
+  // generic one. A rehearsal that silently found no database and asked for
+  // `--confirm-target` would be a confusing way to learn that.
   const connectionString =
     (explicitIndex === -1 ? null : argv[explicitIndex + 1]) ??
     env.SHOWCASE_DATABASE_URL ??
     env.DATABASE_URL ??
+    fromEnvLocal("SUPABASE_DB_URL") ??
     fromEnvLocal("DATABASE_URL");
 
   if (!connectionString) {

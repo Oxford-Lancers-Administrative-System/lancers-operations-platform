@@ -27,6 +27,10 @@
  */
 
 import { id } from "./ids.mjs";
+import { normaliseLabel } from "./db.mjs";
+
+/** A database with no reference data at all — which is hosted, today. */
+const EMPTY_EXISTING = Object.freeze({ openCommitteeYear: null });
 
 /** The season the showcase operates in, and the one it archives. */
 export const CURRENT_SEASON_LABEL = "2026–27";
@@ -58,15 +62,27 @@ const POSITIONS = Object.freeze([
   ["CB", "Cornerback", "defence"],
 ]);
 
-/** The seven onboarding items LAN-124 names, in the order it names them. */
+/**
+ * The seven onboarding items LAN-124 names, using the club's own codes.
+ *
+ * The codes and the `is_subscription` flag mirror `ONBOARDING_TYPES` in
+ * `scripts/seed-local.mjs`, which is where this vocabulary was established.
+ * Inventing a parallel set — `subscription_paid` beside `subs_paid` — would
+ * have produced two of each item on any database that had both, and the
+ * database says so directly: `onboarding_item_types_one_subscription_per_season`
+ * permits exactly one subscription item per season, so a second is refused
+ * rather than duplicated.
+ *
+ * `[code, label, is_required, is_subscription]`.
+ */
 const ONBOARDING_TYPES = Object.freeze([
-  ["subscription_invoiced", "Subscription invoiced", true],
-  ["subscription_paid", "Subscription paid", true],
-  ["kit_sorted", "Kit sorted", false],
-  ["bucs_play", "BUCS Play registration", false],
-  ["hudl", "Hudl access", false],
-  ["squad_photo", "Squad photo", false],
-  ["comms_groups", "Communications groups joined", false],
+  ["subs_invoiced", "Subscription invoiced", true, false],
+  ["subs_paid", "Subscription paid", false, true],
+  ["kit_sorted", "Kit sorted", true, false],
+  ["bucs_play", "BUCS Play registration", true, false],
+  ["hudl_access", "Hudl access", false, false],
+  ["photo", "Squad photo", false, false],
+  ["comms_groups", "Comms groups joined", true, false],
 ]);
 
 /**
@@ -89,6 +105,66 @@ const AVAILABILITY_DISTRIBUTION = Object.freeze([
   ["green", 33],
   ["orange", 4],
   ["red", 2],
+]);
+
+/**
+ * Reasons attached to a "no".
+ *
+ * The schema requires one — `rsvp_responses_no_needs_a_reason` — and the report
+ * shows them to leadership, so they have to read like things a student would
+ * actually type. None of them is a health statement: availability is level-only
+ * by decision, and a reason field is not a route around that.
+ */
+const NO_REASONS = Object.freeze([
+  "Lab session runs until eight.",
+  "Away for a family birthday.",
+  "Essay deadline the next morning.",
+  "Working a shift.",
+  "Travelling back from home.",
+  "Clashes with a college dinner.",
+]);
+
+/**
+ * Turns a register's shape into one person's presence.
+ *
+ * The counts arrive as "22 present, 2 late, 2 excused, 6 absent" and are laid
+ * out in that order across the audience, so the same person is in the same
+ * state on every run. Anyone past the end of the register has no record at all,
+ * which is what the mismatch view is for.
+ */
+function presenceFor(index, register) {
+  const bands = [
+    ["present", register.present ?? 0],
+    ["late", register.late ?? 0],
+    ["excused", register.excused ?? 0],
+    ["absent", register.absent ?? 0],
+  ];
+  let ceiling = 0;
+  for (const [presence, count] of bands) {
+    ceiling += count;
+    if (index < ceiling) return presence;
+  }
+  return null;
+}
+
+/** The two fictional prospects LAN-124 asks for. Invented, and clearly so. */
+const PROSPECTS = Object.freeze([
+  {
+    key: "prospect-1",
+    givenName: "Marisol",
+    familyName: "Okonkwo-Bright",
+    status: "engaged",
+    via: "Freshers' Fair sign-up",
+    notes: "Played flag in Lagos; came to the taster and asked about kit.",
+  },
+  {
+    key: "prospect-2",
+    givenName: "Teodor",
+    familyName: "Vasquez-Lindqvist",
+    status: "committed",
+    via: "Brought by a current player",
+    notes: "Committed after the open session; waiting on BUCS registration.",
+  },
 ]);
 
 /** Adds `days` to an ISO date, in UTC, and returns an ISO date. */
@@ -129,11 +205,72 @@ function demonstrationPhone(index) {
  * @param {Array} input.players       from `readRoster`
  * @param {Array} input.termCard      from `readTermCard`
  * @param {object} input.params       Brian's private parameters
+ * @param {object} [input.existing]   from `readExisting` — reference data to adopt
  * @param {string} [input.anchor]     the walkthrough date
  */
-export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
+export function buildPlan({
+  players,
+  termCard,
+  params,
+  existing = EMPTY_EXISTING,
+  anchor = ANCHOR,
+}) {
   const rows = [];
   const provenance = [];
+
+  /**
+   * The reference labels this run operates under.
+   *
+   * Overridable so the loader can be rehearsed against a database that is
+   * already in use without colliding with it. The automated test relies on it:
+   * it points the loader at its own season labels and its own position
+   * vocabulary and marks the season `archived`, so its rows are invisible to
+   * every "current season" query the rest of the suite makes. Without that, a
+   * loader test that commits changes the roster another suite counts — which it
+   * did, and which is a defect in the test rather than in the suites it broke.
+   *
+   * The defaults are the real showcase. Brian never passes these.
+   */
+  const labels = {
+    currentSeason: params.labels?.currentSeason ?? CURRENT_SEASON_LABEL,
+    archivedSeason: params.labels?.archivedSeason ?? ARCHIVED_SEASON_LABEL,
+    vocabularyCode: params.labels?.vocabularyCode ?? "oulafc_2026",
+    seasonStatus: params.labels?.seasonStatus ?? "active",
+  };
+
+  /**
+   * Adopts an existing reference row, or plans a new one.
+   *
+   * Reference tables carry natural unique keys, and `committee_years` refuses
+   * two overlapping years outright. Adopting is therefore not an optimisation:
+   * a loader that always inserted would fail on any database that had ever been
+   * seeded, and would create a second committee year in hosted the moment
+   * somebody added a first.
+   *
+   * An adopted row is not added to the plan, so `rollback` will not delete it —
+   * which is right. The loader removes what it created and nothing else.
+   */
+  const adopt = (existingId, table, columns, classification, source) => {
+    // A row carrying the identifier this loader would have generated is *this
+    // loader's*, from an earlier run — not somebody else's to leave alone.
+    // Treating it as adopted left it out of the plan, so rollback kept the
+    // season while deleting the person who opened it, and the foreign key
+    // refused. Adoption means "not ours"; our own identifier never is.
+    if (existingId && existingId === columns.id) {
+      return add(table, columns, classification, source);
+    }
+    if (existingId) {
+      provenance.push({
+        table,
+        id: existingId,
+        classification,
+        ...source,
+        note: "adopted — already present, not created by this loader",
+      });
+      return existingId;
+    }
+    return add(table, columns, classification, source);
+  };
 
   const add = (table, columns, classification, source) => {
     rows.push({ table, columns });
@@ -147,12 +284,25 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
   // anything that references it.
   // -------------------------------------------------------------------------
 
-  const vocabularyId = id("position_vocabularies", "oulafc");
-  add(
+  // Which season the showcase operates in decides which position vocabulary it
+  // uses, so both are resolved before anything that references either.
+  const existingCurrent = existing.seasons?.get(normaliseLabel(labels.currentSeason)) ?? null;
+  const existingArchived = existing.seasons?.get(normaliseLabel(labels.archivedSeason)) ?? null;
+
+  // The vocabulary the loader would create, whether or not it exists yet. Named
+  // so ownership can be decided the same way in both branches below — taking it
+  // from the season and skipping that question left a vocabulary the loader had
+  // created surviving one rollback and disappearing on the next.
+  const plannedVocabularyId = id("position_vocabularies", labels.vocabularyCode);
+
+  const vocabularyId = adopt(
+    existingCurrent
+      ? existingCurrent.vocabularyId
+      : existing.vocabularies?.get(labels.vocabularyCode),
     "public.position_vocabularies",
     {
-      id: vocabularyId,
-      code: "oulafc_2026",
+      id: plannedVocabularyId,
+      code: labels.vocabularyCode,
       label: "OULAFC position vocabulary",
       adopted_on: "2026-06-01",
     },
@@ -160,14 +310,23 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
     { source: "OULAFC Master Table.xlsx / Databank For Dropdowns" },
   );
 
+  if (existingCurrent) {
+    provenance.push({
+      table: "public.position_vocabularies",
+      id: vocabularyId,
+      classification: "source-derived",
+      source: "the adopted season's own vocabulary",
+      note: "adopted — the season names it, and position assignments must use it",
+    });
+  }
+
   const positionIds = new Map();
   POSITIONS.forEach(([code, label, side], index) => {
-    const positionId = id("positions", code);
-    positionIds.set(code, { id: positionId, side });
-    add(
+    const positionId = adopt(
+      existing.positions?.get(`${vocabularyId}:${code}`),
       "public.positions",
       {
-        id: positionId,
+        id: id("positions", vocabularyId, code),
         vocabulary_id: vocabularyId,
         code,
         label,
@@ -177,16 +336,17 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
       "source-derived",
       { source: "OULAFC Master Table.xlsx / Databank For Dropdowns", cell: code },
     );
+    positionIds.set(code, { id: positionId, side });
   });
 
   // Michaelmas 2026-27, dated from the term card's own week -1 and week 8.
   const michaelmasStart = termCard.length > 0 ? termCard[0].scheduledOn : "2026-09-27";
   const michaelmasEnd = termCard.length > 0 ? termCard.at(-1).scheduledOn : "2026-12-05";
-  const termId = id("terms", "michaelmas", "2026-27");
-  add(
+  const termId = adopt(
+    existing.terms?.get("michaelmas:2026-27"),
     "public.terms",
     {
-      id: termId,
+      id: id("terms", "michaelmas", "2026-27"),
       name: "michaelmas",
       academic_year: "2026–27",
       starts_on: michaelmasStart,
@@ -198,11 +358,11 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
     { source: "260720 OULAFC MT26 Term Card v0.xlsx" },
   );
 
-  const committeeYearId = id("committee_years", "2026-27");
-  add(
+  const committeeYearId = adopt(
+    existing.openCommitteeYear,
     "public.committee_years",
     {
-      id: committeeYearId,
+      id: id("committee_years", "2026-27"),
       label: "2026–27",
       starts_on: "2026-06-01",
       ends_on: null,
@@ -213,12 +373,11 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
 
   const roleIds = new Map();
   for (const [code, name, scope, isOffice] of ROLE_SPEC) {
-    const roleId = id("roles", code);
-    roleIds.set(code, roleId);
-    add(
+    const roleId = adopt(
+      existing.roles?.get(code),
       "public.roles",
       {
-        id: roleId,
+        id: id("roles", code),
         code,
         name,
         scope,
@@ -229,6 +388,7 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
       "source-derived",
       { source: "OULAFC Constitution / ROLE_SPEC" },
     );
+    roleIds.set(code, roleId);
   }
 
   // -------------------------------------------------------------------------
@@ -303,12 +463,12 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
   // is open, active or closing.
   // -------------------------------------------------------------------------
 
-  const archivedSeasonId = id("seasons", ARCHIVED_SEASON_LABEL);
-  add(
+  const archivedSeasonId = adopt(
+    existingArchived?.id,
     "public.seasons",
     {
-      id: archivedSeasonId,
-      label: ARCHIVED_SEASON_LABEL,
+      id: id("seasons", labels.archivedSeason),
+      label: labels.archivedSeason,
       status: "archived",
       position_vocabulary_id: vocabularyId,
       starts_on: "2025-09-01",
@@ -322,18 +482,24 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
     { source: "showcase — the season the 42 source players are archived into" },
   );
 
-  const seasonId = id("seasons", CURRENT_SEASON_LABEL);
-  add(
+  const seasonId = adopt(
+    existingCurrent?.id,
     "public.seasons",
     {
-      id: seasonId,
-      label: CURRENT_SEASON_LABEL,
-      status: "active",
+      id: id("seasons", labels.currentSeason),
+      label: labels.currentSeason,
+      status: labels.seasonStatus,
       position_vocabulary_id: vocabularyId,
       starts_on: "2026-07-01",
       ends_on: "2027-06-30",
       opened_at: "2026-07-01T09:00:00Z",
       opened_by_person_id: actorPersonId,
+      // `seasons_closing_is_recorded` requires an archived season to say who
+      // closed it and when. Normally this season is `active` and these are
+      // null; a rehearsal that marks it archived to stay out of the way of
+      // "current season" queries still has to satisfy the constraint.
+      closed_at: labels.seasonStatus === "archived" ? "2027-06-30T18:00:00Z" : null,
+      closed_by_person_id: labels.seasonStatus === "archived" ? actorPersonId : null,
     },
     "illustrative",
     { source: "showcase — the season the walkthrough operates in" },
@@ -350,7 +516,7 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
       add(
         "public.role_assignments",
         {
-          id: id("role_assignments", operator.key, code),
+          id: id("role_assignments", labels.currentSeason, operator.key, code),
           person_id: operator.personId,
           role_id: roleId,
           scope,
@@ -369,23 +535,23 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
   }
 
   const onboardingTypeIds = new Map();
-  ONBOARDING_TYPES.forEach(([code, label, isSubscription], index) => {
-    const typeId = id("onboarding_item_types", code);
-    onboardingTypeIds.set(code, typeId);
-    add(
+  ONBOARDING_TYPES.forEach(([code, label, isRequired, isSubscription], index) => {
+    const typeId = adopt(
+      existing.onboardingTypes?.get(`${seasonId}:${code}`),
       "public.onboarding_item_types",
       {
-        id: typeId,
+        id: id("onboarding_item_types", labels.currentSeason, code),
         season_id: seasonId,
         code,
         label,
-        is_required: true,
+        is_required: isRequired,
         is_subscription: isSubscription,
         sort_order: index,
       },
       "illustrative",
       { source: "LAN-124 — the seven onboarding types it names" },
     );
+    onboardingTypeIds.set(code, typeId);
   });
 
   // -------------------------------------------------------------------------
@@ -426,7 +592,7 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
       { source: "replaces the workbook's real number, which is not imported" },
     );
 
-    const archivedMembershipId = id("season_memberships", "archived", player.key);
+    const archivedMembershipId = id("season_memberships", labels.archivedSeason, player.key);
     add(
       "public.season_memberships",
       {
@@ -443,7 +609,7 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
     );
 
     const status = statuses[index];
-    const membershipId = id("season_memberships", "current", player.key);
+    const membershipId = id("season_memberships", labels.currentSeason, player.key);
     // Two of the forty-two are new entries; the rest returned. Chosen by
     // position so a rerun is identical.
     const entry = index < 2 ? "new" : "returning";
@@ -481,7 +647,7 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
       add(
         "public.position_assignments",
         {
-          id: id("position_assignments", player.key, slot),
+          id: id("position_assignments", labels.currentSeason, player.key, slot),
           season_membership_id: membershipId,
           season_id: seasonId,
           position_vocabulary_id: vocabularyId,
@@ -507,7 +673,7 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
       add(
         "public.onboarding_items",
         {
-          id: id("onboarding_items", player.key, code),
+          id: id("onboarding_items", labels.currentSeason, player.key, code),
           season_membership_id: membershipId,
           season_id: seasonId,
           item_type_id: onboardingTypeIds.get(code),
@@ -523,7 +689,7 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
     if (player.kitIssued !== null) {
       provenance.push({
         table: "public.onboarding_items",
-        id: id("onboarding_items", player.key, "kit_sorted"),
+        id: id("onboarding_items", labels.currentSeason, player.key, "kit_sorted"),
         classification: "source-derived",
         source: player.source.sheet,
         cell: player.source.kittedCell,
@@ -540,7 +706,7 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
     add(
       "public.availability_statuses",
       {
-        id: id("availability_statuses", entry.player.key),
+        id: id("availability_statuses", labels.currentSeason, entry.player.key),
         season_membership_id: entry.membershipId,
         level,
         effective_from: addDays(anchor, -21 + (index % 14)),
@@ -550,6 +716,414 @@ export function buildPlan({ players, termCard, params, anchor = ANCHOR }) {
       },
       "illustrative",
       { source: "showcase availability state" },
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // The real Michaelmas term card. Every entry becomes a *draft* future event:
+  // LAN-124 permits nothing else, and the tentative ones — the four "Lancers vs
+  // TBD" fixtures and every S&C session whose venue reads TBD — must never be
+  // approved or invited by the loader. Nothing here writes an audience, so none
+  // of them can be.
+  // -------------------------------------------------------------------------
+
+  for (const entry of termCard) {
+    add(
+      "public.events",
+      {
+        id: entry.eventId,
+        season_id: seasonId,
+        term_id: termId,
+        week_number: entry.week,
+        name: entry.name,
+        event_type: entry.eventType,
+        origin: entry.eventType === "fixture" ? "negotiated" : "club_controlled",
+        status: "draft",
+        scheduled_on: entry.scheduledOn,
+        starts_at: entry.startsAt,
+        ends_at: entry.endsAt,
+        venue: entry.venue,
+        is_mandatory: entry.eventType === "practice" || entry.eventType === "fixture",
+        solicits_response: true,
+        owner_person_id: actorPersonId,
+      },
+      "source-derived",
+      {
+        source: entry.source.sheet,
+        cell: entry.source.cell,
+        raw: entry.source.raw,
+        note: [
+          `classified by ${entry.source.matchedRule}`,
+          ...entry.source.normalisation,
+          entry.tentative ? "tentative in the source — never approved by the loader" : null,
+        ]
+          .filter(Boolean)
+          .join("; "),
+      },
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // The illustrative current week. This is the operational story the Monday
+  // report is generated from, and it is invented — the source workbooks say
+  // nothing about August 2026.
+  // -------------------------------------------------------------------------
+
+  const playerAudience = memberships.filter((entry) => entry.status === "active").slice(0, 32);
+
+  const committee = operators.filter((operator) => operator.roles.length > 0);
+
+  /** Builds one scenario event, its audience, invitations, answers and register. */
+  const scenario = ({
+    key,
+    name,
+    eventType,
+    dayOffset,
+    startsAt,
+    endsAt,
+    venue,
+    status,
+    solicits = true,
+    audience = playerAudience,
+    capacity = "player",
+    answers = null,
+    register = null,
+    walkUps = 0,
+    decisionReason = null,
+  }) => {
+    const eventId = id("events", "scenario", labels.currentSeason, key);
+    const scheduledOn = addDays(anchor, dayOffset);
+    const decided = ["approved", "occurred", "not_held", "cancelled", "withdrawn"].includes(status);
+    const concluded = status === "occurred" || status === "not_held";
+
+    add(
+      "public.events",
+      {
+        id: eventId,
+        season_id: seasonId,
+        term_id: null,
+        week_number: null,
+        name,
+        event_type: eventType,
+        origin: "club_controlled",
+        status,
+        scheduled_on: scheduledOn,
+        starts_at: startsAt,
+        ends_at: endsAt,
+        venue,
+        is_mandatory: eventType === "practice",
+        solicits_response: solicits,
+        owner_person_id: actorPersonId,
+        audience_confirmed_at: decided ? `${scheduledOn}T09:00:00Z` : null,
+        audience_confirmed_by_person_id: decided ? actorPersonId : null,
+        approved_at: decided ? `${scheduledOn}T09:05:00Z` : null,
+        approved_by_person_id: decided ? actorPersonId : null,
+        outcome_recorded_at: concluded ? `${scheduledOn}T22:00:00Z` : null,
+        outcome_recorded_by_person_id: concluded ? actorPersonId : null,
+        decision_reason: decisionReason,
+      },
+      "illustrative",
+      { source: `LAN-124 current-week scenario (${key})` },
+    );
+
+    if (audience.length === 0) return eventId;
+
+    audience.forEach((member, index) => {
+      const isPlayer = capacity === "player";
+      const participantKey = isPlayer ? member.player.key : member.key;
+      const audienceMemberId = id(
+        "event_audience_members",
+        labels.currentSeason,
+        key,
+        participantKey,
+      );
+
+      add(
+        "public.event_audience_members",
+        {
+          id: audienceMemberId,
+          event_id: eventId,
+          season_id: seasonId,
+          capacity,
+          season_membership_id: isPlayer ? member.membershipId : null,
+          person_id: isPlayer ? null : member.personId,
+          added_by_person_id: actorPersonId,
+        },
+        "illustrative",
+        { source: `scenario audience (${key})` },
+      );
+
+      if (!decided) return;
+
+      const invitationId = id("invitations", labels.currentSeason, key, participantKey);
+
+      // Whether this person answered is decided before the invitation is
+      // written, because the invitation's own status records it: an answered
+      // invitation is `responded`, an unanswered one is `issued`. Writing the
+      // invitation first and the answer afterwards left every one of them
+      // looking unanswered on the delivery screen.
+      const { yes = 0, no = 0 } = answers ?? {};
+      const response =
+        answers && solicits ? (index < yes ? "yes" : index < yes + no ? "no" : null) : null;
+
+      add(
+        "public.invitations",
+        {
+          id: invitationId,
+          event_id: eventId,
+          event_status: status,
+          solicits_response: solicits,
+          season_id: seasonId,
+          capacity,
+          season_membership_id: isPlayer ? member.membershipId : null,
+          person_id: isPlayer ? null : member.personId,
+          status: !solicits ? "pending" : response ? "responded" : "issued",
+          issued_at: solicits ? `${scheduledOn}T09:10:00Z` : null,
+          // LAN-77's audience freeze: an invitation names the audience row it
+          // came from, and the column is not nullable. There is no way to
+          // invite somebody who was never in the confirmed audience.
+          audience_member_id: audienceMemberId,
+        },
+        "illustrative",
+        { source: `scenario invitation (${key})` },
+      );
+
+      if (response) {
+        add(
+          "public.rsvp_responses",
+          {
+            id: id("rsvp_responses", labels.currentSeason, key, participantKey),
+            invitation_id: invitationId,
+            response,
+            reason: response === "no" ? NO_REASONS[index % NO_REASONS.length] : null,
+            source: "signed_link",
+            responded_at: `${scheduledOn}T12:00:00Z`,
+          },
+          "illustrative",
+          { source: `scenario answer (${key})` },
+        );
+      }
+
+      // The register, for events that occurred.
+      if (register && concluded && isPlayer) {
+        const presence = presenceFor(index, register);
+        if (presence) {
+          add(
+            "public.attendance_records",
+            {
+              id: id("attendance_records", labels.currentSeason, key, participantKey),
+              event_id: eventId,
+              event_status: status,
+              season_id: seasonId,
+              capacity,
+              season_membership_id: member.membershipId,
+              person_id: null,
+              presence,
+              recorded_by_person_id: actorPersonId,
+            },
+            "illustrative",
+            { source: `scenario register (${key})` },
+          );
+        }
+      }
+    });
+
+    // Walk-ups: present at the event, never in its audience. Taken from the
+    // active squad beyond the 32 who were invited, so the register genuinely
+    // holds somebody the invitation list does not.
+    for (let index = 0; index < walkUps; index += 1) {
+      const member = memberships.filter((entry) => entry.status === "active")[32 + index];
+      if (!member) break;
+      add(
+        "public.attendance_records",
+        {
+          id: id("attendance_records", labels.currentSeason, key, "walkup", member.player.key),
+          event_id: eventId,
+          event_status: status,
+          season_id: seasonId,
+          capacity: "player",
+          season_membership_id: member.membershipId,
+          person_id: null,
+          presence: "present",
+          recorded_by_person_id: actorPersonId,
+        },
+        "illustrative",
+        { source: `scenario walk-up (${key})` },
+      );
+    }
+
+    return eventId;
+  };
+
+  // The eight events LAN-124 specifies, in its order.
+  scenario({
+    key: "sc-preseason",
+    name: "Pre-season S&C",
+    eventType: "strength_and_conditioning",
+    dayOffset: -6,
+    startsAt: "19:00",
+    endsAt: "20:00",
+    venue: "Blues Gym, Iffley Road",
+    status: "occurred",
+    answers: { yes: 24, no: 4 },
+    register: { present: 22, late: 2, excused: 2, absent: 6 },
+  });
+
+  scenario({
+    key: "sc-chalk",
+    name: "Team Chalk",
+    eventType: "chalk",
+    dayOffset: -4,
+    startsAt: "18:00",
+    endsAt: "19:00",
+    venue: "Microsoft Teams",
+    status: "occurred",
+    answers: { yes: 20, no: 6 },
+    register: { present: 19, late: 1, excused: 4, absent: 8 },
+  });
+
+  scenario({
+    key: "sc-field",
+    name: "Pre-season Field Session",
+    eventType: "practice",
+    dayOffset: -2,
+    startsAt: "10:00",
+    endsAt: "13:00",
+    venue: "University Parks",
+    status: "occurred",
+    answers: { yes: 25, no: 3 },
+    register: { present: 22, late: 2, excused: 3, absent: 5 },
+    walkUps: 1,
+  });
+
+  scenario({
+    key: "sc-equipment",
+    name: "Equipment and Admin Check",
+    eventType: "meeting",
+    dayOffset: -1,
+    startsAt: "17:00",
+    endsAt: "18:00",
+    venue: "Iffley Road",
+    status: "occurred",
+    solicits: false,
+    audience: committee,
+    capacity: "committee",
+  });
+
+  // The live demonstration. A draft with a confirmed-nothing audience of two,
+  // waiting for Brian to approve it in front of Stewart.
+  scenario({
+    key: "sc-walkthrough",
+    name: "Leadership Walkthrough",
+    eventType: "meeting",
+    dayOffset: 0,
+    startsAt: "14:00",
+    endsAt: "15:00",
+    venue: "Iffley Road",
+    status: "draft",
+    audience: committee,
+    capacity: "committee",
+  });
+
+  scenario({
+    key: "sc-practice",
+    name: "Pre-season Practice",
+    eventType: "practice",
+    dayOffset: 2,
+    startsAt: "20:00",
+    endsAt: "22:30",
+    venue: "Iffley Road Astro",
+    status: "approved",
+    answers: { yes: 13, no: 5 },
+  });
+
+  scenario({
+    key: "sc-committee",
+    name: "Committee Planning",
+    eventType: "meeting",
+    dayOffset: 4,
+    startsAt: "18:00",
+    endsAt: "19:30",
+    venue: "Vincent's Club",
+    status: "approved",
+    solicits: false,
+    audience: committee,
+    capacity: "committee",
+  });
+
+  scenario({
+    key: "sc-open",
+    name: "Open Field Session",
+    eventType: "practice",
+    dayOffset: 6,
+    startsAt: "10:00",
+    endsAt: "12:00",
+    venue: "University Parks",
+    status: "draft",
+    audience: [],
+  });
+
+  // The two remaining lifecycle states, so every one is represented somewhere.
+  scenario({
+    key: "sc-not-held",
+    name: "Kit Collection",
+    eventType: "other",
+    dayOffset: -8,
+    startsAt: "12:00",
+    endsAt: "13:00",
+    venue: "Iffley Road",
+    status: "not_held",
+    solicits: false,
+    audience: committee,
+    capacity: "committee",
+  });
+
+  scenario({
+    key: "sc-withdrawn",
+    name: "Alumni Touch Game",
+    eventType: "social",
+    dayOffset: 9,
+    startsAt: "14:00",
+    endsAt: "16:00",
+    venue: "University Parks",
+    status: "withdrawn",
+    audience: [],
+    decisionReason: "Clashed with the BUCS fixture window; folded into the open session.",
+  });
+
+  // -------------------------------------------------------------------------
+  // Recruitment. Two fictional prospects, so the report's section is populated
+  // without inventing anything about a real person.
+  // -------------------------------------------------------------------------
+
+  PROSPECTS.forEach((prospect, index) => {
+    const personId = id("people", `prospect:${labels.currentSeason}:${prospect.key}`);
+    add(
+      "public.people",
+      {
+        id: personId,
+        given_name: prospect.givenName,
+        family_name: prospect.familyName,
+        known_as: null,
+      },
+      "illustrative",
+      { source: "LAN-124 — fictional recruitment prospect" },
+    );
+
+    add(
+      "public.recruitment_prospects",
+      {
+        id: id("recruitment_prospects", labels.currentSeason, prospect.key),
+        person_id: personId,
+        season_id: seasonId,
+        status: prospect.status,
+        source: prospect.via,
+        first_contact_on: addDays(anchor, -14 + index * 3),
+        committed_on: prospect.status === "committed" ? addDays(anchor, -3) : null,
+        notes: prospect.notes,
+      },
+      "illustrative",
+      { source: "LAN-124 — fictional recruitment prospect" },
     );
   });
 

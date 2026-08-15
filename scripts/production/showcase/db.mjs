@@ -19,6 +19,79 @@ export async function connect(target) {
 }
 
 /**
+ * Reads the reference data that already exists, keyed the way the club names it.
+ *
+ * The loader cannot simply insert its own roles, seasons and terms. Those
+ * tables have natural unique keys — `roles.code`, `terms (name, academic_year)`,
+ * `seasons.label` — and `committee_years` carries an exclusion constraint that
+ * refuses two overlapping years outright. A loader that ignored what was there
+ * would fail on a machine that had ever run the local seed, and worse, would
+ * create a *second* committee year in hosted the day somebody adds a first.
+ *
+ * So the plan adopts what exists and creates only what does not. This function
+ * is the only read the loader does before planning, and its result is passed
+ * into `buildPlan` as an argument — which keeps the plan a pure function of
+ * (workbooks, parameters, what is already there) and keeps the preview honest.
+ */
+export async function readExisting(client) {
+  const map = async (sql, keyOf) => {
+    const result = await client.query(sql);
+    return new Map(result.rows.map((row) => [keyOf(row), row.id]));
+  };
+
+  return {
+    roles: await map("select id, code from public.roles", (row) => row.code),
+    // Seasons carry their own position vocabulary, and
+    // `position_assignments_vocabulary_is_the_seasons` enforces that an
+    // assignment uses it. So an adopted season brings its vocabulary with it and
+    // the loader has to follow, rather than imposing the one it would have made.
+    seasons: new Map(
+      (await client.query("select id, label, position_vocabulary_id from public.seasons")).rows.map(
+        (row) => [
+          normaliseLabel(row.label),
+          { id: row.id, vocabularyId: row.position_vocabulary_id },
+        ],
+      ),
+    ),
+    terms: await map(
+      "select id, name::text as name, academic_year from public.terms",
+      (row) => `${row.name}:${normaliseLabel(row.academic_year)}`,
+    ),
+    vocabularies: await map("select id, code from public.position_vocabularies", (row) => row.code),
+    // Keyed by vocabulary *identifier*, not its code: the season names the
+    // vocabulary, and two vocabularies can carry the same position code.
+    positions: await map(
+      "select id, code, vocabulary_id from public.positions",
+      (row) => `${row.vocabulary_id}:${row.code}`,
+    ),
+    onboardingTypes: await map(
+      "select id, season_id, code from public.onboarding_item_types",
+      (row) => `${row.season_id}:${row.code}`,
+    ),
+    // Any committee year still open. The exclusion constraint means at most one
+    // can overlap the showcase, so the first is the one to adopt.
+    openCommitteeYear:
+      (
+        await client.query(
+          "select id from public.committee_years where ends_on is null order by starts_on limit 1",
+        )
+      ).rows[0]?.id ?? null,
+  };
+}
+
+/**
+ * Treats `2025–26` and `2025-26` as the same label.
+ *
+ * The club writes season and academic-year labels with an en dash in some
+ * places and a hyphen in others, and the seed and this loader disagreed. A
+ * loader that read them as different labels would create a duplicate season,
+ * which is the one reference row everything else hangs off.
+ */
+export function normaliseLabel(label) {
+  return String(label).replace(/[–—]/g, "-").trim();
+}
+
+/**
  * Records what a run did, so the CLI can print a summary and the manifest can
  * be written without every phase threading a counter through itself.
  */
@@ -105,8 +178,12 @@ export const ROLLBACK_ORDER = Object.freeze([
   "public.role_assignments",
   "public.contact_points",
   "public.operator_accounts",
-  "public.people",
+  // Before `people`: a season records who opened and who closed it, so deleting
+  // the actor first violates `seasons_opened_by_person_id_fkey`. This only
+  // shows up when the loader created the seasons rather than adopting them —
+  // the automated test does exactly that, which is how the order got fixed.
   "public.seasons",
+  "public.people",
   "public.positions",
   "public.position_vocabularies",
   "public.committee_years",
