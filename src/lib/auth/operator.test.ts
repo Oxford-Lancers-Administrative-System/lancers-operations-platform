@@ -134,6 +134,24 @@ function givenVerifiedUser(
   } as unknown as Awaited<ReturnType<typeof createClient>>);
 }
 
+/**
+ * A verified user whose *claims* cannot be read.
+ *
+ * `getClaims()` is a separate network call from `getUser()` — JWKS on a cold
+ * instance, or a second `getUser` round trip on symmetric keys — so this pair
+ * of answers is a real state, not a contrived one. Its exact return shape is
+ * `{ data: null, error }`, which is what made the first version of the recovery
+ * guard fail open: the predicate simply read `false` and the operator resolved.
+ */
+function givenUnreadableClaims(claimsResult: { data: unknown; error: { message: string } | null }) {
+  vi.mocked(createClient).mockResolvedValue({
+    auth: {
+      getUser: () => Promise.resolve({ data: { user: { id: AUTH_USER_ID } }, error: null }),
+      getClaims: () => Promise.resolve(claimsResult),
+    },
+  } as unknown as Awaited<ReturnType<typeof createClient>>);
+}
+
 function givenDatabase(tables: Tables) {
   vi.mocked(createAdminClient).mockReturnValue(
     fakeAdminClient(tables) as unknown as ReturnType<typeof createAdminClient>,
@@ -243,6 +261,37 @@ describe("resolveOperator — no session", () => {
 
     expect(refused.state).not.toBe("unlinked");
     expect(refused.state).not.toBe("inactive");
+  });
+
+  /**
+   * The correction's own defect, found by independent review by injecting the
+   * real error shape rather than by reading the code.
+   *
+   * The guard used to ask "is this provably a recovery session?" and refuse only
+   * then. An unanswerable `getClaims()` returns `{ data: null, error }`, which
+   * made that question read `false` — so a failed claims lookup resolved the
+   * operator exactly as a password sign-in would, and the whole exposure came
+   * back for the length of that request, silently.
+   *
+   * `getClaims()` is a *separate* network call from the `getUser()` above it, so
+   * one can fail while the other succeeds: JWKS is fetched on every cold
+   * instance, and symmetric keys make a second round trip. The question is now
+   * "is this provably *not* a recovery session?", and absent claims are a
+   * refusal whatever the reason.
+   */
+  it.each([
+    ["the claims lookup errors", { data: null, error: { message: "jwks fetch failed" } }],
+    ["the claims lookup returns nothing", { data: null, error: null }],
+    ["the payload carries no claims", { data: {}, error: null }],
+    ["the claims are not an object", { data: { claims: null }, error: null }],
+  ])("refuses the session when %s", async (_why, claimsResult) => {
+    givenUnreadableClaims(claimsResult);
+    givenDatabase(linkedOperatorTables());
+
+    const refused = await resolveOperatorAccess();
+
+    expect(refused).toEqual({ state: "no_session" });
+    expect(JSON.stringify(refused)).not.toContain(PERSON_ID);
   });
 
   it("still resolves an ordinary password session", async () => {

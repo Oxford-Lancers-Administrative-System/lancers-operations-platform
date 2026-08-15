@@ -207,8 +207,28 @@ export async function resolveOperatorAccess(): Promise<OperatorAccess> {
   // approved copy for two specific situations, neither of which is this one.
   // Nothing legitimate is refused: a completed reset signs the recovery session
   // out, and the operator returns with `amr: password`.
-  const { data: claimsData } = await supabase.auth.getClaims();
-  if (isRecoveryAuthenticatedSession(claimsData?.claims)) return { state: "no_session" };
+  // Written as "resolve only if this is provably not a recovery session",
+  // never as "refuse only if recovery can be proved". The first version of this
+  // guard was the second shape — it discarded the error and asked
+  // `isRecoveryAuthenticatedSession(claimsData?.claims)` — and independent
+  // review reproduced the whole exposure above by making `getClaims()` fail:
+  // `{ data: null, error }` makes the predicate `false`, and the operator
+  // resolved as if the session had been a password sign-in.
+  //
+  // That is reachable, not theoretical. `getClaims()` is a *separate* network
+  // call from `getUser()` four lines up: with asymmetric signing keys it
+  // fetches JWKS, whose cache is empty on every cold Cloud Run instance, and
+  // with symmetric keys it makes a second `getUser` round trip. One transient
+  // failure would have silently reopened a hole for the length of that request.
+  //
+  // So: absent claims are a refusal, for any reason — an error, a null, an
+  // expiry between the two calls. This is what `getUser()` above already does
+  // with its own error, and what `/reset-password` already does with a missing
+  // recovery context. An operator inconvenienced by a blip signs in again; the
+  // alternative is a mailbox reading the roster.
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const claims = claimsError ? null : (claimsData?.claims ?? null);
+  if (!claims || isRecoveryAuthenticatedSession(claims)) return { state: "no_session" };
 
   const admin = createAdminClient();
 

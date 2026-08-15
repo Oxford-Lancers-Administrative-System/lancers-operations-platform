@@ -112,10 +112,15 @@ two public routes above and completes UX-01, whose wireframe already showed a
 | `/reset-password`  | New password and confirmation, reachable only by a session that came from a recovery link. Any other session, signed in or not, gets one generic refusal. |
 
 No wireframe was drawn for either: LAN-90's register is workflow direction, and
-these two screens were approved by Brian at the visual checkpoint on 15 August
-2026 rather than in advance. The action labels he approved there are **Reset
-password** and **Cancel** on the request screen, and **Set new password** on the
-reset screen.
+these two screens were designed against it rather than in advance of it. Brian
+reviewed them at LAN-125's zero-command visual checkpoint on 15 August 2026,
+approved the presentation, and changed one thing — the request screen's actions
+became **Reset password** and **Cancel**, replacing "Send reset instructions".
+The reset screen's action is **Set new password**.
+
+That exchange happened in the implementation session, so the record of it is
+LAN-125's final handoff comment and pull request #38, not a Linear comment
+predating this file.
 
 Recorded here rather than left to be discovered as a contradiction between the
 register and the running application.
