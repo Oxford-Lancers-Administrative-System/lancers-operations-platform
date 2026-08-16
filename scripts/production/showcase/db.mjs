@@ -216,6 +216,13 @@ export const PRESERVED_TABLES = Object.freeze(["public.audit_events"]);
  * Composite keys are included through their `id` component. That over-reports
  * rather than under-reports, which is the safe direction: the consequence is a
  * refusal naming one row too many, never a delete taking one row too many.
+ *
+ * Two bounds, both learned the same way. The walk stays inside `public`, so it
+ * cannot follow an edge into the import staging area and delete provenance that
+ * belongs to neither the loader nor the walkthrough. And it ignores `SET NULL`
+ * and `SET DEFAULT` edges, because PostgreSQL resolves those by rewriting the
+ * child rather than refusing the parent — an edge that cannot block a delete has
+ * no business appearing in a refusal.
  */
 export async function readDependencies(client) {
   const result = await client.query(
@@ -238,6 +245,18 @@ export async function readDependencies(client) {
               on parent_att.attrelid = con.confrelid and parent_att.attnum = fk.attnum
       where con.contype = 'f'
         and parent_ns.nspname = 'public'
+        -- The child too, not only the parent. Without this the walk followed
+        -- staging.legacy_roster_rows.matched_person_id into the import staging
+        -- area: it refused a rollback over a row the walkthrough never produced,
+        -- and --force then deleted a legacy-import provenance row. Bounding the
+        -- parent alone bounds nothing.
+        and child_ns.nspname = 'public'
+        -- Only edges that can actually block a delete. n is SET NULL and d is
+        -- SET DEFAULT: PostgreSQL resolves both by rewriting the child and
+        -- letting the delete through, so reporting one is a false refusal, and
+        -- --force resolving it by deleting the child is strictly worse than
+        -- what the constraint asked for.
+        and con.confdeltype not in ('n', 'd')
         and parent_att.attname = 'id'`,
   );
 

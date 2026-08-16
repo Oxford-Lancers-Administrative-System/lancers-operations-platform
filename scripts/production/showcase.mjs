@@ -55,15 +55,6 @@ import { readRoster, readTermCard } from "./showcase/sources.mjs";
 import { resolveTarget } from "./showcase/target.mjs";
 import { readWorkbook } from "./showcase/workbook.mjs";
 
-/**
- * Tables `--force` discovered that `ROLLBACK_ORDER` does not name.
- *
- * Deleted before the fixed order, deepest first. Without this the first
- * `--force` collected rows from tables the order never visited and then hit
- * the very restrict constraint it was meant to clear.
- */
-const EXTRA_ORDER = [];
-
 const PHASES = ["preflight", "preview", "load", "verify", "manifest", "rollback"];
 
 /** Reads `--flag value` out of argv. */
@@ -491,6 +482,16 @@ function manifest(plan, path) {
  * match anywhere, which is why this cannot remove a row it did not write.
  */
 async function rollback(client, plan, { force = false } = {}) {
+  /**
+   * Tables `--force` discovered that `ROLLBACK_ORDER` does not name.
+   *
+   * Deleted before the fixed order, and in the order the walk produced —
+   * `findAttachedRows` already returns deepest-first, so reversing it here
+   * inverted the ordering it had just computed. Local rather than module-level,
+   * so a second `rollback` in one process cannot accumulate or re-flip it.
+   */
+  const discovered = [];
+
   const byTable = new Map();
   for (const row of plan.rows) {
     if (!byTable.has(row.table)) byTable.set(row.table, []);
@@ -570,14 +571,14 @@ async function rollback(client, plan, { force = false } = {}) {
       byTable.set(table, [...new Set([...(byTable.get(table) ?? []), ...ids])]);
     }
     for (const [table] of removable) {
-      if (!ROLLBACK_ORDER.includes(table)) EXTRA_ORDER.push(table);
+      if (!ROLLBACK_ORDER.includes(table)) discovered.push(table);
     }
   }
 
   let removed = 0;
   await client.query("begin");
   try {
-    for (const table of [...EXTRA_ORDER.reverse(), ...ROLLBACK_ORDER]) {
+    for (const table of [...discovered, ...ROLLBACK_ORDER]) {
       const ids = byTable.get(table);
       if (!ids || ids.length === 0) continue;
       const result = await client.query(`delete from ${table} where id = any($1)`, [ids]);

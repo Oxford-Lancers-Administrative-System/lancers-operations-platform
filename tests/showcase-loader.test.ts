@@ -628,6 +628,64 @@ describe("rollback against a database the walkthrough has been performed on", ()
     expect(gone.rows[0].n).toBe(0);
   }, 60_000);
 
+  it("ignores a staging row, which is neither the loader's nor the walkthrough's", async () => {
+    // `staging.legacy_roster_rows.matched_person_id → public.people` is
+    // `ON DELETE SET NULL`. PostgreSQL resolves it by nulling the reference and
+    // letting the delete through, so it can never block a rollback.
+    //
+    // The discovery walk bounded only its *parent* namespace, so it followed
+    // this edge out of `public`, refused a rollback over a row the walkthrough
+    // never produced, and then let `--force` delete a legacy-import provenance
+    // row — worse than what the constraint itself asked for.
+    //
+    // Two clauses fixed it, and this pins the *behaviour* rather than either
+    // one: in this schema each is independently sufficient — the only two
+    // foreign keys into `public` from outside it are both SET NULL — so
+    // removing either alone leaves this green, and removing both turns it red.
+    // Checked by injection in all three combinations. A future non-`public`
+    // child with a blocking delete rule would separate them; none exists today.
+    run("load");
+    const current = await plan();
+    const person = current.rows.find((row: { table: string }) => row.table === "public.people")
+      ?.columns.id;
+
+    const legacy = await client.query<{ id: string }>(
+      `insert into public.people (given_name) values ('Unused') returning id`,
+    );
+    // Guard: if the staging table is absent this test is vacuous, and should say
+    // so rather than pass.
+    const staging = await client.query<{ n: number }>(
+      `select count(*)::int as n from information_schema.tables
+        where table_schema = 'staging' and table_name = 'legacy_roster_rows'`,
+    );
+    expect(staging.rows[0].n, "staging.legacy_roster_rows is absent").toBe(1);
+
+    await client.query(
+      `insert into staging.legacy_roster_rows
+         (import_batch, source_file, normalisation_status, matched_person_id)
+       values ('showcase-test', 'showcase-test', 'normalised', $1)`,
+      [person],
+    );
+
+    // No refusal: the edge cannot block, so it must not be reported.
+    const output = run("rollback");
+    expect(output).not.toMatch(/STOP\./);
+    expect(output).not.toMatch(/staging/);
+
+    // And the staging row survives, with its reference nulled by the database.
+    const survived = await client.query<{ n: number; matched: string | null }>(
+      `select count(*)::int as n, min(matched_person_id::text) as matched
+         from staging.legacy_roster_rows where source_file = 'showcase-test'`,
+    );
+    expect(survived.rows[0].n, "the staging row was deleted").toBe(1);
+    expect(survived.rows[0].matched).toBeNull();
+
+    await client.query(
+      "delete from staging.legacy_roster_rows where source_file = 'showcase-test'",
+    );
+    await client.query("delete from public.people where id = $1", [legacy.rows[0].id]);
+  }, 60_000);
+
   it("--force clears a notification job that has its own delivery attempt", async () => {
     // The case independent review executed and this suite's fixture missed:
     // sending the message writes a job *and* an attempt, and

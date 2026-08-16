@@ -65,6 +65,12 @@ password you choose. **Confirm the email** on each one.
 
 Copy each user's **UUID** from the dashboard. You need all three in § 3.
 
+- [ ] **If any of those Auth users already exists**, check the telephone number
+      already recorded against them. The loader adopts an existing person rather
+      than duplicating them, and leaves the club's own number preferred — so a
+      stale number on file is the one Monday's message goes to, not the one you
+      put in the parameter file.
+
 > No agent creates a hosted Auth user. This step is yours and cannot be
 > automated away.
 
