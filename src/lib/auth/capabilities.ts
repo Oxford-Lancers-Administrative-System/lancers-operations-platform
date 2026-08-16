@@ -55,11 +55,13 @@
  * **Every capability above also lists `it_officer`.** Brian decided on 15
  * August 2026 (LAN-124) that the IT Officer is the club's administrative seat
  * and holds every privileged action in the slice. That is an administrative
- * grant rather than a demonstration affordance: until it existed
- * `role_management` was held by nobody at all, so no operator could add an
- * operator account or assign a role through the application — only by writing
- * to the database by hand. The seat is a real, non-constitutional committee
- * office in `ROLE_SPEC`, so holding it is truthful.
+ * grant rather than a demonstration affordance: `role_management` was held by
+ * nobody at all. It is worth being exact about what that changed, because an
+ * earlier version of this note was not: **no screen or service implements
+ * operator management yet.** `manageRoles` is still `notImplemented`, so an IT
+ * Officer holds the authority and not yet the ability, and accounts and role
+ * assignments are still written to the database by hand. The seat is a real,
+ * non-constitutional committee office in `ROLE_SPEC`, so holding it is truthful.
  *
  * It is also the widest grant in the file, and worth narrowing later: whoever
  * holds `role_management` can assign themselves anything else. Brian recorded
@@ -388,11 +390,13 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
     roleCodes: ["it_officer"],
     decision:
       "Brian, 15 August 2026 (LAN-124): the IT Officer is the club's administrative seat and " +
-      "holds this. It was the one entry the slice left open, and leaving it empty meant " +
-      "no operator could add an operator account or assign a role through the application at " +
-      "all — only by writing to the database by hand. Deliberately the narrowest list in this " +
-      "file and the widest grant in it: whoever holds this can assign themselves every other " +
-      "capability, which is why no calendar role was added alongside.",
+      "holds this. It was the one entry the slice left open. **No screen or service " +
+      "implements it yet** — `manageRoles` is still `notImplemented`, so holding this grants " +
+      "the authority and not yet the ability, and operator accounts and role assignments are " +
+      "still written to the database by hand. The grant is deliberately the narrowest list in " +
+      "this file and the widest in it: whoever holds it can assign themselves every other " +
+      "capability the moment a screen exists, which is why no calendar role was added " +
+      "alongside.",
   }),
 
   /**

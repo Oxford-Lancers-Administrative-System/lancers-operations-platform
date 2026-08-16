@@ -189,76 +189,144 @@ export async function upsert(client, ledger, table, columns, { dryRun = false } 
  * computed, which is why it cannot remove a row it did not create.
  */
 /**
- * Rows the **application** creates that hang off rows the loader created.
+ * Tables `--force` must never delete from.
  *
- * The walkthrough writes these. Approving the Leadership Walkthrough mints a
- * token and queues a job; Stewart answering writes a response; pressing **Show
- * report** writes a `weekly_reports` row and an `audit_events` row attributed to
- * the showcase Person. Every one of them carries an identifier the loader did
- * not compute and therefore cannot name.
- *
- * They matter in two opposite ways, and both are why this exists:
- *
- *   * under `on delete restrict` — `audit_events.actor_person_id`,
- *     `weekly_reports.season_id`, `notification_jobs.invitation_id`,
- *     `rsvp_access_tokens.invitation_id`, `rsvp_responses.invitation_id` — the
- *     delete aborts with a raw PostgreSQL error and removes nothing;
- *   * under `on delete cascade` — `event_audience_members.event_id`,
- *     `event_questions.event_id` — the delete **silently removes** them, which
- *     is the widening `docs/pilot-data-runbook.md` says a cleanup must refuse.
- *
- * So rollback counts them first and refuses by name. A cleanup that cannot
- * complete has to say which row is holding it, not surface a constraint name.
- *
- * `[table, column, what the loader owns it points at]`
+ * `audit_events` is append-only at the privilege level, and invariant M2 says an
+ * actor referenced by history has to stay resolvable. So a Person named by an
+ * audit row cannot be removed at all — not even with `--force`. That is a limit
+ * rather than an omission: history that can be deleted to tidy up is not
+ * history. Rollback keeps that Person, says so, and removes everything else.
  */
-export const FOREIGN_ROW_CHECKS = Object.freeze([
-  ["public.audit_events", "actor_person_id", "public.people"],
-  ["public.weekly_reports", "season_id", "public.seasons"],
-  ["public.weekly_reports", "generated_by_person_id", "public.people"],
-  ["public.notification_jobs", "invitation_id", "public.invitations"],
-  ["public.notification_jobs", "event_id", "public.events"],
-  ["public.notification_jobs", "person_id", "public.people"],
-  ["public.rsvp_access_tokens", "invitation_id", "public.invitations"],
-  ["public.rsvp_responses", "invitation_id", "public.invitations"],
-  ["public.attendance_records", "event_id", "public.events"],
-  ["public.event_audience_members", "event_id", "public.events"],
-  ["public.event_questions", "event_id", "public.events"],
-  ["public.invitations", "event_id", "public.events"],
-  ["public.season_memberships", "person_id", "public.people"],
-  ["public.role_assignments", "person_id", "public.people"],
-]);
+export const PRESERVED_TABLES = Object.freeze(["public.audit_events"]);
 
 /**
- * Finds rows the loader does not own that point at rows it does.
+ * Every foreign key in `public` that points at another table's `id`.
  *
- * Returns one entry per table/column with a count and a sample identifier, so
- * the refusal can name something a human can go and look at.
+ * Read from `pg_constraint` rather than written down. The first version of this
+ * was a hand-written list of fourteen table/column pairs compiled by reading the
+ * migrations; independent review enumerated the catalog and found **fifty-five**
+ * single-column foreign keys into loader-owned tables that the list did not
+ * have, plus composite keys its query shape could not express at all.
+ *
+ * The lesson is not "the list was short". It is that a list like that cannot be
+ * kept complete — it was wrong the day it was written, and every future
+ * migration would make it quietly wronger. The database already knows the
+ * answer, so it is asked.
+ *
+ * Composite keys are included through their `id` component. That over-reports
+ * rather than under-reports, which is the safe direction: the consequence is a
+ * refusal naming one row too many, never a delete taking one row too many.
  */
-export async function findForeignRows(client, ownedIdsByTable) {
-  const blockers = [];
+export async function readDependencies(client) {
+  const result = await client.query(
+    `select
+        child_ns.nspname  || '.' || child.relname  as child,
+        child_att.attname                          as child_column,
+        parent_ns.nspname || '.' || parent.relname as parent,
+        con.confdeltype                            as on_delete
+       from pg_constraint con
+       join pg_class child        on child.oid = con.conrelid
+       join pg_namespace child_ns on child_ns.oid = child.relnamespace
+       join pg_class parent        on parent.oid = con.confrelid
+       join pg_namespace parent_ns on parent_ns.oid = parent.relnamespace
+       join lateral unnest(con.conkey)  with ordinality as ck(attnum, ord) on true
+       join lateral unnest(con.confkey) with ordinality as fk(attnum, ord)
+              on fk.ord = ck.ord
+       join pg_attribute child_att
+              on child_att.attrelid = con.conrelid and child_att.attnum = ck.attnum
+       join pg_attribute parent_att
+              on parent_att.attrelid = con.confrelid and parent_att.attnum = fk.attnum
+      where con.contype = 'f'
+        and parent_ns.nspname = 'public'
+        and parent_att.attname = 'id'`,
+  );
 
-  for (const [table, column, target] of FOREIGN_ROW_CHECKS) {
-    const targetIds = ownedIdsByTable.get(target) ?? [];
-    if (targetIds.length === 0) continue;
+  const byParent = new Map();
+  for (const row of result.rows) {
+    if (!byParent.has(row.parent)) byParent.set(row.parent, []);
+    byParent.get(row.parent).push({
+      child: row.child,
+      column: row.child_column,
+      onDelete: row.on_delete,
+    });
+  }
+  return byParent;
+}
 
-    const ownIds = ownedIdsByTable.get(table) ?? [];
+/**
+ * Rows the loader does not own that are attached to rows it does — transitively.
+ *
+ * Breadth-first, because attachment is transitive and one pass is not enough: an
+ * invitation the application created has its own notification job, which has its
+ * own delivery attempt. The first version walked a hand-ordered list once and
+ * collected that invitation *after* it had already looked for the invitation's
+ * children, so the children were never found and the delete aborted anyway.
+ *
+ * Returns `{ blockers, attached }` — `blockers` for the refusal message, one
+ * entry per table and column with a count and a sample; `attached` mapping table
+ * to the identifiers `--force` has to delete, deepest first.
+ */
+export async function findAttachedRows(client, ownedIdsByTable, dependencies) {
+  const attached = new Map();
+  const blockers = new Map();
+  const order = [];
 
-    const result = await client.query(
-      `select count(*)::int as count, min(id::text) as sample
-         from ${table}
-        where ${column} = any($1)
-          and not (id = any($2))`,
-      [targetIds, ownIds],
-    );
+  const ownedByTable = new Map([...ownedIdsByTable].map(([table, ids]) => [table, new Set(ids)]));
+  let frontier = new Map(ownedIdsByTable);
 
-    const count = result.rows[0].count;
-    if (count > 0) {
-      blockers.push({ table, column, target, count, sample: result.rows[0].sample });
+  // Bounded. The schema is finite and each pass only follows edges out of rows
+  // the previous one found; the cap is a backstop against a cycle in the
+  // catalog, not a limit any real schema should reach.
+  for (let depth = 0; depth < 12 && frontier.size > 0; depth += 1) {
+    const next = new Map();
+
+    for (const [parent, parentIds] of frontier) {
+      if (!parentIds || parentIds.length === 0) continue;
+
+      for (const edge of dependencies.get(parent) ?? []) {
+        const owned = ownedByTable.get(edge.child) ?? new Set();
+        const already = attached.get(edge.child) ?? new Set();
+
+        const found = await client.query(
+          `select id from ${edge.child} where ${edge.column} = any($1)`,
+          [parentIds],
+        );
+
+        const fresh = found.rows
+          .map((row) => row.id)
+          .filter((id) => !owned.has(id) && !already.has(id));
+
+        if (fresh.length === 0) continue;
+
+        const key = `${edge.child}.${edge.column}`;
+        const existing = blockers.get(key);
+        blockers.set(key, {
+          table: edge.child,
+          column: edge.column,
+          target: parent,
+          onDelete: edge.onDelete,
+          count: (existing?.count ?? 0) + fresh.length,
+          sample: existing?.sample ?? fresh[0],
+        });
+
+        if (!attached.has(edge.child)) {
+          attached.set(edge.child, new Set());
+          order.push(edge.child);
+        }
+        for (const id of fresh) attached.get(edge.child).add(id);
+
+        next.set(edge.child, [...(next.get(edge.child) ?? []), ...fresh]);
+      }
     }
+
+    frontier = next;
   }
 
-  return blockers;
+  return {
+    blockers: [...blockers.values()],
+    // Reversed: the deepest thing found is the first thing that has to go.
+    attached: order.reverse().map((table) => [table, [...attached.get(table)]]),
+  };
 }
 
 export const ROLLBACK_ORDER = Object.freeze([
@@ -269,6 +337,8 @@ export const ROLLBACK_ORDER = Object.freeze([
   "public.rsvp_access_tokens",
   "public.invitations",
   "public.event_audience_members",
+  // Cascades off `events`, so it is deleted deliberately rather than silently.
+  "public.event_questions",
   "public.events",
   "public.recruitment_prospects",
   "public.availability_statuses",
@@ -284,6 +354,10 @@ export const ROLLBACK_ORDER = Object.freeze([
   // the actor first violates `seasons_opened_by_person_id_fkey`. This only
   // shows up when the loader created the seasons rather than adopting them —
   // the automated test does exactly that, which is how the order got fixed.
+  // Reference both `seasons` and `people`, so they precede both. Absent from
+  // this list, `--force` collected their ids and then never deleted them, and
+  // the restrict constraint fired exactly as it would have without `--force`.
+  "public.weekly_reports",
   "public.seasons",
   "public.people",
   "public.positions",

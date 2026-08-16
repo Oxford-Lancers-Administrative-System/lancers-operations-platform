@@ -414,6 +414,159 @@ describe("rollback", () => {
   }, 60_000);
 });
 
+describe("adopting a durable identity that already exists", () => {
+  /**
+   * The path had no automated coverage at all, and independent review found it
+   * aborted a load that preflight had just passed — the exact failure the
+   * adoption was written to prevent.
+   *
+   * `docs/pilot-data-manifest.md` binds the loader to inventorying rather than
+   * duplicating an existing Auth user, Person and operator link. Brian's hosted
+   * Auth user already exists, so this is Monday's path, not a hypothetical.
+   */
+  let authUserId: string;
+  let existingPersonId: string;
+  let adoptParams: string;
+
+  beforeAll(async () => {
+    const person = await client.query<{ id: string }>(
+      `insert into public.people (given_name, family_name)
+       values ('Adopted', 'Owner') returning id`,
+    );
+    existingPersonId = person.rows[0].id;
+
+    // A preferred phone already on file. This is what collided.
+    await client.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
+       values ($1, 'phone', '07700 900950', true)`,
+      [existingPersonId],
+    );
+
+    const auth = await client.query<{ id: string }>(
+      `insert into auth.users (id, instance_id, aud, role, email)
+       values (gen_random_uuid(), '00000000-0000-0000-0000-000000000000',
+               'authenticated', 'authenticated', 'adopted.owner@lancers.local')
+       returning id`,
+    );
+    authUserId = auth.rows[0].id;
+
+    await client.query(
+      "insert into public.operator_accounts (auth_user_id, person_id) values ($1, $2)",
+      [authUserId, existingPersonId],
+    );
+
+    adoptParams = path.join(directory, "params-adopt.json");
+    writeFileSync(
+      adoptParams,
+      JSON.stringify({
+        brian: {
+          givenName: "Adopted",
+          familyName: "Owner",
+          authUserId,
+          phone: "07700 900951",
+          roles: ["it_officer"],
+        },
+        labels: {
+          currentSeason: "Adoption test current",
+          archivedSeason: "Adoption test archived",
+          vocabularyCode: "adoption_test_vocab",
+          seasonStatus: "archived",
+        },
+      }),
+    );
+  }, 60_000);
+
+  const runAdopt = (phase: string, extra: string[] = []) =>
+    execFileSync(
+      process.execPath,
+      [
+        LOADER,
+        phase,
+        "--roster",
+        rosterPath,
+        "--termcard",
+        termCardPath,
+        "--params",
+        adoptParams,
+        ...extra,
+      ],
+      { cwd: ROOT, encoding: "utf8", env: { ...process.env, CI: "", VITEST: "" } },
+    );
+
+  it("loads without colliding with the preferred phone already on file", () => {
+    // `contact_points_one_preferred_per_kind` is a *partial* unique index, which
+    // `on conflict (id)` does not cover. The loader wrote a second preferred
+    // phone and the whole transaction aborted — after preflight passed.
+    const output = runAdopt("load");
+    expect(output).toMatch(/Created \d+, updated 0/);
+  }, 60_000);
+
+  it("creates no second Person for a human who already has one", async () => {
+    const people = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.people where given_name = 'Adopted'",
+    );
+    expect(people.rows[0].n, "a second Person was created").toBe(1);
+  });
+
+  it("leaves the existing operator link pointing where it did", async () => {
+    const link = await client.query<{ person_id: string; n: number }>(
+      `select person_id, count(*) over ()::int as n
+         from public.operator_accounts where auth_user_id = $1`,
+      [authUserId],
+    );
+    expect(link.rows[0].n).toBe(1);
+    expect(link.rows[0].person_id).toBe(existingPersonId);
+  });
+
+  it("keeps the club's own preferred number preferred", async () => {
+    const preferred = await client.query<{ raw_value: string }>(
+      `select raw_value from public.contact_points
+        where person_id = $1 and kind = 'phone' and is_preferred`,
+      [existingPersonId],
+    );
+    expect(preferred.rowCount).toBe(1);
+    expect(preferred.rows[0].raw_value).toBe("07700 900950");
+  });
+
+  it("rollback leaves the adopted Person and their own contact behind", async () => {
+    runAdopt("rollback", ["--force"]);
+
+    const person = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.people where id = $1",
+      [existingPersonId],
+    );
+    expect(person.rows[0].n, "the adopted Person was deleted").toBe(1);
+
+    const contact = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.contact_points where person_id = $1",
+      [existingPersonId],
+    );
+    expect(contact.rows[0].n, "the pre-existing contact was deleted").toBe(1);
+
+    const link = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.operator_accounts where auth_user_id = $1",
+      [authUserId],
+    );
+    expect(link.rows[0].n, "the pre-existing operator link was deleted").toBe(1);
+  }, 60_000);
+
+  afterAll(async () => {
+    try {
+      runAdopt("rollback", ["--force"]);
+    } catch {
+      // Reported by whichever assertion failed.
+    }
+    await client.query("delete from public.operator_accounts where auth_user_id = $1", [
+      authUserId,
+    ]);
+    await client.query("delete from public.contact_points where person_id = $1", [
+      existingPersonId,
+    ]);
+    await client.query("delete from public.people where id = $1", [existingPersonId]);
+    await client.query("delete from auth.users where id = $1", [authUserId]);
+  });
+});
+
 describe("rollback against a database the walkthrough has been performed on", () => {
   /**
    * The case that was missing, and the one that matters most.
@@ -475,6 +628,120 @@ describe("rollback against a database the walkthrough has been performed on", ()
     expect(gone.rows[0].n).toBe(0);
   }, 60_000);
 
+  it("--force clears a notification job that has its own delivery attempt", async () => {
+    // The case independent review executed and this suite's fixture missed:
+    // sending the message writes a job *and* an attempt, and
+    // `delivery_attempts.notification_job_id` restricts. A single pass over a
+    // hand-ordered list collected the job after it had already looked for the
+    // job's children, so the attempt was never found and `--force` aborted.
+    // Dependencies are now followed transitively, which is what this pins.
+    run("load");
+    const current = await plan();
+    const invitationId = current.rows.find(
+      (row: { table: string }) => row.table === "public.invitations",
+    )?.columns.id;
+
+    const job = await client.query<{ id: string }>(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, channel)
+       values ('showcase-test-transitive', 'invitation', 'completed', $1, 'whatsapp')
+       returning id`,
+      [invitationId],
+    );
+    await client.query(
+      `insert into public.delivery_attempts
+         (notification_job_id, attempt_number, channel, provider)
+       values ($1, 1, 'whatsapp', 'whatsapp_cloud')`,
+      [job.rows[0].id],
+    );
+
+    run("rollback", ["--force"]);
+
+    const attempts = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.delivery_attempts where notification_job_id = $1",
+      [job.rows[0].id],
+    );
+    expect(attempts.rows[0].n, "the transitive child survived --force").toBe(0);
+
+    const jobs = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.notification_jobs where idempotency_key = $1",
+      ["showcase-test-transitive"],
+    );
+    expect(jobs.rows[0].n).toBe(0);
+  }, 60_000);
+
+  it("--force removes a weekly report, which the rollback order must include", async () => {
+    // The first version of `--force` collected ids from `weekly_reports`,
+    // `audit_events` and `event_questions` and then never deleted them, because
+    // none of those tables was in ROLLBACK_ORDER. The restrict constraint fired
+    // exactly as it would have without `--force`, so the documented way out of a
+    // refusal did not work. This is the case that catches that.
+    run("load");
+    const current = await plan();
+    const season = current.rows.find((row: { table: string }) => row.table === "public.seasons")
+      ?.columns.id;
+    const person = current.rows.find((row: { table: string }) => row.table === "public.people")
+      ?.columns.id;
+    expect(season, "the plan adopts every season, so there is none to attach to").toBeDefined();
+
+    await client.query(
+      `insert into public.weekly_reports
+         (season_id, report_on, generated_by_person_id, metric_definition_version,
+          data_as_of, content)
+       values ($1, current_date, $2, 'test', now(), '{}'::jsonb)`,
+      [season, person],
+    );
+
+    let stderr = "";
+    try {
+      run("rollback");
+    } catch (error) {
+      stderr = String((error as { stderr?: string }).stderr ?? "");
+    }
+    expect(stderr).toMatch(/weekly_reports/);
+
+    run("rollback", ["--force"]);
+
+    const gone = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.weekly_reports where season_id = $1",
+      [season],
+    );
+    expect(gone.rows[0].n).toBe(0);
+  }, 60_000);
+
+  it("--force still refuses to delete audit history, and keeps the actor", async () => {
+    // Invariant M2: an actor named by history stays resolvable. So a Person an
+    // audit row names cannot be removed even with `--force` — that is a limit,
+    // not an omission, and everything else must still roll back around it.
+    run("load");
+    const current = await plan();
+    const person = current.rows.find((row: { table: string }) => row.table === "public.people")
+      ?.columns.id;
+
+    await client.query(
+      `insert into public.audit_events
+         (actor_person_id, actor_label, action, entity_table, entity_id)
+       values ($1, 'test', 'showcase.preserved', 'people', $1)`,
+      [person],
+    );
+
+    run("rollback", ["--force"]);
+
+    const audit = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.audit_events where action = 'showcase.preserved'",
+    );
+    expect(audit.rows[0].n, "audit history was deleted").toBe(1);
+
+    const actor = await client.query<{ n: number }>(
+      "select count(*)::int as n from public.people where id = $1",
+      [person],
+    );
+    expect(actor.rows[0].n, "the actor an audit row names was deleted").toBe(1);
+
+    await client.query("delete from public.audit_events where action = 'showcase.preserved'");
+    run("rollback", ["--force"]);
+  }, 60_000);
+
   it("does not let a cascade quietly remove an audience row it did not create", async () => {
     // `event_audience_members.event_id` cascades. Without the check, deleting a
     // showcase event would take an audience row somebody added afterwards with
@@ -510,7 +777,12 @@ describe("rollback against a database the walkthrough has been performed on", ()
     } catch (error) {
       stderr = String((error as { stderr?: string }).stderr ?? "");
     }
-    expect(stderr).toMatch(/event_audience_members\.event_id/);
+    // The table, not a particular column. Dependencies are discovered from
+    // `pg_constraint` and followed breadth-first, so whichever edge reaches this
+    // row first is the one named — here `season_membership_id` rather than
+    // `event_id`, an edge the original hand-written list did not have at all.
+    // What matters is that the row is found and named, not by which route.
+    expect(stderr).toMatch(/event_audience_members/);
 
     const survived = await client.query<{ n: number }>(
       "select count(*)::int as n from public.event_audience_members where id = $1",

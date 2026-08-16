@@ -442,7 +442,20 @@ export function buildPlan({
           person_id: personId,
           kind: "phone",
           raw_value: person.phone,
-          is_preferred: true,
+          // Preferred only when the loader created this Person. An adopted one
+          // may already have a preferred phone, and
+          // `contact_points_one_preferred_per_kind` is a *partial* unique index
+          // — on `(person_id, kind) where is_preferred` — which the loader's
+          // `on conflict (id)` clause does not cover. Writing a second
+          // preferred number aborted the whole load, after preflight had said
+          // it would not, which is exactly the failure the adoption path was
+          // added to prevent.
+          //
+          // Not preferred is also the right answer on its own terms: the club's
+          // own record of how to reach somebody should win over one supplied for
+          // a demonstration. `selectMobileNumber` orders by preference and then
+          // by recency, so this number is still used when there is no other.
+          is_preferred: !linked,
           valid_from: "2026-06-01",
           source: "supplied privately at execution time",
         },

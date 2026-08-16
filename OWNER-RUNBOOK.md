@@ -122,9 +122,13 @@ chmod 600 ~/lancers-showcase-params.json
 including your own administrative seat. Leave it in.
 
 > **Why the IT Officer seat is wide.** It now holds every capability in the
-> application, including role management — which nobody held before, meaning
-> nobody could add an operator through the app at all. Whoever holds it can
-> grant themselves anything, so it is time-bounded here on purpose.
+> application, including role management, which nobody held before. Whoever
+> holds it can grant themselves anything, so it is time-bounded here on purpose.
+>
+> **It does not let you add an operator through the app.** No screen implements
+> that yet. Operator accounts and role assignments still reach the database
+> through this loader or by hand — which is why § 2b has you create the Auth
+> users in the Supabase dashboard.
 
 ---
 

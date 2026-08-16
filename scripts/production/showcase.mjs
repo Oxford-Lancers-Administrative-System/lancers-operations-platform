@@ -42,9 +42,10 @@ import { pathToFileURL } from "node:url";
 
 import {
   connect,
-  findForeignRows,
-  FOREIGN_ROW_CHECKS,
+  findAttachedRows,
   newLedger,
+  PRESERVED_TABLES,
+  readDependencies,
   readExisting,
   ROLLBACK_ORDER,
   upsert,
@@ -53,6 +54,15 @@ import { buildPlan } from "./showcase/plan.mjs";
 import { readRoster, readTermCard } from "./showcase/sources.mjs";
 import { resolveTarget } from "./showcase/target.mjs";
 import { readWorkbook } from "./showcase/workbook.mjs";
+
+/**
+ * Tables `--force` discovered that `ROLLBACK_ORDER` does not name.
+ *
+ * Deleted before the fixed order, deepest first. Without this the first
+ * `--force` collected rows from tables the order never visited and then hit
+ * the very restrict constraint it was meant to clear.
+ */
+const EXTRA_ORDER = [];
 
 const PHASES = ["preflight", "preview", "load", "verify", "manifest", "rollback"];
 
@@ -493,9 +503,14 @@ async function rollback(client, plan, { force = false } = {}) {
   // event mints a token and queues a job, an answer writes a response, and
   // pressing Show report writes a report and an audit row against the showcase
   // person. Some of those foreign keys restrict — the delete would fail and
-  // remove nothing — and two cascade, where it would silently remove rows the
+  // remove nothing — and some cascade, where it would silently remove rows the
   // loader never created. Both are reasons to stop and say so.
-  const blockers = await findForeignRows(client, byTable);
+  //
+  // What is attached is discovered from `pg_constraint` and followed
+  // transitively, not read off a list. See `readDependencies`.
+  const dependencies = await readDependencies(client);
+  const { blockers, attached } = await findAttachedRows(client, byTable, dependencies);
+
   if (blockers.length > 0 && !force) {
     console.error("\nSTOP. Rows this loader did not create are attached to rows it did:\n");
     for (const blocker of blockers) {
@@ -515,29 +530,54 @@ async function rollback(client, plan, { force = false } = {}) {
   }
 
   if (blockers.length > 0) {
+    const preservedBlockers = blockers.filter((b) => PRESERVED_TABLES.includes(b.table));
+    const removable = attached.filter(([table]) => !PRESERVED_TABLES.includes(table));
+
     console.log(
-      `\n--force: removing ${blockers.reduce((total, blocker) => total + blocker.count, 0)} ` +
+      `\n--force: removing ${removable.reduce((total, [, ids]) => total + ids.length, 0)} ` +
         "attached rows the walkthrough created, as well as the showcase.",
     );
-    // Deleted deliberately and in dependency order, rather than left to a
-    // cascade to take silently.
-    for (const [table, column] of FOREIGN_ROW_CHECKS) {
-      const targetIds =
-        byTable.get(FOREIGN_ROW_CHECKS.find(([t, c]) => t === table && c === column)[2]) ?? [];
-      if (targetIds.length === 0) continue;
-      byTable.set(table, [
-        ...(byTable.get(table) ?? []),
-        ...(
-          await client.query(`select id from ${table} where ${column} = any($1)`, [targetIds])
-        ).rows.map((row) => row.id),
-      ]);
+
+    if (preservedBlockers.length > 0) {
+      // Not an omission. `audit_events` is append-only and invariant M2 requires
+      // an actor named by history to stay resolvable, so a row an audit entry
+      // names cannot be removed at all. Everything else still goes.
+      console.log(
+        "\nKept, and so is whatever they point at:\n" +
+          preservedBlockers
+            .map((b) => `  ${String(b.count).padStart(5)}  ${b.table}.${b.column} → ${b.target}`)
+            .join("\n") +
+          "\n  History that can be deleted to tidy up is not history.",
+      );
+
+      // A row an audit entry names cannot be deleted either, so it comes out of
+      // the plan rather than being attempted and failing.
+      for (const blocker of preservedBlockers) {
+        const keep = await client.query(
+          `select ${blocker.column} as id from ${blocker.table} where ${blocker.column} = any($1)`,
+          [byTable.get(blocker.target) ?? []],
+        );
+        const kept = new Set(keep.rows.map((row) => row.id));
+        byTable.set(
+          blocker.target,
+          (byTable.get(blocker.target) ?? []).filter((id) => !kept.has(id)),
+        );
+      }
+    }
+
+    // Deepest first, so a child is gone before its parent is attempted.
+    for (const [table, ids] of removable) {
+      byTable.set(table, [...new Set([...(byTable.get(table) ?? []), ...ids])]);
+    }
+    for (const [table] of removable) {
+      if (!ROLLBACK_ORDER.includes(table)) EXTRA_ORDER.push(table);
     }
   }
 
   let removed = 0;
   await client.query("begin");
   try {
-    for (const table of ROLLBACK_ORDER) {
+    for (const table of [...EXTRA_ORDER.reverse(), ...ROLLBACK_ORDER]) {
       const ids = byTable.get(table);
       if (!ids || ids.length === 0) continue;
       const result = await client.query(`delete from ${table} where id = any($1)`, [ids]);
