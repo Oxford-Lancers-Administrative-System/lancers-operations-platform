@@ -254,16 +254,48 @@ export function resolveLocalTestOverrides(
   appBaseUrl: string,
   source: EnvironmentSource = process.env,
 ): LocalTestOverrides {
-  if (!isLoopbackBaseUrl(appBaseUrl)) {
+  const loopback = isLoopbackBaseUrl(appBaseUrl);
+
+  // LAN-124, 17 August 2026, Brian's decision, taken in front of the failure
+  // that forced it. Meta declined to deliver our template with `131049` — the
+  // per-recipient throttle on marketing-category templates — having accepted
+  // the API call and returned a message id. A utility-category template would
+  // pass, and creating one means going through Meta's review, which the
+  // walkthrough could not wait for.
+  //
+  // Free-form text has no category and no review. Meta permits it inside a
+  // 24-hour service window that the *recipient* opens by messaging the number
+  // first, which is a thing two people can do and forty-two cannot.
+  //
+  // So this is opt-in, explicit, and separate from `WHATSAPP_MESSAGE_MODE`:
+  // setting the mode alone still does nothing off loopback. Both are required.
+  //
+  // What makes it acceptable is not this flag. It is
+  // `DELIVERY_RECIPIENT_ALLOWLIST`, which is required, fails closed, and is
+  // enforced twice — before a token is minted and again at the egress. This
+  // deployment can free-form text exactly the two people on that list, and a
+  // message outside a service window is refused by Meta with `131047` rather
+  // than delivered.
+  const freeFormAllowed = trimmed("WHATSAPP_ALLOW_FREE_FORM", source).toLowerCase() === "true";
+
+  if (!loopback && !freeFormAllowed) {
     return { recipientOverride: null, messageMode: "template" };
   }
 
-  const recipient = trimmed("WHATSAPP_TEST_RECIPIENT", source).replace(/[^0-9]/g, "");
   const mode = trimmed("WHATSAPP_MESSAGE_MODE", source).toLowerCase();
+  const messageMode: LocalTestOverrides["messageMode"] = mode === "text" ? "text" : "template";
+
+  // The recipient override stays loopback-only, and deliberately so. Redirecting
+  // every message to one number is a development affordance; there is no reading
+  // under which a deployed revision should silently send somebody else's message
+  // to a different handset.
+  if (!loopback) return { recipientOverride: null, messageMode };
+
+  const recipient = trimmed("WHATSAPP_TEST_RECIPIENT", source).replace(/[^0-9]/g, "");
 
   return {
     recipientOverride: recipient === "" ? null : recipient,
-    messageMode: mode === "text" ? "text" : "template",
+    messageMode,
   };
 }
 

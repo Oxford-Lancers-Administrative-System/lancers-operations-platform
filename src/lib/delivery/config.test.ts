@@ -272,6 +272,60 @@ describe("the local test affordances", () => {
     expect(local.config.localTest.recipientOverride).toBe("447700900123");
   });
 
+  describe("LAN-124 — free-form text on a deployed revision, opt-in only", () => {
+    it("stays template-only when the mode is set but the flag is not", () => {
+      // Setting the mode alone must change nothing off loopback. This is the
+      // assertion that keeps the relaxation opt-in rather than accidental.
+      const overrides = resolveLocalTestOverrides("https://lancers.example.org", {
+        WHATSAPP_MESSAGE_MODE: "text",
+      });
+      expect(overrides.messageMode).toBe("template");
+      expect(overrides.recipientOverride).toBeNull();
+    });
+
+    it("stays template-only when the flag is set but the mode is not", () => {
+      const overrides = resolveLocalTestOverrides("https://lancers.example.org", {
+        WHATSAPP_ALLOW_FREE_FORM: "true",
+      });
+      expect(overrides.messageMode).toBe("template");
+    });
+
+    it("permits text only when both are set, and exactly `true`", () => {
+      const base = { WHATSAPP_MESSAGE_MODE: "text" };
+      for (const flag of ["yes", "1", "TRUE ", "", "false"]) {
+        expect(
+          resolveLocalTestOverrides("https://lancers.example.org", {
+            ...base,
+            WHATSAPP_ALLOW_FREE_FORM: flag,
+          }).messageMode,
+          JSON.stringify(flag),
+        ).toBe(flag.trim().toLowerCase() === "true" ? "text" : "template");
+      }
+    });
+
+    it("never redirects a deployed message to another handset, flag or no flag", () => {
+      // The recipient override stays loopback-only. Sending somebody else's
+      // message to a different number is a development affordance and has no
+      // deployed reading at all.
+      const overrides = resolveLocalTestOverrides("https://lancers.example.org", {
+        WHATSAPP_ALLOW_FREE_FORM: "true",
+        WHATSAPP_MESSAGE_MODE: "text",
+        WHATSAPP_TEST_RECIPIENT: "447700900999",
+      });
+      expect(overrides.recipientOverride).toBeNull();
+      expect(overrides.messageMode).toBe("text");
+    });
+
+    it("leaves loopback behaviour exactly as it was", () => {
+      const overrides = resolveLocalTestOverrides("http://localhost:3010", {
+        WHATSAPP_MESSAGE_MODE: "text",
+        WHATSAPP_TEST_RECIPIENT: "447700900123",
+      });
+      expect(overrides.messageMode).toBe("text");
+      expect(overrides.recipientOverride).toBe("447700900123");
+    });
+  });
+
   it("default to template mode on loopback when no mode is set", () => {
     const overrides = resolveLocalTestOverrides("http://localhost:3010", {});
     expect(overrides.messageMode).toBe("template");
