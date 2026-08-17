@@ -399,8 +399,8 @@ describe("row 14 — an operator with no relevant role is refused, and told what
     // when the decision was made, and the property it demonstrates did not —
     // the screen describes what the action needs and never what the reader has.
     expect(flatten(container.textContent)).toContain(
-      "This action requires one of these roles: President, Vice-President, Secretary or " +
-        "General Manager.",
+      "This action requires one of these roles: President, Vice-President, Secretary, " +
+        "General Manager or IT Officer.",
     );
     expect(container.textContent).not.toContain("not built yet");
   });
@@ -429,18 +429,20 @@ describe("row 14 — an operator with no relevant role is refused, and told what
   });
 
   it("does not say who does hold the missing role", async () => {
-    // The refused actor was the Secretary while nobody held the capability.
-    // The Secretary holds it now, so the refusal is demonstrated by a role
-    // outside the grant — and what is asserted is unchanged: the screen names
-    // the requirement, and says nothing about the reader or about who to ask.
-    givenAccess({ state: "active", operator: actor(["it_officer"]) });
+    // The refused actor was the Secretary while nobody held the capability,
+    // then the IT Officer once the Secretary was granted it. LAN-124 made the
+    // IT Officer the administrative seat, so the refusal is demonstrated by
+    // the Media Secretary instead — and what is asserted is unchanged: the
+    // screen names the requirement, and says nothing about the reader or about
+    // who to ask.
+    givenAccess({ state: "active", operator: actor(["media_secretary"]) });
 
     const { container } = render(await ReportPage(reportProps()));
     const text = flatten(container.textContent);
 
     expect(text).not.toMatch(/held by|ask the|contact the president|the president can/i);
-    expect(container.innerHTML.toLowerCase()).not.toContain("it_officer");
-    expect(container.innerHTML.toLowerCase()).not.toContain("it officer");
+    expect(container.innerHTML.toLowerCase()).not.toContain("media_secretary");
+    expect(container.innerHTML.toLowerCase()).not.toContain("media secretary");
   });
 
   it("offers a way back to somewhere the operator can actually go", async () => {
@@ -477,9 +479,13 @@ describe("row 6 — the refusal screen names the requirement, never the reader's
   it("renders none of the roles the refused operator actually holds", async () => {
     // The screen builds its requirement from the capability, not from the
     // actor, and this is what holds it to that. A UX-05 that helpfully listed
-    // "your roles: it_officer, kit_manager" would tell whoever has the session
-    // exactly what the account is worth.
-    const held = ["it_officer", "social_secretary", "kit_manager", "head_coach"];
+    // "your roles: media_secretary, kit_manager" would tell whoever has the
+    // session exactly what the account is worth.
+    //
+    // None of these seats appears in the report's requirement sentence, which
+    // is what makes the assertion below meaningful — `it_officer` cannot be
+    // used here since LAN-124, because that sentence now names it.
+    const held = ["media_secretary", "social_secretary", "kit_manager", "head_coach"];
     givenAccess({ state: "active", operator: actor(held) });
 
     const { container } = render(await ReportPage(reportProps()));
@@ -513,18 +519,18 @@ describe("row 6 — the refusal screen names the requirement, never the reader's
     // report grant was empty. LAN-81 decided it, so the sentence now names four
     // roles — which sharpens the assertion rather than blunting it: the screen
     // names four seats and still names none of the three the reader holds.
-    const held = ["it_officer", "social_secretary", "kit_manager"];
+    const held = ["media_secretary", "social_secretary", "kit_manager"];
     givenAccess({ state: "active", operator: actor(held) });
 
     const { container } = render(await ReportPage(reportProps()));
     const html = container.innerHTML.toLowerCase();
 
-    for (const label of ["it_officer", "it officer", "social secretary", "kit manager"]) {
+    for (const label of ["media_secretary", "media secretary", "social secretary", "kit manager"]) {
       expect(html, `the refusal screen names "${label}"`).not.toContain(label);
     }
     expect(flatten(container.textContent)).toContain(
-      "This action requires one of these roles: President, Vice-President, Secretary or " +
-        "General Manager.",
+      "This action requires one of these roles: President, Vice-President, Secretary, " +
+        "General Manager or IT Officer.",
     );
   });
 });

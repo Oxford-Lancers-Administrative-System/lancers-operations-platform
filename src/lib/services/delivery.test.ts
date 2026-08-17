@@ -47,11 +47,27 @@ const MARKER = "LAN78DeliverySuite";
 const PROVIDER_MESSAGE_NAMESPACE = "wamid.LAN78.";
 const PROVIDER_MESSAGE_PREFIX = `${PROVIDER_MESSAGE_NAMESPACE}${crypto.randomUUID().slice(0, 8)}.`;
 
+/**
+ * Every number this suite's fixtures use, all of them in Ofcom's reserved
+ * drama range. LAN-124 made the allowlist a required outbound variable, so a
+ * suite that omitted it would resolve to `{ configured: false }` and prove
+ * nothing about dispatch at all.
+ *
+ * Listed explicitly rather than derived, so that a fixture given a new number
+ * fails loudly here instead of quietly exercising the refusal path while
+ * looking like it tests a send.
+ */
+const ALLOWLISTED = ["07700 900123", "07700 900444", "07700 900111", "07700 900222"].join(",");
+
+/** A number no fixture uses, for the tests that prove the refusal. */
+const NOT_ALLOWLISTED = "07700 900555";
+
 const CONFIGURED: EnvironmentSource = {
   APP_BASE_URL: "https://lancers.example.org",
   WHATSAPP_PHONE_NUMBER_ID: "5550001",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
+  DELIVERY_RECIPIENT_ALLOWLIST: ALLOWLISTED,
 };
 
 let observer: Client;
@@ -273,8 +289,14 @@ async function fixture(options: { phone?: string | null } = {}) {
  * identifier across two sends collides with the constraint and tests nothing
  * real. The collision itself is pinned separately, below.
  */
-/** A second invitee on the same event, for the batch-isolation test. */
-async function addInvitee(tag: string) {
+/**
+ * A second invitee on the same event, for the batch-isolation test.
+ *
+ * `phone` is a parameter rather than a constant since LAN-124: proving that the
+ * allowlist discriminates *between* two people on one event needs the two to
+ * differ in exactly that respect.
+ */
+async function addInvitee(tag: string, phone = "07700 900444") {
   const person = await observer.query<{ id: string }>(
     `insert into public.people (given_name, family_name, created_at)
      values ($1, $2, now() + interval '100 years') returning id`,
@@ -284,8 +306,8 @@ async function addInvitee(tag: string) {
 
   await observer.query(
     `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
-     values ($1, 'phone', '07700 900444', true)`,
-    [personId],
+     values ($1, 'phone', $2, true)`,
+    [personId, phone],
   );
 
   const membership = await observer.query<{ id: string }>(
@@ -473,6 +495,77 @@ describe("dispatching after approval", () => {
     const tokens = await observer.query<{ count: string }>(
       "select count(*)::text as count from public.rsvp_access_tokens where invitation_id = $1",
       [invitationId],
+    );
+    expect(tokens.rows[0].count).toBe("0");
+  });
+
+  /**
+   * LAN-124. The hosted database holds the club's real roster and the deployed
+   * application holds a live provider credential; this is what stands between
+   * an approval and forty real students being messaged.
+   *
+   * The property that matters is not "the send was refused" — it is that a
+   * person outside the allowlist never has a live RSVP link in existence. A
+   * refusal at the send would leave a token issued, recorded, and having
+   * superseded whatever came before it.
+   */
+  it("refuses an invitee outside the allowlist, without burning a token", async () => {
+    const { eventId, invitationId } = await fixture({ phone: NOT_ALLOWLISTED });
+    const transport = accepts();
+
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
+
+    expect(transport).not.toHaveBeenCalled();
+
+    const current = await row(eventId);
+    expect(current.failureReason).toMatch(/approved list of recipients/i);
+    // The reason is rendered on the delivery screen. The numbers behind this
+    // control are private and none of them belongs in it.
+    expect(current.failureReason).not.toMatch(/\d{4,}/);
+
+    const tokens = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.rsvp_access_tokens where invitation_id = $1",
+      [invitationId],
+    );
+    expect(tokens.rows[0].count).toBe("0");
+  });
+
+  it("still delivers to an invitee who is on the allowlist", async () => {
+    // The counterpart, so that a control which refused everybody would fail
+    // here rather than passing the test above and looking correct.
+    const { eventId, invitationId } = await fixture({ phone: "07700 900123" });
+    const transport = accepts();
+
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
+
+    expect(transport).toHaveBeenCalledTimes(1);
+
+    const tokens = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.rsvp_access_tokens where invitation_id = $1",
+      [invitationId],
+    );
+    expect(tokens.rows[0].count).toBe("1");
+  });
+
+  it("sends to the listed invitee and refuses the unlisted one in the same event", async () => {
+    // The showcase's actual shape: one audience, most of it real roster, two
+    // people who may be reached. A control that worked per-deployment but not
+    // per-recipient would pass both tests above and fail this one.
+    const { eventId } = await fixture({ phone: "07700 900123" });
+    const stranger = await addInvitee("unlisted", NOT_ALLOWLISTED);
+    const transport = accepts();
+
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
+
+    expect(transport).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(
+      (transport.mock.calls[0] as unknown as [string, RequestInit])[1].body as string,
+    );
+    expect(body.to).toBe("447700900123");
+
+    const tokens = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.rsvp_access_tokens where invitation_id = $1",
+      [stranger.invitationId],
     );
     expect(tokens.rows[0].count).toBe("0");
   });

@@ -72,13 +72,17 @@ const ACTIVATION_ROLES = [
   "general_manager",
 ];
 
-/** Every other seat in the catalogue. None of them may activate anybody. */
+/**
+ * Every other seat in the catalogue. None of them may activate anybody.
+ *
+ * `it_officer` is deliberately absent: Brian's LAN-124 decision made it the
+ * club's administrative seat, so it holds this and every other capability.
+ */
 const OTHER_ROLES = [
   "social_secretary",
   "gameday_secretary",
   "kit_manager",
   "media_secretary",
-  "it_officer",
   "head_coach",
   "offence_coach",
   "defence_coach",

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { parseRecipientAllowlist, RECIPIENT_ALLOWLIST_VARIABLE } from "./allowlist";
+
 /**
  * Delivery configuration, read from the environment and from nowhere else.
  *
@@ -60,6 +62,32 @@ import "server-only";
  */
 export type EnvironmentSource = Record<string, string | undefined>;
 
+/**
+ * How many body parameters the configured template takes.
+ *
+ * LAN-124. A template is not a free-form message: Meta matches the parameters
+ * sent against the parameters the approved template declares, and refuses the
+ * message with `132000` when they disagree. The club's invitation template
+ * takes four; Meta's pre-approved `hello_world` takes none. One adapter has to
+ * be able to send either, and it cannot infer which from the template's name.
+ */
+export type TemplateParameterShape = "invitation" | "none";
+
+/**
+ * Reads the shape, defaulting to the club's own template.
+ *
+ * The default matters more than it looks. `invitation` is the shape that
+ * carries the RSVP link, so an unset or misspelled value resolves to the
+ * message that does the real work rather than to the one that does not. A
+ * deployment that quietly fell back to `none` would send invitations nobody
+ * could answer, and every one of them would be reported as delivered.
+ */
+export function templateShape(source: EnvironmentSource = process.env): TemplateParameterShape {
+  return trimmed("WHATSAPP_TEMPLATE_PARAMETERS", source).toLowerCase() === "none"
+    ? "none"
+    : "invitation";
+}
+
 /** What the Meta Cloud API adapter needs in order to send. */
 export interface OutboundConfig {
   /** Where this deployment answers, e.g. `https://…`. No trailing slash. */
@@ -78,6 +106,28 @@ export interface OutboundConfig {
   readonly templateName: string;
   /** The approved template's language code, e.g. `en_GB`. */
   readonly templateLanguage: string;
+  /**
+   * The shape of the template's body parameters.
+   *
+   * `invitation` is the club's own template and the only shape that carries an
+   * RSVP link: four body parameters, in the order the adapter builds them.
+   *
+   * `none` sends a template with no parameters at all. It exists for exactly
+   * one situation — proving a live provider path with Meta's pre-approved
+   * `hello_world`, which takes none and answers `132000` to anything that sends
+   * some. A message sent this way **carries no RSVP link**, so it demonstrates
+   * that delivery works and demonstrates nothing else. See `templateShape`.
+   */
+  readonly templateParameters: TemplateParameterShape;
+  /**
+   * The only telephone numbers this deployment may send to, in E.164 digits.
+   *
+   * Never empty on a configured deployment: an allowlist that parsed to nothing
+   * is treated as absent, so `resolveOutboundConfig` returns
+   * `{ configured: false }` rather than a configuration permitting nobody. See
+   * `allowlist.ts`.
+   */
+  readonly recipientAllowlist: readonly string[];
   /**
    * Local-only test affordances, resolved to their inert values unless
    * `appBaseUrl` is a loopback host. See `resolveLocalTestOverrides`.
@@ -130,12 +180,21 @@ export type WebhookResolution =
   | { readonly configured: true; readonly config: WebhookConfig }
   | { readonly configured: false; readonly missing: readonly string[] };
 
-/** Variables the sending path refuses to run without. */
+/**
+ * Variables the sending path refuses to run without.
+ *
+ * `DELIVERY_RECIPIENT_ALLOWLIST` is here rather than among the defaults for the
+ * reason the whole file is built on: a missing value is a refusal, never a
+ * default. An absent allowlist that meant "send to everybody" would be the one
+ * variable in this list whose absence *widened* what the deployment does. See
+ * `allowlist.ts`.
+ */
 export const OUTBOUND_ENVIRONMENT_VARIABLES = Object.freeze([
   "APP_BASE_URL",
   "WHATSAPP_PHONE_NUMBER_ID",
   "WHATSAPP_ACCESS_TOKEN",
   "WHATSAPP_TEMPLATE_NAME",
+  RECIPIENT_ALLOWLIST_VARIABLE,
 ] as const);
 
 /** Variables the callback path refuses to run without. */
@@ -220,18 +279,37 @@ export function resolveOutboundConfig(source: EnvironmentSource = process.env): 
   if (missing.length > 0) return { configured: false, missing };
 
   const appBaseUrl = trimmed("APP_BASE_URL", source).replace(/\/+$/, "");
+  const defaultCallingCode = withDefault("DELIVERY_DEFAULT_CALLING_CODE", source).replace(
+    /^\+/,
+    "",
+  );
+
+  // Parsed before the configuration is declared complete, because an allowlist
+  // of "," or of one unparseable entry is present as a string and absent as a
+  // control. Treating it as configured would produce a deployment that refuses
+  // every recipient while reporting itself ready, which is the failure this is
+  // hardest to notice in.
+  const recipientAllowlist = parseRecipientAllowlist(
+    trimmed(RECIPIENT_ALLOWLIST_VARIABLE, source),
+    defaultCallingCode,
+  );
+  if (recipientAllowlist.length === 0) {
+    return { configured: false, missing: [RECIPIENT_ALLOWLIST_VARIABLE] };
+  }
 
   return {
     configured: true,
     config: {
       appBaseUrl,
-      defaultCallingCode: withDefault("DELIVERY_DEFAULT_CALLING_CODE", source).replace(/^\+/, ""),
+      recipientAllowlist,
+      defaultCallingCode,
       graphBaseUrl: withDefault("WHATSAPP_GRAPH_BASE_URL", source).replace(/\/+$/, ""),
       graphVersion: withDefault("WHATSAPP_GRAPH_VERSION", source),
       phoneNumberId: trimmed("WHATSAPP_PHONE_NUMBER_ID", source),
       accessToken: trimmed("WHATSAPP_ACCESS_TOKEN", source),
       templateName: trimmed("WHATSAPP_TEMPLATE_NAME", source),
       templateLanguage: withDefault("WHATSAPP_TEMPLATE_LANGUAGE", source),
+      templateParameters: templateShape(source),
       localTest: resolveLocalTestOverrides(appBaseUrl, source),
     },
   };

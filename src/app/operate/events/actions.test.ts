@@ -97,14 +97,18 @@ const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 /** The four roles Brian's clarification puts on the club calendar. */
 const CALENDAR_ROLES = ["president", "vice_president", "secretary", "general_manager"];
 
-/** Every catalogue seat that is not one of them. */
+/**
+ * Every catalogue seat that is not one of them.
+ *
+ * `it_officer` is deliberately absent: Brian's LAN-124 decision made it the
+ * club's administrative seat, so it holds the calendar capabilities too.
+ */
 const NON_CALENDAR_ROLES = [
   "treasurer",
   "social_secretary",
   "gameday_secretary",
   "kit_manager",
   "media_secretary",
-  "it_officer",
   "head_coach",
   "offence_coach",
   "defence_coach",
@@ -309,13 +313,16 @@ describe("only the four calendar roles may manage the calendar", () => {
   );
 
   it("names the roles the action needs, and never the ones the caller holds", async () => {
-    givenAccess({ state: "active", operator: actor(["treasurer", "it_officer"]) });
+    givenAccess({ state: "active", operator: actor(["treasurer", "media_secretary"]) });
 
     const error = await refusalFrom(() => createEventDraftAction(EMPTY_FORM_STATE, draftForm()));
 
     expect(error.message).toContain("President");
     expect(error.message).toContain("General Manager");
-    expect(error.message).not.toMatch(/treasurer|it officer/i);
+    // The seats the caller actually holds. `it_officer` is no longer one of
+    // them, and could not be: LAN-124 put it in this grant, so the requirement
+    // sentence names it — which is the action's need, not the caller's holding.
+    expect(error.message).not.toMatch(/treasurer|media secretary/i);
   });
 
   it("refuses an attendance-recording coach, who reaches another part of the app", async () => {

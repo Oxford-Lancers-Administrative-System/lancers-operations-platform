@@ -150,6 +150,11 @@ const PROVIDER_ENVIRONMENT: EnvironmentSource = {
   WHATSAPP_PHONE_NUMBER_ID: "5550082",
   WHATSAPP_ACCESS_TOKEN: "not-a-real-token",
   WHATSAPP_TEMPLATE_NAME: "event_invitation",
+  // LAN-124 made the recipient allowlist a required outbound setting: unset,
+  // the whole sending path reports itself unconfigured and dispatches nothing.
+  // These are the three numbers this walk invites — the two players who answer
+  // and the walk-up — all in Ofcom's reserved drama range.
+  DELIVERY_RECIPIENT_ALLOWLIST: "07700 900321,07700 900322,07700 900323",
 };
 
 /** Provider message identifiers this run invents. Globally unique by table. */

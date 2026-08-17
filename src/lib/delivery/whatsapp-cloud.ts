@@ -2,6 +2,7 @@ import "server-only";
 
 import crypto from "node:crypto";
 
+import { RECIPIENT_NOT_PERMITTED_REASON, recipientPermitted } from "./allowlist";
 import type { OutboundConfig, WebhookConfig } from "./config";
 import type {
   DeliveryProvider,
@@ -143,6 +144,31 @@ export function buildMessageBody(
     };
   }
 
+  // A template with no body parameters at all — LAN-124.
+  //
+  // Meta matches what is sent against what the approved template declares and
+  // answers 132000 when they disagree, so a parameterless template needs the
+  // `components` key *absent*, not present and empty. This is the shape that
+  // `hello_world` takes, and `hello_world` is what proves a live provider path
+  // before the club's own template has cleared approval.
+  //
+  // It carries no RSVP link, because there is nowhere in a parameterless
+  // template to put one. That is a real limitation of this shape and not an
+  // oversight here: a message sent this way demonstrates that delivery works
+  // and demonstrates nothing else.
+  if (config.templateParameters === "none") {
+    return {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to,
+      type: "template",
+      template: {
+        name: config.templateName,
+        language: { code: config.templateLanguage },
+      },
+    };
+  }
+
   // The approved template's four body parameters, in order. The club creates
   // the template to match this contract; the order is part of the handoff.
   return {
@@ -241,6 +267,29 @@ export function createWhatsAppCloudProvider(
     channel: "whatsapp",
 
     async send(message: InvitationMessage): Promise<SendOutcome> {
+      // LAN-124. The service layer refuses a recipient outside the allowlist
+      // before it mints a token, and this is the same refusal at the last point
+      // it can be made: the statement immediately below opens a connection to
+      // Meta. The duplication is deliberate — the check above protects the
+      // workflow, and this one protects the egress from any future caller that
+      // reaches the adapter without going through `claimNextJobIn`.
+      //
+      // `localTest.recipientOverride` is checked rather than `message.recipient`
+      // where one is set, because the override is the number that would
+      // actually be dialled; allowing an unlisted override would be a hole in
+      // the shape of a test affordance.
+      const dialled = config.localTest.recipientOverride ?? message.recipient;
+      if (!recipientPermitted(dialled, config.recipientAllowlist, config.defaultCallingCode)) {
+        return {
+          status: "refused",
+          reason: RECIPIENT_NOT_PERMITTED_REASON,
+          // Not retryable: retrying changes nothing until the allowlist does,
+          // and a retryable refusal would put the job back in the queue to be
+          // refused again on a schedule.
+          retryable: false,
+        };
+      }
+
       let response: Response;
       try {
         response = await transport(messagesEndpoint(config), {

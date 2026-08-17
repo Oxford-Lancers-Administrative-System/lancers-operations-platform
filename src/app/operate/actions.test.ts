@@ -139,7 +139,9 @@ describe("row 7 — enforcement lives in the action, not in the page", () => {
   it.each(ACTIONS)(
     "$name refuses an operator holding an unrelated role, called directly",
     async ({ action, capability }) => {
-      givenCaller({ state: "active", operator: actor(["it_officer"]) });
+      // `media_secretary`, not `it_officer`: since LAN-124 the IT Officer is
+      // the administrative seat and holds every capability these actions gate.
+      givenCaller({ state: "active", operator: actor(["media_secretary"]) });
 
       const refusal = await refusalFrom(action);
 
@@ -251,8 +253,12 @@ describe("row 6 — an action's refusal names the requirement, never the caller"
    * re-throws it "with a bit more detail for the operator" would defeat the
    * rule without touching the guard at all.
    */
-  const HELD = ["it_officer", "social_secretary", "kit_manager"];
-  const LABELS = ["IT Officer", "Social Secretary", "Kit Manager"];
+  // Seats that hold none of these capabilities, so that a refusal naming what
+  // the caller holds is distinguishable from one naming what the action needs.
+  // `it_officer` cannot serve here since LAN-124: it is named by every one of
+  // these actions as a *required* role, which is a different sentence.
+  const HELD = ["media_secretary", "social_secretary", "kit_manager"];
+  const LABELS = ["Media Secretary", "Social Secretary", "Kit Manager"];
 
   it.each(ACTIONS)("$name tells the caller nothing about their own roles", async ({ action }) => {
     givenCaller({ state: "active", operator: actor(HELD) });

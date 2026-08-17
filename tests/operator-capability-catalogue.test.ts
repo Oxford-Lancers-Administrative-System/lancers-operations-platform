@@ -25,7 +25,7 @@
  * non-loopback host. Requires `npm run db:seed`; CI does it.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { CAPABILITIES, CAPABILITY_KEYS } from "@/lib/auth/capabilities";
+import { CAPABILITIES, CAPABILITY_KEYS, type CapabilityKey } from "@/lib/auth/capabilities";
 import { openLocalClient, type Client } from "./helpers/domain-fixture";
 
 const configured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.DATABASE_URL);
@@ -81,7 +81,13 @@ describe.runIf(configured)("the capability map against public.roles", () => {
       .sort();
 
     expect(coachingSeats).toEqual(["defence_coach", "head_coach", "offence_coach"]);
-    expect([...CAPABILITIES.attendance_recorder.roleCodes].sort()).toEqual(coachingSeats);
+    // The coaching seats, plus the administrative seat Brian decided on LAN-124.
+    // `it_officer` is `committee_year`-scoped, so it is emphatically not one of
+    // the season-scoped coaching seats above — it is named separately here.
+    expect([...CAPABILITIES.attendance_recorder.roleCodes].sort()).toEqual(
+      [...coachingSeats, "it_officer"].sort(),
+    );
+    expect(catalogue.find((role) => role.code === "it_officer")?.scope).toBe("committee_year");
   });
 
   it("grants membership activation to exactly the constitutional offices plus the GM", () => {
@@ -91,7 +97,7 @@ describe.runIf(configured)("the capability map against public.roles", () => {
 
     expect(offices.sort()).toEqual(["president", "secretary", "treasurer", "vice_president"]);
     expect([...CAPABILITIES.membership_activation.roleCodes].sort()).toEqual(
-      [...offices, "general_manager"].sort(),
+      [...offices, "general_manager", "it_officer"].sort(),
     );
   });
 
@@ -100,6 +106,7 @@ describe.runIf(configured)("the capability map against public.roles", () => {
     // Brian settled it on LAN-77: the same four roles that manage the calendar.
     expect([...CAPABILITIES.event_approval.roleCodes].sort()).toEqual([
       "general_manager",
+      "it_officer",
       "president",
       "secretary",
       "vice_president",
@@ -124,13 +131,35 @@ describe.runIf(configured)("the capability map against public.roles", () => {
   });
 
   it("leaves no undecided capability holding a code by accident", () => {
-    // `delivery_administration` left this list in LAN-78 and
-    // `leadership_report` in LAN-81, each of which decided its grant.
-    // `role_management` is the one that remains undecided, and it must still
-    // hold nothing at all.
-    for (const key of ["role_management"] as const) {
+    // `delivery_administration` left this list in LAN-78, `leadership_report`
+    // in LAN-81 and `role_management` in LAN-124, each of which decided its
+    // grant. Nothing is undecided today, so the check that remains is the one
+    // that matters against the real catalogue: every code a grant names has to
+    // exist in `public.roles`, or the grant denies a legitimate operator
+    // forever.
+    const undecided: CapabilityKey[] = [];
+    for (const key of undecided) {
       expect(CAPABILITIES[key].roleCodes).toEqual([]);
     }
+
+    const known = new Set(catalogue.map((role) => role.code));
+    for (const key of CAPABILITY_KEYS) {
+      expect(CAPABILITIES[key].roleCodes.length, `${key} grants nobody`).toBeGreaterThan(0);
+      for (const code of CAPABILITIES[key].roleCodes) {
+        expect(known, `${key} names ${code}, which public.roles does not have`).toContain(code);
+      }
+    }
+  });
+
+  it("grants role management to the IT Officer seat the catalogue really has", () => {
+    // Brian's LAN-124 decision. Checked against `public.roles` rather than a
+    // list in a test, because a seat renamed in the seed would otherwise leave
+    // the club's only administrative capability held by nobody.
+    expect([...CAPABILITIES.role_management.roleCodes]).toEqual(["it_officer"]);
+
+    const seat = catalogue.find((role) => role.code === "it_officer");
+    expect(seat, "it_officer is not in public.roles").toBeDefined();
+    expect(seat?.is_constitutional_office).toBe(false);
   });
 
   it("grants the Monday report only codes the catalogue really has", () => {

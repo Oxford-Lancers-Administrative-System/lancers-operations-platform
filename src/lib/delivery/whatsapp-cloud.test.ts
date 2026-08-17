@@ -38,6 +38,11 @@ const config = (overrides: Partial<OutboundConfig> = {}): OutboundConfig => ({
   accessToken: "not-a-real-token",
   templateName: "event_invitation",
   templateLanguage: "en_GB",
+  // Permits `MESSAGE.recipient`, so that every test below exercises the send
+  // path rather than the LAN-124 refusal. The refusal has its own describe
+  // block, which narrows this deliberately.
+  recipientAllowlist: ["447700900123"],
+  templateParameters: "invitation",
   localTest: { recipientOverride: null, messageMode: "template" },
   ...overrides,
 });
@@ -171,6 +176,137 @@ describe("interpreting a response", () => {
     expect(outcome.status).toBe("refused");
     if (outcome.status !== "refused") return;
     expect(outcome.reason).toMatch(/no open conversation/i);
+  });
+});
+
+describe("LAN-124 — a template that takes no parameters", () => {
+  /**
+   * Meta's pre-approved `hello_world`. The reason this shape exists at all is
+   * that the club's own template has to clear approval before it can be sent,
+   * and a demonstration cannot be scheduled around Meta's review queue.
+   */
+  it("omits components entirely rather than sending an empty list", () => {
+    // `components: []` is not the same request. Meta matches parameters against
+    // the approved template and answers 132000 when they disagree, which is the
+    // failure this shape exists to avoid.
+    const body = buildMessageBody(
+      config({
+        templateName: "hello_world",
+        templateLanguage: "en_US",
+        templateParameters: "none",
+      }),
+      MESSAGE,
+    );
+
+    expect(body).toEqual({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: "447700900123",
+      type: "template",
+      template: { name: "hello_world", language: { code: "en_US" } },
+    });
+    expect(body.template).not.toHaveProperty("components");
+  });
+
+  it("still sends the four-parameter body for the club's own template", () => {
+    const body = buildMessageBody(config(), MESSAGE) as {
+      template: { components: { parameters: { text: string }[] }[] };
+    };
+
+    expect(body.template.components[0].parameters.map((p) => p.text)).toEqual([
+      "Alex",
+      "Team Practice",
+      "Wednesday 19 November, 19:00",
+      "https://lancers.example.org/rsvp/abc123",
+    ]);
+  });
+
+  it("carries no RSVP link in the parameterless shape, which is the whole limitation", () => {
+    // Asserted rather than left implicit: somebody reading the runbook needs to
+    // know that this proves delivery and proves nothing about the RSVP loop.
+    const body = buildMessageBody(config({ templateParameters: "none" }), MESSAGE);
+
+    expect(JSON.stringify(body)).not.toContain(MESSAGE.rsvpUrl);
+  });
+});
+
+describe("LAN-124 — the allowlist at the egress", () => {
+  /**
+   * The service layer refuses an unlisted recipient before it mints a token,
+   * and that is where the workflow behaves well. This block is about the other
+   * half: the adapter is the only code in the repository that opens a
+   * connection to Meta, so it refuses on its own account rather than trusting
+   * that every future caller came through `claimNextJobIn`.
+   *
+   * Each of these asserts the transport was **never called**. "Returned
+   * refused" is not the property under test — not sending is.
+   */
+  it("refuses a recipient outside the allowlist without contacting the provider", async () => {
+    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
+    const provider = createWhatsAppCloudProvider(
+      config({ recipientAllowlist: ["447700900999"] }),
+      transport,
+    );
+
+    const outcome = await provider.send(MESSAGE);
+
+    expect(transport).not.toHaveBeenCalled();
+    expect(outcome.status).toBe("refused");
+    expect(outcome.status === "refused" && outcome.retryable).toBe(false);
+  });
+
+  it("refuses everybody when the allowlist is empty", async () => {
+    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
+    const provider = createWhatsAppCloudProvider(config({ recipientAllowlist: [] }), transport);
+
+    await provider.send(MESSAGE);
+
+    expect(transport).not.toHaveBeenCalled();
+  });
+
+  it("checks the number that would actually be dialled, not the invitation's", async () => {
+    // A local test override redirects the send. Checking `message.recipient`
+    // while dialling the override would leave a hole exactly the shape of a
+    // test affordance: an allowlisted invitee whose message goes elsewhere.
+    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
+    const provider = createWhatsAppCloudProvider(
+      config({
+        recipientAllowlist: ["447700900123"],
+        localTest: { recipientOverride: "447700900999", messageMode: "text" },
+      }),
+      transport,
+    );
+
+    const outcome = await provider.send(MESSAGE);
+
+    expect(transport).not.toHaveBeenCalled();
+    expect(outcome.status).toBe("refused");
+  });
+
+  it("sends when the override itself is allowlisted", async () => {
+    const transport = vi.fn(async () => respond(200, { messages: [{ id: "wamid.OK" }] }));
+    const provider = createWhatsAppCloudProvider(
+      config({
+        recipientAllowlist: ["447700900999"],
+        localTest: { recipientOverride: "447700900999", messageMode: "text" },
+      }),
+      transport,
+    );
+
+    const outcome = await provider.send(MESSAGE);
+
+    expect(transport).toHaveBeenCalledTimes(1);
+    expect(outcome.status).toBe("accepted");
+  });
+
+  it("names no telephone number in the reason it records", async () => {
+    const provider = createWhatsAppCloudProvider(
+      config({ recipientAllowlist: ["447700900999"] }),
+      vi.fn(async () => respond(200, {})),
+    );
+
+    const outcome = await provider.send(MESSAGE);
+    expect(outcome.status === "refused" && outcome.reason).not.toMatch(/\d{4,}/);
   });
 });
 

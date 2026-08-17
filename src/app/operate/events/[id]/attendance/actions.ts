@@ -39,8 +39,9 @@ import type { AttendanceSaveState, WalkUpFormState } from "./action-state";
  * happens to hold an operator account. The floor was not merely generous; it
  * was wrong against a recorded criterion.
  *
- * `attendance_recorder` stays exactly the three coaching seats and is untouched
- * by this. It answers a different question — "is the constrained screen yours"
+ * `attendance_recorder` stays the three coaching seats — plus, since LAN-124,
+ * the administrative IT Officer seat — and is untouched by this. It answers a
+ * different question — "is the constrained screen yours"
  * — which LAN-110 asks. A Secretary holds `attendance_recording` and not that
  * one, and gets the operator's board.
  *
