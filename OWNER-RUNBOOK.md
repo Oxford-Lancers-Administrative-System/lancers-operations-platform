@@ -1,9 +1,64 @@
 # Owner runbook — the Monday showcase
 
-**For Brian. Monday 17 August 2026.** Everything here is yours to run; no agent
-does any of it. Work top to bottom and tick as you go.
+**For Brian.** Everything here is yours to run; no agent does any of it. Work
+top to bottom and tick as you go.
 
-Every command is one line. Copy it whole.
+Every command is one line. Copy it whole. They are written for **zsh**, which is
+the shell on your Mac — `read -rs "T?prompt"` is zsh's form and `read -rs -p`
+is bash's, and the difference is not cosmetic: zsh reads `-p` as _from the
+coprocess_ and the command does something else entirely.
+
+> **The 17 August 2026 walkthrough happened, and went well.** The showcase is
+> **still installed** in the production database by your decision. This document
+> is no longer a plan; it is the reference for re-running it, changing it, or
+> removing it, and § 2a, § 4, § 10 and § 11 now record what actually worked
+> rather than what was expected to. See **§ 0** first.
+
+---
+
+## 0. What actually happened on 17 August
+
+Four things the first run of this runbook got wrong. They are corrected in
+place below; they are collected here because each one costs an hour to
+rediscover.
+
+- **The Meta console token expires within the hour, not in 24 hours.** It is a
+  _user_ token, and regenerating it invalidates the previous one. Cloud Run also
+  pins secret versions at instance start, so a new version of
+  `whatsapp-access-token` does nothing until a **new revision** rolls. Adding the
+  version and redeploying are two steps, and both are needed. Check a token is
+  live before relying on it, not after a message fails to arrive.
+- **Meta accepted the message and silently dropped it — error `131049`.** That
+  is the per-recipient throttle Meta applies to **marketing**-category
+  templates, and the sample template is marketing. The API returned a message id
+  and the delivery page showed an accepted attempt, so everything looked correct
+  and the phone stayed silent. A **Utility** template is not throttled this way.
+- **What was actually sent was free-form text, not a template.** Free-form has
+  no category and no review queue, and Meta permits it inside a 24-hour service
+  window that the _recipient_ opens by messaging the business number first. That
+  is a thing two people can do and forty-two cannot, which is exactly why it was
+  acceptable for a demonstration and is not a delivery mechanism. It needed
+  `WHATSAPP_ALLOW_FREE_FORM=true` **and** `WHATSAPP_MESSAGE_MODE=text` on the
+  service. **Both have since been removed, and should stay removed.** The
+  durable answer is an approved Utility template — § 2a.
+- **`DELIVERY_DEFAULT_CALLING_CODE` was set to `1` on the service** to work
+  around a defect in the allowlist comparison, since fixed. **Set it back to
+  `44`, or remove it** — the club's roster is United Kingdom numbers, and with
+  `1` in place a number written `07700900123` normalises to the wrong country.
+
+```
+gcloud run services update lancers-operations-platform --region REGION --remove-env-vars DELIVERY_DEFAULT_CALLING_CODE
+```
+
+Two more things worth knowing, which were right but not obvious:
+
+- **The delivery page never shows "Delivered".** That needs an inbound webhook
+  and no public callback URL is configured. LAN-101. "Accepted" is as far as it
+  goes, and — see `131049` above — accepted is not delivered.
+- **A local `docker build` on your Mac needs**
+  `--platform linux/amd64 --provenance=false --sbom=false`, or Cloud Run rejects
+  the image as an OCI index. Only relevant if GitHub Actions is down, which it
+  was.
 
 ---
 
@@ -39,9 +94,11 @@ live operations. The showcase is removable in one command.
 - [ ] Send yourself Meta's `hello_world` from that screen, to check the number
       is live.
 
-**Optional, and the only thing with a queue.** If you want Stewart to _tap a
-link and answer_, rather than just receive a message, create the club's own
-template now:
+**Do this properly rather than optionally.** On 17 August the sample template
+was refused with `131049` — Meta's per-recipient throttle on **marketing**
+templates — after the API had already returned success. A **Utility** template
+is not throttled that way, and it is the only route that both carries an RSVP
+link and works more than once:
 
 - [ ] Meta dashboard → **Manage templates → Create**. Name
       `lancers_event_invitation`, language **English (UK)**, category
@@ -50,9 +107,10 @@ template now:
 
       Hi {{1}}, the Oxford Lancers have {{2}} on {{3}}. Please tell us whether you can make it: {{4}} — thanks, Lancers.
 
-Utility templates usually clear in minutes. If it has not cleared by Monday, use
-`hello_world` instead — § 4 covers both, and they are one environment variable
-apart.
+Utility templates usually clear in minutes. **`hello_world` is not a fallback**
+— it is the template that was refused, and it carries no link in any case. If
+the club's template has not cleared, the honest options are to wait, or to
+demonstrate everything except the message.
 
 ### 2b. Supabase Auth — three users
 
@@ -145,16 +203,17 @@ your own.
 
 - [ ] Put the Meta token in Secret Manager. **Do not paste it into a file, a
       commit, Linear, or a prompt.** This reads it from your clipboard via a
-      prompt, so it never lands in shell history:
+      prompt, so it never lands in shell history. **Do it last, immediately
+      before you need it** — the console token expires within the hour (§ 0):
 
 ```
-read -rs -p "Meta token: " T && printf '%s' "$T" | gcloud secrets versions add whatsapp-access-token --data-file=- && unset T
+read -rs "T?Meta token: " && printf '%s' "$T" | gcloud secrets versions add whatsapp-access-token --data-file=- && unset T
 ```
 
 If the secret does not exist yet:
 
 ```
-read -rs -p "Meta token: " T && printf '%s' "$T" | gcloud secrets create whatsapp-access-token --data-file=- && unset T
+read -rs "T?Meta token: " && printf '%s' "$T" | gcloud secrets create whatsapp-access-token --data-file=- && unset T
 ```
 
 - [ ] Set the rest. **`DELIVERY_RECIPIENT_ALLOWLIST` is the control that stops
@@ -162,7 +221,7 @@ read -rs -p "Meta token: " T && printf '%s' "$T" | gcloud secrets create whatsap
       and Stewart's in it:
 
 ```
-gcloud run services update lancers --region REGION --update-env-vars APP_BASE_URL=https://YOUR-CLOUD-RUN-URL,WHATSAPP_PHONE_NUMBER_ID=YOUR-TEST-NUMBER-ID,WHATSAPP_TEMPLATE_NAME=hello_world,WHATSAPP_TEMPLATE_LANGUAGE=en_US,WHATSAPP_TEMPLATE_PARAMETERS=none,"DELIVERY_RECIPIENT_ALLOWLIST=+447xxxxxxxxx,+447yyyyyyyyy"
+gcloud run services update lancers-operations-platform --region REGION --update-env-vars APP_BASE_URL=https://YOUR-CLOUD-RUN-URL,WHATSAPP_PHONE_NUMBER_ID=YOUR-TEST-NUMBER-ID,WHATSAPP_TEMPLATE_NAME=hello_world,WHATSAPP_TEMPLATE_LANGUAGE=en_US,WHATSAPP_TEMPLATE_PARAMETERS=none,"DELIVERY_RECIPIENT_ALLOWLIST=+447xxxxxxxxx,+447yyyyyyyyy"
 ```
 
 **If the club's own template cleared approval**, use these three instead of the
@@ -172,10 +231,14 @@ gcloud run services update lancers --region REGION --update-env-vars APP_BASE_UR
 WHATSAPP_TEMPLATE_NAME=lancers_event_invitation,WHATSAPP_TEMPLATE_LANGUAGE=en_GB,WHATSAPP_TEMPLATE_PARAMETERS=invitation
 ```
 
-- [ ] Point the secret at the service:
+- [ ] Point the secret at the service. **Run this again after every new token
+      version**, even though nothing about the command changes — Cloud Run pins
+      the secret version when an instance starts, so `:latest` only means the
+      newest one as of the revision that is running. Adding a version without
+      rolling a revision changes nothing:
 
 ```
-gcloud run services update lancers --region REGION --update-secrets WHATSAPP_ACCESS_TOKEN=whatsapp-access-token:latest
+gcloud run services update lancers-operations-platform --region REGION --update-secrets WHATSAPP_ACCESS_TOKEN=whatsapp-access-token:latest
 ```
 
 - [ ] Check it came up:
@@ -363,11 +426,15 @@ A suggested order. Roughly twenty minutes.
    Confirm the audience — it is you and Stewart, nobody else. Approve it.
 8. **His phone buzzes.** Show him the delivery page: the invitation, the job,
    the provider's response.
-   - With `hello_world`, the message is Meta's boilerplate and carries **no
-     link**. Say so plainly — it proves the path, not the RSVP loop.
-   - With the club's template, the message carries his RSVP link. Have him tap
-     it and answer. Then press **Show report** again and show his answer
-     counted.
+   - With the club's Utility template, the message carries his RSVP link. Have
+     him tap it and answer. Then press **Show report** again and show his answer
+     counted. This is the version worth showing.
+   - Without it, expect nothing to arrive: `hello_world` was refused with
+     `131049` on 17 August, and carries no link even when it is not (§ 0). Say
+     so plainly rather than pressing Approve and hoping.
+   - The delivery page will say **accepted**, never **delivered** — there is no
+     inbound webhook. Accepted is the provider taking the message, not the
+     phone receiving it.
 9. **What it cannot do.** Worth saying out loud: no reminders, no escalation, no
    email or SMS, no export, no season close.
 
@@ -375,18 +442,36 @@ A suggested order. Roughly twenty minutes.
 
 ## 11. Afterwards — leave it, or remove it
 
-**Leave it installed** if the club wants to keep looking at it. Then:
+**Leave it installed** if the club wants to keep looking at it. **This is what
+was chosen on 17 August 2026** — the showcase is still in the production
+database. Then:
 
-- [ ] Remove the Meta token, which expires in 24 hours anyway:
+- [ ] Close the relaxed guards, if you opened them. Both were needed to send
+      free-form text and neither should outlive the walkthrough
+      (§ 0). **Done on 17 August:**
 
 ```
-gcloud run services update lancers --region REGION --remove-env-vars WHATSAPP_TEMPLATE_PARAMETERS --update-secrets WHATSAPP_ACCESS_TOKEN=whatsapp-access-token:latest
+gcloud run services update lancers-operations-platform --region REGION --remove-env-vars WHATSAPP_ALLOW_FREE_FORM,WHATSAPP_MESSAGE_MODE
+```
+
+- [ ] Put `DELIVERY_DEFAULT_CALLING_CODE` back to `44`, or remove it — § 0.
+- [ ] Take the token out of the service. It has expired by now regardless: the
+      console token lasts under an hour, so leaving it configured only means the
+      delivery page reports `190` rather than reporting nothing configured.
+
+```
+gcloud run services update lancers-operations-platform --region REGION --remove-env-vars WHATSAPP_TEMPLATE_PARAMETERS --update-secrets WHATSAPP_ACCESS_TOKEN=whatsapp-access-token:latest
 ```
 
 - [ ] Decide whether the role assignments should still end on `accessEndsOn`.
+- [ ] Note that `AGENTS.md` and `docs/pilot-data-runbook.md` still say real
+      roster data is prohibited in every environment. Production now holds 42
+      real students' names by your decision of 15 August. Until those two are
+      reconciled, an agent reading them will refuse work that touches this data.
+      That reconciliation is yours; it is governance-protected.
 
-**Remove it** — the default, and what LAN-86 expects until the real-data gate
-passes:
+**Remove it** — what LAN-86 expects until the real-data gate passes, and not
+what was chosen:
 
 ```
 node scripts/production/showcase.mjs rollback --confirm-target fggbgeraiadetyiyjlvb --roster "$HOME/Downloads/OULAFC Master Table.xlsx" --termcard "$HOME/Downloads/260720 OULAFC MT26 Term Card v0.xlsx" --params ~/lancers-showcase-params.json
@@ -433,6 +518,53 @@ node scripts/production/showcase.mjs rollback --force --confirm-target fggbgerai
 rather than created, and any Person or operator link that already existed before
 the load.
 
+### Three tables `--force` cannot remove either
+
+If the walkthrough produced an availability change, an RSVP answer, or an
+operator link, `--force` stops with:
+
+```
+permission denied for table availability_statuses
+```
+
+— or `rsvp_responses`, or `operator_accounts`. **This is the schema working, not
+a bug in the loader.** Those three tables are append-only: the application's
+database login is granted `select, insert` and no `delete`, deliberately, so
+that "revoke an operator" or "correct an answer" cannot be implemented by a
+future maintainer as a delete. `supabase/migrations/20260811090000_operator_accounts.sql`
+says exactly that in a comment. The loader connects as that same login and
+inherits the same refusal.
+
+Nothing is deleted when this happens — the whole rollback runs in one
+transaction.
+
+**To finish a removal**, delete those rows first, by hand, in the Supabase
+dashboard's **SQL editor**, which runs as an owner rather than as the
+application:
+
+- [ ] `~/showcase-manifest.json` holds every row identifier the loader created,
+      with no names and no telephone numbers in it. The parents you need are the
+      `season_memberships` (for availability), the `invitations` (for RSVP
+      answers) and the `people` (for operator links).
+- [ ] **List before you delete**, every time — run the `select` first, read the
+      count, and only then change `select *` to `delete`:
+
+```sql
+select * from public.availability_statuses where season_membership_id = any (array[...]::uuid[]);
+select * from public.rsvp_responses          where invitation_id        = any (array[...]::uuid[]);
+select * from public.operator_accounts       where person_id            = any (array[...]::uuid[]);
+```
+
+- [ ] Then re-run `rollback --force`, which now succeeds.
+
+**Why this is not fixed in the loader.** The two available fixes are to grant
+the application `delete` on three append-only tables — which is the exact thing
+the schema comment forbids, permanently, to make a demonstration easier — or to
+give the loader its own owner-level credential. The second is right and is not a
+one-line change: the target guard pins the connection to `app_runtime` on
+purpose, and loosening it is a security change that deserves its own review
+rather than a footnote in a runbook.
+
 - [ ] Confirm:
 
 ```
@@ -449,14 +581,17 @@ and yours to decide.
 
 ## 12. If something goes wrong
 
-| Problem                            | What to do                                                                                                                                                                                                                                                       |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Message does not arrive            | Check the delivery page's failure reason first. `132000` means the template's parameters do not match — check `WHATSAPP_TEMPLATE_PARAMETERS`. `131030` means the recipient is not verified in Meta. "approved list of recipients" means your allowlist is wrong. |
-| Application is broken              | `gh workflow run deploy.yml -f image_tag=<previous-commit-sha>`. Safe — no schema changed.                                                                                                                                                                       |
-| Data is wrong                      | Roll back (§ 11), fix, load again. It is idempotent.                                                                                                                                                                                                             |
-| Rollback refuses                   | Expected after a walkthrough — see § 11 "If it refuses instead". Nothing was deleted.                                                                                                                                                                            |
-| Live edits vanished after a reload | Re-running `load` rewrites loader-owned rows, so it reverts what you changed in § 10 step 6. Roll back and reload only when you no longer need those edits.                                                                                                      |
-| Something is very wrong            | Restore the § 5 backup. That is what it is for.                                                                                                                                                                                                                  |
+| Problem                                     | What to do                                                                                                                                                                                                                                                       |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Message does not arrive                     | Check the delivery page's failure reason first. `132000` means the template's parameters do not match — check `WHATSAPP_TEMPLATE_PARAMETERS`. `131030` means the recipient is not verified in Meta. "approved list of recipients" means your allowlist is wrong. |
+| The page says accepted, and nothing arrives | `131049`. Meta took the message and dropped it: the per-recipient throttle on **marketing** templates, which is what the sample template is. A Utility template is not throttled this way. There is no retry that helps. § 0.                                    |
+| `190`, or every send fails at once          | The token expired — it lasts under an hour. Add a new version **and roll a revision**; § 4's `--update-secrets` line does the second half. § 0.                                                                                                                  |
+| `permission denied for table …`             | Three append-only tables cannot be deleted by the application, by design. § 11 "Three tables `--force` cannot remove either". Nothing was deleted.                                                                                                               |
+| Application is broken                       | `gh workflow run deploy.yml -f image_tag=<previous-commit-sha>`. Safe — no schema changed.                                                                                                                                                                       |
+| Data is wrong                               | Roll back (§ 11), fix, load again. It is idempotent.                                                                                                                                                                                                             |
+| Rollback refuses                            | Expected after a walkthrough — see § 11 "If it refuses instead". Nothing was deleted.                                                                                                                                                                            |
+| Live edits vanished after a reload          | Re-running `load` rewrites loader-owned rows, so it reverts what you changed in § 10 step 6. Roll back and reload only when you no longer need those edits.                                                                                                      |
+| Something is very wrong                     | Restore the § 5 backup. That is what it is for.                                                                                                                                                                                                                  |
 
 ---
 

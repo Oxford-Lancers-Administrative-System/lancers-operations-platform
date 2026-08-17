@@ -27,6 +27,17 @@ const BRIAN = "447700900001";
 const STEWART = "447700900002";
 const SOMEBODY_ELSE = "447700900123";
 
+/**
+ * A number outside the default calling code, in the North American
+ * 555-01xx range that is reserved for fiction and cannot be dialled.
+ *
+ * It exists because every other fixture in this file is a United Kingdom
+ * number, and a United Kingdom number is the one case that hid the defect in
+ * `recipientPermitted` — bare `447…` digits start with the default calling
+ * code, so `toE164` accepted them on the way in and again on the way back.
+ */
+const OVERSEAS = "12025550143";
+
 describe("parsing", () => {
   it("reads a single number", () => {
     expect(parseRecipientAllowlist("+44 7700 900001", UK)).toEqual([BRIAN]);
@@ -126,6 +137,56 @@ describe("permitting", () => {
     // `07700900001` read as a US number is not `+447700900001`, and must not
     // be admitted by a list built for the UK.
     expect(recipientPermitted("07700900001", allowlist, "1")).toBe(false);
+  });
+});
+
+describe("a permitted number from outside the default calling code", () => {
+  // The list is written the way the deployment holder writes it: an
+  // international entry carries its `+`.
+  const allowlist = parseRecipientAllowlist(`+${OVERSEAS}`, UK);
+
+  it("is on the list at all", () => {
+    expect(allowlist).toEqual([OVERSEAS]);
+  });
+
+  it("is permitted when it arrives as the E.164 digits the roster produced", () => {
+    // The regression. `selectMobileNumber` returns bare E.164 digits, and
+    // those digits do not start with the default calling code, do not start
+    // with a trunk zero, and carry no `+` — the exact shape `toE164` refuses.
+    // The number was therefore refused while being character-for-character
+    // identical to the entry permitting it.
+    expect(recipientPermitted(OVERSEAS, allowlist, UK)).toBe(true);
+  });
+
+  it("is permitted however the caller spells it", () => {
+    for (const spelling of [OVERSEAS, `+${OVERSEAS}`, "+1 202 555 0143", "0012025550143"]) {
+      expect(recipientPermitted(spelling, allowlist, UK), spelling).toBe(true);
+    }
+  });
+
+  it("does not let the second reading admit anybody who is not on the list", () => {
+    // The whole safety argument for reading a bare number as international is
+    // that the result must still equal an entry somebody wrote down. Stated as
+    // a test so that argument is checked rather than believed.
+    expect(recipientPermitted("12025550144", allowlist, UK)).toBe(false);
+    expect(recipientPermitted("442025550143", allowlist, UK)).toBe(false);
+    expect(recipientPermitted(SOMEBODY_ELSE, allowlist, UK)).toBe(false);
+  });
+
+  it("is not admitted by a list that spells it without the `+`", () => {
+    // The mirror-image rule: the allowlist side gets no fallback, because
+    // there a misread entry grants delivery rather than withholding it. An
+    // entry meant as international is written with a `+`.
+    expect(parseRecipientAllowlist(OVERSEAS, UK)).toEqual([]);
+    expect(recipientPermitted(OVERSEAS, parseRecipientAllowlist(OVERSEAS, UK), UK)).toBe(false);
+  });
+
+  it("does not double a `+` that is already there", () => {
+    // `++1…` is not a number, and the fallback must not manufacture one out of
+    // a recipient that already failed conversion on its own terms.
+    expect(recipientPermitted("+notanumber", allowlist, UK)).toBe(false);
+    expect(recipientPermitted("+", allowlist, UK)).toBe(false);
+    expect(recipientPermitted("+12025550143000000", allowlist, UK)).toBe(false);
   });
 });
 

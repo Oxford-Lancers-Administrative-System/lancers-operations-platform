@@ -62,6 +62,30 @@ import { toE164 } from "./phone";
  * default calling code, and an entry that cannot be converted is discarded
  * rather than kept as a literal — a malformed entry must not become a rule that
  * matches nothing while looking like it matches something.
+ *
+ * ## The two sides are not converted identically, and that is deliberate
+ *
+ * A recipient arriving here has usually **already** been through `toE164` — it
+ * is what `selectMobileNumber` returns — so it is bare E.164 digits with the
+ * `+` already stripped. Handing those digits back to `toE164` asks it a
+ * question it is built to refuse: digits with no `+`, no `00`, no trunk zero
+ * and not the local calling code are the ambiguous case, and it returns `null`.
+ * A foreign number therefore failed this check while being character-for-
+ * character identical to an allowlist entry. That is the defect this comment
+ * exists to stop coming back, and it survived every test because every fixture
+ * was a United Kingdom number, which does start with the default calling code.
+ *
+ * So the recipient side also tries the number read as already-international.
+ * That is safe **here specifically**, and nowhere else: the result still has to
+ * equal an entry that whoever holds the deployment wrote down. The second
+ * attempt can stop a refusal; it can never create a permission.
+ *
+ * The allowlist side does not get the same fallback, for the mirror-image
+ * reason. There, reading an entry as already-international is what *grants*
+ * delivery, so a mistyped entry would quietly become a real number in some
+ * other country and this deployment would be permitted to message it. An entry
+ * meant as international is written with a `+`, which costs the person writing
+ * it one character and costs a misreading nothing.
  */
 
 /** The variable that carries it. Named here so config and tests agree. */
@@ -113,7 +137,15 @@ export function recipientPermitted(
 ): boolean {
   if (allowlist.length === 0) return false;
 
-  const normalised = toE164(recipient, defaultCallingCode);
+  // Up to two readings of the same recipient: the number as written, and — only
+  // where that could not be converted at all — the number read as
+  // already-international. Whichever one converts still has to equal an entry.
+  // See "The two sides are not converted identically" above for why the second
+  // reading is confined to this side of the comparison.
+  const asWritten = toE164(recipient, defaultCallingCode);
+  const normalised =
+    asWritten ??
+    (recipient.trim().startsWith("+") ? null : toE164(`+${recipient.trim()}`, defaultCallingCode));
   if (normalised === null) return false;
 
   return allowlist.includes(normalised);
