@@ -298,7 +298,16 @@ async function load(client, plan) {
     throw error;
   }
 
-  console.log(`\nCreated ${ledger.created}, updated ${ledger.updated}. Nothing else was touched.`);
+  console.log(
+    `\nCreated ${ledger.created}, updated ${ledger.updated}, skipped ${ledger.skipped}. ` +
+      "Nothing else was touched.",
+  );
+  if (ledger.skipped > 0) {
+    console.log(
+      "  Skipped rows are append-only — an answer, an availability record, an operator " +
+        "link. They were already there and this loader may not rewrite them.",
+    );
+  }
   return ledger;
 }
 

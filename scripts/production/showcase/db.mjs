@@ -137,11 +137,40 @@ export function newLedger() {
 }
 
 /**
+ * Tables the loader may insert into but must never rewrite.
+ *
+ * These are append-only by decision, and the hosted runtime role is granted
+ * `INSERT` on them and nothing else — no `UPDATE`, no `DELETE`. An RSVP answer
+ * and an availability record are history: the application is not allowed to
+ * rewrite one, and neither is this.
+ *
+ * That matters here because `on conflict (id) do update` requires the `UPDATE`
+ * privilege *even when nothing conflicts*, so the ordinary upsert was refused
+ * outright against production. These tables therefore take `do nothing`, which
+ * needs only `INSERT`.
+ *
+ * The behaviour that costs is rerunning: a second load leaves an existing row
+ * as it found it rather than rewriting it to the planned value. For append-only
+ * data that is the more correct answer anyway.
+ *
+ * Discovered by running the load against the hosted project on 17 August 2026 —
+ * it failed on `availability_statuses`, in a transaction, having written
+ * nothing.
+ */
+export const APPEND_ONLY_TABLES = Object.freeze([
+  "public.availability_statuses",
+  "public.rsvp_responses",
+  "public.operator_accounts",
+]);
+
+/**
  * Inserts a row, or updates it if the loader already owns that identifier.
  *
  * `columns` is a plain object. The primary key must be `id`, and must be one of
  * the deterministic identifiers — a random one would make the run
  * non-idempotent, which `dryRun` cannot detect and a second run would.
+ *
+ * Append-only tables take `do nothing` instead — see `APPEND_ONLY_TABLES`.
  */
 export async function upsert(client, ledger, table, columns, { dryRun = false } = {}) {
   const keys = Object.keys(columns);
@@ -162,14 +191,27 @@ export async function upsert(client, ledger, table, columns, { dryRun = false } 
 
   const updatable = keys.filter((key) => key !== "id");
   const placeholders = keys.map((_, index) => `$${index + 1}`);
+  const appendOnly = APPEND_ONLY_TABLES.includes(table);
+
+  const conflict = appendOnly
+    ? "do nothing"
+    : `do update set ${updatable.map((key) => `${key} = excluded.${key}`).join(", ")}`;
 
   const result = await client.query(
     `insert into ${table} (${keys.join(", ")})
      values (${placeholders.join(", ")})
-     on conflict (id) do update set ${updatable.map((key) => `${key} = excluded.${key}`).join(", ")}
+     on conflict (id) ${conflict}
      returning (xmax = 0) as inserted`,
     keys.map((key) => columns[key]),
   );
+
+  // `do nothing` returns no row at all when it skips, which is how a skip is
+  // told apart from a write. `do update` always returns one, and `xmax = 0`
+  // distinguishes the insert from the update.
+  if (result.rowCount === 0) {
+    ledger.skipped += 1;
+    return { id: columns.id, action: "skip" };
+  }
 
   const inserted = result.rows[0]?.inserted === true;
   if (inserted) ledger.created += 1;
