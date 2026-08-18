@@ -37,6 +37,7 @@ import {
   computeReportContent,
   generateWeeklyReport,
   listReportVersions,
+  lookaheadWindow,
   METRIC_DEFINITION_VERSION,
   normaliseReportDate,
   parseReportContent,
@@ -747,6 +748,97 @@ describe("the attendance grid", () => {
     const content = await compute();
     expect(content.grid.rows).toEqual([]);
     expect(content.walkUps).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The dates the report prints — LAN-127 finding 1
+// ---------------------------------------------------------------------------
+
+/**
+ * The report says the day the club actually met, in the club's own timezone.
+ *
+ * This suite forces `Europe/London` because the defect it guards is invisible
+ * anywhere else. `pg` parses a `date` column into a `Date` at **local**
+ * midnight; reading that back with UTC getters asks a different question, and
+ * for any zone ahead of UTC the answer is the previous day. At UTC — CI, Cloud
+ * Run — and at every negative offset the two readings agree, so a machine in
+ * London was the only place this was visible. It shipped, and the whole suite
+ * stayed green.
+ *
+ * Node applies a change to `process.env.TZ` to every `Date` created afterwards,
+ * which is what makes this testable at all. The zone is restored afterwards so
+ * nothing else in the worker inherits it.
+ *
+ * The driver parses under whichever zone is current when the query runs, so the
+ * zone has to be set before the report is computed, not merely before the
+ * assertion.
+ */
+describe("the dates the report prints, in the club's timezone", () => {
+  const CLUB_ZONE = "Europe/London";
+
+  /**
+   * A summer date, and this suite does not work without one.
+   *
+   * The rest of this file reports on 2027-03-25 with its events on 2027-03-20 —
+   * both of which fall **before** British Summer Time starts on 28 March 2027.
+   * London is at UTC+0 then, local midnight and UTC midnight are the same
+   * instant, and the two readings agree. A test written on those dates passes
+   * whether or not the defect is present, which is exactly the trap that let
+   * the defect ship.
+   *
+   * June is UTC+1, so these dates are the ones that can tell the difference.
+   */
+  const SUMMER_REPORT_ON = "2027-06-21";
+  const SUMMER_EVENT_ON = "2027-06-16";
+  const SUMMER_EVENT = `${NAME_MARKER} Club timezone practice`;
+
+  let originalZone: string | undefined;
+
+  beforeAll(() => {
+    originalZone = process.env.TZ;
+    process.env.TZ = CLUB_ZONE;
+  });
+
+  afterAll(() => {
+    if (originalZone === undefined) delete process.env.TZ;
+    else process.env.TZ = originalZone;
+  });
+
+  it("gives an event the date it is actually scheduled on", async () => {
+    const event = await occurredEvent(2, {
+      name: SUMMER_EVENT,
+      scheduledOn: SUMMER_EVENT_ON,
+    });
+    expect(event.scheduledOn).toBe(SUMMER_EVENT_ON);
+
+    const entry = eventNamed(await compute(SUMMER_REPORT_ON), SUMMER_EVENT);
+
+    // The exact day is the whole claim. Read with UTC getters this is
+    // "2027-06-15", one day early, while every other assertion in this file
+    // still passes.
+    expect(entry.on).toBe(SUMMER_EVENT_ON);
+  });
+
+  /**
+   * The other half of the split. `reportWindow` and `lookaheadWindow` build
+   * their own midnight-UTC instants and must keep reading them with UTC
+   * getters — "fixing" those to local would break them in the opposite
+   * direction, and no assertion outside this suite would notice.
+   */
+  it("keeps the windows correct in the same timezone", () => {
+    expect(reportWindow("2026-10-19")).toEqual({ from: "2026-10-12", to: "2026-10-18" });
+    expect(normaliseReportDate("2026-10-19")).toBe("2026-10-19");
+  });
+
+  /**
+   * British Summer Time starts on 28 March 2027, inside the look-ahead of this
+   * suite's reporting date — so the window arithmetic crosses an offset change
+   * while the process is in a zone that observes one.
+   */
+  it("does not drift across the start of British Summer Time", () => {
+    expect(reportWindow("2027-04-01")).toEqual({ from: "2027-03-25", to: "2027-03-31" });
+    expect(lookaheadWindow("2027-03-25")).toEqual({ from: "2027-03-25", to: "2027-04-01" });
   });
 });
 
