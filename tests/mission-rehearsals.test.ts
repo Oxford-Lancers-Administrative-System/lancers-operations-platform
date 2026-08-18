@@ -137,6 +137,8 @@ describe("Rehearsal 1 — a valid approved packet initializes; invalid or unappr
       { ...packet, approval: { approved_by: "Brian" } },
       { ...packet, sources: [] },
       { ...packet, requirements: [] },
+      { ...packet, status: undefined },
+      { ...packet, baseline: { branch: "main", commit: null } },
       {
         ...packet,
         merge_envelope: { auto_merge_classes: ["schema-migration"], owner_gated: [] },
@@ -149,6 +151,11 @@ describe("Rehearsal 1 — a valid approved packet initializes; invalid or unappr
       );
       expect(readJournal(missionPaths(fresh.repo, MISSION, fresh.env).journal)).toEqual([]);
     }
+    // A not_ready packet is a valid document and still cannot execute.
+    const notReady = mission();
+    await expect(
+      notReady.append({ type: "mission-init", packet: { ...packet, status: "not_ready" } }),
+    ).rejects.toThrow(/cannot initialize execution/);
   });
 });
 
@@ -557,6 +564,15 @@ describe("Rehearsal 9 — guarded merge permits the qualifying case and refuses 
       rules,
     });
     expect(migrationDiff.merge).toBe(false);
+
+    const checkpointSurface = evaluateMissionGate({
+      pullRequest: pullRequest({ body: bodyWith(receipt({ visual: "nonvisual" })) }),
+      checkRuns: greenChecks(),
+      files: [{ status: "M", path: "src/lib/delivery/allowlist.ts" }],
+      rules,
+    });
+    expect(checkpointSurface.merge).toBe(false);
+    expect(checkpointSurface.reasons.join("\n")).toMatch(/checkpoint-approval surface/);
 
     const openQuestion = evaluateMissionGate({
       pullRequest: pullRequest({ body: bodyWith(receipt({ open_owner_questions: 1 })) }),

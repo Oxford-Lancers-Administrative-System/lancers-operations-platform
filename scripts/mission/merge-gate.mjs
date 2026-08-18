@@ -69,6 +69,23 @@ export function touchesVisualSurface(files, rules) {
 }
 
 /**
+ * Whether any changed path is a checkpoint-approval surface — the middle
+ * tier (Brian, 2026-08-18): auth and delivery code that workers may change
+ * and the lane may merge, but never silently. Detection is evidence-derived
+ * from the real diff; the required owner answer is checked against the
+ * journal locally and cited in the receipt for the workflow.
+ */
+export function touchesOwnerApprovalSurface(files, rules) {
+  return (files ?? []).some((entry) =>
+    [entry.previousPath, entry.path]
+      .filter(Boolean)
+      .some((candidate) =>
+        (rules.ownerApprovalSurfaces ?? []).some((rule) => matches(rule.path, candidate)),
+      ),
+  );
+}
+
+/**
  * The mission-merge receipt the Lead publishes into the PR body: a fenced
  * block whose info string names it. Absent, duplicated ambiguously, or
  * unparseable all mean no receipt — and no receipt is a refusal.
@@ -173,6 +190,23 @@ export function evaluateMissionGate({ pullRequest: pr, checkRuns, files, rules }
         "Receipt claims nonvisual work, but the diff touches a visual surface. Visual work merges only with Brian's recorded approval.",
       );
     }
+    // The checkpoint-approval tier: an auth or delivery diff is detected from
+    // evidence, and merges only with a cited, answered owner question. The
+    // ask happens at Brian's hourly checkpoint; it cannot be skipped, only
+    // affirmatively falsified — a durable, auditable lie in mission state.
+    if (touchesOwnerApprovalSurface(files, rules)) {
+      const decision = receipt.owner_decision;
+      if (
+        !decision ||
+        !/^Q-[A-Za-z0-9-]+$/.test(decision.question_id ?? "") ||
+        !isNonEmptyString(decision.answered_by) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(decision.date ?? "")
+      ) {
+        reasons.push(
+          "The diff touches a checkpoint-approval surface (auth or delivery). The receipt must cite the answered owner question (owner_decision: question_id, answered_by, date) recorded at Brian's checkpoint before this can merge.",
+        );
+      }
+    }
   }
 
   reasons.push(...requiredChecksPassed(checkRuns, pr.headRefOid, rules));
@@ -186,10 +220,24 @@ export function evaluateMissionGate({ pullRequest: pr, checkRuns, files, rules }
  * these facts is machine-local durable state; the workflow cannot see it,
  * which is exactly why the Lead checks it first and records what it found.
  */
-export function journalConjuncts(state, packageId, headSha) {
+export function journalConjuncts(state, packageId, headSha, options = {}) {
   const reasons = [];
   const pkg = state.packages?.[packageId];
   if (!pkg) return [`No planned package ${packageId} in mission state.`];
+  // When the caller supplies the real diff and rules (the local gate does),
+  // a checkpoint-approval surface requires an ANSWERED owner question naming
+  // this package — the durable record that Brian heard about it at the hour.
+  if (options.files && options.rules && touchesOwnerApprovalSurface(options.files, options.rules)) {
+    const answered = Object.values(state.questions ?? {}).some(
+      (question) =>
+        question.status === "answered" && question.affected_packages.includes(packageId),
+    );
+    if (!answered) {
+      reasons.push(
+        `${packageId} touches a checkpoint-approval surface (auth or delivery) and no answered owner question names it. Queue the question for Brian's checkpoint; the answer is persisted before this merges.`,
+      );
+    }
+  }
 
   if (state.stopped) {
     reasons.push(`The mission is stopped (${state.stopped.reason}); nothing merges.`);

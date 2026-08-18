@@ -242,6 +242,11 @@ export function validateEvent(event, state) {
       if (state.initialized) errors.push("The mission is already initialized.");
       const packetErrors = validatePacket(event.packet);
       errors.push(...packetErrors.map((error) => `Invalid packet: ${error}`));
+      if (packetErrors.length === 0 && event.packet.status !== "approved") {
+        errors.push(
+          `The packet's status is "${event.packet.status}"; a draft or not_ready packet cannot initialize execution.`,
+        );
+      }
       break;
     }
 
@@ -598,6 +603,9 @@ export function validateEvent(event, state) {
       const packetErrors = validatePacket(event.packet);
       errors.push(...packetErrors.map((error) => `Invalid revised packet: ${error}`));
       if (packetErrors.length === 0) {
+        if (event.packet.status !== "approved") {
+          errors.push("A revised packet resumes work only once it is approved.");
+        }
         if (event.packet.mission_id !== state.packet.mission_id) {
           errors.push("A revised packet keeps the mission id.");
         }
@@ -734,6 +742,9 @@ export function reduce(events) {
       case "correction-dispatched": {
         const pkg = state.packages[event.package_id];
         pkg.status = "correction";
+        // The correction will produce a new head; whatever Brian visually
+        // approved is no longer what would merge. Approval is re-earned.
+        pkg.visual_approved = false;
         state.activeWorkers.push({
           worker_id: event.worker_id,
           package_id: event.package_id,
@@ -760,6 +771,11 @@ export function reduce(events) {
       }
       case "pr-opened": {
         const pkg = state.packages[event.package_id];
+        // A new head invalidates a visual approval given at an older one —
+        // Brian approved what he saw, not whatever came later.
+        if (pkg.visual_approved && pkg.visual_approval?.head_sha !== event.head_sha) {
+          pkg.visual_approved = false;
+        }
         pkg.pr_number = event.pr_number;
         pkg.head_sha = event.head_sha;
         break;
@@ -781,7 +797,13 @@ export function reduce(events) {
       case "visual-approval": {
         const pkg = state.packages[event.package_id];
         pkg.visual_approved = true;
-        pkg.visual_approval = { at: event.at, by: event.approved_by, evidence: event.evidence };
+        pkg.visual_approval = {
+          at: event.at,
+          by: event.approved_by,
+          evidence: event.evidence,
+          // Approval is pinned to the head that was live when Brian looked.
+          head_sha: pkg.head_sha ?? null,
+        };
         break;
       }
       case "owner-question":
@@ -955,6 +977,16 @@ export function nextActions(state) {
         action: "review",
         package_id: pkg.id,
         detail: "Route one fresh-context independent review.",
+      });
+    }
+    if (pkg.status === "implemented" && pkg.risk_class === "low") {
+      // The guarded lane always requires a clear review receipt, so low-risk
+      // work either earns one to qualify, or goes to Brian as a normal draft.
+      actions.push({
+        action: "low-risk-disposition",
+        package_id: pkg.id,
+        detail:
+          "Low risk: verify the worker's evidence deterministically, then either route a review to qualify for the guarded lane or hand the draft PR to Brian.",
       });
     }
     if (pkg.status === "blocked" && pkg.review?.result === "blocked") {

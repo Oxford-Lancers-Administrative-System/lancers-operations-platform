@@ -1,6 +1,7 @@
 {
   "packet_version": 1,
   "mission_id": "M-SYNTHETIC-REHEARSAL",
+  "status": "approved",
   "objective": "Synthetic control-plane rehearsal: exercise every Mission Harness v1 transition deterministically, without real Linear issues, real pull requests, or any external mutation.",
   "non_goals": [
     "No real Linear issue is created or updated",
@@ -45,7 +46,10 @@
       "source": "Brian, synthetic fixture"
     }
   ],
-  "baseline": { "branch": "main", "commit": null },
+  "baseline": {
+    "branch": "main",
+    "commit": "c3e1d74a8dc36de9e4082f0d7be71f878956ffe8"
+  },
   "gates": {
     "owner": ["Visual approval for UI-affecting packages"],
     "external": []

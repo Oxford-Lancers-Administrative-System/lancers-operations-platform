@@ -138,6 +138,29 @@ describe("mission packet validation", () => {
     expect(validatePacket(orphaned).join("\n")).toMatch(/reference a declared source/);
   });
 
+  it("requires a status and a pinned baseline commit, and refuses executing a not_ready packet", async () => {
+    const noStatus: Record<string, unknown> = { ...packet };
+    delete noStatus.status;
+    expect(validatePacket(noStatus).join("\n")).toMatch(/status must be one of/);
+    expect(
+      validatePacket({ ...packet, baseline: { branch: "main", commit: null } }).join("\n"),
+    ).toMatch(/baseline\.commit must be the full 40-character SHA/);
+    // A not_ready packet is a valid document — storable, reviewable —
+    // and impossible to execute.
+    expect(validatePacket({ ...packet, status: "not_ready" })).toEqual([]);
+    const m = fixture();
+    await expect(
+      m.append({ type: "mission-init", packet: { ...packet, status: "not_ready" } }),
+    ).rejects.toThrow(/cannot initialize execution/);
+    await m.append({ type: "mission-init", packet });
+    await expect(
+      m.append({
+        type: "packet-revised",
+        packet: { ...packet, packet_version: 2, status: "not_ready" },
+      }),
+    ).rejects.toThrow(/only once it is approved/);
+  });
+
   it("keeps the merge-class vocabularies closed", () => {
     expect(AUTO_MERGE_CLASSES).toEqual(["standard-application"]);
     expect(OWNER_GATED_CLASSES).toContain("schema-migration");
@@ -741,6 +764,90 @@ describe("guarded merge recording", () => {
       route: "guarded-auto",
     });
     expect(state.packages["WP-events-filter"].status).toBe("merged");
+  });
+
+  it("clears visual approval on a correction and on a new head — Brian approved what he saw", async () => {
+    const B = "b".repeat(40);
+    const m = fixture();
+    await readyMission(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/wp-events",
+      branch: "feat/wp-events",
+    });
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 42,
+      head_sha: SHA,
+    });
+    const approved = await m.append({
+      type: "visual-approval",
+      package_id: "WP-events-filter",
+      approved_by: "Brian",
+      evidence: "live review at checkpoint 1",
+    });
+    expect(approved.packages["WP-events-filter"].visual_approval.head_sha).toBe(SHA);
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: reviewReceipt("blocked"),
+    });
+    const corrected = await m.append({
+      type: "correction-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      finding_ids: ["R-001"],
+    });
+    expect(corrected.packages["WP-events-filter"].visual_approved).toBe(false);
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 42,
+      head_sha: B,
+    });
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: reviewReceipt("clear", B),
+    });
+    await expect(
+      m.append({
+        type: "merge-recorded",
+        package_id: "WP-events-filter",
+        pr_number: 42,
+        sha: B,
+        route: "guarded-auto",
+      }),
+    ).rejects.toThrow(/recorded visual approval/);
+    await m.append({
+      type: "visual-approval",
+      package_id: "WP-events-filter",
+      approved_by: "Brian",
+      evidence: "live review at checkpoint 2, corrected head",
+    });
+    const merged = await m.append({
+      type: "merge-recorded",
+      package_id: "WP-events-filter",
+      pr_number: 42,
+      sha: B,
+      route: "guarded-auto",
+    });
+    expect(merged.packages["WP-events-filter"].status).toBe("merged");
   });
 
   it("refuses late review receipts and corrections on merged work, and replay never regresses it", async () => {

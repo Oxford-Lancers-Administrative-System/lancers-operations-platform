@@ -88,19 +88,61 @@ see. The Mission Lead therefore satisfies the journal-side gate first and
 publishes a structured `mission-merge-receipt` into the PR body; the
 workflow checks that receipt's coherence rather than taking it whole — its
 reviewed SHA must equal the current head, and a `nonvisual` claim is refused
-from evidence when the diff touches a visual surface. Alternative channels
-were considered and rejected: a check-run or commit status must be written
-by a workflow from the same Lead-authored text and adds nothing; a CI
-artifact is produced by executing PR code, which is strictly worse; a
-committed receipt cannot contain its own SHA. The residual trust is a
-bounded, auditable extension Brian approved for **standard application work
-at low or normal risk only**: migrations, RLS/auth/security, secrets,
-deployment, WhatsApp and external configuration, Highest-risk work, and
-visual work without recorded approval can never travel the lane, because the
-prohibited-path scan and the receipt schema refuse them from evidence. The
-lane cannot widen itself — its rules, workflow, gate, proofs, and runbook
-are prohibited from both automatic lanes and protected in the fast lane's
-rules.
+from evidence when the diff touches a visual surface (including plain `.ts`
+files under `src/app/**`, where presentation shaping and user-visible copy
+live). Visual approval is pinned to the head Brian saw: a correction
+dispatch or a new recorded head clears it, so a corrected UI package cannot
+merge on an approval given for an earlier commit.
+
+**The lane has three tiers, decided by Brian on 2026-08-18 after the
+operational readiness review.** Brian's observation drove the middle tier:
+by the time a PR reaches his merge click he rubber-stamps it — the moment
+his judgment actually operates is the hourly checkpoint. So gating
+everything behind his click would be a ritual, and gating nothing would
+allow silent merges over consequential surfaces. The tiers:
+
+1. **Standard lane** — qualifying application work merges as above.
+2. **Checkpoint-approval surfaces** (`ownerApprovalSurfaces` in the rules:
+   `src/lib/auth/**`, `src/lib/delivery/**`) — workers change them freely
+   and the lane may merge them, but never silently: the diff-derived scan
+   detects the surface, and the merge is refused unless an answered owner
+   question naming the package exists in mission state (checked by the
+   local gate) and the receipt cites it (checked by the workflow). The ask
+   lands in Brian's checkpoint queue; skipping it is impossible, and
+   falsifying it is an affirmative, durable, auditable lie — the same
+   bounded-trust class as the review receipt. The delivery entry exists
+   because the recipient allowlist currently lives in code and is the
+   interlock on real-world messaging; it is expected to loosen once the
+   allowlist becomes database records, which arrives via an owner-merged
+   migration in any case.
+3. **Prohibited** — refused from the diff itself, whatever any receipt
+   says: schema, workflows, governance, scripts, the auth _routes_, the
+   public RSVP token surfaces (`src/lib/rsvp/**`, zero-trust because they
+   are reachable by the whole internet), and `missions/**` (packet PRs are
+   approval acts and only Brian performs them). Alternative channels
+   were considered and rejected: a check-run or commit status must be written
+   by a workflow from the same Lead-authored text and adds nothing; a CI
+   artifact is produced by executing PR code, which is strictly worse; a
+   committed receipt cannot contain its own SHA. The residual trust is a
+   bounded, auditable extension Brian approved for **standard application work
+   at low or normal risk only**: migrations, RLS/auth/security, secrets,
+   deployment, WhatsApp and external configuration, Highest-risk work, and
+   visual work without recorded approval can never travel the lane, because the
+   prohibited-path scan and the receipt schema refuse them from evidence. The
+   lane cannot widen itself — its rules, workflow, gate, proofs, and runbook
+   are prohibited from both automatic lanes and protected in the fast lane's
+   rules.
+
+**4a. Packet approval is Brian's merge of a packet-only pull request.**
+Decided 2026-08-18 to align with the Mission Intake Agent's contract: the
+canonical packet location is `missions/packets/<mission-id>/packet.json`,
+drafted by intake on a dedicated branch and merged only by Brian — the
+merged commit identifies the exact approved packet version, so approval is
+a git act, not a field. Packets carry `status: "approved" | "not_ready"`
+and a mandatory `baseline.commit` SHA; `mission validate` checks a draft
+without writing state, and `mission init` refuses anything but an approved
+packet. A material revision is a new version in a new packet PR; the
+approved original is never mutated.
 
 **5. A mission merge does not deploy.** Decided by Brian: `GITHUB_TOKEN`
 suppression is the feature, matching the v1 exclusion of autonomous

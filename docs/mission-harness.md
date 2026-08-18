@@ -18,26 +18,39 @@ Everything else — planning, Linear issues, workers, reviews, corrections,
 qualifying merges, checkpoints — is the Mission Lead's job. One mission runs
 at a time.
 
-To start a **new** mission, Brian supplies an approved mission packet file
-and the Lead runs `npm run mission -- init M-<id> --packet <file>`. An
-invalid or unapproved packet is refused outright. To **resume** after any
-interruption, the same `/run-mission M-<id>` invocation is enough — the Lead
-replays durable state and continues; no chat history is needed or used.
+To start a **new** mission, the approved packet must already be on `main` at
+`missions/packets/M-<id>/packet.json`; the Lead runs
+`npm run mission -- init M-<id> --packet missions/packets/M-<id>/packet.json`.
+An invalid, `not_ready`, or unapproved packet is refused outright. To
+**resume** after any interruption, the same `/run-mission M-<id>` invocation
+is enough — the Lead replays durable state and continues; no chat history is
+needed or used.
 
 ## The mission packet
 
-The packet is the pinned execution contract for one approved mission,
-drafted upstream (the Mission Intake workflow) and approved by Brian before
-execution. Its mechanical schema is `scripts/mission/lib/packet.mjs`; the
-synthetic example is `tests/fixtures/mission/approved-packet.json`. It
-records: `packet_version`, `mission_id`, `objective`, `non_goals`, `sources`
-(each with a pinned `version`), `requirements` (each tracing to a source),
-`decisions`, `baseline`, `gates`, `merge_envelope` (which can never widen
-the autonomous classes nor drop an owner-gated class), `completion_evidence`,
-and the explicit `approval` record. Notion remains authoritative for product
-intent; the packet pins versions, it does not replace authority. Genuinely
-new scope requires a revised packet and new approval — drift stops only the
-affected packages while the rest continues.
+The packet is the pinned execution contract for one approved mission. The
+Mission Intake Agent drafts it at `missions/packets/<mission-id>/packet.json`
+and opens a **packet-only pull request** — **Brian's merge of that PR is the
+approval**, binding the exact packet version and commit; no field in the
+file substitutes for it, and `missions/**` is prohibited from every
+automatic merge lane. A draft that cannot honestly be completed ships with
+`status: "not_ready"` — valid to store, impossible to execute. Check any
+draft with `npm run mission -- validate --packet <file>` (pure; writes no
+state).
+
+The mechanical schema is `scripts/mission/lib/packet.mjs`; the synthetic
+example is `tests/fixtures/mission/approved-packet.json`. A packet records:
+`packet_version`, `mission_id`, `status` (`approved` | `not_ready`),
+`objective`, `non_goals`, `sources` (each with a pinned `version`),
+`requirements` (each tracing to a source), `decisions`, `baseline` (branch
+and the exact `main` SHA it was drafted against — drift is computed from
+it), `gates`, `merge_envelope` (which can never widen the autonomous classes
+nor drop an owner-gated class), `completion_evidence`, and the `approval`
+record. Notion remains authoritative for product intent; the packet pins
+versions, it does not replace authority. Genuinely new scope requires a
+revised packet — a new version in a new packet PR, never a mutation of the
+approved one — and drift stops only the affected packages while the rest
+continues.
 
 ## Brian's rhythm: the hourly checkpoint
 
@@ -70,17 +83,34 @@ a visual surface.
 
 ## What merges by itself, and what never does
 
-Standard application work at low or normal risk, with a clear independent
-review at the exact head SHA, recorded visual approval (or genuinely
-nonvisual), no open owner question, and green required checks at that exact
-commit, merges through the checked-in `mission-merge` workflow after the
-Mission Lead publishes its receipt and applies the `mission-merge` label.
-The workflow re-derives everything server-verifiable from evidence and fails
-closed; a refusal is posted on the pull request.
+There are three tiers, decided by Brian on 2026-08-18:
 
-Always Brian's, never autonomous: schema and migrations; RLS, auth,
-security, and trust boundaries; secrets and credentials; deployment and
-production data; WhatsApp and external configuration; Highest-risk work; and
+**Merges by itself.** Standard application work at low or normal risk, with
+a clear independent review at the exact head SHA, recorded visual approval
+(or genuinely nonvisual), no open owner question, and green required checks
+at that exact commit, merges through the checked-in `mission-merge` workflow
+after the Mission Lead publishes its receipt and applies the `mission-merge`
+label. The workflow re-derives everything server-verifiable from evidence
+and fails closed; a refusal is posted on the pull request. A review-blocked
+correction or any new head clears a previously recorded visual approval —
+Brian approved what he saw, not whatever came later.
+
+**Merges by itself only after Brian heard about it** — the
+checkpoint-approval surfaces (`src/lib/auth/**`, `src/lib/delivery/**`).
+Workers may change them freely, but the diff-derived scan detects them and
+the merge is refused unless an **answered owner question** naming the
+package exists in mission state and the receipt cites it. In practice: the
+Lead raises it in the "Need from Brian" queue — "this package changes the
+recipient allowlist, OK?" — Brian answers at the checkpoint, the answer is
+persisted, and the merge proceeds. The ask cannot be skipped, only
+affirmatively falsified, which is a durable, auditable lie. The delivery
+entry is expected to loosen once the recipient allowlist becomes database
+records.
+
+**Always Brian's, never autonomous:** schema and migrations; RLS and the
+authentication routes; the public RSVP token surfaces (`src/lib/rsvp/**`);
+mission packets (`missions/**` — the packet PR _is_ the approval); secrets
+and credentials; deployment and production data; Highest-risk work; and
 visual work without recorded approval. These arrive as ordinary draft PRs
 for Brian to merge.
 
@@ -136,10 +166,20 @@ Agents cannot change live GitHub settings, so Brian performs these once:
 Mission Harness v1 is validated by deterministic synthetic rehearsals only —
 `tests/mission-rehearsals.test.ts` maps each numbered readiness criterion
 from the approved task to a test that runs in CI with no real Linear write,
-no real worker, and no real merge. Real Linear writes, real workers, and a
-real guarded merge are the pilot's evidence, produced with Brian watching.
-The pilot recommendation and the harness verdict live in the Mission Harness
-v1 pull request's implementation report.
+no real worker, and no real merge. Reproduce the evidence any time with:
+
+```
+npx vitest run tests/mission-rehearsals.test.ts
+```
+
+Real Linear writes, real workers, and a real guarded merge are the pilot's
+evidence, produced with Brian watching. The pilot recommendation and the
+harness verdict live in the Mission Harness v1 pull request's implementation
+report. **Declaring not ready** is always a legitimate outcome, at every
+level: an intake draft ships `status: "not_ready"`; a Mission Lead that
+cannot safely complete a required workstream preserves the partial PR and
+its evidence, stops with `npm run mission -- stop`, and reports not ready
+with the missing work named; a package blocks rather than pretends.
 
 ## Known limitations in v1
 

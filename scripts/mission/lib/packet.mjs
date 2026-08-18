@@ -34,6 +34,13 @@ export const VISUAL_CLASSES = ["ui", "nonvisual", "mixed"];
 export const SOURCE_KINDS = ["notion", "linear", "github", "document"];
 
 /**
+ * A packet's readiness is a closed vocabulary, not an inference. Only an
+ * `approved` packet may initialize a mission; `not_ready` is the Mission
+ * Intake Agent's honest draft state and fails closed at mission-init.
+ */
+export const PACKET_STATUSES = ["approved", "not_ready"];
+
+/**
  * Work that may travel the guarded autonomous merge route. Deliberately one
  * entry: well-defined standard application work. Everything else is
  * owner-gated by construction, so a packet cannot invent a wider class.
@@ -128,8 +135,17 @@ export function validatePacket(packet) {
     }
   }
 
+  if (!PACKET_STATUSES.includes(packet.status)) {
+    errors.push(`status must be one of ${PACKET_STATUSES.join(", ")}.`);
+  }
+
   if (!isNonEmptyString(packet.baseline?.branch)) {
     errors.push("baseline.branch is required (the implementation baseline).");
+  }
+  if (!/^[0-9a-f]{40}$/.test(packet.baseline?.commit ?? "")) {
+    errors.push(
+      "baseline.commit must be the full 40-character SHA of main at packet approval — drift has no meaning without it.",
+    );
   }
 
   if (!isStringArray(packet.gates?.owner) || !isStringArray(packet.gates?.external)) {

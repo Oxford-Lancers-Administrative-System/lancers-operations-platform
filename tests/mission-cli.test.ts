@@ -54,6 +54,25 @@ describe("mission CLI", () => {
     expect(again.stderr).toMatch(/already initialized/);
   });
 
+  it("validates a packet purely — approving nothing, writing nothing", () => {
+    const m = fixture();
+    const approved = m.run("validate", "--packet", PACKET);
+    expect(approved.status).toBe(0);
+    expect(approved.stdout).toMatch(/valid and approved/);
+    const notReady = path.join(m.repo, "not-ready.json");
+    const packet = JSON.parse(fs.readFileSync(PACKET, "utf8"));
+    fs.writeFileSync(notReady, JSON.stringify({ ...packet, status: "not_ready" }));
+    const refused = m.run("validate", "--packet", notReady);
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toMatch(/cannot initialize execution|not_ready/);
+    const broken = path.join(m.repo, "broken.json");
+    fs.writeFileSync(broken, JSON.stringify({ ...packet, baseline: { branch: "main" } }));
+    expect(m.run("validate", "--packet", broken).status).toBe(1);
+    // Pure: no mission state exists afterwards.
+    const status = m.run("status", "M-SYNTHETIC-REHEARSAL");
+    expect(status.stdout).toMatch(/absent/);
+  });
+
   it("refuses dispatch before synchronization, from a real child process", () => {
     const m = fixture();
     expect(m.run("init", MISSION, "--packet", PACKET).status).toBe(0);

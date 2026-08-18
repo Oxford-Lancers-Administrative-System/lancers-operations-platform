@@ -169,6 +169,42 @@ describe("the guarded mission merge gate", () => {
     expect(touchesVisualSurface([{ status: "M", path: "src/theme.ts" }], rules)).toBe(true);
   });
 
+  it("requires a cited, answered owner decision for checkpoint-approval surfaces — detected from the diff", () => {
+    const authFiles = [{ status: "M", path: "src/lib/auth/capabilities.ts" }];
+    const deliveryFiles = [{ status: "M", path: "src/lib/delivery/allowlist.ts" }];
+    for (const files of [authFiles, deliveryFiles]) {
+      const silent = gate({
+        files,
+        pullRequest: pullRequest({ body: bodyWith(receipt({ visual: "nonvisual" })) }),
+      });
+      expect(silent.merge).toBe(false);
+      expect(silent.reasons.join("\n")).toMatch(/checkpoint-approval surface/);
+    }
+    const cited = gate({
+      files: authFiles,
+      pullRequest: pullRequest({
+        body: bodyWith(
+          receipt({
+            visual: "nonvisual",
+            owner_decision: { question_id: "Q-7", answered_by: "Brian", date: "2026-08-18" },
+          }),
+        ),
+      }),
+    });
+    expect(cited.reasons).toEqual([]);
+    expect(cited.merge).toBe(true);
+    const malformed = gate({
+      files: authFiles,
+      pullRequest: pullRequest({
+        body: bodyWith(receipt({ visual: "nonvisual", owner_decision: { question_id: "nope" } })),
+      }),
+    });
+    expect(malformed.merge).toBe(false);
+    // Ordinary application files require no owner decision.
+    const ordinary = gate({});
+    expect(ordinary.merge).toBe(true);
+  });
+
   it("requires every check green at the exact head, treating duplicates conjunctively", () => {
     const missing = gate({ checkRuns: greenChecks().slice(0, 1) });
     expect(missing.merge).toBe(false);
@@ -283,6 +319,41 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
       { type: "mission-stopped", at: "t", reason: "usage-exhausted", detail: "simulated" },
     ]);
     expect(journalConjuncts(stopped, "WP-events-filter", HEAD).join("\n")).toMatch(/stopped/);
+  });
+
+  it("requires an answered owner question on the journal side for checkpoint-approval diffs", () => {
+    const deliveryFiles = [{ status: "M", path: "src/lib/delivery/allowlist.ts" }];
+    const opts = { files: deliveryFiles, rules };
+    expect(journalConjuncts(base(), "WP-events-filter", HEAD, opts).join("\n")).toMatch(
+      /checkpoint-approval surface/,
+    );
+    const answered = base([
+      {
+        type: "owner-question",
+        at: "t",
+        id: "Q-allowlist",
+        classification: "hourly",
+        text: "Synthetic: this package touches the recipient allowlist — proceed?",
+        source: "checkpoint queue",
+        affected_packages: ["WP-events-filter"],
+      },
+      {
+        type: "owner-answer",
+        at: "t",
+        question_id: "Q-allowlist",
+        answer: "Yes, proceed.",
+        answered_by: "Brian",
+        reusable: false,
+      },
+    ]);
+    expect(journalConjuncts(answered, "WP-events-filter", HEAD, opts)).toEqual([]);
+    // Ordinary files need no owner answer.
+    expect(
+      journalConjuncts(base(), "WP-events-filter", HEAD, {
+        files: [{ status: "M", path: "src/lib/events/filters.ts" }],
+        rules,
+      }),
+    ).toEqual([]);
   });
 
   it("never lets highest-risk or migration-owning packages through, and requires visual approval for UI work", () => {

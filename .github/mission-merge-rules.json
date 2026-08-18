@@ -87,6 +87,18 @@
       "reason": "Authentication surfaces are owner-gated."
     },
     {
+      "path": "src/lib/rsvp/**",
+      "reason": "The signed no-login link surface is reachable by the whole internet; weakening it silently corrupts attendance data. Zero-trust: only Brian merges."
+    },
+    {
+      "path": "src/lib/services/rsvp-tokens.ts",
+      "reason": "RSVP token issuance and verification — the same public trust boundary as src/lib/rsvp/**."
+    },
+    {
+      "path": "missions/**",
+      "reason": "Mission packets. Brian's merge of a packet PR IS the approval of that exact packet version and commit; no automatic lane may perform it."
+    },
+    {
       "path": ".env.example",
       "reason": "Environment contracts are owner-gated."
     },
@@ -127,6 +139,23 @@
       "reason": "Ignore rules guard untracked runtime state."
     }
   ],
-  "visualSurfaces": ["src/app/**/*.tsx", "src/app/**/*.css", "src/components/**", "src/theme.ts"],
-  "_visualSurfacesNote": "The coherence tripwire: a receipt claiming nonvisual work is refused when the diff touches any of these, so ADR 0020's live visual review cannot be skipped by mislabelling."
+  "ownerApprovalSurfaces": [
+    {
+      "path": "src/lib/auth/**",
+      "reason": "The service-layer authorization boundary (capabilities, guards, operator resolution, recovery). Changeable by workers, mergeable autonomously — but never silently: an answered owner question naming the package must exist, and the receipt must cite it."
+    },
+    {
+      "path": "src/lib/delivery/**",
+      "reason": "WhatsApp provider, configuration, and the recipient allowlist. Same checkpoint-approval rule: Brian hears about it at the hourly checkpoint before it can merge. Revisit this tier once the allowlist becomes database records (Brian, 2026-08-18)."
+    }
+  ],
+  "_ownerApprovalSurfacesNote": "The middle tier (Brian, 2026-08-18): these surfaces may auto-merge ONLY when the receipt carries an owner_decision citing an answered owner question for the package. Detection is evidence-derived from the real diff; the ask cannot be skipped, only affirmatively falsified — a durable, auditable lie in mission state.",
+  "visualSurfaces": [
+    "src/app/**/*.tsx",
+    "src/app/**/*.ts",
+    "src/app/**/*.css",
+    "src/components/**",
+    "src/theme.ts"
+  ],
+  "_visualSurfacesNote": "The coherence tripwire: a receipt claiming nonvisual work is refused when the diff touches any of these, so ADR 0020's live visual review cannot be skipped by mislabelling. Plain .ts files under src/app are included deliberately — presentation shaping and user-visible copy live there too."
 }

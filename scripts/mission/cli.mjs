@@ -172,6 +172,25 @@ async function main() {
       break;
     }
 
+    case "validate": {
+      if (!flags.packet) fail("Usage: mission validate --packet <file>");
+      const { validatePacket } = await import("./lib/packet.mjs");
+      const packet = readJson(flags.packet);
+      const defects = validatePacket(packet);
+      if (defects.length > 0) {
+        fail(`Invalid packet:\n- ${defects.join("\n- ")}`);
+      }
+      if (packet.status !== "approved") {
+        fail(
+          `The packet is valid but its status is "${packet.status}". A draft or not_ready packet cannot initialize execution; Brian approves it by merging its packet PR.`,
+        );
+      }
+      console.log(
+        `Packet ${packet.mission_id} v${packet.packet_version} is valid and approved (baseline ${packet.baseline.commit.slice(0, 12)}). No state was written.`,
+      );
+      break;
+    }
+
     case "plan": {
       if (!missionId || !flags.packages) fail("Usage: mission plan <mission-id> --packages <file>");
       const { packages } = readJson(flags.packages);
@@ -424,7 +443,10 @@ async function main() {
       const state = replayState(repoPath, missionId);
       const pullRequest = readJson(flags["pr-json"]);
       const files = parseNameStatus(fs.readFileSync(flags.files, "utf8"));
-      const local = journalConjuncts(state, packageId, pullRequest.headRefOid);
+      const local = journalConjuncts(state, packageId, pullRequest.headRefOid, {
+        files,
+        rules: loadRules(),
+      });
       const server = evaluateMissionGate({
         pullRequest,
         checkRuns: readJson(flags["checks-json"]),
@@ -508,7 +530,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: init, plan, preflight, sync-intent, sync-result, dispatch, receipt, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, preflight, sync-intent, sync-result, dispatch, receipt, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
       );
   }
 }

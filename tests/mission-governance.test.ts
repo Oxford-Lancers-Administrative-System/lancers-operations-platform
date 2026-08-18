@@ -16,7 +16,12 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { classifyPath, loadRules as loadFastLaneRules } from "../scripts/fast-lane/classify.mjs";
-import { loadRules as loadMissionRules, prohibitedPaths } from "../scripts/mission/merge-gate.mjs";
+import {
+  loadRules as loadMissionRules,
+  prohibitedPaths,
+  touchesOwnerApprovalSurface,
+  touchesVisualSurface,
+} from "../scripts/mission/merge-gate.mjs";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const read = (relative: string) => readFileSync(path.join(repoRoot, relative), "utf8");
@@ -220,6 +225,9 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
       /migrations, RLS\/auth\/security, secrets, deployment/i,
       /synthetic rehearsals only/i,
       /never --admin/i,
+      /checkpoint-approval surfaces/i,
+      /packet-only pull request/i,
+      /allowlist becomes database records/i,
     ]) {
       expect(adr, `ADR 0027 must record ${clause}`).toMatch(clause);
     }
@@ -233,6 +241,11 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
       /Always Brian's, never autonomous/i,
       /journal\.ndjson/,
       /usage-exhausted/,
+      /missions\/packets\//,
+      /mission -- validate --packet|mission validate/,
+      /merge of that PR is the approval/i,
+      /not_ready/,
+      /npx vitest run tests\/mission-rehearsals\.test\.ts/,
     ]) {
       expect(runbook, `the runbook must cover ${clause}`).toMatch(clause);
     }
@@ -255,6 +268,10 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
       "src/lib/db/runtime-target.ts",
       "src/app/login/page.tsx",
       "src/app/auth/recovery/route.ts",
+      "src/lib/rsvp/public-surface.ts",
+      "src/lib/rsvp/tokens.ts",
+      "src/lib/services/rsvp-tokens.ts",
+      "missions/packets/M-PILOT/packet.json",
       "Dockerfile",
       "package-lock.json",
       ".env.example",
@@ -262,5 +279,46 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
       const reasons = prohibitedPaths([{ status: "M", path: surface }], missionRules);
       expect(reasons.length, `${surface} must be prohibited`).toBeGreaterThan(0);
     }
+  });
+
+  it("holds the checkpoint-approval tier: auth and delivery are open to workers but never merge silently", () => {
+    // Not prohibited — workers change these and the lane may merge them...
+    for (const surface of [
+      "src/lib/auth/capabilities.ts",
+      "src/lib/auth/guards.ts",
+      "src/lib/delivery/allowlist.ts",
+      "src/lib/delivery/whatsapp-cloud.ts",
+    ]) {
+      expect(prohibitedPaths([{ status: "M", path: surface }], missionRules)).toEqual([]);
+      // ...but the diff-derived scan detects them, which is what forces the
+      // answered owner question and the cited owner_decision in the receipt.
+      expect(
+        touchesOwnerApprovalSurface([{ status: "M", path: surface }], missionRules),
+        surface,
+      ).toBe(true);
+    }
+    expect(
+      touchesOwnerApprovalSurface(
+        [{ status: "M", path: "src/lib/events/filters.ts" }],
+        missionRules,
+      ),
+    ).toBe(false);
+    const paths = missionRules.ownerApprovalSurfaces.map((rule: { path: string }) => rule.path);
+    expect(paths.sort()).toEqual(["src/lib/auth/**", "src/lib/delivery/**"]);
+  });
+
+  it("treats presentation-shaping .ts files under src/app as visual surfaces", () => {
+    for (const surface of [
+      "src/app/operate/events/presentation.ts",
+      "src/app/operate/labels.ts",
+      "src/app/events/page.tsx",
+    ]) {
+      expect(touchesVisualSurface([{ status: "M", path: surface }], missionRules), surface).toBe(
+        true,
+      );
+    }
+    expect(
+      touchesVisualSurface([{ status: "M", path: "src/lib/events/filters.ts" }], missionRules),
+    ).toBe(false);
   });
 });
