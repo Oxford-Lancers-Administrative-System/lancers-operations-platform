@@ -5,15 +5,17 @@ file records why each source controls or informs the packet.
 
 | Source | Authority and use |
 | --- | --- |
-| [Oxford Lancers project home](https://app.notion.com/p/3aa488886d5780428888da8b5792fa96) | Mission Control, authority order, no active approved mission |
+| [Oxford Lancers project home](https://app.notion.com/p/3aa488886d5780428888da8b5792fa96) | Mission Control, authority order and packet readiness/merge state |
 | [Start the Lancers Mission Intake Agent](https://app.notion.com/p/3c0488886d578118a77bf8ccb5f15514) | Intake role, packet workflow, readiness and handoff rules |
 | [Lancers Current Project Status](https://app.notion.com/p/3bb488886d578126a88cdd747f590a01) | Current stage, active gates and production boundary |
 | [Release 1 Authority Manifest — Final](https://app.notion.com/p/3bf488886d57818aa53ec09f4fc5f757) | Scope 3 readiness and Release 1 exclusions/gates |
-| [Identity, Access & Ownership — Feature Brief](https://app.notion.com/p/3bc488886d5781d78d18f045492073cd) | Controlling product behavior and 2026-08-18 owner amendment/refetch: final authority matrix, role grouping, year lifecycle seam, dates, account lifecycle, verified email recovery, event-first audit projections, one-Person multi-capacity identity, protected in-app guide, first-access email boundary, Resend availability and owner-run bootstrap |
+| [Identity, Access & Ownership — Feature Brief](https://app.notion.com/p/3bc488886d5781d78d18f045492073cd) | Controlling product behavior and 2026-08-18 owner amendments: final authority matrix, exact 20-role catalogue, all-coach bounded grants, administration layout/language, year lifecycle seam, dates, account lifecycle, deactivation-versus-vacancy semantics, verified email recovery, event-first audit projections, one-Person multi-capacity identity, protected FAQ guide, first-access email boundary, Resend availability and owner-run bootstrap |
 | [The 16 Locked Requirements](https://app.notion.com/p/3b7488886d578131905bc9ac24910584) | R1/R10/R14 baseline and audit/recovery invariants |
 | [Governance and Operating Decisions](https://app.notion.com/p/3bb488886d5781e7a7b9cb598831dd67) | Source routing, hosted-data and production-write boundaries |
 | [Person, Roster & Player Profile](https://app.notion.com/p/3bd488886d57812e9534cb00102abef8) | Durable Person minimum, non-player add-or-link path and authentication relationship |
-| [Football Assignments & Coach Connection](https://app.notion.com/p/3bf488886d578186b8dafed6ed32a300) | Approved fixed ten-role coaching hierarchy, coach-as-Person model and localized HC/OC/DC validation gate |
+| [Football Assignments & Coach Connection](https://app.notion.com/p/3bf488886d578186b8dafed6ed32a300) | Approved fixed ten-role coaching hierarchy, coach-as-Person model, and all-coach attendance/availability boundary |
+| [Attendance & Walk-ups — Verification Brief](https://app.notion.com/p/3bc488886d5781aca18af031c939bf5c) | All ten fixed coaching roles receive narrow attendance, including minimal walk-up capture, without general roster/contact access |
+| [Availability Management — Feature Brief](https://app.notion.com/p/3bf488886d5781bb9b2cc2de7c62038b) | All ten fixed coaching roles may view current availability and report Orange/Red; Green confirmation, history/actor identity and medical narrative remain excluded |
 | `Lancer Football Discussion - 2026_07_22 10_58 EDT - Notes by Gemini.docx` | Supporting evidence for Head Coach, Offensive Coordinator and Defensive Coordinator discovery; does not override the approved Task 12 hierarchy |
 | [LAN-71](https://linear.app/brian-schuster/issue/LAN-71) | Implemented Person-to-operator identity join |
 | [LAN-72](https://linear.app/brian-schuster/issue/LAN-72) | Implemented transaction and audit substrate |
@@ -25,7 +27,8 @@ file records why each source controls or informs the packet.
 | [Canonical packet validator](https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/blob/5812390914b4ca45b609328ffd929ec45071be17/scripts/mission/lib/packet.mjs) | Schema used for this packet |
 
 Supporting July interviews and meeting notes were used only to verify coaching-role
-provenance. The approved Task 08 and Task 12 briefs control the durable Person,
-seasonal membership and coaching hierarchy behavior. Brian's 18 August intake decisions
-clarify that player, coach, officer and operator relationships reuse one Person and at most
-one operator account; supporting evidence does not expand the mission by itself.
+provenance. The approved Person, Identity, Football Assignments, Attendance and Availability
+briefs control the durable Person, seasonal membership, coaching hierarchy and bounded coach
+capabilities. Brian's 18 August intake decisions clarify that player, coach, officer and
+operator relationships reuse one Person and at most one operator account; supporting evidence
+does not expand the mission by itself.
