@@ -428,16 +428,15 @@ describe("mission harness v1", () => {
     path.join(root, "scripts", "mission", "lib", "state.mjs"),
     "utf8",
   );
-  const gateSource = readFileSync(
-    path.join(root, "scripts", "mission", "merge-gate.mjs"),
-    "utf8",
-  );
+  const gateSource = readFileSync(path.join(root, "scripts", "mission", "merge-gate.mjs"), "utf8");
 
   it("adds the mission workflow as user-invoked, and keeps /start-issue supported", () => {
     expect(missionSkill.fields.name).toBe("run-mission");
     expect(missionSkill.fields["disable-model-invocation"]).toBe("true");
     expect(missionSkill.fields["argument-hint"]).toBe("M-<mission-id>");
-    expect(missionBody).toMatch(/`\/start-issue` remains available for deliberate manual single-issue work/i);
+    expect(missionBody).toMatch(
+      /`\/start-issue` remains available for deliberate manual single-issue work/i,
+    );
     expect(existsSync(skillPath)).toBe(true);
   });
 
@@ -506,7 +505,9 @@ describe("mission harness v1", () => {
       /Before asking Brian any product or visual question, check in order/i,
     );
     expect(missionBody).toMatch(/Owner Rule Registry/);
-    expect(missionBody).toMatch(/promote it with `promote-rule` only after Brian explicitly approves reuse/i);
+    expect(missionBody).toMatch(
+      /promote it with `promote-rule` only after Brian explicitly approves reuse/i,
+    );
     expect(stateSource).toContain('"immediate" or "hourly"');
     expect(missionBody).toMatch(/Interrupt Brian immediately only for/i);
   });
@@ -520,7 +521,9 @@ describe("mission harness v1", () => {
   });
 
   it("keeps Highest-risk, migration, and unapproved visual work with Brian", () => {
-    expect(missionBody).toMatch(/Highest risk retains the strongest current rules and never merges autonomously/i);
+    expect(missionBody).toMatch(
+      /Highest risk retains the strongest current rules and never merges autonomously/i,
+    );
     expect(stateSource).toContain("Highest-risk work cannot autonomous-merge in v1");
     expect(stateSource).toContain("owner-merged, never autonomous");
     expect(missionBody).toMatch(/ADR 0020 stands/);

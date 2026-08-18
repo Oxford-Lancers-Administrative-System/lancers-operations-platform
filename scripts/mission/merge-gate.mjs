@@ -74,10 +74,7 @@ export function touchesVisualSurface(files, rules) {
  * unparseable all mean no receipt — and no receipt is a refusal.
  */
 export function extractReceipt(body, rules) {
-  const fence = new RegExp(
-    "```" + rules.receiptBlockInfo + "\\s*\\n([\\s\\S]*?)\\n```",
-    "g",
-  );
+  const fence = new RegExp("```" + rules.receiptBlockInfo + "\\s*\\n([\\s\\S]*?)\\n```", "g");
   const found = [...(body ?? "").matchAll(fence)];
   if (found.length !== 1) return null;
   try {
@@ -95,7 +92,8 @@ export function receiptDefects(receipt) {
   if (!receipt) return ["No mission-merge receipt block was found in the pull request body."];
   if (!isNonEmptyString(receipt.mission_id)) defects.push("Receipt is missing mission_id.");
   if (!isNonEmptyString(receipt.package_id)) defects.push("Receipt is missing package_id.");
-  if (!isNonEmptyString(receipt.linear_issue_id)) defects.push("Receipt is missing linear_issue_id.");
+  if (!isNonEmptyString(receipt.linear_issue_id))
+    defects.push("Receipt is missing linear_issue_id.");
   if (!["low", "normal"].includes(receipt.risk_class)) {
     defects.push(
       `Receipt risk_class is "${receipt.risk_class ?? "absent"}". Only low and normal risk may travel this lane; highest risk is owner-merged in v1.`,
@@ -127,7 +125,7 @@ export function receiptDefects(receipt) {
  * branch against evidence it gathered itself.
  *
  * @param {{ pullRequest: object|null, checkRuns: object[], files: Array<{status: string, path: string, previousPath?: string}>, rules: object }} input
- * @returns {{ merge: boolean, reasons: string[], receipt: object|null }}
+ * @returns {{ merge: boolean, reasons: string[], receipt: Record<string, any>|null }}
  */
 export function evaluateMissionGate({ pullRequest: pr, checkRuns, files, rules }) {
   const reasons = [];
@@ -149,9 +147,7 @@ export function evaluateMissionGate({ pullRequest: pr, checkRuns, files, rules }
     );
   }
   if ((pr.mergeable ?? "").toUpperCase() !== "MERGEABLE") {
-    reasons.push(
-      `GitHub reports mergeable=${pr.mergeable ?? "UNKNOWN"}. Only MERGEABLE proceeds.`,
-    );
+    reasons.push(`GitHub reports mergeable=${pr.mergeable ?? "UNKNOWN"}. Only MERGEABLE proceeds.`);
   }
   if (!pr.headRefOid) {
     reasons.push("Pull request head commit is unknown, so nothing can be tied to it.");

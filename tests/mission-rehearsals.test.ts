@@ -19,7 +19,6 @@ import {
   missionPaths,
   nextActions,
   readJournal,
-  reduce,
   replayState,
 } from "../scripts/mission/lib/state.mjs";
 import { validatePacket } from "../scripts/mission/lib/packet.mjs";
@@ -53,8 +52,7 @@ function mission() {
   fs.mkdirSync(repo, { recursive: true });
   const env = { ...process.env, LANCERS_MISSION_ROOT: path.join(root, "state") };
   let tick = 1_700_000_000_000;
-  const append = (event: object) =>
-    appendEvent(repo, MISSION, event, { env, now: (tick += 1000) });
+  const append = (event: object) => appendEvent(repo, MISSION, event, { env, now: (tick += 1000) });
   return { repo, env, append };
 }
 
@@ -398,9 +396,9 @@ describe("Rehearsal 8 — the owner queue separates immediate from hourly, persi
       approval_evidence: "Checkpoint answer to Q-pagination: 'make it a standing rule'",
       source_mission: MISSION,
     };
-    await expect(
-      promoteRule(m.repo, { ...rule, approval_evidence: "" }, m.env),
-    ).rejects.toThrow(/explicitly approved reuse/);
+    await expect(promoteRule(m.repo, { ...rule, approval_evidence: "" }, m.env)).rejects.toThrow(
+      /explicitly approved reuse/,
+    );
     await promoteRule(m.repo, rule, m.env);
     expect(readRules(m.repo, m.env).rules.map((entry: { id: string }) => entry.id)).toEqual([
       "RULE-UI-007",
@@ -504,7 +502,12 @@ describe("Rehearsal 9 — guarded merge permits the qualifying case and refuses 
     const failedCi = evaluateMissionGate({
       pullRequest: pullRequest(),
       checkRuns: [
-        { name: rules.requiredChecks[0], status: "completed", conclusion: "failure", head_sha: HEAD },
+        {
+          name: rules.requiredChecks[0],
+          status: "completed",
+          conclusion: "failure",
+          head_sha: HEAD,
+        },
         greenChecks()[1],
       ],
       files,
@@ -603,7 +606,14 @@ describe("Rehearsal 11 — simulated subscription exhaustion checkpoints durably
     await synced(m);
     const run = (...args: string[]) =>
       spawnSync(process.execPath, [CLI, ...args], { cwd: m.repo, env: m.env, encoding: "utf8" });
-    const stop = run("stop", MISSION, "--reason", "usage-exhausted", "--detail", "simulated exhaustion");
+    const stop = run(
+      "stop",
+      MISSION,
+      "--reason",
+      "usage-exhausted",
+      "--detail",
+      "simulated exhaustion",
+    );
     expect(stop.status).toBe(0);
     const stopped = replayState(m.repo, MISSION, m.env);
     expect(stopped.stopped?.reason).toBe("usage-exhausted");
@@ -693,9 +703,7 @@ describe("Rehearsal 13 — the existing protections continue to hold", () => {
       resolveLocalDatabaseUrl("postgresql://postgres:x@db.abcdefgh.supabase.co:5432/postgres"),
     ).toThrow();
     expect(() =>
-      resolveLocalDatabaseUrl(
-        "postgresql://u:x@aws-0-eu-west-2.pooler.supabase.com:6543/postgres",
-      ),
+      resolveLocalDatabaseUrl("postgresql://u:x@aws-0-eu-west-2.pooler.supabase.com:6543/postgres"),
     ).toThrow();
     expect(
       resolveLocalDatabaseUrl("postgresql://postgres:postgres@127.0.0.1:54322/postgres"),

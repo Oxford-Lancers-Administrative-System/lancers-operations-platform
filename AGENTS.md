@@ -493,12 +493,12 @@ steps, dependencies, theme contents — proceed and explain in the pull request.
 
 Exactly two user-invoked workflows and two subagents are approved:
 
-| Role                                    | File                                       | What it does                                                                                                                                            |
-| --------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Issue workflow (`/start-issue LAN-###`) | `.claude/skills/start-issue/`              | The top-level session implements one explicit issue in its dedicated worktree through draft PR and handoff. Preserved for deliberate manual use.        |
-| Mission Lead (`/run-mission M-<id>`)    | `.claude/skills/run-mission/`              | Executes one Brian-approved mission packet: plans the work-package DAG, syncs Linear, dispatches workers, orchestrates review, and runs the guarded merge lane. |
-| Implementation worker                   | `.claude/agents/implementation-worker.md`  | Implements exactly one Mission-Lead-assigned work package under the proven issue execution contract; returns a structured receipt; spawns nothing.       |
-| Code reviewer                           | `.claude/agents/code-reviewer.md`          | Fresh-context, independently isolated review; reports findings and never repairs them.                                                                  |
+| Role                                    | File                                      | What it does                                                                                                                                                    |
+| --------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Issue workflow (`/start-issue LAN-###`) | `.claude/skills/start-issue/`             | The top-level session implements one explicit issue in its dedicated worktree through draft PR and handoff. Preserved for deliberate manual use.                |
+| Mission Lead (`/run-mission M-<id>`)    | `.claude/skills/run-mission/`             | Executes one Brian-approved mission packet: plans the work-package DAG, syncs Linear, dispatches workers, orchestrates review, and runs the guarded merge lane. |
+| Implementation worker                   | `.claude/agents/implementation-worker.md` | Implements exactly one Mission-Lead-assigned work package under the proven issue execution contract; returns a structured receipt; spawns nothing.              |
+| Code reviewer                           | `.claude/agents/code-reviewer.md`         | Fresh-context, independently isolated review; reports findings and never repairs them.                                                                          |
 
 Under `/start-issue`, the top-level session reads the complete issue, confirms
 dependencies and human gates, enters or safely resumes one issue-specific

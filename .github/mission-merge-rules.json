@@ -127,11 +127,6 @@
       "reason": "Ignore rules guard untracked runtime state."
     }
   ],
-  "visualSurfaces": [
-    "src/app/**/*.tsx",
-    "src/app/**/*.css",
-    "src/components/**",
-    "src/theme.ts"
-  ],
+  "visualSurfaces": ["src/app/**/*.tsx", "src/app/**/*.css", "src/components/**", "src/theme.ts"],
   "_visualSurfacesNote": "The coherence tripwire: a receipt claiming nonvisual work is refused when the diff touches any of these, so ADR 0020's live visual review cannot be skipped by mislabelling."
 }

@@ -210,8 +210,7 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
   });
 
   it("records the decision, indexes it, and states the policy where humans read it", () => {
-    const flat = (text: string) =>
-      text.replace(/\*\*/g, "").replace(/`/g, "").replace(/\s+/g, " ");
+    const flat = (text: string) => text.replace(/\*\*/g, "").replace(/`/g, "").replace(/\s+/g, " ");
     const adr = flat(read("docs/adr/0027-mission-harness.md"));
     for (const clause of [
       /re-derives every server-verifiable conjunct from evidence/i,
@@ -242,7 +241,9 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
     expect(agreement).toMatch(
       /No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to production/i,
     );
-    expect(agreement).toMatch(/mission merge performed with GITHUB_TOKEN deliberately does not deploy/i);
+    expect(agreement).toMatch(
+      /mission merge performed with GITHUB_TOKEN deliberately does not deploy/i,
+    );
   });
 
   it("prohibits every owner-gated surface class from the mission lane", () => {

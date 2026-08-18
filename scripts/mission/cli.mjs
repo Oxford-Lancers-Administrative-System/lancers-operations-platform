@@ -134,7 +134,9 @@ export function renderCheckpoint(state, events, options = {}) {
   const actions = nextActions(state);
   if (actions.length === 0) lines.push("- Nothing executable — mission may be complete");
   for (const action of actions.slice(0, 8)) {
-    lines.push(`- ${action.action}${action.package_id ? ` ${action.package_id}` : ""}: ${action.detail}`);
+    lines.push(
+      `- ${action.action}${action.package_id ? ` ${action.package_id}` : ""}: ${action.detail}`,
+    );
   }
 
   lines.push("", "## Deploy drift");
@@ -179,8 +181,13 @@ async function main() {
     }
 
     case "preflight": {
-      if (!missionId || !flags.detail) fail("Usage: mission preflight <mission-id> --detail <what answered>");
-      await append(missionId, { type: "linear-preflight", result: "reachable", detail: flags.detail });
+      if (!missionId || !flags.detail)
+        fail("Usage: mission preflight <mission-id> --detail <what answered>");
+      await append(missionId, {
+        type: "linear-preflight",
+        result: "reachable",
+        detail: flags.detail,
+      });
       console.log("Linear connectivity preflight recorded.");
       break;
     }
@@ -189,7 +196,9 @@ async function main() {
       const [, packageId] = positional;
       if (!missionId || !packageId) fail("Usage: mission sync-intent <mission-id> <package-id>");
       await append(missionId, { type: "linear-sync-intent", package_id: packageId });
-      console.log(`Sync intent recorded for ${packageId}. Create or reconcile the Linear issue, then record the result.`);
+      console.log(
+        `Sync intent recorded for ${packageId}. Create or reconcile the Linear issue, then record the result.`,
+      );
       break;
     }
 
@@ -198,7 +207,11 @@ async function main() {
       if (!missionId || !packageId || !issueId) {
         fail("Usage: mission sync-result <mission-id> <package-id> <issue-id>");
       }
-      await append(missionId, { type: "linear-sync-result", package_id: packageId, issue_id: issueId });
+      await append(missionId, {
+        type: "linear-sync-result",
+        package_id: packageId,
+        issue_id: issueId,
+      });
       console.log(`${packageId} synchronized to ${issueId}.`);
       break;
     }
@@ -206,7 +219,9 @@ async function main() {
     case "dispatch": {
       const [, packageId] = positional;
       if (!missionId || !packageId || !flags.worker || !flags.worktree || !flags.branch) {
-        fail("Usage: mission dispatch <mission-id> <package-id> --worker <id> --worktree <path> --branch <name>");
+        fail(
+          "Usage: mission dispatch <mission-id> <package-id> --worker <id> --worktree <path> --branch <name>",
+        );
       }
       await append(missionId, {
         type: "worker-dispatched",
@@ -237,7 +252,9 @@ async function main() {
     case "correction": {
       const [, packageId] = positional;
       if (!missionId || !packageId || !flags.worker || !flags.findings) {
-        fail("Usage: mission correction <mission-id> <package-id> --worker <original-worker-id> --findings R-001,R-002");
+        fail(
+          "Usage: mission correction <mission-id> <package-id> --worker <original-worker-id> --findings R-001,R-002",
+        );
       }
       await append(missionId, {
         type: "correction-dispatched",
@@ -281,7 +298,9 @@ async function main() {
     case "visual-approve": {
       const [, packageId] = positional;
       if (!missionId || !packageId || !flags.by || !flags.evidence) {
-        fail("Usage: mission visual-approve <mission-id> <package-id> --by Brian --evidence <where>");
+        fail(
+          "Usage: mission visual-approve <mission-id> <package-id> --by Brian --evidence <where>",
+        );
       }
       await append(missionId, {
         type: "visual-approval",
@@ -295,7 +314,9 @@ async function main() {
 
     case "question": {
       if (!missionId || !flags.id || !flags.class || !flags.text || !flags.source) {
-        fail("Usage: mission question <mission-id> --id Q-1 --class immediate|hourly --text <t> --source <s> [--affects WP-a,WP-b]");
+        fail(
+          "Usage: mission question <mission-id> --id Q-1 --class immediate|hourly --text <t> --source <s> [--affects WP-a,WP-b]",
+        );
       }
       await append(missionId, {
         type: "owner-question",
@@ -312,7 +333,9 @@ async function main() {
     case "answer": {
       const [, questionId] = positional;
       if (!missionId || !questionId || !flags.answer || !flags.by) {
-        fail("Usage: mission answer <mission-id> <question-id> --answer <text> --by Brian [--reusable]");
+        fail(
+          "Usage: mission answer <mission-id> <question-id> --answer <text> --by Brian [--reusable]",
+        );
       }
       await append(missionId, {
         type: "owner-answer",
@@ -321,7 +344,9 @@ async function main() {
         answered_by: flags.by,
         reusable: flags.reusable === true,
       });
-      console.log(`Answer persisted for ${questionId}${flags.reusable === true ? " (proposed reusable)" : ""}.`);
+      console.log(
+        `Answer persisted for ${questionId}${flags.reusable === true ? " (proposed reusable)" : ""}.`,
+      );
       break;
     }
 
@@ -358,7 +383,9 @@ async function main() {
     case "merge-record": {
       const [, packageId, prNumber, sha] = positional;
       if (!missionId || !packageId || !prNumber || !sha || !flags.route) {
-        fail("Usage: mission merge-record <mission-id> <package-id> <pr-number> <sha> --route guarded-auto|owner");
+        fail(
+          "Usage: mission merge-record <mission-id> <package-id> <pr-number> <sha> --route guarded-auto|owner",
+        );
       }
       await append(missionId, {
         type: "merge-recorded",
@@ -372,7 +399,10 @@ async function main() {
     }
 
     case "checkpoint": {
-      if (!missionId) fail("Usage: mission checkpoint <mission-id> [--main-commit <sha> --deployed-commit <sha>]");
+      if (!missionId)
+        fail(
+          "Usage: mission checkpoint <mission-id> [--main-commit <sha> --deployed-commit <sha>]",
+        );
       const state = replayState(repoPath, missionId);
       const events = readJournal(missionPaths(repoPath, missionId).journal);
       const report = renderCheckpoint(state, events, {
@@ -419,12 +449,20 @@ async function main() {
 
     case "stop": {
       if (!missionId || !flags.reason || !flags.detail) {
-        fail("Usage: mission stop <mission-id> --reason usage-exhausted|owner-stop|blocked --detail <why>");
+        fail(
+          "Usage: mission stop <mission-id> --reason usage-exhausted|owner-stop|blocked --detail <why>",
+        );
       }
       const state = replayState(repoPath, missionId);
       await append(missionId, { type: "checkpoint", number: state.checkpoints + 1 });
-      await append(missionId, { type: "mission-stopped", reason: flags.reason, detail: flags.detail });
-      console.log("Checkpointed and stopped. A fresh Mission Lead resumes with: mission resume " + missionId);
+      await append(missionId, {
+        type: "mission-stopped",
+        reason: flags.reason,
+        detail: flags.detail,
+      });
+      console.log(
+        "Checkpointed and stopped. A fresh Mission Lead resumes with: mission resume " + missionId,
+      );
       break;
     }
 
@@ -440,13 +478,7 @@ async function main() {
       const resumed = state.stopped
         ? await append(missionId, { type: "mission-resumed", pid: process.pid })
         : await append(missionId, { type: "lead-heartbeat", pid: process.pid });
-      console.log(
-        JSON.stringify(
-          { state: resumed, next_actions: nextActions(resumed) },
-          null,
-          2,
-        ),
-      );
+      console.log(JSON.stringify({ state: resumed, next_actions: nextActions(resumed) }, null, 2));
       break;
     }
 
@@ -459,11 +491,17 @@ async function main() {
       }
       console.log(`Mission ${missionId}: ${state.initialized ? "initialized" : "absent"}`);
       for (const pkg of Object.values(state.packages)) {
-        console.log(`- ${pkg.id}: ${pkg.status}${pkg.linear_issue_id ? ` (${pkg.linear_issue_id})` : ""}`);
+        console.log(
+          `- ${pkg.id}: ${pkg.status}${pkg.linear_issue_id ? ` (${pkg.linear_issue_id})` : ""}`,
+        );
       }
-      console.log(`Open questions: ${openQuestions(state).length}; active workers: ${state.activeWorkers.length}`);
+      console.log(
+        `Open questions: ${openQuestions(state).length}; active workers: ${state.activeWorkers.length}`,
+      );
       for (const action of nextActions(state)) {
-        console.log(`next: ${action.action}${action.package_id ? ` ${action.package_id}` : ""} — ${action.detail}`);
+        console.log(
+          `next: ${action.action}${action.package_id ? ` ${action.package_id}` : ""} — ${action.detail}`,
+        );
       }
       break;
     }

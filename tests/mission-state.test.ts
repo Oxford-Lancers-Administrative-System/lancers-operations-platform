@@ -42,8 +42,7 @@ function fixture() {
   fs.mkdirSync(repo, { recursive: true });
   const env = { ...process.env, LANCERS_MISSION_ROOT: path.join(root, "state") };
   let tick = 1_700_000_000_000;
-  const append = (event: object) =>
-    appendEvent(repo, MISSION, event, { env, now: (tick += 1000) });
+  const append = (event: object) => appendEvent(repo, MISSION, event, { env, now: (tick += 1000) });
   return { repo, env, append };
 }
 
@@ -94,7 +93,8 @@ describe("mission packet validation", () => {
   });
 
   it("fails closed on a missing or incomplete approval", () => {
-    const { approval: _dropped, ...unapproved } = packet;
+    const unapproved: Record<string, unknown> = { ...packet };
+    delete unapproved.approval;
     expect(validatePacket(unapproved).join("\n")).toMatch(/unapproved packet/i);
     expect(
       validatePacket({ ...packet, approval: { approved_by: "Brian" } }).length,
@@ -151,9 +151,7 @@ describe("mission initialization", () => {
     const m = fixture();
     const state = await m.append({ type: "mission-init", packet });
     expect(state.initialized).toBe(true);
-    await expect(m.append({ type: "mission-init", packet })).rejects.toThrow(
-      /already initialized/,
-    );
+    await expect(m.append({ type: "mission-init", packet })).rejects.toThrow(/already initialized/);
   });
 
   it("refuses an invalid packet and appends nothing", async () => {
@@ -174,9 +172,7 @@ describe("mission initialization", () => {
   it("refuses an unknown event type outright", async () => {
     const m = fixture();
     await m.append({ type: "mission-init", packet });
-    await expect(m.append({ type: "grant-merge-authority" })).rejects.toThrow(
-      /Unknown event type/,
-    );
+    await expect(m.append({ type: "grant-merge-authority" })).rejects.toThrow(/Unknown event type/);
   });
 });
 
@@ -439,7 +435,8 @@ describe("worker receipts and correction lineage", () => {
         receipt: workerReceipt("completed"),
       }),
     ).rejects.toThrow(/does not match the dispatched worker/);
-    const { limitations: _dropped, ...partial } = workerReceipt("completed");
+    const partial: Record<string, unknown> = { ...workerReceipt("completed") };
+    delete partial.limitations;
     await expect(
       m.append({
         type: "worker-receipt",
@@ -459,7 +456,12 @@ describe("worker receipts and correction lineage", () => {
       worker_id: "worker-1",
       receipt: workerReceipt("completed"),
     });
-    await m.append({ type: "pr-opened", package_id: "WP-events-filter", pr_number: 41, head_sha: SHA });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 41,
+      head_sha: SHA,
+    });
     await m.append({
       type: "review-receipt",
       package_id: "WP-events-filter",
@@ -693,9 +695,9 @@ describe("drift, stops, and resumption", () => {
       branch: "feat/wp-attendance",
     });
     expect(unaffected.packages["WP-attendance-export"].status).toBe("active");
-    await expect(
-      m.append({ type: "packet-revised", packet }),
-    ).rejects.toThrow(/increments packet_version/);
+    await expect(m.append({ type: "packet-revised", packet })).rejects.toThrow(
+      /increments packet_version/,
+    );
     const revised = await m.append({
       type: "packet-revised",
       packet: { ...packet, packet_version: 2 },

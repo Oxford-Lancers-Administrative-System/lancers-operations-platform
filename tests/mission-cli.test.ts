@@ -32,7 +32,11 @@ function readyMission(m: ReturnType<typeof fixture>) {
   expect(m.run("init", MISSION, "--packet", PACKET).status).toBe(0);
   expect(m.run("plan", MISSION, "--packages", PLAN).status).toBe(0);
   expect(m.run("preflight", MISSION, "--detail", "fixture driver answered").status).toBe(0);
-  for (const [index, id] of ["WP-events-filter", "WP-attendance-export", "WP-report-footer"].entries()) {
+  for (const [index, id] of [
+    "WP-events-filter",
+    "WP-attendance-export",
+    "WP-report-footer",
+  ].entries()) {
     expect(m.run("sync-intent", MISSION, id).status).toBe(0);
     expect(m.run("sync-result", MISSION, id, `LAN-90${index}`).status).toBe(0);
   }
@@ -158,7 +162,9 @@ describe("mission CLI", () => {
     expect(m.run("promote-rule", "--rule", ruleFile).status).toBe(0);
     const missingRule = m.run("apply-rule", MISSION, "RULE-UI-999", "--context", "n/a");
     expect(missingRule.status).toBe(1);
-    expect(m.run("apply-rule", MISSION, "RULE-UI-007", "--context", "pagination question").status).toBe(0);
+    expect(
+      m.run("apply-rule", MISSION, "RULE-UI-007", "--context", "pagination question").status,
+    ).toBe(0);
   });
 });
 

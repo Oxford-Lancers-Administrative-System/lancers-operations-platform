@@ -24,7 +24,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
-import { validatePacket, validatePackage, PACKAGE_ID_PATTERN } from "./packet.mjs";
+import { validatePacket, validatePackage } from "./packet.mjs";
 
 export const MAX_ACTIVE_WORKERS = 2;
 export const LEAD_TTL_MS = 120_000;
@@ -574,9 +574,7 @@ export function validateEvent(event, state) {
         event.affected_packages.length === 0 ||
         event.affected_packages.some((id) => !state.packages[id])
       ) {
-        errors.push(
-          "Drift stops only affected work: it must name the affected planned packages.",
-        );
+        errors.push("Drift stops only affected work: it must name the affected planned packages.");
       }
       break;
     }
@@ -620,6 +618,26 @@ export function validateEvent(event, state) {
   return errors;
 }
 
+/**
+ * @typedef {Record<string, any>} MissionEvent
+ * @typedef {{
+ *   initialized: boolean,
+ *   packet: any,
+ *   packages: Record<string, any>,
+ *   activeWorkers: Array<Record<string, any>>,
+ *   questions: Record<string, any>,
+ *   preflight: { at: string, detail: string } | null,
+ *   pendingSyncIntents: string[],
+ *   checkpoints: number,
+ *   lastCheckpointIndex: number,
+ *   stopped: { at: string, reason: string, detail: string } | null,
+ *   lead: { pid: number, at: string } | null,
+ *   rulesApplied: Array<Record<string, any>>,
+ *   eventCount: number,
+ * }} MissionState
+ * @typedef {{ action: string, detail: string, package_id?: string, question_id?: string }} MissionAction
+ */
+
 function emptyState() {
   return {
     initialized: false,
@@ -638,7 +656,11 @@ function emptyState() {
   };
 }
 
-/** Replay the journal into the current state. Pure. */
+/**
+ * Replay the journal into the current state. Pure.
+ * @param {MissionEvent[]} events
+ * @returns {MissionState}
+ */
 export function reduce(events) {
   const state = emptyState();
   for (const [index, event] of events.entries()) {
@@ -674,9 +696,7 @@ export function reduce(events) {
         state.pendingSyncIntents.push(event.package_id);
         break;
       case "linear-sync-result": {
-        state.pendingSyncIntents = state.pendingSyncIntents.filter(
-          (id) => id !== event.package_id,
-        );
+        state.pendingSyncIntents = state.pendingSyncIntents.filter((id) => id !== event.package_id);
         const pkg = state.packages[event.package_id];
         pkg.linear_issue_id = event.issue_id;
         if (pkg.status === "planned") pkg.status = "synced";
@@ -841,6 +861,7 @@ export async function appendEvent(repoPath, missionId, event, options = {}) {
  * expired with the process gone — permission uncertainty counts as alive,
  * exactly as the database coordinator treats worker ownership.
  */
+/** @param {MissionState} state @param {{ pid?: number, now?: number, probe?: (pid: number, signal?: number) => unknown }} [options] */
 export function leadLeaseAvailable(state, { pid, now = Date.now(), probe = process.kill } = {}) {
   if (!state.lead) return true;
   if (state.lead.pid === pid) return true;
@@ -854,6 +875,7 @@ export function leadLeaseAvailable(state, { pid, now = Date.now(), probe = proce
  * context — the kill-and-resume rehearsal asserts it is identical before and
  * after the previous Lead dies.
  */
+/** @param {MissionState} state @returns {MissionAction[]} */
 export function nextActions(state) {
   const actions = [];
   if (!state.initialized) return [{ action: "init", detail: "Validate and record the packet." }];
@@ -891,22 +913,42 @@ export function nextActions(state) {
     );
     if (questionBlocked) continue;
     if (pkg.status === "planned" && state.preflight && !pkg.linear_issue_id) {
-      actions.push({ action: "sync", package_id: pkg.id, detail: "Create or reconcile the Linear issue." });
+      actions.push({
+        action: "sync",
+        package_id: pkg.id,
+        detail: "Create or reconcile the Linear issue.",
+      });
     }
     if (
       pkg.status === "synced" &&
       pkg.depends_on.every((dep) => state.packages[dep]?.status === "merged")
     ) {
-      actions.push({ action: "dispatch", package_id: pkg.id, detail: "Dispatch when a worker slot and collision domain are free." });
+      actions.push({
+        action: "dispatch",
+        package_id: pkg.id,
+        detail: "Dispatch when a worker slot and collision domain are free.",
+      });
     }
     if (pkg.status === "implemented" && pkg.risk_class !== "low") {
-      actions.push({ action: "review", package_id: pkg.id, detail: "Route one fresh-context independent review." });
+      actions.push({
+        action: "review",
+        package_id: pkg.id,
+        detail: "Route one fresh-context independent review.",
+      });
     }
     if (pkg.status === "blocked" && pkg.review?.result === "blocked") {
-      actions.push({ action: "correction", package_id: pkg.id, detail: `Resume original worker ${pkg.worker_id}.` });
+      actions.push({
+        action: "correction",
+        package_id: pkg.id,
+        detail: `Resume original worker ${pkg.worker_id}.`,
+      });
     }
     if (pkg.status === "reviewed") {
-      actions.push({ action: "merge-gate", package_id: pkg.id, detail: "Evaluate the guarded merge gate." });
+      actions.push({
+        action: "merge-gate",
+        package_id: pkg.id,
+        detail: "Evaluate the guarded merge gate.",
+      });
     }
   }
   return actions;

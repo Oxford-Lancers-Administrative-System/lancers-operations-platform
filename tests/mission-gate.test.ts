@@ -130,9 +130,9 @@ describe("the guarded mission merge gate", () => {
   });
 
   it("refuses a missing, ambiguous, or malformed receipt", () => {
-    expect(gate({ pullRequest: pullRequest({ body: "no receipt here" }) }).reasons.join("\n")).toMatch(
-      /No mission-merge receipt/,
-    );
+    expect(
+      gate({ pullRequest: pullRequest({ body: "no receipt here" }) }).reasons.join("\n"),
+    ).toMatch(/No mission-merge receipt/);
     const doubled = bodyWith(receipt()) + bodyWith(receipt());
     expect(extractReceipt(doubled, rules)).toBeNull();
     expect(extractReceipt("```mission-merge-receipt\nnot json\n```", rules)).toBeNull();
@@ -178,7 +178,12 @@ describe("the guarded mission merge gate", () => {
     const failedRerun = gate({
       checkRuns: [
         ...greenChecks(),
-        { name: rules.requiredChecks[0], status: "completed", conclusion: "failure", head_sha: HEAD },
+        {
+          name: rules.requiredChecks[0],
+          status: "completed",
+          conclusion: "failure",
+          head_sha: HEAD,
+        },
       ],
     });
     expect(failedRerun.merge).toBe(false);
