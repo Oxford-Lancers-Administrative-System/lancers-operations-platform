@@ -1,5 +1,6 @@
 import type { TermCoordinate, TermWindow } from "@/lib/services/event-input";
 import type { EventListEntry } from "@/lib/services/events";
+import { labelFor } from "../labels";
 
 /**
  * How an event reads on screen — UX-30, UX-31, UX-32 and UX-33.
@@ -155,9 +156,7 @@ export const TERM_LABELS: Readonly<Record<string, string>> = Object.freeze({
   trinity: "Trinity",
 });
 
-export function labelFor(labels: Readonly<Record<string, string>>, value: string): string {
-  return labels[value] ?? value;
-}
+export { labelFor };
 
 /**
  * The derived coordinate in the club's words — "Michaelmas 2026-27, Week 1", or

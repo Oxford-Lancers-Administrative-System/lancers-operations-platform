@@ -46,9 +46,7 @@ export const ONBOARDING_ITEM_LABELS: Readonly<Record<OnboardingItemStatus, strin
 );
 
 /** The label for a value, falling back to the value so nothing renders blank. */
-export function labelFor(labels: Readonly<Record<string, string>>, value: string): string {
-  return labels[value] ?? value;
-}
+export { labelFor } from "../labels";
 
 /**
  * The statuses the roster filter offers, in the season's own order.
