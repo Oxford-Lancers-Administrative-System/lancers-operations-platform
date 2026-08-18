@@ -9,6 +9,7 @@ import {
 } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { readCurrentSeasonIn, type Season } from "./seasons";
+import { escapeLikePattern } from "./sql-text";
 
 /**
  * The season membership aggregate — the roster, one membership's record, its
@@ -396,11 +397,6 @@ export interface Roster {
   entries: RosterEntry[];
   /** Memberships in the season before any filter was applied. */
   totalInSeason: number;
-}
-
-/** Escapes the two LIKE metacharacters, and the escape character itself. */
-function escapeLikePattern(value: string | null): string | null {
-  return value === null ? null : value.replace(/([\\%_])/g, "\\$1");
 }
 
 function optional(value: string | null | undefined): string | null {
