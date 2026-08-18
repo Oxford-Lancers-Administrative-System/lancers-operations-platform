@@ -850,6 +850,77 @@ describe("guarded merge recording", () => {
     expect(merged.packages["WP-events-filter"].status).toBe("merged");
   });
 
+  it("clears visual approval when a new head appears with no correction in between", async () => {
+    // The head can move outside the correction path — a worker pushes again
+    // and records the new head. This test is deliberately sensitive to the
+    // pr-opened mismatch branch alone: no blocked review, no correction
+    // dispatch, so nothing else clears the approval first.
+    const B = "b".repeat(40);
+    const m = fixture();
+    await readyMission(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/wp-events",
+      branch: "feat/wp-events",
+    });
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 42,
+      head_sha: SHA,
+    });
+    const approved = await m.append({
+      type: "visual-approval",
+      package_id: "WP-events-filter",
+      approved_by: "Brian",
+      evidence: "live review at checkpoint 1",
+    });
+    expect(approved.packages["WP-events-filter"].visual_approved).toBe(true);
+    const moved = await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 42,
+      head_sha: B,
+    });
+    expect(moved.packages["WP-events-filter"].visual_approved).toBe(false);
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: reviewReceipt("clear", B),
+    });
+    await expect(
+      m.append({
+        type: "merge-recorded",
+        package_id: "WP-events-filter",
+        pr_number: 42,
+        sha: B,
+        route: "guarded-auto",
+      }),
+    ).rejects.toThrow(/recorded visual approval/);
+    // A repeat of the SAME head does not clear a live approval.
+    await m.append({
+      type: "visual-approval",
+      package_id: "WP-events-filter",
+      approved_by: "Brian",
+      evidence: "live review at checkpoint 2, new head",
+    });
+    const repeated = await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 42,
+      head_sha: B,
+    });
+    expect(repeated.packages["WP-events-filter"].visual_approved).toBe(true);
+  });
+
   it("refuses late review receipts and corrections on merged work, and replay never regresses it", async () => {
     const m = fixture();
     await readyMission(m);
