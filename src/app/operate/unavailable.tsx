@@ -6,11 +6,13 @@ import Typography from "@mui/material/Typography";
 /**
  * What a screen shows when the service refused to hand it anything.
  *
- * Seven screens had written this out identically — the roster, the events list,
- * the coach's event list, an event, the calendar, the register and the delivery
- * board — differing only in the heading and the test id. `events/[id]/edit`
- * had already pulled its own version out into a local `Refusal`, which is the
- * same conclusion reached once and not shared.
+ * Eight call sites across seven files had written this out identically — the
+ * roster, the events list, the coach's event list on that same page, an event,
+ * the calendar, the register, the delivery board and the create-event form —
+ * differing only in the heading and the test id, and on the create-event form
+ * not even carrying one. `events/[id]/edit` had already pulled its own version
+ * out into a local `Refusal`, which is the same conclusion reached once and not
+ * shared.
  *
  * Sharing it matters more than the line count. This is the screen an operator
  * sees on the worst day, and the parts that are easy to get subtly wrong are
