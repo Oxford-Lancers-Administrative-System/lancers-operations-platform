@@ -7,6 +7,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
+import { UnavailableScreen } from "@/app/operate/unavailable";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import { readEvent, type EventDetail } from "@/lib/services/events";
 import {
@@ -117,19 +118,13 @@ export default async function EventDetailPage({
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
-      <Stack spacing={2} sx={{ maxWidth: 720 }}>
-        <Typography variant="h6" component="h1">
-          Event
-        </Typography>
-        <Alert severity="warning" data-testid="event-unavailable">
-          {error.message}
-        </Alert>
+      <UnavailableScreen title="Event" message={error.message} testId="event-unavailable">
         <Box>
           <Button variant="outlined" href="/operate/events">
             Back to events
           </Button>
         </Box>
-      </Stack>
+      </UnavailableScreen>
     );
   }
 

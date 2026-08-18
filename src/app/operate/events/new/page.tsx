@@ -1,9 +1,9 @@
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
+import { UnavailableScreen } from "@/app/operate/unavailable";
 import { listTermWindows } from "@/lib/services/seasons";
 import { gateShellPage } from "../../gate";
 import EventForm from "../event-form";
@@ -25,17 +25,13 @@ export default async function NewEventPage() {
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
-      <Stack spacing={2} sx={{ maxWidth: 720 }}>
-        <Typography variant="h6" component="h1">
-          Create event
-        </Typography>
-        <Alert severity="warning">{error.message}</Alert>
+      <UnavailableScreen title="Create event" message={error.message}>
         <Box>
           <Button variant="outlined" href="/operate/events">
             Back to events
           </Button>
         </Box>
-      </Stack>
+      </UnavailableScreen>
     );
   }
 

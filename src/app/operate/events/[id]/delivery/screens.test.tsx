@@ -193,6 +193,30 @@ describe("UX-50 — the overview", () => {
       "Invitations and their delivery are created when the event is approved",
     );
   });
+
+  /**
+   * The other way this screen can have nothing to show, and the one that is not
+   * an empty state: the read itself failed.
+   *
+   * The state was already being rendered further down, by the control audit,
+   * but nothing asserted what it said — so the refusal could have shown the
+   * wrong sentence, or no sentence, with the suite green. LAN-118 moved this
+   * markup into a shared `UnavailableScreen`, which is the moment to pin it.
+   */
+  it("shows the service's own sentence, and the way back, when the read fails", async () => {
+    vi.mocked(readEventDelivery).mockRejectedValue(new NotFound("That event no longer exists."));
+    const { container } = await renderPage();
+
+    expect(container.querySelector('[data-testid="delivery-unavailable"]')?.textContent).toContain(
+      "That event no longer exists.",
+    );
+    expect(container.querySelector('[data-testid="delivery-empty"]')).toBeNull();
+    expect(within(container).getByRole("heading", { level: 1 })).toHaveTextContent("Delivery");
+    expect(within(container).getByRole("link", { name: "Back to events" })).toHaveAttribute(
+      "href",
+      "/operate/events",
+    );
+  });
 });
 
 describe("UX-51 — the diagnostics table", () => {

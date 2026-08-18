@@ -23,6 +23,7 @@ import {
 } from "./event-input";
 import { recordAudit } from "./audit";
 import { readCurrentSeasonIn, type Season } from "./seasons";
+import { escapeLikePattern } from "./sql-text";
 
 /**
  * The event aggregate — drafting, editing and the three status changes this
@@ -217,11 +218,6 @@ interface EventDetailRow extends EventRow {
   created_by_name: string | null;
   decision_reason: string | null;
   season_id: string;
-}
-
-/** Escapes the two LIKE metacharacters, and the escape character itself. */
-function escapeLikePattern(value: string | null): string | null {
-  return value === null ? null : value.replace(/([\\%_])/g, "\\$1");
 }
 
 function asDate(value: Date | string | null): string | null {

@@ -153,9 +153,7 @@ export const EVENT_STATUS_LABELS: Readonly<Record<string, string>> = Object.free
   withdrawn: "Withdrawn",
 });
 
-export function labelFor(labels: Readonly<Record<string, string>>, key: string): string {
-  return labels[key] ?? key;
-}
+export { labelFor } from "../labels";
 
 // ---------------------------------------------------------------------------
 // Formatting

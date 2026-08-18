@@ -15,6 +15,7 @@ import TableRow from "@mui/material/TableRow";
 import TableSortLabel from "@mui/material/TableSortLabel";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
+import { UnavailableScreen } from "@/app/operate/unavailable";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import {
   DEFAULT_EVENT_SORT,
@@ -145,16 +146,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
     list = await listCurrentSeasonEvents({ search, status, eventType, sort, direction });
   } catch (error) {
     if (!isServiceError(error)) throw error;
-    return (
-      <Stack spacing={2} sx={{ maxWidth: 720 }}>
-        <Typography variant="h6" component="h1">
-          Events
-        </Typography>
-        <Alert severity="warning" data-testid="events-unavailable">
-          {error.message}
-        </Alert>
-      </Stack>
-    );
+    return <UnavailableScreen title="Events" message={error.message} testId="events-unavailable" />;
   }
 
   return (
@@ -330,14 +322,7 @@ async function coachEventList(search: string) {
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
-      <Stack spacing={2} sx={{ maxWidth: 720 }}>
-        <Typography variant="h6" component="h1">
-          Attendance
-        </Typography>
-        <Alert severity="warning" data-testid="events-unavailable">
-          {error.message}
-        </Alert>
-      </Stack>
+      <UnavailableScreen title="Attendance" message={error.message} testId="events-unavailable" />
     );
   }
 
