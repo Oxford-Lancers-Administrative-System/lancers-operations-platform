@@ -233,6 +233,11 @@
       "id": "DEC-no-self-removal",
       "text": "Locked by Brian during intake on 2026-08-18: President and General Manager cannot deactivate themselves or end/remove their own top-level assignment through the ordinary application workflow. Each administers the other's transition; total lockout recovery remains the separately governed service-administrator process.",
       "source": "Brian intake decision, 2026-08-18"
+    },
+    {
+      "id": "DEC-permission-transparency",
+      "text": "Proposed for owner approval: the Roles page may show a read-only plain-language summary of the capabilities carried by each predefined role so President and General Manager can understand the consequence of an assignment. Editing roles or grants remains excluded.",
+      "source": "Brian intake question 2026-08-18; Identity, Access & Ownership brief §2.6 and Stage-4 §3"
     }
   ],
   "baseline": {
@@ -511,11 +516,12 @@
     "Authoritative reconciliation: the owner-approved Identity, Access & Ownership brief D-2 still grants role_management to President, Vice-President, Secretary and General Manager, while Brian's 2026-08-18 intake decision narrows it to President and General Manager. The reusable product record requires an explicitly approved surgical correction before this packet becomes ready.",
     "Audit visibility: decide whether this mission adds a narrow read-only operator access-history panel for mission-owned events, or preserves and verifies evidence only while leaving all viewing to the later Stage-4 audit interface. The full general audit browser remains excluded either way.",
     "Cycle interaction: reconcile the commissioned no-silent-inference invariant with Brian's direction that administrators work inside the active 2026-27 operating context rather than manually choosing a cycle on every assignment.",
-    "Role cardinality: confirm whether General Manager is a single-holder top-level role and whether the existing rule remains one holder for constitutional offices but multiple holders for non-constitutional seats."
+    "Role cardinality: confirm whether General Manager is a single-holder top-level role and whether the existing rule remains one holder for constitutional offices but multiple holders for non-constitutional seats.",
+    "Permission transparency: decide whether this mission's Roles page shows a read-only plain-language summary of each predefined role's capabilities, or whether capability visibility remains limited to the controlling brief/code until the later Stage-4 catalogue enhancement. Editing grants remains excluded."
   ],
   "approval": {
     "approved_by": "Pending — Brian Schuster",
     "date": "2026-08-18",
-    "evidence": "Not approved. Brian narrowed operator and role administration to President and General Manager and locked sidebar placement and no-self-removal during intake on 2026-08-18. Audit visibility, cycle interaction, role cardinality and the required authoritative reconciliation remain open; Brian's later merge of a ready packet-only PR approves the exact version and commit."
+    "evidence": "Not approved. Brian narrowed operator and role administration to President and General Manager and locked sidebar placement and no-self-removal during intake on 2026-08-18. Audit visibility, permission transparency, cycle interaction, role cardinality and the required authoritative reconciliation remain open; Brian's later merge of a ready packet-only PR approves the exact version and commit."
   }
 }
