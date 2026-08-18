@@ -7,6 +7,7 @@ import Typography from "@mui/material/Typography";
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
+import { UnavailableScreen } from "@/app/operate/unavailable";
 import {
   readAttendanceBoard,
   type AttendanceBoard,
@@ -102,19 +103,13 @@ export default async function AttendancePage({
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
-      <Stack spacing={2} sx={{ maxWidth: 720 }}>
-        <Typography variant="h6" component="h1">
-          Attendance
-        </Typography>
-        <Alert severity="warning" data-testid="attendance-unavailable">
-          {error.message}
-        </Alert>
+      <UnavailableScreen title="Attendance" message={error.message} testId="attendance-unavailable">
         <Box>
           <Button variant="outlined" href="/operate/events">
             {isCoachView ? COACH_RETURN_TO_ELIGIBLE : "Back to events"}
           </Button>
         </Box>
-      </Stack>
+      </UnavailableScreen>
     );
   }
 

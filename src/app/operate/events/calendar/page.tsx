@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
+import { UnavailableScreen } from "@/app/operate/unavailable";
 import {
   buildMonthGrid,
   buildTermCard,
@@ -129,14 +130,11 @@ export default async function EventCalendarPage({
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
-      <Stack spacing={2} sx={{ maxWidth: 720 }}>
-        <Typography variant="h6" component="h1">
-          Events calendar
-        </Typography>
-        <Alert severity="warning" data-testid="calendar-unavailable">
-          {error.message}
-        </Alert>
-      </Stack>
+      <UnavailableScreen
+        title="Events calendar"
+        message={error.message}
+        testId="calendar-unavailable"
+      />
     );
   }
 

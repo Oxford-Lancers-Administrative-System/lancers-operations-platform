@@ -12,6 +12,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
+import { UnavailableScreen } from "@/app/operate/unavailable";
 import {
   MAX_ATTEMPTS,
   readEventDelivery,
@@ -97,19 +98,13 @@ export default async function DeliveryPage({
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
-      <Stack spacing={2} sx={{ maxWidth: 720 }}>
-        <Typography variant="h6" component="h1">
-          Delivery
-        </Typography>
-        <Alert severity="warning" data-testid="delivery-unavailable">
-          {error.message}
-        </Alert>
+      <UnavailableScreen title="Delivery" message={error.message} testId="delivery-unavailable">
         <Box>
           <Button variant="outlined" href="/operate/events">
             Back to events
           </Button>
         </Box>
-      </Stack>
+      </UnavailableScreen>
     );
   }
 
