@@ -144,7 +144,7 @@
       "id": "SRC-admin-prototype",
       "kind": "document",
       "ref": "missions/packets/M-OPERATOR-ADMIN-WITHOUT-SQL/mockups/administration-prototype.html",
-      "version": "sha256:818de714f024548cc4da548bd58fe6306b703e03c661e396885c4ca7616da5d3"
+      "version": "sha256:d20c6e3cfad31aad5bfd9047ce6dbc194276bdb627a10cb401eccab4a4b6ea8a"
     }
   ],
   "requirements": [
