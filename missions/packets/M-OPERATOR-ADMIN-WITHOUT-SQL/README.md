@@ -9,22 +9,21 @@ their predefined, cycle-scoped role assignments from the application. Ordinary
 account administration no longer requires Brian to write SQL or make direct
 Supabase changes.
 
-## Resolved owner decision — 18 August 2026
+## Owner decisions recorded — 18 August 2026
 
-Regular operator administration belongs to **President, Vice-President,
-Secretary and General Manager**, matching the owner-approved Identity, Access &
-Ownership brief.
+Only **President and General Manager** administer operator accounts and role
+assignments. Vice-President and Secretary remain broad ordinary operators but do
+not invite, deactivate, re-home, assign, end or replace access. President and
+General Manager cannot remove or deactivate themselves; each administers the
+other's top-level transition.
 
-The later showcase-era implementation granting `role_management` to IT Officer
-alone is implementation drift for this mission to reconcile. This decision does
-not silently reopen or change the IT Officer's other current grants; those remain
-outside this packet unless a directly mission-relevant conflict requires separate
-owner review.
+Administration is placed at the bottom of the left sidebar, separated from
+Events, Calendar, Roster and other regular work and immediately above the
+user/account controls.
 
-This resolves one intake question. It does **not** approve the mission packet.
-The packet remains `not_ready` while Brian reviews the ordinary workflows,
-exceptions, placement and acceptance behavior for the first real Mission Harness
-test.
+These decisions supersede the packet's earlier four-role direction and expose a
+required surgical reconciliation with the owner-approved Notion brief. The
+packet remains `not_ready`.
 
 ## Locked boundary
 
@@ -42,11 +41,22 @@ Also excluded: editable grants, new roles, player accounts, public sign-up,
 cycle open/close, bulk handover, H7, LAN-84, Meta/WhatsApp, DNS/email foundation,
 real-data cutover and unrelated Release 1 capability.
 
+## Open intake decisions
+
+1. Whether operator detail includes a narrow read-only access-history panel,
+   while the full Stage-4 audit browser remains excluded.
+2. How active-cycle context is displayed and confirmed without making the
+   administrator choose a cycle on every ordinary assignment or silently
+   storing the wrong cycle.
+3. Whether General Manager is single-holder, while preserving the existing
+   constitutional-office and multi-holder rules elsewhere.
+4. The exact surgical reconciliation of the controlling Notion brief.
+
 ## Intake path
 
-1. Walk the everyday operator-administration workflows with Brian.
-2. Test the exceptional states, authority boundaries, information placement and
-   acceptance examples.
+1. Continue the product review with Brian and resolve the four points above.
+2. Reconcile the approved product record only with Brian's explicit surgical
+   authorization.
 3. Keep consequential decisions locked in `packet.json`; leave implementation
    design and work-package decomposition to the Mission Lead.
 4. When no blocking product question remains, change the canonical packet to an
