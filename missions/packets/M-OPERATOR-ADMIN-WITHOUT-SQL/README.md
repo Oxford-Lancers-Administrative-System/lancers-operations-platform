@@ -1,18 +1,20 @@
-# M-OPERATOR-ADMIN-WITHOUT-SQL v1
+# M-OPERATOR-ADMIN-WITHOUT-SQL v2
 
-**Status:** `not_ready` — final reconciled packet awaiting owner approval. No execution is authorized.
+**Status:** `approved` — owner-authorized packet awaiting Brian's merge. No execution is authorized before merge.
 
 ## Outcome
 
-Authorized club administrators can create or link one durable Person, invite committee,
-operational and coaching operators by secure email, manage predefined role assignments,
-recover access and review bounded audit history entirely through the application. Ordinary
-account administration no longer requires Brian to write SQL or directly alter Supabase.
+Authorized club administrators can create or link one Person, invite committee, operational
+and coaching operators by secure email, manage predefined role assignments, recover access
+and review bounded audit history entirely through the application. Ordinary account
+administration no longer requires Brian to write SQL or directly alter Supabase. Every fixed
+coaching role also receives the approved narrow attendance and current availability access.
 
 ## Locked operating model
 
 - `role_management`: President, General Manager and IT Officer.
-- Operational Administration appears first, Club Committee second and Coaching Staff third.
+- Operators are grouped Standing Officers, Club Officers and Coaches. Roles are grouped
+  Operational Administration, Club Committee and Coaching Staff.
 - General Manager and IT Officer are standing; GM is single-holder.
 - General Manager governs President; nobody may remove themselves.
 - IT Officer may perform leadership email recovery but cannot ordinarily remove leadership.
@@ -21,6 +23,8 @@ account administration no longer requires Brian to write SQL or directly alter S
 - Single-holder restrictions follow the constitution, with GM additionally single-holder.
 - Start dates default to today; future dates and audited backdating are allowed.
 - Assignment ending, holder replacement and account deactivation remain separate audited facts.
+- Deactivating operator access does not make the person's role pending or vacant. Replace role
+  changes the holder; only End role creates a Not assigned vacancy.
 
 ## Operating-year context
 
@@ -38,15 +42,20 @@ switch to it and prepare assignments. The main Roles page never mixes holders ac
 - `/operate/admin/guide` — protected How Administration Works page linked from Operators
   and Roles, not another sidebar item
 
-Role and capability definitions remain read-only. Operator detail shows target-focused Access
-History; role detail shows holder history. One canonical append-only event may appear in both
-views without duplicated records. The full general audit browser remains deferred.
+Invite Operator is the top-right primary action. How Administration Works is a compact
+question-mark link beside Operators and Roles, not a callout. Role detail presents the current
+holder, a plain-language Permissions summary and Holder history. Operator detail uses
+plain-language account states and Operator audit history. Role/capability copy comes from the
+same reviewed definition as server enforcement. One canonical append-only event may appear in
+both views without duplicated records. The full general audit browser remains deferred.
 
 ## Invitation, lifecycle and email
 
-One guided invitation flow duplicate-checks and links or creates the Person using name and
-email, requires at least one role, inherits year context, defaults start to today and sends a
-secure first-access link. Failed delivery preserves the same account for correction/resend.
+One guided invitation flow duplicate-checks and links or creates the Person using required
+first name, last name and email plus optional phone number, requires at least one role, inherits
+year context, defaults start to today and sends a secure first-access link. It records send
+attempts and exposes resend while Invitation pending or Delivery failed. Failed delivery
+preserves the same account for correction/resend.
 
 The only new informational email is first-access invitation/resend. Password reset and
 replacement-email verification remain security mechanisms. Role changes, ending, replacement,
@@ -56,6 +65,18 @@ Brian has confirmed Resend and an API key are available. Brian configures the se
 the approved secure environment path; it never enters source, SQL, Notion, packet, logs or
 client code. Real production first-access delivery is required for acceptance. Broader Resend
 account administration, DNS/domain and unrelated LAN-126 work remain excluded.
+
+## Coaching boundary
+
+All ten fixed coaching roles may be invited as operators. Each receives only:
+
+- narrow attendance, including minimal walk-up capture; and
+- current availability viewing and Orange/Red reporting.
+
+This does not grant Green confirmation, availability history or actor identity, injury/medical
+narrative, general roster/contact data, administrative access or football-assignment/depth-chart
+self-service. A player-coach reuses the same Person and operator account; membership remains an
+independent seasonal record.
 
 ## One-time owner-run bootstrap
 
@@ -73,16 +94,15 @@ provisioning touch is a defect.
 ## Locked exclusions
 
 No runtime role/grant editing, public signup, player-facing accounts, self-service profile
-editing, coach module, general audit browser, cycle creation/closure, bulk handover, H7,
+editing, broader coach module, general audit browser, cycle creation/closure, bulk handover, H7,
 LAN-84 recovery rehearsal, Meta/WhatsApp, broader Resend/DNS/SMTP foundation, real-data
 cutover or unrelated Release-One work.
 
 ## Approval path
 
-1. Intake validates and presents this exact final reconciled version.
-2. Brian explicitly approves the version.
-3. Intake records approval and leaves the packet-only PR for Brian's merge.
-4. Brian's merge authorizes the exact packet and commit.
-5. Only then may the Mission Lead initialize, decompose and execute the mission.
+1. Brian approved packet version 2 in the completed intake conversation on 18 August 2026.
+2. Intake validates and leaves the packet-only PR for Brian's review and merge.
+3. Brian's merge authorizes the exact packet and commit.
+4. Only then may the Mission Lead initialize, decompose and execute the mission.
 
 Observed implementation baseline: `5812390914b4ca45b609328ffd929ec45071be17`.
