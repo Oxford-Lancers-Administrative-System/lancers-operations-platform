@@ -743,6 +743,56 @@ describe("guarded merge recording", () => {
     expect(state.packages["WP-events-filter"].status).toBe("merged");
   });
 
+  it("refuses late review receipts and corrections on merged work, and replay never regresses it", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await reviewedClear(m, "WP-events-filter");
+    await m.append({
+      type: "visual-approval",
+      package_id: "WP-events-filter",
+      approved_by: "Brian",
+      evidence: "live review at checkpoint 1",
+    });
+    await m.append({
+      type: "merge-recorded",
+      package_id: "WP-events-filter",
+      pr_number: 42,
+      sha: SHA,
+      route: "guarded-auto",
+    });
+    await expect(
+      m.append({
+        type: "review-receipt",
+        package_id: "WP-events-filter",
+        receipt: reviewReceipt("blocked"),
+      }),
+    ).rejects.toThrow(/already merged; a late or duplicate review receipt is refused/);
+    await expect(
+      m.append({
+        type: "correction-dispatched",
+        package_id: "WP-events-filter",
+        worker_id: "worker-1",
+        finding_ids: ["R-009"],
+      }),
+    ).rejects.toThrow(/already merged/);
+    // Even a journal that somehow contains the late receipt cannot regress
+    // merged work on replay, and the frontier offers nothing for it.
+    const events = readJournal(missionPaths(m.repo, MISSION, m.env).journal);
+    const replayed = reduce([
+      ...events,
+      {
+        type: "review-receipt",
+        at: "later",
+        package_id: "WP-events-filter",
+        receipt: reviewReceipt("blocked"),
+      },
+    ]);
+    expect(replayed.packages["WP-events-filter"].status).toBe("merged");
+    expect(
+      nextActions(replayed).filter((action) => action.package_id === "WP-events-filter"),
+    ).toEqual([]);
+  });
+
   it("never guarded-merges highest-risk or migration-owning work; the owner route remains", async () => {
     const m = fixture();
     await m.append({ type: "mission-init", packet });

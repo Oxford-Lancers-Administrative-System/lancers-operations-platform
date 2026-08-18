@@ -431,6 +431,7 @@ export function validateEvent(event, state) {
       if (activeWorkerFor(state, event.package_id)) {
         errors.push(`${event.package_id} already has an active worker.`);
       }
+      if (pkg.status === "merged") errors.push(`${event.package_id} is already merged.`);
       errors.push(...schedulingRefusals(state, pkg, event.package_id));
       break;
     }
@@ -458,6 +459,11 @@ export function validateEvent(event, state) {
       }
       if (!pkg.pr_number) {
         errors.push(`${event.package_id} has no recorded pull request to review.`);
+      }
+      if (pkg.status === "merged") {
+        errors.push(
+          `${event.package_id} is already merged; a late or duplicate review receipt is refused rather than regressing merged work.`,
+        );
       }
       const receipt = event.receipt;
       if (receipt === null || typeof receipt !== "object" || Array.isArray(receipt)) {
@@ -763,9 +769,11 @@ export function reduce(events) {
         pkg.review = { at: event.at, ...event.receipt };
         if (event.receipt.result === "clear" && pkg.status === "implemented") {
           pkg.status = "reviewed";
-        } else if (event.receipt.result === "blocked") {
+        } else if (event.receipt.result === "blocked" && pkg.status === "implemented") {
           // A blocking review pauses the package for a correction resumption
           // of the original worker — not for another review of the same SHA.
+          // Guarded on the current status, like the clear branch beside it: a
+          // late or duplicate receipt must never regress merged work.
           pkg.status = "blocked";
         }
         break;
