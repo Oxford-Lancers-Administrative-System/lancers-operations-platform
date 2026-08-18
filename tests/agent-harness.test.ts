@@ -23,8 +23,12 @@ function frontMatter(file: string) {
 const flat = (value: string) => value.replace(/\*\*/g, "").replace(/\s+/g, " ");
 const skillPath = path.join(skills, "start-issue", "SKILL.md");
 const reviewerPath = path.join(agents, "code-reviewer.md");
+const missionSkillPath = path.join(skills, "run-mission", "SKILL.md");
+const workerPath = path.join(agents, "implementation-worker.md");
 const skill = frontMatter(skillPath);
 const reviewer = frontMatter(reviewerPath);
+const missionSkill = frontMatter(missionSkillPath);
+const worker = frontMatter(workerPath);
 const agreement = readFileSync(path.join(root, "AGENTS.md"), "utf8");
 const narrowCorrectionTranscript = readFileSync(
   path.join(root, "tests", "fixtures", "agent-review", "narrow-correction.md"),
@@ -43,7 +47,9 @@ const pullRequestTemplate = readFileSync(
   "utf8",
 );
 const dispositionPolicy = flat(
-  [skill.body, reviewer.body, findingDispositionTranscript].join("\n"),
+  [skill.body, reviewer.body, missionSkill.body, worker.body, findingDispositionTranscript].join(
+    "\n",
+  ),
 );
 const contradictoryPolicyPatterns = {
   correctionTrigger:
@@ -61,8 +67,8 @@ const contradictoryPolicyPatterns = {
 const settings = JSON.parse(readFileSync(path.join(root, ".claude", "settings.json"), "utf8"));
 
 describe("single-issue Claude workflow", () => {
-  it("has one user-invoked skill and no obsolete batch artifacts", () => {
-    expect(readdirSync(skills)).toEqual(["start-issue"]);
+  it("has exactly the two user-invoked workflows and no obsolete batch artifacts", () => {
+    expect([...readdirSync(skills)].sort()).toEqual(["run-mission", "start-issue"]);
     expect(skill.fields.name).toBe("start-issue");
     expect(skill.fields["disable-model-invocation"]).toBe("true");
     expect(skill.fields["argument-hint"]).toBe("LAN-###");
@@ -78,8 +84,11 @@ describe("single-issue Claude workflow", () => {
     expect(body).toMatch(/Never select another issue or begin a batch/i);
   });
 
-  it("makes the top-level session implement and permits only review delegation", () => {
-    expect(readdirSync(agents)).toEqual(["code-reviewer.md"]);
+  it("makes the /start-issue session implement and permits only review delegation there", () => {
+    expect([...readdirSync(agents)].sort()).toEqual([
+      "code-reviewer.md",
+      "implementation-worker.md",
+    ]);
     expect(flat(skill.body)).toMatch(/Do not launch an implementation sub-agent/i);
     expect(flat(skill.body)).toMatch(/launch one fresh-context `code-reviewer`/i);
     expect(reviewer.fields.disallowedTools).toContain("Agent");
@@ -412,9 +421,124 @@ describe("zero-command visual acceptance", () => {
   });
 });
 
+describe("mission harness v1", () => {
+  const missionBody = flat(missionSkill.body);
+  const workerBody = flat(worker.body);
+  const stateSource = readFileSync(
+    path.join(root, "scripts", "mission", "lib", "state.mjs"),
+    "utf8",
+  );
+  const gateSource = readFileSync(path.join(root, "scripts", "mission", "merge-gate.mjs"), "utf8");
+
+  it("adds the mission workflow as user-invoked, and keeps /start-issue supported", () => {
+    expect(missionSkill.fields.name).toBe("run-mission");
+    expect(missionSkill.fields["disable-model-invocation"]).toBe("true");
+    expect(missionSkill.fields["argument-hint"]).toBe("M-<mission-id>");
+    expect(missionBody).toMatch(
+      /`\/start-issue` remains available for deliberate manual single-issue work/i,
+    );
+    expect(existsSync(skillPath)).toBe(true);
+  });
+
+  it("defines the implementation worker as bounded, unable to spawn agents, but able to implement", () => {
+    expect(worker.fields.name).toBe("implementation-worker");
+    expect(worker.fields.isolation).toBe("worktree");
+    expect(worker.fields.disallowedTools).toContain("Agent");
+    expect(worker.fields.disallowedTools).toContain("Workflow");
+    expect(worker.fields.disallowedTools).not.toContain("Write");
+    expect(worker.fields.disallowedTools).not.toContain("Edit");
+    expect(workerBody).toMatch(
+      /never spawn an implementation worker, a reviewer, an agent team, a workflow, or any other agent/i,
+    );
+    expect(workerBody).toMatch(/never select another issue, expand scope/i);
+  });
+
+  it("makes the Mission Lead the only orchestrator, with flat delegation", () => {
+    expect(missionBody).toMatch(/workers and reviewers are spawned only by the Mission Lead/i);
+    expect(missionBody).toMatch(/workers never spawn agents of any kind/i);
+    expect(missionBody).toMatch(
+      /never launches an agent that is not `implementation-worker` or `code-reviewer`/i,
+    );
+    expect(missionBody).toMatch(/never becomes the default application-code implementer/i);
+  });
+
+  it("caps implementation concurrency at two and serializes collisions and migrations", async () => {
+    const { MAX_ACTIVE_WORKERS } = await import("../scripts/mission/lib/state.mjs");
+    expect(MAX_ACTIVE_WORKERS).toBe(2);
+    expect(missionBody).toMatch(/at most two `implementation-worker` agents/i);
+    expect(stateSource).toContain("Maximum implementation concurrency is");
+    expect(stateSource).toContain("only one migration-owning package runs at a time");
+    expect(stateSource).toContain("colliding work is serialized");
+  });
+
+  it("holds mission memory in the durable journal, never in chat", () => {
+    expect(missionBody).toMatch(/append-only journal/i);
+    expect(missionBody).toMatch(/never in chat/i);
+    expect(missionBody).toMatch(/Every material transition.*recorded through that CLI/i);
+    expect(missionBody).toMatch(/completely fresh Mission Lead resumes/i);
+    expect(missionBody).toMatch(/usage-exhausted/);
+    const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+    expect(pkg.scripts.mission).toBe("node scripts/mission/cli.mjs");
+  });
+
+  it("refuses dispatch before Linear synchronization, and keeps sync idempotent", () => {
+    expect(missionBody).toMatch(
+      /No implementation worker starts until its package has a created or reconciled Linear issue/i,
+    );
+    expect(stateSource).toContain(
+      "No implementation worker starts before its work package is synchronized",
+    );
+    expect(stateSource).toContain("a second issue would be a duplicate");
+    expect(missionBody).toMatch(/non-mutating connectivity preflight/i);
+  });
+
+  it("routes ordinary corrections back to the original worker, never a replacement", () => {
+    expect(stateSource).toContain("resumes the original implementation worker");
+    expect(stateSource).toContain("is refused");
+    expect(missionBody).toMatch(/resume the original implementation worker/i);
+    expect(missionBody).toMatch(/Do not create a new implementer because review failed/i);
+    expect(workerBody).toMatch(/re-enter the same worktree and branch/i);
+  });
+
+  it("checks owner rules before asking, and separates immediate from hourly questions", () => {
+    expect(missionBody).toMatch(
+      /Before asking Brian any product or visual question, check in order/i,
+    );
+    expect(missionBody).toMatch(/Owner Rule Registry/);
+    expect(missionBody).toMatch(
+      /promote it with `promote-rule` only after Brian explicitly approves reuse/i,
+    );
+    expect(stateSource).toContain('"immediate" or "hourly"');
+    expect(missionBody).toMatch(/Interrupt Brian immediately only for/i);
+  });
+
+  it("merges only through the guarded lane, which fails closed", () => {
+    expect(missionBody).toMatch(/Never run `gh pr merge`, `gh pr ready`, or any direct merge/i);
+    expect(missionBody).toMatch(/mission-merge-receipt/);
+    expect(missionBody).toMatch(/apply the `mission-merge` label/i);
+    expect(gateSource).toContain("merge: reasons.length === 0");
+    expect(gateSource).not.toMatch(/merge\s*=\s*true/);
+  });
+
+  it("keeps Highest-risk, migration, and unapproved visual work with Brian", () => {
+    expect(missionBody).toMatch(
+      /Highest risk retains the strongest current rules and never merges autonomously/i,
+    );
+    expect(stateSource).toContain("Highest-risk work cannot autonomous-merge in v1");
+    expect(stateSource).toContain("owner-merged, never autonomous");
+    expect(missionBody).toMatch(/ADR 0020 stands/);
+    expect(gateSource).toContain("highest risk is owner-merged in v1");
+  });
+});
+
 describe("production and security boundaries", () => {
   it("preserves draft-only, human-merge, no-deploy, and local-only Supabase rules", () => {
-    for (const text of [flat(skill.body), flat(agreement)]) {
+    for (const text of [
+      flat(skill.body),
+      flat(missionSkill.body),
+      flat(worker.body),
+      flat(agreement),
+    ]) {
       expect(text).toMatch(/draft/i);
       expect(text).toMatch(/never.*merge/i);
       expect(text).toMatch(/never.*un-draft/i);
@@ -422,6 +546,7 @@ describe("production and security boundaries", () => {
       expect(text).toMatch(/hosted Supabase/i);
     }
     expect(flat(skill.body)).toMatch(/never use the fast lane/i);
+    expect(flat(missionSkill.body)).toMatch(/never use the fast lane for mission work/i);
   });
 
   it("keeps bypass disabled and common unsafe commands denied", () => {

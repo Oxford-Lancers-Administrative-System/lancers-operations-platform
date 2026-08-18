@@ -9,12 +9,18 @@ Nothing from it is repeated here, so that the two cannot drift apart.
 
 Only genuinely Claude-specific notes belong in this file.
 
-- **One workflow and one subagent.** Brian invokes `/start-issue LAN-###`; the
-  top-level session implements exactly that issue inside its dedicated
-  worktree. `code-reviewer` is the only subagent and is used only for graded
-  independent review. See `docs/adr/0018-single-issue-agent-development.md`.
-- **`/start-issue` is user-invoked.** It is not model-invocable, never selects a
-  second issue, and never delegates implementation.
+- **Two workflows and two subagents.** Brian invokes `/start-issue LAN-###`
+  to implement exactly one issue in the top-level session, or
+  `/run-mission M-<id>` to execute one approved mission packet as the Mission
+  Lead. `code-reviewer` performs graded independent review;
+  `implementation-worker` implements one Mission-Lead-assigned work package
+  and spawns nothing. See `docs/adr/0027-mission-harness.md` and, for the
+  preserved single-issue model, `docs/adr/0018-single-issue-agent-development.md`.
+- **Both workflows are user-invoked.** Neither is model-invocable. `/start-issue`
+  never selects a second issue and never delegates implementation;
+  `/run-mission` never implements in its own session, keeps delegation flat,
+  and records every material transition in durable mission state
+  (`npm run mission`).
 - **Visual acceptance is a mid-workflow gate.** UI-affecting work stops only
   after a complete agent browser preflight and before final correctness review;
   nonvisual work does not stop. Brian receives a live, protected environment and

@@ -88,6 +88,7 @@ directly on components — use `sx`.
 | What is in hosted that is not schema                  | `docs/pilot-data-manifest.md`               |
 | Cloud Run deploy, secrets, cost controls, rollback    | `docs/deployment.md`                        |
 | How one issue is implemented and reviewed             | `.claude/skills/start-issue/SKILL.md`       |
+| How an approved mission runs autonomously             | `docs/mission-harness.md`                   |
 | How low-risk work is batched and merged automatically | `docs/fast-lane.md`                         |
 | Why a decision was made                               | `docs/adr/` (index in `docs/adr/README.md`) |
 
@@ -490,20 +491,39 @@ steps, dependencies, theme contents — proceed and explain in the pull request.
 
 ## Agent tooling
 
-Exactly one user-invoked workflow and one review subagent are approved:
+Exactly two user-invoked workflows and two subagents are approved:
 
-| Role                                   | File                              | What it does                                                                                                |
-| -------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Lead workflow (`/start-issue LAN-###`) | `.claude/skills/start-issue/`     | The top-level session implements one explicit issue in its dedicated worktree through draft PR and handoff. |
-| Code reviewer                          | `.claude/agents/code-reviewer.md` | Fresh-context, independently isolated review; reports findings and never repairs them.                      |
+| Role                                    | File                                      | What it does                                                                                                                                                    |
+| --------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Issue workflow (`/start-issue LAN-###`) | `.claude/skills/start-issue/`             | The top-level session implements one explicit issue in its dedicated worktree through draft PR and handoff. Preserved for deliberate manual use.                |
+| Mission Lead (`/run-mission M-<id>`)    | `.claude/skills/run-mission/`             | Executes one Brian-approved mission packet: plans the work-package DAG, syncs Linear, dispatches workers, orchestrates review, and runs the guarded merge lane. |
+| Implementation worker                   | `.claude/agents/implementation-worker.md` | Implements exactly one Mission-Lead-assigned work package under the proven issue execution contract; returns a structured receipt; spawns nothing.              |
+| Code reviewer                           | `.claude/agents/code-reviewer.md`         | Fresh-context, independently isolated review; reports findings and never repairs them.                                                                          |
 
-The top-level session reads the complete issue, confirms dependencies and human
-gates, enters or safely resumes one issue-specific worktree from current
-`main`, writes an internal acceptance/test matrix, implements directly, and
-classifies the issue as UI-affecting, nonvisual, or mixed. It never launches an
+Under `/start-issue`, the top-level session reads the complete issue, confirms
+dependencies and human gates, enters or safely resumes one issue-specific
+worktree from current `main`, writes an internal acceptance/test matrix,
+implements directly, and classifies the issue as UI-affecting, nonvisual, or
+mixed. It never launches an
 implementation subagent, selects
 a second issue, starts a wave, uses the fast lane, merges, un-drafts, deploys,
 migrates hosted Supabase, or writes to production.
+
+Under `/run-mission`, the top-level session is the Mission Lead. Mission memory
+is an append-only journal owned by `scripts/mission/cli.mjs` — every plan,
+dispatch, receipt, question, answer, merge, and stop is recorded through it,
+and a completely fresh Mission Lead reconstructs the mission from that durable
+state alone. The Mission Lead orchestrates and never implements application
+code itself; delegation is flat — only the Mission Lead spawns workers and
+reviewers, workers spawn nothing, at most two implementation workers run
+concurrently, colliding collision domains are serialized, and only one
+migration-owning package runs at a time. No worker starts before its work
+package has a created or reconciled Linear issue, review corrections resume
+the original worker with lineage, approved owner rules are checked before
+Brian is asked any product or visual question, and Brian's hourly checkpoint
+is generated from durable state. See
+[`docs/mission-harness.md`](docs/mission-harness.md) and
+[`docs/adr/0027-mission-harness.md`](docs/adr/0027-mission-harness.md).
 
 - **Worktree isolation is mandatory.** One issue has one worktree and one branch.
   The primary checkout remains unchanged and clean. Reviewers use their own
@@ -554,7 +574,14 @@ one final evidence/handoff comment. Use In Review only for genuine human or
 visual acceptance. See
 [`docs/adr/0020-zero-command-visual-review.md`](docs/adr/0020-zero-command-visual-review.md).
 
-Every issue returns one draft pull request, and Brian merges it. **No agent
+Every issue and every work package returns one draft pull request. Brian
+merges it — or, for qualifying standard application work in an approved
+mission, the checked-in `mission-merge` workflow does, after re-deriving its
+fail-closed gate from evidence (`.github/mission-merge-rules.json`,
+`docs/adr/0027-mission-harness.md`). Migrations, RLS/auth/security, secrets,
+deployment, WhatsApp and external configuration, Highest-risk work, and
+visual work without recorded approval always stay with Brian, and a mission
+merge performed with `GITHUB_TOKEN` deliberately does not deploy. **No agent
 merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to
 production.**
 

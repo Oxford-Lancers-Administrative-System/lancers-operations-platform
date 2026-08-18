@@ -1,0 +1,34 @@
+{
+  "packages": [
+    {
+      "id": "WP-events-filter",
+      "title": "Synthetic: events list state filter",
+      "requirement_ids": ["REQ-events-filter"],
+      "collision_domain": "events",
+      "migration_owner": false,
+      "risk_class": "normal",
+      "visual": "ui",
+      "depends_on": []
+    },
+    {
+      "id": "WP-attendance-export",
+      "title": "Synthetic: attendance CSV export",
+      "requirement_ids": ["REQ-attendance-export"],
+      "collision_domain": "attendance",
+      "migration_owner": false,
+      "risk_class": "normal",
+      "visual": "nonvisual",
+      "depends_on": []
+    },
+    {
+      "id": "WP-report-footer",
+      "title": "Synthetic: Monday report generation footer",
+      "requirement_ids": ["REQ-report-footer"],
+      "collision_domain": "reporting",
+      "migration_owner": false,
+      "risk_class": "low",
+      "visual": "ui",
+      "depends_on": ["WP-attendance-export"]
+    }
+  ]
+}
