@@ -144,7 +144,7 @@
       "id": "SRC-admin-prototype",
       "kind": "document",
       "ref": "missions/packets/M-OPERATOR-ADMIN-WITHOUT-SQL/mockups/administration-prototype.html",
-      "version": "sha256:d20c6e3cfad31aad5bfd9047ce6dbc194276bdb627a10cb401eccab4a4b6ea8a"
+      "version": "sha256:2f99235b96bd65c731562f42dd63e24cfaaf2afaae308856bd1da57e1976f466"
     }
   ],
   "requirements": [
@@ -387,9 +387,7 @@
     ]
   },
   "merge_envelope": {
-    "auto_merge_classes": [
-      "standard-application"
-    ],
+    "auto_merge_classes": ["standard-application"],
     "owner_gated": [
       "schema-migration",
       "rls-auth-security",
@@ -416,9 +414,7 @@
         "Read Operator audit history or Holder history",
         "Open the protected How Administration Works guide from the compact question-mark link"
       ],
-      "state_transitions": [
-        "None; read-only entry"
-      ],
+      "state_transitions": ["None; read-only entry"],
       "handoffs": [
         "Choose the account-side or role-side path for the same audited assignment action"
       ],
@@ -489,9 +485,7 @@
         "Effective assignment to ended assignment",
         "Ended assignment plus new effective assignment or Invitation pending successor"
       ],
-      "handoffs": [
-        "The same service action is invoked from either direction"
-      ],
+      "handoffs": ["The same service action is invoked from either direction"],
       "exceptions": [
         "Closed, missing or ambiguous active operating-year context",
         "Attempt to edit a historical year",
@@ -520,10 +514,7 @@
         "Restore operator access on the same binding later with a preview of still-effective permissions",
         "Use Replace role to change a holder or End role to create a vacancy"
       ],
-      "state_transitions": [
-        "Active to Deactivated",
-        "Deactivated to Active"
-      ],
+      "state_transitions": ["Active to Deactivated", "Deactivated to Active"],
       "handoffs": [
         "The deactivated Person remains resolvable to membership, role and audit history"
       ],
@@ -614,12 +605,8 @@
         "Permit ordinary administration, technical email recovery or refuse",
         "Protect self, General Manager, President and final administration paths"
       ],
-      "state_transitions": [
-        "None"
-      ],
-      "handoffs": [
-        "None"
-      ],
+      "state_transitions": ["None"],
+      "handoffs": ["None"],
       "exceptions": [
         "Unlinked account",
         "Inactive account",
