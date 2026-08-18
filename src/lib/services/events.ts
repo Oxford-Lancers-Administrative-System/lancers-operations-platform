@@ -22,6 +22,7 @@ import {
   type TermWindow,
 } from "./event-input";
 import { recordAudit } from "./audit";
+import { actorRequirement } from "./actor";
 import { readCurrentSeasonIn, type Season } from "./seasons";
 import { escapeLikePattern } from "./sql-text";
 
@@ -779,13 +780,7 @@ async function listTermWindows(tx: Tx): Promise<TermWindow[]> {
   }));
 }
 
-function requireActor(actorPersonId: string): void {
-  if (trimmed(actorPersonId) === "") {
-    throw new ConstraintViolated("An event change has to name the operator who made it.", {
-      rule: "audit_events_has_an_actor",
-    });
-  }
-}
+const requireActor = actorRequirement("An event change has to name the operator who made it.");
 
 /**
  * A defensive re-check of what `validateEventDraft` already proved.
