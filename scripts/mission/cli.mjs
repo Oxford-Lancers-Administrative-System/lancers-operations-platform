@@ -27,6 +27,8 @@ import {
   replayState,
 } from "./lib/state.mjs";
 import { promoteRule, readRules } from "./lib/owner-rules.mjs";
+import { evaluateMissionGate, journalConjuncts, loadRules } from "./merge-gate.mjs";
+import { parseNameStatus } from "../fast-lane/classify.mjs";
 
 const repoPath = process.cwd();
 
@@ -379,6 +381,32 @@ async function main() {
       });
       await append(missionId, { type: "checkpoint", number: state.checkpoints + 1 });
       console.log(report);
+      break;
+    }
+
+    case "gate": {
+      const [, packageId] = positional;
+      if (!missionId || !packageId || !flags["pr-json"] || !flags["checks-json"] || !flags.files) {
+        fail(
+          "Usage: mission gate <mission-id> <package-id> --pr-json <file> --checks-json <file> --files <git name-status file>",
+        );
+      }
+      const state = replayState(repoPath, missionId);
+      const pullRequest = readJson(flags["pr-json"]);
+      const files = parseNameStatus(fs.readFileSync(flags.files, "utf8"));
+      const local = journalConjuncts(state, packageId, pullRequest.headRefOid);
+      const server = evaluateMissionGate({
+        pullRequest,
+        checkRuns: readJson(flags["checks-json"]),
+        files,
+        rules: loadRules(),
+      });
+      const verdict = {
+        merge: local.length === 0 && server.merge,
+        journal_reasons: local,
+        evidence_reasons: server.reasons,
+      };
+      console.log(JSON.stringify(verdict, null, 2));
       break;
     }
 
