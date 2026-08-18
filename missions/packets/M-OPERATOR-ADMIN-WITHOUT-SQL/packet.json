@@ -1,0 +1,404 @@
+{
+  "packet_version": 1,
+  "mission_id": "M-OPERATOR-ADMIN-WITHOUT-SQL",
+  "status": "not_ready",
+  "title": "Operator Administration Without SQL",
+  "objective": "Authorized Oxford Lancers administrators can provision and manage application operators and their predefined role assignments through the application without requiring Brian to run SQL or make ordinary account changes directly in Supabase.",
+  "why_now": "The authorization substrate, login and password recovery exist, but the hosted role catalogue and recurring operator-administration workflow are not available through the application. The approved Release 1 manifest marks Identity, Access and Operator Administration ready for intake, while current operation still depends on direct database changes.",
+  "non_goals": [
+    "No capability-map editing through the application",
+    "No new club roles, renamed roles, widened grants or changed capability semantics except resolution of the documented role_management authority conflict before approval",
+    "No wider H7 ownership and access completion sweep",
+    "No LAN-84 production recovery rehearsal or two-service-administrator establishment",
+    "No Meta, WhatsApp, DNS, email-foundation or real-data cutover work",
+    "No player-facing accounts or public sign-up",
+    "No authentication-architecture redesign or operator two-factor authentication",
+    "No unrelated People, roster, coaching, season-lifecycle or committee-handoff capability",
+    "No special bulk handover mode or cycle-open/close implementation",
+    "No full Stage-4 change-audit viewing interface or general audit browser",
+    "No Mission Lead DAG, worker assignment, detailed work package or implementation sequencing in this packet",
+    "No mission execution before Brian merges a ready packet version"
+  ],
+  "sources": [
+    {
+      "id": "SRC-project-home",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3aa488886d5780428888da8b5792fa96",
+      "version": "fetched-2026-08-18T16:02:47.910Z"
+    },
+    {
+      "id": "SRC-intake-agent",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3c0488886d578118a77bf8ccb5f15514",
+      "version": "fetched-2026-08-18T16:02:47.910Z"
+    },
+    {
+      "id": "SRC-project-status",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+      "version": "fetched-2026-08-17T21:59:55.122Z"
+    },
+    {
+      "id": "SRC-authority-manifest",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bf488886d57818aa53ec09f4fc5f757",
+      "version": "fetched-2026-08-18T18:55:31.807Z"
+    },
+    {
+      "id": "SRC-identity-brief",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bc488886d5781d78d18f045492073cd",
+      "version": "owner-approved-2026-08-14; fetched-2026-08-17T21:51:56.975Z"
+    },
+    {
+      "id": "SRC-locked-requirements",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3b7488886d578131905bc9ac24910584",
+      "version": "owner-approved-2026-08-07; reconciled-2026-08-18"
+    },
+    {
+      "id": "SRC-governance",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bb488886d5781e7a7b9cb598831dd67",
+      "version": "fetched-2026-08-14T14:24:49.908Z"
+    },
+    {
+      "id": "SRC-linear-71",
+      "kind": "linear",
+      "ref": "https://linear.app/brian-schuster/issue/LAN-71",
+      "version": "Done; updated-2026-08-15T17:00:58.819Z"
+    },
+    {
+      "id": "SRC-linear-72",
+      "kind": "linear",
+      "ref": "https://linear.app/brian-schuster/issue/LAN-72",
+      "version": "Done; fetched-2026-08-18"
+    },
+    {
+      "id": "SRC-linear-73",
+      "kind": "linear",
+      "ref": "https://linear.app/brian-schuster/issue/LAN-73",
+      "version": "Done; updated-2026-08-18T15:46:42.208Z"
+    },
+    {
+      "id": "SRC-linear-124",
+      "kind": "linear",
+      "ref": "https://linear.app/brian-schuster/issue/LAN-124",
+      "version": "Done; updated-2026-08-17T21:49:31.467Z"
+    },
+    {
+      "id": "SRC-linear-84",
+      "kind": "linear",
+      "ref": "https://linear.app/brian-schuster/issue/LAN-84",
+      "version": "Backlog; updated-2026-08-15T22:45:00.108Z"
+    },
+    {
+      "id": "SRC-github-main",
+      "kind": "github",
+      "ref": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/tree/5812390914b4ca45b609328ffd929ec45071be17",
+      "version": "5812390914b4ca45b609328ffd929ec45071be17"
+    },
+    {
+      "id": "SRC-capability-map",
+      "kind": "github",
+      "ref": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/blob/5812390914b4ca45b609328ffd929ec45071be17/src/lib/auth/capabilities.ts",
+      "version": "5812390914b4ca45b609328ffd929ec45071be17"
+    },
+    {
+      "id": "SRC-harness-schema",
+      "kind": "github",
+      "ref": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/blob/5812390914b4ca45b609328ffd929ec45071be17/scripts/mission/lib/packet.mjs",
+      "version": "5812390914b4ca45b609328ffd929ec45071be17"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-static-role-catalogue",
+      "text": "The application uses the approved static 13-seat role catalogue exactly as defined; the catalogue is available in hosted and local environments through versioned, reviewable repository artifacts, and the application cannot edit role definitions or capability grants.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-role-management-authority",
+      "text": "Every operator-administration read and write is enforced at the server/service boundary by the frozen role_management capability. The exact role-code grant is a blocking owner decision because approved Notion and current GitHub disagree.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-admin-surfaces",
+      "text": "The operator shell contains real Operators and Roles destinations at /operate/admin/operators and /operate/admin/roles. Authorized users can understand current account status, current effective assignments, cycle scope and current role holders without SQL; unauthorized users see the standard role requirement and no operator data.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-invite-existing-person",
+      "text": "An authorized administrator can select an existing durable Person, provide an invitation email, optionally assign approved initial roles, create and bind the operator login one-to-one, and send the invitation. The workflow never creates a Person and public sign-up remains disabled.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-invitation-states",
+      "text": "The workflow represents Invited, Active, Deactivated and Reinstated states, treats expiration as a normal state, permits resend while Invited, and refuses duplicate Person bindings or duplicate emails with an actionable reason.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-explicit-cycle-assignment",
+      "text": "Every role assignment selects exactly one existing open cycle matching the role scope: committee year for committee seats and season for coaching seats. Missing, closed or scope-mismatched cycles are refused with the reason stated; the cycle is never silently inferred.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-effective-dated-role-history",
+      "text": "Assigning a role records its effective-from date. Ending or replacing it sets effective-to and creates the new assignment without deleting or rewriting prior assignments. Constitutional-office overlap constraints remain enforced.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-deactivate-and-reinstate",
+      "text": "An authorized administrator can deactivate an operator with a required reason and date, and reinstate the same Person-account binding later. Deactivation immediately prevents sign-in and never deletes the Person, account binding, attribution or historical records.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-rehome-email",
+      "text": "For lost email access, an authorized administrator can re-home an operator login to a new email, disable the old login path, and preserve audited attribution on both sides. Forgotten-password recovery remains self-service and is not replaced by administrator password handling.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-final-admin-protection",
+      "text": "An operator cannot deactivate their own account, and no deactivation or role end-dating may leave zero active operators with an effective role_management-bearing assignment. Imminent continuity risk is visible when every effective role_management assignment ends within 30 days.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-append-only-audit-evidence",
+      "text": "Every provisioning, account-state, email-rehome and role-assignment change writes append-only audit evidence in the same transaction, naming actor, target, time and before/after state. The mission verifies this evidence and historical resolvability but does not build the later general change-audit viewing interface.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-one-time-bootstrap",
+      "text": "Exactly one owner-run bootstrap may establish the hosted role catalogue and first administrator-capable operator. It is reviewable, fail-closed, documented and audited. After bootstrap, every ordinary identity, access and role action is completed in the application; a second SQL-based administration touch is a defect.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-club-operating-guide",
+      "text": "A short club-facing guide explains the in-application invite, first-login, current-state, assignment, cycle-selection, role-ending, deactivation, reinstatement and email-rehome workflows, along with refusals and when to escalate. It does not instruct club operators to use SQL, Supabase or a nonexistent full audit viewer.",
+      "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-no-production-boundary-expansion",
+      "text": "Implementation and verification do not alter hosted accounts, production data, secrets, email/DNS configuration or recovery ownership autonomously. Any migration or one-time hosted bootstrap remains an explicit Brian-run handoff under existing runbooks.",
+      "source_id": "SRC-governance"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-one-mission",
+      "text": "No split. Provisioning, operator lifecycle, role assignment, current-state surfaces, safeguards and the short operating guide form one coherent commissioned outcome.",
+      "source": "Commissioned outcome and Mission Intake Agent rare-splitting rule"
+    },
+    {
+      "id": "DEC-audit-boundary",
+      "text": "Locked for this packet: preserve and verify append-only provisioning and role audit evidence, but exclude the later Stage-4 full change-audit viewing interface and general per-person/per-role audit browser. Current state and current holders remain visible; historical role records remain durable even though a full timeline is not part of this mission.",
+      "source": "Commissioned boundary plus Identity, Access & Ownership brief §2 versus §3/D-5"
+    },
+    {
+      "id": "DEC-single-actor",
+      "text": "Locked: authorized provisioning and role actions are single-actor and take effect immediately; there is no second-confirmation workflow.",
+      "source": "Identity, Access & Ownership brief D-3"
+    },
+    {
+      "id": "DEC-person-account-role-separation",
+      "text": "Locked: Person, operator account and role assignment remain separate durable concepts. Roles are relationships and player status remains a seasonal membership, not an account type.",
+      "source": "Identity, Access & Ownership brief §§2.3 and 3.2; LAN-71"
+    },
+    {
+      "id": "DEC-no-runtime-role-editing",
+      "text": "Locked: the role catalogue and capability map are read-only in the application. Changing a role or grant remains a separately reviewed owner decision and code change.",
+      "source": "Identity, Access & Ownership brief §§1, 2.6 and 3"
+    },
+    {
+      "id": "DEC-role-management-blocker",
+      "text": "Proposed for owner approval: resolve whether role_management belongs to President, Vice-President, Secretary and General Manager as approved in Notion on 2026-08-14, or to IT Officer alone as implemented on main through LAN-124 on 2026-08-15. The packet stays not_ready until Brian chooses one authority model and the controlling product record is reconciled.",
+      "source": "Conflict between SRC-identity-brief and SRC-capability-map"
+    }
+  ],
+  "baseline": {
+    "branch": "main",
+    "commit": "5812390914b4ca45b609328ffd929ec45071be17"
+  },
+  "repository_drift": {
+    "startup_rule": "The Mission Lead must compare current main to the baseline and run the canonical Harness drift checks before planning or dispatch. A newer main is acceptable only when the packet's meaning, feasibility, invariants, interfaces and acceptance basis remain intact.",
+    "stop_rule": "Stop for re-intake or a versioned packet revision when drift changes authorization, operator/account/role schema semantics, audit guarantees, route placement, security boundaries or acceptance evidence."
+  },
+  "gates": {
+    "owner": [
+      "Brian must resolve the role_management authority conflict before this packet may become ready or be approved",
+      "Brian retains merge authority for this packet and for any later schema, migration, auth/security or production-operation pull request",
+      "Brian performs any authorized one-time hosted catalogue/first-administrator bootstrap under the existing migration and production handoff rules",
+      "Brian provides visual approval for UI-affecting implementation packages through the Mission Harness review-ready flow"
+    ],
+    "external": [
+      "Production invitation delivery must use the existing provider-neutral auth email path; LAN-126 email/DNS foundation work is outside this mission and any unavailable production transport is reported as an external operational gate rather than silently absorbed"
+    ]
+  },
+  "merge_envelope": {
+    "auto_merge_classes": [
+      "standard-application"
+    ],
+    "owner_gated": [
+      "schema-migration",
+      "rls-auth-security",
+      "secrets-credentials",
+      "deployment-production-data",
+      "whatsapp-external-configuration",
+      "highest-risk",
+      "visual-without-approval"
+    ]
+  },
+  "workflow_matrix": [
+    {
+      "id": "WF-open-administration",
+      "actor": "Active operator with role_management",
+      "trigger": "Needs to inspect or manage operator access",
+      "entry_point": "Operator shell navigation",
+      "placement": "/operate/admin/operators and /operate/admin/roles",
+      "actions": ["View current operators", "View current roles and holders", "Open Invite", "Open an operator or role detail"],
+      "state_transitions": ["None; read-only entry"],
+      "handoffs": ["Choose the account-side or role-side path for the same audited assignment action"],
+      "exceptions": ["A non-holder sees the standard refusal and no operator data", "No operators shows the empty state with Invite"],
+      "user_visible_result": "Current account status, effective roles, cycle scope and current holders are understandable without SQL",
+      "source_id": "SRC-identity-brief",
+      "classification": "locked"
+    },
+    {
+      "id": "WF-invite-operator",
+      "actor": "Active operator with role_management",
+      "trigger": "An existing Person needs application access",
+      "entry_point": "Invite on the Operators page",
+      "placement": "/operate/admin/operators",
+      "actions": ["Select existing Person", "Enter invitation email", "Optionally select initial approved roles and explicit cycles", "Send invitation"],
+      "state_transitions": ["No account to Invited", "Invited to Active after first sign-in/password setup"],
+      "handoffs": ["Invitation email to recipient", "Recipient completes first sign-in"],
+      "exceptions": ["Person already bound", "Email already used", "Invitation expired", "Transport failure is visible and retryable", "Person creation routes back to People/roster scope"],
+      "user_visible_result": "The Person is bound one-to-one to an invited operator account and any valid initial roles are effective as dated",
+      "source_id": "SRC-identity-brief",
+      "classification": "locked"
+    },
+    {
+      "id": "WF-assign-or-end-role",
+      "actor": "Active operator with role_management",
+      "trigger": "A predefined office or coaching seat changes holder",
+      "entry_point": "Operator detail or role detail",
+      "placement": "/operate/admin/operators/[operatorId] or /operate/admin/roles/[roleId]",
+      "actions": ["Choose catalogue role", "Choose matching explicit cycle", "Set effective-from", "Assign", "End with effective-to", "Create replacement assignment separately"],
+      "state_transitions": ["Unassigned to effective assignment", "Effective assignment to ended assignment", "Ended assignment plus new effective assignment"],
+      "handoffs": ["The same service action is invoked from either direction"],
+      "exceptions": ["Closed or missing cycle", "Cycle-scope mismatch", "Constitutional office already held", "Person would hold two offices", "Final role_management holder guard"],
+      "user_visible_result": "Current assignment changes immediately while prior effective-dated facts remain durable",
+      "source_id": "SRC-identity-brief",
+      "classification": "locked"
+    },
+    {
+      "id": "WF-deactivate-reinstate",
+      "actor": "Active operator with role_management",
+      "trigger": "An operator leaves, loses access or returns",
+      "entry_point": "Operator detail",
+      "placement": "/operate/admin/operators/[operatorId]",
+      "actions": ["Provide deactivation reason", "Confirm deactivate", "Reinstate the same binding later"],
+      "state_transitions": ["Active to Deactivated", "Deactivated to Reinstated/Active"],
+      "handoffs": ["Deactivated person remains resolvable to historical records"],
+      "exceptions": ["Self-deactivation refused", "Final role_management holder removal refused"],
+      "user_visible_result": "Sign-in access ends or resumes without deleting the Person, binding or history",
+      "source_id": "SRC-identity-brief",
+      "classification": "locked"
+    },
+    {
+      "id": "WF-rehome-email",
+      "actor": "Active operator with role_management",
+      "trigger": "An operator permanently loses access to the current email address",
+      "entry_point": "Operator detail",
+      "placement": "/operate/admin/operators/[operatorId]",
+      "actions": ["Enter replacement email", "Re-home login", "Disable old login path"],
+      "state_transitions": ["Old email login disabled", "Same operator binding reachable at new email"],
+      "handoffs": ["Operator signs in or recovers password using the new email"],
+      "exceptions": ["Replacement email already used", "Ordinary forgotten password routes to self-service recovery"],
+      "user_visible_result": "Access is restored without changing the durable Person or historical actor attribution",
+      "source_id": "SRC-identity-brief",
+      "classification": "locked"
+    },
+    {
+      "id": "WF-audit-evidence",
+      "actor": "System on behalf of the authorized administrator",
+      "trigger": "Any mission-owned provisioning or role transition succeeds",
+      "entry_point": "Service transaction",
+      "placement": "No general audit-view route in this mission",
+      "actions": ["Record actor", "Record target", "Record before/after state", "Commit audit and state change atomically"],
+      "state_transitions": ["Append one immutable audit event; never edit or delete prior evidence"],
+      "handoffs": ["Evidence is available to later Stage-4 audit-view work"],
+      "exceptions": ["A failed/refused action writes no partial state", "Historical Person correction remains resolvable"],
+      "user_visible_result": "The action succeeds or fails atomically; current state is visible, while full audit browsing remains deferred",
+      "source_id": "SRC-identity-brief",
+      "classification": "locked"
+    },
+    {
+      "id": "WF-role-management-authority",
+      "actor": "Candidate role_management holder",
+      "trigger": "Attempt to open or use administration surfaces",
+      "entry_point": "Every administration page, action and service call",
+      "placement": "Capability-map-backed server authorization",
+      "actions": ["Resolve effective roles", "Require role_management", "Permit or refuse"],
+      "state_transitions": ["None"],
+      "handoffs": ["None"],
+      "exceptions": ["Approved Notion and current GitHub identify different permitted role sets"],
+      "user_visible_result": "Cannot be finalized until Brian resolves the authority conflict",
+      "source_id": "SRC-capability-map",
+      "classification": "proposed_for_owner_approval"
+    }
+  ],
+  "delegated_to_mission_lead": [
+    "Internal service/module boundaries within the existing repository architecture",
+    "Exact visual composition and component choices within the locked routes, actions and states",
+    "Invitation expiry duration within the approved bounded-lifetime behavior",
+    "Internal implementation sequencing, DAG, package size and concurrency",
+    "Test fixture design, provided it uses synthetic/local data and proves every acceptance case"
+  ],
+  "nonblocking_unknowns": [
+    {
+      "unknown": "LAN-126 may not yet provide production-grade invitation email deliverability.",
+      "handling": "Do not absorb DNS, Resend or SMTP work. Build against the existing provider-neutral auth invitation path, prove behavior locally and surface delivery failure. Production activation follows the existing external gate."
+    },
+    {
+      "unknown": "Cycle open/close administration is not yet implemented.",
+      "handling": "Assignments may use only cycles that already exist and are open. Missing/closed cycles are refused. Creating cycles remains season-lifecycle scope."
+    }
+  ],
+  "escalation_rules": {
+    "permitted_clarifications": [
+      "Copy, validation detail and visual layout that do not alter actor authority, route placement, state transitions, safety or acceptance",
+      "Defect fixes that restore the packet's locked behavior without changing scope"
+    ],
+    "requires_packet_revision": [
+      "Any change to role or capability grants after the blocking conflict is resolved",
+      "Any new club role, player account, public sign-up path or editable capability map",
+      "Adding the full Stage-4 audit-view interface, bulk handover mode, cycle open/close or wider H7/R14 work",
+      "Any change to security, privacy, production-data or recovery boundaries",
+      "Any material change to routes, actor authority, workflow states or acceptance evidence"
+    ]
+  },
+  "completion_evidence": [
+    "Canonical packet validation passes and the approved packet version is merged by Brian before execution",
+    "Automated authorization tests cover each permitted role after the role_management conflict is resolved, plus unauthorized, unlinked, inactive, direct-action and final-administrator refusal cases",
+    "Automated lifecycle tests cover invite, first activation, resend/expiry, duplicate guards, deactivation, reinstatement and email re-home without deleting the Person or attribution",
+    "Database/service tests prove explicit cycle scope, constitutional-office constraints, effective-dated history and atomic append-only audit evidence",
+    "UI tests and Brian's live visual review cover desktop and 375px Operators and Roles pages, empty/loading/error/refusal states and every consequential action placement",
+    "A local end-to-end walkthrough completes ordinary operator administration without SQL or Supabase dashboard changes",
+    "The club-facing operating guide is executable as written and contains no SQL, Supabase or full-audit-view dependency",
+    "The pull-request production handoff names any schema migration and the exact one-time Brian-run bootstrap; no agent performs hosted changes"
+  ],
+  "blockers": [
+    {
+      "id": "BLOCK-role-management-authority",
+      "question": "Which role_management grant controls this mission: (A) President, Vice-President, Secretary and General Manager as approved in the 14 August Notion brief, or (B) IT Officer alone as implemented on main through LAN-124 on 15 August?",
+      "recommended_answer": "B — IT Officer alone, because it is the narrower least-privilege grant, was a later explicit Brian decision, is already implemented, and avoids allowing role administrators to assign themselves every other capability from four separate seats. If selected, the controlling Notion brief needs a Brian-approved surgical correction before packet version 1 can become ready.",
+      "consequence": "This choice determines who can see operator data and perform every action in the mission. It cannot be delegated to the Mission Lead or inferred from source order without owner adjudication."
+    }
+  ],
+  "approval": {
+    "approved_by": "Pending — Brian Schuster",
+    "date": "2026-08-18",
+    "evidence": "Not approved. This not_ready packet records completed intake and one blocking owner decision. Brian's later merge of a ready packet-only PR is the approval of the exact version and commit."
+  }
+}
