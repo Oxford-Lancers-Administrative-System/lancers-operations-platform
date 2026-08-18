@@ -139,6 +139,12 @@
       "kind": "document",
       "ref": "file_00000000947481f78dde3cdc0edf14df",
       "version": "supporting evidence inspected-2026-08-18"
+    },
+    {
+      "id": "SRC-admin-prototype",
+      "kind": "document",
+      "ref": "missions/packets/M-OPERATOR-ADMIN-WITHOUT-SQL/mockups/administration-prototype.html",
+      "version": "sha256:818de714f024548cc4da548bd58fe6306b703e03c661e396885c4ca7616da5d3"
     }
   ],
   "requirements": [
@@ -156,6 +162,11 @@
       "id": "REQ-admin-surfaces",
       "text": "The operator shell contains Operators and Roles at /operate/admin/operators and /operate/admin/roles in Administration at the bottom of the left sidebar above user/account controls. Invite Operator is the top-right primary action. The protected /operate/admin/guide page is reached from a compact question-mark How Administration Works link beside the page heading, not a callout or another sidebar destination. Operators are grouped Standing Officers, Club Officers and Coaches; Roles are grouped Operational Administration, Club Committee and Coaching Staff. Role detail presents current holder, a plain-language Permissions summary and holder history. Operator detail uses club-facing labels and distinguishes operator account state from role state. No role or grant is editable.",
       "source_id": "SRC-identity-brief"
+    },
+    {
+      "id": "REQ-admin-prototype",
+      "text": "The checked-in self-contained Administration prototype is the controlling visual reference for the reviewed information architecture, grouping, labels, actions, account and invitation states, FAQ guide structure, and desktop/375px responsive direction. Its synthetic names, dates, counts, exact spacing, border shades and low-level component composition are illustrative. Implementation uses the existing Material UI shell and must not infer authorization, data behavior or additional scope from prototype-only sample content.",
+      "source_id": "SRC-admin-prototype"
     },
     {
       "id": "REQ-invite-existing-person",
@@ -699,7 +710,7 @@
     "Automated authorization tests cover the final matrix: GM, President and IT Officer for lower administration; GM-over-President transitions; IT leadership-email recovery only; Vice-President, Secretary and all other roles refused; self-removal/rehome, inactive, unlinked, direct-action and final-path guards",
     "Automated lifecycle tests cover duplicate-checked reuse of existing player/coach/officer Persons, required first name/last name/email plus optional phone creation, required initial role, invitation send evidence, first activation, delivery failure correction/resend without duplication, expiry, deactivation, restoration and verified email re-home",
     "Database/service tests prove one Person and at most one operator account can hold independent memberships and compatible roles; explicit stored operating-year scope behind inherited context; standing GM and IT; constitutional plus GM single-holder rules; start-date defaults/future/backdating; scheduled endings/replacements; deactivation without role vacancy; successor invitation-pending behavior; and append-only event evidence",
-    "UI tests and Brian's live visual review cover desktop and 375px Administration placement; top-right Invite Operator; compact question-mark guide links and no callouts; operator and role group order; plain-language states/actions; current-holder-only view; active/past/future context behavior; Operators, Roles and FAQ-style Guide pages; capability-derived Permissions summaries; Operator audit history and Holder history; resend invitation; and empty/loading/error/refusal/pending states",
+    "UI tests and Brian's live visual review against the checked-in Administration prototype cover desktop and 375px Administration placement; top-right Invite Operator; compact question-mark guide links and no callouts; operator and role group order; plain-language states/actions; current-holder-only view; active/past/future context behavior; Operators, Roles and FAQ-style Guide pages; capability-derived Permissions summaries; Operator audit history and Holder history; resend invitation; and empty/loading/error/refusal/pending states",
     "Coach authorization tests cover all ten fixed coaching roles, external non-player Person creation, existing player reuse, one account, secure email invitation, correct year assignment, narrow attendance including minimal walk-up capture, current availability viewing and Orange/Red reporting, and refusal of Green confirmation, availability history/actor identity, injury/medical narrative, general roster/contact data, football-assignment/depth-chart self-service and administrative access",
     "A local end-to-end walkthrough completes committee, operational and coach administration without SQL, Supabase dashboard changes, duplicate identities, administrator-created passwords or WhatsApp authentication; no informational emails are sent for role/account-state changes",
     "The protected /operate/admin/guide page is executable as written and explains identity, hierarchy, year context, dates, audit projections, deactivation, recovery, refusals and escalation without SQL or Supabase",
@@ -710,6 +721,6 @@
   "approval": {
     "approved_by": "Brian Schuster",
     "date": "2026-08-18",
-    "evidence": "Approved by Brian Schuster in the Mission Intake Agent conversation on 2026-08-18 with the instruction: 'Okay, update everything. I'm ready to authorize this.' Approval applies to packet version 2 as the consolidated result of the completed intake review: final authority hierarchy, static 20-role catalogue, all-ten-coach narrow attendance and current availability Orange/Red access, one-Person multi-capacity identity, invitation and Resend path, operating-year behavior, role dates/cardinality, deactivation-versus-vacancy semantics, append-only audit projections, administration UX language/layout, FAQ guide, owner-run bootstrap and locked exclusions. Brian's merge of the packet-only pull request remains the binding authorization of the exact version and commit; no mission execution is authorized before merge."
+    "evidence": "Approved by Brian Schuster in the Mission Intake Agent conversation on 2026-08-18 with the instruction: 'Okay, update everything. I'm ready to authorize this.' Brian subsequently directed that the reviewed code-native UI mockups be included in the packet PR. Approval applies to packet version 2 as the consolidated result of the completed intake review: final authority hierarchy, static 20-role catalogue, all-ten-coach narrow attendance and current availability Orange/Red access, one-Person multi-capacity identity, invitation and Resend path, operating-year behavior, role dates/cardinality, deactivation-versus-vacancy semantics, append-only audit projections, administration UX language/layout and checked-in prototype, FAQ guide, owner-run bootstrap and locked exclusions. Brian's merge of the packet-only pull request remains the binding authorization of the exact version and commit; no mission execution is authorized before merge."
   }
 }

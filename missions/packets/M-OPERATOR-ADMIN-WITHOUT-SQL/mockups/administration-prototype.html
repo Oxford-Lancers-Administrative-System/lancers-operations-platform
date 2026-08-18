@@ -1,0 +1,885 @@
+<div id="lancers-admin-review">
+  <style>
+    #lancers-admin-review {
+      --ol-rail: var(--foreground);
+      --ol-rail-text: var(--background);
+      --ol-canvas: var(--card);
+      --ol-canvas-text: var(--card-foreground);
+      --ol-soft: var(--muted);
+      --ol-soft-text: var(--muted-foreground);
+      --ol-line: var(--border);
+      color: var(--foreground);
+      display: grid;
+      gap: 1rem;
+      width: 100%;
+    }
+    #lancers-admin-review * { box-sizing: border-box; }
+    #lancers-admin-review .review-controls {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: .75rem;
+      align-items: end;
+    }
+    #lancers-admin-review .control-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    #lancers-admin-review .viewport-controls { justify-content: flex-end; }
+    #lancers-admin-review .ol-stage {
+      width: 100%;
+      overflow: hidden;
+    }
+    #lancers-admin-review .ol-stage.is-phone {
+      max-width: 390px;
+      margin-inline: auto;
+    }
+    #lancers-admin-review .ol-app {
+      background: var(--ol-canvas);
+      color: var(--ol-canvas-text);
+      border: 1px solid var(--ol-line);
+      border-radius: .75rem;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 184px minmax(0, 1fr);
+      min-height: 650px;
+    }
+    #lancers-admin-review .is-phone .ol-app {
+      display: flex;
+      flex-direction: column;
+      min-height: 720px;
+    }
+    #lancers-admin-review .ol-rail {
+      background: var(--ol-rail);
+      color: var(--ol-rail-text);
+      padding: 1.25rem .75rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    #lancers-admin-review .is-phone .ol-rail { display: none; }
+    #lancers-admin-review .ol-brand {
+      padding: 0 .65rem;
+    }
+    #lancers-admin-review .ol-brand-kicker {
+      color: color-mix(in srgb, var(--ol-rail-text) 62%, transparent);
+    }
+    #lancers-admin-review .ol-brand-kicker,
+    #lancers-admin-review .ol-nav-label,
+    #lancers-admin-review .eyebrow {
+      color: var(--ol-soft-text);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+    #lancers-admin-review .ol-brand-name { color: var(--ol-rail-text); margin: .15rem 0 0; }
+    #lancers-admin-review .ol-nav {
+      display: grid;
+      gap: .25rem;
+    }
+    #lancers-admin-review .ol-nav-label {
+      color: color-mix(in srgb, var(--ol-rail-text) 62%, transparent);
+      padding: .65rem .65rem .25rem;
+    }
+    #lancers-admin-review .ol-nav-item {
+      border: 0;
+      background: transparent;
+      color: inherit;
+      text-align: left;
+      border-radius: .45rem;
+      padding: .65rem;
+      cursor: default;
+      font: inherit;
+    }
+    #lancers-admin-review .ol-nav-item.is-active {
+      background: color-mix(in srgb, var(--ol-rail-text) 14%, transparent);
+      font-weight: 500;
+    }
+    #lancers-admin-review .ol-nav-divider {
+      border-top: 1px solid color-mix(in srgb, var(--ol-rail-text) 20%, transparent);
+      margin: .5rem .65rem 0;
+    }
+    #lancers-admin-review .ol-account {
+      border-top: 1px solid color-mix(in srgb, var(--ol-rail-text) 20%, transparent);
+      margin-top: auto;
+      padding: .85rem .65rem 0;
+    }
+    #lancers-admin-review .ol-account small {
+      display: block;
+      color: color-mix(in srgb, var(--ol-rail-text) 65%, transparent);
+      margin-top: .25rem;
+    }
+    #lancers-admin-review .ol-main {
+      min-width: 0;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    #lancers-admin-review .is-phone .ol-main {
+      padding: 1rem;
+      padding-bottom: 5.25rem;
+      flex: 1;
+    }
+    #lancers-admin-review .ol-global-header,
+    #lancers-admin-review .page-header,
+    #lancers-admin-review .section-heading,
+    #lancers-admin-review .action-row {
+      display: flex;
+      gap: .75rem;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    #lancers-admin-review .ol-global-header {
+      border-bottom: 1px solid var(--ol-line);
+      padding-bottom: 1rem;
+    }
+    #lancers-admin-review .ol-global-header h2,
+    #lancers-admin-review .page-header h2,
+    #lancers-admin-review .section-heading h3,
+    #lancers-admin-review .ol-brand h3 { margin: 0; }
+    #lancers-admin-review .ol-global-header p,
+    #lancers-admin-review .page-header p { margin: .25rem 0 0; color: var(--ol-soft-text); }
+    #lancers-admin-review .page-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    #lancers-admin-review .title-line {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: .55rem;
+    }
+    #lancers-admin-review .help-link {
+      display: inline-flex;
+      align-items: center;
+      gap: .3rem;
+      color: var(--primary);
+      text-decoration: none;
+    }
+    #lancers-admin-review .help-link:hover { text-decoration: underline; }
+    #lancers-admin-review .ol-bottom-nav {
+      display: none;
+    }
+    #lancers-admin-review .is-phone .ol-bottom-nav {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      background: var(--ol-rail);
+      color: var(--ol-rail-text);
+      margin-top: auto;
+    }
+    #lancers-admin-review .ol-bottom-nav span {
+      padding: .8rem .15rem;
+      text-align: center;
+      border-top: 2px solid transparent;
+    }
+    #lancers-admin-review .ol-bottom-nav span.is-active {
+      background: color-mix(in srgb, var(--ol-rail-text) 14%, transparent);
+      border-top-color: var(--ol-rail-text);
+    }
+    #lancers-admin-review .compare-grid,
+    #lancers-admin-review .info-grid,
+    #lancers-admin-review .guide-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    #lancers-admin-review .is-phone .compare-grid,
+    #lancers-admin-review .is-phone .info-grid,
+    #lancers-admin-review .is-phone .guide-grid {
+      grid-template-columns: 1fr;
+    }
+    #lancers-admin-review .mini-shell {
+      border: 1px solid var(--ol-line);
+      border-radius: .5rem;
+      overflow: hidden;
+      display: grid;
+      grid-template-columns: 110px minmax(0, 1fr);
+      min-height: 330px;
+    }
+    #lancers-admin-review .mini-rail {
+      background: var(--ol-rail);
+      color: var(--ol-rail-text);
+      padding: 1rem .6rem;
+      display: flex;
+      flex-direction: column;
+      gap: .35rem;
+    }
+    #lancers-admin-review .mini-rail strong { margin-bottom: .5rem; }
+    #lancers-admin-review .mini-rail span {
+      padding: .45rem;
+      border-radius: .35rem;
+    }
+    #lancers-admin-review .mini-rail .selected {
+      background: color-mix(in srgb, var(--ol-rail-text) 14%, transparent);
+    }
+    #lancers-admin-review .mini-rail hr {
+      border: 0;
+      border-top: 1px solid color-mix(in srgb, var(--ol-rail-text) 20%, transparent);
+      width: 100%;
+      margin: .35rem 0;
+    }
+    #lancers-admin-review .mini-rail .bottom { margin-top: auto; }
+    #lancers-admin-review .mini-content { padding: 1rem; }
+    #lancers-admin-review .mini-content h3 { margin-top: 0; }
+    #lancers-admin-review .table-responsive { width: 100%; }
+    #lancers-admin-review .table tbody tr { cursor: default; }
+    #lancers-admin-review .table tbody tr:hover { background: var(--accent); color: var(--accent-foreground); }
+    #lancers-admin-review .role-stack,
+    #lancers-admin-review .timeline,
+    #lancers-admin-review .form-stack {
+      display: grid;
+      gap: .75rem;
+    }
+    #lancers-admin-review .role-row,
+    #lancers-admin-review .history-row,
+    #lancers-admin-review .plain-row {
+      display: grid;
+      gap: .5rem;
+      grid-template-columns: minmax(150px, .8fr) minmax(150px, .8fr) minmax(220px, 1.4fr) auto;
+      align-items: center;
+      padding: .8rem 0;
+      border-bottom: 1px solid var(--ol-line);
+    }
+    #lancers-admin-review .is-phone .role-row,
+    #lancers-admin-review .is-phone .history-row,
+    #lancers-admin-review .is-phone .plain-row {
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+    #lancers-admin-review .group-title {
+      margin: 1rem 0 .1rem;
+      padding-bottom: .4rem;
+      border-bottom: 2px solid var(--ol-line);
+    }
+    #lancers-admin-review .group-title:first-child { margin-top: 0; }
+    #lancers-admin-review .muted { color: var(--ol-soft-text); }
+    #lancers-admin-review .status-dot {
+      display: inline-block;
+      width: .55rem;
+      height: .55rem;
+      border-radius: 50%;
+      margin-right: .4rem;
+      background: var(--green);
+    }
+    #lancers-admin-review .status-dot.pending { background: var(--viz-series-2); }
+    #lancers-admin-review .status-dot.inactive { background: var(--red); }
+    #lancers-admin-review .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      border-radius: 999px;
+      padding: .25rem .55rem;
+      font-weight: 500;
+    }
+    #lancers-admin-review .status-chip.active {
+      background: color-mix(in srgb, var(--green) 14%, transparent);
+    }
+    #lancers-admin-review .status-chip.pending {
+      background: color-mix(in srgb, var(--accent) 70%, transparent);
+    }
+    #lancers-admin-review .status-chip.inactive {
+      background: color-mix(in srgb, var(--destructive) 12%, transparent);
+    }
+    #lancers-admin-review .detail-list {
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr);
+      gap: .5rem 1rem;
+      margin: 0;
+    }
+    #lancers-admin-review .detail-list dt { color: var(--ol-soft-text); }
+    #lancers-admin-review .detail-list dd { margin: 0; }
+    #lancers-admin-review .stepper {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .35rem;
+      margin-bottom: .5rem;
+    }
+    #lancers-admin-review .stepper span {
+      border-top: 3px solid var(--ol-line);
+      padding-top: .45rem;
+      color: var(--ol-soft-text);
+    }
+    #lancers-admin-review .stepper span.is-current,
+    #lancers-admin-review .stepper span.is-done {
+      border-top-color: var(--primary);
+      color: var(--ol-canvas-text);
+    }
+    #lancers-admin-review .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .75rem;
+    }
+    #lancers-admin-review .is-phone .field-grid { grid-template-columns: 1fr; }
+    #lancers-admin-review .form-label {
+      display: grid;
+      gap: .35rem;
+      align-content: start;
+    }
+    #lancers-admin-review .security-map {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: .75rem;
+    }
+    #lancers-admin-review .is-phone .security-map { grid-template-columns: 1fr; }
+    #lancers-admin-review .security-map > div {
+      border-top: 3px solid var(--ol-line);
+      padding-top: .65rem;
+    }
+    #lancers-admin-review .mode-tabs { display: flex; gap: .4rem; flex-wrap: wrap; }
+    #lancers-admin-review .guide-section {
+      border-top: 1px solid var(--ol-line);
+      padding-top: .75rem;
+    }
+    #lancers-admin-review .guide-section h3 { margin-top: 0; }
+    #lancers-admin-review .guide-section ol,
+    #lancers-admin-review .guide-section ul { padding-left: 1.25rem; }
+    #lancers-admin-review .faq-list { display: grid; }
+    #lancers-admin-review .faq-item {
+      border-top: 1px solid var(--ol-line);
+      padding: .75rem 0;
+    }
+    #lancers-admin-review .faq-item summary {
+      cursor: pointer;
+      font-weight: 500;
+    }
+    #lancers-admin-review .faq-item > div { padding-top: .65rem; }
+    #lancers-admin-review .table-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: .35rem;
+      flex-wrap: wrap;
+    }
+    @media (max-width: 620px) {
+      #lancers-admin-review .review-controls { grid-template-columns: 1fr; }
+      #lancers-admin-review .viewport-controls { justify-content: flex-start; }
+      #lancers-admin-review .ol-stage:not(.is-phone) .ol-app {
+        grid-template-columns: 140px minmax(0, 1fr);
+      }
+      #lancers-admin-review .ol-stage:not(.is-phone) .ol-main { padding: 1rem; }
+    }
+  </style>
+
+  <div class="review-controls">
+    <label class="form-label">
+      Screen
+      <select id="ol-screen" class="form-select">
+        <option value="compare">Current shell vs proposed shell</option>
+        <option value="operators">Operators</option>
+        <option value="roles">Roles</option>
+        <option value="operator-detail">Operator detail and audit history</option>
+        <option value="role-detail">Role detail and holder history</option>
+        <option value="invite">Invite and assign</option>
+        <option value="changes">Replace role, end role and access</option>
+        <option value="recovery">Email recovery</option>
+        <option value="guide">Administration guide</option>
+      </select>
+    </label>
+    <div class="control-group viewport-controls" aria-label="Viewport">
+      <button type="button" class="btn btn-primary" data-viewport="desktop" aria-pressed="true">Desktop</button>
+      <button type="button" class="btn" data-viewport="phone" aria-pressed="false">Phone</button>
+    </div>
+  </div>
+
+  <div id="ol-stage" class="ol-stage" aria-live="polite"></div>
+
+  <script>
+    const root = document.getElementById("lancers-admin-review");
+    const stage = document.getElementById("ol-stage");
+    const screenSelect = document.getElementById("ol-screen");
+    let viewport = "desktop";
+    let inviteStep = 1;
+    let changeMode = "replace";
+    let resendSent = false;
+
+    const esc = (value) => String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+
+    function nav(active) {
+      const items = ["Roster", "Events", "Report"];
+      const admin = ["Operators", "Roles"];
+      return `
+        <aside class="ol-rail">
+          <div class="ol-brand"><span class="ol-brand-kicker text-small">Lancers</span><h3 class="ol-brand-name">Operations</h3></div>
+          <nav class="ol-nav" aria-label="Application">
+            ${items.map((item) => `<span class="ol-nav-item ${active === item ? "is-active" : ""}">${item}</span>`).join("")}
+            <div class="ol-nav-divider"></div>
+            <span class="ol-nav-label text-small">Administration</span>
+            ${admin.map((item) => `<span class="ol-nav-item ${active === item ? "is-active" : ""}">${item}</span>`).join("")}
+          </nav>
+          <div class="ol-account"><strong>Brian Schuster</strong><small>IT Officer</small></div>
+        </aside>`;
+    }
+
+    function bottomNav(active) {
+      return `<nav class="ol-bottom-nav" aria-label="Mobile application navigation">
+        ${["Roster", "Events", "Report", "Operators", "Roles"].map((item) => `<span class="${active === item ? "is-active" : ""}">${item}</span>`).join("")}
+      </nav>`;
+    }
+
+    function app(active, body) {
+      return `<div class="ol-app">
+        ${nav(active)}
+        <main class="ol-main">
+          <header class="ol-global-header">
+            <div><h2>Lancers Operations</h2><p>Signed in as Brian Schuster</p></div>
+            <button type="button" class="btn">Sign out</button>
+          </header>
+          ${body}
+        </main>
+        ${bottomNav(active)}
+      </div>`;
+    }
+
+    function helpLink() {
+      return '<a href="#" class="help-link text-small" data-open-guide><i data-lucide="circle-help" aria-hidden="true"></i>How administration works</a>';
+    }
+
+    function pageHeader(title, subtitle, actions, showHelp = false) {
+      return `<header class="page-header">
+        <div><div class="title-line"><h2>${title}</h2>${showHelp ? helpLink() : ""}</div><p>${subtitle}</p></div>
+        <div class="page-actions">${actions || ""}</div>
+      </header>`;
+    }
+
+    function compareScreen() {
+      return app("Operators", `
+        ${pageHeader("Navigation review", "Existing shell compared with the administration extension", "")}
+        <p class="muted">Administration is added at the bottom of the desktop rail, immediately above the signed-in account. Authorized administrators see Operators and Roles in the phone navigation.</p>
+        <div class="compare-grid">
+          <section>
+            <h3>Current application</h3>
+            <div class="mini-shell">
+              <div class="mini-rail"><strong>Lancers<br>Operations</strong><span class="selected">Roster</span><span>Events</span><span>Report</span><span class="bottom">Morgan Pike<br><small>Authorized operator</small></span></div>
+              <div class="mini-content"><h3>Roster</h3><p class="muted">Michaelmas 2026 · 42 current-season memberships</p><button type="button" class="btn btn-primary">Add player</button></div>
+            </div>
+          </section>
+          <section>
+            <h3>Proposed extension</h3>
+            <div class="mini-shell">
+              <div class="mini-rail"><strong>Lancers<br>Operations</strong><span>Roster</span><span>Events</span><span>Report</span><hr><small>ADMINISTRATION</small><span class="selected">Operators</span><span>Roles</span><span class="bottom">Brian Schuster<br><small>IT Officer</small></span></div>
+              <div class="mini-content"><h3>Operators</h3><p class="muted">2026–2027 · application access</p><button type="button" class="btn btn-primary">Invite operator</button></div>
+            </div>
+          </section>
+        </div>
+      `);
+    }
+
+    const operatorGroups = [
+      ["Standing officers", [
+        ["Stewart Humble", "stewart.humble@example.com", "General Manager", "Active", "active", "Accepted 12 Aug 2026"],
+        ["Brian Schuster", "brian.schuster@example.com", "IT Officer", "Active", "active", "Accepted 12 Aug 2026"]
+      ]],
+      ["Club officers", [
+        ["Clint Grohmann", "clint.grohmann@example.com", "President · Player", "Active", "active", "Accepted 18 Aug 2026"],
+        ["Morgan Pike", "morgan.pike@example.com", "Vice-President · Player", "Active", "active", "Accepted 16 Aug 2026"],
+        ["Avery Fielding", "avery.fielding@example.com", "Secretary · Player", "Invitation pending", "pending", "Sent 18 Aug 2026 · 14:09"]
+      ]],
+      ["Coaches", [
+        ["Rowan Ashdown", "rowan.ashdown@example.com", "Head Coach", "Active", "active", "Accepted 17 Aug 2026"],
+        ["Casey Quinn", "casey.quinn@example.com", "Wide Receivers Coach", "Invitation pending", "pending", "Sent 18 Aug 2026 · 14:22"]
+      ]]
+    ];
+
+    function operatorTable(rows) {
+      return `<div class="table-responsive">
+        <table class="table table-sm">
+          <thead><tr><th>Name</th><th>Current roles</th><th>Account status</th><th>Invitation status</th><th></th></tr></thead>
+          <tbody>
+            ${rows.map((row) => `<tr>
+              <td><strong>${esc(row[0])}</strong><br><span class="muted text-small">${esc(row[1])}</span></td>
+              <td>${esc(row[2])}</td>
+              <td><span class="status-chip ${row[4]}"><span class="status-dot ${row[4]}"></span>${esc(row[3])}</span></td>
+              <td>${esc(row[5])}</td>
+              <td><div class="table-actions">${row[4] === "pending" ? '<button type="button" class="btn btn-ghost" data-resend>Resend</button>' : ""}<button type="button" class="btn btn-ghost" data-open-person="${esc(row[0])}">View</button></div></td>
+            </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`;
+    }
+
+    function operatorsScreen() {
+      return app("Operators", `
+        ${pageHeader("Operators", "2026–2027 · 7 operator accounts", '<button type="button" class="btn btn-primary" data-open-invite>Invite operator</button>', true)}
+        ${operatorGroups.map((group) => `<section><h3 class="group-title">${group[0]}</h3>${operatorTable(group[1])}</section>`).join("")}
+      `);
+    }
+
+    const roleGroups = [
+      ["Operational administration", [
+        ["General Manager", "Stewart Humble", "Standing continuity authority; full administration and escalation."],
+        ["IT Officer", "Brian Schuster", "Technical administration and protected account recovery."]
+      ]],
+      ["Club committee", [
+        ["President", "Clint Grohmann", "Policy, escalation and operator administration for the current year."],
+        ["Vice-President", "Morgan Pike", "Broad weekly operations; no operator or role administration."],
+        ["Secretary", "Avery Fielding", "Roster, events, notifications and weekly operating work."],
+        ["Treasurer", "Not assigned", "Constitutional office; no additional privileged capability currently."],
+        ["Social Secretary", "Not assigned", "Approved office available for assignment; no privileged capability currently."],
+        ["Gameday Secretary", "Not assigned", "Approved office available for assignment; no privileged capability currently."],
+        ["Kit Manager", "Not assigned", "Approved office available for assignment; no privileged capability currently."],
+        ["Media Secretary", "Not assigned", "Approved office available for assignment; no privileged capability currently."]
+      ]],
+      ["Coaching staff", [
+        ["Head Coach", "Rowan Ashdown", "Attendance and availability reporting."],
+        ["Offensive Coordinator", "Not assigned", "Attendance and availability reporting."],
+        ["Defensive Coordinator", "Not assigned", "Attendance and availability reporting."],
+        ["Quarterbacks Coach", "Not assigned", "Attendance and availability reporting."],
+        ["Offensive Line Coach", "Not assigned", "Attendance and availability reporting."],
+        ["Wide Receivers Coach", "Casey Quinn", "Attendance and availability reporting."],
+        ["Defensive Line Coach", "Not assigned", "Attendance and availability reporting."],
+        ["Linebackers Coach", "Not assigned", "Attendance and availability reporting."],
+        ["Defensive Backs Coach", "Not assigned", "Attendance and availability reporting."],
+        ["Special Teams Coach", "Not assigned", "Attendance and availability reporting."]
+      ]]
+    ];
+
+    function rolesScreen() {
+      return app("Roles", `
+        ${pageHeader("Roles", "2026–2027 · current holders", "", true)}
+        <p class="muted">Role descriptions are presented from the same approved capability map used for authorization.</p>
+        <div class="role-stack">
+          ${roleGroups.map((group) => `
+            <section>
+              <h3 class="group-title">${group[0]}</h3>
+              ${group[1].map((role) => `<div class="role-row">
+                <strong>${role[0]}</strong>
+                <span class="${role[1] === "Not assigned" ? "muted" : ""}">${role[1]}</span>
+                <span class="muted">${role[2]}</span>
+                <button type="button" class="btn btn-ghost" data-open-role="${role[0]}">${role[1] === "Not assigned" ? "Assign" : "View"}</button>
+              </div>`).join("")}
+            </section>
+          `).join("")}
+        </div>
+      `);
+    }
+
+    function operatorDetailScreen() {
+      return app("Operators", `
+        ${pageHeader("Casey Quinn", "Operator account and current roles", '<button type="button" class="btn" data-resend>Resend invitation</button><button type="button" class="btn">Correct email</button><button type="button" class="btn">Deactivate operator access</button>')}
+        <div class="info-grid">
+          <section class="card">
+            <h3>Operator account</h3>
+            <dl class="detail-list">
+              <dt>Account status</dt><dd><span class="status-chip pending"><span class="status-dot pending"></span>Invitation pending</span></dd>
+              <dt>Email</dt><dd>casey.quinn@example.com</dd>
+              <dt>Phone</dt><dd>+44 7700 900 214</dd>
+              <dt>Invitation sent</dt><dd>${resendSent ? "Just now · resend recorded" : "18 Aug 2026 · 14:22"}</dd>
+              <dt>Delivery</dt><dd>${resendSent ? "Queued for delivery" : "Delivered · not yet accepted"}</dd>
+            </dl>
+          </section>
+          <section class="card">
+            <h3>Current relationships</h3>
+            <dl class="detail-list">
+              <dt>Role</dt><dd>Wide Receivers Coach · 2026–2027</dd>
+              <dt>Player</dt><dd>No current player membership</dd>
+              <dt>Coach</dt><dd>Wide Receivers Coach</dd>
+            </dl>
+          </section>
+        </div>
+        <section>
+          <div class="section-heading"><h3>Operator &amp; role audit history</h3><span class="muted">Account and assignment events</span></div>
+          <div class="timeline">
+            ${resendSent ? '<div class="history-row"><strong>Invitation resent</strong><span>Just now</span><span class="muted">Delivery queued on the same account</span><span>Actor: Brian</span></div>' : ""}
+            <div class="history-row"><strong>Invitation delivered</strong><span>18 Aug 2026 · 14:22</span><span class="muted">Secure first-access email delivered</span><span>Actor: Brian</span></div>
+            <div class="history-row"><strong>Invitation sent</strong><span>18 Aug 2026 · 14:21</span><span class="muted">Resend message ID recorded</span><span>Actor: Brian</span></div>
+            <div class="history-row"><strong>Wide Receivers Coach assigned</strong><span>18 Aug 2026 · effective 18 Aug</span><span class="muted">2026–2027</span><span>Actor: Brian</span></div>
+            <div class="history-row"><strong>Operator account created</strong><span>18 Aug 2026 · 14:20</span><span class="muted">Linked to Casey Quinn</span><span>Actor: Brian</span></div>
+          </div>
+        </section>
+      `);
+    }
+
+    function roleDetailScreen() {
+      return app("Roles", `
+        ${pageHeader("President", "Club committee role · 2026–2027", '<button type="button" class="btn" data-change="end">End role</button><button type="button" class="btn btn-primary" data-change="replace">Replace role</button>', true)}
+        <section class="card">
+          <h3>Current holder</h3>
+          <dl class="detail-list">
+            <dt>Holder</dt><dd>Clint Grohmann</dd>
+            <dt>Effective</dt><dd>18 Aug 2026</dd>
+            <dt>End</dt><dd>No end scheduled</dd>
+            <dt>Account status</dt><dd>Active</dd>
+          </dl>
+        </section>
+        <section>
+          <h3>Permissions</h3>
+          <p>Policy and escalation, broad application operations, and administration of lower operator accounts and role assignments.</p>
+          <p class="muted">Cannot remove the General Manager, end their own assignment or deactivate their own account.</p>
+        </section>
+        <section>
+          <div class="section-heading"><h3>Holder history</h3><span class="muted">This year and past years</span></div>
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead><tr><th>Holder</th><th>Operating year</th><th>Assignment period</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Clint Grohmann</strong></td><td>2026–2027</td><td>18 Aug 2026 – current</td><td><span class="viz-badge">Current</span></td></tr>
+                <tr><td>Avery Fielding</td><td>2026–2027</td><td>1 Jun 2026 – 17 Aug 2026</td><td>Replaced at handover</td></tr>
+                <tr><td>Morgan Pike</td><td>2025–2026</td><td>4 Jun 2025 – 10 Jun 2026</td><td>Ended at handover</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      `);
+    }
+
+    function inviteContent() {
+      const steps = ["Details", "Role", "Review", "Sent"];
+      const stepper = `<div class="stepper">${steps.map((label, index) => `<span class="${index + 1 < inviteStep ? "is-done" : index + 1 === inviteStep ? "is-current" : ""}">${index + 1}. ${label}</span>`).join("")}</div>`;
+      if (inviteStep === 1) return `
+        ${stepper}
+        <div class="form-stack">
+          <section>
+            <h3>Check for an existing person</h3>
+            <label class="form-label">Search by name or email<input class="form-control" value="Taylor Morgan"></label>
+            <p class="muted">No matching person found. Create a new record below.</p>
+          </section>
+          <div class="field-grid">
+            <label class="form-label">First name<input class="form-control" value="Taylor" required></label>
+            <label class="form-label">Last name<input class="form-control" value="Morgan" required></label>
+            <label class="form-label">Email<input class="form-control" type="email" value="taylor.morgan@example.com" required></label>
+            <label class="form-label">Phone <span class="muted">Optional</span><input class="form-control" type="tel" value="+44 7700 900 316"></label>
+          </div>
+        </div>`;
+      if (inviteStep === 2) return `
+        ${stepper}
+        <div class="field-grid">
+          <label class="form-label">Approved role<select class="form-select"><option>Secretary</option><option>Vice-President</option><option>Head Coach</option><option>Wide Receivers Coach</option></select></label>
+          <label class="form-label">Operating year<input class="form-control" value="2026–2027" disabled></label>
+          <label class="form-label">Effective start<input class="form-control" type="date" value="2026-08-18"></label>
+        </div>
+        <p class="muted">The active operating year is inherited. Start defaults to today and may be future-dated or corrected with an audited backdate. No ordinary end date is required.</p>`;
+      if (inviteStep === 3) return `
+        ${stepper}
+        <section class="card">
+          <h3>Review invitation</h3>
+          <dl class="detail-list">
+            <dt>Name</dt><dd>Taylor Morgan</dd>
+            <dt>Email</dt><dd>taylor.morgan@example.com</dd>
+            <dt>Phone</dt><dd>+44 7700 900 316</dd>
+            <dt>Role</dt><dd>Secretary</dd>
+            <dt>Year</dt><dd>2026–2027</dd>
+            <dt>Starts</dt><dd>18 Aug 2026</dd>
+            <dt>Invitation</dt><dd>Secure email through Resend</dd>
+          </dl>
+        </section>
+        <p class="muted">This reuses any matching person and account. It does not create a player membership.</p>`;
+      return `
+        ${stepper}
+        <section><h3>Invitation sent</h3><p>Taylor Morgan’s operator account and Secretary assignment are recorded. Delivery confirmation is pending.</p></section>
+        <section class="card">
+          <h3>What happens next</h3>
+          <p>Taylor follows the secure email link and establishes credentials. If delivery fails, correct the email and resend against this same account.</p>
+        </section>`;
+    }
+
+    function inviteScreen() {
+      return app("Operators", `
+        ${pageHeader("Invite operator", "One guided account and role flow", "")}
+        ${inviteContent()}
+        <div class="action-row">
+          <button type="button" class="btn" id="invite-back" ${inviteStep === 1 ? "disabled" : ""}>Back</button>
+          <button type="button" class="btn btn-primary" id="invite-next">${inviteStep === 3 ? "Send invitation" : inviteStep === 4 ? "Done" : "Continue"}</button>
+        </div>
+      `);
+    }
+
+    function changePanel() {
+      if (changeMode === "replace") return `
+        <div class="form-stack">
+          <p>Replacing a single-holder role ends the outgoing assignment and creates the successor while preserving both records.</p>
+          <div class="field-grid">
+            <label class="form-label">Outgoing holder<input class="form-control" value="Clint Grohmann" disabled></label>
+            <label class="form-label">Successor<select class="form-select"><option>Avery Fielding</option><option>Morgan Pike</option></select></label>
+            <label class="form-label">Effective date<input class="form-control" type="date" value="2026-08-18"></label>
+            <label class="form-label">Reason<textarea class="form-control">Leadership transition approved by the General Manager.</textarea></label>
+          </div>
+          <button type="button" class="btn btn-primary">Replace role</button>
+        </div>`;
+      if (changeMode === "end") return `
+        <div class="form-stack">
+          <p>Use this when a role ends without an immediate successor. The assignment remains in history.</p>
+          <div class="field-grid">
+            <label class="form-label">Assignment<input class="form-control" value="Secretary · Avery Fielding" disabled></label>
+            <label class="form-label">Effective end<input class="form-control" type="date" value="2026-08-18"></label>
+            <label class="form-label">Reason<textarea class="form-control">Office ended without replacement.</textarea></label>
+          </div>
+          <button type="button" class="btn btn-primary">End role</button>
+        </div>`;
+      if (changeMode === "deactivate") return `
+        <div class="form-stack">
+          <p class="text-destructive"><strong>Operator access stops immediately.</strong></p>
+          <p>The person record, memberships, role assignments and audit history remain. Active roles are not silently ended.</p>
+          <div class="field-grid">
+            <label class="form-label">Operator<input class="form-control" value="Morgan Pike" disabled></label>
+            <label class="form-label">Reason<textarea class="form-control">Access removed after device compromise.</textarea></label>
+          </div>
+          <p class="muted">Morgan still holds Vice-President for 2026–2027. The active assignment remains visible for reconciliation.</p>
+          <button type="button" class="btn">Deactivate operator access</button>
+        </div>`;
+      if (changeMode === "reinstate") return `
+        <div class="form-stack">
+          <p>Restoring access reuses the same operator account. Only roles still in effect become usable again.</p>
+          <section class="card"><dl class="detail-list"><dt>Operator</dt><dd>Morgan Pike</dd><dt>Current state</dt><dd>Deactivated</dd><dt>Still-effective role</dt><dd>Vice-President · 2026–2027</dd></dl></section>
+          <button type="button" class="btn btn-primary">Restore operator access</button>
+        </div>`;
+      return `
+        <section><h3 class="text-destructive">This action is not available</h3><p>President cannot replace, end or deactivate the General Manager. General Manager replacement uses the exceptional IT/service-recovery process.</p></section>
+        <div class="security-map">
+          <div><strong>No self-removal</strong><p class="muted">Nobody can deactivate themselves or end their own role.</p></div>
+          <div><strong>Leadership hierarchy</strong><p class="muted">GM may govern President; President and IT Officer cannot ordinarily govern GM.</p></div>
+          <div><strong>Final path protected</strong><p class="muted">No action may remove every usable administration path.</p></div>
+        </div>`;
+    }
+
+    function changesScreen() {
+      return app("Operators", `
+        ${pageHeader("Access and role changes", "Separate actions with preserved history", "")}
+        <div class="mode-tabs">
+          ${[["replace","Replace role"],["end","End role"],["deactivate","Deactivate operator access"],["reinstate","Restore operator access"],["refusal","Security refusal"]].map((item) => `<button type="button" class="btn ${changeMode === item[0] ? "btn-primary" : ""}" data-change-mode="${item[0]}" aria-pressed="${changeMode === item[0]}">${item[1]}</button>`).join("")}
+        </div>
+        ${changePanel()}
+      `);
+    }
+
+    function recoveryScreen() {
+      return app("Operators", `
+        ${pageHeader("Recover operator email", "Lost or compromised email only", "")}
+        <p>Recovery keeps the same operator account, assignments and audit history. It does not change roles.</p>
+        <div class="field-grid">
+          <label class="form-label">Operator<input class="form-control" value="Clint Grohmann" disabled></label>
+          <label class="form-label">Current email<input class="form-control" value="clint.grohmann@example.com" disabled></label>
+          <label class="form-label">Replacement email<input class="form-control" value="clint.new@example.com"></label>
+          <label class="form-label">Reason<textarea class="form-control">University mailbox access lost.</textarea></label>
+        </div>
+        <section class="card">
+          <h3>After you begin recovery</h3>
+          <ol>
+            <li>The old sign-in path is disabled.</li>
+            <li>The account shows <strong>Email change pending</strong>.</li>
+            <li>A secure verification email goes to the unused replacement address.</li>
+            <li>A best-effort security notice goes to the old address.</li>
+            <li>Verification restores access on the same account.</li>
+          </ol>
+        </section>
+        <div class="action-row"><button type="button" class="btn">Cancel</button><button type="button" class="btn btn-primary">Send verification</button></div>
+        <p class="muted">General Manager may recover President. IT Officer may technically recover President or General Manager without changing authority. President cannot recover General Manager, and nobody can recover their own email here.</p>
+      `);
+    }
+
+    function guideScreen() {
+      return app("Operators", `
+        ${pageHeader("How administration works", "Answers for routine operator and role administration", "")}
+        <div class="faq-list">
+          <details class="faq-item" open><summary>How do I invite someone?</summary><div><ol><li>Search for the person by name or email.</li><li>If absent, enter first name, last name, email and optional phone.</li><li>Select an approved role and review the inherited operating year.</li><li>Send the secure first-access email.</li></ol></div></details>
+          <details class="faq-item"><summary>How do I resend an invitation?</summary><div><p>Open an operator whose invitation is pending and choose <strong>Resend invitation</strong>. The new email stays attached to the same account, and every send and delivery result is recorded.</p></div></details>
+          <details class="faq-item"><summary>How do I assign or replace a role?</summary><div><p>The operating year is inherited and the start date defaults to today. Use <strong>Replace role</strong> for a single-holder transition so the outgoing and incoming assignments remain in history.</p></div></details>
+          <details class="faq-item"><summary>How do I end a role?</summary><div><p>Use <strong>End role</strong> when there is no immediate successor. This ends only the assignment and does not delete the operator or person.</p></div></details>
+          <details class="faq-item"><summary>How do I stop and restore access?</summary><div><p><strong>Deactivate operator access</strong> stops sign-in without erasing roles or history. <strong>Restore operator access</strong> reuses the same account and restores only roles still in effect.</p></div></details>
+          <details class="faq-item"><summary>How do I recover an email?</summary><div><p>Use email recovery only when the sign-in address is lost or compromised. The person, account, assignments and history remain the same.</p></div></details>
+          <details class="faq-item"><summary>Where do I see audit history?</summary><div><p>The operator page shows account and assignment events. The role page shows holder history. The same underlying role event appears in both relevant views.</p></div></details>
+          <details class="faq-item"><summary>Why was an action refused?</summary><div><p>The app blocks self-removal, forbidden leadership changes and removal of the final usable administration path. General Manager replacement goes through exceptional recovery.</p></div></details>
+        </div>
+      `);
+    }
+
+    function render() {
+      stage.classList.toggle("is-phone", viewport === "phone");
+      const screen = screenSelect.value;
+      const views = {
+        "compare": compareScreen,
+        "operators": operatorsScreen,
+        "roles": rolesScreen,
+        "operator-detail": operatorDetailScreen,
+        "role-detail": roleDetailScreen,
+        "invite": inviteScreen,
+        "changes": changesScreen,
+        "recovery": recoveryScreen,
+        "guide": guideScreen
+      };
+      stage.innerHTML = views[screen]();
+      root.querySelectorAll("[data-viewport]").forEach((button) => {
+        const selected = button.dataset.viewport === viewport;
+        button.classList.toggle("btn-primary", selected);
+        button.setAttribute("aria-pressed", String(selected));
+      });
+      if (window.lucide) lucide.createIcons({ attrs: { width: 16, height: 16 } });
+    }
+
+    screenSelect.addEventListener("change", () => {
+      inviteStep = 1;
+      changeMode = "replace";
+      render();
+    });
+
+    root.addEventListener("click", (event) => {
+      const viewportButton = event.target.closest("[data-viewport]");
+      if (viewportButton) {
+        viewport = viewportButton.dataset.viewport;
+        render();
+        return;
+      }
+      if (event.target.closest("[data-open-invite]")) {
+        screenSelect.value = "invite";
+        inviteStep = 1;
+        render();
+        return;
+      }
+      if (event.target.closest("[data-open-guide]")) {
+        event.preventDefault();
+        screenSelect.value = "guide";
+        render();
+        return;
+      }
+      if (event.target.closest("[data-resend]")) {
+        resendSent = true;
+        screenSelect.value = "operator-detail";
+        render();
+        return;
+      }
+      if (event.target.closest("[data-open-person]")) {
+        screenSelect.value = "operator-detail";
+        render();
+        return;
+      }
+      if (event.target.closest("[data-open-role]")) {
+        screenSelect.value = "role-detail";
+        render();
+        return;
+      }
+      const changeLink = event.target.closest("[data-change]");
+      if (changeLink) {
+        screenSelect.value = "changes";
+        changeMode = changeLink.dataset.change;
+        render();
+        return;
+      }
+      const mode = event.target.closest("[data-change-mode]");
+      if (mode) {
+        changeMode = mode.dataset.changeMode;
+        render();
+        return;
+      }
+      if (event.target.id === "invite-back") {
+        inviteStep = Math.max(1, inviteStep - 1);
+        render();
+        return;
+      }
+      if (event.target.id === "invite-next") {
+        if (inviteStep === 4) {
+          screenSelect.value = "operators";
+          inviteStep = 1;
+        } else {
+          inviteStep = Math.min(4, inviteStep + 1);
+        }
+        render();
+      }
+    });
+
+    render();
+  </script>
+</div>

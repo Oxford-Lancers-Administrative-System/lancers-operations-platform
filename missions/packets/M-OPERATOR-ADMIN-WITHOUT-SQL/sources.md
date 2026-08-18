@@ -25,6 +25,7 @@ file records why each source controls or informs the packet.
 | [Repository main at intake](https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/tree/5812390914b4ca45b609328ffd929ec45071be17) | Implemented reality and observed drift baseline |
 | [`capabilities.ts`](https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/blob/5812390914b4ca45b609328ffd929ec45071be17/src/lib/auth/capabilities.ts) | Current `role_management = [it_officer]` implementation that conflicts with Notion |
 | [Canonical packet validator](https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/blob/5812390914b4ca45b609328ffd929ec45071be17/scripts/mission/lib/packet.mjs) | Schema used for this packet |
+| [`mockups/administration-prototype.html`](mockups/administration-prototype.html) | Brian-reviewed, code-native visual reference for Administration information architecture, labels, actions, states, grouping, FAQ structure and desktop/375px responsive direction; exact sample content and low-level styling remain illustrative |
 
 Supporting July interviews and meeting notes were used only to verify coaching-role
 provenance. The approved Person, Identity, Football Assignments, Attendance and Availability

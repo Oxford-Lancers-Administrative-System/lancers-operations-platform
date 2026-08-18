@@ -49,6 +49,19 @@ plain-language account states and Operator audit history. Role/capability copy c
 same reviewed definition as server enforcement. One canonical append-only event may appear in
 both views without duplicated records. The full general audit browser remains deferred.
 
+## Reviewed UI prototype
+
+The packet includes a self-contained, repository-native
+[`administration-prototype.html`](mockups/administration-prototype.html). It is the controlling
+visual reference for the reviewed information architecture, labels, actions, states, grouping,
+FAQ structure and responsive direction. Open it directly in a browser; it has no build step or
+external assets.
+
+Synthetic names, dates and counts—and exact spacing, border shades and low-level component
+composition—remain illustrative. Implementation uses the existing Material UI shell and must
+enforce the packet's service and authorization rules rather than treating sample prototype data
+as behavior.
+
 ## Invitation, lifecycle and email
 
 One guided invitation flow duplicate-checks and links or creates the Person using required
