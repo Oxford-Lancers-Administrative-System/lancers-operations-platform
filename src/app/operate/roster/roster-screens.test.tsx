@@ -389,6 +389,31 @@ describe("UX-23 — No memberships match these filters", () => {
     expect(screen.queryByTestId("roster-filter-empty")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Clear filters" })).not.toBeInTheDocument();
   });
+
+  /**
+   * The third empty-looking state, and the one that is not an empty state at
+   * all: the service refused, so the screen knows nothing about the season.
+   *
+   * Untested until LAN-118 moved this markup into a shared `UnavailableScreen`.
+   * The refusal is only reachable when a read fails, which is precisely why it
+   * needs a test rather than a look — and why sharing it was worth doing: the
+   * three list screens that render it were each carrying their own copy.
+   *
+   * The heading level is asserted because it is the claim that is silently easy
+   * to break. At this moment it is the page's only heading, and one that came
+   * back as anything but `h1` would leave the screen unreachable by heading
+   * navigation without changing a pixel.
+   */
+  it("shows the service's own sentence when the roster cannot be read", async () => {
+    vi.mocked(listCurrentSeasonRoster).mockRejectedValue(new NotFound("No season is open."));
+
+    render(await RosterPage(rosterProps()));
+
+    expect(screen.getByTestId("roster-unavailable")).toHaveTextContent("No season is open.");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Roster");
+    expect(screen.queryByTestId("roster-empty")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("roster-filter-empty")).not.toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------
