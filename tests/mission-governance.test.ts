@@ -209,6 +209,42 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
     }
   });
 
+  it("records the decision, indexes it, and states the policy where humans read it", () => {
+    const flat = (text: string) =>
+      text.replace(/\*\*/g, "").replace(/`/g, "").replace(/\s+/g, " ");
+    const adr = flat(read("docs/adr/0027-mission-harness.md"));
+    for (const clause of [
+      /re-derives every server-verifiable conjunct from evidence/i,
+      /does not deploy/i,
+      /cannot widen itself/i,
+      /standard application work at low or normal risk only/i,
+      /migrations, RLS\/auth\/security, secrets, deployment/i,
+      /synthetic rehearsals only/i,
+      /never --admin/i,
+    ]) {
+      expect(adr, `ADR 0027 must record ${clause}`).toMatch(clause);
+    }
+    expect(read("docs/adr/README.md")).toContain("[0027](0027-mission-harness.md)");
+    const runbook = flat(read("docs/mission-harness.md"));
+    for (const clause of [
+      /\/run-mission M-<mission-id>/,
+      /gh workflow run deploy\.yml/,
+      /mission merge does not deploy/i,
+      /Create the mission-merge label/i,
+      /Always Brian's, never autonomous/i,
+      /journal\.ndjson/,
+      /usage-exhausted/,
+    ]) {
+      expect(runbook, `the runbook must cover ${clause}`).toMatch(clause);
+    }
+    const agreement = flat(read("AGENTS.md"));
+    expect(agreement).toMatch(/Exactly two user-invoked workflows and two subagents are approved/i);
+    expect(agreement).toMatch(
+      /No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to production/i,
+    );
+    expect(agreement).toMatch(/mission merge performed with GITHUB_TOKEN deliberately does not deploy/i);
+  });
+
   it("prohibits every owner-gated surface class from the mission lane", () => {
     for (const surface of [
       "supabase/migrations/20260901000000_x.sql",
