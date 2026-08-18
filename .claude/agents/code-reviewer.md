@@ -224,6 +224,8 @@ deterministic verification or exact read-back. Also include:
 - CI result for the reviewed head;
 - whether visual/human review remains.
 
-Do not repair anything. Return the receipt to the top-level `/start-issue`
-session. Describe exactly which SHA and delta the receipt covers; never erase
-valid prior coverage merely because a later SHA exists.
+Do not repair anything. Return the receipt to the orchestrating session that
+launched this review — the top-level `/start-issue` session, or the Mission
+Lead running `/run-mission`, which records it in durable mission state and
+decides the next transition. Describe exactly which SHA and delta the receipt
+covers; never erase valid prior coverage merely because a later SHA exists.
