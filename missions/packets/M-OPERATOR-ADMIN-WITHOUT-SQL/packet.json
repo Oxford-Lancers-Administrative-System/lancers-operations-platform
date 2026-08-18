@@ -10,9 +10,9 @@
     "No wider H7 ownership and access completion sweep",
     "No LAN-84 production recovery rehearsal or two-service-administrator establishment",
     "No Meta, WhatsApp, DNS, Resend, SMTP, email-foundation or real-data cutover work",
-    "No player-facing accounts or public sign-up",
+    "No player-facing accounts, persona-specific duplicate logins or public sign-up",
     "No authentication-architecture redesign or operator two-factor authentication",
-    "No general People/roster redesign beyond the minimum duplicate-checked create-or-link Person seam required to invite an operator",
+    "No general People/roster redesign, operator self-service profile editing or player-facing authentication beyond duplicate-checked create-or-link Person needed for operator invitation",
     "No coach module, coach self-service football workflow, expanded coach data visibility or unapproved coach capability grants; this mission includes coach account onboarding only",
     "No special bulk handover mode or general cycle-open/close implementation",
     "No full Stage-4 general change-audit browser, cross-system search, filtering, export or investigation interface; the bounded per-operator Access History is included",
@@ -48,7 +48,7 @@
       "id": "SRC-identity-brief",
       "kind": "notion",
       "ref": "https://app.notion.com/p/3bc488886d5781d78d18f045492073cd",
-      "version": "owner-amended-2026-08-18; fetched-2026-08-18T20:59:46.560Z"
+      "version": "owner-amended-2026-08-18; fetched-2026-08-18T21:43:25.957Z"
     },
     {
       "id": "SRC-locked-requirements",
@@ -132,57 +132,57 @@
   "requirements": [
     {
       "id": "REQ-static-role-catalogue",
-      "text": "The application uses the approved static 20-role catalogue: ten committee/operational roles plus the fixed ten-role coaching hierarchy. The catalogue is available in hosted and local environments through versioned, reviewable repository artifacts, visually grouped by role family, and cannot be edited in the application.",
+      "text": "The application uses the approved static 20-role catalogue: Operational Administration first (General Manager and IT Officer), Club Committee second, and the fixed ten-role Coaching Staff hierarchy third. The catalogue is available in hosted and local environments through versioned, reviewable repository artifacts and cannot be edited in the application.",
       "source_id": "SRC-identity-brief"
     },
     {
       "id": "REQ-role-management-authority",
-      "text": "Every operator-administration read and write is enforced at the server/service boundary by role_management plus target-level leadership guards. President, General Manager and IT Officer hold role_management. Vice-President and Secretary retain broad ordinary operating capabilities but cannot administer accounts or role assignments. IT Officer is transitional technical administration and may not remove President or General Manager through the ordinary workflow.",
+      "text": "Every operator-administration read and write is enforced at the server/service boundary by role_management plus target-level leadership and recovery guards. President, General Manager and IT Officer hold role_management. Vice-President and Secretary retain broad ordinary operating capabilities but cannot administer accounts or role assignments. General Manager may manage President; IT Officer may recover leadership email access but may not ordinarily assign, replace, end or deactivate President or General Manager.",
       "source_id": "SRC-identity-brief"
     },
     {
       "id": "REQ-admin-surfaces",
-      "text": "The operator shell contains Operators and Roles destinations at /operate/admin/operators and /operate/admin/roles in Administration at the bottom of the left sidebar immediately above user/account controls. Roles are grouped into committee/operational and coaching sections and show current holders plus a read-only plain-language capability summary. No role or grant is editable.",
+      "text": "The operator shell contains Operators and Roles destinations at /operate/admin/operators and /operate/admin/roles in Administration at the bottom of the left sidebar immediately above user/account controls. Roles are grouped in the order Operational Administration, Club Committee, Coaching Staff. The top-level role view shows role name, current holder and a useful read-only plain-language capability summary, without repeated year/scope labels; former holders remain on role detail. No role or grant is editable.",
       "source_id": "SRC-identity-brief"
     },
     {
       "id": "REQ-invite-existing-person",
-      "text": "An authorized administrator first searches and duplicate-checks for a durable Person. If found, the workflow links that Person; if absent, it creates a minimal Person without player membership using given name and an available contact point. A valid personal email is required before operator invitation. The workflow then creates and binds the operator login one-to-one, optionally assigns approved roles in the active operating year, and emails a secure invitation. Public sign-up remains disabled.",
+      "text": "An authorized administrator first searches and duplicate-checks for the durable Person. If found, including a current or former player, the workflow links that Person; if absent, it creates a minimal Person using name and valid personal email only. The same guided flow requires at least one approved initial role, inherits the active operating year, defaults effective-from to today with permitted future/backdating, creates at most one operator login, and emails a secure invitation. Public sign-up remains disabled.",
       "source_id": "SRC-person-brief"
     },
     {
       "id": "REQ-invitation-states",
-      "text": "The workflow represents Invited, Active, Deactivated and Reinstated states, treats expiration as a normal state, permits resend while Invited, and refuses duplicate Person bindings or duplicate emails with an actionable reason.",
+      "text": "The workflow represents Invited, Delivery failed, Active, Deactivated, Email change pending and Reinstated states, treats invitation expiration as normal, permits correction and resend, and refuses duplicate Person bindings or duplicate emails with an actionable reason. Delivery failure preserves the same Person and operator account and never creates a duplicate.",
       "source_id": "SRC-identity-brief"
     },
     {
       "id": "REQ-explicit-cycle-assignment",
-      "text": "The first version presents one active operating-year context, such as 2026-27, for routine committee and season assignments. The form visibly confirms that context and stores the applicable cycle identifier explicitly without requiring a repetitive cycle dropdown. A different or future year requires an intentional context switch; missing, closed or ambiguous cycles are refused.",
+      "text": "The first version inherits one application-wide active operating-year context, such as 2026-27, for routine committee and coaching assignments. Forms do not ask for or repeat the year; the applicable cycle identifier remains explicit in stored state. Viewing another year requires a deliberate context switch, and historical years are read-only through ordinary administration. Missing, closed or ambiguous context is refused rather than guessed.",
       "source_id": "SRC-identity-brief"
     },
     {
       "id": "REQ-effective-dated-role-history",
-      "text": "Ordinary roles are assigned into the active operating year with an effective-from date and normally no manual effective-to. Ending or replacing sets effective-to and creates the successor assignment without deleting history. The single-holder General Manager role is standing across operating years and has no automatic cycle-end expiry.",
+      "text": "Ordinary roles inherit the active operating year and an effective-from date defaulting to today; future dates and audited backdating are permitted. No routine end date is requested. End assignment may schedule a future effective-to and requires a reason; replacement ends the outgoing assignment and creates the successor without rewriting history. General Manager is standing and single-holder; IT Officer is also standing; neither expires automatically at year end.",
       "source_id": "SRC-identity-brief"
     },
     {
       "id": "REQ-deactivate-and-reinstate",
-      "text": "An authorized administrator can deactivate an operator with a required reason and date, and reinstate the same Person-account binding later. Deactivation immediately prevents sign-in and never deletes the Person, account binding, attribution or historical records.",
+      "text": "An authorized administrator can immediately deactivate an operator with a required reason and reinstate the same Person-account binding later. Deactivation prevents sign-in without automatically ending organizational roles, warns when effective roles remain, and never deletes Person, membership, binding, attribution or history. Reinstatement restores only capabilities from assignments that remain effective.",
       "source_id": "SRC-identity-brief"
     },
     {
       "id": "REQ-rehome-email",
-      "text": "For lost email access, an authorized administrator can re-home an operator login to a new email, disable the old login path, and preserve audited attribution on both sides. Forgotten-password recovery remains self-service and is not replaced by administrator password handling.",
+      "text": "Forgotten password remains self-service through verified email. For lost or compromised email, an authorized administrator disables the old login path, records a reason, sends a secure verification link to an unused replacement email and keeps the account in Email change pending until verification. Failure is correctable and retryable on the same account. General Manager may recover President; IT Officer may technically recover President or General Manager without changing their authority; President may not recover General Manager.",
       "source_id": "SRC-identity-brief"
     },
     {
       "id": "REQ-final-admin-protection",
-      "text": "No operator may deactivate themselves or end/remove their own role assignment. General Manager may end/replace or deactivate President; President may not end/replace or deactivate General Manager; IT Officer may not remove either leadership role through the ordinary workflow. President and General Manager may administer Vice-President, Secretary, IT Officer, coaches and other lower roles. No action may eliminate every usable administration path.",
+      "text": "No operator may deactivate themselves, end/remove their own role assignment or use the administrator recovery flow on themselves. General Manager may assign, replace, end or deactivate President; President and IT Officer may not ordinarily assign, replace, end or deactivate General Manager; IT Officer may not ordinarily assign, replace, end or deactivate President. President, General Manager and IT Officer may administer lower roles. No action may eliminate every usable administration path; General Manager replacement remains exceptional IT/service recovery outside this mission.",
       "source_id": "SRC-identity-brief"
     },
     {
       "id": "REQ-append-only-audit-evidence",
-      "text": "Every provisioning, account-state, email-rehome and role-assignment change writes append-only audit evidence atomically, naming actor, target, time and before/after state. Operator detail includes a read-only Access History for these mission-owned events. The later full Stage-4 general audit browser remains excluded.",
+      "text": "Every provisioning, account-state, email-recovery and role-assignment change writes one append-only canonical audit event naming actor, authority at the time, target Person/operator, affected role/assignment when applicable, operating year, timestamp, reason and before/after state. Operator Access History shows target-affecting events; role detail shows the role-related subset as holder history. The same event may appear in both projections without duplicate records. Ordinary page views and refused no-change actions are excluded; the full Stage-4 general audit browser remains excluded.",
       "source_id": "SRC-identity-brief"
     },
     {
@@ -192,7 +192,7 @@
     },
     {
       "id": "REQ-club-operating-guide",
-      "text": "A short club-facing guide explains create-or-link Person, coach and committee invitation, first login, active-year context, role assignment/replacement, leadership safeguards, Access History, deactivation/reinstatement and email re-home. It contains no SQL, Supabase-dashboard or WhatsApp-authentication procedure.",
+      "text": "A short club-facing guide explains duplicate-checked create-or-link Person, combined player/operator/role identity, guided email invitation, start-date behavior, active-year context, role assignment/replacement/ending, leadership safeguards, dual audit projections, deactivation/reinstatement and email recovery. It contains no SQL, Supabase-dashboard, administrator-created-password or WhatsApp-authentication procedure.",
       "source_id": "SRC-identity-brief"
     },
     {
@@ -202,17 +202,17 @@
     },
     {
       "id": "REQ-role-definition-and-permission-boundary",
-      "text": "President, General Manager and IT Officer may assign people to the approved static catalogue, including roles that currently carry no privileged capabilities. They cannot create roles or edit grants in the application. The Roles page provides read-only capability transparency; any new role or grant change remains a separately reviewed owner decision and code change.",
+      "text": "President, General Manager and IT Officer may assign people to the approved static catalogue, including roles that currently carry no privileged capabilities. Single-holder restrictions follow the constitution, with General Manager additionally single-holder; other roles permit multiple holders unless another authoritative rule says otherwise. One Person may hold multiple compatible roles. Administrators cannot create roles or edit grants in the application.",
       "source_id": "SRC-identity-brief"
     },
     {
       "id": "REQ-coach-operator-onboarding",
-      "text": "Administration visually separates the fixed coaching hierarchy and supports create-or-link Person, secure email invitation and year-scoped role assignment for every coach role. Coaches never require player membership. HC/OC/DC retain the approved narrow attendance capability; position-coach accounts receive no unapproved coach-module or administrative access.",
+      "text": "Administration visually separates Coaching Staff and supports duplicate-checked create-or-link Person, secure email invitation and active-year role assignment for every coach role. Coaching onboarding neither requires nor automatically creates player membership: an external coach may have none, while a coach-player links the existing Person and membership. One Person and at most one operator login may simultaneously carry player membership and compatible committee, operational and coaching roles. HC/OC/DC retain approved narrow attendance access; position coaches receive no unapproved capability.",
       "source_id": "SRC-football-brief"
     },
     {
       "id": "REQ-email-invitation-path",
-      "text": "Operator invitations and password recovery use Supabase Auth secure email links delivered through the provider-neutral transactional email path, currently Resend/custom SMTP under LAN-126. Administrators never choose or send passwords, and WhatsApp is not used for authentication.",
+      "text": "Operator invitations, invitation correction/resend, password recovery and verified email re-home use Supabase Auth secure email links delivered through the provider-neutral transactional email path, currently Resend/custom SMTP under LAN-126. Administrators never choose or send passwords, WhatsApp is not authentication, and first login does not add operator profile editing.",
       "source_id": "SRC-identity-brief"
     }
   ],
@@ -224,7 +224,7 @@
     },
     {
       "id": "DEC-audit-boundary",
-      "text": "Locked by Brian on 2026-08-18: include a narrow read-only Access History on each operator detail for mission-owned access events, while excluding the full Stage-4 general audit browser, cross-system search, filtering, export and investigation interface.",
+      "text": "Locked by Brian on 2026-08-18: canonical audit events are stored once and projected target-first into operator Access History and role-first into holder history. The same role event may appear in both views. Page views, refused no-change actions, and the full Stage-4 general audit browser/search/filter/export interface remain excluded.",
       "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §E"
     },
     {
@@ -234,7 +234,7 @@
     },
     {
       "id": "DEC-person-account-role-separation",
-      "text": "Locked: Person, operator account and role assignment remain separate durable concepts. Roles are relationships and player status remains a seasonal membership, not an account type.",
+      "text": "Locked: Person, player membership, operator account and role assignment remain separate durable concepts. One Person may be a player, coach, officer and operator simultaneously; player membership is seasonal, the operator account is the Person's single login, and effective permissions are the union of compatible current role grants.",
       "source": "Identity, Access & Ownership brief §§2.3 and 3.2; LAN-71"
     },
     {
@@ -249,7 +249,7 @@
     },
     {
       "id": "DEC-administration-navigation",
-      "text": "Locked by Brian during intake on 2026-08-18: Administration is a low-frequency privileged area at the bottom of the left application sidebar, separated from Events, Calendar, Roster and other ordinary operations and positioned immediately above user/account controls.",
+      "text": "Locked by Brian during intake on 2026-08-18: Administration is a low-frequency privileged area at the bottom of the left application sidebar, immediately above user/account controls. Roles appear as Operational Administration, Club Committee, then Coaching Staff; the top level shows current holders only.",
       "source": "Brian intake decision, 2026-08-18"
     },
     {
@@ -259,7 +259,7 @@
     },
     {
       "id": "DEC-no-self-removal",
-      "text": "Locked by Brian during intake on 2026-08-18: nobody may deactivate themselves or remove their own role. General Manager may remove/replace President; President may not remove/replace General Manager; IT Officer may not remove either through the ordinary workflow. Exceptional lockout recovery remains separately governed.",
+      "text": "Locked by Brian during intake on 2026-08-18: nobody may deactivate themselves, remove their own role or administrator-rehome their own email. General Manager may manage President; President and IT Officer may not ordinarily manage leadership assignments above them. IT Officer may perform technical email recovery for President or GM without changing organizational authority. Exceptional GM replacement remains outside the ordinary mission.",
       "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §A"
     },
     {
@@ -269,28 +269,43 @@
     },
     {
       "id": "DEC-active-operating-year",
-      "text": "Locked by Brian on 2026-08-18: routine assignments use the visibly confirmed active operating-year context, such as 2026-27, with no repetitive cycle dropdown. A different year requires intentional context switching; the applicable cycle remains explicit in stored state.",
+      "text": "Locked by Brian on 2026-08-18: routine assignments inherit the single application-wide active operating-year context, such as 2026-27. Forms do not ask for or repeat the year. A different year requires deliberate context switching and historical years are read-only; the applicable cycle remains explicit in stored state.",
       "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §B"
     },
     {
       "id": "DEC-general-manager-standing",
-      "text": "Locked by Brian on 2026-08-18: General Manager is single-holder and standing across operating years. All other ordinary role authority is associated with the active operating year and preserves effective-dated history.",
+      "text": "Locked by Brian on 2026-08-18: General Manager is single-holder and standing across operating years; IT Officer is also standing. All other ordinary role authority is associated with the active operating year and preserves effective-dated history.",
       "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §§A-B"
     },
     {
       "id": "DEC-coach-catalogue",
-      "text": "Locked by Brian on 2026-08-18: the static catalogue includes the approved ten-role coaching hierarchy and Administration visually separates coaching roles. Every coach may receive an operator account; this does not add the deferred coach module or widen current grants.",
+      "text": "Locked by Brian on 2026-08-18: the static catalogue includes the approved ten-role coaching hierarchy and Administration groups Operational Administration first, Club Committee second and Coaching Staff third. Every coach may receive an operator account; onboarding links an existing player Person when applicable and never creates membership automatically.",
       "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §C; Football Assignments brief §2"
     },
     {
       "id": "DEC-minimal-person-creation",
-      "text": "Locked by Brian on 2026-08-18: operator invitation includes a duplicate-checked create-or-link Person seam. The administrator creates the minimum durable Person record before invitation; the invitee is not required to log in to create their identity.",
+      "text": "Locked by Brian on 2026-08-18: operator invitation includes duplicate-checked create-or-link Person. Name and valid personal email are the only required inputs; a role is required before send. Existing players, coaches and officers are linked to the same Person and at most one operator account.",
       "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §D; Person brief §2"
     },
     {
       "id": "DEC-email-authentication",
-      "text": "Locked by Brian on 2026-08-18: invitations and password recovery are secure email-link workflows delivered through Supabase Auth and the transactional email path. WhatsApp is not the authentication path.",
+      "text": "Locked by Brian on 2026-08-18: invitations, correction/resend, password recovery and verified email re-home are secure email-link workflows delivered through Supabase Auth and the transactional email path. Failed delivery preserves the account; WhatsApp is not authentication; first login establishes credentials only.",
       "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §F"
+    },
+    {
+      "id": "DEC-assignment-dates-and-cardinality",
+      "text": "Locked by Brian on 2026-08-18: initial and ordinary assignments default effective-from to today, allow future dates and audited backdating, and omit a routine end date. End assignment may schedule effective-to and requires a reason; replacement preserves both holders. Single-holder restrictions follow the constitution, with GM additionally single-holder; other roles permit multiple holders unless authority says otherwise.",
+      "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §G3"
+    },
+    {
+      "id": "DEC-account-state-separation",
+      "text": "Locked by Brian on 2026-08-18: immediate operator deactivation is separate from organizational role ending, warns when active roles remain, and does not alter membership. Reinstatement reuses the same account and restores only still-effective authority.",
+      "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §G4"
+    },
+    {
+      "id": "DEC-one-person-multiple-capacities",
+      "text": "Locked by Brian on 2026-08-18: a player who becomes an officer or coach reuses the same durable Person and at most one operator login. Membership, account state and compatible role assignments change independently and never create persona-specific duplicate accounts.",
+      "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §I"
     }
   ],
   "baseline": {
@@ -334,11 +349,11 @@
       "placement": "/operate/admin/operators and /operate/admin/roles, immediately above user/account controls",
       "actions": [
         "View current operators and account states",
-        "View committee/operational roles and the coaching hierarchy",
-        "Read current holders and plain-language capability summaries",
+        "View Operational Administration, Club Committee and Coaching Staff in that order",
+        "Read current holders and useful plain-language capability summaries",
         "Open Invite",
         "Open an operator or role detail",
-        "Read bounded Access History when viewing an operator"
+        "Read target-focused Access History or role holder history"
       ],
       "state_transitions": [
         "None; read-only entry"
@@ -349,28 +364,31 @@
       "exceptions": [
         "Vice-President, Secretary and all other roles cannot read operator-administration data or invoke its actions",
         "No operators shows the empty state with Invite",
-        "Role and capability definitions are always read-only"
+        "Role and capability definitions are always read-only",
+        "Historical operating-year contexts are read-only"
       ],
-      "user_visible_result": "Current account status, effective roles, cycle scope and current holders are understandable without SQL",
+      "user_visible_result": "The selected application context shows one year's current organization without repeated year labels; standing GM/IT remain visible and former holders stay on detail history.",
       "source_id": "SRC-identity-brief",
       "classification": "locked"
     },
     {
       "id": "WF-invite-operator",
       "actor": "Active President, General Manager or IT Officer, subject to target-level leadership guards",
-      "trigger": "An existing Person needs application access",
+      "trigger": "A durable Person needs role-backed application access, whether already a player/coach/officer or new to the system",
       "entry_point": "Invite on the Operators page",
       "placement": "/operate/admin/operators",
       "actions": [
-        "Search and duplicate-check for an existing Person",
-        "Link the existing Person or create the minimum durable Person without player membership",
-        "Confirm valid personal email",
-        "Optionally confirm mobile when known",
-        "Assign approved initial role in the visible active operating year",
+        "Search and duplicate-check for the existing Person",
+        "Link the existing Person or create one using name and valid personal email",
+        "Require at least one approved initial role",
+        "Inherit the active operating year for scoped roles",
+        "Default start date to today with permitted future or audited backdating",
         "Send secure email invitation"
       ],
       "state_transitions": [
+        "No Person to durable Person when absent",
         "No account to Invited",
+        "Invited to Delivery failed when transport fails without duplicating the account",
         "Invited to Active after first sign-in/password setup"
       ],
       "handoffs": [
@@ -378,14 +396,15 @@
         "Recipient completes first sign-in"
       ],
       "exceptions": [
-        "Possible duplicate requires deliberate link or merge handling",
-        "Person already bound",
+        "Possible duplicate requires deliberate link handling",
+        "Person already bound opens the existing operator",
         "Email already used",
         "Invitation expired",
-        "Transactional-email failure is visible and retryable",
-        "No password is chosen or transmitted by the administrator"
+        "Transactional-email failure is visible, correctable and retryable on the same account",
+        "No password is chosen or transmitted by the administrator",
+        "First login does not permit profile editing"
       ],
-      "user_visible_result": "A durable Person exists without requiring the invitee to log in, is bound one-to-one to an invited operator account, receives a secure email link, and holds only the approved effective role authority",
+      "user_visible_result": "The existing or newly created Person is bound one-to-one to a single invited operator account, receives a secure email link and has the required approved role with a clear effective start date.",
       "source_id": "SRC-identity-brief",
       "classification": "locked"
     },
@@ -396,12 +415,12 @@
       "entry_point": "Operator detail or role detail",
       "placement": "/operate/admin/operators/[operatorId] or /operate/admin/roles/[roleId]",
       "actions": [
-        "Choose one role from the static committee/operational or coaching catalogue",
-        "Confirm the displayed active operating year",
-        "Set effective-from",
+        "Choose one role from Operational Administration, Club Committee or Coaching Staff",
+        "Inherit the application-wide active operating year when scoped",
+        "Default effective-from to today and permit future or warned/audited backdating",
         "Assign with no routine end date",
-        "End with effective-to when reality changes",
-        "Use replacement to preserve the outgoing assignment and create the successor"
+        "End separately with required reason and immediate or scheduled effective-to",
+        "Replace holder as one guided action that ends outgoing and creates successor"
       ],
       "state_transitions": [
         "Unassigned to effective assignment",
@@ -412,17 +431,17 @@
         "The same service action is invoked from either direction"
       ],
       "exceptions": [
-        "Closed, missing or ambiguous active year",
+        "Closed, missing or ambiguous active operating-year context",
+        "Attempt to edit a historical year",
         "Role/cycle scope mismatch in stored state",
-        "Single-holder office already held",
-        "General Manager already held",
-        "Person would hold two constitutional offices",
+        "Constitutional or General Manager single-holder conflict",
+        "Incompatible constitutional offices",
         "Attempted self-removal",
-        "President attempts to remove General Manager",
-        "IT Officer attempts to remove President or General Manager",
+        "President or IT Officer attempts to manage General Manager",
+        "IT Officer attempts to manage President",
         "Final usable administration-path guard"
       ],
-      "user_visible_result": "Current assignment changes immediately while prior effective-dated facts remain durable",
+      "user_visible_result": "The selected context shows the current holder while effective-dated former and scheduled records remain durable on detail history.",
       "source_id": "SRC-identity-brief",
       "classification": "locked"
     },
@@ -433,24 +452,26 @@
       "entry_point": "Operator detail",
       "placement": "/operate/admin/operators/[operatorId]",
       "actions": [
-        "Provide deactivation reason",
-        "Confirm deactivate",
-        "Reinstate the same binding later"
+        "Display currently effective roles and access consequence",
+        "Provide required deactivation reason",
+        "Confirm immediate access deactivation without automatically ending roles",
+        "Reinstate the same binding later with a preview of still-effective permissions"
       ],
       "state_transitions": [
         "Active to Deactivated",
         "Deactivated to Reinstated/Active"
       ],
       "handoffs": [
-        "Deactivated person remains resolvable to historical records"
+        "The deactivated Person remains resolvable to membership, role and audit history"
       ],
       "exceptions": [
         "Self-deactivation refused for every operator",
         "President cannot deactivate General Manager",
         "IT Officer cannot deactivate President or General Manager",
+        "Active roles generate a prominent warning",
         "No action may eliminate every usable administration path"
       ],
-      "user_visible_result": "Sign-in access ends or resumes without deleting the Person, binding or history",
+      "user_visible_result": "Sign-in access ends or resumes independently of Person, membership and organizational role history.",
       "source_id": "SRC-identity-brief",
       "classification": "locked"
     },
@@ -461,22 +482,30 @@
       "entry_point": "Operator detail",
       "placement": "/operate/admin/operators/[operatorId]",
       "actions": [
-        "Enter replacement email",
-        "Re-home login",
-        "Disable old login path"
+        "Enter unused replacement email",
+        "Provide required reason",
+        "Disable the old login path",
+        "Send secure verification link to the new email",
+        "Correct or resend on the same pending account"
       ],
       "state_transitions": [
-        "Old email login disabled",
-        "Same operator binding reachable at new email"
+        "Active to Email change pending",
+        "Old email login disabled immediately",
+        "Pending to Active after new-email verification"
       ],
       "handoffs": [
-        "Operator signs in or recovers password using the new email"
+        "Operator verifies the new email and resumes the same account",
+        "Best-effort security notice may be sent to the old address"
       ],
       "exceptions": [
         "Replacement email already used",
-        "Ordinary forgotten password routes to self-service recovery"
+        "Delivery failure remains pending and retryable",
+        "Ordinary forgotten password routes to self-service recovery",
+        "Administrator self-rehome refused",
+        "President cannot recover General Manager",
+        "IT Officer may recover President or General Manager without changing their roles"
       ],
-      "user_visible_result": "Access is restored without changing the durable Person or historical actor attribution",
+      "user_visible_result": "Verified access moves to the new email while the same Person, account, roles and historical attribution remain intact.",
       "source_id": "SRC-identity-brief",
       "classification": "locked"
     },
@@ -485,26 +514,28 @@
       "actor": "System on behalf of the authorized administrator",
       "trigger": "Any mission-owned provisioning or role transition succeeds",
       "entry_point": "Service transaction",
-      "placement": "Read-only Access History on operator detail; no general audit-browser route",
+      "placement": "Target-focused Access History on operator detail and role-focused holder history on role detail; no general audit-browser route",
       "actions": [
-        "Record actor",
-        "Record target",
-        "Record timestamp",
-        "Record before/after state",
-        "Commit audit and state change atomically",
-        "Render mission-owned events in the operator's read-only Access History"
+        "Record actor and authority at the time",
+        "Record affected Person/operator",
+        "Record affected role/assignment when applicable",
+        "Record operating year, timestamp, reason and before/after state",
+        "Commit one immutable canonical event with the state change",
+        "Project the same event into the relevant operator and role views"
       ],
       "state_transitions": [
         "Append one immutable audit event; never edit or delete prior evidence"
       ],
       "handoffs": [
-        "Evidence is available to later Stage-4 audit-view work"
+        "Canonical actor/target/role references remain available to later Stage-4 audit work"
       ],
       "exceptions": [
-        "A failed/refused action writes no partial state",
-        "Historical Person correction remains resolvable"
+        "A refused action with no state change creates no club-facing event",
+        "Email delivery outcome appends separately",
+        "Historical Person correction remains resolvable",
+        "Account-only events do not appear in role history"
       ],
-      "user_visible_result": "President, General Manager and IT Officer can review who changed an operator's access and when; the full cross-system audit explorer remains deferred",
+      "user_visible_result": "Authorized administrators can review access changes from the affected Person or role without duplicated audit records; the full cross-system explorer remains deferred.",
       "source_id": "SRC-identity-brief",
       "classification": "locked"
     },
@@ -515,10 +546,10 @@
       "entry_point": "Every administration page, action and service call",
       "placement": "Capability-map-backed server authorization",
       "actions": [
-        "Resolve effective role_management",
-        "Apply target-level leadership hierarchy",
-        "Permit ordinary administration or refuse",
-        "Protect self, General Manager and President transitions as specified"
+        "Resolve active operator and effective role_management",
+        "Apply target-level leadership and technical-recovery guards",
+        "Permit ordinary administration, technical email recovery or refuse",
+        "Protect self, General Manager, President and final administration paths"
       ],
       "state_transitions": [
         "None"
@@ -531,11 +562,11 @@
         "Inactive account",
         "No effective role_management grant",
         "Direct action call without authority",
-        "Self-removal",
+        "Self-removal or administrator self-rehome",
         "President targets General Manager",
-        "IT Officer targets President or General Manager"
+        "IT Officer attempts an ordinary President or General Manager role/account removal"
       ],
-      "user_visible_result": "President, General Manager and IT Officer may perform ordinary access administration, while leadership transitions follow the explicit GM-over-President hierarchy and every other role is refused without operator data",
+      "user_visible_result": "President, General Manager and IT Officer may administer lower access; General Manager governs President; IT Officer may recover leadership email but cannot remove leadership; all other roles are refused without data.",
       "source_id": "SRC-identity-brief",
       "classification": "locked"
     },
@@ -546,16 +577,18 @@
       "entry_point": "Invite in Administration, with the coaching role group selected",
       "placement": "/operate/admin/operators with coaching roles grouped on /operate/admin/roles",
       "actions": [
-        "Search and duplicate-check for the coach Person",
-        "Create a minimal Person without player membership when absent",
-        "Confirm personal email",
-        "Send secure email invitation",
-        "Assign one or more approved coaching roles for the active operating year"
+        "Search and duplicate-check for the coach Person, including current players",
+        "Link the existing Person or create one using name and personal email",
+        "Do not create or alter player membership",
+        "Assign at least one approved coaching role in the inherited active year",
+        "Default start to today with permitted future/backdating",
+        "Send secure email invitation only when no operator account exists"
       ],
       "state_transitions": [
-        "No Person to durable non-player Person when needed",
-        "No account to Invited",
-        "Invited to Active after secure first login",
+        "No Person to durable Person when absent",
+        "Existing player Person remains the same Person and membership",
+        "No account to Invited when needed",
+        "Existing operator receives the role without another invitation",
         "Unassigned to active-year coaching role"
       ],
       "handoffs": [
@@ -566,9 +599,10 @@
         "Potential duplicate",
         "Invalid or used email",
         "Role outside the fixed coaching hierarchy",
-        "Position coach receives no deferred coach-module capability"
+        "Position coach receives no deferred coach-module capability",
+        "Incompatible constitutional role combination"
       ],
-      "user_visible_result": "The coach is represented as a durable Person and operator with the correct year-scoped coaching role, without appearing on the player roster or gaining unapproved access",
+      "user_visible_result": "External coaches and coach-players share the same durable identity/account model; the correct coaching role is added without automatically adding or removing player membership or unapproved access.",
       "source_id": "SRC-football-brief",
       "classification": "locked"
     }
@@ -610,19 +644,19 @@
   },
   "completion_evidence": [
     "Canonical packet validation passes and the approved packet version is merged by Brian before execution",
-    "Automated authorization tests cover President, General Manager and IT Officer for ordinary administration; Vice-President, Secretary and all other roles as refused administrators; and the GM-over-President target hierarchy, self-removal, direct-action, inactive, unlinked and final-administration-path guards",
-    "Automated lifecycle tests cover duplicate-checked create-or-link Person, invitation, first activation, resend/expiry, duplicate guards, deactivation, reinstatement and email re-home without deleting Person identity or attribution",
-    "Database/service tests prove explicit stored operating-year scope behind the visible active-year context, standing single-holder General Manager behavior, office constraints, effective-dated history and atomic append-only audit evidence",
-    "UI tests and Brian's live visual review cover desktop and 375px Administration placement, Operators and Roles pages, separated coaching hierarchy, read-only capability summaries, bounded Access History, and empty/loading/error/refusal states",
-    "Coach onboarding tests cover every fixed coaching role, non-player Person creation, secure email invitation, correct year assignment, HC/OC/DC narrow access and no unapproved position-coach or administrative access",
-    "A local end-to-end walkthrough completes committee and coach operator administration without SQL, Supabase dashboard changes, administrator-created passwords or WhatsApp authentication",
-    "The club-facing operating guide is executable as written and explains hierarchy, active-year context, audit history and escalation without SQL or Supabase",
-    "The pull-request production handoff names any schema migration and the exact one-time Brian-run bootstrap; no agent performs hosted changes"
+    "Automated authorization tests cover the final matrix: GM, President and IT Officer for lower administration; GM-over-President transitions; IT leadership-email recovery only; Vice-President, Secretary and all other roles refused; self-removal/rehome, inactive, unlinked, direct-action and final-path guards",
+    "Automated lifecycle tests cover duplicate-checked reuse of existing player/coach/officer Persons, name-and-email creation, required initial role, invitation, first activation, delivery failure correction/resend without duplication, expiry, deactivation, reinstatement and verified email re-home",
+    "Database/service tests prove one Person and at most one operator account can hold independent memberships and compatible roles; explicit stored operating-year scope behind inherited context; standing GM and IT; constitutional plus GM single-holder rules; start-date defaults/future/backdating; scheduled endings/replacements; and append-only event evidence",
+    "UI tests and Brian's live visual review cover desktop and 375px Administration placement; role-group order; current-holder-only top view; inherited-year behavior; Operators and Roles pages; useful read-only capability summaries; target Access History and role holder history; and empty/loading/error/refusal/pending states",
+    "Coach onboarding tests cover every fixed coaching role, external non-player Person creation, existing player reuse, one account, secure email invitation, correct year assignment, HC/OC/DC narrow access and no unapproved position-coach or administrative access",
+    "A local end-to-end walkthrough completes committee, operational and coach operator administration without SQL, Supabase dashboard changes, duplicate identities, administrator-created passwords or WhatsApp authentication",
+    "The club-facing operating guide is executable as written and explains combined Person/membership/account/role identity, hierarchy, inherited active year, dates, audit projections, deactivation and email recovery without SQL or Supabase",
+    "The pull-request production handoff names any schema migration and exact one-time Brian-run bootstrap; no agent performs hosted changes"
   ],
   "blockers": [],
   "approval": {
     "approved_by": "Pending — Brian Schuster",
     "date": "2026-08-18",
-    "evidence": "Not approved. Brian resolved audit visibility, permission transparency, active-year context, General Manager cardinality/continuity, IT Officer authority, leadership hierarchy, coach onboarding, minimal Person creation and email invitation during intake on 2026-08-18. The controlling Notion brief was surgically amended and refetched. The packet remains not_ready while Brian continues the first real Mission Harness product review; his later merge of a ready packet-only PR approves the exact version and commit."
+    "evidence": "Not approved. During active intake on 2026-08-18 Brian locked navigation and role grouping, inherited operating-year behavior, standing GM and IT Officer, current/former holder presentation, duplicate-checked name-and-email invitation with a required role, date/cardinality rules, deactivation/reinstatement separation, verified email recovery, the final authorization matrix, event-first audit projections, and one-Person multi-capacity identity. The controlling Notion brief was surgically amended and refetched at 2026-08-18T21:43:25.957Z. The packet remains not_ready while Brian continues the first real Mission Harness product review; his later merge of a ready packet-only PR approves the exact version and commit."
   }
 }
