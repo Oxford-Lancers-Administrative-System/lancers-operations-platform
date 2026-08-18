@@ -170,6 +170,46 @@ function activeWorkerFor(state, packageId) {
 }
 
 /**
+ * The scheduling conjuncts every worker start shares — a fresh dispatch and a
+ * correction resumption alike. A correction runs the same worker on the same
+ * package, but it still occupies a slot, still collides on its domain, still
+ * competes for the single migration slot, and still may not resume execution
+ * that an unanswered owner question or unresolved source drift has paused.
+ */
+function schedulingRefusals(state, pkg, packageId) {
+  const errors = [];
+  if (state.activeWorkers.length >= MAX_ACTIVE_WORKERS) {
+    errors.push(
+      `Maximum implementation concurrency is ${MAX_ACTIVE_WORKERS}; a further package waits for a slot.`,
+    );
+  }
+  for (const worker of state.activeWorkers) {
+    const other = state.packages[worker.package_id];
+    if (other?.collision_domain === pkg.collision_domain) {
+      errors.push(
+        `${packageId} collides with ${worker.package_id} on domain "${pkg.collision_domain}"; colliding work is serialized.`,
+      );
+    }
+    if (pkg.migration_owner && other?.migration_owner) {
+      errors.push(
+        `${worker.package_id} already owns the migration slot; only one migration-owning package runs at a time.`,
+      );
+    }
+  }
+  for (const question of openQuestionsAffecting(state, packageId)) {
+    errors.push(
+      `${packageId} is affected by unanswered owner question ${question.id}; the answer is persisted before dependent execution resumes.`,
+    );
+  }
+  if (pkg.driftStopped) {
+    errors.push(
+      `${packageId} is stopped by source drift; it needs a revised approved packet before work resumes.`,
+    );
+  }
+  return errors;
+}
+
+/**
  * Validate one event against the current replayed state. Returns every
  * refusal; the event is appended only when the list is empty. This is the
  * control plane's constitution at runtime — each rule here has a matching
@@ -338,38 +378,11 @@ export function validateEvent(event, state) {
         errors.push(`${event.package_id} already has an active worker.`);
       }
       if (pkg.status === "merged") errors.push(`${event.package_id} is already merged.`);
-      if (state.activeWorkers.length >= MAX_ACTIVE_WORKERS) {
-        errors.push(
-          `Maximum implementation concurrency is ${MAX_ACTIVE_WORKERS}; a further package waits for a slot.`,
-        );
-      }
-      for (const worker of state.activeWorkers) {
-        const other = state.packages[worker.package_id];
-        if (other?.collision_domain === pkg.collision_domain) {
-          errors.push(
-            `${event.package_id} collides with ${worker.package_id} on domain "${pkg.collision_domain}"; colliding work is serialized.`,
-          );
-        }
-        if (pkg.migration_owner && other?.migration_owner) {
-          errors.push(
-            `${worker.package_id} already owns the migration slot; only one migration-owning package runs at a time.`,
-          );
-        }
-      }
+      errors.push(...schedulingRefusals(state, pkg, event.package_id));
       for (const dep of pkg.depends_on) {
         if (state.packages[dep]?.status !== "merged") {
           errors.push(`${event.package_id} depends on ${dep}, which is not merged yet.`);
         }
-      }
-      for (const question of openQuestionsAffecting(state, event.package_id)) {
-        errors.push(
-          `${event.package_id} is affected by unanswered owner question ${question.id}; the answer is persisted before dependent execution resumes.`,
-        );
-      }
-      if (pkg.driftStopped) {
-        errors.push(
-          `${event.package_id} is stopped by source drift; it needs a revised approved packet before work resumes.`,
-        );
       }
       break;
     }
@@ -418,11 +431,7 @@ export function validateEvent(event, state) {
       if (activeWorkerFor(state, event.package_id)) {
         errors.push(`${event.package_id} already has an active worker.`);
       }
-      if (state.activeWorkers.length >= MAX_ACTIVE_WORKERS) {
-        errors.push(
-          `Maximum implementation concurrency is ${MAX_ACTIVE_WORKERS}; a further package waits for a slot.`,
-        );
-      }
+      errors.push(...schedulingRefusals(state, pkg, event.package_id));
       break;
     }
 
@@ -754,6 +763,10 @@ export function reduce(events) {
         pkg.review = { at: event.at, ...event.receipt };
         if (event.receipt.result === "clear" && pkg.status === "implemented") {
           pkg.status = "reviewed";
+        } else if (event.receipt.result === "blocked") {
+          // A blocking review pauses the package for a correction resumption
+          // of the original worker — not for another review of the same SHA.
+          pkg.status = "blocked";
         }
         break;
       }

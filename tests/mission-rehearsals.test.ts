@@ -328,6 +328,15 @@ describe("Rehearsal 7 — a blocking review routes correction to the original wo
         blocking_finding_ids: ["R-001"],
       },
     });
+    // The durable frontier itself routes to a correction of the original
+    // worker — a fresh Lead is never steered into re-reviewing the same SHA.
+    const blocked = replayState(m.repo, MISSION, m.env);
+    expect(blocked.packages["WP-events-filter"].status).toBe("blocked");
+    const frontier = nextActions(blocked).filter(
+      (action) => action.package_id === "WP-events-filter",
+    );
+    expect(frontier.map((action) => action.action)).toContain("correction");
+    expect(frontier.map((action) => action.action)).not.toContain("review");
     await expect(
       m.append({
         type: "correction-dispatched",

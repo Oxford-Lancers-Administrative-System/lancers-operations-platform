@@ -487,6 +487,135 @@ describe("worker receipts and correction lineage", () => {
       finding_ids: ["R-001"],
     });
   });
+
+  it("routes a blocked review to a correction on the frontier, never to another review", async () => {
+    const m = fixture();
+    await dispatched(m);
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 41,
+      head_sha: SHA,
+    });
+    const state = await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: reviewReceipt("blocked"),
+    });
+    expect(state.packages["WP-events-filter"].status).toBe("blocked");
+    const actions = nextActions(state);
+    const forPackage = actions.filter((action) => action.package_id === "WP-events-filter");
+    expect(forPackage.map((action) => action.action)).toContain("correction");
+    expect(forPackage.map((action) => action.action)).not.toContain("review");
+    expect(forPackage.find((action) => action.action === "correction")?.detail).toContain(
+      "worker-1",
+    );
+  });
+
+  it("holds a correction resumption to the same scheduling conjuncts as a fresh dispatch", async () => {
+    const m = fixture();
+    await m.append({ type: "mission-init", packet });
+    const colliding = [
+      { ...plan.packages[0], id: "WP-events-a" },
+      { ...plan.packages[0], id: "WP-events-b", title: "Synthetic sibling" },
+    ];
+    await m.append({ type: "plan-recorded", packages: colliding });
+    await m.append({
+      type: "linear-preflight",
+      result: "reachable",
+      detail: "synthetic fixture driver",
+    });
+    for (const [index, pkg] of colliding.entries()) {
+      await m.append({ type: "linear-sync-intent", package_id: pkg.id });
+      await m.append({
+        type: "linear-sync-result",
+        package_id: pkg.id,
+        issue_id: `LAN-93${index}`,
+      });
+    }
+    // WP-events-a is implemented and then blocked by review; its slot frees,
+    // and the same-domain sibling takes it.
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-events-a",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/a",
+      branch: "feat/a",
+    });
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-a",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({ type: "pr-opened", package_id: "WP-events-a", pr_number: 45, head_sha: SHA });
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-a",
+      receipt: reviewReceipt("blocked"),
+    });
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-events-b",
+      worker_id: "worker-2",
+      worktree: ".claude/worktrees/b",
+      branch: "feat/b",
+    });
+    // The correction must wait: resuming worker-1 now would put two workers
+    // in the "events" collision domain at once.
+    await expect(
+      m.append({
+        type: "correction-dispatched",
+        package_id: "WP-events-a",
+        worker_id: "worker-1",
+        finding_ids: ["R-001"],
+      }),
+    ).rejects.toThrow(/collides with WP-events-b on domain "events"/);
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-b",
+      worker_id: "worker-2",
+      receipt: workerReceipt("completed"),
+    });
+    // The domain is clear, but an unanswered owner question naming the
+    // package still pauses its correction.
+    await m.append({
+      type: "owner-question",
+      id: "Q-correction-scope",
+      classification: "hourly",
+      text: "Synthetic: does the correction change the filter default?",
+      source: "review finding R-001",
+      affected_packages: ["WP-events-a"],
+    });
+    await expect(
+      m.append({
+        type: "correction-dispatched",
+        package_id: "WP-events-a",
+        worker_id: "worker-1",
+        finding_ids: ["R-001"],
+      }),
+    ).rejects.toThrow(/unanswered owner question Q-correction-scope/);
+    await m.append({
+      type: "owner-answer",
+      question_id: "Q-correction-scope",
+      answer: "No; keep the default.",
+      answered_by: "Brian",
+      reusable: false,
+    });
+    const resumed = await m.append({
+      type: "correction-dispatched",
+      package_id: "WP-events-a",
+      worker_id: "worker-1",
+      finding_ids: ["R-001"],
+    });
+    expect(resumed.activeWorkers[0]).toMatchObject({ worker_id: "worker-1", kind: "correction" });
+  });
 });
 
 describe("owner questions, answers, and visual approval", () => {
