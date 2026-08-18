@@ -48,7 +48,7 @@
       "id": "SRC-identity-brief",
       "kind": "notion",
       "ref": "https://app.notion.com/p/3bc488886d5781d78d18f045492073cd",
-      "version": "owner-amended-2026-08-18; fetched-2026-08-18T21:48:12.489Z"
+      "version": "owner-amended-2026-08-18; fetched-2026-08-18T21:53:23.353Z"
     },
     {
       "id": "SRC-locked-requirements",
@@ -142,7 +142,7 @@
     },
     {
       "id": "REQ-admin-surfaces",
-      "text": "The operator shell contains Operators and Roles destinations at /operate/admin/operators and /operate/admin/roles in Administration at the bottom of the left sidebar immediately above user/account controls. Roles are grouped in the order Operational Administration, Club Committee, Coaching Staff. The top-level role view shows role name, current holder and a useful read-only plain-language capability summary, without repeated year/scope labels; former holders remain on role detail. No role or grant is editable.",
+      "text": "The operator shell contains Operators and Roles at /operate/admin/operators and /operate/admin/roles in Administration at the bottom of the left sidebar above user/account controls. The protected /operate/admin/guide page is linked from Operators and Roles through How Administration Works but is not another sidebar destination. Roles are grouped Operational Administration, Club Committee, Coaching Staff; the top level shows role name, current holder and useful read-only capability summary without repeated year/scope labels. Former holders remain on detail. No role or grant is editable.",
       "source_id": "SRC-identity-brief"
     },
     {
@@ -157,7 +157,7 @@
     },
     {
       "id": "REQ-explicit-cycle-assignment",
-      "text": "The first version inherits one application-wide active operating-year context, such as 2026-27, for routine committee and coaching assignments. Forms do not ask for or repeat the year; the applicable cycle identifier remains explicit in stored state. Viewing another year requires a deliberate context switch, and historical years are read-only through ordinary administration. Missing, closed or ambiguous context is refused rather than guessed.",
+      "text": "The first version inherits one application-wide active operating-year context for routine assignments. Forms do not ask for or repeat the year and stored cycle remains explicit. Current year is writable; past years require deliberate switching and are read-only. This mission does not create or close years. A future year is unavailable until lifecycle creates it; once open, authorized administrators may deliberately switch and prepare assignments under the same guards. Holders from different years are never mixed.",
       "source_id": "SRC-identity-brief"
     },
     {
@@ -192,7 +192,7 @@
     },
     {
       "id": "REQ-club-operating-guide",
-      "text": "A short club-facing guide explains duplicate-checked create-or-link Person, combined player/operator/role identity, guided email invitation, start-date behavior, active-year context, role assignment/replacement/ending, leadership safeguards, dual audit projections, deactivation/reinstatement and email recovery. It contains no SQL, Supabase-dashboard, administrator-created-password or WhatsApp-authentication procedure.",
+      "text": "A protected in-app guide at /operate/admin/guide, linked from Operators and Roles through How Administration Works, explains create-or-link Person, combined player/operator/role identity, first-access invitation, active/past/future year behavior, dates, role assignment/replacement/ending, hierarchy, audit projections, deactivation/reinstatement, email recovery, refusals and escalation. It contains no SQL, Supabase-dashboard, administrator-created-password or WhatsApp-authentication procedure.",
       "source_id": "SRC-identity-brief"
     },
     {
@@ -212,7 +212,7 @@
     },
     {
       "id": "REQ-email-invitation-path",
-      "text": "Operator invitations, invitation correction/resend, password recovery and verified email re-home use Supabase Auth secure email links delivered through the provider-neutral transactional email path, currently Resend/custom SMTP under LAN-126. Administrators never choose or send passwords, WhatsApp is not authentication, and first login does not add operator profile editing.",
+      "text": "The only new informational email is first-time access invitation and resend. Password reset and replacement-email verification/security messages remain functional security mechanisms; role assignment/end/replacement, deactivation and reinstatement send no informational emails. Supabase Auth uses the available Resend-backed transactional path. Brian supplies the API key through an approved secure owner-gated environment path; secrets never appear in source, SQL, Notion, packet, logs or client code. Real production first-access delivery is required for acceptance, while broader Resend account/DNS/LAN-126 work remains excluded.",
       "source_id": "SRC-identity-brief"
     }
   ],
@@ -311,6 +311,26 @@
       "id": "DEC-owner-run-bootstrap",
       "text": "Locked by Brian on 2026-08-18: first production establishment uses one versioned idempotent catalogue/schema migration plus one supported idempotent owner-run bootstrap script, not ad hoc SQL or direct Auth-table insertion. Its minimum real manifest is Clint—active-year President, Stewart—standing GM and Brian—standing IT Officer. Exact names/emails are supplied at the production handoff; dry run, reconciliation, conflict refusal and audit evidence are mandatory.",
       "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §J"
+    },
+    {
+      "id": "DEC-in-app-administration-guide",
+      "text": "Locked by Brian on 2026-08-18: the club-facing guide is a protected /operate/admin/guide page linked from Operators and Roles through How Administration Works, not another sidebar item. It covers the ordinary workflows, refusals and escalation in club language with no SQL/Supabase procedure.",
+      "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §K1"
+    },
+    {
+      "id": "DEC-first-access-email-only",
+      "text": "Locked by Brian on 2026-08-18: first-time access invitation/resend is the only new informational email. Password reset and replacement-email verification remain necessary security mechanisms. No role-change or account-state informational email is added.",
+      "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §K2"
+    },
+    {
+      "id": "DEC-resend-production-available",
+      "text": "Locked by Brian on 2026-08-18: Resend and its API key are available. Brian configures the secret securely; implementation must verify real production first-access delivery before acceptance. The mission consumes the transport but does not absorb broader account, DNS/domain or unrelated LAN-126 work.",
+      "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §K2"
+    },
+    {
+      "id": "DEC-year-context-lifecycle-seam",
+      "text": "Locked by Brian on 2026-08-18: current context is writable, past contexts are deliberately selected and read-only, and this mission does not create/close years. Once lifecycle separately creates an open future year, authorized administrators may deliberately switch and prepare assignments; the main role view never mixes years.",
+      "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §K3"
     }
   ],
   "baseline": {
@@ -325,11 +345,12 @@
     "owner": [
       "Brian retains merge authority for this packet and for every later schema/migration, capability-map, authentication/security, bootstrap and production-operation pull request",
       "Brian supplies the exact production names and personal emails for the minimum bootstrap manifest: Clint as active-year President, Stewart as standing General Manager and Brian as standing IT Officer",
+      "Brian supplies/configures the Resend API key through the approved secure environment path; the secret never enters repository, SQL, Notion, packet, logs or client code",
       "Brian reviews the dry-run create/link/assign preview and runs or explicitly directs the owner-gated production migration/bootstrap; no agent performs hosted execution autonomously",
-      "Brian provides visual approval for UI-affecting implementation packages through the Mission Harness review-ready flow"
+      "Brian provides visual approval for UI-affecting implementation packages and verifies a real production first-access invitation before capability acceptance"
     ],
     "external": [
-      "Production invitation delivery must use the existing provider-neutral auth email path; LAN-126 email/DNS foundation work is outside this mission and any unavailable production transport is reported as an external operational gate rather than silently absorbed"
+      "Broader Resend account administration, sender-domain/DNS changes and unrelated LAN-126 execution remain outside this mission. If sender/domain readiness prevents delivery despite the available key, report the exact external activation gate rather than silently absorbing that work."
     ]
   },
   "merge_envelope": {
@@ -359,7 +380,8 @@
         "Read current holders and useful plain-language capability summaries",
         "Open Invite",
         "Open an operator or role detail",
-        "Read target-focused Access History or role holder history"
+        "Read target-focused Access History or role holder history",
+        "Open the protected How Administration Works guide"
       ],
       "state_transitions": [
         "None; read-only entry"
@@ -371,7 +393,8 @@
         "Vice-President, Secretary and all other roles cannot read operator-administration data or invoke its actions",
         "No operators shows the empty state with Invite",
         "Role and capability definitions are always read-only",
-        "Historical operating-year contexts are read-only"
+        "Historical operating-year contexts are read-only",
+        "A future context is unavailable until lifecycle creates and opens it"
       ],
       "user_visible_result": "The selected application context shows one year's current organization without repeated year labels; standing GM/IT remain visible and former holders stay on detail history.",
       "source_id": "SRC-identity-brief",
@@ -398,7 +421,7 @@
         "Invited to Active after first sign-in/password setup"
       ],
       "handoffs": [
-        "Invitation email to recipient",
+        "First-time access or resend email to recipient through the Resend-backed Supabase Auth path",
         "Recipient completes first sign-in"
       ],
       "exceptions": [
@@ -622,8 +645,8 @@
   ],
   "nonblocking_unknowns": [
     {
-      "unknown": "LAN-126 may not yet provide production-grade invitation email deliverability.",
-      "handling": "Do not absorb DNS, Resend or SMTP work. Use Supabase Auth's provider-neutral secure email-link path, prove behavior locally, surface delivery failure and treat production delivery as an external operational gate."
+      "unknown": "Resend access and an API key are available, but final sender/domain readiness may still depend on external LAN-126 state.",
+      "handling": "Brian securely supplies/configures the key. Implementation must verify a real production first-access invitation. Do not absorb broader Resend account administration or DNS/domain work; report any remaining sender gate precisely."
     },
     {
       "unknown": "Cycle open/close administration is not yet implemented.",
@@ -653,16 +676,17 @@
     "Automated authorization tests cover the final matrix: GM, President and IT Officer for lower administration; GM-over-President transitions; IT leadership-email recovery only; Vice-President, Secretary and all other roles refused; self-removal/rehome, inactive, unlinked, direct-action and final-path guards",
     "Automated lifecycle tests cover duplicate-checked reuse of existing player/coach/officer Persons, name-and-email creation, required initial role, invitation, first activation, delivery failure correction/resend without duplication, expiry, deactivation, reinstatement and verified email re-home",
     "Database/service tests prove one Person and at most one operator account can hold independent memberships and compatible roles; explicit stored operating-year scope behind inherited context; standing GM and IT; constitutional plus GM single-holder rules; start-date defaults/future/backdating; scheduled endings/replacements; and append-only event evidence",
-    "UI tests and Brian's live visual review cover desktop and 375px Administration placement; role-group order; current-holder-only top view; inherited-year behavior; Operators and Roles pages; useful read-only capability summaries; target Access History and role holder history; and empty/loading/error/refusal/pending states",
+    "UI tests and Brian's live visual review cover desktop and 375px Administration placement; role-group order; current-holder-only view; active/past/future context behavior; Operators, Roles and protected Guide pages; read-only capability summaries; target Access History and role holder history; and empty/loading/error/refusal/pending states",
     "Coach onboarding tests cover every fixed coaching role, external non-player Person creation, existing player reuse, one account, secure email invitation, correct year assignment, HC/OC/DC narrow access and no unapproved position-coach or administrative access",
-    "A local end-to-end walkthrough completes committee, operational and coach operator administration without SQL, Supabase dashboard changes, duplicate identities, administrator-created passwords or WhatsApp authentication",
-    "The club-facing operating guide is executable as written and explains combined Person/membership/account/role identity, hierarchy, inherited active year, dates, audit projections, deactivation and email recovery without SQL or Supabase",
-    "The implementation handoff includes the versioned catalogue/schema migration, supported Supabase-admin bootstrap script, minimum Clint/Stewart/Brian manifest template, dry-run output, conflict handling, rollback/recovery notes and exact owner-run production verification; no agent performs hosted changes"
+    "A local end-to-end walkthrough completes committee, operational and coach administration without SQL, Supabase dashboard changes, duplicate identities, administrator-created passwords or WhatsApp authentication; no informational emails are sent for role/account-state changes",
+    "The protected /operate/admin/guide page is executable as written and explains identity, hierarchy, year context, dates, audit projections, deactivation, recovery, refusals and escalation without SQL or Supabase",
+    "The implementation handoff includes the versioned catalogue/schema migration, supported Supabase-admin bootstrap script, minimum Clint/Stewart/Brian manifest template, dry-run output, secret-safe Resend configuration handoff, conflict/rollback notes and exact owner-run production verification; no agent performs hosted changes",
+    "With Brian-provided secure Resend configuration, a real production first-access invitation is delivered to an owner-controlled address, the secure link establishes credentials, the operator becomes Active and matching audit evidence appears; broader routine role/account-state emails are absent"
   ],
   "blockers": [],
   "approval": {
     "approved_by": "Pending — Brian Schuster",
     "date": "2026-08-18",
-    "evidence": "Not approved. During active intake on 2026-08-18 Brian locked navigation and role grouping, inherited operating-year behavior, standing GM and IT Officer, current/former holder presentation, duplicate-checked name-and-email invitation with a required role, date/cardinality rules, deactivation/reinstatement separation, verified email recovery, the final authorization matrix, event-first audit projections, and one-Person multi-capacity identity. Brian also locked the one-time owner-run production bootstrap: versioned migration plus supported Supabase-admin script, minimum Clint/Stewart/Brian manifest, dry run, reconciliation and audit. The controlling Notion brief was surgically amended and refetched at 2026-08-18T21:48:12.489Z. The packet remains not_ready while Brian continues the first real Mission Harness product review; his later merge of a ready packet-only PR approves the exact version and commit."
+    "evidence": "Not approved. During active intake on 2026-08-18 Brian locked navigation and role grouping, inherited operating-year behavior, standing GM and IT Officer, current/former holder presentation, duplicate-checked name-and-email invitation with a required role, date/cardinality rules, deactivation/reinstatement separation, verified email recovery, the final authorization matrix, event-first audit projections, and one-Person multi-capacity identity. Brian also locked the one-time owner-run production bootstrap: versioned migration plus supported Supabase-admin script, minimum Clint/Stewart/Brian manifest, dry run, reconciliation and audit. The controlling Notion brief was surgically amended and refetched at 2026-08-18T21:48:12.489Z. Brian additionally locked the protected in-app guide, first-access-only notification boundary, active/past/future year seam and available owner-supplied Resend production path. The controlling brief was refetched at 2026-08-18T21:53:23.353Z. The packet remains not_ready pending final reconciled-version approval; Brian's later merge of an approved packet-only PR authorizes the exact version and commit."
   }
 }
