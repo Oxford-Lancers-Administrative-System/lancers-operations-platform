@@ -1,0 +1,73 @@
+{
+  "packet_version": 1,
+  "mission_id": "M-SYNTHETIC-REHEARSAL",
+  "objective": "Synthetic control-plane rehearsal: exercise every Mission Harness v1 transition deterministically, without real Linear issues, real pull requests, or any external mutation.",
+  "non_goals": [
+    "No real Linear issue is created or updated",
+    "No real pull request is opened or merged",
+    "No production, hosted-Supabase, or external-service effect of any kind"
+  ],
+  "sources": [
+    {
+      "id": "SRC-notion-brief",
+      "kind": "notion",
+      "ref": "notion://synthetic/mission-brief",
+      "version": "2026-08-18.1"
+    },
+    {
+      "id": "SRC-ux-contract",
+      "kind": "document",
+      "ref": "docs/ux/synthetic-contract.md",
+      "version": "1.0"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-events-filter",
+      "text": "Synthetic: operators can filter the events list by state.",
+      "source_id": "SRC-notion-brief"
+    },
+    {
+      "id": "REQ-attendance-export",
+      "text": "Synthetic: attendance summaries export as CSV.",
+      "source_id": "SRC-notion-brief"
+    },
+    {
+      "id": "REQ-report-footer",
+      "text": "Synthetic: the Monday report shows a generation footer.",
+      "source_id": "SRC-ux-contract"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-1",
+      "text": "Synthetic decision: CSV exports use comma separators.",
+      "source": "Brian, synthetic fixture"
+    }
+  ],
+  "baseline": { "branch": "main", "commit": null },
+  "gates": {
+    "owner": ["Visual approval for UI-affecting packages"],
+    "external": []
+  },
+  "merge_envelope": {
+    "auto_merge_classes": ["standard-application"],
+    "owner_gated": [
+      "schema-migration",
+      "rls-auth-security",
+      "secrets-credentials",
+      "deployment-production-data",
+      "whatsapp-external-configuration",
+      "highest-risk",
+      "visual-without-approval"
+    ]
+  },
+  "completion_evidence": [
+    "All three synthetic packages carry worker receipts, review receipts, and recorded merges"
+  ],
+  "approval": {
+    "approved_by": "Brian",
+    "date": "2026-08-18",
+    "evidence": "Synthetic fixture approval — rehearsals only, never a real mission"
+  }
+}
