@@ -39,8 +39,16 @@
       "reason": "The classifier and the gate. The code that computes eligibility cannot be merged by the lane it computes eligibility for."
     },
     {
+      "path": "scripts/mission/**",
+      "reason": "The mission control plane: durable state, the guarded merge gate, and the CLI that enforces every mission refusal. Merge authority for its own machinery stays with Brian."
+    },
+    {
       "path": "tests/fast-lane-*.test.ts",
       "reason": "The tests that prove the lane behaves as written. A lane that can merge a weakening of its own tests can merge anything next."
+    },
+    {
+      "path": "tests/mission-*.test.ts",
+      "reason": "The tests that prove the mission harness behaves as written, including that its guarded merge fails closed."
     },
     {
       "path": "tests/agent-harness.test.ts",
@@ -49,6 +57,10 @@
     {
       "path": "docs/fast-lane.md",
       "reason": "The prose statement of eligibility, required verification and merge authority."
+    },
+    {
+      "path": "docs/mission-harness.md",
+      "reason": "The mission runbook: Brian's entry point, recovery path, and the guarded merge's owner boundary. Governance prose, not ordinary documentation."
     },
     {
       "path": "docs/adr/**",
