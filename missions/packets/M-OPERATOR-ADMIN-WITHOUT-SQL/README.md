@@ -48,9 +48,11 @@ real-data cutover and unrelated Release 1 capability.
 2. How active-cycle context is displayed and confirmed without making the
    administrator choose a cycle on every ordinary assignment or silently
    storing the wrong cycle.
-3. Whether General Manager is single-holder, while preserving the existing
+3. Whether the Roles page shows a read-only plain-language capability summary;
+   permission editing remains excluded.
+4. Whether General Manager is single-holder, while preserving the existing
    constitutional-office and multi-holder rules elsewhere.
-4. The exact surgical reconciliation of the controlling Notion brief.
+5. The exact surgical reconciliation of the controlling Notion brief.
 
 ## Intake path
 
