@@ -8,6 +8,7 @@ import {
   type Tx,
 } from "@/lib/db";
 import { recordAudit } from "./audit";
+import { actorRequirement } from "./actor";
 import { readCurrentSeasonIn, type Season } from "./seasons";
 import { escapeLikePattern } from "./sql-text";
 
@@ -675,13 +676,7 @@ export async function readMembership(membershipId: string): Promise<MembershipRe
 // Writing — the transitions
 // ---------------------------------------------------------------------------
 
-function requireActor(actorPersonId: string): void {
-  if (typeof actorPersonId !== "string" || actorPersonId.trim() === "") {
-    throw new ConstraintViolated("A membership change has to name the operator who made it.", {
-      rule: "audit_events_has_an_actor",
-    });
-  }
-}
+const requireActor = actorRequirement("A membership change has to name the operator who made it.");
 
 /**
  * Locks the membership row for the rest of the transaction and returns its

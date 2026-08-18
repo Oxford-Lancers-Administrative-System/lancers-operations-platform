@@ -2,6 +2,7 @@ import "server-only";
 
 import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
+import { actorRequirement } from "./actor";
 import {
   EMPTY_AUDIENCE_MESSAGE,
   EMPTY_AUDIENCE_RULE,
@@ -481,13 +482,7 @@ function countByCapacity(members: readonly { capacity: AudienceCapacity }[]) {
   };
 }
 
-function requireActor(actorPersonId: string): void {
-  if (actorPersonId.trim() === "") {
-    throw new ConstraintViolated("An audience change has to name the operator who made it.", {
-      rule: "audit_events_has_an_actor",
-    });
-  }
-}
+const requireActor = actorRequirement("An audience change has to name the operator who made it.");
 
 const STATUS_DESCRIPTIONS: Readonly<Record<string, string>> = Object.freeze({
   draft: "a draft",

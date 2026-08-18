@@ -338,10 +338,40 @@ export interface StoredReport {
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Two kinds of `Date` reach this module, and reading them the same way is a
+ * bug that only appears in some timezones.
+ *
+ * **A row from the driver.** `pg` parses a `date` column into a `Date` at
+ * **local** midnight — `2027-06-16` becomes `2027-06-16T00:00:00` in whatever
+ * zone the process runs in. Reading that with UTC getters asks "which UTC day
+ * was it when this local midnight happened", and for any zone ahead of UTC the
+ * answer is the day before. In Europe/London — the club's own zone — a report
+ * dated the 16th listed every event as the 15th. `asDate` is for these.
+ *
+ * **An instant this module built.** `reportWindow` and `lookaheadWindow`
+ * construct `…T00:00:00Z` and do their arithmetic with `setUTCDate`, so those
+ * really are midnight UTC and really do want UTC getters. `utcDay` is for
+ * these.
+ *
+ * The two are indistinguishable at runtime — both are `Date` — so the
+ * separation has to be kept by the names. One function serving both is what
+ * went wrong before: it was correct for the windows and silently wrong for
+ * every row.
+ */
+
 /** A `date` column as `YYYY-MM-DD`, whatever the driver handed back. */
 function asDate(value: Date | string | null): string | null {
   if (value === null) return null;
   if (typeof value === "string") return value.slice(0, 10);
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, "0");
+  const day = `${value.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** A midnight-UTC instant this module built itself, as `YYYY-MM-DD`. */
+function utcDay(value: Date): string {
   const year = value.getUTCFullYear();
   const month = `${value.getUTCMonth() + 1}`.padStart(2, "0");
   const day = `${value.getUTCDate()}`.padStart(2, "0");
@@ -366,7 +396,7 @@ export function normaliseReportDate(value: string): string {
     throw new ConstraintViolated(REPORT_DATE_INVALID_MESSAGE, { rule: "report_on_format" });
   }
   const parsed = new Date(`${trimmed}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime()) || asDate(parsed) !== trimmed) {
+  if (Number.isNaN(parsed.getTime()) || utcDay(parsed) !== trimmed) {
     throw new ConstraintViolated(REPORT_DATE_INVALID_MESSAGE, { rule: "report_on_format" });
   }
   return trimmed;
@@ -378,7 +408,7 @@ export function reportWindow(reportOn: string): { from: string; to: string } {
   end.setUTCDate(end.getUTCDate() - 1);
   const start = new Date(end.getTime());
   start.setUTCDate(start.getUTCDate() - (REPORT_WINDOW_DAYS - 1));
-  return { from: asDate(start) as string, to: asDate(end) as string };
+  return { from: utcDay(start), to: utcDay(end) };
 }
 
 /** The reporting date and the seven days after it. */
@@ -386,7 +416,7 @@ export function lookaheadWindow(reportOn: string): { from: string; to: string } 
   const start = new Date(`${reportOn}T00:00:00Z`);
   const end = new Date(start.getTime());
   end.setUTCDate(end.getUTCDate() + REPORT_LOOKAHEAD_DAYS);
-  return { from: asDate(start) as string, to: asDate(end) as string };
+  return { from: utcDay(start), to: utcDay(end) };
 }
 
 // ---------------------------------------------------------------------------

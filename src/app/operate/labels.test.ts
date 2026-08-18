@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { labelFor } from "./labels";
 import { MEMBERSHIP_STATUS_LABELS } from "./roster/presentation";
 import { STATUS_LABELS } from "./events/presentation";
+import { EVENT_STATUS_LABELS } from "./report/presentation";
 
 /**
  * The lookup three screens share — and, mostly, the fallback.
@@ -40,5 +41,30 @@ describe("labelFor", () => {
    */
   it("keeps a label the map really does define as empty", () => {
     expect(labelFor({ unnamed: "" }, "unnamed")).toBe("");
+  });
+});
+
+/**
+ * One event status, one word for it — LAN-127 finding 2.
+ *
+ * The report kept its own copy of this map and the copy had drifted:
+ * `pending_approval` read "Awaiting approval" on the Monday report and
+ * "Pending approval" on every events screen, while the report's comment
+ * asserted the two matched. Nothing anywhere asserted it, so the two words
+ * coexisted through every green run.
+ *
+ * The approved wireframes decide which word is right: UX-30 and UX-33 both say
+ * "Pending approval", and nothing in `docs/ux/` says "Awaiting approval".
+ */
+describe("the event status vocabulary", () => {
+  it("says Pending approval, the word the approved wireframes use", () => {
+    expect(labelFor(STATUS_LABELS, "pending_approval")).toBe("Pending approval");
+  });
+
+  it("gives the report and the events screens the same word for every status", () => {
+    expect(EVENT_STATUS_LABELS).toEqual(STATUS_LABELS);
+    for (const status of Object.keys(STATUS_LABELS)) {
+      expect(labelFor(EVENT_STATUS_LABELS, status)).toBe(labelFor(STATUS_LABELS, status));
+    }
   });
 });

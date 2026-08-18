@@ -8,6 +8,7 @@ import {
   type Tx,
 } from "@/lib/db";
 import { recordAudit } from "./audit";
+import { actorRequirement } from "./actor";
 import {
   isAttendancePresence,
   type AttendanceParticipant,
@@ -778,13 +779,7 @@ function requireEmailShape(value: string): void {
   }
 }
 
-function requireActor(actorPersonId: string): void {
-  if (actorPersonId.trim() === "") {
-    throw new ConstraintViolated("An attendance record has to name who recorded it.", {
-      rule: "audit_events_has_an_actor",
-    });
-  }
-}
+const requireActor = actorRequirement("An attendance record has to name who recorded it.");
 
 function requirePresence(presence: string): void {
   if (!isAttendancePresence(presence)) {

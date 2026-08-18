@@ -141,17 +141,22 @@ export const AVAILABILITY_LABELS: Readonly<Record<string, string>> = Object.free
   red: "Unavailable",
 });
 
-/** `event_status`, in the club's words. Matches the events screens. */
-export const EVENT_STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  draft: "Draft",
-  pending_approval: "Awaiting approval",
-  approved: "Approved",
-  occurred: "Occurred",
-  not_held: "Not held",
-  cancelled: "Cancelled",
-  rejected: "Rejected",
-  withdrawn: "Withdrawn",
-});
+/**
+ * `event_status`, in the club's words — the events screens' own map, not a
+ * second copy of it.
+ *
+ * It was a copy, and it had already drifted: `pending_approval` read "Awaiting
+ * approval" here and "Pending approval" on every events screen, under a comment
+ * asserting the two matched. The approved wireframes settle which is right —
+ * UX-30 and UX-33 both say "Pending approval", and nothing in `docs/ux/` says
+ * "Awaiting approval" — so the events screens were conformant and the report
+ * was not.
+ *
+ * Re-exported rather than corrected in place, because correcting the string
+ * would have restored a claim that only a person re-reading both files could
+ * keep true. One event status now has one label wherever it is shown.
+ */
+export { STATUS_LABELS as EVENT_STATUS_LABELS } from "../events/presentation";
 
 export { labelFor } from "../labels";
 
