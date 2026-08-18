@@ -48,7 +48,7 @@
       "id": "SRC-identity-brief",
       "kind": "notion",
       "ref": "https://app.notion.com/p/3bc488886d5781d78d18f045492073cd",
-      "version": "owner-amended-2026-08-18; fetched-2026-08-18T21:43:25.957Z"
+      "version": "owner-amended-2026-08-18; fetched-2026-08-18T21:48:12.489Z"
     },
     {
       "id": "SRC-locked-requirements",
@@ -187,7 +187,7 @@
     },
     {
       "id": "REQ-one-time-bootstrap",
-      "text": "Exactly one owner-run bootstrap may establish the hosted role catalogue and first administrator-capable operator. It is reviewable, fail-closed, documented and audited. After bootstrap, every ordinary identity, access and role action is completed in the application; a second SQL-based administration touch is a defect.",
+      "text": "Implementation delivers one versioned idempotent database migration for the approved 20-role catalogue and mission-owned schema/constraints, plus one supported idempotent owner-run bootstrap script using the Supabase administrative API rather than direct SQL insertion into Auth-owned tables. The bootstrap dry-runs and duplicate-checks existing Person/operator/auth state, then establishes at least Clint as active-year President, Stewart as standing General Manager and Brian as standing IT Officer from owner-supplied exact names/emails, with audit evidence and fail-closed conflict handling. Brian reviews and performs or explicitly directs production execution. After verification, any later manual SQL provisioning touch is a defect.",
       "source_id": "SRC-identity-brief"
     },
     {
@@ -306,6 +306,11 @@
       "id": "DEC-one-person-multiple-capacities",
       "text": "Locked by Brian on 2026-08-18: a player who becomes an officer or coach reuses the same durable Person and at most one operator login. Membership, account state and compatible role assignments change independently and never create persona-specific duplicate accounts.",
       "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §I"
+    },
+    {
+      "id": "DEC-owner-run-bootstrap",
+      "text": "Locked by Brian on 2026-08-18: first production establishment uses one versioned idempotent catalogue/schema migration plus one supported idempotent owner-run bootstrap script, not ad hoc SQL or direct Auth-table insertion. Its minimum real manifest is Clint—active-year President, Stewart—standing GM and Brian—standing IT Officer. Exact names/emails are supplied at the production handoff; dry run, reconciliation, conflict refusal and audit evidence are mandatory.",
+      "source": "Identity, Access & Ownership brief owner amendment 2026-08-18 §J"
     }
   ],
   "baseline": {
@@ -318,8 +323,9 @@
   },
   "gates": {
     "owner": [
-      "Brian retains merge authority for this packet and for any later schema, migration, auth/security or production-operation pull request",
-      "Brian performs any authorized one-time hosted catalogue/first-administrator bootstrap under the existing migration and production handoff rules",
+      "Brian retains merge authority for this packet and for every later schema/migration, capability-map, authentication/security, bootstrap and production-operation pull request",
+      "Brian supplies the exact production names and personal emails for the minimum bootstrap manifest: Clint as active-year President, Stewart as standing General Manager and Brian as standing IT Officer",
+      "Brian reviews the dry-run create/link/assign preview and runs or explicitly directs the owner-gated production migration/bootstrap; no agent performs hosted execution autonomously",
       "Brian provides visual approval for UI-affecting implementation packages through the Mission Harness review-ready flow"
     ],
     "external": [
@@ -651,12 +657,12 @@
     "Coach onboarding tests cover every fixed coaching role, external non-player Person creation, existing player reuse, one account, secure email invitation, correct year assignment, HC/OC/DC narrow access and no unapproved position-coach or administrative access",
     "A local end-to-end walkthrough completes committee, operational and coach operator administration without SQL, Supabase dashboard changes, duplicate identities, administrator-created passwords or WhatsApp authentication",
     "The club-facing operating guide is executable as written and explains combined Person/membership/account/role identity, hierarchy, inherited active year, dates, audit projections, deactivation and email recovery without SQL or Supabase",
-    "The pull-request production handoff names any schema migration and exact one-time Brian-run bootstrap; no agent performs hosted changes"
+    "The implementation handoff includes the versioned catalogue/schema migration, supported Supabase-admin bootstrap script, minimum Clint/Stewart/Brian manifest template, dry-run output, conflict handling, rollback/recovery notes and exact owner-run production verification; no agent performs hosted changes"
   ],
   "blockers": [],
   "approval": {
     "approved_by": "Pending — Brian Schuster",
     "date": "2026-08-18",
-    "evidence": "Not approved. During active intake on 2026-08-18 Brian locked navigation and role grouping, inherited operating-year behavior, standing GM and IT Officer, current/former holder presentation, duplicate-checked name-and-email invitation with a required role, date/cardinality rules, deactivation/reinstatement separation, verified email recovery, the final authorization matrix, event-first audit projections, and one-Person multi-capacity identity. The controlling Notion brief was surgically amended and refetched at 2026-08-18T21:43:25.957Z. The packet remains not_ready while Brian continues the first real Mission Harness product review; his later merge of a ready packet-only PR approves the exact version and commit."
+    "evidence": "Not approved. During active intake on 2026-08-18 Brian locked navigation and role grouping, inherited operating-year behavior, standing GM and IT Officer, current/former holder presentation, duplicate-checked name-and-email invitation with a required role, date/cardinality rules, deactivation/reinstatement separation, verified email recovery, the final authorization matrix, event-first audit projections, and one-Person multi-capacity identity. Brian also locked the one-time owner-run production bootstrap: versioned migration plus supported Supabase-admin script, minimum Clint/Stewart/Brian manifest, dry run, reconciliation and audit. The controlling Notion brief was surgically amended and refetched at 2026-08-18T21:48:12.489Z. The packet remains not_ready while Brian continues the first real Mission Harness product review; his later merge of a ready packet-only PR approves the exact version and commit."
   }
 }
