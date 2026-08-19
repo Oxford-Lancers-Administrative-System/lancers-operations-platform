@@ -215,6 +215,178 @@ describe("deactivation, not deletion", () => {
   });
 });
 
+describe("invitation state — LAN-131", () => {
+  beforeEach(async () => {
+    await client.query("begin");
+  });
+  afterEach(async () => {
+    await client.query("rollback");
+  });
+
+  // `login_email` is the address the login signs in with, projected from
+  // `auth.users.email` because the hosted runtime connects as a least-privilege
+  // role with no reach into the `auth` schema (ADR 0026). The service refuses a
+  // duplicate before the statement is sent; these are the backstop for the race
+  // it cannot close, and `src/lib/db/errors.ts` turns each name below into a
+  // sentence an administrator can act on.
+
+  it("refuses a blank login address", async () => {
+    const { authUserId, personId } = await createIdentity("n");
+
+    await expectRejected(
+      client,
+      "insert into public.operator_accounts (auth_user_id, person_id, login_email) values ($1, $2, '   ')",
+      [authUserId, personId],
+      "operator_accounts_login_email_not_blank",
+    );
+  });
+
+  it("accepts an account with no login address recorded", async () => {
+    // Nullable by design: rows predating the migration are backfilled, and the
+    // local review scripts and several cross-cutting suites insert the pair of
+    // identifiers alone. `auth.users.email` is unique in GoTrue and stays the
+    // authority.
+    const { authUserId, personId } = await createIdentity("o");
+
+    await expectAccepted(
+      client,
+      "insert into public.operator_accounts (auth_user_id, person_id) values ($1, $2)",
+      [authUserId, personId],
+    );
+  });
+
+  it("refuses a second login for the same address", async () => {
+    const first = await createIdentity("p");
+    const second = await createIdentity("q");
+    await client.query(
+      "insert into public.operator_accounts (auth_user_id, person_id, login_email) values ($1, $2, $3)",
+      [first.authUserId, first.personId, "shared@oxfordlancers.local"],
+    );
+
+    await expectRejected(
+      client,
+      "insert into public.operator_accounts (auth_user_id, person_id, login_email) values ($1, $2, $3)",
+      [second.authUserId, second.personId, "shared@oxfordlancers.local"],
+      "operator_accounts_login_email_key",
+    );
+  });
+
+  it("refuses a second login for the same address spelled in another case", async () => {
+    // The index is over `lower(login_email)`, because `Clint@…` and `clint@…`
+    // are one mailbox everywhere this club operates, and a second account for
+    // the second spelling is the duplicate `REQ-invitation-states` refuses.
+    const first = await createIdentity("r");
+    const second = await createIdentity("s");
+    await client.query(
+      "insert into public.operator_accounts (auth_user_id, person_id, login_email) values ($1, $2, $3)",
+      [first.authUserId, first.personId, "case.test@oxfordlancers.local"],
+    );
+
+    await expectRejected(
+      client,
+      "insert into public.operator_accounts (auth_user_id, person_id, login_email) values ($1, $2, $3)",
+      [second.authUserId, second.personId, "Case.Test@OxfordLancers.Local"],
+      "operator_accounts_login_email_key",
+    );
+  });
+
+  it("lets several accounts carry no address at all", async () => {
+    // The index is partial. Without `where login_email is not null` a second
+    // address-less account would collide with the first, which would break
+    // every script and suite that inserts the identifier pair alone.
+    const first = await createIdentity("t");
+    const second = await createIdentity("u");
+    await client.query(
+      "insert into public.operator_accounts (auth_user_id, person_id) values ($1, $2)",
+      [first.authUserId, first.personId],
+    );
+
+    await expectAccepted(
+      client,
+      "insert into public.operator_accounts (auth_user_id, person_id) values ($1, $2)",
+      [second.authUserId, second.personId],
+    );
+  });
+
+  it("refuses a delivery failure with no reason, and a reason with no date", async () => {
+    // A failure that does not say what went wrong is not a record of anything,
+    // and a reason with no date is not either. Both, or neither.
+    const first = await createIdentity("v");
+    const second = await createIdentity("w");
+
+    await expectRejected(
+      client,
+      `insert into public.operator_accounts
+         (auth_user_id, person_id, invited_at, invitation_delivery_failed_at)
+       values ($1, $2, now(), now())`,
+      [first.authUserId, first.personId],
+      "operator_accounts_delivery_failure_is_explained",
+    );
+
+    await expectRejected(
+      client,
+      `insert into public.operator_accounts
+         (auth_user_id, person_id, invited_at, invitation_delivery_failure_reason)
+       values ($1, $2, now(), '550 mailbox unavailable')`,
+      [second.authUserId, second.personId],
+      "operator_accounts_delivery_failure_is_explained",
+    );
+  });
+
+  it("accepts a delivery failure that carries both its date and its reason", async () => {
+    const { authUserId, personId } = await createIdentity("x");
+
+    await expectAccepted(
+      client,
+      `insert into public.operator_accounts
+         (auth_user_id, person_id, invited_at,
+          invitation_delivery_failed_at, invitation_delivery_failure_reason)
+       values ($1, $2, now(), now(), '550 mailbox unavailable')`,
+      [authUserId, personId],
+    );
+  });
+
+  it("refuses a delivery failure against an invitation that was never issued", async () => {
+    // A delivery failure presupposes something was sent. Without this, a row
+    // could claim Delivery failed with nothing behind it, and the state
+    // derivation would faithfully report it.
+    const { authUserId, personId } = await createIdentity("y");
+
+    await expectRejected(
+      client,
+      `insert into public.operator_accounts
+         (auth_user_id, person_id,
+          invitation_delivery_failed_at, invitation_delivery_failure_reason)
+       values ($1, $2, now(), '550 mailbox unavailable')`,
+      [authUserId, personId],
+      "operator_accounts_delivery_failure_follows_an_invitation",
+    );
+  });
+
+  it("accepts an invitation that has been issued and has not failed", async () => {
+    const { authUserId, personId } = await createIdentity("z");
+
+    await expectAccepted(
+      client,
+      `insert into public.operator_accounts (auth_user_id, person_id, login_email, invited_at)
+       values ($1, $2, 'invited@oxfordlancers.local', now())`,
+      [authUserId, personId],
+    );
+  });
+
+  it("accepts an account that has been activated", async () => {
+    const { authUserId, personId } = await createIdentity("aa");
+
+    await expectAccepted(
+      client,
+      `insert into public.operator_accounts
+         (auth_user_id, person_id, login_email, invited_at, activated_at)
+       values ($1, $2, 'active@oxfordlancers.local', now(), now())`,
+      [authUserId, personId],
+    );
+  });
+});
+
 describe("referenced identities cannot be deleted out from under history", () => {
   beforeEach(async () => {
     await client.query("begin");
