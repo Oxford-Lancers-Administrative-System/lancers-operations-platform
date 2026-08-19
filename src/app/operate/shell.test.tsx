@@ -899,3 +899,90 @@ describe("LAN-110 — the coach shell", () => {
     expect(screen.getByTestId("season-label")).toBeVisible();
   });
 });
+
+/**
+ * LAN-133 — the Administration group in the sidebar.
+ *
+ * `DEC-administration-navigation` puts it "at the bottom of the left
+ * application sidebar, immediately above user/account controls", holding
+ * Operators and Roles and nothing else. Two properties are asserted here, and
+ * neither of them is authorization:
+ *
+ *   * an administrator sees it, with both entries pointing at the approved
+ *     routes, after the ordinary destinations and before the account block; and
+ *   * everybody else sees no trace of it in the DOM — not a hidden element and
+ *     not an attribute, because a server-rendered page ships whatever is in it.
+ *
+ * The refusal itself lives on the pages and is asserted in
+ * `admin/screens.test.tsx`. A hidden link is a courtesy; those pages are the
+ * boundary, and either would refuse on its own.
+ */
+describe("LAN-133 — Administration in the shell", () => {
+  /** The three seats `REQ-role-management-authority` gives `role_management`. */
+  const ADMINISTRATORS = ["president", "general_manager", "it_officer"];
+
+  it.each(ADMINISTRATORS)("shows Operators and Roles to the %s", async (seat) => {
+    givenAccess({ state: "active", operator: actor([seat]) });
+
+    render(await OperateLayout(layoutProps(null)));
+
+    expect(screen.getByRole("link", { name: "Operators" })).toHaveAttribute(
+      "href",
+      "/operate/admin/operators",
+    );
+    expect(screen.getByRole("link", { name: "Roles" })).toHaveAttribute(
+      "href",
+      "/operate/admin/roles",
+    );
+    expect(screen.getAllByRole("link")).toHaveLength(5);
+  });
+
+  it("captions the group, and puts it after the ordinary destinations", async () => {
+    givenAccess({ state: "active", operator: actor(["it_officer"]) });
+
+    const { container } = render(await OperateLayout(layoutProps(null)));
+
+    expect(container.textContent).toContain("Administration");
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+      "Roster",
+      "Events",
+      "Report",
+      "Operators",
+      "Roles",
+    ]);
+  });
+
+  it("keeps the group above the signed-in account", async () => {
+    givenAccess({ state: "active", operator: actor(["it_officer"], "Casey Quinn") });
+
+    const { container } = render(await OperateLayout(layoutProps(null)));
+    const html = container.innerHTML;
+
+    expect(html).toContain("Administration");
+    expect(html.indexOf("Administration")).toBeLessThan(html.lastIndexOf("Casey Quinn"));
+  });
+
+  // The empty string is the operator who holds no seat at all — as legitimate
+  // here as it is for the three ordinary destinations, and just as excluded.
+  it.each(["secretary", "vice_president", "treasurer", ""])(
+    "shows no trace of it to an operator holding '%s'",
+    async (seat) => {
+      givenAccess({ state: "active", operator: actor(seat === "" ? [] : [seat]) });
+
+      const { container } = render(await OperateLayout(layoutProps(null)));
+
+      expect(screen.getAllByRole("link")).toHaveLength(3);
+      expect(container.innerHTML).not.toContain("Administration");
+      expect(container.innerHTML).not.toContain("/operate/admin");
+    },
+  );
+
+  it("shows no trace of it to a narrow attendance recorder", async () => {
+    givenAccess({ state: "active", operator: actor(["head_coach"]) });
+
+    const { container } = render(await OperateLayout(layoutProps(null)));
+
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(container.innerHTML).not.toContain("/operate/admin");
+  });
+});

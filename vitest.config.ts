@@ -42,6 +42,7 @@ loadEnv({ path: path.resolve(import.meta.dirname, ".env.local"), quiet: true });
 export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/app/api/webhooks/whatsapp/route.test.ts",
   "src/lib/services/administration-audit.test.ts",
+  "src/lib/services/administration-directory.test.ts",
   "src/lib/services/attendance.test.ts",
   "src/lib/services/delivery.test.ts",
   "src/lib/services/event-approval.test.ts",

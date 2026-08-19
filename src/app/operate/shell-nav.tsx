@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Box from "@mui/material/Box";
+import Divider from "@mui/material/Divider";
 import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import Typography from "@mui/material/Typography";
-import type { Destination } from "./destinations";
+import { ADMINISTRATION_SECTION, type Destination } from "./destinations";
 
 /**
  * The shell's navigation: Roster, Events, Report — and no Home destination.
@@ -41,17 +42,30 @@ import type { Destination } from "./destinations";
 export default function ShellNav({
   operatorName,
   destinations,
+  administration = [],
   sectionLabel,
   roleCaption,
 }: {
   operatorName: string;
   destinations: readonly Destination[];
+  /**
+   * LAN-133. The Administration entries, or empty for an operator who holds no
+   * administration authority. They render as a separated group at the bottom of
+   * the sidebar, immediately above the signed-in account, which is what
+   * `DEC-administration-navigation` decides and what the reviewed prototype
+   * draws. Empty is the ordinary case and renders nothing at all — not an empty
+   * heading.
+   */
+  administration?: readonly Destination[];
   /** The word under "Lancers" in the sidebar: "Operations", or "Attendance". */
   sectionLabel: string;
   /** The line under the signed-in name: "Authorized operator", or "Head Coach". */
   roleCaption: string;
 }) {
   const pathname = usePathname();
+
+  const isCurrent = (destination: Destination): boolean =>
+    pathname === destination.href || Boolean(pathname?.startsWith(`${destination.href}/`));
 
   return (
     <Box
@@ -111,14 +125,13 @@ export default function ShellNav({
         }}
       >
         {destinations.map((destination) => {
-          const current =
-            pathname === destination.href || pathname?.startsWith(`${destination.href}/`);
+          const current = isCurrent(destination);
           return (
             <ListItemButton
               key={destination.href}
               component={Link}
               href={destination.href}
-              selected={Boolean(current)}
+              selected={current}
               aria-current={current ? "page" : undefined}
               sx={{
                 borderRadius: { md: 1 },
@@ -145,6 +158,62 @@ export default function ShellNav({
                     sx: { color: "grey.400", display: { xs: "none", md: "block" } },
                   },
                 }}
+              />
+            </ListItemButton>
+          );
+        })}
+
+        {/*
+          LAN-133. The Administration group, in the same `List` as the ordinary
+          destinations rather than in a second one, so that the phone bottom bar
+          stays a single row of equal-width entries — the prototype's phone
+          navigation shows all five side by side. The rule and the caption are
+          the desktop sidebar's alone and are hidden at `xs`, where a heading
+          inside a 48px strip has nowhere to go.
+        */}
+        {administration.length > 0 ? (
+          <Divider
+            aria-hidden
+            sx={{ display: { xs: "none", md: "block" }, borderColor: "grey.800", mx: 1, my: 1 }}
+          />
+        ) : null}
+        {administration.length > 0 ? (
+          <Typography
+            component="li"
+            variant="overline"
+            sx={{
+              display: { xs: "none", md: "block" },
+              color: "grey.400",
+              px: 2,
+              lineHeight: 1.6,
+            }}
+          >
+            {ADMINISTRATION_SECTION}
+          </Typography>
+        ) : null}
+        {administration.map((destination) => {
+          const current = isCurrent(destination);
+          return (
+            <ListItemButton
+              key={destination.href}
+              component={Link}
+              href={destination.href}
+              selected={current}
+              aria-current={current ? "page" : undefined}
+              sx={{
+                borderRadius: { md: 1 },
+                flex: { xs: 1, md: "none" },
+                justifyContent: { xs: "center", md: "flex-start" },
+                minHeight: 48,
+                color: "inherit",
+                "&.Mui-selected": { bgcolor: "grey.800" },
+                "&.Mui-selected:hover": { bgcolor: "grey.800" },
+              }}
+            >
+              <ListItemText
+                primary={destination.label}
+                sx={{ flex: "none" }}
+                slotProps={{ primary: { sx: { fontWeight: current ? 700 : 500 } } }}
               />
             </ListItemButton>
           );

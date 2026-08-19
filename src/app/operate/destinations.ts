@@ -82,6 +82,67 @@ export const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
 ]);
 
 /**
+ * Administration — LAN-133, `DEC-administration-navigation`.
+ *
+ * Brian's intake decision of 18 August 2026 is a decision about *placement*
+ * rather than about capability: "Administration is a low-frequency privileged
+ * area at the bottom of the left application sidebar, immediately above
+ * user/account controls", holding "Operators and Roles" and nothing else. The
+ * reviewed prototype draws the same thing — a rule, the word Administration,
+ * then the two entries, then the signed-in account.
+ *
+ * So it is a **second list** rather than two more entries in `DESTINATIONS`.
+ * The separator and the caption are the decision, and a flat list cannot carry
+ * them; `ShellNav` renders this one under its own heading.
+ *
+ * Both require `role_management`, which is `REQ-role-management-authority`'s
+ * capability and is held by three seats. That has one consequence this file has
+ * not had before: these two entries are **not** shown to every operator, where
+ * Roster, Events and Report are. That is a courtesy and never a boundary —
+ * `src/app/operate/admin/**` gates itself on the same capability, and a
+ * Secretary who types the URL is refused by the page, not by this list.
+ * Hiding it matters anyway, because a low-frequency privileged area advertised
+ * to everybody who cannot open it is an invitation to try.
+ */
+export const ADMINISTRATION_DESTINATIONS: readonly Destination[] = Object.freeze([
+  Object.freeze({
+    href: "/operate/admin/operators",
+    label: "Operators",
+    capability: "role_management" as CapabilityKey,
+  }),
+  Object.freeze({
+    href: "/operate/admin/roles",
+    label: "Roles",
+    capability: "role_management" as CapabilityKey,
+  }),
+]);
+
+/** The word above the Administration entries in the sidebar. */
+export const ADMINISTRATION_SECTION = "Administration";
+
+/**
+ * The Administration entries this operator may open — all of them, or none.
+ *
+ * Both entries share one capability, so this is empty or complete and never
+ * partial. It is written as a filter rather than as an `if` so that a third
+ * entry with a different capability would be handled correctly by construction.
+ *
+ * A narrow attendance recorder gets none, without consulting the capability at
+ * all: `slice-ux.md` § 3 gives a coaching assignment *one* surface, and a coach
+ * who somehow also held `role_management` would be an operator with general
+ * authority rather than a narrow recorder — `isNarrowAttendanceRecorder()` is
+ * already false for them, so this branch never takes their Administration away.
+ */
+export function administrationDestinationsFor(
+  roleCodes: readonly string[],
+): readonly Destination[] {
+  if (isNarrowAttendanceRecorder(roleCodes)) return [];
+  return ADMINISTRATION_DESTINATIONS.filter((destination) =>
+    permitsDestination(roleCodes, destination),
+  );
+}
+
+/**
  * The destinations this operator's shell shows.
  *
  * Navigation, still, and not authorization: every destination guards itself and
