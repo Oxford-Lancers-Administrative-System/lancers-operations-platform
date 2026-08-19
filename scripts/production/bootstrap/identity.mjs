@@ -36,12 +36,49 @@
  * it.
  */
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { createClient } from "@supabase/supabase-js";
 
 import { PRODUCTION_PROJECT_REF } from "../connection-smoke-test.mjs";
 
 /** Hostnames that are this machine and cannot be anybody's production. */
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+
+/**
+ * Reads one variable out of `.env.local`, for a **local rehearsal only**.
+ *
+ * `resolveTarget` already does this for the database so that a local run needs
+ * no configuration; the Auth server needs the same or the documented one-line
+ * rehearsal cannot work. Kept to the same shape — no dotenv dependency, one
+ * variable at a time.
+ *
+ * It is called from exactly one branch, and that branch has already established
+ * the target is loopback. `.env.local` holds the Supabase CLI's generated local
+ * keys, which are not secrets in any meaningful sense; the hosted path never
+ * reaches this function, so a checked-in-by-accident local key can never stand
+ * in for a production one.
+ */
+function fromEnvLocal(name) {
+  let contents;
+  try {
+    contents = readFileSync(path.join(REPO_ROOT, ".env.local"), "utf8");
+  } catch {
+    return null;
+  }
+
+  for (const line of contents.split(/\r?\n/)) {
+    const match = new RegExp(`^\\s*${name}\\s*=\\s*(.*)$`).exec(line);
+    if (!match) continue;
+    const value = match[1].trim().replace(/^["']|["']$/g, "");
+    if (value !== "") return value;
+  }
+  return null;
+}
 
 /**
  * How many Auth users this script will page through looking for one address.
@@ -65,8 +102,24 @@ const PAGE_SIZE = 200;
  * @param {Record<string, string | undefined>} env
  */
 export function assertIdentityTarget(target, env = process.env) {
-  const url = (env.SUPABASE_URL ?? env.NEXT_PUBLIC_SUPABASE_URL ?? "").trim();
-  const key = (env.SUPABASE_SECRET_KEY ?? env.SUPABASE_SERVICE_ROLE_KEY ?? "").trim();
+  // The environment first, always. `.env.local` is consulted only for a local
+  // rehearsal, and only when the environment said nothing — a hosted run reads
+  // it never, so a local key cannot be picked up while pointed at production.
+  const local = (name) => (target.kind === "local" ? fromEnvLocal(name) : null);
+
+  const url = (
+    env.SUPABASE_URL ??
+    env.NEXT_PUBLIC_SUPABASE_URL ??
+    local("NEXT_PUBLIC_SUPABASE_URL") ??
+    ""
+  ).trim();
+  const key = (
+    env.SUPABASE_SECRET_KEY ??
+    env.SUPABASE_SERVICE_ROLE_KEY ??
+    local("SUPABASE_SECRET_KEY") ??
+    local("SUPABASE_SERVICE_ROLE_KEY") ??
+    ""
+  ).trim();
 
   if (url === "") {
     throw new Error(

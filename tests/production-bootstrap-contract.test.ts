@@ -44,7 +44,7 @@
  * fails for a reason unrelated to what it tests; and a delivery *failure* has to
  * be poseable, because the state it produces is one the club's record must show.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import pg, { type Client } from "pg";
@@ -255,7 +255,10 @@ describe("the bootstrap refuses to run anywhere it should not", () => {
 
   it("refuses with no key, and never echoes one", () => {
     expect(() =>
-      assertIdentityTarget({ kind: "local" }, { SUPABASE_URL: "http://127.0.0.1:54321" }),
+      assertIdentityTarget(
+        { kind: "hosted" },
+        { SUPABASE_URL: "https://fggbgeraiadetyiyjlvb.supabase.co" },
+      ),
     ).toThrow(/privileged Supabase key/i);
 
     const secret = "sb_secret_do_not_print_me";
@@ -268,6 +271,25 @@ describe("the bootstrap refuses to run anywhere it should not", () => {
     } catch (error) {
       expect((error as Error).message).not.toContain(secret);
     }
+  });
+
+  it("never falls back to .env.local for a hosted run", () => {
+    // The load-bearing half, and it holds everywhere: a local key must never be
+    // able to stand in for a production one.
+    expect(() => assertIdentityTarget({ kind: "hosted" }, {})).toThrow(/Auth server/i);
+  });
+
+  it("finds the local Auth server with no configuration at all", () => {
+    // A local rehearsal has to work from a plain command line, exactly as
+    // `resolveTarget` already makes the database work. On a developer machine
+    // that means reading `.env.local`; CI exports the same variables directly
+    // and writes no such file, so the fallback is only exercised where the file
+    // exists. The manual rehearsal in the pull request exercises it for real.
+    if (!existsSync(path.join(repoRoot, ".env.local"))) return;
+
+    const found = assertIdentityTarget({ kind: "local" }, {});
+    expect(found.url).toMatch(/^https?:\/\/(127\.0\.0\.1|localhost)/);
+    expect(found.key).toBeTruthy();
   });
 
   it("carries no name and no email address of a real person", () => {
