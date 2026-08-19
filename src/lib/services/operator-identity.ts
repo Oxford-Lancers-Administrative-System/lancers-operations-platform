@@ -136,10 +136,35 @@ export function supabaseOperatorIdentity(): OperatorIdentityPort {
       const admin = createAdminClient();
       const { error } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo });
       if (error) {
-        // The message is carried, not shown: it is the club's record of why a
-        // delivery failed, stored on the account and in the audit ledger, and
-        // the surfaces render their own sentence.
-        throw new InvitationDeliveryFailure(error.message);
+        // One failure is worth naming, because otherwise it arrives as
+        // "already registered" against an account the club can see is still
+        // Invitation pending, which reads as a contradiction.
+        //
+        // GoTrue's invite endpoint re-sends for a login that has never
+        // confirmed an address, and refuses once it has. Following the emailed
+        // link is what confirms it — so somebody who opened their invitation
+        // and then closed the tab without choosing a password is confirmed,
+        // has no password, and cannot be re-invited. It is not a dead end and
+        // it does not need an administrator: the sign-in page's forgotten-
+        // password flow reaches them, and setting a password there activates
+        // the account exactly as the invitation would have.
+        //
+        // Stored as the recorded reason rather than raised as a refusal,
+        // because the account is genuinely undelivered-to and the state is
+        // genuinely Delivery failed; what changes is that the sentence says
+        // what to do.
+        throw new InvitationDeliveryFailure(
+          isDuplicateAddress(error)
+            ? "The invitation link for this address has already been opened, so a new one " +
+                "cannot be sent to it. Ask them to use “Forgot password?” on the " +
+                "sign-in page to choose their password — that finishes setting up the " +
+                "account — or correct the invitation to a different address."
+            : // Otherwise the transport's own words, which are the only thing
+              // that distinguishes a wrong address from a mail server that was
+              // down. Carried, not shown: the surfaces render the state's
+              // sentence.
+              error.message,
+        );
       }
     },
 
