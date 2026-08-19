@@ -20,6 +20,7 @@ vi.mock("server-only", () => ({}));
 
 import type { Client } from "pg";
 
+import { COACH_ROLE_CODES } from "@/lib/auth/capabilities";
 import { closePool, isServiceError, withTransaction, type ServiceError } from "@/lib/db";
 import {
   approveEvent,
@@ -1283,13 +1284,86 @@ describe("a season-scoped role that is not a coaching seat", () => {
     );
 
     expect(catalogue.counts.coach).toBeGreaterThan(0);
-    // Named seats rather than a pattern: since LAN-128 the club calls two of
-    // the three "Offensive Coordinator" and "Defensive Coordinator", and a
-    // `/Coach/` pattern would have quietly stopped matching them.
-    const COACHING_SEAT_NAMES = ["Head Coach", "Offensive Coordinator", "Defensive Coordinator"];
+    // Read from the catalogue rather than retyped: since LAN-128 the club calls
+    // two of the seats "Offensive Coordinator" and "Defensive Coordinator", so a
+    // `/Coach/` pattern would have quietly stopped matching them, and since
+    // LAN-129 there are ten of them rather than three.
+    const coachingSeatNames = await observer.query<{ name: string }>(
+      "select name from public.roles where code = any($1::text[])",
+      [[...COACH_ROLE_CODES]],
+    );
+    const permitted = coachingSeatNames.rows.map((row) => row.name);
+    expect(permitted).toHaveLength(10);
     for (const coach of catalogue.candidates.filter((entry) => entry.capacity === "coach")) {
-      expect(COACHING_SEAT_NAMES).toContain(coach.standing);
+      expect(permitted).toContain(coach.standing);
     }
+  });
+});
+
+/**
+ * LAN-129, Q-5 — every fixed coaching seat is invitable, not just the three that
+ * carried the attendance grant first.
+ *
+ * Brian, 19 August 2026: "Every coach needs to be invited to coaching sessions.
+ * Coaches should be an audience that's included, which includes all the
+ * coaches." Until that answer, `COACH_ROLE_CODES` held three seats while the
+ * catalogue held ten, so a Quarterbacks Coach could take a register at a session
+ * they were never invited to.
+ *
+ * Asserted against a real assignment rather than against the constant, because
+ * the constant is only half the mechanism — it is passed into the audience
+ * query as a parameter, and a query that stopped consuming it would still pass
+ * a test that only read the constant.
+ */
+describe("a coaching seat the catalogue added", () => {
+  const SEAT_CODE = "quarterbacks_coach";
+
+  afterEach(async () => {
+    await observer.query(
+      `delete from public.role_assignments
+        where note = 'LAN-129 audience check'
+          and role_id in (select id from public.roles where code = $1)`,
+      [SEAT_CODE],
+    );
+  });
+
+  it("is offered under Active coaches once somebody holds it", async () => {
+    const event = await newDraft();
+    const before = await catalogueFor(event);
+
+    const season = await observer.query<{ id: string }>(
+      "select id from public.seasons where status = 'active' order by starts_on desc limit 1",
+    );
+    const role = await observer.query<{ id: string }>(
+      "select id, name from public.roles where code = $1",
+      [SEAT_CODE],
+    );
+    // Somebody who is not already in the catalogue under another capacity, so
+    // that the count moving is unambiguous.
+    const person = await observer.query<{ id: string }>(
+      `select p.id from public.people p
+        where not exists (select 1 from public.role_assignments ra where ra.person_id = p.id)
+        order by p.id desc limit 1`,
+    );
+    await observer.query(
+      `insert into public.role_assignments
+         (person_id, role_id, scope, is_constitutional_office, season_id, effective_from, note)
+       values ($1, $2, 'season', false, $3, '2026-09-01', 'LAN-129 audience check')`,
+      [person.rows[0].id, role.rows[0].id, season.rows[0].id],
+    );
+
+    const after = await withTransaction((tx) =>
+      listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn),
+    );
+
+    expect(after.counts.coach).toBe(before.counts.coach + 1);
+    expect(
+      after.candidates.some(
+        (candidate) =>
+          candidate.capacity === "coach" && candidate.standing === "Quarterbacks Coach",
+      ),
+      "a fixed coaching seat was not offered under Active coaches",
+    ).toBe(true);
   });
 });
 

@@ -216,7 +216,7 @@ so `vitest.config.ts` runs the files named in `DATABASE_TEST_SUITES` one at a
 time and refuses every other file a PostgreSQL connection or a call to the local
 Supabase Data API. Add the path when a new test needs one; you do not have to
 remember, because the guard fails the file and says so. See
-[`docs/adr/0028-serialized-database-test-suites.md`](docs/adr/0028-serialized-database-test-suites.md).
+[`docs/adr/0029-serialized-database-test-suites.md`](docs/adr/0029-serialized-database-test-suites.md).
 
 ## Styling
 

@@ -25,7 +25,7 @@ import pg from "pg";
  * of a concurrent *commit*, but an unowned count assertion is broken by a read
  * of somebody else's rows just as easily.
  *
- * See docs/adr/0028-serialized-database-test-suites.md.
+ * See docs/adr/0029-serialized-database-test-suites.md.
  */
 const isDatabaseProject = process.env.LANCERS_TEST_PROJECT === "database";
 

@@ -198,7 +198,7 @@ exists so that nobody has to know this rule in advance.
 
 Run one project on its own with `npx vitest run --project database` or
 `--project unit`. The `database` project is the slow half by design; ADR
-[0028](adr/0028-serialized-database-test-suites.md) records what it costs and
+[0029](adr/0029-serialized-database-test-suites.md) records what it costs and
 what it bought.
 
 ## Building and running the production container locally

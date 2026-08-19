@@ -34,7 +34,7 @@ loadEnv({ path: path.resolve(import.meta.dirname, ".env.local"), quiet: true });
  * A new test file that opens a PostgreSQL connection, or calls the local
  * Supabase Data API, belongs here. You will not have to remember: the guard in
  * `vitest.setup.ts` fails the file the first time it tries, and tells you what
- * to do. See docs/adr/0028-serialized-database-test-suites.md.
+ * to do. See docs/adr/0029-serialized-database-test-suites.md.
  *
  * Exported so `tests/database-suite-isolation.test.ts` can check it stays
  * accurate.
