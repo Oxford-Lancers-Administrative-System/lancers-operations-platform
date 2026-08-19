@@ -255,20 +255,21 @@ describe("a recovery session reaches the reset page and nothing else", () => {
 });
 
 /**
- * The password-recovery surfaces — LAN-125.
+ * The emailed-link surfaces — LAN-125, and `/auth/invitation` from LAN-131.
  *
- * These three are public and stay public: a person who cannot sign in is
- * precisely who needs them. What they must carry is the same header set the
- * signed RSVP page carries, and for a sharper reason on `/auth/recovery` — the
- * one-time token is in that request's URL, so without `no-referrer` the next
- * outbound request from the page would hand it to a third party's access log.
+ * These four are public and stay public: a person who cannot sign in is
+ * precisely who needs them, and an invited person has never signed in at all.
+ * What they must carry is the same header set the signed RSVP page carries, and
+ * for a sharper reason on the two callbacks — the one-time token is in that
+ * request's URL, so without `no-referrer` the next outbound request from the
+ * page would hand it to a third party's access log.
  *
- * Unlike `/rsvp` they do not return early, because `/auth/recovery` needs the
- * cookie machinery this proxy sets up in order to persist what `verifyOtp`
- * produces. The counterweight is asserted below, in both directions.
+ * Unlike `/rsvp` they do not return early, because a callback needs the cookie
+ * machinery this proxy sets up in order to persist what `verifyOtp` produces.
+ * The counterweight is asserted below, in both directions.
  */
 describe("the recovery surfaces are public, and keep no trace", () => {
-  const RECOVERY = ["/forgot-password", "/reset-password", "/auth/recovery"];
+  const RECOVERY = ["/forgot-password", "/reset-password", "/auth/recovery", "/auth/invitation"];
 
   it.each(RECOVERY)("%s is matched by the proxy, or none of the below would run", (path) => {
     expect(matcherRuns(path)).toBe(true);
