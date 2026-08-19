@@ -226,6 +226,19 @@ describe("the smoke sequence, run against local Supabase", () => {
     expect(rows, "the bystander row must survive").toHaveLength(1);
   });
 
+  interface AuditRow {
+    id: string;
+    action: string;
+    entity_table: string;
+    from_state: string | null;
+    to_state: string | null;
+    occurred_at: string;
+  }
+
+  const AUDIT_SNAPSHOT = `select id, action, entity_table, from_state, to_state,
+                                 occurred_at::text as occurred_at
+                            from public.audit_events`;
+
   it("leaves nothing behind even when the refusals do not hold", async () => {
     // The probes assert that the runtime role CANNOT rewrite audit history or
     // create a table. Run as a role that can — the wrong credential in the
@@ -237,9 +250,15 @@ describe("the smoke sequence, run against local Supabase", () => {
     // This is a regression test: the first version of the script did leave a
     // `smoke_test_probe` table in the local database, which is how the defect
     // was found.
-    const before = await admin.query<{ count: string }>(
-      "select count(*)::text as count, max(occurred_at)::text as latest from public.audit_events",
-    );
+    // Row content, not a row count. A count over the whole table is not a
+    // property of this database: Vitest runs test files in parallel against one
+    // shared local stack, so a neighbouring suite writing or clearing its own
+    // audit rows inside this window moved the number and failed the assertion
+    // for a reason the smoke test had nothing to do with — observed both
+    // directions, four rows up and four rows down. What the probe is being
+    // tested for is that its history *rewrite* rolls back, and that is a
+    // statement about rows that existed before it ran: none of them changed.
+    const before = await admin.query<AuditRow>(AUDIT_SNAPSHOT);
 
     const report = await runConnectionSmokeTest(admin);
 
@@ -252,10 +271,16 @@ describe("the smoke sequence, run against local Supabase", () => {
     );
     expect(probeTable.rows[0].table, "the probe table must not survive").toBeNull();
 
-    const after = await admin.query<{ count: string }>(
-      "select count(*)::text as count, max(occurred_at)::text as latest from public.audit_events",
-    );
-    expect(after.rows[0], "audit history must be untouched").toEqual(before.rows[0]);
+    const after = await admin.query<AuditRow>(AUDIT_SNAPSHOT);
+    const afterById = new Map(after.rows.map((row) => [row.id, row]));
+    const survivors = before.rows.filter((row) => afterById.has(row.id));
+
+    // A vacuous pass is the failure mode this replaces: if the probe had
+    // emptied the table, every row would be "unchanged" by absence.
+    expect(survivors.length, "there was no audit history to check against").toBeGreaterThan(0);
+    for (const row of survivors) {
+      expect(afterById.get(row.id), "audit history must be untouched").toEqual(row);
+    }
 
     // And its own synthetic row is still cleaned up on this path.
     const { rows } = await admin.query("select 1 from public.people where id = $1", [

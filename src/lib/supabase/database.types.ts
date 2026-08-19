@@ -1986,6 +1986,7 @@ export type Database = {
           effective_to: string | null
           id: string
           is_constitutional_office: boolean
+          is_single_holder_seat: boolean
           note: string | null
           person_id: string
           role_id: string
@@ -2000,6 +2001,7 @@ export type Database = {
           effective_to?: string | null
           id?: string
           is_constitutional_office: boolean
+          is_single_holder_seat?: boolean
           note?: string | null
           person_id: string
           role_id: string
@@ -2014,6 +2016,7 @@ export type Database = {
           effective_to?: string | null
           id?: string
           is_constitutional_office?: boolean
+          is_single_holder_seat?: boolean
           note?: string | null
           person_id?: string
           role_id?: string
@@ -2027,6 +2030,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "roles"
             referencedColumns: ["id", "scope", "is_constitutional_office"]
+          },
+          {
+            foreignKeyName: "role_assignments_agree_with_single_holder_rule"
+            columns: ["role_id", "is_single_holder_seat"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id", "is_single_holder_seat"]
           },
           {
             foreignKeyName: "role_assignments_appointed_by_person_id_fkey"
@@ -2079,38 +2089,82 @@ export type Database = {
           },
         ]
       }
+      role_groups: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          label: string
+          sort_order: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          label: string
+          sort_order: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          label?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       roles: {
         Row: {
+          admits_multiple_holders: boolean | null
           code: string
           constitution_edition: string | null
           constitution_reference: string | null
           created_at: string
           id: string
           is_constitutional_office: boolean
+          is_single_holder_seat: boolean
           name: string
+          role_group_id: string
           scope: Database["public"]["Enums"]["role_scope"]
+          sort_order: number
         }
         Insert: {
+          admits_multiple_holders?: boolean | null
           code: string
           constitution_edition?: string | null
           constitution_reference?: string | null
           created_at?: string
           id?: string
           is_constitutional_office?: boolean
+          is_single_holder_seat?: boolean
           name: string
+          role_group_id: string
           scope: Database["public"]["Enums"]["role_scope"]
+          sort_order: number
         }
         Update: {
+          admits_multiple_holders?: boolean | null
           code?: string
           constitution_edition?: string | null
           constitution_reference?: string | null
           created_at?: string
           id?: string
           is_constitutional_office?: boolean
+          is_single_holder_seat?: boolean
           name?: string
+          role_group_id?: string
           scope?: Database["public"]["Enums"]["role_scope"]
+          sort_order?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "roles_role_group_id_fkey"
+            columns: ["role_group_id"]
+            isOneToOne: false
+            referencedRelation: "role_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rsvp_access_tokens: {
         Row: {

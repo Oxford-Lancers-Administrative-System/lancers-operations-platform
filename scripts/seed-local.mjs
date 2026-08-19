@@ -368,8 +368,6 @@ const rows = {
   position_vocabularies: [],
   positions: [],
   seasons: [],
-  roles: [],
-  role_aliases: [],
   role_assignments: [],
   season_memberships: [],
   season_membership_status_events: [],
@@ -631,55 +629,39 @@ add("committee_years", committeeCurrent);
 
 // --- Roles -----------------------------------------------------------------
 
-const ROLE_SPEC = [
-  ["president", "President", "committee_year", true, "¶19"],
-  ["vice_president", "Vice-President", "committee_year", true, "¶19"],
-  ["secretary", "Secretary", "committee_year", true, "¶19"],
-  ["treasurer", "Treasurer", "committee_year", true, "¶19"],
-  ["social_secretary", "Social Secretary", "committee_year", false, null],
-  ["gameday_secretary", "Gameday Secretary", "committee_year", false, null],
-  ["kit_manager", "Kit Manager", "committee_year", false, null],
-  ["media_secretary", "Media Secretary", "committee_year", false, null],
-  ["it_officer", "IT Officer", "committee_year", false, null],
-  ["general_manager", "General Manager", "committee_year", false, null],
-  ["head_coach", "Head Coach", "season", false, null],
-  ["offence_coach", "Offence Coach", "season", false, null],
-  ["defence_coach", "Defence Coach", "season", false, null],
-];
-const roles = {};
-for (const [code, name, scope, isOffice, reference] of ROLE_SPEC) {
-  const role = {
-    id: uuid(),
-    code,
-    name,
-    scope,
-    is_constitutional_office: isOffice,
-    constitution_edition: isOffice ? "Fourth Edition 24.04.22" : null,
-    constitution_reference: reference,
-    created_at: "2025-06-01T09:00:00Z",
-  };
-  add("roles", role);
-  roles[code] = role;
-}
+// The catalogue is NOT defined here any more, and must never be again.
+// `supabase/migrations/20260819090100_role_catalogue.sql` defines it once, for
+// hosted and local alike (LAN-128). This seed reads what the migration created
+// and assigns people to it; a second hand-written copy here is exactly the
+// drift REQ-static-role-catalogue is written against, and it was the reason
+// hosted had no roles at all. The role aliases moved with the catalogue, so a
+// handover document naming "Match Secretary" now resolves in hosted too.
+//
+// Opening the connection here rather than at the foot of the file is what lets
+// the rest of this script build role assignments against the real identifiers.
+const url = resolveLocalDatabaseUrl();
+const client = await connectLocal(url);
 
-// LAN-42: the Gameday seat alone has at least five names across a decade.
-for (const alias of [
-  "Game Day Coordinator",
-  "Match Secretary",
-  "Fixtures Secretary",
-  "Gameday Lead",
-]) {
-  add("role_aliases", {
-    id: uuid(),
-    role_id: roles.gameday_secretary.id,
-    alias,
-    source: "handover corpus",
-  });
+const roles = Object.fromEntries(
+  (
+    await client.query(
+      `select id, code, scope, is_constitutional_office, is_single_holder_seat
+         from public.roles`,
+    )
+  ).rows.map((role) => [role.code, role]),
+);
+
+if (Object.keys(roles).length === 0) {
+  throw new Error(
+    "public.roles is empty: the role-catalogue migration has not been applied. " +
+      "Run `npm run db:reset`, which applies migrations before seeding.",
+  );
 }
 
 let roleAssignmentCount = 0;
 function assignRole(code, person, cycle, from, to = null, note = null) {
   const role = roles[code];
+  if (!role) throw new Error(`No role in public.roles with code ${code}.`);
   roleAssignmentCount += 1;
   add("role_assignments", {
     id: uuid(),
@@ -687,6 +669,10 @@ function assignRole(code, person, cycle, from, to = null, note = null) {
     role_id: role.id,
     scope: role.scope,
     is_constitutional_office: role.is_constitutional_office,
+    // Denormalised from the role, never asserted here: an assignment that
+    // disagreed with the catalogue about single-holder cardinality is refused
+    // by `role_assignments_agree_with_single_holder_rule`.
+    is_single_holder_seat: role.is_single_holder_seat,
     committee_year_id: role.scope === "committee_year" ? cycle.id : null,
     season_id: role.scope === "season" ? cycle.id : null,
     effective_from: from,
@@ -2647,21 +2633,6 @@ const WRITE_PLAN = [
     "seasons",
   ],
   [
-    "public.roles",
-    [
-      "id",
-      "code",
-      "name",
-      "scope",
-      "is_constitutional_office",
-      "constitution_edition",
-      "constitution_reference",
-      "created_at",
-    ],
-    "roles",
-  ],
-  ["public.role_aliases", ["id", "role_id", "alias", "source"], "role_aliases"],
-  [
     "public.role_assignments",
     [
       "id",
@@ -2669,6 +2640,7 @@ const WRITE_PLAN = [
       "role_id",
       "scope",
       "is_constitutional_office",
+      "is_single_holder_seat",
       "committee_year_id",
       "season_id",
       "effective_from",
@@ -3144,9 +3116,6 @@ const WRITE_PLAN = [
     "staging.legacy_event_rows",
   ],
 ];
-
-const url = resolveLocalDatabaseUrl();
-const client = await connectLocal(url);
 
 try {
   await client.query("begin");

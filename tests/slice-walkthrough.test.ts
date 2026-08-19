@@ -303,9 +303,9 @@ async function linkLogin(options: {
   if (options.roleCode) {
     await db.query(
       `insert into public.role_assignments
-         (person_id, role_id, scope, is_constitutional_office,
+         (person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
           committee_year_id, season_id, effective_from, effective_to)
-       select $1, r.id, r.scope, r.is_constitutional_office,
+       select $1, r.id, r.scope, r.is_constitutional_office, r.is_single_holder_seat,
               case when r.scope = 'committee_year'
                    then (select id from public.committee_years
                           where ends_on is null or ends_on > current_date
@@ -555,20 +555,22 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
   // -------------------------------------------------------------------------
 
   it("links a login to a Person, and the seat it holds decides what it may do", async () => {
-    // A General Manager: a non-Office seat, so provisioning one alongside the
-    // seeded holder is legal, and the seat that carries every capability this
-    // walk needs. An Office would collide with `role_assignments_one_holder_per_office`.
+    // An IT Officer: the seat that carries every capability this walk needs,
+    // and one the club may fill more than once, so provisioning one alongside
+    // the seeded holder is legal. An Office would collide with
+    // `role_assignments_one_holder_per_office`, and General Manager — which
+    // this walk used to borrow — with the single-holder rule LAN-128 gave it.
     const linked = await linkLogin({
       email: OPERATOR_EMAIL,
       familyName: "Operator",
-      roleCode: "general_manager",
+      roleCode: "it_officer",
       effectiveFrom: "2026-01-01",
     });
     expect(linked.personId).toBeTruthy();
 
     operator = await signInAndResolve(OPERATOR_EMAIL);
     expect(operator.personId).toBe(linked.personId);
-    expect(operator.roleCodes).toContain("general_manager");
+    expect(operator.roleCodes).toContain("it_officer");
 
     // The guards the server actions call, on the roles the database resolved.
     for (const key of [

@@ -227,19 +227,30 @@ async function ensureActiveOperator(client: Client): Promise<void> {
   let personId = holder?.person_id ?? null;
 
   if (personId === null) {
-    // A database with no calendar seat at all — which is what hosted looks
-    // like today, since `public.roles` is created by the local-only seed. The
-    // General Manager is the one calendar role that is *not* a constitutional
-    // office, so granting it cannot collide with an existing holder.
+    // A database with no *current holder* of any calendar seat. The General
+    // Manager is the one calendar role that is not a constitutional office, and
+    // this branch runs only when nobody currently holds any of the four — which
+    // is what also keeps it clear of the single-holder rule General Manager
+    // acquired in LAN-128.
     const person = await one<{ id: string }>(client, "select id from public.people limit 1");
     personId = person.id;
 
-    const role = await one<{ id: string; scope: string; is_constitutional_office: boolean }>(
+    const role = await one<{
+      id: string;
+      scope: string;
+      is_constitutional_office: boolean;
+      is_single_holder_seat: boolean;
+    }>(
       client,
-      `insert into public.roles (code, name, scope, is_constitutional_office)
-       values ('general_manager', 'General Manager', 'committee_year', false)
+      // The seat itself comes from the catalogue migration now, so this is an
+      // adoption with a fallback rather than a definition.
+      `insert into public.roles
+         (code, name, scope, is_constitutional_office, is_single_holder_seat,
+          role_group_id, sort_order)
+       select 'general_manager', 'General Manager', 'committee_year', false, true, id, 1
+         from public.role_groups where code = 'operational_administration'
        on conflict (code) do update set name = excluded.name
-       returning id, scope, is_constitutional_office`,
+       returning id, scope, is_constitutional_office, is_single_holder_seat`,
     );
 
     const committeeYear = await one<{ id: string }>(
@@ -251,9 +262,17 @@ async function ensureActiveOperator(client: Client): Promise<void> {
 
     await client.query(
       `insert into public.role_assignments
-         (person_id, role_id, scope, is_constitutional_office, committee_year_id, effective_from)
-       values ($1, $2, $3, $4, $5, current_date - 1)`,
-      [personId, role.id, role.scope, role.is_constitutional_office, committeeYear?.id ?? null],
+         (person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
+          committee_year_id, effective_from)
+       values ($1, $2, $3, $4, $5, $6, current_date - 1)`,
+      [
+        personId,
+        role.id,
+        role.scope,
+        role.is_constitutional_office,
+        role.is_single_holder_seat,
+        committeeYear?.id ?? null,
+      ],
     );
   }
 

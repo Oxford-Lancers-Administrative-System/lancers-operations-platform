@@ -125,8 +125,11 @@ export interface Baseline {
   occurredEventId: string;
   invitationId: string;
   audienceMemberId: string;
+  roleGroupId: string;
   officeRoleId: string;
   ordinaryRoleId: string;
+  /** Single-holder for a reason other than the constitution — General Manager's shape. */
+  singleHolderRoleId: string;
 }
 
 /**
@@ -262,15 +265,36 @@ export async function createBaseline(client: Client): Promise<Baseline> {
     [approvedEvent.id, season.id, audienceMember.id, membership.id],
   );
 
+  // Every role belongs to a catalogue group (LAN-128), so the fixture seats
+  // need one too. Its own group rather than a real one: the approved catalogue
+  // occupies positions 1..10 inside each of the three real groups, and a
+  // fixture that borrowed one would collide with the next seat added to it.
+  const roleGroup = await one<{ id: string }>(
+    client,
+    `insert into public.role_groups (code, label, sort_order)
+     values ('fixture_group', 'Fixture Group', 900) returning id`,
+  );
   const officeRole = await one<{ id: string }>(
     client,
-    `insert into public.roles (code, name, scope, is_constitutional_office)
-     values ('fixture_president', 'Fixture President', 'committee_year', true) returning id`,
+    `insert into public.roles (code, name, scope, is_constitutional_office, role_group_id, sort_order)
+     values ('fixture_president', 'Fixture President', 'committee_year', true, $1, 1) returning id`,
+    [roleGroup.id],
   );
   const ordinaryRole = await one<{ id: string }>(
     client,
-    `insert into public.roles (code, name, scope, is_constitutional_office)
-     values ('fixture_social', 'Fixture Social Secretary', 'committee_year', false) returning id`,
+    `insert into public.roles (code, name, scope, is_constitutional_office, role_group_id, sort_order)
+     values ('fixture_social', 'Fixture Social Secretary', 'committee_year', false, $1, 2) returning id`,
+    [roleGroup.id],
+  );
+  // A seat that is single-holder for a reason the constitution does not supply
+  // — the shape General Manager has in the real catalogue.
+  const singleHolderRole = await one<{ id: string }>(
+    client,
+    `insert into public.roles
+       (code, name, scope, is_constitutional_office, is_single_holder_seat, role_group_id, sort_order)
+     values ('fixture_manager', 'Fixture General Manager', 'committee_year', false, true, $1, 3)
+     returning id`,
+    [roleGroup.id],
   );
 
   return {
@@ -291,7 +315,9 @@ export async function createBaseline(client: Client): Promise<Baseline> {
     occurredEventId: occurredEvent.id,
     invitationId: invitation.id,
     audienceMemberId: audienceMember.id,
+    roleGroupId: roleGroup.id,
     officeRoleId: officeRole.id,
     ordinaryRoleId: ordinaryRole.id,
+    singleHolderRoleId: singleHolderRole.id,
   };
 }

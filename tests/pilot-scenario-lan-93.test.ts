@@ -229,12 +229,22 @@ async function createDurableFoundation(client: Client): Promise<Durable> {
   // A role of its own rather than the seeded `it_officer`: `public.roles` is
   // populated by the local-only seed, so depending on it would tie this test to
   // reference data the hosted project does not have.
-  const role = await one<{ id: string; scope: string; is_constitutional_office: boolean }>(
+  const role = await one<{
+    id: string;
+    scope: string;
+    is_constitutional_office: boolean;
+    is_single_holder_seat: boolean;
+  }>(
     client,
-    `insert into public.roles (code, name, scope, is_constitutional_office)
-     values ('pilot_fixture_it_officer', 'Pilot fixture IT Officer', 'committee_year', false)
+    // A position beyond the approved catalogue's, because this seat is a
+    // fixture rather than one of the twenty (LAN-128).
+    `insert into public.roles
+       (code, name, scope, is_constitutional_office, role_group_id, sort_order)
+     select 'pilot_fixture_it_officer', 'Pilot fixture IT Officer',
+            'committee_year', false, id, 901
+       from public.role_groups where code = 'club_committee'
      on conflict (code) do update set name = excluded.name
-     returning id, scope, is_constitutional_office`,
+     returning id, scope, is_constitutional_office, is_single_holder_seat`,
   );
 
   // Time-bounded on purpose: the runbook's provisioning template grants
@@ -243,10 +253,17 @@ async function createDurableFoundation(client: Client): Promise<Durable> {
   const assignment = await one<{ id: string }>(
     client,
     `insert into public.role_assignments (
-       person_id, role_id, scope, is_constitutional_office,
+       person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
        committee_year_id, effective_from, effective_to)
-     values ($1, $2, $3, $4, $5, '2011-06-01', '2011-12-01') returning id`,
-    [person.id, role.id, role.scope, role.is_constitutional_office, committeeYear.id],
+     values ($1, $2, $3, $4, $5, $6, '2011-06-01', '2011-12-01') returning id`,
+    [
+      person.id,
+      role.id,
+      role.scope,
+      role.is_constitutional_office,
+      role.is_single_holder_seat,
+      committeeYear.id,
+    ],
   );
 
   const audit = await one<{ id: string }>(

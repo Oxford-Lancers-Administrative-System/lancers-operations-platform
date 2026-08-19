@@ -66,6 +66,13 @@ const CATALOGUE = [
   "head_coach",
   "offence_coach",
   "defence_coach",
+  "quarterbacks_coach",
+  "offensive_line_coach",
+  "wide_receivers_coach",
+  "defensive_line_coach",
+  "linebackers_coach",
+  "defensive_backs_coach",
+  "special_teams_coach",
 ];
 
 function permittedSet(key: CapabilityKey): string[] {
@@ -93,6 +100,13 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "kit_manager",
     "media_secretary",
     "general_manager",
+    "quarterbacks_coach",
+    "offensive_line_coach",
+    "wide_receivers_coach",
+    "defensive_line_coach",
+    "linebackers_coach",
+    "defensive_backs_coach",
+    "special_teams_coach",
   ],
   membership_activation: [
     "social_secretary",
@@ -102,6 +116,13 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "head_coach",
     "offence_coach",
     "defence_coach",
+    "quarterbacks_coach",
+    "offensive_line_coach",
+    "wide_receivers_coach",
+    "defensive_line_coach",
+    "linebackers_coach",
+    "defensive_backs_coach",
+    "special_teams_coach",
   ],
   event_calendar_management: [
     "treasurer",
@@ -112,6 +133,13 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "head_coach",
     "offence_coach",
     "defence_coach",
+    "quarterbacks_coach",
+    "offensive_line_coach",
+    "wide_receivers_coach",
+    "defensive_line_coach",
+    "linebackers_coach",
+    "defensive_backs_coach",
+    "special_teams_coach",
   ],
   event_approval: [
     "treasurer",
@@ -122,6 +150,13 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "head_coach",
     "offence_coach",
     "defence_coach",
+    "quarterbacks_coach",
+    "offensive_line_coach",
+    "wide_receivers_coach",
+    "defensive_line_coach",
+    "linebackers_coach",
+    "defensive_backs_coach",
+    "special_teams_coach",
   ],
   // LAN-80. The two capabilities that issue settled, listed here so the
   // whole-catalogue check above covers them: a grant that leaves a code
@@ -135,6 +170,13 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "head_coach",
     "offence_coach",
     "defence_coach",
+    "quarterbacks_coach",
+    "offensive_line_coach",
+    "wide_receivers_coach",
+    "defensive_line_coach",
+    "linebackers_coach",
+    "defensive_backs_coach",
+    "special_teams_coach",
   ],
   attendance_recording: [
     "treasurer",
@@ -142,6 +184,13 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "gameday_secretary",
     "kit_manager",
     "media_secretary",
+    "quarterbacks_coach",
+    "offensive_line_coach",
+    "wide_receivers_coach",
+    "defensive_line_coach",
+    "linebackers_coach",
+    "defensive_backs_coach",
+    "special_teams_coach",
   ],
 };
 
@@ -155,7 +204,7 @@ it("checks every catalogue code against every settled capability", () => {
 });
 
 describe("row 9 — the attendance-recorder grant is the coaching seats plus the administrator", () => {
-  it("permits Head Coach, Offence Coach, Defence Coach and the IT Officer, and nothing else", () => {
+  it("permits Head Coach, Offensive Coordinator, Defensive Coordinator and the IT Officer, and nothing else", () => {
     expect(permittedSet("attendance_recorder")).toEqual([...COACHES, ADMIN].sort());
   });
 
@@ -575,8 +624,8 @@ describe("row 6 — a requirement sentence names the action's need, never the ac
 
   it("uses the club's names for the two coordinator seats", () => {
     expect(capabilityRequirement("attendance_recorder")).toBe(
-      "This action requires one of these roles: Head Coach, Offence Coach, Defence Coach " +
-        "or IT Officer.",
+      "This action requires one of these roles: Head Coach, Offensive Coordinator, " +
+        "Defensive Coordinator or IT Officer.",
     );
   });
 
@@ -680,7 +729,7 @@ describe("LAN-110 — captioning the coach's own seat", () => {
   it("names the seats this operator holds, and only those", () => {
     expect(describeHeldCoachingSeats(["head_coach"])).toBe("Head Coach");
     expect(describeHeldCoachingSeats(["offence_coach", "defence_coach"])).toBe(
-      "Offence Coach or Defence Coach",
+      "Offensive Coordinator or Defensive Coordinator",
     );
   });
 
@@ -694,8 +743,8 @@ describe("LAN-110 — captioning the coach's own seat", () => {
     // account. Listing the other two coaching seats beside the one they hold
     // would make it a statement about the club's coaching staff instead.
     const caption = describeHeldCoachingSeats(["defence_coach"]);
-    expect(caption).toBe("Defence Coach");
+    expect(caption).toBe("Defensive Coordinator");
     expect(caption).not.toContain("Head Coach");
-    expect(caption).not.toContain("Offence Coach");
+    expect(caption).not.toContain("Offensive Coordinator");
   });
 });

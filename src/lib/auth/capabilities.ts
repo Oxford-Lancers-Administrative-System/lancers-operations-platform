@@ -29,14 +29,24 @@
  *
  * ## Where the role codes come from
  *
- * `public.roles.code`. The catalogue is created by `scripts/seed-local.mjs`
- * (its `ROLE_SPEC` table) and by nothing else — there is no migration, ADR or
- * document that defines it, which is a real gap recorded in LAN-73's production
- * handoff: **hosted Supabase has no `roles` rows at all**, so every capability
- * here keys on codes that do not exist in production until somebody creates
- * them. `tests/operator-capability-catalogue.test.ts` checks every code named
- * here against the real seeded `public.roles` table, so a typo fails a test
- * rather than silently denying a legitimate operator forever.
+ * `public.roles.code`. Since LAN-128 the catalogue is created by
+ * `supabase/migrations/20260819090100_role_catalogue.sql` and by nothing else,
+ * which closes the gap LAN-73's production handoff recorded: the catalogue used
+ * to exist only in the local seed, so **hosted Supabase had no `roles` rows at
+ * all** and every capability here keyed on codes that did not exist in
+ * production. The migration reaches hosted and local alike — once Brian applies
+ * it, which is his action and no agent's.
+ * `tests/operator-capability-catalogue.test.ts` checks every code named here
+ * against the real `public.roles` table, so a typo fails a test rather than
+ * silently denying a legitimate operator forever.
+ *
+ * The catalogue that migration installs has twenty seats, and this map grants
+ * capabilities to a subset of them. Seven of the ten coaching seats —
+ * Quarterbacks, Offensive Line, Wide Receivers, Defensive Line, Linebackers,
+ * Defensive Backs and Special Teams — hold **nothing** here: the approved
+ * catalogue deliberately includes roles that carry no privileged capability
+ * yet, and the coaching grant that reaches them is a separate, separately
+ * reviewed decision. Nothing was widened by the catalogue growing.
  *
  * ## The grants, and who decided them
  *
@@ -61,7 +71,8 @@
  * operator management yet.** `manageRoles` is still `notImplemented`, so an IT
  * Officer holds the authority and not yet the ability, and accounts and role
  * assignments are still written to the database by hand. The seat is a real,
- * non-constitutional committee office in `ROLE_SPEC`, so holding it is truthful.
+ * non-constitutional committee office in the catalogue migration, so holding it
+ * is truthful.
  *
  * It is also the widest grant in the file, and worth narrowing later: whoever
  * holds `role_management` can assign themselves anything else. Brian recorded
@@ -103,16 +114,19 @@ export interface Capability {
 /**
  * Display labels for the role codes this map uses.
  *
- * Presentation text owned by this module, mirroring `roles.name` in
- * `scripts/seed-local.mjs`. It exists so that a refusal can say "the President
+ * Presentation text owned by this module, mirroring `roles.name` in the
+ * catalogue migration. It exists so that a refusal can say "the President
  * role" rather than "the president role code", and it covers only the codes
  * named below — `describeRoles()` falls back to the raw code for anything
  * else, which is ugly on screen but never wrong.
  *
  * The club says "Offensive Coordinator" and "Defensive Coordinator" for the two
  * seats the catalogue calls `offence_coach` and `defence_coach`; Brian
- * confirmed on 12 August 2026 that these are those seats, and that no
- * assistant-coach role exists.
+ * confirmed on 12 August 2026 that these are those seats, and the approved
+ * catalogue names them that way. The codes were left alone deliberately when
+ * the names changed (LAN-128): a code is an identifier, and renaming it would
+ * have rewritten every existing assignment's key for a cosmetic reason. The
+ * previous names survive as `role_aliases` rows.
  */
 const ROLE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   president: "President",
@@ -122,8 +136,8 @@ const ROLE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   general_manager: "General Manager",
   it_officer: "IT Officer",
   head_coach: "Head Coach",
-  offence_coach: "Offence Coach",
-  defence_coach: "Defence Coach",
+  offence_coach: "Offensive Coordinator",
+  defence_coach: "Defensive Coordinator",
 });
 
 function capability(entry: Capability): Capability {

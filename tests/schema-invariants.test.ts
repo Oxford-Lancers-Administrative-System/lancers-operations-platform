@@ -72,8 +72,9 @@ describe("identity (I1–I6)", () => {
   it("I3 — refuses one person holding two Offices at the same time", async () => {
     const secondOffice = await one<{ id: string }>(
       client,
-      `insert into public.roles (code, name, scope, is_constitutional_office)
-       values ('fixture_treasurer', 'Fixture Treasurer', 'committee_year', true) returning id`,
+      `insert into public.roles (code, name, scope, is_constitutional_office, role_group_id, sort_order)
+       values ('fixture_treasurer', 'Fixture Treasurer', 'committee_year', true, $1, 5) returning id`,
+      [base.roleGroupId],
     );
 
     await client.query(
@@ -90,6 +91,72 @@ describe("identity (I1–I6)", () => {
        values ($1, $2, 'committee_year', true, $3, '2019-09-01')`,
       [base.personId, secondOffice.id, base.committeeYearId],
       "role_assignments_one_office_per_person",
+    );
+  });
+
+  it("refuses two concurrent holders of a seat that is single-holder by decision", async () => {
+    // LAN-128. General Manager's shape: single-holder, but not a constitutional
+    // Office — so the Office exclusion constraint does not reach it and its own
+    // does. The refusal names which of the two rules produced it, which is the
+    // whole reason they are separate.
+    await client.query(
+      `insert into public.role_assignments
+         (person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
+          committee_year_id, effective_from)
+       values ($1, $2, 'committee_year', false, true, $3, '2019-06-01')`,
+      [base.personId, base.singleHolderRoleId, base.committeeYearId],
+    );
+
+    await expectRejected(
+      client,
+      `insert into public.role_assignments
+         (person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
+          committee_year_id, effective_from)
+       values ($1, $2, 'committee_year', false, true, $3, '2019-09-01')`,
+      [base.otherPersonId, base.singleHolderRoleId, base.committeeYearId],
+      "role_assignments_one_holder_per_single_holder_seat",
+    );
+  });
+
+  it("refuses an assignment that disagrees with the seat about cardinality", async () => {
+    // The exclusion constraint above is only as good as the denormalised flag
+    // it filters on, so the flag is not the writer's to choose: claiming the
+    // single-holder seat is not single-holder is how a second holder would be
+    // slipped past it, and the composite foreign key refuses exactly that.
+    await expectRejected(
+      client,
+      `insert into public.role_assignments
+         (person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
+          committee_year_id, effective_from)
+       values ($1, $2, 'committee_year', false, false, $3, '2019-06-01')`,
+      [base.personId, base.singleHolderRoleId, base.committeeYearId],
+      "role_assignments_agree_with_single_holder_rule",
+    );
+
+    // And the reverse: an ordinary seat cannot be dressed up as single-holder.
+    await expectRejected(
+      client,
+      `insert into public.role_assignments
+         (person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
+          committee_year_id, effective_from)
+       values ($1, $2, 'committee_year', false, true, $3, '2019-06-01')`,
+      [base.personId, base.ordinaryRoleId, base.committeeYearId],
+      "role_assignments_agree_with_single_holder_rule",
+    );
+  });
+
+  it("refuses a seat that claims both single-holder rules at once", async () => {
+    // `is_constitutional_office` and `is_single_holder_seat` carry different
+    // authorities and must stay disjoint, or the two exclusion constraints
+    // overlap and a refusal stops naming the rule that produced it.
+    await expectRejected(
+      client,
+      `insert into public.roles
+         (code, name, scope, is_constitutional_office, is_single_holder_seat,
+          role_group_id, sort_order)
+       values ('fixture_both', 'Fixture Both', 'committee_year', true, true, $1, 6)`,
+      [base.roleGroupId],
+      "roles_single_holder_seat_is_not_an_office",
     );
   });
 
