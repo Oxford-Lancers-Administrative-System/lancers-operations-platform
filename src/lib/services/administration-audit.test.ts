@@ -382,7 +382,21 @@ describe("A1 — a pair written in ONE transaction still renders in a meaningful
   it("still orders by time first, so an ordering rule never outranks the clock", async () => {
     // The tie-break must only break ties. An assignment made last year must not
     // float above an ending recorded today just because of its position.
-    await write(assignment());
+    const assigned = await write(assignment());
+
+    // Backdated deliberately, rather than trusting two consecutive writes to
+    // land at distinguishable instants. `occurred_at` has microsecond
+    // resolution in PostgreSQL and millisecond resolution by the time it is a
+    // JavaScript `Date`, so "these happened at different times" was really a
+    // statement about how busy the machine was: it held while the suites were
+    // competing for one database, and broke the moment LAN-139 stopped them
+    // competing and the two round-trips got faster. A year apart is also what
+    // the comment above always claimed this test was about.
+    await observer.query(
+      "update public.audit_events set occurred_at = occurred_at - interval '1 year' where id = $1",
+      [assigned.id],
+    );
+
     await write(
       assignment({
         action: "administration.role.ended",
