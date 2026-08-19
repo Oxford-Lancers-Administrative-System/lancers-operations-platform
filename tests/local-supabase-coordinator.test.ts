@@ -7,6 +7,8 @@ import {
   LEASE_TTL_MS,
   SLOT_DEFINITIONS,
   acquireLease as acquireLeaseRaw,
+  acquireMissionLease,
+  attachMissionLease,
   coordinatorStatus,
   findOwningSessionPid,
   releaseLease,
@@ -307,6 +309,52 @@ describe("two-slot local Supabase coordinator", () => {
     expect(fs.readFileSync(path.join(repo, "supabase", "config.toml"), "utf8")).toContain(
       'project_id = "tracked"',
     );
+  });
+});
+
+describe("mission-owned local Supabase stacks", () => {
+  it("allocates concurrent missions without a fixed slot ceiling", async () => {
+    const { repo, env } = fixture();
+    const stacks = await Promise.all(
+      Array.from({ length: 5 }, (_, index) =>
+        acquireMissionLease({
+          missionId: `M-CONCURRENT-${index}`,
+          repoPath: repo,
+          baseCommit: "a".repeat(40),
+          migrationHead: 20260819000000,
+          pid: 200 + index,
+          env,
+          portProbe: async () => false,
+        }),
+      ),
+    );
+    expect(new Set(stacks.map((stack) => stack.slot)).size).toBe(5);
+    expect(new Set(stacks.map((stack) => stack.projectId)).size).toBe(5);
+    expect(new Set(stacks.flatMap((stack) => Object.values(stack.ports))).size).toBe(40);
+  });
+
+  it("attaches a worker worktree to its mission and rejects another mission", async () => {
+    const { repo, env } = fixture();
+    const lease = await acquireMissionLease({
+      missionId: "M-ATTACH",
+      repoPath: repo,
+      baseCommit: "b".repeat(40),
+      migrationHead: 20260819000000,
+      env,
+      portProbe: async () => false,
+    });
+    const worker = path.join(path.dirname(repo), "worker");
+    fs.cpSync(repo, worker, { recursive: true });
+    const attached = await attachMissionLease({
+      missionId: "M-ATTACH",
+      repoPath: worker,
+      token: lease.token,
+      env,
+    });
+    expect(attached.attachedRepoPaths).toContain(fs.realpathSync(worker));
+    await expect(
+      attachMissionLease({ missionId: "M-OTHER", repoPath: worker, token: lease.token, env }),
+    ).rejects.toThrow(/mismatched mission/i);
   });
 });
 

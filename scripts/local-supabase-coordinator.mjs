@@ -2,6 +2,8 @@
 import process from "node:process";
 import {
   acquireLease,
+  acquireMissionLease,
+  attachMissionLease,
   cleanupStale,
   coordinatorStatus,
   findOwningSessionPid,
@@ -12,7 +14,11 @@ import {
 import { requireVisualReviewReadiness } from "./lib/visual-review-readiness.mjs";
 
 const repoPath = process.cwd();
-const [operation, argument] = process.argv.slice(2);
+const [operation, argument, ...rest] = process.argv.slice(2);
+const option = (name) => {
+  const index = rest.indexOf(name);
+  return index === -1 ? undefined : rest[index + 1];
+};
 
 try {
   if (operation === "status") {
@@ -37,6 +43,24 @@ try {
         `Acquired ${lease.slot} for ${lease.issueId} (application http://localhost:${lease.applicationPort}).`,
       );
     }
+  } else if (operation === "acquire-mission") {
+    const lease = await acquireMissionLease({
+      missionId: argument,
+      repoPath,
+      baseCommit: option("--base-commit"),
+      migrationHead: option("--migration-head"),
+      pid: findOwningSessionPid(),
+    });
+    console.log(
+      `Acquired ${lease.slot} for ${lease.missionId} (application http://localhost:${lease.applicationPort}).`,
+    );
+  } else if (operation === "attach-mission") {
+    const lease = await attachMissionLease({
+      missionId: argument,
+      repoPath,
+      token: option("--token"),
+    });
+    console.log(`Attached this worktree to ${lease.slot} for ${lease.missionId}.`);
   } else if (operation === "heartbeat") {
     const session = readSession(repoPath);
     const lease = await updateLease({ repoPath, token: session.token });
@@ -55,7 +79,7 @@ try {
     console.log(`Marked stale: ${(await cleanupStale({ repoPath })).join(", ") || "none"}.`);
   } else
     throw new Error(
-      "Usage: coordinator <status|acquire LAN-###|heartbeat|review-ready|release|cleanup-stale>",
+      "Usage: coordinator <status|acquire LAN-###|acquire-mission M-... --base-commit SHA --migration-head N|attach-mission M-... --token TOKEN|heartbeat|review-ready|release|cleanup-stale>",
     );
 } catch (error) {
   console.error(error.message);

@@ -13,7 +13,8 @@ If this page and those files disagree, the checked-in rules and tests win.
 /run-mission M-<mission-id>
 ```
 
-Brian starts one Mission Lead in a Claude Code session at the repository.
+Brian may start concurrent Mission Leads, each for a different approved mission.
+Exactly one fenced Lead controls a given mission at a time.
 Everything else — planning, Linear issues, workers, reviews, corrections,
 qualifying merges, checkpoints — is the Mission Lead's job. One mission runs
 at a time.
@@ -215,8 +216,9 @@ with the missing work named; a package blocks rather than pretends.
 
 ## Known limitations in v1
 
-- One Mission Lead at a time; at most two implementation workers; two local
-  database slots.
+- One Lead per mission; at most two implementation workers per mission. There
+  is no harness-level mission count. Each active mission owns a uniquely ported
+  disposable local database; the standing non-mission stack remains available.
 - The workflow trusts the Lead's published receipt for facts whose ground
   truth is machine-local (review result, visual approval, owner queue),
   bounded by the evidence-derived conjuncts and the coherence tripwire —

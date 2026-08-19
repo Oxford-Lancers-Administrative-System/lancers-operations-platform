@@ -21,7 +21,11 @@ function fixture() {
   temporary.push(root);
   const repo = path.join(root, "repo");
   fs.mkdirSync(repo, { recursive: true });
-  const env = { ...process.env, LANCERS_MISSION_ROOT: path.join(root, "state") };
+  const env = {
+    ...process.env,
+    LANCERS_MISSION_ROOT: path.join(root, "state"),
+    LANCERS_MISSION_LEAD_ID: "lead-fixture-1",
+  };
   const run = (...args: string[]) =>
     spawnSync(process.execPath, [CLI, ...args], { cwd: repo, env, encoding: "utf8" });
   return { repo, env, run };

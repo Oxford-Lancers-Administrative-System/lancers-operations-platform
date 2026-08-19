@@ -23,6 +23,7 @@ cd lancers-operations-platform
 npm install            # installs dependencies, including the Supabase CLI
 
 npm run db:acquire -- LAN-###  # claim primary, or overflow if primary is occupied
+npm run db:acquire-mission -- M-<id> --base-commit <sha> --migration-head <number>
 npm run db:start               # first run pulls container images — several minutes
 ```
 
@@ -135,31 +136,33 @@ own pitches, which no geocoder indexes, are typed rather than searched.
 
 ## Everyday commands
 
-| Command                                      | What it does                                      |
-| -------------------------------------------- | ------------------------------------------------- |
-| `npm run dev`                                | Dev server on :3000                               |
-| `npm run dev:slot`                           | Dev server on the claimed slot's application port |
-| `npm run build`                              | Production build (also typechecks)                |
-| `npm run start`                              | Serve the production build                        |
-| `npm run lint` / `lint:fix`                  | ESLint                                            |
-| `npm run format` / `format:check`            | Prettier                                          |
-| `npm run typecheck`                          | `next typegen` (route types) then `tsc --noEmit`  |
-| `npm run test` / `test:watch`                | Vitest                                            |
-| `npm run verify`                             | format:check → lint → typecheck → test → build    |
-| `npm run db:acquire -- LAN-###`              | Claim a fenced primary/overflow database slot     |
-| `npm run db:start` / `db:stop` / `db:status` | Guarded lifecycle for the claimed stack           |
-| `npm run db:reset`                           | Reset, seed, and restore the fixed review login   |
-| `npm run db:seed`                            | Load the deterministic synthetic dataset          |
-| `npm run db:seed-user`                       | Create/update the local test user                 |
-| `npm run db:link-operator`                   | Link that test user to a seeded person and roles  |
-| `npm run db:link-coach`                      | Link the second login to a coaching seat only     |
-| `npm run types:generate`                     | Regenerate `src/lib/supabase/database.types.ts`   |
-| `npm run types:check`                        | Fail if those types have drifted                  |
-| `npm run check:rls`                          | Fail if a migration creates a table without RLS   |
-| `npm run db:heartbeat`                       | Refresh the current slot lease                    |
-| `npm run db:review-ready`                    | Validate browser evidence and protect review      |
-| `npm run db:release`                         | Release the current slot after stopping it        |
-| `npm run db:cleanup-stale`                   | Mark dead, expired active leases stale            |
+| Command                                                                      | What it does                                      |
+| ---------------------------------------------------------------------------- | ------------------------------------------------- |
+| `npm run dev`                                                                | Dev server on :3000                               |
+| `npm run dev:slot`                                                           | Dev server on the claimed slot's application port |
+| `npm run build`                                                              | Production build (also typechecks)                |
+| `npm run start`                                                              | Serve the production build                        |
+| `npm run lint` / `lint:fix`                                                  | ESLint                                            |
+| `npm run format` / `format:check`                                            | Prettier                                          |
+| `npm run typecheck`                                                          | `next typegen` (route types) then `tsc --noEmit`  |
+| `npm run test` / `test:watch`                                                | Vitest                                            |
+| `npm run verify`                                                             | format:check → lint → typecheck → test → build    |
+| `npm run db:acquire -- LAN-###`                                              | Claim a fenced primary/overflow database slot     |
+| `npm run db:acquire-mission -- M-… --base-commit <sha> --migration-head <n>` | Allocate one isolated mission-owned stack         |
+| `npm run db:attach-mission -- M-… --token <token>`                           | Attach a mission worker worktree to its stack     |
+| `npm run db:start` / `db:stop` / `db:status`                                 | Guarded lifecycle for the claimed stack           |
+| `npm run db:reset`                                                           | Reset, seed, and restore the fixed review login   |
+| `npm run db:seed`                                                            | Load the deterministic synthetic dataset          |
+| `npm run db:seed-user`                                                       | Create/update the local test user                 |
+| `npm run db:link-operator`                                                   | Link that test user to a seeded person and roles  |
+| `npm run db:link-coach`                                                      | Link the second login to a coaching seat only     |
+| `npm run types:generate`                                                     | Regenerate `src/lib/supabase/database.types.ts`   |
+| `npm run types:check`                                                        | Fail if those types have drifted                  |
+| `npm run check:rls`                                                          | Fail if a migration creates a table without RLS   |
+| `npm run db:heartbeat`                                                       | Refresh the current slot lease                    |
+| `npm run db:review-ready`                                                    | Validate browser evidence and protect review      |
+| `npm run db:release`                                                         | Release the current slot after stopping it        |
+| `npm run db:cleanup-stale`                                                   | Mark dead, expired active leases stale            |
 
 The authoritative lease registry lives in machine-local state, keyed by the
 repository remote so clones and worktrees coordinate. `.lancers-runtime/` in

@@ -40,6 +40,29 @@ export const SLOT_DEFINITIONS = [
   },
 ];
 
+const MISSION_PORT_BASE = 56320;
+const MISSION_PORT_STRIDE = 20;
+
+function missionSlot(missionId, index) {
+  const offset = index * MISSION_PORT_STRIDE;
+  const slug = missionId.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  return {
+    name: `mission-${slug}`,
+    projectId: `lancers-${slug}-${crypto.createHash("sha256").update(missionId).digest("hex").slice(0, 8)}`,
+    applicationPort: 3100 + index,
+    ports: {
+      api: MISSION_PORT_BASE + offset + 1,
+      db: MISSION_PORT_BASE + offset + 2,
+      shadow: MISSION_PORT_BASE + offset,
+      pooler: MISSION_PORT_BASE + offset + 9,
+      studio: MISSION_PORT_BASE + offset + 3,
+      mailpit: MISSION_PORT_BASE + offset + 4,
+      inspector: MISSION_PORT_BASE + offset + 5,
+      analytics: MISSION_PORT_BASE + offset + 7,
+    },
+  };
+}
+
 function lookupProcess(pid) {
   const line = execFileSync("ps", ["-o", "ppid=,comm=", "-p", String(pid)], {
     encoding: "utf8",
@@ -228,7 +251,7 @@ function renderConfig(source, slot) {
 }
 
 export function prepareRuntime(repoPath, slot) {
-  const runtimeRoot = path.join(repoPath, ".lancers-runtime", slot.name);
+  const runtimeRoot = path.join(repoPath, ".lancers-runtime", slot.name ?? slot.slot);
   const runtimeSupabase = path.join(runtimeRoot, "supabase");
   fs.mkdirSync(runtimeSupabase, { recursive: true, mode: 0o700 });
   const tracked = path.join(repoPath, "supabase");
@@ -320,6 +343,111 @@ export async function acquireLease({
   });
 }
 
+/** Allocate one unbounded, mission-owned stack. The allocator lock prevents
+ * duplicate identities and ports; it is released immediately and never limits
+ * how many missions may exist. */
+export async function acquireMissionLease({
+  missionId,
+  repoPath,
+  baseCommit,
+  migrationHead,
+  pid = process.pid,
+  now = Date.now(),
+  env = process.env,
+  portProbe = portIsOccupied,
+}) {
+  if (!/^M-[A-Za-z0-9][A-Za-z0-9-]*$/.test(missionId)) {
+    throw new Error("A mission identifier such as M-2026-08-pilot is required.");
+  }
+  if (!/^[0-9a-f]{40}$/.test(baseCommit ?? "") || !/^\d+$/.test(String(migrationHead ?? ""))) {
+    throw new Error("Mission allocation records a full base commit and numeric migration head.");
+  }
+  const resolvedRepo = fs.realpathSync(repoPath);
+  const paths = coordinatorPaths(resolvedRepo, env);
+  return withAllocatorLock(paths, async () => {
+    const registry = readRegistry(paths.registry);
+    const existing = Object.values(registry.slots).find(
+      (record) => record.missionId === missionId && !["released", "stale"].includes(record.state),
+    );
+    if (existing) return { ...existing, resumed: true };
+
+    let slot;
+    for (let index = 0; ; index += 1) {
+      const candidate = missionSlot(missionId, index);
+      if (registry.slots[candidate.name]) continue;
+      const allocatedPorts = new Set(
+        Object.values(registry.slots).flatMap((record) => [
+          ...Object.values(record.ports),
+          record.applicationPort,
+        ]),
+      );
+      if (
+        [...Object.values(candidate.ports), candidate.applicationPort].some((port) =>
+          allocatedPorts.has(port),
+        )
+      ) {
+        continue;
+      }
+      const occupied = await Promise.all(
+        [...Object.values(candidate.ports), candidate.applicationPort].map(portProbe),
+      );
+      if (!occupied.some(Boolean)) {
+        slot = candidate;
+        break;
+      }
+    }
+    const token = crypto.randomBytes(32).toString("hex");
+    const runtimeRoot = prepareRuntime(resolvedRepo, slot);
+    const record = {
+      missionId,
+      repoPath: resolvedRepo,
+      attachedRepoPaths: [resolvedRepo],
+      baseCommit,
+      migrationHead: Number(migrationHead),
+      owner: { pid, startedAt: new Date(now).toISOString() },
+      token,
+      lastHeartbeat: new Date(now).toISOString(),
+      state: "active",
+      slot: slot.name,
+      projectId: slot.projectId,
+      ports: slot.ports,
+      applicationPort: slot.applicationPort,
+      runtimeRoot,
+    };
+    registry.slots[slot.name] = record;
+    writeRegistry(paths.registry, registry);
+    writeSession(resolvedRepo, record);
+    return record;
+  });
+}
+
+function writeSession(repoPath, record) {
+  const sessionDir = path.join(repoPath, ".lancers-runtime");
+  fs.mkdirSync(sessionDir, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(
+    path.join(sessionDir, "lease.json"),
+    `${JSON.stringify({ slot: record.slot, token: record.token }, null, 2)}\n`,
+    { mode: 0o600 },
+  );
+}
+
+export async function attachMissionLease({ missionId, repoPath, token, env = process.env }) {
+  const resolvedRepo = fs.realpathSync(repoPath);
+  const paths = coordinatorPaths(resolvedRepo, env);
+  return withAllocatorLock(paths, () => {
+    const registry = readRegistry(paths.registry);
+    const record = Object.values(registry.slots).find((candidate) => candidate.token === token);
+    if (!record || record.missionId !== missionId || record.state !== "active") {
+      throw new Error("Missing, invalid, stale, or mismatched mission database token.");
+    }
+    if (!record.attachedRepoPaths.includes(resolvedRepo))
+      record.attachedRepoPaths.push(resolvedRepo);
+    writeRegistry(paths.registry, registry);
+    writeSession(resolvedRepo, record);
+    return record;
+  });
+}
+
 export function readSession(repoPath) {
   return JSON.parse(fs.readFileSync(path.join(repoPath, ".lancers-runtime", "lease.json"), "utf8"));
 }
@@ -337,7 +465,10 @@ export async function updateLease({
   return withAllocatorLock(paths, () => {
     const registry = readRegistry(paths.registry);
     const record = Object.values(registry.slots).find((candidate) => candidate.token === token);
-    if (!record || record.repoPath !== resolvedRepo)
+    if (
+      !record ||
+      (record.repoPath !== resolvedRepo && !record.attachedRepoPaths?.includes(resolvedRepo))
+    )
       throw new Error("Missing, invalid, or stale local Supabase ownership token.");
     if (!["active", "review-ready"].includes(record.state))
       throw new Error(`Lease is ${record.state}; database mutation is refused.`);

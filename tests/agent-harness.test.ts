@@ -440,6 +440,19 @@ describe("mission harness v1", () => {
     expect(existsSync(skillPath)).toBe(true);
   });
 
+  it("allows concurrent missions while keeping the worker cap per mission", () => {
+    expect(missionBody).toMatch(/Missions may run concurrently/i);
+    expect(missionBody).toMatch(/two-worker limit is per mission/i);
+    expect(missionBody).not.toMatch(/never start a second mission in parallel/i);
+    expect(missionBody).toMatch(/allocator lock.*never limits mission count/i);
+  });
+
+  it("fences one stable Lead per mission and recovers abandoned workers", () => {
+    expect(missionBody).toContain("LANCERS_MISSION_LEAD_ID");
+    expect(missionBody).toMatch(/transient CLI PID is only liveness evidence/i);
+    expect(missionBody).toMatch(/record `abandon-worker`/i);
+  });
+
   it("defines the implementation worker as bounded, unable to spawn agents, but able to implement", () => {
     expect(worker.fields.name).toBe("implementation-worker");
     expect(worker.fields.isolation).toBe("worktree");
