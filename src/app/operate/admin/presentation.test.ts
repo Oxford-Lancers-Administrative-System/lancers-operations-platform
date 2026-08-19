@@ -23,6 +23,7 @@ import {
   NOT_ASSIGNED,
   operatorSections,
   permissionsLine,
+  permissionsPreview,
   permissionsSummary,
   sectionLabelForGroup,
   UNASSIGNED_SECTION_LABEL,
@@ -264,6 +265,29 @@ describe("permissions", () => {
   it("reads as a sentence in a table cell", () => {
     expect(permissionsLine("general_manager")).toMatch(/^Can .+\.$/);
   });
+
+  it("shortens a long summary for the index, and counts what it left out", () => {
+    const full = permissionsSummary("general_manager");
+    const preview = permissionsPreview("general_manager");
+
+    expect(preview).toContain(full.items[0]);
+    expect(preview).toContain(full.items[2]);
+    expect(preview).not.toContain(full.items[3]);
+    expect(preview).toContain(`and ${full.items.length - 3} more.`);
+    // Nothing is reworded to fit: every phrase shown is the map's own.
+    expect(permissionsLine("general_manager")).toContain(full.items[3]);
+  });
+
+  it("leaves a short summary whole", () => {
+    const preview = permissionsPreview("head_coach");
+
+    expect(preview).not.toContain("more.");
+    expect(preview).toBe(permissionsLine("head_coach"));
+  });
+
+  it("says the empty sentence on the index too", () => {
+    expect(permissionsPreview("kit_manager")).toContain("no privileged actions");
+  });
 });
 
 describe("dates", () => {
@@ -275,6 +299,23 @@ describe("dates", () => {
   it("renders a recorded moment on club time", () => {
     // 22:30 UTC on 18 August is 23:30 in London — the club's own evening.
     expect(formatInstant(new Date("2026-08-18T22:30:00Z"))).toBe("18 Aug 2026, 23:30");
+  });
+
+  /**
+   * The audit projections hand out `occurredAt` as an ISO **string**, not a
+   * `Date`, and reading a string as a calendar date appended a second time to
+   * it — `new Date("…Z" + "T00:00:00Z")` — which is invalid, which threw out of
+   * `Intl.DateTimeFormat` and took the whole server-rendered record page down.
+   * The agent's browser preflight found it; this is what keeps it found.
+   */
+  it("renders an ISO instant string, and does not read it as a calendar date", () => {
+    expect(formatInstant("2026-08-18T22:30:00.123Z")).toBe("18 Aug 2026, 23:30");
+    expect(formatDay("2026-08-18T22:30:00.123Z")).toBe("18 Aug 2026");
+  });
+
+  it("shows an unreadable value rather than throwing out of the page", () => {
+    expect(formatInstant("not a date")).toBe("not a date");
+    expect(formatDay("not a date")).toBe("not a date");
   });
 
   it("says an open-ended assignment is open-ended", () => {

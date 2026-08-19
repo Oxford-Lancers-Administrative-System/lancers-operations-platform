@@ -20,7 +20,7 @@ import {
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { gateShellPage } from "../../gate";
 import AdminPageHeading from "../page-heading";
-import { describeHolders, permissionsLine } from "../presentation";
+import { describeHolders, permissionsPreview } from "../presentation";
 
 /**
  * **Roles** — Administration's second destination, and the club's constitution
@@ -103,7 +103,15 @@ export default async function RolesPage() {
               <TableBody>
                 {group.roles.map((role) => (
                   <TableRow key={role.id} hover data-testid="role-row">
-                    <TableCell sx={{ fontWeight: 600 }}>{role.label}</TableCell>
+                    {/*
+                      The seat's name does not wrap. "Vice-President" broken
+                      after its hyphen reads as two words, and the column a
+                      reader scans twenty rows down is the one that must stay
+                      scannable.
+                    */}
+                    <TableCell sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
+                      {role.label}
+                    </TableCell>
                     <TableCell>
                       <Typography
                         variant="body2"
@@ -112,9 +120,9 @@ export default async function RolesPage() {
                         {describeHolders(role)}
                       </Typography>
                     </TableCell>
-                    <TableCell>
+                    <TableCell sx={{ width: "45%" }}>
                       <Typography variant="body2" color="text.secondary">
-                        {permissionsLine(role.code)}
+                        {permissionsPreview(role.code)}
                       </Typography>
                     </TableCell>
                     <TableCell align="right">
@@ -158,7 +166,7 @@ function RoleCard({ role }: { role: CatalogueRole }) {
           {describeHolders(role)}
         </Typography>
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-          {permissionsLine(role.code)}
+          {permissionsPreview(role.code)}
         </Typography>
       </CardActionArea>
     </Card>

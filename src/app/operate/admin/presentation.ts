@@ -288,44 +288,107 @@ export function permissionsSummary(code: string): {
   return { empty, items: described };
 }
 
-/** The same summary as one line, for a table cell. */
+/** The same summary as one line, in full. Role detail shows every phrase. */
 export function permissionsLine(code: string): string {
   const { empty, items } = permissionsSummary(code);
   return empty ? items[0] : `Can ${items.join("; ")}.`;
+}
+
+/**
+ * How many phrases the Roles **index** shows before it stops.
+ *
+ * The catalogue's strongest seats hold nine capabilities, and nine verb phrases
+ * in a table cell is a paragraph: it dwarfs the seat's own name and the holder
+ * beside it, which are what a reader scanning twenty rows is looking for. The
+ * reviewed prototype's third column is one short line per seat, and this is the
+ * nearest honest equivalent — a shortened summary that says it is shortened,
+ * with the complete one on the seat's own page.
+ *
+ * Three is a presentation choice and nothing is written or reworded to fit it:
+ * every phrase shown is the capability map's own, in the map's own order, and
+ * the remainder is counted rather than elided silently.
+ */
+const INDEX_PERMISSION_PHRASES = 3;
+
+/** The shortened summary the Roles index shows, and its full form on detail. */
+export function permissionsPreview(code: string): string {
+  const { empty, items } = permissionsSummary(code);
+  if (empty) return items[0];
+  if (items.length <= INDEX_PERMISSION_PHRASES) return `Can ${items.join("; ")}.`;
+
+  const shown = items.slice(0, INDEX_PERMISSION_PHRASES).join("; ");
+  const remaining = items.length - INDEX_PERMISSION_PHRASES;
+  return `Can ${shown}; and ${remaining} more.`;
 }
 
 // ---------------------------------------------------------------------------
 // Dates
 // ---------------------------------------------------------------------------
 
-function part(value: Date | string, options: Intl.DateTimeFormatOptions, timeZone: string): string {
-  const instant =
-    typeof value === "string"
-      ? // A stored calendar date, which has no time and no zone. Read as UTC and
-        // rendered as UTC, so "2026-08-18" is 18 August everywhere — the same
-        // rule `events/presentation.ts` follows for `scheduled_on`.
-        new Date(`${value}T00:00:00Z`)
-      : value;
-  return new Intl.DateTimeFormat("en-GB", { ...options, timeZone }).format(instant);
+/**
+ * A calendar date, as a `date` column stores one. Not a validity check — a
+ * shape, and it is the shape that decides how the value is read.
+ */
+const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * The moment to render, and the zone to render it in.
+ *
+ * Administration receives dates in three shapes and they are **not**
+ * interchangeable, which the agent's browser preflight proved the hard way: an
+ * audit entry's `occurredAt` is a full ISO instant, and reading a string as a
+ * calendar date built `new Date("2026-08-20T00:39:14.123Z" + "T00:00:00Z")`,
+ * which is an invalid date, which threw out of `Intl.DateTimeFormat` and took
+ * the whole server-rendered page down with it.
+ *
+ *   * `YYYY-MM-DD` — a stored calendar date. It has no time and no zone, and is
+ *     read and rendered as UTC so that "2026-08-18" is 18 August everywhere.
+ *     The same rule `events/presentation.ts` follows for `scheduled_on`.
+ *   * any other string — an ISO instant, rendered on club time.
+ *   * a `Date` — an instant already, likewise.
+ *
+ * `null` for anything that does not parse. A history surface that throws is
+ * worse than one that shows a raw value: the value is still the truth, and the
+ * page still renders around it.
+ */
+function toInstant(value: Date | string): { instant: Date; zone: string } | null {
+  if (typeof value !== "string") {
+    return Number.isNaN(value.getTime()) ? null : { instant: value, zone: CLUB_TIME_ZONE };
+  }
+
+  const calendarDate = CALENDAR_DATE.test(value);
+  const instant = new Date(calendarDate ? `${value}T00:00:00Z` : value);
+  if (Number.isNaN(instant.getTime())) return null;
+  return { instant, zone: calendarDate ? "UTC" : CLUB_TIME_ZONE };
+}
+
+function part(
+  moment: { instant: Date; zone: string },
+  options: Intl.DateTimeFormatOptions,
+): string {
+  return new Intl.DateTimeFormat("en-GB", { ...options, timeZone: moment.zone }).format(
+    moment.instant,
+  );
 }
 
 /** "18 Aug 2026" — a calendar date, or an instant reduced to its day. */
 export function formatDay(value: Date | string): string {
-  const zone = typeof value === "string" ? "UTC" : CLUB_TIME_ZONE;
-  return `${part(value, { day: "numeric" }, zone)} ${part(value, { month: "short" }, zone)} ${part(
-    value,
-    { year: "numeric" },
-    zone,
-  )}`;
+  const moment = toInstant(value);
+  if (!moment) return String(value);
+  return `${part(moment, { day: "numeric" })} ${part(moment, { month: "short" })} ${part(moment, {
+    year: "numeric",
+  })}`;
 }
 
 /** "18 Aug 2026, 14:22" — a recorded moment, in the club's own time. */
 export function formatInstant(value: Date | string): string {
-  return `${formatDay(value)}, ${part(
-    value,
-    { hour: "2-digit", minute: "2-digit", hour12: false },
-    CLUB_TIME_ZONE,
-  )}`;
+  const moment = toInstant(value);
+  if (!moment) return String(value);
+  return `${formatDay(value)}, ${part(moment, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })}`;
 }
 
 /**

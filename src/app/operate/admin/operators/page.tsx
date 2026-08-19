@@ -115,12 +115,19 @@ export default async function OperatorsPage() {
               sx={{ display: { xs: "none", md: "block" } }}
             >
               <Table size="small" aria-label={section.label}>
+                {/*
+                  The proportions are fixed rather than left to the content.
+                  A delivery failure carries the transport's own sentence, which
+                  is a paragraph, and an auto-sized table gives that paragraph
+                  the room by taking it from the name and the roles beside it —
+                  so one failed invitation reshapes the whole section.
+                */}
                 <TableHead>
                   <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Current roles</TableCell>
-                    <TableCell>Account status</TableCell>
-                    <TableCell>Invitation</TableCell>
+                    <TableCell sx={{ width: "24%" }}>Name</TableCell>
+                    <TableCell sx={{ width: "22%" }}>Current roles</TableCell>
+                    <TableCell sx={{ whiteSpace: "nowrap" }}>Account status</TableCell>
+                    <TableCell sx={{ width: "34%" }}>Invitation</TableCell>
                     <TableCell />
                   </TableRow>
                 </TableHead>
@@ -136,7 +143,7 @@ export default async function OperatorsPage() {
                         </Typography>
                       </TableCell>
                       <TableCell>{describeSeats(operator.roles)}</TableCell>
-                      <TableCell>
+                      <TableCell sx={{ whiteSpace: "nowrap" }}>
                         <Chip
                           size="small"
                           label={accountStateLabel(operator.state)}

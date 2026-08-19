@@ -71,7 +71,11 @@ vi.mock("./actions", () => ({
 }));
 
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
-import { readHolderHistory, readOperatorAuditHistory } from "@/lib/services/administration-audit";
+import {
+  readHolderHistory,
+  readOperatorAuditHistory,
+  type AdministrationHistoryEntry,
+} from "@/lib/services/administration-audit";
 import {
   readOperatorDirectory,
   readOperatorRecord,
@@ -223,6 +227,33 @@ function catalogue(overrides: Partial<RoleCatalogue> = {}): RoleCatalogue {
 
 function directory(operators: DirectoryOperator[]): OperatorDirectory {
   return { operators, committeeYear: YEAR };
+}
+
+/** One recorded event, in the shape both projections return. */
+function historyEntry(
+  overrides: Partial<AdministrationHistoryEntry> = {},
+): AdministrationHistoryEntry {
+  return {
+    id: "event-1",
+    // An ISO instant, as the service returns it — a string, not a `Date`.
+    occurredAt: "2026-08-18T22:30:00.123Z",
+    action: "administration.operator.invitation_resent",
+    family: "operator",
+    label: "Invitation resent",
+    actor: { personId: "actor", name: "Clint Grohmann" },
+    authority: { kind: "capability", capability: "role_management", roleCodes: ["president"] },
+    target: { personId: "person", operatorAccountId: "account", name: "Casey Quinn" },
+    role: null,
+    operatingYear: YEAR,
+    fromState: null,
+    toState: null,
+    reason: null,
+    correlationId: null,
+    backdated: false,
+    detail: {},
+    unreadable: null,
+    ...overrides,
+  } as AdministrationHistoryEntry;
 }
 
 function pageProps(params: Record<string, string>, query: Record<string, string> = {}) {
@@ -451,6 +482,50 @@ describe("one operator's record", () => {
     expect(screen.getByRole("heading", { name: "Operator audit history" })).toBeVisible();
   });
 
+  /**
+   * The entries were only ever asserted empty until the agent's browser
+   * preflight opened a record that had one. `occurredAt` is an ISO **string**,
+   * and the date helper was reading every string as a calendar date — which
+   * threw out of `Intl.DateTimeFormat` and took the whole page down.
+   */
+  it("renders a recorded event, with when it happened and who did it", async () => {
+    vi.mocked(readOperatorAuditHistory).mockResolvedValue([
+      historyEntry({ label: "Invitation resent", reason: null }),
+      historyEntry({
+        id: "event-2",
+        label: "Operator access deactivated",
+        reason: "Access removed after a lost device.",
+      }),
+    ]);
+
+    render(await OperatorRecordPage(pageProps({ operatorId: "aaaa" })));
+
+    const entries = screen.getAllByTestId("history-entry");
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toHaveTextContent("Invitation resent");
+    expect(entries[0]).toHaveTextContent("18 Aug 2026, 23:30");
+    expect(entries[0]).toHaveTextContent("By Clint Grohmann");
+    expect(entries[1]).toHaveTextContent("Access removed after a lost device.");
+  });
+
+  it("shows an entry a newer version wrote, rather than a shorter list", async () => {
+    vi.mocked(readOperatorAuditHistory).mockResolvedValue([
+      historyEntry({
+        unreadable: {
+          reason: "unsupported-envelope-version",
+          storedVersion: 9,
+          message: "This event is in the record but was written by a newer version.",
+        },
+      }),
+    ]);
+
+    render(await OperatorRecordPage(pageProps({ operatorId: "aaaa" })));
+
+    expect(screen.getByTestId("history-entry-unreadable")).toHaveTextContent(
+      "written by a newer version",
+    );
+  });
+
   it("offers the approved actions for an active account", async () => {
     render(await OperatorRecordPage(pageProps({ operatorId: "aaaa" })));
 
@@ -538,10 +613,19 @@ describe("the Roles page", () => {
   it("describes what a role can do from the enforced capability map", async () => {
     const { container } = render(await RolesPage());
 
-    // The General Manager's summary is the capability map's own phrase.
-    expect(container.textContent).toContain("manage operator accounts and role assignments");
-    // Ten seats hold nothing, and that is a sentence rather than a blank.
+    // The capability map's own phrases, verbatim and in its own order.
+    expect(container.textContent).toContain("Can activate a season membership");
+    // Four seats hold nothing, and that is a sentence rather than a blank.
     expect(container.textContent).toContain("This role carries no privileged actions");
+  });
+
+  it("shortens a long summary rather than filling the row with a paragraph", async () => {
+    const { container } = render(await RolesPage());
+
+    // The General Manager holds eight; the index shows three and counts the
+    // rest, and the seat's own page shows every one.
+    expect(container.textContent).toContain("and 5 more.");
+    expect(container.textContent).not.toContain("read the Monday exception and action report");
   });
 
   it("offers no way to edit a role or a grant", async () => {
