@@ -1038,7 +1038,7 @@ export async function activateOperatorAccount(
     );
 
     const after = toAccount(updated.rows[0]);
-    const operatingYear = await resolveActiveCommitteeYear(tx);
+    const operatingYear = await resolveCommitteeYearForActivation(tx);
 
     // A deactivated account moves from Deactivated to Deactivated, which is not
     // a transition and which the ledger refuses to record — correctly, because
@@ -1538,6 +1538,50 @@ export async function resolveActiveCommitteeYear(tx: Tx): Promise<Administration
   }
 
   return { scope: "committee_year", id: result.rows[0].id, label: result.rows[0].label };
+}
+
+/**
+ * The operating year an **activation** is recorded under.
+ *
+ * The active committee year, and — unlike every other caller — the most recent
+ * one when there is no active one. That is the one place this module is lenient
+ * about the year, and the reason is worth stating rather than discovering:
+ *
+ * Activation is not an administrator's act. It is the moment an invited person
+ * chooses their password, in `src/app/reset-password/actions.ts`, and by then
+ * their password has already been changed. Refusing to record it would fail
+ * that action *after* the credentials existed — so somebody who had been
+ * invited perfectly legitimately would see an error, and the club's record of
+ * their account would say the invitation was still pending.
+ *
+ * The state that produces it is real and not exotic: `committee_years.ends_on`
+ * is a date, and a club that has closed one year before recording the next has
+ * a gap. Anyone invited before the gap would be unable to complete their
+ * invitation during it.
+ *
+ * Nothing is invented by the fallback. Every other operation here still
+ * requires an *active* year, because every other operation creates or moves an
+ * assignment that has to hang off a real cycle; this one records that something
+ * happened, and dating it to the club's most recent committee year is the
+ * truthful answer available. With no committee year at all it still refuses —
+ * but then nobody could have been invited either, since `inviteOperator`
+ * requires an active one.
+ */
+async function resolveCommitteeYearForActivation(tx: Tx): Promise<AdministrationOperatingYear> {
+  try {
+    return await resolveActiveCommitteeYear(tx);
+  } catch (error) {
+    const isMissing =
+      error instanceof NotFound && (error as NotFound).rule === NO_ACTIVE_COMMITTEE_YEAR_RULE;
+    if (!isMissing) throw error;
+
+    const result = await tx.query<{ id: string; label: string }>(
+      "select id, label from public.committee_years order by starts_on desc limit 1",
+    );
+    if (result.rows.length === 0) throw error;
+
+    return { scope: "committee_year", id: result.rows[0].id, label: result.rows[0].label };
+  }
 }
 
 /** The season a coaching appointment hangs off. Same fail-closed shape. */
