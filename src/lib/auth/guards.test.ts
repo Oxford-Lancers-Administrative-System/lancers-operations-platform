@@ -245,28 +245,54 @@ describe("rows 9 to 12 — requireCapability() over the map", () => {
   );
 
   it.each(["role_management"] as CapabilityKey[])(
-    "refuses %s to the President, who is not the seat that holds it",
+    "refuses %s to the Vice-President, who is not one of the seats that hold it",
     async (key) => {
       // `leadership_report` was here until LAN-81 decided its grant, and this
       // entry was the empty-grant example until LAN-124 decided its. The
-      // property under test survives both: a decided grant refuses everybody it
-      // does not name, and the President is the strongest role that this one
-      // does not name.
-      givenSession({ state: "active", operator: actor(["president"]) });
+      // property under test survives all three, including LAN-129 widening this
+      // grant to three seats: a decided grant refuses everybody it does not
+      // name.
+      //
+      // The actor was the President until LAN-129, because the President was
+      // then the strongest seat this grant did not name. It now names them, and
+      // `DEC-role-management-authority` makes the Vice-President the strongest
+      // that it does not — they hold every other capability in the map that the
+      // President holds, and administer nothing.
+      givenSession({ state: "active", operator: actor(["vice_president"]) });
 
       const refusal = await refusalFrom(() => requireCapability(key));
       expect(refusal.rule).toBe(capabilityRule(key));
-      expect(refusal.message).toContain("This action requires the IT Officer role");
+      expect(refusal.message).toContain(
+        "This action requires one of these roles: President, General Manager or IT Officer",
+      );
       // The refusal names what the action needs, never what the caller holds.
-      expect(refusal.message).not.toMatch(/president/i);
+      expect(refusal.message).not.toMatch(/vice-president/i);
     },
   );
 
-  it("permits role management to the IT Officer, the one seat LAN-124 granted it", async () => {
-    const operator = actor(["it_officer"]);
-    givenSession({ state: "active", operator });
+  it("refuses role management to the Secretary and to every coaching seat", async () => {
+    // The other half of DEC-role-management-authority, and REQ-coach-operator-
+    // onboarding's boundary: the broad operating tier and the coaching tier
+    // both administer nothing, through the real request-bound guard.
+    for (const code of ["secretary", "treasurer", "head_coach", "special_teams_coach"]) {
+      givenSession({ state: "active", operator: actor([code]) });
 
-    await expect(requireCapability("role_management")).resolves.toBe(operator);
+      const refusal = await refusalFrom(() => requireCapability("role_management"));
+      expect(refusal.rule, code).toBe(capabilityRule("role_management"));
+    }
+  });
+
+  it("permits role management to the three seats DEC-role-management-authority names", async () => {
+    // Was the IT Officer alone, per LAN-124. Brian widened it on 18 August 2026
+    // and LAN-129 applied that; holding it opens Administration and does not by
+    // itself permit acting on a particular person — see
+    // `src/lib/auth/administration-authority.ts`.
+    for (const code of ["president", "general_manager", "it_officer"]) {
+      const operator = actor([code]);
+      givenSession({ state: "active", operator });
+
+      await expect(requireCapability("role_management")).resolves.toBe(operator);
+    }
   });
 
   it("permits the Monday report to the four roles LAN-81 granted it", async () => {

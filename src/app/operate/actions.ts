@@ -64,7 +64,7 @@ export async function approveEvent(): Promise<never> {
 
 /**
  * Record attendance for an occurred event. The four calendar roles, plus the
- * three coaching seats.
+ * ten fixed coaching seats.
  *
  * The behaviour shipped in LAN-80 and lives in
  * `src/app/operate/events/[id]/attendance/actions.ts`, beside the board that
@@ -78,17 +78,29 @@ export async function approveEvent(): Promise<never> {
  * Both now name `attendance_recording`, and `src/lib/auth/capabilities.ts`
  * records what it grants and why.
  *
- * `attendance_recorder` is still LAN-110's, still exactly the three coaching
- * seats, and still answers a different question: not "may you record" but "is
- * the constrained coach screen yours". It is deliberately enforced at no call
- * site until LAN-110 builds that screen.
+ * `attendance_recorder` is still LAN-110's and still answers a different
+ * question: not "may you record" but "is the constrained coach screen yours".
+ * LAN-129 widened both to all ten fixed coaching seats, per
+ * `REQ-coach-operator-onboarding`; the two grants still differ by the four
+ * calendar roles, which is the whole point of their being two.
  */
 export async function recordAttendance(): Promise<never> {
   await requireCapability("attendance_recording");
   notImplemented("LAN-80", "record attendance for an occurred event");
 }
 
-/** Manage operator accounts and role assignments. The IT Officer, per LAN-124. */
+/**
+ * Manage operator accounts and role assignments — the President, the General
+ * Manager and the IT Officer, per `DEC-role-management-authority` (Brian, 18
+ * August 2026), which LAN-129 applied over LAN-124's IT-Officer-only grant.
+ *
+ * Still `notImplemented`: LAN-129 built the authorization layer, not the
+ * behaviour. `WP-invitation` and `WP-assignment` build the surfaces, and each
+ * of their actions calls `requireAdministrationTarget()` from
+ * `src/lib/auth/administration-authority.ts` rather than this capability alone
+ * — holding `role_management` opens Administration, and does not by itself
+ * permit acting on a particular person.
+ */
 export async function manageRoles(): Promise<never> {
   await requireCapability("role_management");
   notImplemented("none yet", "manage operator accounts and role assignments");

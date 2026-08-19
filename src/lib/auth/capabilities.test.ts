@@ -20,16 +20,54 @@ import {
   capabilityRoleCodes,
   COACH_ROLE_CODES,
   describeHeldCoachingSeats,
+  describeRoleCapabilities,
   describeRoleRequirement,
   describeRoles,
+  FIXED_COACHING_ROLE_CODES,
   isNarrowAttendanceRecorder,
+  LEADERSHIP_TIER_SEATS,
+  LEADERSHIP_TIERS,
   NARROW_RECORDER_CAPABILITIES,
+  NO_CAPABILITY_SUMMARY,
+  PROTECTED_LEADERSHIP_AUTHORITY,
+  roleCapabilities,
   roleCodesPermit,
+  roleLabel,
+  ROLE_LABELS,
   type CapabilityKey,
 } from "./capabilities";
 
-/** The three coaching seats, per Brian's 12 August 2026 decision. */
+/**
+ * The three coaching seats Brian decided on 12 August 2026 — the ones that held
+ * the attendance grant before the catalogue grew to ten.
+ *
+ * Kept as its own list because several assertions below are about what the
+ * catalogue *added*, and that difference is only expressible against the
+ * original three.
+ */
 const COACHES = ["head_coach", "offence_coach", "defence_coach"];
+
+/**
+ * The ten fixed coaching seats, which since LAN-129 all hold the narrow
+ * attendance pair — `REQ-coach-operator-onboarding`, Brian, 18 August 2026.
+ *
+ * Written out here rather than imported from the module under test, for the
+ * reason the whole file is literal: a grant that is asserted against a list the
+ * grant itself produced asserts nothing.
+ */
+const FIXED_COACHES = [
+  ...COACHES,
+  "quarterbacks_coach",
+  "offensive_line_coach",
+  "wide_receivers_coach",
+  "defensive_line_coach",
+  "linebackers_coach",
+  "defensive_backs_coach",
+  "special_teams_coach",
+];
+
+/** The seven the catalogue added, which held nothing until LAN-129. */
+const COACHES_ADDED_BY_THE_CATALOGUE = FIXED_COACHES.filter((code) => !COACHES.includes(code));
 
 /**
  * The four roles Brian named for the club calendar, sorted, and now also the
@@ -50,6 +88,12 @@ const ADMIN = "it_officer";
 
 /** The four calendar roles plus the administrator, sorted. */
 const CALENDAR_WITH_ADMIN = [...CALENDAR, ADMIN].sort();
+
+/**
+ * The three seats `DEC-role-management-authority` (Brian, 18 August 2026) puts
+ * on `role_management`, sorted. Applied by LAN-129 over LAN-124's IT Officer.
+ */
+const ROLE_ADMINISTRATORS = ["president", "general_manager", ADMIN].sort();
 
 /** Every role code in the catalogue, mirroring `scripts/seed-local.mjs`. */
 const CATALOGUE = [
@@ -90,6 +134,9 @@ function permittedSet(key: CapabilityKey): string[] {
  * here as well as at the exact-set assertion.
  */
 const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
+  // LAN-129 moved the seven added coaching seats out of this list and into the
+  // grant. What is left is every non-coaching seat except the administrator —
+  // no officer, coaching or otherwise, gets the constrained coach screen.
   attendance_recorder: [
     "president",
     "vice_president",
@@ -100,13 +147,6 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "kit_manager",
     "media_secretary",
     "general_manager",
-    "quarterbacks_coach",
-    "offensive_line_coach",
-    "wide_receivers_coach",
-    "defensive_line_coach",
-    "linebackers_coach",
-    "defensive_backs_coach",
-    "special_teams_coach",
   ],
   membership_activation: [
     "social_secretary",
@@ -184,13 +224,21 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "gameday_secretary",
     "kit_manager",
     "media_secretary",
-    "quarterbacks_coach",
-    "offensive_line_coach",
-    "wide_receivers_coach",
-    "defensive_line_coach",
-    "linebackers_coach",
-    "defensive_backs_coach",
-    "special_teams_coach",
+  ],
+  // LAN-129 widened this from `it_officer` alone to the three seats
+  // DEC-role-management-authority names. Everything else in the catalogue is
+  // refused, listed literally — including the Vice-President and the Secretary,
+  // who hold every other operating capability the President does and administer
+  // nothing, which is the entire content of the two-tier model.
+  role_management: [
+    "vice_president",
+    "secretary",
+    "treasurer",
+    "social_secretary",
+    "gameday_secretary",
+    "kit_manager",
+    "media_secretary",
+    ...FIXED_COACHES,
   ],
 };
 
@@ -204,13 +252,24 @@ it("checks every catalogue code against every settled capability", () => {
 });
 
 describe("row 9 — the attendance-recorder grant is the coaching seats plus the administrator", () => {
-  it("permits Head Coach, Offensive Coordinator, Defensive Coordinator and the IT Officer, and nothing else", () => {
-    expect(permittedSet("attendance_recorder")).toEqual([...COACHES, ADMIN].sort());
+  it("permits the ten fixed coaching seats and the IT Officer, and nothing else", () => {
+    expect(permittedSet("attendance_recorder")).toEqual([...FIXED_COACHES, ADMIN].sort());
   });
 
-  it.each(COACHES)("permits %s on its own", (code) => {
+  it.each(FIXED_COACHES)("permits %s on its own", (code) => {
     expect(roleCodesPermit([code], "attendance_recorder")).toBe(true);
   });
+
+  it.each(COACHES_ADDED_BY_THE_CATALOGUE)(
+    "permits %s, which held nothing before LAN-129",
+    (code) => {
+      // REQ-coach-operator-onboarding: "every fixed coaching role receives only
+      // the approved narrow attendance capability". Asserted seat by seat
+      // because the previous state — the seven holding nothing at all — was
+      // itself pinned by a test, and this is the deliberate replacement of it.
+      expect(roleCodesPermit([code], "attendance_recorder")).toBe(true);
+    },
+  );
 
   it.each(MUST_REFUSE.attendance_recorder)("refuses %s", (code) => {
     expect(roleCodesPermit([code], "attendance_recorder")).toBe(false);
@@ -258,11 +317,17 @@ describe("LAN-80 — attendance recording is the calendar roles plus the coachin
    * screen; the three coaching seats are on it because the same decision puts
    * them there.
    */
-  it("permits exactly the seven", () => {
-    expect(permittedSet("attendance_recording")).toEqual([...CALENDAR, ...COACHES, ADMIN].sort());
+  it("permits exactly the four calendar roles and the ten coaching seats", () => {
+    // Was "exactly the seven" — four plus the three coaching seats — until
+    // LAN-129 put all ten fixed coaching seats on it, because the approved
+    // narrow attendance capability includes "minimal walk-up capture" and
+    // walk-up capture is guarded here rather than by `attendance_recorder`.
+    expect(permittedSet("attendance_recording")).toEqual(
+      [...CALENDAR, ...FIXED_COACHES, ADMIN].sort(),
+    );
   });
 
-  it.each([...CALENDAR, ...COACHES])("permits %s on its own", (code) => {
+  it.each([...CALENDAR, ...FIXED_COACHES])("permits %s on its own", (code) => {
     expect(roleCodesPermit([code], "attendance_recording")).toBe(true);
   });
 
@@ -277,12 +342,25 @@ describe("LAN-80 — attendance recording is the calendar roles plus the coachin
 
   it("does not widen the narrow coaching grant it sits beside", () => {
     // Two capabilities, two questions. `attendance_recorder` stays exactly the
-    // three seats, because LAN-110 uses it to decide who gets the constrained
-    // screen — a Secretary records attendance and must not get that one.
-    expect(permittedSet("attendance_recorder")).toEqual([...COACHES, ADMIN].sort());
+    // coaching seats, because LAN-110 uses it to decide who gets the
+    // constrained screen — a Secretary records attendance and must not get that
+    // one. The two grants moved together in LAN-129 and still differ by exactly
+    // the four calendar roles, which is the whole reason they are two.
+    expect(permittedSet("attendance_recorder")).toEqual([...FIXED_COACHES, ADMIN].sort());
     for (const code of CALENDAR) {
       expect(roleCodesPermit([code], "attendance_recorder")).toBe(false);
       expect(roleCodesPermit([code], "attendance_recording")).toBe(true);
+    }
+  });
+
+  it("keeps every one of the ten a narrow recorder rather than half a one", () => {
+    // A seat holding `attendance_recorder` without `attendance_recording` is
+    // classified narrow, offered the coach's surface and then refused every
+    // action on it. The pair must move together, so it is asserted together.
+    for (const code of FIXED_COACHES) {
+      expect(roleCodesPermit([code], "attendance_recorder"), code).toBe(true);
+      expect(roleCodesPermit([code], "attendance_recording"), code).toBe(true);
+      expect(isNarrowAttendanceRecorder([code]), code).toBe(true);
     }
   });
 });
@@ -506,16 +584,32 @@ describe("LAN-124 — the IT Officer is the club's administrative seat", () => {
     }
   });
 
-  it("holds role management, and is the only seat that does", () => {
-    expect(capabilityRoleCodes("role_management")).toEqual(["it_officer"]);
+  it("holds role management, alongside the two seats LAN-129 added", () => {
+    // Was `["it_officer"]` alone. Brian widened it on 18 August 2026
+    // (DEC-role-management-authority) to the President and the General Manager
+    // as well, and LAN-129 applied that. The assertion is unchanged in
+    // strength — an exact set — and only the recorded decision it encodes has
+    // moved.
+    expect(permittedSet("role_management")).toEqual(ROLE_ADMINISTRATORS);
     for (const code of CATALOGUE) {
-      if (code === "it_officer") continue;
+      if (ROLE_ADMINISTRATORS.includes(code)) continue;
       expect(roleCodesPermit([code], "role_management"), code).toBe(false);
     }
-    // Including the President, and including the whole rest of the catalogue
-    // held at once — the seat is narrow on purpose.
-    const others = CATALOGUE.filter((code) => code !== "it_officer");
+    // And the whole rest of the catalogue held at once, which is the strongest
+    // actor there could be.
+    const others = CATALOGUE.filter((code) => !ROLE_ADMINISTRATORS.includes(code));
     expect(roleCodesPermit(others, "role_management")).toBe(false);
+  });
+
+  it("still refuses the Vice-President and the Secretary", () => {
+    // DEC-role-management-authority states this explicitly, and they are the
+    // two seats a reader is most likely to add: they hold every other
+    // capability in this file that the President holds.
+    for (const code of ["vice_president", "secretary"]) {
+      expect(roleCodesPermit([code], "role_management"), code).toBe(false);
+      expect(roleCodesPermit([code], "leadership_report"), code).toBe(true);
+      expect(roleCodesPermit([code], "event_approval"), code).toBe(true);
+    }
   });
 
   it("records the owner decision rather than inheriting it", () => {
@@ -580,13 +674,22 @@ describe("row 8 — the map is the single source of truth, and is not editable a
 
 describe("row 6 — a requirement sentence names the action's need, never the actor's holdings", () => {
   it("names one role in the singular", () => {
-    // Through a real capability again: LAN-124 gave `role_management` to the
-    // IT Officer alone, so the singular branch is reachable from the map for
-    // the first time since LAN-77 widened event approval past President-only.
-    expect(capabilityRequirement("role_management")).toBe(
-      "This action requires the IT Officer role.",
-    );
+    // Through the pure function only, again. `role_management` demonstrated the
+    // singular branch from the map while LAN-124's grant was the IT Officer
+    // alone; LAN-129 applied DEC-role-management-authority and no grant in the
+    // map has one role now. The branch still has to be right for the next one
+    // that does, so it keeps its coverage here rather than losing it to a
+    // change that widened the last example.
     expect(describeRoleRequirement(["president"])).toBe("This action requires the President role.");
+    expect(describeRoleRequirement(["general_manager"])).toBe(
+      "This action requires the General Manager role.",
+    );
+  });
+
+  it("names the three administrators for role management", () => {
+    expect(capabilityRequirement("role_management")).toBe(
+      "This action requires one of these roles: President, General Manager or IT Officer.",
+    );
   });
 
   it("names the approvers as the list they now are", () => {
@@ -625,15 +728,20 @@ describe("row 6 — a requirement sentence names the action's need, never the ac
   it("uses the club's names for the two coordinator seats", () => {
     expect(capabilityRequirement("attendance_recorder")).toBe(
       "This action requires one of these roles: Head Coach, Offensive Coordinator, " +
-        "Defensive Coordinator or IT Officer.",
+        "Defensive Coordinator, Quarterbacks Coach, Offensive Line Coach, Wide Receivers " +
+        "Coach, Defensive Line Coach, Linebackers Coach, Defensive Backs Coach, Special " +
+        "Teams Coach or IT Officer.",
     );
   });
 
   it("falls back to the raw code rather than inventing a label", () => {
-    expect(describeRoles(["gameday_secretary"])).toBe("gameday_secretary");
-    expect(describeRoleRequirement(["gameday_secretary"])).toBe(
-      "This action requires the gameday_secretary role.",
-    );
+    // `gameday_secretary` demonstrated this until LAN-129 completed
+    // ROLE_LABELS to the whole catalogue. Nothing in the catalogue reaches the
+    // fallback any more, which is the point of completing it — but a mistyped
+    // or invented code still must not crash and must not be labelled.
+    expect(describeRoles(["gameday_secretary"])).toBe("Gameday Secretary");
+    expect(describeRoles(["chairman"])).toBe("chairman");
+    expect(describeRoleRequirement(["chairman"])).toBe("This action requires the chairman role.");
   });
 
   it("never mentions a person, an account or a holder", () => {
@@ -746,5 +854,312 @@ describe("LAN-110 — captioning the coach's own seat", () => {
     expect(caption).toBe("Defensive Coordinator");
     expect(caption).not.toContain("Head Coach");
     expect(caption).not.toContain("Offensive Coordinator");
+  });
+});
+
+/**
+ * LAN-129 — the capability definition is also where the copy comes from.
+ *
+ * `REQ-capability-copy-consistency`: "Role and coach capability explanations
+ * shown in Administration are derived from the same reviewed capability
+ * definition used by server enforcement, so a later approved grant change
+ * updates authorization and plain-language UI copy together rather than leaving
+ * stale duplicated descriptions."
+ *
+ * The requirement is about a *mechanism*, so these assertions are about the
+ * mechanism: the copy is a projection of the grants, and there is nowhere else
+ * for it to come from. The strongest of them is the last — every sentence the
+ * summary can produce is a string that appears in the map.
+ */
+describe("LAN-129 — Administration's permission copy is derived, not duplicated", () => {
+  it("gives each administering seat the role-management sentence", () => {
+    for (const code of ROLE_ADMINISTRATORS) {
+      expect(describeRoleCapabilities(code)).toContain(CAPABILITIES.role_management.action);
+    }
+  });
+
+  it("gives a seat that holds nothing an explicit sentence rather than a blank", () => {
+    // Ten of the twenty seats hold nothing, and a blank Permissions summary
+    // reads as an omission rather than as the fact it is.
+    for (const code of [
+      "social_secretary",
+      "gameday_secretary",
+      "kit_manager",
+      "media_secretary",
+    ]) {
+      expect(roleCapabilities(code), code).toEqual([]);
+      expect(describeRoleCapabilities(code), code).toEqual([NO_CAPABILITY_SUMMARY]);
+    }
+  });
+
+  it("never returns an empty summary for any code, in or out of the catalogue", () => {
+    for (const code of [...CATALOGUE, "chairman", ""]) {
+      expect(describeRoleCapabilities(code).length, code).toBeGreaterThan(0);
+    }
+  });
+
+  it("says of a coaching seat exactly what a coaching seat may do", () => {
+    // REQ-coach-operator-onboarding's boundary, read off the derived copy: the
+    // narrow attendance pair and nothing else. Walked over all ten so a seat
+    // that quietly acquires a ninth capability shows up as copy nobody wrote.
+    for (const code of FIXED_COACHES) {
+      expect(describeRoleCapabilities(code), code).toEqual([
+        CAPABILITIES.attendance_recorder.action,
+        CAPABILITIES.attendance_recording.action,
+      ]);
+    }
+  });
+
+  it("says of the Vice-President that they do not administer accounts", () => {
+    // The two-tier model as the Roles page will state it: they hold the
+    // operating capabilities and not role management.
+    const summary = describeRoleCapabilities("vice_president");
+    expect(summary).toContain(CAPABILITIES.event_approval.action);
+    expect(summary).toContain(CAPABILITIES.leadership_report.action);
+    expect(summary).not.toContain(CAPABILITIES.role_management.action);
+  });
+
+  it("produces only sentences that exist in the capability map", () => {
+    // The mechanism, asserted directly. A hand-written description added
+    // anywhere in this projection would fail here, which is the "stale
+    // duplicated descriptions" the requirement is written against.
+    const actions = CAPABILITY_KEYS.map((key) => CAPABILITIES[key].action);
+    for (const code of CATALOGUE) {
+      for (const sentence of describeRoleCapabilities(code)) {
+        expect([...actions, NO_CAPABILITY_SUMMARY], `${code}: ${sentence}`).toContain(sentence);
+      }
+    }
+  });
+
+  it("moves the copy when a grant moves, because it reads the same array", () => {
+    // The property the requirement asks for, stated as an equivalence rather
+    // than demonstrated by example: a role's summary and its permissions are
+    // two readings of one list.
+    for (const code of CATALOGUE) {
+      const derived = roleCapabilities(code).map((entry) => entry.key);
+      const permitted = CAPABILITY_KEYS.filter((key) => roleCodesPermit([code], key));
+      expect(derived, code).toEqual(permitted);
+    }
+  });
+});
+
+/**
+ * LAN-129, review finding LAN128-A1 — the display names are pinned, not copied
+ * and forgotten.
+ *
+ * The character-for-character check against `public.roles.name` lives in
+ * `tests/operator-capability-catalogue.test.ts`, because it needs the database.
+ * These are the properties that hold without one.
+ */
+describe("LAN-129 — role labels cover the catalogue", () => {
+  it("labels every code in the catalogue", () => {
+    for (const code of CATALOGUE) {
+      expect(ROLE_LABELS[code], code).toBeDefined();
+      expect(roleLabel(code), code).not.toBe(code);
+    }
+  });
+
+  it("labels nothing that is not in the catalogue", () => {
+    // A label for a seat that does not exist is either a typo or a seat
+    // somebody removed from the migration and left here.
+    expect(Object.keys(ROLE_LABELS).sort()).toEqual([...CATALOGUE].sort());
+  });
+
+  it("uses the club's names for the seats whose codes disagree with them", () => {
+    expect(roleLabel("offence_coach")).toBe("Offensive Coordinator");
+    expect(roleLabel("defence_coach")).toBe("Defensive Coordinator");
+  });
+
+  it("returns the raw code for anything else, and never throws", () => {
+    expect(roleLabel("chairman")).toBe("chairman");
+    expect(roleLabel("")).toBe("");
+  });
+
+  it("refuses a mutation at runtime", () => {
+    const labels = ROLE_LABELS as Record<string, string>;
+    expect(() => {
+      labels.president = "Supreme Leader";
+    }).toThrow();
+    expect(roleLabel("president")).toBe("President");
+  });
+});
+
+/**
+ * LAN-129 — the leadership tier data, which `administration-authority.ts` reads.
+ *
+ * The *rules* are tested there. What is tested here is that this file's half is
+ * data: the right seats, no others, and frozen.
+ */
+describe("LAN-129 — the leadership tiers are data in the catalogue's file", () => {
+  it("names the three seats DEC-two-tier-operating-model names, and no others", () => {
+    expect({ ...LEADERSHIP_TIERS }).toEqual({
+      general_manager: "standing_continuity",
+      president: "presiding",
+      it_officer: "technical_administration",
+    });
+  });
+
+  it("puts the Vice-President and Secretary in no tier at all", () => {
+    // "Vice-President and Secretary share the broad ordinary operating tier",
+    // which is expressed by their absence from role_management, not by a tier.
+    expect(LEADERSHIP_TIERS.vice_president).toBeUndefined();
+    expect(LEADERSHIP_TIERS.secretary).toBeUndefined();
+  });
+
+  it("leaves the General Manager seat with no ordinary management route", () => {
+    // REQ-final-admin-protection: GM replacement "remains exceptional
+    // IT/service recovery outside this mission". The empty list is the
+    // decision, and an empty list refuses everybody.
+    expect([...PROTECTED_LEADERSHIP_AUTHORITY.standing_continuity.management]).toEqual([]);
+    expect([...PROTECTED_LEADERSHIP_AUTHORITY.standing_continuity.recovery]).toEqual([
+      "it_officer",
+    ]);
+  });
+
+  it("gives the President seat to the General Manager, and recovery to two", () => {
+    expect([...PROTECTED_LEADERSHIP_AUTHORITY.presiding.management]).toEqual(["general_manager"]);
+    expect([...PROTECTED_LEADERSHIP_AUTHORITY.presiding.recovery]).toEqual([
+      "general_manager",
+      "it_officer",
+    ]);
+  });
+
+  it("keeps recovery at least as wide as management, everywhere", () => {
+    // The asymmetry runs one way only: recovery restores access without moving
+    // authority, so a seat that may manage must also be able to recover. The
+    // reverse — recovery narrower than management — would mean somebody could
+    // depose a holder they could not help back in.
+    for (const tier of ["standing_continuity", "presiding"] as const) {
+      for (const code of PROTECTED_LEADERSHIP_AUTHORITY[tier].management) {
+        expect(PROTECTED_LEADERSHIP_AUTHORITY[tier].recovery, tier).toContain(code);
+      }
+    }
+  });
+
+  it("names only real catalogue codes", () => {
+    for (const tier of ["standing_continuity", "presiding"] as const) {
+      for (const kind of ["management", "recovery"] as const) {
+        for (const code of PROTECTED_LEADERSHIP_AUTHORITY[tier][kind]) {
+          expect(CATALOGUE, `${tier}/${kind}`).toContain(code);
+        }
+      }
+    }
+  });
+
+  it("gives every tiered seat an entry in the tier-to-seat map, and back", () => {
+    for (const [code, tier] of Object.entries(LEADERSHIP_TIERS)) {
+      expect(LEADERSHIP_TIER_SEATS[tier]).toBe(code);
+    }
+  });
+
+  it("refuses a mutation at runtime", () => {
+    expect(() => {
+      (LEADERSHIP_TIERS as Record<string, string>).secretary = "presiding";
+    }).toThrow();
+    expect(() => {
+      (PROTECTED_LEADERSHIP_AUTHORITY.standing_continuity.management as string[]).push(
+        "it_officer",
+      );
+    }).toThrow();
+    expect([...PROTECTED_LEADERSHIP_AUTHORITY.standing_continuity.management]).toEqual([]);
+  });
+});
+
+describe("LAN-129 — the ten fixed coaching seats", () => {
+  it("is the catalogue's Coaching Staff group, exactly", () => {
+    expect([...FIXED_COACHING_ROLE_CODES].sort()).toEqual([...FIXED_COACHES].sort());
+  });
+
+  it("is also the audience catalogue, by Brian's decision and not by accident", () => {
+    // These two constants answer different questions and gave different answers
+    // for one round: LAN-129 widened the capability grant to ten and left the
+    // audience at three, because widening the audience changes who the club
+    // *contacts*. Brian answered it on 19 August 2026 — "Every coach needs to
+    // be invited to coaching sessions ... which includes all the coaches" — so
+    // the audience group is the coaching staff.
+    //
+    // Asserted as an exact set on both sides rather than as an identity, so
+    // that it still means something if a later decision splits them back into
+    // two literal lists.
+    expect([...COACH_ROLE_CODES].sort()).toEqual([...FIXED_COACHES].sort());
+    expect([...FIXED_COACHING_ROLE_CODES].sort()).toEqual([...FIXED_COACHES].sort());
+    expect(COACH_ROLE_CODES).toHaveLength(10);
+  });
+
+  it("invites the seven seats the catalogue added, which were uninvitable before", () => {
+    // The whole content of Brian's answer, seat by seat. Before it, a
+    // Quarterbacks Coach could take a register at a session they were never
+    // invited to.
+    for (const code of COACHES_ADDED_BY_THE_CATALOGUE) {
+      expect(COACH_ROLE_CODES, code).toContain(code);
+    }
+  });
+
+  it("still offers no season-scoped seat that is not a coaching one", () => {
+    // The fail-closed property the audience group has always had, and which
+    // widening must not have cost: capacity is never inferred from a role's
+    // scope. A team manager or a season-scoped physio is uninvitable rather
+    // than silently invited as a coach. Proved against a real row in
+    // src/lib/services/event-approval.test.ts; asserted here as the rule.
+    for (const code of ["lan120_team_manager", "team_manager", "physio"]) {
+      expect(COACH_ROLE_CODES, code).not.toContain(code);
+    }
+    expect(COACH_ROLE_CODES.every((code) => CATALOGUE.includes(code))).toBe(true);
+  });
+
+  it("holds the narrow attendance pair and nothing else, in any capability", () => {
+    for (const code of FIXED_COACHING_ROLE_CODES) {
+      for (const key of CAPABILITY_KEYS) {
+        const expected = key === "attendance_recorder" || key === "attendance_recording";
+        expect(roleCodesPermit([code], key), `${code} / ${key}`).toBe(expected);
+      }
+    }
+  });
+
+  it("refuses every coaching seat role management, held singly or all at once", () => {
+    // The boundary REQ-coach-operator-onboarding draws, against the capability
+    // this package widened. A coach never administers.
+    for (const code of FIXED_COACHING_ROLE_CODES) {
+      expect(roleCodesPermit([code], "role_management"), code).toBe(false);
+    }
+    expect(roleCodesPermit([...FIXED_COACHING_ROLE_CODES], "role_management")).toBe(false);
+  });
+
+  it("refuses every coaching seat the roster, delivery and report surfaces", () => {
+    // slice-ux.md § 3 names these among what a coaching seat never receives,
+    // and LAN-129 added seven seats to the coaching side of the boundary.
+    for (const code of FIXED_COACHING_ROLE_CODES) {
+      for (const key of [
+        "membership_activation",
+        "event_calendar_management",
+        "event_approval",
+        "event_occurrence_assertion",
+        "delivery_administration",
+        "leadership_report",
+      ] as CapabilityKey[]) {
+        expect(roleCodesPermit([code], key), `${code} / ${key}`).toBe(false);
+      }
+    }
+  });
+
+  it("classifies all ten as narrow recorders, singly and together", () => {
+    for (const code of FIXED_COACHING_ROLE_CODES) {
+      expect(isNarrowAttendanceRecorder([code]), code).toBe(true);
+    }
+    expect(isNarrowAttendanceRecorder([...FIXED_COACHING_ROLE_CODES])).toBe(true);
+  });
+
+  it("does not narrow one of the seven who also holds an officer seat", () => {
+    // The rule LAN-110 wrote for the original three, checked against the seven:
+    // § 3 describes what a coach receives, and is not a rule for stripping
+    // authority a recorded decision granted to somebody who also coaches.
+    for (const code of COACHES_ADDED_BY_THE_CATALOGUE) {
+      expect(isNarrowAttendanceRecorder([code, "secretary"]), code).toBe(false);
+    }
+  });
+
+  it("refuses a mutation at runtime", () => {
+    expect(() => (FIXED_COACHING_ROLE_CODES as string[]).push("assistant_coach")).toThrow();
+    expect(FIXED_COACHING_ROLE_CODES).toHaveLength(10);
   });
 });
