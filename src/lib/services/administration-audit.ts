@@ -13,6 +13,7 @@ import {
   prepareAdministrationEvent,
   ROLE_RELATED_ADMINISTRATION_ACTIONS,
   type AdministrationAction,
+  type AdministrationEventDefinition,
   type AdministrationEventFamily,
   type AdministrationEventRecord,
   type AdministrationOperatingYear,
@@ -105,7 +106,44 @@ export async function recordAdministrationEvent(
 // The projections
 // ---------------------------------------------------------------------------
 
-/** One entry, in either projection. The same row produces the same entry. */
+/**
+ * What an entry says when its stored envelope cannot be read — LAN-130 review
+ * finding A6.
+ *
+ * The columns are still readable, so an unreadable entry keeps its identity,
+ * its timestamp, its actor, its action and its before/after state; only the
+ * envelope-derived fields — authority, operating year, the role, the detail —
+ * are unavailable. `unreadable` is `null` on every entry this version wrote.
+ */
+export interface UnreadableAdministrationEntry {
+  /** Programmatic, so a caller never matches on the copy below. */
+  reason: "unsupported-envelope-version" | "missing-envelope";
+  /** The version found in the row, where there was one. */
+  storedVersion: number | null;
+  /** Club-facing, for the surface that renders the gap. */
+  message: string;
+}
+
+/**
+ * What a reader is told about an event this version cannot fully read.
+ *
+ * Exported so the two history surfaces say the same thing, and so a test can
+ * assert the reader is told *something* rather than shown a shorter list.
+ */
+export const UNREADABLE_ENTRY_MESSAGE =
+  "This event is in the record but was written by a newer version of the application, " +
+  "so its full detail cannot be shown here.";
+
+/**
+ * One entry, in either projection. The same row produces the same entry.
+ *
+ * Every field except `unreadable` describes the event. `unreadable` is `null`
+ * for an entry this version understands, and set for one it does not — see
+ * `UnreadableAdministrationEntry`. It is deliberately part of the ordinary
+ * entry rather than a separate variant the caller might forget to handle: for
+ * an audit surface, a history that *looks* complete and is not is worse than a
+ * visible gap, and a row that is simply absent from the list is exactly that.
+ */
 export interface AdministrationHistoryEntry {
   /** `audit_events.id` — the identity of the single stored event. */
   id: string;
@@ -127,7 +165,8 @@ export interface AdministrationHistoryEntry {
     roleCodes: string[];
   };
   target: {
-    personId: string;
+    /** `null` only on an unreadable entry whose envelope named no target. */
+    personId: string | null;
     operatorAccountId: string | null;
     name: string | null;
   };
@@ -141,6 +180,8 @@ export interface AdministrationHistoryEntry {
   correlationId: string | null;
   backdated: boolean;
   detail: Record<string, unknown>;
+  /** `null` normally. Set when this version cannot read the stored envelope. */
+  unreadable: UnreadableAdministrationEntry | null;
 }
 
 interface HistoryRow {
@@ -171,10 +212,38 @@ const NAME_EXPRESSION = (alias: string) =>
    end`;
 
 /**
+ * The tie-break that makes two events written in one transaction render in a
+ * meaningful order — LAN-130 review finding A1.
+ *
+ * `audit_events.occurred_at` defaults to `now()`, which is transaction time.
+ * `WP-assignment` must write a replacement's `role.ended` and `role.assigned`
+ * atomically, so both rows carry an identical timestamp and ordering on that
+ * column alone leaves the pair to an arbitrary `id` tie-break — rendering the
+ * successor's appointment below the outgoing holder's ending about half the
+ * time, which reads as though the seat was filled before it was vacated.
+ *
+ * The `case` is generated from `instantOrder` on the vocabulary itself rather
+ * than written out here, so the rule cannot be stated in SQL and contradicted
+ * in TypeScript. The action strings are compile-time constants from this
+ * repository, never caller input, and the assertion below keeps them that way:
+ * anything that is not lowercase letters, dots and underscores refuses to build
+ * a query at all rather than being escaped and trusted.
+ */
+const INSTANT_ORDER_CASE = (() => {
+  const branches = ADMINISTRATION_ACTIONS.map((action) => {
+    if (!/^[a-z_.]+$/.test(action)) {
+      throw new Error(`Administration action "${action}" cannot be embedded in SQL.`);
+    }
+    return `when '${action}' then ${ADMINISTRATION_EVENTS[action].instantOrder}`;
+  });
+  return `case e.action ${branches.join(" ")} else 0 end`;
+})();
+
+/**
  * The one query both projections run, differing only in the envelope key they
  * filter on and the actions they admit.
  *
- * Two things it does deliberately:
+ * Three things it does deliberately:
  *
  *   * **It filters on the closed action set**, so a non-administration audit
  *     row — an event approval, a delivery result — can never appear in an
@@ -186,6 +255,10 @@ const NAME_EXPRESSION = (alias: string) =>
  *     malformed stored value an error for the whole read; a text comparison
  *     simply does not match it. The writer cannot produce one, and the read
  *     does not depend on that being true forever.
+ *
+ *   * **It breaks a timestamp tie by causal position**, so two events written
+ *     in one transaction render in the order they happened rather than in the
+ *     order their random identifiers happen to sort. See `INSTANT_ORDER_CASE`.
  */
 function historyQuery(keyPath: "targetPersonId" | "roleId"): string {
   return `
@@ -210,7 +283,7 @@ function historyQuery(keyPath: "targetPersonId" | "roleId"): string {
       ) target on true
      where e.action = any($1::text[])
        and e.context -> '${ADMINISTRATION_CONTEXT_KEY}' ->> '${keyPath}' = $2
-     order by e.occurred_at desc, e.id desc`;
+     order by e.occurred_at desc, ${INSTANT_ORDER_CASE} desc, e.id desc`;
 }
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -230,31 +303,19 @@ function asStringArray(value: unknown): string[] {
 }
 
 /**
- * Turns one stored row into an entry, or `null` if it is not an administration
- * event this version understands.
+ * The fields readable from the row's own columns, whatever its envelope says.
  *
- * Skipping rather than throwing is deliberate: a history screen that refuses to
- * render because one stored row is from a future envelope version is worse than
- * one that shows the rest. The unreadable row is still in the ledger — nothing
- * is lost, and nothing is silently rewritten.
+ * `action` reaches this function only through the closed-set filter in the
+ * query, so the label and the family are always knowable: an unreadable entry
+ * can still tell a reader *what kind* of thing happened, when, and who did it.
  */
-function toEntry(row: HistoryRow): AdministrationHistoryEntry | null {
-  const definition = ADMINISTRATION_EVENTS[row.action as AdministrationAction];
-  if (!definition) return null;
-
-  const envelope = asObject(asObject(row.context)[ADMINISTRATION_CONTEXT_KEY]);
-  if (envelope.version !== ADMINISTRATION_ENVELOPE_VERSION) return null;
-
-  const targetPersonId = asStringOrNull(envelope.targetPersonId);
-  if (targetPersonId === null) return null;
-
-  const year = asObject(envelope.operatingYear);
-  const scope = year.scope === "season" ? "season" : "committee_year";
-  const authority = asObject(envelope.authority);
-  const roleId = asStringOrNull(envelope.roleId);
-  const roleCode = asStringOrNull(envelope.roleCode);
-  const roleAssignmentId = asStringOrNull(envelope.roleAssignmentId);
-
+function columnFields(
+  row: HistoryRow,
+  definition: AdministrationEventDefinition,
+): Pick<
+  AdministrationHistoryEntry,
+  "id" | "occurredAt" | "action" | "family" | "label" | "actor" | "fromState" | "toState" | "reason"
+> {
   return {
     id: row.id,
     occurredAt: row.occurred_at.toISOString(),
@@ -265,6 +326,89 @@ function toEntry(row: HistoryRow): AdministrationHistoryEntry | null {
       personId: row.actor_person_id,
       name: row.actor_name ?? row.actor_label ?? "Unknown",
     },
+    fromState: row.from_state,
+    toState: row.to_state,
+    reason: row.reason,
+  };
+}
+
+/**
+ * An entry for a row whose envelope this version cannot read — LAN-130 review
+ * finding A6.
+ *
+ * The row stays in the list, marked. Dropping it silently was the original
+ * behaviour and it was wrong for this surface specifically: an audit history
+ * that looks complete and is not is worse than one with a visible gap, because
+ * the first is believed. Nothing is thrown either — one unreadable row must not
+ * take the other twenty with it.
+ */
+function toUnreadableEntry(
+  row: HistoryRow,
+  definition: AdministrationEventDefinition,
+  reason: UnreadableAdministrationEntry["reason"],
+  storedVersion: number | null,
+): AdministrationHistoryEntry {
+  const envelope = asObject(asObject(row.context)[ADMINISTRATION_CONTEXT_KEY]);
+
+  return {
+    ...columnFields(row, definition),
+    authority: { kind: "capability", capability: null, roleCodes: [] },
+    // The key the projection matched on is knowable even here, because the
+    // query found the row by it. Anything else in the envelope is not.
+    target: {
+      personId: asStringOrNull(envelope.targetPersonId),
+      operatorAccountId: null,
+      name: row.target_name,
+    },
+    role: null,
+    operatingYear: { scope: "committee_year", id: "", label: "" },
+    correlationId: null,
+    backdated: false,
+    detail: {},
+    unreadable: { reason, storedVersion, message: UNREADABLE_ENTRY_MESSAGE },
+  };
+}
+
+/**
+ * Turns one stored row into an entry.
+ *
+ * Returns `null` only for an action outside the closed set, which the query
+ * makes unreachable — it is the defence that keeps this function honest if the
+ * filter is ever loosened, not a case that happens. A row whose *envelope* this
+ * version cannot read becomes a marked entry instead of disappearing.
+ */
+function toEntry(row: HistoryRow): AdministrationHistoryEntry | null {
+  const definition = ADMINISTRATION_EVENTS[row.action as AdministrationAction];
+  if (!definition) return null;
+
+  const envelope = asObject(asObject(row.context)[ADMINISTRATION_CONTEXT_KEY]);
+  const storedVersion = typeof envelope.version === "number" ? envelope.version : null;
+
+  if (storedVersion !== ADMINISTRATION_ENVELOPE_VERSION) {
+    return toUnreadableEntry(
+      row,
+      definition,
+      storedVersion === null ? "missing-envelope" : "unsupported-envelope-version",
+      storedVersion,
+    );
+  }
+
+  const targetPersonId = asStringOrNull(envelope.targetPersonId);
+  if (targetPersonId === null) {
+    // The version matched but the envelope is not the shape that version
+    // promises. Same treatment: visible, not vanished.
+    return toUnreadableEntry(row, definition, "missing-envelope", storedVersion);
+  }
+
+  const year = asObject(envelope.operatingYear);
+  const scope = year.scope === "season" ? "season" : "committee_year";
+  const authority = asObject(envelope.authority);
+  const roleId = asStringOrNull(envelope.roleId);
+  const roleCode = asStringOrNull(envelope.roleCode);
+  const roleAssignmentId = asStringOrNull(envelope.roleAssignmentId);
+
+  return {
+    ...columnFields(row, definition),
     authority: {
       kind: authority.kind === "self" ? "self" : "capability",
       capability: asStringOrNull(authority.capability),
@@ -284,12 +428,10 @@ function toEntry(row: HistoryRow): AdministrationHistoryEntry | null {
       id: asStringOrNull(year.id) ?? "",
       label: asStringOrNull(year.label) ?? "",
     },
-    fromState: row.from_state,
-    toState: row.to_state,
-    reason: row.reason,
     correlationId: asStringOrNull(envelope.correlationId),
     backdated: envelope.backdated === true,
     detail: asObject(envelope.detail),
+    unreadable: null,
   };
 }
 

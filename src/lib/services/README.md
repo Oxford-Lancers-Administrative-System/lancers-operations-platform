@@ -118,6 +118,13 @@ Three things about it are load-bearing rather than stylistic:
   exported read without a capability check on it.
 - **There is no update or delete path**, and there is no term in the vocabulary
   for amending an event. A correction is a new event.
+- **A row this version cannot read is marked, not dropped.** `occurred_at`
+  defaults to transaction time, so two events written atomically share a
+  timestamp and are separated by a causal position declared on the vocabulary
+  (`instantOrder`) rather than by an arbitrary identifier; and an entry whose
+  stored envelope is from a later version comes back with `unreadable` set
+  instead of being filtered out. For an audit surface, a history that looks
+  complete and is not is worse than one with a visible gap.
 
 Still **not implemented**, each with its own issue: the non-empty confirmed
 audience (E1b), sequential report-version allocation (M5), atomic job claiming

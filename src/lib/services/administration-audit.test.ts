@@ -34,8 +34,11 @@ import {
   ADMINISTRATION_ACTIONS,
   ADMINISTRATION_HISTORY_CAPABILITY,
   readHolderHistory,
+  readHolderHistoryIn,
   readOperatorAuditHistory,
+  readOperatorAuditHistoryIn,
   recordAdministrationEvent,
+  UNREADABLE_ENTRY_MESSAGE,
   type AdministrationHistoryEntry,
 } from "./administration-audit";
 import { NO_CHANGE_RULE, type AdministrationEventRecord } from "./administration-events";
@@ -164,6 +167,37 @@ function assignment(overrides: Partial<AdministrationEventRecord> = {}): Adminis
   };
 }
 
+/** The target operator being invited — a provisioning event. */
+function invitation(overrides: Partial<AdministrationEventRecord> = {}): AdministrationEventRecord {
+  return {
+    action: "administration.operator.invited",
+    actorPersonId,
+    authority: { kind: "capability", capability: "role_management", roleCodes: ["it_officer"] },
+    target: { personId: targetPersonId, operatorAccountId: ACCOUNT },
+    operatingYear: OPERATING_YEAR,
+    toState: "invitation_pending",
+    detail: { personOrigin: "linked" },
+    ...overrides,
+  };
+}
+
+/** The target operator's email access being recovered — an email-recovery event. */
+function emailRehome(
+  overrides: Partial<AdministrationEventRecord> = {},
+): AdministrationEventRecord {
+  return {
+    action: "administration.operator.email_rehome_started",
+    actorPersonId,
+    authority: { kind: "capability", capability: "role_management", roleCodes: ["it_officer"] },
+    target: { personId: targetPersonId, operatorAccountId: ACCOUNT },
+    operatingYear: OPERATING_YEAR,
+    fromState: "active",
+    toState: "email_change_pending",
+    reason: "Lost access to the old mailbox.",
+    ...overrides,
+  };
+}
+
 beforeAll(async () => {
   observer = await openObserver();
   await observer.query(
@@ -259,7 +293,9 @@ describe("row 4 — one event, two projections, no duplicate records", () => {
     expect(await committedRows()).toHaveLength(2);
 
     const holderHistory = await readHolderHistory(administrator(), ROLE);
-    expect(holderHistory.map((entry) => entry.id).sort()).toEqual([ended.id, started.id].sort());
+    // Written in separate transactions, so the timestamps already order these.
+    // Newest first: the successor's assignment above the outgoing ending.
+    expect(holderHistory.map((entry) => entry.id)).toEqual([started.id, ended.id]);
     expect(holderHistory.every((entry) => entry.correlationId === correlationId)).toBe(true);
 
     // Each holder sees only their own half in their own history.
@@ -270,8 +306,107 @@ describe("row 4 — one event, two projections, no duplicate records", () => {
   });
 });
 
+describe("A1 — a pair written in ONE transaction still renders in a meaningful order", () => {
+  /**
+   * `occurred_at` defaults to `now()`, which is transaction time, so both rows
+   * of an atomic replacement carry the *same* timestamp and the old
+   * `occurred_at desc, id desc` ordering fell through to a random uuid.
+   *
+   * The loop is what makes this a regression test rather than a coin toss: the
+   * previous implementation had a one-in-two chance of rendering the right
+   * order on any single round, so eight independent rounds leave it a
+   * one-in-256 chance of passing by luck.
+   */
+  const ROUNDS = 8;
+
+  it("renders a replacement successor above the outgoing ending, every time", async () => {
+    const correlationId = "eeeeeeee-0000-4000-8000-000000000002";
+
+    for (let round = 0; round < ROUNDS; round += 1) {
+      await withTransaction(async (tx) => {
+        await recordAdministrationEvent(
+          tx,
+          assignment({
+            action: "administration.role.ended",
+            fromState: "held",
+            toState: "ended",
+            reason: "Replaced at the AGM.",
+            correlationId,
+          }),
+        );
+        await recordAdministrationEvent(
+          tx,
+          assignment({
+            target: { personId: otherPersonId, operatorAccountId: OTHER_ACCOUNT },
+            role: { id: ROLE, code: "kit_manager", assignmentId: SUCCESSOR_ASSIGNMENT },
+            correlationId,
+          }),
+        );
+      });
+
+      const history = await readHolderHistory(administrator(), ROLE);
+
+      // Both rows really do share one instant — otherwise the timestamp would
+      // be doing the ordering and this test would prove nothing.
+      expect(new Set(history.map((entry) => entry.occurredAt)).size).toBe(1);
+      expect(history.map((entry) => entry.action)).toEqual([
+        "administration.role.assigned",
+        "administration.role.ended",
+      ]);
+
+      await cleanUpEvents();
+    }
+  });
+
+  it("renders an initial role assignment above the invitation it was created with", async () => {
+    // The other pair `WP-invitation` must write atomically: create the account,
+    // then assign the first role. Same instant, same rule.
+    for (let round = 0; round < ROUNDS; round += 1) {
+      await withTransaction(async (tx) => {
+        await recordAdministrationEvent(tx, invitation());
+        await recordAdministrationEvent(tx, assignment());
+      });
+
+      const history = await readOperatorAuditHistory(administrator(), targetPersonId);
+
+      expect(new Set(history.map((entry) => entry.occurredAt)).size).toBe(1);
+      expect(history.map((entry) => entry.action)).toEqual([
+        "administration.role.assigned",
+        "administration.operator.invited",
+      ]);
+
+      await cleanUpEvents();
+    }
+  });
+
+  it("still orders by time first, so an ordering rule never outranks the clock", async () => {
+    // The tie-break must only break ties. An assignment made last year must not
+    // float above an ending recorded today just because of its position.
+    await write(assignment());
+    await write(
+      assignment({
+        action: "administration.role.ended",
+        fromState: "held",
+        toState: "ended",
+        reason: "Season over.",
+      }),
+    );
+
+    const history = await readHolderHistory(administrator(), ROLE);
+    expect(new Set(history.map((entry) => entry.occurredAt)).size).toBe(2);
+    expect(history.map((entry) => entry.action)).toEqual([
+      "administration.role.ended",
+      "administration.role.assigned",
+    ]);
+  });
+});
+
 describe("row 5 — Operator audit history shows target-affecting events", () => {
   it("includes every family of change affecting that operator", async () => {
+    // All four families the requirement names, each written and read back
+    // through Postgres — LAN-130 review finding A2. Two of them were only ever
+    // exercised as pure records before, so this test's name outran it.
+    await write(invitation());
     await write(assignment());
     await write(deactivation());
     await write(
@@ -282,13 +417,41 @@ describe("row 5 — Operator audit history shows target-affecting events", () =>
         reason: null,
       }),
     );
+    await write(emailRehome());
 
     const history = await readOperatorAuditHistory(administrator(), targetPersonId);
     expect(history.map((entry) => entry.family).sort()).toEqual([
       "account_state",
       "account_state",
+      "email_recovery",
+      "provisioning",
       "role_assignment",
     ]);
+  });
+
+  it("round-trips a provisioning event's own fields, not merely its family", async () => {
+    await write(invitation());
+
+    const [entry] = await readOperatorAuditHistory(administrator(), targetPersonId);
+    expect(entry.action).toBe("administration.operator.invited");
+    expect(entry.label).toBe("Operator invited");
+    expect(entry.fromState).toBeNull();
+    expect(entry.toState).toBe("invitation_pending");
+    expect(entry.detail).toEqual({ personOrigin: "linked" });
+    expect(entry.role).toBeNull();
+    expect(entry.unreadable).toBeNull();
+  });
+
+  it("round-trips an email-recovery event, including the reason it requires", async () => {
+    await write(emailRehome());
+
+    const [entry] = await readOperatorAuditHistory(administrator(), targetPersonId);
+    expect(entry.action).toBe("administration.operator.email_rehome_started");
+    expect(entry.family).toBe("email_recovery");
+    expect(entry.fromState).toBe("active");
+    expect(entry.toState).toBe("email_change_pending");
+    expect(entry.reason).toBe("Lost access to the old mailbox.");
+    expect(entry.unreadable).toBeNull();
   });
 
   it("excludes another operator's events entirely", async () => {
@@ -402,6 +565,152 @@ describe("row 10 — administration history is a privileged read", () => {
     if (!isServiceError(refusal)) return;
     expect(refusal.message).not.toContain(targetPersonId);
     expect(refusal.message).not.toContain("kit_manager");
+  });
+});
+
+describe("A6 — an event this version cannot read is a visible gap, not an absence", () => {
+  /** Writes a raw administration row carrying an envelope we cannot read. */
+  async function writeForeignEnvelope(envelope: Record<string, unknown>): Promise<string> {
+    const written = await withTransaction((tx) =>
+      recordAudit(tx, {
+        actorPersonId,
+        action: "administration.operator.deactivated",
+        entityTable: "public.operator_accounts",
+        entityId: ACCOUNT,
+        fromState: "active",
+        toState: "deactivated",
+        reason: "Written by a later version.",
+        context: { administration: envelope },
+      }),
+    );
+    return written.id;
+  }
+
+  it("keeps a newer-envelope row in the list and marks it", async () => {
+    await write(assignment());
+    const foreignId = await writeForeignEnvelope({
+      version: 2,
+      targetPersonId,
+      somethingThisVersionDoesNotKnow: true,
+    });
+
+    const history = await readOperatorAuditHistory(administrator(), targetPersonId);
+
+    // The old behaviour returned one entry here, and the reader had no way to
+    // know a second event existed.
+    expect(history).toHaveLength(2);
+    const marked = history.filter((entry) => entry.unreadable !== null);
+    expect(marked.map((entry) => entry.id)).toEqual([foreignId]);
+    expect(marked[0].unreadable).toEqual({
+      reason: "unsupported-envelope-version",
+      storedVersion: 2,
+      message: UNREADABLE_ENTRY_MESSAGE,
+    });
+  });
+
+  it("still tells the reader what kind of thing happened, when, and who did it", async () => {
+    await writeForeignEnvelope({ version: 99, targetPersonId });
+
+    const [entry] = await readOperatorAuditHistory(administrator(), targetPersonId);
+    expect(entry.action).toBe("administration.operator.deactivated");
+    expect(entry.label).toBe("Operator access deactivated");
+    expect(entry.family).toBe("account_state");
+    expect(entry.actor.personId).toBe(actorPersonId);
+    expect(entry.actor.name).toBe(`${MARKER} administrator`);
+    expect(entry.fromState).toBe("active");
+    expect(entry.toState).toBe("deactivated");
+    expect(entry.reason).toBe("Written by a later version.");
+    expect(entry.occurredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+
+    // And is honest about what it cannot say.
+    expect(entry.authority.roleCodes).toEqual([]);
+    expect(entry.role).toBeNull();
+    expect(entry.detail).toEqual({});
+    expect(entry.unreadable?.storedVersion).toBe(99);
+  });
+
+  it("marks a row whose envelope is absent or the wrong shape, rather than dropping it", async () => {
+    await writeForeignEnvelope({ targetPersonId });
+
+    const [absent] = await readOperatorAuditHistory(administrator(), targetPersonId);
+    expect(absent.unreadable).toEqual({
+      reason: "missing-envelope",
+      storedVersion: null,
+      message: UNREADABLE_ENTRY_MESSAGE,
+    });
+  });
+
+  it("leaves every event this version wrote unmarked", async () => {
+    await write(assignment());
+    await write(deactivation());
+    await write(invitation());
+    await write(emailRehome());
+
+    const history = await readOperatorAuditHistory(administrator(), targetPersonId);
+    expect(history).toHaveLength(4);
+    expect(history.every((entry) => entry.unreadable === null)).toBe(true);
+  });
+
+  it("does not let one unreadable row take the readable ones with it", async () => {
+    await write(assignment());
+    await writeForeignEnvelope({ version: 2, targetPersonId });
+    await write(deactivation());
+
+    const history = await readOperatorAuditHistory(administrator(), targetPersonId);
+    expect(history).toHaveLength(3);
+    expect(history.filter((entry) => entry.unreadable === null)).toHaveLength(2);
+  });
+});
+
+describe("A7 — the guard is pinned where it actually lives", () => {
+  it("refuses an unpermitted caller in the transaction-scoped reads themselves", async () => {
+    await write(assignment());
+
+    // Not through the wrapper. If a later refactor moves the guard up to
+    // `readOperatorAuditHistory`, these four calls become unguarded reads of
+    // administration history and this test is the only thing that notices.
+    await expect(
+      withTransaction((tx) => readOperatorAuditHistoryIn(tx, coach(), targetPersonId)),
+    ).rejects.toMatchObject({
+      kind: "not_permitted",
+      rule: `capability:${ADMINISTRATION_HISTORY_CAPABILITY}`,
+    });
+    await expect(
+      withTransaction((tx) => readHolderHistoryIn(tx, coach(), ROLE)),
+    ).rejects.toMatchObject({
+      kind: "not_permitted",
+      rule: `capability:${ADMINISTRATION_HISTORY_CAPABILITY}`,
+    });
+    await expect(
+      withTransaction((tx) => readOperatorAuditHistoryIn(tx, null, targetPersonId)),
+    ).rejects.toMatchObject({ kind: "not_permitted" });
+    await expect(
+      withTransaction((tx) => readHolderHistoryIn(tx, null, ROLE)),
+    ).rejects.toMatchObject({ kind: "not_permitted" });
+  });
+
+  it("validates the subject identifier in the transaction-scoped reads too", async () => {
+    await expect(
+      withTransaction((tx) => readOperatorAuditHistoryIn(tx, administrator(), "not-a-person")),
+    ).rejects.toMatchObject({ rule: "administration_history_operator_id_invalid" });
+    await expect(
+      withTransaction((tx) => readHolderHistoryIn(tx, administrator(), "not-a-role")),
+    ).rejects.toMatchObject({ rule: "administration_history_role_id_invalid" });
+  });
+
+  it("returns the same entries through the transaction-scoped read as through the wrapper", async () => {
+    await write(assignment());
+    await write(deactivation());
+
+    const throughWrapper = await readOperatorAuditHistory(administrator(), targetPersonId);
+    const throughTx = await withTransaction((tx) =>
+      readOperatorAuditHistoryIn(tx, administrator(), targetPersonId),
+    );
+    expect(throughTx).toEqual(throughWrapper);
+
+    const holderWrapper = await readHolderHistory(administrator(), ROLE);
+    const holderTx = await withTransaction((tx) => readHolderHistoryIn(tx, administrator(), ROLE));
+    expect(holderTx).toEqual(holderWrapper);
   });
 });
 

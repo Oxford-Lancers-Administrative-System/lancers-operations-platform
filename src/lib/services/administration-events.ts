@@ -150,6 +150,35 @@ export interface AdministrationEventDefinition {
    * administrative authority at all.
    */
   readonly selfAuthorityAllowed: boolean;
+  /**
+   * Causal position among administration events that share one instant. Lower
+   * happens first; a projection ordering newest-first renders the higher one
+   * above the lower one.
+   *
+   * `audit_events.occurred_at` defaults to `now()`, which is **transaction**
+   * time, not statement time. Two events written in one transaction therefore
+   * carry an identical timestamp, and a projection ordered on that column alone
+   * falls through to an arbitrary tie-break — which is not a cosmetic problem
+   * for a replacement: it renders the successor's assignment and the outgoing
+   * holder's ending in a random order, half of them implying that the successor
+   * was appointed before the seat was vacated.
+   *
+   * Two pairs are written in one transaction, and both are covered by one rule:
+   * **an assignment begins only after the account it hangs off exists, and only
+   * after any outgoing assignment has ended.** So a role assignment beginning
+   * sorts last within an instant, and everything else shares position 0 —
+   * `role.ended` before `role.assigned` in a replacement, and
+   * `operator.invited` before `role.assigned` in an invitation that carries an
+   * initial role.
+   *
+   * A later package that writes two events in one transaction whose order
+   * matters, and which this rule does not already separate, declares its
+   * position here. Events that genuinely happen at once — two holders assigned
+   * to one non-Office seat — share a position and fall back to a stable but
+   * arbitrary tie-break, which is the honest answer for facts with no order
+   * between them.
+   */
+  readonly instantOrder: number;
   /** Club-facing description, for the two history surfaces. */
   readonly label: string;
 }
@@ -189,6 +218,7 @@ export const ADMINISTRATION_EVENTS: Readonly<
     reasonRequired: false,
     selfActionForbidden: false,
     selfAuthorityAllowed: false,
+    instantOrder: 0,
     label: "Operator invited",
   }),
   "administration.operator.invitation_resent": definition({
@@ -199,6 +229,7 @@ export const ADMINISTRATION_EVENTS: Readonly<
     reasonRequired: false,
     selfActionForbidden: false,
     selfAuthorityAllowed: false,
+    instantOrder: 0,
     label: "Invitation resent",
   }),
   "administration.operator.invitation_corrected": definition({
@@ -209,6 +240,7 @@ export const ADMINISTRATION_EVENTS: Readonly<
     reasonRequired: false,
     selfActionForbidden: false,
     selfAuthorityAllowed: false,
+    instantOrder: 0,
     label: "Invitation corrected and resent",
   }),
   "administration.operator.invitation_delivery_failed": definition({
@@ -219,6 +251,7 @@ export const ADMINISTRATION_EVENTS: Readonly<
     reasonRequired: false,
     selfActionForbidden: false,
     selfAuthorityAllowed: false,
+    instantOrder: 0,
     label: "Invitation delivery failed",
   }),
   "administration.operator.activated": definition({
@@ -229,6 +262,7 @@ export const ADMINISTRATION_EVENTS: Readonly<
     reasonRequired: false,
     selfActionForbidden: false,
     selfAuthorityAllowed: true,
+    instantOrder: 0,
     label: "Operator activated their account",
   }),
   "administration.operator.deactivated": definition({
@@ -239,6 +273,7 @@ export const ADMINISTRATION_EVENTS: Readonly<
     reasonRequired: true,
     selfActionForbidden: true,
     selfAuthorityAllowed: false,
+    instantOrder: 0,
     label: "Operator access deactivated",
   }),
   "administration.operator.restored": definition({
@@ -249,6 +284,7 @@ export const ADMINISTRATION_EVENTS: Readonly<
     reasonRequired: false,
     selfActionForbidden: false,
     selfAuthorityAllowed: false,
+    instantOrder: 0,
     label: "Operator access restored",
   }),
   "administration.operator.email_rehome_started": definition({
@@ -259,6 +295,7 @@ export const ADMINISTRATION_EVENTS: Readonly<
     reasonRequired: true,
     selfActionForbidden: true,
     selfAuthorityAllowed: false,
+    instantOrder: 0,
     label: "Email access recovery started",
   }),
   "administration.operator.email_rehome_verified": definition({
@@ -269,6 +306,7 @@ export const ADMINISTRATION_EVENTS: Readonly<
     reasonRequired: false,
     selfActionForbidden: false,
     selfAuthorityAllowed: true,
+    instantOrder: 0,
     label: "Replacement email verified",
   }),
   "administration.operator.email_rehome_failed": definition({
@@ -279,6 +317,7 @@ export const ADMINISTRATION_EVENTS: Readonly<
     reasonRequired: false,
     selfActionForbidden: false,
     selfAuthorityAllowed: false,
+    instantOrder: 0,
     label: "Email access recovery attempt failed",
   }),
   "administration.role.assigned": definition({
@@ -289,6 +328,7 @@ export const ADMINISTRATION_EVENTS: Readonly<
     reasonRequired: false,
     selfActionForbidden: false,
     selfAuthorityAllowed: false,
+    instantOrder: 1,
     label: "Role assigned",
   }),
   "administration.role.ended": definition({
@@ -299,6 +339,7 @@ export const ADMINISTRATION_EVENTS: Readonly<
     reasonRequired: true,
     selfActionForbidden: true,
     selfAuthorityAllowed: false,
+    instantOrder: 0,
     label: "Role assignment ended",
   }),
 });

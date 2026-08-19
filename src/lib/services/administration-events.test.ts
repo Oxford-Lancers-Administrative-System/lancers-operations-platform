@@ -128,6 +128,36 @@ describe("row 1 — the vocabulary is a closed set", () => {
   });
 });
 
+describe("A1 — the causal position that breaks a same-instant tie", () => {
+  it("puts an assignment beginning after everything else that can share its instant", () => {
+    // The two pairs written in one transaction: a replacement, and an
+    // invitation that carries an initial role. In both, the assignment begins
+    // last, so a newest-first projection renders it above its partner.
+    const assigned = ADMINISTRATION_EVENTS["administration.role.assigned"].instantOrder;
+    expect(assigned).toBeGreaterThan(
+      ADMINISTRATION_EVENTS["administration.role.ended"].instantOrder,
+    );
+    expect(assigned).toBeGreaterThan(
+      ADMINISTRATION_EVENTS["administration.operator.invited"].instantOrder,
+    );
+  });
+
+  it("declares a position for every action, so the ordering is total", () => {
+    for (const action of ADMINISTRATION_ACTIONS) {
+      expect(Number.isInteger(ADMINISTRATION_EVENTS[action].instantOrder)).toBe(true);
+    }
+  });
+
+  it("keeps every action embeddable in the generated SQL case", () => {
+    // The projection builds its tie-break from these strings. A term with a
+    // quote in it would be a defect in the vocabulary, not something the query
+    // should escape and trust.
+    for (const action of ADMINISTRATION_ACTIONS) {
+      expect(action).toMatch(/^[a-z_.]+$/);
+    }
+  });
+});
+
 describe("row 7 — ordinary page views are excluded", () => {
   it("has no term for looking at something", () => {
     for (const action of ADMINISTRATION_ACTIONS) {
