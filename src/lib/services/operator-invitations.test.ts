@@ -22,17 +22,35 @@
  * captured — nothing leaves the machine, exactly as `docs/local-development.md`
  * documents for password recovery.
  *
- * ## What it deliberately does not stage
+ * ## The case this suite exists to protect, and how it was got wrong once
  *
- * "An IT Officer may not resend a pending **President** invitation." The
- * property is real and is enforced, but it cannot be staged end-to-end here:
- * the synthetic seed already has a current, open-ended President, and
- * `role_assignments_one_holder_per_office` — correctly — refuses a second
- * concurrent holder, so no pending President invitation can exist in this
- * database. It is proved instead in two halves that compose to the whole:
- * `readAdministrationSubject` puts a not-yet-started seat into the snapshot,
- * and `assertAdministrationTarget` refuses the resend for a snapshot containing
- * that seat. Both halves are below.
+ * "An IT Officer may not resend or redirect a pending **President**
+ * invitation." That is caller check 4 of this package's brief, and it is the
+ * hazard `administration-authority.ts` documents as the precondition
+ * `WP-invitation` must create or avoid: `resend_invitation` and
+ * `correct_invitation` are deliberately not role-scoped, so they are judged on
+ * the seats the target *holds* — and `correct_invitation` redirects a
+ * credential-establishing link to an address the administrator chooses.
+ *
+ * An earlier version of this file proved it in two halves and claimed they
+ * composed: `readAdministrationSubject` puts a not-yet-started seat into the
+ * snapshot when asked, and `assertAdministrationTarget` refuses a snapshot
+ * containing that seat. Independent review deleted the one line in
+ * `sendAgain` that *asks* for the scheduled snapshot — and all fifty tests
+ * still passed, because neither half asserted that `sendAgain` asks. The join
+ * was exactly where a defect would live, and it was the only part not covered.
+ *
+ * The same review also disproved the excuse. The header used to say the case
+ * "cannot be staged end-to-end here" because the synthetic seed has a current,
+ * open-ended President and `role_assignments_one_holder_per_office` refuses a
+ * second concurrent holder. That constraint is an obstacle, not a wall: the
+ * seat can be vacated inside the test and restored afterwards, which is what
+ * `vacateThePresidency()` below does. It is self-contained — one row, one
+ * column, restored in a `finally`, and the database suites run one file at a
+ * time since LAN-139, so nothing else can observe the gap.
+ *
+ * So the case is now staged whole, against real rows, and it is the test that
+ * fails if that line is ever removed again.
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -144,6 +162,14 @@ function operator(roleCodes: readonly string[]): ResolvedOperator {
 const administrator = () => operator(capabilityRoleCodes("role_management"));
 const itOfficer = () => operator(["it_officer"]);
 const secretary = () => operator(["secretary"]);
+/**
+ * The one seat that may administer the President — `REQ-final-admin-protection`.
+ *
+ * Named precisely rather than reusing `administrator()`, which holds every
+ * `role_management` seat at once and would therefore be permitted for the same
+ * reason without proving which rule permitted it.
+ */
+const generalManager = () => operator(["general_manager"]);
 
 async function insertPerson(tag: string): Promise<string> {
   const result = await observer.query<{ id: string }>(
@@ -735,6 +761,44 @@ describe("rows 11, 12, 13 — resend, correct, and when neither is offered", () 
     ).rejects.toMatchObject({ rule: EMAIL_ALREADY_HAS_LOGIN_RULE });
   });
 
+  it("refuses a correction onto an address held by a login outside this table", async () => {
+    // The one race the service's own `login_email` pre-check cannot close: an
+    // address held by an `auth.users` row that no `operator_accounts` row
+    // points at. GoTrue refuses the move, and it refuses it with a bare 500
+    // carrying no code and the message "Error updating user" — the same answer
+    // it gives for any failed update — which is why the sentence names both
+    // reachable causes instead of asserting one. LAN131-A2.
+    const admin = createAdminClient();
+    const dangling = uniqueAddress("dangling");
+    const created = await admin.auth.admin.createUser({
+      email: dangling,
+      email_confirm: false,
+    });
+    authUsers.add(created.data.user!.id);
+
+    const result = await inviteSomebody({ tag: "collides" });
+
+    await expect(
+      correctOperatorInvitation({
+        operator: administrator(),
+        operatorAccountId: result.operatorAccountId,
+        email: dangling,
+        callbackUrl: CALLBACK,
+        identity: identity(),
+      }),
+    ).rejects.toThrow(/nothing was saved/i);
+
+    // Nothing moved, on either side. A refusal that had already changed the
+    // address, or written an event saying it had, would be the defect.
+    const account = await withTransaction((tx) =>
+      readOperatorAccountIn(tx, result.operatorAccountId),
+    );
+    expect(account?.loginEmail).toBe(result.loginEmail);
+    expect(await auditActions(result.personId)).not.toContain(
+      "administration.operator.invitation_corrected",
+    );
+  });
+
   it("refuses both once the operator has established credentials", async () => {
     const result = await inviteSomebody();
     const account = await withTransaction((tx) =>
@@ -839,21 +903,110 @@ describe("row 17 — a pending invitation's seat reaches the guard", () => {
     expect(withScheduled.roleCodes).toEqual(["kit_manager"]);
   });
 
-  it("refuses a resend once that snapshot carries a protected seat", async () => {
-    // The composition of the two halves. `readAdministrationSubject` supplies a
-    // snapshot containing a seat the target does not yet occupy; the guard
-    // refuses the invitation actions on it. Staged as a snapshot rather than as
-    // rows because the seed already has a President and
-    // `role_assignments_one_holder_per_office` correctly refuses a second.
+  it("refuses the guard a snapshot that omits the pending seat", () => {
+    // The guard's own half, kept because it is what makes the end-to-end case
+    // below diagnosable: if that one fails, this says whether the rule changed
+    // or the snapshot did.
     const pendingPresident: AdministrationSubject = {
       personId: "00000000-0000-4000-8000-0000000131bb",
       roleCodes: ["president"],
     };
+    const noSeatYet: AdministrationSubject = { ...pendingPresident, roleCodes: [] };
 
     for (const action of ["resend_invitation", "correct_invitation"] as const) {
       expect(() =>
         assertAdministrationTarget(itOfficer(), { action, target: pendingPresident }),
       ).toThrow(/President/);
+
+      // And the reason the snapshot is load-bearing rather than incidental:
+      // with the seat missing, the very same call is permitted. Nothing else
+      // in the guard refuses it — `resend_invitation` and `correct_invitation`
+      // are not role-scoped, so the seats the target holds are the whole
+      // input, and an IT Officer clears the capability floor.
+      expect(() =>
+        assertAdministrationTarget(itOfficer(), { action, target: noSeatYet }),
+      ).not.toThrow();
+    }
+  });
+
+  it("refuses an IT Officer resending or redirecting a pending President invitation", async () => {
+    // The end-to-end case, staged against real rows — the one that fails if
+    // `sendAgain` stops asking for the scheduled snapshot.
+    //
+    // The seat is dated to begin in forty-five days, so it is deliberately
+    // *not* currently effective: this is the shape a handover recorded at an
+    // AGM actually takes, and it is the shape a "currently effective" snapshot
+    // cannot see.
+    const restorePresidency = await vacateThePresidency();
+    let invited: Awaited<ReturnType<typeof inviteOperator>> | null = null;
+
+    try {
+      invited = await inviteOperator({
+        operator: generalManager(),
+        subject: { kind: "new", givenName: MARKER, familyName: "president-elect" },
+        email: uniqueAddress("president-elect"),
+        roles: [{ roleCode: "president", effectiveFrom: futureDate(45) }],
+        callbackUrl: CALLBACK,
+        identity: identity(),
+      });
+      people.add(invited.personId);
+
+      // The precondition that makes this dangerous: today, they hold nothing.
+      const asOfToday = await withTransaction((tx) =>
+        readAdministrationSubject(tx, invited!.personId),
+      );
+      expect(asOfToday.roleCodes).toEqual([]);
+
+      const asItOfficer = {
+        operator: itOfficer(),
+        operatorAccountId: invited.operatorAccountId,
+        callbackUrl: CALLBACK,
+        identity: identity(),
+      };
+
+      // Redirecting the link is the sharp one: `correct_invitation` sends the
+      // credential-establishing link to an address the administrator chooses,
+      // so whoever may correct this invitation may take the presiding seat.
+      await expect(resendOperatorInvitation(asItOfficer)).rejects.toMatchObject({
+        kind: "not_permitted",
+      });
+      await expect(resendOperatorInvitation(asItOfficer)).rejects.toThrow(/President/);
+      await expect(
+        correctOperatorInvitation({ ...asItOfficer, email: uniqueAddress("redirected") }),
+      ).rejects.toMatchObject({ kind: "not_permitted" });
+      await expect(
+        correctOperatorInvitation({ ...asItOfficer, email: uniqueAddress("redirected") }),
+      ).rejects.toThrow(/President/);
+
+      // Nothing moved. A refusal that had already changed the address would be
+      // the whole defect wearing a refusal's clothes.
+      const account = await withTransaction((tx) =>
+        readOperatorAccountIn(tx, invited!.operatorAccountId),
+      );
+      expect(account?.loginEmail).toBe(invited.loginEmail);
+
+      // And the refusal is about the seat, not about invitations: the General
+      // Manager, who is the one role that may assign the President seat, may
+      // resend it. Without this the test would pass just as well if resend
+      // were broken for everybody.
+      const resent = await resendOperatorInvitation({
+        operator: generalManager(),
+        operatorAccountId: invited.operatorAccountId,
+        callbackUrl: CALLBACK,
+        identity: identity(),
+      });
+      expect(resent.delivered).toBe(true);
+    } finally {
+      // Order matters: the invited person's future-dated President assignment
+      // has to go before the seed's open-ended one is restored, or restoring
+      // it re-creates the overlap `role_assignments_one_holder_per_office`
+      // exists to refuse.
+      if (invited) {
+        await observer.query("delete from public.role_assignments where person_id = $1", [
+          invited.personId,
+        ]);
+      }
+      await restorePresidency();
     }
   });
 });
@@ -1051,6 +1204,60 @@ describe("the invitation email really arrives, and carries a usable link", () =>
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Empties the President seat for the duration of one test, and gives back the
+ * function that puts it back.
+ *
+ * The synthetic seed appoints a President from the current committee year with
+ * no end date, and `role_assignments_one_holder_per_office` refuses a second
+ * concurrent holder — correctly. An earlier version of this suite treated that
+ * as a reason the pending-President case could not be staged. It is not: the
+ * seat can be vacated and restored, which is all this does.
+ *
+ * It end-dates rather than deletes, so nothing is destroyed and the row keeps
+ * its identity and its history. `current_date` as the end date makes the range
+ * `[start, today)` — half-open, so it excludes today and cannot overlap an
+ * assignment beginning today or later.
+ *
+ * Safe to run here because LAN-139 serializes the database suites: one file
+ * runs at a time, so no other suite can observe the gap. The restore is in a
+ * `finally`, and it will refuse loudly rather than silently if the caller has
+ * left an overlapping assignment behind — which is exactly what it should do.
+ */
+async function vacateThePresidency(): Promise<() => Promise<void>> {
+  const sitting = await observer.query<{ id: string; effective_to: string | null }>(
+    `select ra.id, ra.effective_to::text as effective_to
+       from public.role_assignments ra
+       join public.roles r on r.id = ra.role_id
+      where r.code = 'president'
+        and ra.effective_from <= current_date
+        and (ra.effective_to is null or ra.effective_to > current_date)`,
+  );
+
+  // Read the end date before changing it, so the restore puts back what was
+  // there rather than what the seed is assumed to contain. There is exactly one
+  // sitting President — `role_assignments_one_holder_per_office` guarantees it
+  // — but the loop costs nothing and does not depend on that being true.
+  const previous = sitting.rows.map((row) => ({ id: row.id, effectiveTo: row.effective_to }));
+  expect(previous.length, "the seed should have a sitting President to vacate").toBe(1);
+
+  for (const row of previous) {
+    await observer.query(
+      "update public.role_assignments set effective_to = current_date where id = $1",
+      [row.id],
+    );
+  }
+
+  return async () => {
+    for (const row of previous) {
+      await observer.query(
+        "update public.role_assignments set effective_to = $2::date where id = $1",
+        [row.id, row.effectiveTo],
+      );
+    }
+  };
+}
 
 function futureDate(days: number): string {
   const date = new Date();
