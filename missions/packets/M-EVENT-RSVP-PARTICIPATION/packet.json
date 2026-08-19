@@ -1,0 +1,241 @@
+{
+  "packet_version": 1,
+  "mission_id": "M-EVENT-RSVP-PARTICIPATION",
+  "status": "not_ready",
+  "title": "Event RSVP and Participation Operations",
+  "objective": "Extend the existing Oxford Lancers Events workflow so authorized operators can approve a complete event and its audience, see and override a template-derived two-message RSVP plan, release individual WhatsApp invitations, monitor every invitation and response on the canonical event page, record attendance separately, and follow up with each problematic person once using upcoming RSVP issues plus recent RSVP and attendance context; players can complete required event questions and use a season-linked backup RSVP page without replacing the event-first WhatsApp interaction.",
+  "why_now": "The implemented vertical slice already has event creation, explicit audience approval, delivery diagnostics, private RSVP, attendance and the Monday report, but it does not yet provide the approved dynamic invitation schedule, required event questions, personal RSVP backup page, complete live event visibility or the live person-first participation queue needed for ordinary club operation.",
+  "non_goals": [
+    "No weekly RSVP bundle or digest; players receive and act on individual event invitations",
+    "No conversational or general-purpose WhatsApp bot, message search or natural-language RSVP management",
+    "No replacement of the current Material UI shell, event routes, delivery route, attendance model or Monday report",
+    "No public calendar subscription, external feed, bulk schedule-management or recurring-event implementation",
+    "No automatic disciplinary action, selection decision or opaque behavioral judgment derived from the attention queue",
+    "No broad analytics suite or final long-term problem-score model; only a transparent first operational ordering may be implemented after owner approval",
+    "No new injury, equipment, ownership, audience-after-approval, attendance-recorded-separately or no-response-reason concepts invented by the UI",
+    "No exposure of private RSVP reasons, follow-up answers, phone numbers or attendance context outside the approved operator capability boundary",
+    "No Mission Lead DAG, implementation work-package plan or execution before Brian merges an approved packet version"
+  ],
+  "sources": [
+    {
+      "id": "SRC-owner-intake",
+      "kind": "document",
+      "ref": "Mission intake conversation — Event RSVP and Participation Operations",
+      "version": "owner decisions through 2026-08-19; visual review explicitly incomplete"
+    },
+    {
+      "id": "SRC-design-review",
+      "kind": "document",
+      "ref": "https://lancers-comprehensive-design-review.schuster.chatgpt.site",
+      "version": "working review build published 2026-08-19; not owner-approved"
+    },
+    {
+      "id": "SRC-github-main",
+      "kind": "github",
+      "ref": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/tree/a6747a04d8c00024cfd65a774cdc06857bbc0d8c",
+      "version": "a6747a04d8c00024cfd65a774cdc06857bbc0d8c"
+    },
+    {
+      "id": "SRC-current-ux",
+      "kind": "github",
+      "ref": "docs/ux/slice-ux.md",
+      "version": "a6747a04d8c00024cfd65a774cdc06857bbc0d8c"
+    },
+    {
+      "id": "SRC-current-slice",
+      "kind": "github",
+      "ref": "docs/operating-the-slice.md",
+      "version": "a6747a04d8c00024cfd65a774cdc06857bbc0d8c"
+    },
+    {
+      "id": "SRC-event-route",
+      "kind": "github",
+      "ref": "src/app/operate/events/[id]/page.tsx",
+      "version": "a6747a04d8c00024cfd65a774cdc06857bbc0d8c"
+    },
+    {
+      "id": "SRC-delivery-route",
+      "kind": "github",
+      "ref": "src/app/operate/events/[id]/delivery/page.tsx",
+      "version": "a6747a04d8c00024cfd65a774cdc06857bbc0d8c"
+    },
+    {
+      "id": "SRC-attendance-route",
+      "kind": "github",
+      "ref": "src/app/operate/events/[id]/attendance/page.tsx",
+      "version": "a6747a04d8c00024cfd65a774cdc06857bbc0d8c"
+    },
+    {
+      "id": "SRC-report-route",
+      "kind": "github",
+      "ref": "src/app/operate/report/page.tsx",
+      "version": "a6747a04d8c00024cfd65a774cdc06857bbc0d8c"
+    },
+    {
+      "id": "SRC-player-rsvp-route",
+      "kind": "github",
+      "ref": "src/app/rsvp/[token]/page.tsx",
+      "version": "a6747a04d8c00024cfd65a774cdc06857bbc0d8c"
+    },
+    {
+      "id": "SRC-strategy-transcript",
+      "kind": "document",
+      "ref": "file_00000000ed70822f9f057d0db9ae60e7",
+      "version": "supporting discovery evidence available 2026-08-19"
+    },
+    {
+      "id": "SRC-football-discussion",
+      "kind": "document",
+      "ref": "file_00000000947481f78dde3cdc0edf14df",
+      "version": "supporting discovery evidence available 2026-08-19"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-current-app-integration",
+      "text": "Implementation extends the existing Material UI operator shell and route architecture. /operate/events remains the Events home; /operate/events/[id] remains the canonical event page across draft, approval, approved-and-queued, invitations-live and occurrence states. Delivery, attendance and report routes remain linked parts of the same application rather than isolated replacement pages.",
+      "source_id": "SRC-owner-intake"
+    },
+    {
+      "id": "REQ-event-type-defaults",
+      "text": "Each event type supplies reviewed default RSVP enablement, first-send offset, one follow-up offset, response deadline and event questions. Creating an event shows those defaults. Saving the event copies an explicit plan that is always visible on the event and can be overridden by an authorized operator without silently changing the event-type template.",
+      "source_id": "SRC-owner-intake"
+    },
+    {
+      "id": "REQ-two-message-sequence",
+      "text": "The normal RSVP sequence contains two individual event messages: the invitation and one follow-up to people who have not completed the required response. There is no weekly bundle. A short-notice event may collapse to one invitation when the follow-up cannot fit before the event.",
+      "source_id": "SRC-owner-intake"
+    },
+    {
+      "id": "REQ-approval-and-release",
+      "text": "RSVP invitation is enabled by default but event approval and invitation release remain separate controlled facts. Before approval, the operator sees the complete fixture, exact audience, actual RSVP page and questions, and exact invitation plan including the first send. Approval creates or queues the reviewed plan; it does not hide the event record or audience.",
+      "source_id": "SRC-owner-intake"
+    },
+    {
+      "id": "REQ-send-now-reanchor",
+      "text": "When an authorized operator sends the first invitation now instead of at its planned time, the remaining follow-up is recalculated relative to the new first-send anchor. A step that no longer fits before the event is visibly removed. The operator sees the resulting dates before confirming the change.",
+      "source_id": "SRC-owner-intake"
+    },
+    {
+      "id": "REQ-live-event-visibility",
+      "text": "After invitations begin, the canonical event page keeps full fixture details visible and prominently shows Invited, Yes, No, No answer and Incomplete counts plus the next automated send. The full audience is expanded by default and shows each person's role, invitation/delivery state, RSVP state, number of messages sent, attendance when available and authorized private decline/question detail. All, Players and Coaches filters update both the rows and heading/count.",
+      "source_id": "SRC-owner-intake"
+    },
+    {
+      "id": "REQ-neutral-state-vocabulary",
+      "text": "Visual state treatment uses semantic meaning rather than decorative red/green/yellow. Not sent and Not yet are neutral; successful delivery and completed response may be positive; failure, overdue and incomplete states receive distinct text and appropriate emphasis. Delivery and RSVP remain separate axes.",
+      "source_id": "SRC-owner-intake"
+    },
+    {
+      "id": "REQ-player-rsvp-completion",
+      "text": "The existing private /rsvp/[token] route remains the primary player web interaction reached from an individual WhatsApp invitation. Yes or No is recorded immediately. Event-specific follow-up questions are labelled Required or Optional and completed on the page, not in WhatsApp. A Yes with missing required answers is Incomplete, clearly says Finish your RSVP and remains eligible for the follow-up reminder until completed.",
+      "source_id": "SRC-owner-intake"
+    },
+    {
+      "id": "REQ-personal-rsvp-hub",
+      "text": "Each player has a season-linked private My RSVPs backup page showing outstanding, incomplete and completed event responses, with direct links to the existing event RSVP pages. It is a backup to the event-first WhatsApp flow, not a weekly bundle or replacement inbox. After an event response, the player is notified and linked here when other outstanding or incomplete RSVPs exist.",
+      "source_id": "SRC-owner-intake"
+    },
+    {
+      "id": "REQ-past-event-boundary",
+      "text": "Past events may appear only as recent RSVP and attendance context. A past event, including one where the player answered No, is never represented as an outstanding RSVP task. Only future-event No, nonresponse or incomplete states can create an upcoming RSVP action.",
+      "source_id": "SRC-owner-intake"
+    },
+    {
+      "id": "REQ-player-attention-queue",
+      "text": "The live Player attention view is available from Events and renders one row/card per person even when that person has multiple issues. It includes everyone who answered No to a relevant future event with their reason, people with future No response or Incomplete RSVPs, and people whose recent attendance history requires operator attention. The worst current problems sort first; phone number is immediately available for tap-to-call; upcoming issues lead and recent RSVP/attendance history is supporting context.",
+      "source_id": "SRC-owner-intake"
+    },
+    {
+      "id": "REQ-attendance-separation-and-context",
+      "text": "Attendance remains an observation recorded after an event occurs and never rewrites RSVP. The existing attendance board continues to show standing RSVP alongside attendance controls. Event visibility and Player attention may compare RSVP with attendance, while private decline reasons remain outside the coach attendance surface.",
+      "source_id": "SRC-current-ux"
+    },
+    {
+      "id": "REQ-report-separation",
+      "text": "The existing /operate/report Monday report remains an immutable stored snapshot with last-week event outcomes and RSVP-versus-attendance history. It is not replaced by the live Player attention queue, and the live queue is not constrained to the report's snapshot date.",
+      "source_id": "SRC-report-route"
+    },
+    {
+      "id": "REQ-privacy-capability-boundary",
+      "text": "The player RSVP and personal hub remain signed-link, no-login, non-indexed private surfaces that expose no peer responses. Operator pages enforce capabilities before reading private reasons, follow-up answers, phone numbers or attendance context. Coach attendance remains narrow and cannot inherit operator follow-up visibility merely because the data appears elsewhere.",
+      "source_id": "SRC-current-ux"
+    },
+    {
+      "id": "REQ-final-visual-evidence",
+      "text": "Before mission approval, the comprehensive prototype must be reconciled with every locked requirement, committed as repository-native code, and accepted at desktop and 375px. The final review must demonstrate the current shell and route context, direct access to all pages, full event details, editable per-event plan, large response totals, complete invitee visibility, the player RSVP completion flow, personal hub and Player attention queue.",
+      "source_id": "SRC-design-review"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-event-first-whatsapp",
+      "text": "Locked by Brian on 2026-08-19: individual event interaction over WhatsApp is primary; the web page completes the RSVP and a personal page is backup. No weekly bundle."
+    },
+    {
+      "id": "DEC-two-messages",
+      "text": "Locked by Brian on 2026-08-19: the first version uses two event messages, not an open-ended reminder series."
+    },
+    {
+      "id": "DEC-current-app-is-authority",
+      "text": "Locked by Brian on 2026-08-19: design must be a comprehensive extension of the current application. Isolated pages and a replacement visual shell are rejected."
+    },
+    {
+      "id": "DEC-canonical-event-page",
+      "text": "Locked direction: the event route retains full fixture context and becomes the place to see the reviewed plan, next send, response totals, full audience, message activity and attendance context."
+    },
+    {
+      "id": "DEC-template-copy-and-override",
+      "text": "Locked by Brian on 2026-08-19: event type produces defaults, but every event shows its plan and permits an individual override."
+    },
+    {
+      "id": "DEC-visual-review-open",
+      "text": "Locked process decision on 2026-08-19: prepare the pull request as a draft now; visual review remains unfinished and the mission remains not_ready."
+    }
+  ],
+  "baseline": {
+    "branch": "main",
+    "commit": "a6747a04d8c00024cfd65a774cdc06857bbc0d8c"
+  },
+  "gates": {
+    "owner": [
+      "Brian completes and explicitly approves the desktop and 375px visual review for every modified and new surface",
+      "Brian confirms the exact event-type invitation offsets and response deadlines",
+      "Brian confirms the first transparent Player-attention ordering rules and recent-history window",
+      "Brian confirms final event-type-default editor placement and private-answer visibility roles",
+      "Brian merges the final approved packet version"
+    ],
+    "external": [
+      "Production WhatsApp sending still depends on the approved Meta/WABA phone, template and credential configuration; implementation may use the existing provider boundary but cannot manufacture external approval"
+    ]
+  },
+  "merge_envelope": {
+    "auto_merge_classes": [
+      "standard-application"
+    ],
+    "owner_gated": [
+      "schema-migration",
+      "rls-auth-security",
+      "secrets-credentials",
+      "deployment-production-data",
+      "whatsapp-external-configuration",
+      "highest-risk",
+      "visual-without-approval"
+    ]
+  },
+  "completion_evidence": [
+    "The final repository-native comprehensive prototype and acceptance record show every existing, modified and new route at desktop and 375px and carry Brian's explicit visual approval",
+    "An authorized operator can create or edit an event, inspect template-derived RSVP defaults, confirm the exact audience, approve the event and either queue the first invitation or send it now after seeing the recalculated two-message plan",
+    "The canonical event page shows full fixture details, prominent response totals, next automated send, full invitee list, delivery, RSVP, messages sent and attendance without hiding those details behind default collapses",
+    "A player can save Yes or No from a private event link, see Required versus Optional questions, remain Incomplete after Yes when required answers are missing, finish the RSVP later and find the same task from the season-linked My RSVPs page",
+    "The live Player attention view shows each problematic person once, leads with upcoming No, No response or Incomplete items, includes reasons where authorized, supplies recent RSVP and attendance context, sorts by the approved transparent rule and provides a tap-to-call phone action",
+    "Past completed No responses never appear as outstanding tasks, attendance remains separate from RSVP, coach access remains narrow, and the Monday report remains an immutable snapshot",
+    "Automated tests cover schedule clamping/re-anchoring, required-question completeness, token/privacy boundaries, person-level queue deduplication, authorized private-detail reads, event-state transitions and RSVP/attendance separation",
+    "The full repository verification suite passes at the final implementation SHA and production-bound external configuration remains owner-gated"
+  ],
+  "approval": {
+    "approved_by": "Brian Schuster — draft preparation only",
+    "date": "2026-08-19",
+    "evidence": "Brian instructed the intake agent to prepare the pull request and keep it in draft because visual review is unfinished; this is not mission approval, and status remains not_ready."
+  }
+}
