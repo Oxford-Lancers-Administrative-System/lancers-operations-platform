@@ -72,6 +72,22 @@ beforeAll(async () => {
  * Dependency order. Attendance and responses hang off the event and the
  * invitations; the walk-up people this suite mints are deleted last, and only
  * the ones it minted — they carry the marker in their family name.
+ *
+ * The audit rows go **before** the attendance they describe, and are scoped to
+ * this suite's own events. Both halves matter, and one of them was wrong: the
+ * attendance clause used to read `or (entity_table = 'attendance_records')`
+ * with no scope at all, so every run of this hook deleted every attendance
+ * audit row in the database — including rows another suite had written seconds
+ * earlier and was about to assert on. Vitest runs files in parallel against one
+ * shared database, so that is not a hypothetical: `tests/slice-walkthrough.test.ts`
+ * counts the four audit rows its coach writes, and would intermittently find
+ * one, two or three of them, on CI and locally, for a reason nowhere near the
+ * code under test.
+ *
+ * It could not simply be scoped where it stood, because by then the attendance
+ * rows it would have keyed on were already deleted. Deleting the audit first,
+ * as `tests/pilot-scenario-lan-80.test.ts` and `-110` already do, is what makes
+ * the scope expressible at all.
  */
 afterEach(async () => {
   const scope = `${NAME_MARKER}%`;
@@ -82,6 +98,14 @@ afterEach(async () => {
     [scope],
   );
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
+  await observer.query(
+    `delete from public.audit_events
+      where (entity_table = 'events' and entity_id in ${events})
+         or (entity_table = 'attendance_records'
+             and entity_id in (select id from public.attendance_records
+                                where event_id in ${events}))`,
+    [scope],
+  );
   await observer.query(`delete from public.attendance_records where event_id in ${events}`, [
     scope,
   ]);
@@ -89,12 +113,6 @@ afterEach(async () => {
   await observer.query(`delete from public.event_audience_members where event_id in ${events}`, [
     scope,
   ]);
-  await observer.query(
-    `delete from public.audit_events
-      where (entity_table = 'events' and entity_id in ${events})
-         or (entity_table = 'attendance_records')`,
-    [scope],
-  );
   await observer.query("delete from public.events where name like $1", [scope]);
   await observer.query(
     "delete from public.contact_points where person_id in (select id from public.people where family_name = $1)",
