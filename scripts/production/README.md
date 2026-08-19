@@ -12,6 +12,122 @@ near production. A procedure that legitimately needs the hosted database is
 therefore a separate, deliberately awkward thing that names its target out loud,
 rather than a flag on a tool used every day.
 
+## `bootstrap-founding-operators.mjs` and `bootstrap/`
+
+The one-time founding-operator bootstrap — LAN-135. It gives the club its first
+three administrators: Clint as active-year President, Stewart as standing
+General Manager, and Brian as standing IT Officer.
+
+It exists because of a genuine chicken-and-egg. Every administration path in the
+application asks who is asking, and until this has run the honest answer is
+"nobody" — so nobody can invite the first administrator through the
+application. **After it has run, every further change is made in the
+application, and a manual SQL provisioning touch is a defect.**
+
+### Before you run it
+
+Four things have to be true, in this order.
+
+1. **The four migrations awaiting hosted are applied.** In particular
+   `20260819090000_role_catalogue_structure.sql` and
+   `20260819090100_role_catalogue.sql` — until they are, hosted has **no roles
+   at all** and the script refuses with `role_not_in_catalogue`. The procedure
+   is [`docs/migration-runbook.md`](../../docs/migration-runbook.md); applying
+   one is your action and no agent's.
+2. **The club has exactly one committee year running.** The script refuses on
+   none and on more than one rather than guessing which an appointment belongs
+   to.
+3. **The deployed application's invitation callback is allow-listed** in the
+   Supabase dashboard — the `/auth/invitation` path on the application's public
+   origin. Without it the invited operator lands on the sign-in page holding a
+   token nothing consumes.
+4. **You have written the manifest**, outside this repository.
+
+### The manifest
+
+A JSON file you write yourself, in a directory this repository does not reach,
+and delete afterwards. It carries real names and personal email addresses, so it
+is never committed, never pasted into a ticket, a pull request or a prompt, and
+never passed on the command line where shell history would keep it.
+
+```json
+{
+  "operators": [
+    { "roleCode": "president", "givenName": "…", "familyName": "…", "email": "…" },
+    { "roleCode": "general_manager", "givenName": "…", "familyName": "…", "email": "…" },
+    { "roleCode": "it_officer", "givenName": "…", "familyName": "…", "email": "…" }
+  ]
+}
+```
+
+All three seats must be present; further seats from the approved catalogue are
+allowed. `knownAs` is optional. `personId` is optional and is how you resolve a
+duplicate: omit it and the script looks for a Person who might already be this
+person, **refusing the run** and printing the candidates if it finds any; set it
+to a Person's UUID to link to that record, or to `"new"` to create a fresh one
+anyway. The script never chooses for you.
+
+### Running it
+
+A rehearsal against your local stack needs no confirmation, because the loopback
+check refuses anything else:
+
+```bash
+node scripts/production/bootstrap-founding-operators.mjs --manifest ~/founding-operators.json
+```
+
+The hosted run, in two steps. **Always the dry run first** — it is the default,
+and it writes nothing:
+
+```bash
+DATABASE_URL="$(gcloud secrets versions access latest --secret=database-url)" SUPABASE_URL="https://fggbgeraiadetyiyjlvb.supabase.co" SUPABASE_SECRET_KEY="$(gcloud secrets versions access latest --secret=supabase-secret-key)" node scripts/production/bootstrap-founding-operators.mjs --manifest ~/founding-operators.json --app-base-url https://<the application origin> --confirm-target fggbgeraiadetyiyjlvb
+```
+
+Read the preview. For each of the three seats it says exactly one of `create` /
+`link` / `already` for the Person, `create` / `already` for the login, and
+`assign` / `already` for the seat — plus whether an email will be sent. It ends
+with either `N record(s) would be created` or a `REFUSED` block naming every
+conflict. **The preview contains personal names and addresses; it is for your
+terminal only.**
+
+When the preview is what you expect, add `--apply` to the same command. Nothing
+else changes.
+
+### What it refuses, and why that is the point
+
+It refuses the **whole run** if anything at all conflicts — one bad entry stops
+the other two. A half-applied bootstrap is the worst state it could leave the
+club in: some seats filled, some not, and a human reconciling by hand, which is
+the thing this whole mission abolishes. Re-running after a fix is free, because
+every step is idempotent.
+
+The refusals you may actually meet:
+
+| Refusal                               | What it means                                                                          |
+| ------------------------------------- | -------------------------------------------------------------------------------------- |
+| `role_not_in_catalogue`               | the catalogue migrations are not applied yet                                           |
+| `no_operating_cycle`                  | no committee year is running, or more than one is                                      |
+| `person_duplicate_candidates`         | somebody in `people` might already be this person — pin `personId`, or say `"new"`     |
+| `auth_login_without_operator_account` | a Supabase Auth login exists that nothing points at; remove it, or use another address |
+| `seat_already_held`                   | a single-holder seat is taken; ending an appointment is a decision, made in the app    |
+| `operator_account_deactivated`        | the account exists and was deactivated; reinstatement is a decision, made in the app   |
+
+### Afterwards
+
+Three invitation emails go out, each landing on the password screen. The three
+holders choose a password and are active operators; from that moment the
+application is the way roles and access change. Re-running the script is safe
+and does nothing, and it sends no second email unless you pass `--resend`.
+
+If a send fails, the operators still exist — correctly — and are recorded as
+_Delivery failed_ with the reason. Fix the mail configuration and re-run with
+`--apply --resend`.
+
+`tests/production-bootstrap-contract.test.ts` proves all of the above against
+**local** Supabase, including that the dry run writes nothing, that a second run
+changes nothing, that a refused run leaves the database untouched, and that the
+audit evidence it writes is read back by the application's own history screens.
+
 ## `showcase.mjs` and `showcase/`
 
 The Monday showcase loader — LAN-124. Reads the club's two workbooks and loads a
