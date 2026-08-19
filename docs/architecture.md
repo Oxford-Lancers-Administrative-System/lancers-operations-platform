@@ -268,9 +268,10 @@ An operator with no currently-effective seat is still a legitimate operator: the
 open the shell, and are refused each privileged action individually.
 
 **One actor is narrowed rather than granted** (LAN-110). An operator whose only
-capability-bearing seat is a coaching one — Head Coach, Offensive Coordinator,
-Defensive Coordinator — receives the occurred-event attendance surface and
-nothing else, per `docs/ux/slice-ux.md` § 3. That cannot be expressed as a
+capability-bearing seat is a coaching one — any of the ten fixed coaching seats
+since LAN-129 widened the grant from the original three — receives the
+occurred-event attendance surface and nothing else, per
+`docs/ux/slice-ux.md` § 3. That cannot be expressed as a
 capability, because the surfaces being withheld (Roster, the event detail) are
 open to any linked operator and so have no capability to fail. It is derived
 instead, in the same module: `isNarrowAttendanceRecorder()` is true when the
@@ -327,6 +328,16 @@ and can only ever narrow it:
 
 The role codes all four rules read stay in `capabilities.ts`, so exactly one
 module in `src/` names a `roles.code`; the rules themselves name none.
+
+**Every fixed coaching seat is invitable** (LAN-129). `COACH_ROLE_CODES` decides
+who the club offers under **All active coaches** when an event audience is
+built, and it is now the same ten seats that carry the coaching capability —
+Brian, 19 August 2026: "Every coach needs to be invited to coaching sessions."
+It briefly was not: the capability grant widened to ten while the audience
+stayed at three, so the seven seats the catalogue added could take a register at
+a session they were never invited to. Capacity is still never inferred from a
+role's _scope_ — a season-scoped seat that is not a coaching one is not offered
+at all, rather than silently invited as a coach.
 
 **The role catalogue is migrated** (LAN-128). `public.roles`, `public.role_aliases`
 and `public.role_groups` are created and populated by

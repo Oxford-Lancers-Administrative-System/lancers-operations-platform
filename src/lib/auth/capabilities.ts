@@ -847,25 +847,50 @@ export function describeHeldCoachingSeats(roleCodes: readonly string[]): string 
  * module against the real seeded `public.roles`, so a typo fails a test rather
  * than silently emptying the coaching group.
  *
- * ## Why this is three seats while `FIXED_COACHING_ROLE_CODES` is ten
+ * ## Why this is the same list as `FIXED_COACHING_ROLE_CODES`, and not by accident
  *
- * They answer different questions, and only one of them is LAN-129's. This one
- * decides **who the club invites to a practice under "All active coaches"** —
- * real messages to real phones. Widening it would put seven more people on
- * every coaching audience, which is a change to who the club contacts rather
- * than to who may do what, and no approved source in this mission asks for it:
- * `REQ-coach-operator-onboarding` is about onboarding coaches as *operators*.
+ * The two answer different questions. `FIXED_COACHING_ROLE_CODES` is the
+ * catalogue's Coaching Staff group, and it is what the attendance capabilities
+ * are granted to; this one decides **who the club invites to a practice under
+ * "All active coaches"** — real messages to real phones.
  *
- * Leaving it is the fail-closed direction this note already argued for. A
- * season-scoped seat that is not listed here is not offered at all, so the
- * seven are uninvitable as coaches rather than wrongly invited as them. That is
- * a real gap and it is recorded on LAN-129 rather than closed in passing.
+ * They gave different answers for one round. LAN-129 widened the capability
+ * grant to all ten fixed coaching seats and deliberately left this at three,
+ * because widening it changes who the club *contacts* rather than who may do
+ * what, and no source then in front of the mission asked for it. That left the
+ * seven new seats able to take a register and never invited to the session they
+ * would take it at, which was flagged as a gap rather than closed in passing.
+ *
+ * Brian answered it on 19 August 2026: "Every coach needs to be invited to
+ * coaching sessions. Coaches should be an audience that's included, which
+ * includes all the coaches." So the audience group **is** the coaching staff,
+ * and the two lists are one list — expressed by aliasing rather than by
+ * retyping ten codes, so that they cannot drift apart while nobody is looking.
+ *
+ * ## What would split them again
+ *
+ * A decision that some coaching seat should hold the attendance capability and
+ * not be invited, or be invited and hold nothing. Neither exists. If one is
+ * ever taken, this becomes its own literal list again and that edit is the
+ * record of the decision — which is why the two names survive rather than being
+ * collapsed into one. A caller asking "who coaches, for the purpose of
+ * inviting people" is asking a different question from one asking "which seats
+ * carry the coaching grant", and the code should keep letting them ask it.
+ *
+ * ## What this does *not* become
+ *
+ * A general audience model. Brian has sketched a wider one — all players, all
+ * coaches, recruits invitable only to recruitment events behind a guard,
+ * council and standing seats — and it is explicitly not approved scope. No new
+ * group, no recruit gating and no council group is added here.
+ *
+ * The fail-closed property is unchanged and still matters: a season-scoped seat
+ * that is not in this list is not offered *at all*, rather than taking the
+ * coach capacity because of where it hangs. A team manager or a season-scoped
+ * physio would still be uninvitable rather than silently invited as a coach,
+ * and `src/lib/services/event-approval.test.ts` proves it against a real row.
  */
-export const COACH_ROLE_CODES: readonly string[] = Object.freeze([
-  "head_coach",
-  "offence_coach",
-  "defence_coach",
-]);
+export const COACH_ROLE_CODES: readonly string[] = FIXED_COACHING_ROLE_CODES;
 
 /** Every capability key, for tests and for exhaustive iteration. */
 export const CAPABILITY_KEYS: readonly CapabilityKey[] = Object.freeze(

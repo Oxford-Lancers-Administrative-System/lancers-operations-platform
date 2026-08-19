@@ -38,11 +38,12 @@ import {
 } from "./capabilities";
 
 /**
- * The three coaching seats Brian decided on 12 August 2026, which are still the
- * three the **audience** catalogue calls coaches (`COACH_ROLE_CODES`).
+ * The three coaching seats Brian decided on 12 August 2026 — the ones that held
+ * the attendance grant before the catalogue grew to ten.
  *
- * Kept separate from the ten below because the two are different questions and
- * LAN-129 moved only one of them. See `COACH_ROLE_CODES`' own note.
+ * Kept as its own list because several assertions below are about what the
+ * catalogue *added*, and that difference is only expressible against the
+ * original three.
  */
 const COACHES = ["head_coach", "offence_coach", "defence_coach"];
 
@@ -1069,17 +1070,41 @@ describe("LAN-129 — the ten fixed coaching seats", () => {
     expect([...FIXED_COACHING_ROLE_CODES].sort()).toEqual([...FIXED_COACHES].sort());
   });
 
-  it("is not the audience catalogue, which LAN-129 deliberately left at three", () => {
-    // Two different questions. COACH_ROLE_CODES decides who the club *invites*
-    // under "All active coaches" — real messages to real people — and no
-    // approved source in this mission asks to widen it. Asserted so that the
-    // divergence is a recorded decision rather than something a later reader
-    // "tidies up".
-    expect([...COACH_ROLE_CODES].sort()).toEqual([...COACHES].sort());
-    expect(COACH_ROLE_CODES.length).toBeLessThan(FIXED_COACHING_ROLE_CODES.length);
-    for (const code of COACH_ROLE_CODES) {
-      expect(FIXED_COACHING_ROLE_CODES).toContain(code);
+  it("is also the audience catalogue, by Brian's decision and not by accident", () => {
+    // These two constants answer different questions and gave different answers
+    // for one round: LAN-129 widened the capability grant to ten and left the
+    // audience at three, because widening the audience changes who the club
+    // *contacts*. Brian answered it on 19 August 2026 — "Every coach needs to
+    // be invited to coaching sessions ... which includes all the coaches" — so
+    // the audience group is the coaching staff.
+    //
+    // Asserted as an exact set on both sides rather than as an identity, so
+    // that it still means something if a later decision splits them back into
+    // two literal lists.
+    expect([...COACH_ROLE_CODES].sort()).toEqual([...FIXED_COACHES].sort());
+    expect([...FIXED_COACHING_ROLE_CODES].sort()).toEqual([...FIXED_COACHES].sort());
+    expect(COACH_ROLE_CODES).toHaveLength(10);
+  });
+
+  it("invites the seven seats the catalogue added, which were uninvitable before", () => {
+    // The whole content of Brian's answer, seat by seat. Before it, a
+    // Quarterbacks Coach could take a register at a session they were never
+    // invited to.
+    for (const code of COACHES_ADDED_BY_THE_CATALOGUE) {
+      expect(COACH_ROLE_CODES, code).toContain(code);
     }
+  });
+
+  it("still offers no season-scoped seat that is not a coaching one", () => {
+    // The fail-closed property the audience group has always had, and which
+    // widening must not have cost: capacity is never inferred from a role's
+    // scope. A team manager or a season-scoped physio is uninvitable rather
+    // than silently invited as a coach. Proved against a real row in
+    // src/lib/services/event-approval.test.ts; asserted here as the rule.
+    for (const code of ["lan120_team_manager", "team_manager", "physio"]) {
+      expect(COACH_ROLE_CODES, code).not.toContain(code);
+    }
+    expect(COACH_ROLE_CODES.every((code) => CATALOGUE.includes(code))).toBe(true);
   });
 
   it("holds the narrow attendance pair and nothing else, in any capability", () => {
