@@ -512,6 +512,56 @@ describe("mission harness v1", () => {
     expect(missionBody).toMatch(/Interrupt Brian immediately only for/i);
   });
 
+  it("reconciles intake-created owner actions from Linear without a second ledger", () => {
+    expect(missionBody).toMatch(
+      /At every start or resume, and again at each normal checkpoint, query Linear/i,
+    );
+    expect(missionBody).toMatch(/carry the `owner-action` label and reference this mission/i);
+    expect(missionBody).toMatch(
+      /never create a replacement issue or a second owner-action ledger/i,
+    );
+    expect(missionBody).toMatch(
+      /requirement, acceptance criterion, external gate, or verification package/i,
+    );
+    expect(missionBody).toMatch(
+      /Existing missions with no matching issues proceed exactly as before/i,
+    );
+  });
+
+  it("interprets owner-action status while blocking only dependent work", () => {
+    for (const status of ["Backlog", "Todo", "In Progress", "Done"])
+      expect(missionBody).toContain(`\`${status}\``);
+    expect(missionBody).toMatch(/blocks only the package, gate, or acceptance verification/i);
+    expect(missionBody).toMatch(/Continue every unrelated executable package/i);
+    expect(missionBody).toMatch(/`Done` never satisfies its linked requirement/i);
+    expect(missionBody).toMatch(/Only successful agent verification may satisfy/i);
+  });
+
+  it("reports owner actions separately from routine checkpoint questions", () => {
+    for (const group of [
+      "Ready for Brian",
+      "Waiting on prerequisites",
+      "Brian acted; verification pending",
+    ])
+      expect(missionBody).toContain(group);
+    expect(missionBody).toMatch(/Linear issue and status, required outcome/i);
+    expect(missionBody).toMatch(
+      /remaining human action.*remaining agent verification.*next actor/i,
+    );
+    expect(missionBody).toMatch(/Never put routine owner questions or scheduled check-in items/i);
+  });
+
+  it("distinguishes implementation completion from verified acceptance", () => {
+    expect(missionBody).toContain("Fully accepted");
+    expect(missionBody).toContain("Implementation complete; acceptance pending");
+    expect(missionBody).toContain("Incomplete");
+    expect(missionBody).toMatch(
+      /Code merged, packages completed.*is not by itself full acceptance/i,
+    );
+    expect(missionBody).toMatch(/structured Acceptance pending section/i);
+    expect(missionBody).toMatch(/not a new packet or journal schema/i);
+  });
+
   it("merges only through the guarded lane, which fails closed", () => {
     expect(missionBody).toMatch(/Never run `gh pr merge`, `gh pr ready`, or any direct merge/i);
     expect(missionBody).toMatch(/mission-merge-receipt/);

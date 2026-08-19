@@ -74,6 +74,29 @@ proposed rule, and it becomes reusable across missions only after this
 explicit approval (`promote-rule`). A promoted rule means that class of
 question is never asked again.
 
+### Asynchronous owner actions are separate
+
+Mission Intake may have created Linear issues labelled `owner-action` for
+meaningful human work Brian must do outside the mission conversation. On every
+start, resume and checkpoint, the Mission Lead reconciles matching issues that
+reference the mission and connects each to its named requirement, acceptance
+criterion, external gate or verification package. Linear is the durable source;
+the mission does not create a second owner-action ledger.
+
+These issues are not ordinary checkpoint questions. `Backlog` means an external
+prerequisite has not cleared; `Todo` means Brian can act; `In Progress` means he
+is acting; and `Done` means only that his human step is complete. Open actions
+block only dependent work or verification, never unrelated packages. After an
+action reaches `Done`, its linked agent verification becomes ready or visibly
+pending; only successful verification with recorded evidence can satisfy the
+criterion.
+
+Each checkpoint reports owner actions separately as **Ready for Brian**,
+**Waiting on prerequisites**, or **Brian acted; verification pending**, naming
+the Linear issue, required outcome, linked criterion or gate, remaining human
+and agent work, and next actor. Questions Brian can answer in the conversation
+remain in **Need from Brian** and never enter the owner-action section.
+
 **Visual review is unchanged from ADR 0020.** UI-affecting packages wait
 for Brian to open a live, protected `review-ready` environment — normally at
 a checkpoint — with one URL, the fixed login, and zero commands. His
@@ -162,6 +185,15 @@ Agents cannot change live GitHub settings, so Brian performs these once:
    on `main` stays exactly as it is — it is the gate both lanes depend on.
 
 ## Readiness and its evidence
+
+Mission closeout reports one of three states: **Fully accepted** when both
+implementation and all required acceptance verification have recorded evidence;
+**Implementation complete; acceptance pending** when code work is complete but
+an owner action, external prerequisite or subsequent agent verification remains;
+or **Incomplete** while required implementation remains. A merge, completed work
+package, stopped worker, or `Done` owner-action issue cannot independently prove
+acceptance. An acceptance-pending receipt enumerates each affected criterion,
+linked owner-action issue, remaining verification and next actor.
 
 Mission Harness v1 is validated by deterministic synthetic rehearsals only —
 `tests/mission-rehearsals.test.ts` maps each numbered readiness criterion
