@@ -16,6 +16,7 @@ import {
   type WalkUpInput,
 } from "./attendance-vocabulary";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
+import { personDisplayNameSql as displayName } from "./sql-text";
 
 /**
  * Attendance — locked Requirement 7, invariants P5, P6 and P8. LAN-80.
@@ -116,17 +117,6 @@ export interface AttendanceBoard {
   recordedCount: number;
   walkUpCount: number;
   mismatchCount: number;
-}
-
-/** The display-name expression, written once because four queries need it. */
-function displayName(alias: string): string {
-  return `case
-            when ${alias}.id is null then null
-            when ${alias}.family_name is null
-              then coalesce(nullif(btrim(${alias}.known_as), ''), ${alias}.given_name)
-            else coalesce(nullif(btrim(${alias}.known_as), ''), ${alias}.given_name)
-                 || ' ' || ${alias}.family_name
-          end`;
 }
 
 interface ParticipantRow {

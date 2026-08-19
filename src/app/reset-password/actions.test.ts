@@ -32,6 +32,15 @@ vi.mock("server-only", () => ({}));
 const { activateOperatorAccount } = vi.hoisted(() => ({ activateOperatorAccount: vi.fn() }));
 vi.mock("@/lib/services/operator-invitations", () => ({ activateOperatorAccount }));
 
+// LAN-132. The same screen also completes an administrator email re-home, and
+// for the same reason it is stubbed here: this suite is about the action's own
+// order of operations, and the service is proved against the real database in
+// `src/lib/services/operator-administration.test.ts`.
+const { verifyOperatorEmailRehome } = vi.hoisted(() => ({
+  verifyOperatorEmailRehome: vi.fn(),
+}));
+vi.mock("@/lib/services/operator-administration", () => ({ verifyOperatorEmailRehome }));
+
 const redirect = vi.fn((destination: string) => {
   throw new Error(`REDIRECT:${destination}`);
 });
@@ -79,6 +88,7 @@ beforeEach(() => {
   updateUser.mockResolvedValue({ data: {}, error: null });
   signOut.mockResolvedValue({ error: null });
   activateOperatorAccount.mockResolvedValue(null);
+  verifyOperatorEmailRehome.mockResolvedValue(null);
 });
 
 describe("this is where an invitation stops being pending — LAN-131", () => {
@@ -88,6 +98,7 @@ describe("this is where an invitation stops being pending — LAN-131", () => {
     // The `sub` from the claim set `getClaims()` verified, never an id a form
     // supplied: this is the one call that decides an account is Active.
     expect(activateOperatorAccount).toHaveBeenCalledExactlyOnceWith("auth-user-id");
+    expect(verifyOperatorEmailRehome).toHaveBeenCalledExactlyOnceWith("auth-user-id");
   });
 
   it("records it only after the password was actually accepted", async () => {
@@ -99,6 +110,7 @@ describe("this is where an invitation stops being pending — LAN-131", () => {
     // nobody can sign into and no administrator is offered a resend for.
     expect(state.error).toContain("was not accepted");
     expect(activateOperatorAccount).not.toHaveBeenCalled();
+    expect(verifyOperatorEmailRehome).not.toHaveBeenCalled();
   });
 
   it("records nothing for a session that was refused", async () => {
@@ -107,6 +119,7 @@ describe("this is where an invitation stops being pending — LAN-131", () => {
     await submit();
 
     expect(activateOperatorAccount).not.toHaveBeenCalled();
+    expect(verifyOperatorEmailRehome).not.toHaveBeenCalled();
   });
 
   it("does not swallow a failure to record it", async () => {

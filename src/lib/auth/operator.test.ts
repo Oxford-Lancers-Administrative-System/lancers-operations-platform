@@ -161,7 +161,14 @@ function givenDatabase(tables: Tables) {
 /** A linked, active operator whose person holds one open-ended committee seat. */
 function linkedOperatorTables(overrides: Partial<Tables> = {}): Tables {
   return {
-    operator_accounts: [{ auth_user_id: AUTH_USER_ID, person_id: PERSON_ID, is_active: true }],
+    operator_accounts: [
+      {
+        auth_user_id: AUTH_USER_ID,
+        person_id: PERSON_ID,
+        is_active: true,
+        email_rehome_pending_at: null,
+      },
+    ],
     people: [
       {
         id: PERSON_ID,
@@ -349,6 +356,7 @@ describe("resolveOperator — inactive link", () => {
             person_id: PERSON_ID,
             is_active: false,
             disabled_at: "2026-08-01T00:00:00Z",
+            email_rehome_pending_at: null,
           },
         ],
       }),
@@ -395,7 +403,14 @@ describe("resolveOperator — the unresolved causes stay indistinguishable", () 
     givenVerifiedUser({ id: AUTH_USER_ID });
     givenDatabase(
       linkedOperatorTables({
-        operator_accounts: [{ auth_user_id: AUTH_USER_ID, person_id: PERSON_ID, is_active: false }],
+        operator_accounts: [
+          {
+            auth_user_id: AUTH_USER_ID,
+            person_id: PERSON_ID,
+            is_active: false,
+            email_rehome_pending_at: null,
+          },
+        ],
       }),
     );
     const inactiveLink = await resolveOperator();
@@ -814,11 +829,57 @@ describe("resolveOperatorAccess — the reason, for the account's own holder", (
     givenVerifiedUser({ id: AUTH_USER_ID });
     givenDatabase(
       linkedOperatorTables({
-        operator_accounts: [{ auth_user_id: AUTH_USER_ID, person_id: PERSON_ID, is_active: false }],
+        operator_accounts: [
+          {
+            auth_user_id: AUTH_USER_ID,
+            person_id: PERSON_ID,
+            is_active: false,
+            email_rehome_pending_at: null,
+          },
+        ],
       }),
     );
 
     await expect(resolveOperatorAccess()).resolves.toEqual({ state: "inactive" });
+  });
+
+  /**
+   * LAN-132, `REQ-rehome-email` — and this is a control rather than a courtesy.
+   *
+   * The re-home flow moves the login to the replacement address, which stops
+   * the **old** mailbox signing in and stops it receiving a reset link. That is
+   * most of "disables the old login path" and it is not all of it, measured
+   * against this repository's own local stack: `updateUserById` with
+   * `email_confirm: false` leaves `email_confirmed_at` exactly as it was, and
+   * `enable_confirmations` is `false` here anyway, so the **new** address signs
+   * in immediately with the password that already existed.
+   *
+   * In the case the requirement names — a compromised mailbox, from which
+   * somebody may already have taken the password by requesting a reset — that
+   * would leave the intruder able to sign in while the administrator believed
+   * they had locked them out. This line is what closes it, and deleting it
+   * fails here.
+   */
+  it("refuses an account waiting on an email re-home verification", async () => {
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    givenDatabase(
+      linkedOperatorTables({
+        operator_accounts: [
+          {
+            auth_user_id: AUTH_USER_ID,
+            person_id: PERSON_ID,
+            // Not deactivated. The account is Email change pending, which is a
+            // different state with a different reason and the same answer here.
+            is_active: true,
+            email_rehome_pending_at: "2026-08-19T09:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    await expect(resolveOperatorAccess()).resolves.toEqual({ state: "inactive" });
+    givenVerifiedUser({ id: AUTH_USER_ID });
+    await expect(resolveOperator()).resolves.toBeNull();
   });
 
   it("tells unlinked and inactive apart, which resolveOperator deliberately does not", async () => {
@@ -829,7 +890,14 @@ describe("resolveOperatorAccess — the reason, for the account's own holder", (
     givenVerifiedUser({ id: AUTH_USER_ID });
     givenDatabase(
       linkedOperatorTables({
-        operator_accounts: [{ auth_user_id: AUTH_USER_ID, person_id: PERSON_ID, is_active: false }],
+        operator_accounts: [
+          {
+            auth_user_id: AUTH_USER_ID,
+            person_id: PERSON_ID,
+            is_active: false,
+            email_rehome_pending_at: null,
+          },
+        ],
       }),
     );
     const inactive = await resolveOperatorAccess();
@@ -861,7 +929,12 @@ describe("resolveOperatorAccess — the reason, for the account's own holder", (
         "inactive",
         linkedOperatorTables({
           operator_accounts: [
-            { auth_user_id: AUTH_USER_ID, person_id: PERSON_ID, is_active: false },
+            {
+              auth_user_id: AUTH_USER_ID,
+              person_id: PERSON_ID,
+              is_active: false,
+              email_rehome_pending_at: null,
+            },
           ],
         }),
         { id: AUTH_USER_ID },
@@ -953,7 +1026,14 @@ describe("requireCapability over a real resolution", () => {
     givenVerifiedUser({ id: AUTH_USER_ID });
     givenDatabase({
       ...coachTables([seat("role-head-coach", LONG_STARTED, null)]),
-      operator_accounts: [{ auth_user_id: AUTH_USER_ID, person_id: PERSON_ID, is_active: false }],
+      operator_accounts: [
+        {
+          auth_user_id: AUTH_USER_ID,
+          person_id: PERSON_ID,
+          is_active: false,
+          email_rehome_pending_at: null,
+        },
+      ],
     });
 
     await expect(requireCapability("attendance_recorder")).rejects.toMatchObject({

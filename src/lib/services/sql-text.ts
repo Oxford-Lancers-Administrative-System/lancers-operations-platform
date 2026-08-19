@@ -19,3 +19,25 @@
 export function escapeLikePattern(value: string | null): string | null {
   return value === null ? null : value.replace(/([\\%_])/g, "\\$1");
 }
+
+/**
+ * How a Person's name is rendered in SQL, for the queries that select one.
+ *
+ * The same three rules everywhere, because getting any of them wrong is
+ * visible to the club rather than to a test: a preferred name wins over the
+ * given name, a blank preferred name is not a preferred name, and
+ * `people.family_name` is nullable by design — a quarter of the club's real
+ * records are first-name-only, and `'Ana' || ' ' || null` is `null`, which is
+ * how a first-name-only member becomes "Unnamed participant" on screen.
+ *
+ * `alias` is a table alias the caller controls; it is never user input.
+ */
+export function personDisplayNameSql(alias: string): string {
+  return `case
+            when ${alias}.id is null then null
+            when ${alias}.family_name is null
+              then coalesce(nullif(btrim(${alias}.known_as), ''), ${alias}.given_name)
+            else coalesce(nullif(btrim(${alias}.known_as), ''), ${alias}.given_name)
+                 || ' ' || ${alias}.family_name
+          end`;
+}

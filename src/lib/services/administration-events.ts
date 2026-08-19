@@ -107,6 +107,7 @@ export const ADMINISTRATION_ACTIONS = Object.freeze([
   "administration.operator.deactivated",
   "administration.operator.restored",
   "administration.operator.email_rehome_started",
+  "administration.operator.email_rehome_retried",
   "administration.operator.email_rehome_verified",
   "administration.operator.email_rehome_failed",
   "administration.role.assigned",
@@ -297,6 +298,38 @@ export const ADMINISTRATION_EVENTS: Readonly<
     selfAuthorityAllowed: false,
     instantOrder: 0,
     label: "Email access recovery started",
+  }),
+  /**
+   * A second or later verification link, on an account already held in Email
+   * change pending — LAN-132, `REQ-rehome-email`: "Failure is correctable and
+   * retryable on the same account."
+   *
+   * It exists because a retry genuinely is not a transition. The account was
+   * pending before it and is pending after it, and
+   * `prepareAdministrationEvent` refuses a transition whose before and after
+   * are the same — correctly, because a row saying the state changed from
+   * `email_change_pending` to `email_change_pending` is a record of nothing.
+   * What *did* change is the address the link went to, which is on the detail,
+   * exactly as `invitation_corrected` carries it.
+   *
+   * `attempt`, therefore, and for the same reason `invitation_resent` and
+   * `invitation_corrected` are: a thing that was tried, against an account
+   * whose state it did not move.
+   *
+   * `instantOrder` is 0. It shares its instant with nothing — one retry is one
+   * event in one transaction — and 0 is the position everything that is not an
+   * assignment beginning already holds.
+   */
+  "administration.operator.email_rehome_retried": definition({
+    action: "administration.operator.email_rehome_retried",
+    family: "email_recovery",
+    shape: "attempt",
+    roleRelated: false,
+    reasonRequired: true,
+    selfActionForbidden: true,
+    selfAuthorityAllowed: false,
+    instantOrder: 0,
+    label: "Email access recovery retried",
   }),
   "administration.operator.email_rehome_verified": definition({
     action: "administration.operator.email_rehome_verified",

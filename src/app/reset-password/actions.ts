@@ -9,6 +9,7 @@ import {
   recoveryCompletionDestination,
   validateNewPassword,
 } from "@/lib/auth/recovery";
+import { verifyOperatorEmailRehome } from "@/lib/services/operator-administration";
 import { activateOperatorAccount } from "@/lib/services/operator-invitations";
 import { createClient } from "@/lib/supabase/server";
 
@@ -91,6 +92,20 @@ export async function completePasswordReset(
   // somebody. The password is already set, so an operator who sees this can
   // sign in from the sign-in page while it is looked at.
   if (authUserId !== null) await activateOperatorAccount(authUserId);
+
+  // LAN-132. The other thing setting a password can complete: an administrator
+  // email re-home. `REQ-rehome-email` holds the account in Email change pending
+  // "until verification", and this is the verification — while a re-home is in
+  // flight the login has *already* been moved to the replacement address, so
+  // the one-time link that reached this screen can only have been sent there,
+  // and following it is proof the holder has that mailbox.
+  //
+  // Separate from activation rather than folded into it, because they are
+  // different facts about different accounts: one is "these credentials exist
+  // for the first time", the other is "this address is now theirs". Both are
+  // idempotent no-ops for the ordinary forgotten-password reset that every
+  // other operator in the club uses this screen for.
+  if (authUserId !== null) await verifyOperatorEmailRehome(authUserId);
 
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
