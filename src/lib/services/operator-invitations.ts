@@ -76,10 +76,38 @@ import {
  * transaction. `null` is accepted and refused, so "forgot to resolve" and "no
  * session" fail identically.
  *
- * Every write below asserts **twice**: once before anything is created, so an
- * unauthorized attempt costs nothing, and once inside the transaction against
- * the authoritative snapshot. The second one is the control; the first is
- * courtesy.
+ * ### Where the snapshot is read, stated exactly — because it differs
+ *
+ * An earlier version of this note claimed "every write below asserts twice…
+ * once inside the transaction", and independent review found that true of one
+ * of the three writes. The accurate account:
+ *
+ *   * **`inviteOperator` asserts twice.** Once in a pre-flight transaction, so
+ *     an unauthorized attempt costs nothing and creates no login; and again
+ *     inside the transaction that does the writing, against a snapshot read
+ *     from the row it is about to insert against. That second assertion is the
+ *     control and the first is courtesy.
+ *
+ *   * **`resendOperatorInvitation` and `correctOperatorInvitation` assert
+ *     once**, in a transaction that reads the snapshot and then **commits
+ *     before** the Auth call and before the write. So there is a window between
+ *     the decision and the change.
+ *
+ * That window confers nothing, which is why it is recorded rather than closed.
+ * The only thing it could hide is a change in the target's seats between the
+ * read and the write — and the actor was permitted a moment earlier on the
+ * seats the target held then, so nothing is granted that was refused. The
+ * asymmetry exists because these two have an untransactional step in the
+ * middle: correction moves the address on the login before it moves in the
+ * database, so holding one transaction across the guard, the Auth call and the
+ * write would hold a pooled connection open across the network — the thing the
+ * paragraph above declines to do for session resolution, for the same reason.
+ *
+ * Closing it properly would mean re-reading the snapshot and re-asserting
+ * inside the write transaction, which is a real option and not a large one. It
+ * is not taken here because it would buy no authorization property, and a
+ * second assertion that buys nothing invites the reader to assume the first one
+ * was insufficient.
  *
  * ### The role code passed to the guard is the exact `roles.code`
  *
