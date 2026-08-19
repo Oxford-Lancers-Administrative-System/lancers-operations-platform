@@ -21,6 +21,17 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: async () => ({ auth: { getClaims, updateUser, signOut } }),
 }));
 
+// LAN-131. This action now also ends an invitation, so it reaches the service
+// layer — which is `server-only` and, unmocked, opens a database pool. Both are
+// stubbed, exactly as every other server-action suite in `src/app` does.
+vi.mock("server-only", () => ({}));
+
+// `vi.hoisted`, because this factory returns the spy itself rather than a
+// closure over it — `vi.mock` is hoisted above ordinary `const`s, so the spy
+// has to be created up there with it.
+const { activateOperatorAccount } = vi.hoisted(() => ({ activateOperatorAccount: vi.fn() }));
+vi.mock("@/lib/services/operator-invitations", () => ({ activateOperatorAccount }));
+
 const redirect = vi.fn((destination: string) => {
   throw new Error(`REDIRECT:${destination}`);
 });
@@ -67,6 +78,47 @@ beforeEach(() => {
   givenSession([{ method: "otp", timestamp: 1 }]);
   updateUser.mockResolvedValue({ data: {}, error: null });
   signOut.mockResolvedValue({ error: null });
+  activateOperatorAccount.mockResolvedValue(null);
+});
+
+describe("this is where an invitation stops being pending — LAN-131", () => {
+  it("records the activation against the session's verified subject", async () => {
+    await destinationOf(submit());
+
+    // The `sub` from the claim set `getClaims()` verified, never an id a form
+    // supplied: this is the one call that decides an account is Active.
+    expect(activateOperatorAccount).toHaveBeenCalledExactlyOnceWith("auth-user-id");
+  });
+
+  it("records it only after the password was actually accepted", async () => {
+    updateUser.mockResolvedValue({ data: null, error: { message: "weak password" } });
+
+    const state = await submit();
+
+    // An account marked Active whose holder has no password is an account
+    // nobody can sign into and no administrator is offered a resend for.
+    expect(state.error).toContain("was not accepted");
+    expect(activateOperatorAccount).not.toHaveBeenCalled();
+  });
+
+  it("records nothing for a session that was refused", async () => {
+    givenSession([{ method: "password", timestamp: 1 }]);
+
+    await submit();
+
+    expect(activateOperatorAccount).not.toHaveBeenCalled();
+  });
+
+  it("does not swallow a failure to record it", async () => {
+    // The alternative is a person who can sign in while every Administration
+    // surface still shows their invitation pending — a divergence nobody would
+    // notice until it confused somebody. Their password is already set, so they
+    // can sign in from the sign-in page while it is looked at.
+    activateOperatorAccount.mockRejectedValue(new Error("database unavailable"));
+
+    await expect(submit()).rejects.toThrow("database unavailable");
+    expect(signOut).not.toHaveBeenCalled();
+  });
 });
 
 describe("only a recovery session may set a password", () => {

@@ -1498,32 +1498,47 @@ export type Database = {
       }
       operator_accounts: {
         Row: {
+          activated_at: string | null
           auth_user_id: string
           created_at: string
           disabled_at: string | null
           disabled_reason: string | null
           id: string
+          invitation_delivery_failed_at: string | null
+          invitation_delivery_failure_reason: string | null
+          invited_at: string | null
           is_active: boolean
+          login_email: string | null
           person_id: string
           updated_at: string
         }
         Insert: {
+          activated_at?: string | null
           auth_user_id: string
           created_at?: string
           disabled_at?: string | null
           disabled_reason?: string | null
           id?: string
+          invitation_delivery_failed_at?: string | null
+          invitation_delivery_failure_reason?: string | null
+          invited_at?: string | null
           is_active?: boolean
+          login_email?: string | null
           person_id: string
           updated_at?: string
         }
         Update: {
+          activated_at?: string | null
           auth_user_id?: string
           created_at?: string
           disabled_at?: string | null
           disabled_reason?: string | null
           id?: string
+          invitation_delivery_failed_at?: string | null
+          invitation_delivery_failure_reason?: string | null
+          invited_at?: string | null
           is_active?: boolean
+          login_email?: string | null
           person_id?: string
           updated_at?: string
         }

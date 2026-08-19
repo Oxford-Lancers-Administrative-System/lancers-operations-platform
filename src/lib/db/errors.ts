@@ -189,6 +189,36 @@ type Mapping = (context: DatabaseErrorContext) => ServiceError;
  * operator respectively need. Matching on class alone was never the contract.
  */
 const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
+  // LAN-131, `REQ-invitation-states`: "refuses duplicate Person bindings or
+  // duplicate emails with an actionable reason". The invitation service refuses
+  // both before the statement is sent, with the message beside the field that
+  // caused them. These two mappings are the backstop for the race it cannot
+  // close by checking — two administrators inviting the same person, or the
+  // same address, at the same moment — and they matter because the generic
+  // unique-violation sentence ("somebody may have changed this while you were
+  // working on it") is true and useless here: it does not say which of the two
+  // things collided, and both have a different next action.
+  //
+  // `operator_accounts_login_email_key` is a unique *index* rather than a table
+  // constraint, because it is over `lower(login_email)` and partial. PostgreSQL
+  // reports the index name in the same `constraint` field, so it is translated
+  // the same way.
+  operator_accounts_person_key: (context) =>
+    new Conflict(
+      "That person already has an operator login. One person has one login, however many " +
+        "roles they hold — open their operator record to give them another role, resend their " +
+        "invitation, or restore their access.",
+      { rule: "operator_accounts_person_key", context },
+    ),
+
+  operator_accounts_login_email_key: (context) =>
+    new Conflict(
+      "That email address already has an operator login. One person has one login, so if this " +
+        "is the same person, open their operator record instead of inviting them again — and " +
+        "if it is somebody else, invite them with their own address.",
+      { rule: "operator_accounts_login_email_key", context },
+    ),
+
   // Invariant P3 / Requirement 5.
   rsvp_responses_no_requires_a_reason: (context) =>
     new ConstraintViolated("A 'no' answer has to say why. Record the reason given and try again.", {

@@ -202,12 +202,18 @@ try {
   }
 
   const linked = await client.query(
-    `insert into public.operator_accounts (auth_user_id, person_id)
-     values ($1, $2)
+    // LAN-131: `login_email` and `activated_at` are what Administration reads
+    // to decide the operator state. This login is given a password directly and
+    // is never invited, so it is Active — see `link-test-operator.mjs`.
+    `insert into public.operator_accounts (auth_user_id, person_id, login_email, activated_at)
+     values ($1, $2, lower($3), now())
      on conflict (auth_user_id) do update
-        set is_active = true, updated_at = now()
+        set is_active = true,
+            login_email = excluded.login_email,
+            activated_at = coalesce(public.operator_accounts.activated_at, excluded.activated_at),
+            updated_at = now()
      returning id`,
-    [authUserId, person.id],
+    [authUserId, person.id, email],
   );
 
   if (linked.rowCount === 0) fail("Could not link the local review coach.");

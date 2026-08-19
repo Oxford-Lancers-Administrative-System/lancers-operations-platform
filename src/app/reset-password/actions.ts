@@ -9,6 +9,7 @@ import {
   recoveryCompletionDestination,
   validateNewPassword,
 } from "@/lib/auth/recovery";
+import { activateOperatorAccount } from "@/lib/services/operator-invitations";
 import { createClient } from "@/lib/supabase/server";
 
 export type ResetPasswordState = { error: string | null; expired?: boolean };
@@ -56,6 +57,8 @@ export async function completePasswordReset(
   const policyFailure = validateNewPassword(password, confirmation);
   if (policyFailure) return { error: policyFailure };
 
+  const authUserId = readSubject(data?.claims);
+
   const { error } = await supabase.auth.updateUser({ password });
 
   if (error) {
@@ -68,7 +71,41 @@ export async function completePasswordReset(
     };
   }
 
+  // LAN-131. This screen is where an invited operator establishes credentials
+  // for the first time, and `DEC-email-authentication` is specific that first
+  // login does exactly that and nothing else. So this is the moment — and the
+  // only moment — an invitation stops being pending: the person now has a
+  // password, which is what "Active" means and what opening the emailed link
+  // did not prove.
+  //
+  // It is idempotent, so an ordinary password reset by a long-standing operator
+  // passes straight through it and writes nothing. It never re-enables a
+  // deactivated account: `is_active` is untouched, so such an account stays
+  // Deactivated and no event is written, because nothing transitioned.
+  //
+  // A failure here is deliberately **not** swallowed. It can only be a database
+  // failure, the write is one atomic statement plus its audit row, and the
+  // alternative — a person who can sign in while every Administration surface
+  // shows their invitation as still pending, and offers a resend that will now
+  // be refused — is a divergence nobody would notice until it confused
+  // somebody. The password is already set, so an operator who sees this can
+  // sign in from the sign-in page while it is looked at.
+  if (authUserId !== null) await activateOperatorAccount(authUserId);
+
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
   redirect(recoveryCompletionDestination(redirectTo));
+}
+
+/**
+ * The verified subject of this session, or `null`.
+ *
+ * `sub` on a claim set `getClaims()` verified against the auth server — the
+ * same source `isRecoveryAuthenticatedSession` reads `amr` from, checked here
+ * rather than taken from `getUser()` so that both facts about the session come
+ * from one verification rather than two that could disagree.
+ */
+function readSubject(claims: unknown): string | null {
+  const subject = (claims as { sub?: unknown } | null | undefined)?.sub;
+  return typeof subject === "string" && subject !== "" ? subject : null;
 }

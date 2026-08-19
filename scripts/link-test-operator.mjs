@@ -138,9 +138,16 @@ try {
 
   const person = candidate.rows[0];
 
+  // LAN-131. `login_email` and `activated_at` are what Administration reads to
+  // decide which of the five operator states this account is in. This login was
+  // given a password directly by `create-test-user.mjs` and was never invited,
+  // so it is Active from the moment it is linked — leaving `activated_at` null
+  // would show the local review operator as "Invitation pending" on every
+  // Administration screen, with a Resend button that would refuse.
   await client.query(
-    "insert into public.operator_accounts (auth_user_id, person_id) values ($1, $2)",
-    [authUserId, person.id],
+    `insert into public.operator_accounts (auth_user_id, person_id, login_email, activated_at)
+     values ($1, $2, lower($3), now())`,
+    [authUserId, person.id, email],
   );
   await client.query("commit");
 

@@ -1,0 +1,46 @@
+<!--
+  The first-access invitation email — LAN-131, `REQ-email-invitation-path`.
+
+  This is the only new informational email the mission adds
+  (`DEC-first-access-email-only`). It is sent when an administrator invites an
+  operator, and again on every resend and correction.
+
+  The link carries `{{ .TokenHash }}` to this application, not
+  `{{ .ConfirmationURL }}` to Supabase's own /verify endpoint, for the two
+  reasons `supabase/templates/recovery.html` records and which apply here with
+  more force: the default link returns the session in a URL *fragment*, which a
+  server-rendered page cannot read, and a PKCE link only works in the browser
+  that asked for it. Nobody asks for their own invitation, and an invitation is
+  the email most likely to be opened on a different device from the one the
+  administrator sent it from — a committee member's phone, days later.
+
+  `.RedirectTo` is the exact URL the Auth admin API was given: this
+  application's `/auth/invitation` on the origin the request came from.
+  Supabase validates it against the redirect allow-list before rendering this
+  template and substitutes the project's Site URL for anything not on it, so the
+  link cannot be aimed at another host.
+
+  The hosted project needs the same body, set by hand in the Supabase dashboard,
+  together with `/auth/invitation` on the redirect allow-list. Nothing an agent
+  does can configure either — see the pull request's Production handoff.
+-->
+<h2>You have been given access to Oxford Lancers Operations</h2>
+
+<p>
+  Someone at the club has set up an operations account for you. Choose a password to finish setting
+  it up:
+</p>
+
+<p>
+  <a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&amp;type=invite">Set up your account</a>
+</p>
+
+<p>
+  The link can be used once, and expires shortly. If it has expired, ask the club to send it again —
+  that is normal and costs nothing.
+</p>
+
+<p>
+  If you were not expecting this, you can ignore this email. Nothing happens until you follow the
+  link.
+</p>

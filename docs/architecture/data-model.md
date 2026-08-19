@@ -22,7 +22,8 @@ model wins and the difference is a defect here.
 | Delivery-machinery migration                           | 1 — RSVP tokens, attempts and callbacks (LAN-78)                                            |
 | View-correction migration                              | 1 — the mismatch view sees walk-ups (LAN-81)                                                |
 | Role-catalogue migrations                              | 2 — structure, then the twenty approved seats (LAN-128)                                     |
-| **Files applied by a rebuild from empty**              | **20**                                                                                      |
+| Invitation-state migration                             | 1 — invitation state on `operator_accounts` (LAN-131)                                       |
+| **Files applied by a rebuild from empty**              | **21**                                                                                      |
 
 The schema is **40 tables, 9 views and 31 enum types** in `public`, plus **3
 tables** in the unexposed `staging` schema. (The published totals had been left
@@ -276,6 +277,55 @@ RLS is enabled with zero policies and no grant to `anon` or `authenticated`, per
 `supabase.auth.getUser()` and treats an assignment as current when
 `effective_to is null or effective_to > now()`. Nothing enforces those role
 codes yet — that is LAN-73.
+
+##### Invitation state (LAN-131)
+
+`20260819120000_operator_invitation_state.sql` adds five columns to the same
+table rather than a new one, because all five are attributes of one operator
+account and a separate table would need a one-row-per-account constraint to stay
+honest — which is the definition of a column.
+
+| Column                               | Means                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------ |
+| `login_email`                        | The address this login signs in with, and the address an invitation goes to    |
+| `invited_at`                         | When the **live** invitation was issued — reset by every resend and correction |
+| `activated_at`                       | When the holder first established credentials. Null is Invitation pending      |
+| `invitation_delivery_failed_at`      | The last attempt known to have failed. Cleared by a successful resend          |
+| `invitation_delivery_failure_reason` | Why, in the transport's own words. Stored, never shown                         |
+
+Three things about this are decisions rather than shape:
+
+- **`login_email` is denormalised from `auth.users.email`.** The hosted runtime
+  connects as `app_runtime`, a least-privilege login with `service_role`'s grants
+  and no reach into the `auth` schema at all
+  ([ADR 0026](../adr/0026-hosted-runtime-database-connection.md)), so the
+  application cannot read that column to answer "which address is this?" for an
+  Administration list. It also makes the duplicate-address refusal a named
+  constraint the service can translate into the club's words —
+  `operator_accounts_login_email_key`, a partial unique index over
+  `lower(login_email)`, so two spellings of one mailbox cannot become two logins.
+  It is nullable because rows created before the migration are backfilled but the
+  local review scripts and several cross-cutting suites insert
+  `(auth_user_id, person_id)` alone; `auth.users.email` is unique in GoTrue and
+  remains the authority.
+- **There is no send-attempt table.** `REQ-invitation-states` asks that
+  invitation send and delivery attempts be recorded, and `public.audit_events`
+  already records them: `administration.operator.invited`,
+  `…invitation_resent`, `…invitation_corrected` and
+  `…invitation_delivery_failed` are in LAN-130's closed vocabulary, each carrying
+  actor, authority at the time, operating year and before/after state. A second
+  table would be a second copy of that history, shaped for one screen — the
+  duplication register D9 and `DEC-audit-boundary` refuse. These columns hold the
+  _current_ status; the ledger holds every attempt that produced it.
+- **The five club-facing states are derived, not stored.**
+  `src/lib/services/operator-account-state.ts` is the one reading of these
+  columns plus `is_active`. A stored `state` column would be a sixth fact
+  capable of disagreeing with the other five, and would have to be updated by
+  every path that touches any of them — including reinstatement, which is
+  already `is_active = true` on the row that was deactivated.
+
+No grant changes: columns inherit the table's privileges, which are still
+`select, insert, update` to `service_role` and deliberately no `delete`.
 
 #### RSVP links and delivery machinery
 

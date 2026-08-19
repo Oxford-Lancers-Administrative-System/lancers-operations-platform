@@ -175,10 +175,16 @@ site_url = "http://localhost:3000"
 # overflow slot serves the application on 3010. Both loopback spellings are
 # listed because a reviewer may open either.
 #
+# LAN-131 adds the two `/auth/invitation` entries on the same rule and for the
+# same reason: it is the exact destination the Auth admin API is given as
+# `redirectTo` when an invitation is sent, and an origin Supabase does not
+# recognise is silently replaced with `site_url`, which would send every
+# invitation to the sign-in page holding a token nothing consumes.
+#
 # The hosted project's allow-list is configured in the Supabase dashboard and is
 # NOT read from this file. docs/deployment.md § Password recovery holds the exact
 # hosted entries.
-additional_redirect_urls = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3000/auth/recovery", "http://127.0.0.1:3000/auth/recovery"]
+additional_redirect_urls = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3000/auth/recovery", "http://127.0.0.1:3000/auth/recovery", "http://localhost:3000/auth/invitation", "http://127.0.0.1:3000/auth/invitation"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -215,8 +221,20 @@ password_requirements = ""
 # rp_origins = ["http://127.0.0.1:3000"]
 
 [auth.rate_limit]
-# Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+# Number of emails that can be sent per hour.
+#
+# LAN-131 raised this from the CLI default of 2. This file configures the
+# **local** stack only — the hosted project's rate limits are set in the
+# Supabase dashboard and are not read from here — and two emails an hour makes
+# the invitation flow impossible to exercise at all: inviting one operator,
+# resending to them and correcting the address is three, and a test run or a
+# review session does that several times over. The limit is not a security
+# control on a stack whose mail server is Mailpit and whose messages never leave
+# the machine.
+#
+# It stays finite rather than being removed, so a runaway loop in a service
+# still stops rather than sending forever.
+email_sent = 60
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
@@ -267,10 +285,23 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# LAN-131. The first-access invitation email — the only new informational email
+# this mission adds (DEC-first-access-email-only). Same reasoning as the
+# recovery template below, and the same `content_path` mechanics: relative to
+# the CLI's project root, which is the repository in CI and the per-slot runtime
+# root under `--workdir` locally, where `scripts/lib/local-supabase-
+# coordinator.mjs` links `templates/` beside `migrations`.
+#
+# The default built-in invite email links to Supabase's own /verify endpoint and
+# returns the session in a URL fragment, which this server-rendered application
+# cannot read — and it does so without an error, so the failure looks like a
+# broken link rather than a missing template.
+#
+# The hosted project needs the same subject and body pasted into its dashboard
+# template. That is Brian's action, not an agent's; see the pull request.
+[auth.email.template.invite]
+subject = "Your Oxford Lancers operations account"
+content_path = "./supabase/templates/invite.html"
 
 # LAN-125. The recovery email must link to THIS application carrying
 # `{{ .TokenHash }}`, not to Supabase's own /verify endpoint. The default link
