@@ -178,11 +178,33 @@ export function supabaseOperatorIdentity(): OperatorIdentityPort {
       });
 
       if (error) {
-        if (isDuplicateAddress(error)) {
-          throw new NotPermitted(DUPLICATE_LOGIN_MESSAGE, { rule: DUPLICATE_LOGIN_RULE });
-        }
+        // **`isDuplicateAddress` is deliberately not consulted here**, and that
+        // is a measurement rather than an oversight. GoTrue answers the two
+        // admin endpoints quite differently for the same collision, against
+        // this repository's own local stack:
+        //
+        //   createUser      → 422, code `email_exists`,
+        //                     "A user with this email address has already been
+        //                      registered"
+        //   updateUserById  → 500, code `undefined`,
+        //                     "Error updating user"
+        //
+        // The second carries nothing that distinguishes a taken address from a
+        // database being down, and "Error updating user" is what it says for
+        // *every* failed update. Matching on it would tell an administrator
+        // that an address is already in use whenever anything at all went
+        // wrong, which is worse than saying less: a wrong actionable message
+        // sends somebody to change a field that was never the problem.
+        //
+        // So the sentence names both reachable causes without asserting
+        // either. It is reachable only in the race the service's own
+        // `login_email` pre-check cannot close — an address held by an
+        // `auth.users` row that no `operator_accounts` row points at — and by
+        // then nothing has been written and there is nothing to undo.
         throw new UnexpectedDatabaseError(
-          "The invitation address could not be changed. Nothing was saved; try again.",
+          "The invitation address could not be changed, and nothing was saved. If that " +
+            "address already belongs to another operator login, use a different one; " +
+            "otherwise try again.",
           { rule: "operator_login_email_not_changed" },
         );
       }
@@ -216,7 +238,16 @@ export class InvitationDeliveryFailure extends Error {
   }
 }
 
-/** Is this the Auth server saying the address is taken? */
+/**
+ * Is this the Auth server saying the address is taken?
+ *
+ * Used by `createLogin` and by `sendInvitation`, and **not** by
+ * `changeLoginEmail` — see the note there. GoTrue answers `createUser` with a
+ * 422 and `code: "email_exists"`, which is exactly what this reads; it answers
+ * `updateUserById` with a bare 500 that says nothing, so there is nothing here
+ * for it to match and pretending otherwise would produce a confident wrong
+ * message.
+ */
 function isDuplicateAddress(error: unknown): boolean {
   const code = (error as { code?: unknown } | null)?.code;
   if (code === "email_exists" || code === "user_already_exists") return true;
