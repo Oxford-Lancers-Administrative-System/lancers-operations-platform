@@ -291,21 +291,39 @@ async function createDurableFoundation(client: Client): Promise<Durable> {
      values ('pilot-lan74-fixture-2009-10', '2009-06-01', '2009-06-01', '2010-06-01') returning id`,
   );
 
-  const role = await one<{ id: string; scope: string; is_constitutional_office: boolean }>(
+  const role = await one<{
+    id: string;
+    scope: string;
+    is_constitutional_office: boolean;
+    is_single_holder_seat: boolean;
+  }>(
     client,
-    `insert into public.roles (code, name, scope, is_constitutional_office)
-     values ('pilot_lan74_fixture_officer', 'Pilot LAN-74 fixture officer', 'committee_year', false)
+    // Every role belongs to a catalogue group and holds a position in it
+    // (LAN-128). A fixture seat is not part of the approved catalogue, so it
+    // takes a position beyond the ones the catalogue uses.
+    `insert into public.roles
+       (code, name, scope, is_constitutional_office, role_group_id, sort_order)
+     select 'pilot_lan74_fixture_officer', 'Pilot LAN-74 fixture officer',
+            'committee_year', false, id, 900
+       from public.role_groups where code = 'club_committee'
      on conflict (code) do update set name = excluded.name
-     returning id, scope, is_constitutional_office`,
+     returning id, scope, is_constitutional_office, is_single_holder_seat`,
   );
 
   const assignment = await one<{ id: string }>(
     client,
     `insert into public.role_assignments (
-       person_id, role_id, scope, is_constitutional_office,
+       person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
        committee_year_id, effective_from, effective_to)
-     values ($1, $2, $3, $4, $5, '2009-06-01', '2009-12-01') returning id`,
-    [person.id, role.id, role.scope, role.is_constitutional_office, committeeYear.id],
+     values ($1, $2, $3, $4, $5, $6, '2009-06-01', '2009-12-01') returning id`,
+    [
+      person.id,
+      role.id,
+      role.scope,
+      role.is_constitutional_office,
+      role.is_single_holder_seat,
+      committeeYear.id,
+    ],
   );
 
   const audit = await one<{ id: string }>(

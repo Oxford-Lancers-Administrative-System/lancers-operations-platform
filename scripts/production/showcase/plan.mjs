@@ -279,9 +279,9 @@ export function buildPlan({
   };
 
   // -------------------------------------------------------------------------
-  // Reference data. Hosted Supabase has none of this — LAN-73's handoff records
-  // that `public.roles` is empty in production — so it is created before
-  // anything that references it.
+  // Reference data. Seasons, terms, committee years and position vocabularies
+  // are created here when hosted does not have them yet. The role catalogue is
+  // the exception and is adopted rather than created — see below.
   // -------------------------------------------------------------------------
 
   // Which season the showcase operates in decides which position vocabulary it
@@ -371,25 +371,27 @@ export function buildPlan({
     { source: "showcase" },
   );
 
-  const roleIds = new Map();
-  for (const [code, name, scope, isOffice] of ROLE_SPEC) {
-    const roleId = adopt(
-      existing.roles?.get(code),
-      "public.roles",
-      {
-        id: id("roles", code),
-        code,
-        name,
-        scope,
-        is_constitutional_office: isOffice,
-        constitution_edition: isOffice ? "Fourth Edition 24.04.22" : null,
-        constitution_reference: isOffice ? "¶19" : null,
-      },
-      "source-derived",
-      { source: "OULAFC Constitution / ROLE_SPEC" },
-    );
-    roleIds.set(code, roleId);
-  }
+  // The role catalogue is not this loader's to create. Since LAN-128 it is
+  // created by `supabase/migrations/20260819090100_role_catalogue.sql`, in
+  // hosted and local alike, and the application role holds `select` on it and
+  // nothing else. So the showcase adopts the seats the migration made and
+  // creates none: a loader that invented one would be the second, divergent
+  // copy of the catalogue that migration exists to abolish.
+  //
+  // A missing seat therefore means the migration has not been applied to this
+  // database. That is a handoff step Brian performs, and the loader says so
+  // rather than quietly inventing a role and continuing.
+  const roles = existing.roles ?? new Map();
+
+  const roleFacts = (code) => {
+    const role = roles.get(code);
+    if (!role)
+      throw new Error(
+        `public.roles has no seat with code "${code}". Apply the role-catalogue ` +
+          "migration to this database before running the showcase loader.",
+      );
+    return role;
+  };
 
   // -------------------------------------------------------------------------
   // The people who run the walkthrough. Their Auth users are created by Brian
@@ -552,19 +554,20 @@ export function buildPlan({
   // Role assignments, now that both cycles exist.
   for (const operator of operators) {
     for (const code of operator.roles) {
-      const roleId = roleIds.get(code);
-      if (!roleId) throw new Error(`Unknown role code in parameters: ${code}`);
-      const spec = ROLE_SPEC.find((entry) => entry[0] === code);
-      const scope = spec[2];
+      const role = roleFacts(code);
+      const scope = role.scope;
 
       add(
         "public.role_assignments",
         {
           id: id("role_assignments", labels.currentSeason, operator.key, code),
           person_id: operator.personId,
-          role_id: roleId,
+          role_id: role.id,
           scope,
-          is_constitutional_office: spec[3],
+          is_constitutional_office: role.is_constitutional_office,
+          // Read from the catalogue, never asserted here: the composite foreign
+          // key refuses an assignment that disagrees with the seat.
+          is_single_holder_seat: role.is_single_holder_seat,
           committee_year_id: scope === "committee_year" ? committeeYearId : null,
           season_id: scope === "season" ? seasonId : null,
           effective_from: "2026-07-01",
@@ -1184,36 +1187,9 @@ export function buildPlan({
       committeeYearId,
       memberships,
       operators,
-      roleIds,
+      roles,
       positionIds,
       onboardingTypeIds,
     },
   };
 }
-
-/**
- * The club's committee and coaching seats.
- *
- * Mirrors `ROLE_SPEC` in `scripts/seed-local.mjs`, which is the catalogue's only
- * definition anywhere — LAN-73's handoff records that as a real gap, and it is
- * why hosted has no roles at all. Duplicated rather than imported because that
- * file is local-only by design and importing it here would drag the loopback
- * guard into a procedure that legitimately runs against hosted.
- */
-const ROLE_SPEC = Object.freeze([
-  ["president", "President", "committee_year", true],
-  ["vice_president", "Vice-President", "committee_year", true],
-  ["secretary", "Secretary", "committee_year", true],
-  ["treasurer", "Treasurer", "committee_year", true],
-  ["social_secretary", "Social Secretary", "committee_year", false],
-  ["gameday_secretary", "Gameday Secretary", "committee_year", false],
-  ["kit_manager", "Kit Manager", "committee_year", false],
-  ["media_secretary", "Media Secretary", "committee_year", false],
-  ["it_officer", "IT Officer", "committee_year", false],
-  ["general_manager", "General Manager", "committee_year", false],
-  ["head_coach", "Head Coach", "season", false],
-  ["offence_coach", "Offence Coach", "season", false],
-  ["defence_coach", "Defence Coach", "season", false],
-]);
-
-export { ROLE_SPEC };

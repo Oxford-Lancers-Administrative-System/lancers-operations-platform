@@ -72,8 +72,9 @@ describe("identity as the club actually records it", () => {
     // Secretary + IT Officer on one person is a real, current case.
     const media = await one<{ id: string }>(
       client,
-      `insert into public.roles (code, name, scope, is_constitutional_office)
-       values ('fixture_media', 'Fixture Media', 'committee_year', false) returning id`,
+      `insert into public.roles (code, name, scope, is_constitutional_office, role_group_id, sort_order)
+       values ('fixture_media', 'Fixture Media', 'committee_year', false, $1, 4) returning id`,
+      [base.roleGroupId],
     );
 
     await expectAccepted(
@@ -95,6 +96,21 @@ describe("identity as the club actually records it", () => {
        values ($1, $3, 'committee_year', false, $4, '2019-06-01'),
               ($2, $3, 'committee_year', false, $4, '2019-06-01')`,
       [base.personId, base.otherPersonId, base.ordinaryRoleId, base.committeeYearId],
+    );
+  });
+
+  it("accepts a single-holder seat handed over between two people", async () => {
+    // LAN-128. General Manager is standing and single-holder, which constrains
+    // concurrency and must not constrain succession — the handover is the
+    // normal case, not the exception.
+    await expectAccepted(
+      client,
+      `insert into public.role_assignments
+         (person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
+          committee_year_id, effective_from, effective_to)
+       values ($1, $3, 'committee_year', false, true, $4, '2019-06-01', '2020-06-01'),
+              ($2, $3, 'committee_year', false, true, $4, '2020-06-01', null)`,
+      [base.personId, base.otherPersonId, base.singleHolderRoleId, base.committeeYearId],
     );
   });
 

@@ -69,7 +69,18 @@ export async function readExisting(client, { authUserIds = [] } = {}) {
 
   return {
     operators,
-    roles: await map("select id, code from public.roles", (row) => row.code),
+    // Whole rows, not just identifiers: since LAN-128 the catalogue is created
+    // by migration and the loader adopts it outright, so an assignment needs
+    // the seat's scope and both cardinality facts to be truthful about the
+    // role it names.
+    roles: new Map(
+      (
+        await client.query(
+          `select id, code, scope, is_constitutional_office, is_single_holder_seat
+             from public.roles`,
+        )
+      ).rows.map((row) => [row.code, row]),
+    ),
     // Seasons carry their own position vocabulary, and
     // `position_assignments_vocabulary_is_the_seasons` enforces that an
     // assignment uses it. So an adopted season brings its vocabulary with it and

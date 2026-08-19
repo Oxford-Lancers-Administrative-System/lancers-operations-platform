@@ -38,12 +38,12 @@ Two prerequisites, both of which `setup.sql` checks and refuses without.
 1. **The role catalogue must exist.** `setup.sql` grants a `head_coach`
    assignment, and it will not create the role: the club's own vocabulary is
    reference data, and inserting reference data into production is your action
-   rather than a scenario's. LAN-73's production handoff recorded that hosted has
-   no `public.roles` rows at all, so on a first run this is the stop you should
-   expect. Seed the catalogue — `code`, `name`, `scope`, `is_constitutional_office`
-   as `scripts/seed-local.mjs`'s `ROLE_SPEC` lists them — and run setup again.
-   `head_coach` must be `season`-scoped: coaching hangs off the season, not the
-   committee year.
+   rather than a scenario's. LAN-73's production handoff recorded that hosted had
+   no `public.roles` rows at all; LAN-128 made the catalogue a migration, so the
+   fix is to apply the role-catalogue migration to hosted under
+   `docs/migration-runbook.md` and run setup again — not to insert seats by hand.
+   `head_coach` is `season`-scoped there, because coaching hangs off the season
+   rather than the committee year.
 2. **One open season**, from the permanent pilot foundation (LAN-93). The script
    creates none and refuses if there are none or more than one.
 

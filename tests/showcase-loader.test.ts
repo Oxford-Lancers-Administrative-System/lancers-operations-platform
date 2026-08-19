@@ -141,7 +141,14 @@ beforeAll(async () => {
         givenName: "Showcase",
         familyName: "Manager",
         phone: "07700 900902",
-        roles: ["general_manager"],
+        // Not `general_manager`, which the real manifest names, because LAN-128
+        // made that seat single-holder and the seeded local club already has a
+        // current General Manager — so the loader would be refused here for a
+        // reason that has nothing to do with the loader. Hosted has no holder
+        // and no such collision. Which seat is named is incidental to
+        // everything this suite asserts; that a seat is adopted from the
+        // catalogue, assigned, and provenanced is not.
+        roles: ["kit_manager"],
       },
       accessEndsOn: "2026-09-30",
       // Its own reference island. The loader commits — that is what it is for —

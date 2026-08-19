@@ -20,7 +20,7 @@ import { join, relative, resolve, sep } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 
-/** Every role code the catalogue defines — `scripts/seed-local.mjs` ROLE_SPEC. */
+/** Every role code the catalogue defines — `supabase/migrations/20260819090100_role_catalogue.sql`. */
 const ROLE_CODES = [
   "president",
   "vice_president",
@@ -35,6 +35,13 @@ const ROLE_CODES = [
   "head_coach",
   "offence_coach",
   "defence_coach",
+  "quarterbacks_coach",
+  "offensive_line_coach",
+  "wide_receivers_coach",
+  "defensive_line_coach",
+  "linebackers_coach",
+  "defensive_backs_coach",
+  "special_teams_coach",
 ];
 
 /** The one module permitted to name a role code, and the tests that check it. */

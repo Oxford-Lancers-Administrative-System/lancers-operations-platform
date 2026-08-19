@@ -1245,7 +1245,9 @@ describe("a season-scoped role that is not a coaching seat", () => {
       "select id from public.seasons where status = 'active' order by starts_on desc limit 1",
     );
     const role = await observer.query<{ id: string }>(
-      `insert into public.roles (code, name, scope) values ($1, 'Team Manager', 'season')
+      `insert into public.roles (code, name, scope, role_group_id, sort_order)
+       select $1, 'Team Manager', 'season', id, 902
+         from public.role_groups where code = 'coaching_staff'
        returning id`,
       [MANAGER_CODE],
     );
@@ -1281,8 +1283,12 @@ describe("a season-scoped role that is not a coaching seat", () => {
     );
 
     expect(catalogue.counts.coach).toBeGreaterThan(0);
+    // Named seats rather than a pattern: since LAN-128 the club calls two of
+    // the three "Offensive Coordinator" and "Defensive Coordinator", and a
+    // `/Coach/` pattern would have quietly stopped matching them.
+    const COACHING_SEAT_NAMES = ["Head Coach", "Offensive Coordinator", "Defensive Coordinator"];
     for (const coach of catalogue.candidates.filter((entry) => entry.capacity === "coach")) {
-      expect(coach.standing).toMatch(/Coach/);
+      expect(COACHING_SEAT_NAMES).toContain(coach.standing);
     }
   });
 });

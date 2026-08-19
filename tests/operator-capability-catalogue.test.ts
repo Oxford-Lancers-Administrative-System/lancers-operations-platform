@@ -9,17 +9,21 @@
  * repository and deny the Offensive Coordinator forever, silently, because a
  * role code that matches nothing simply never matches.
  *
- * Two of the three grants are also checked against the catalogue's own
- * structure rather than against a list retyped here:
+ * Membership activation is checked against the catalogue's own structure
+ * rather than against a list retyped here: it is exactly the constitutional
+ * offices plus the General Manager, which is what "Exec/GM" was read as. A
+ * fifth office would fail it, and the grant would be revisited deliberately.
  *
- *   * the attendance recorders are exactly the `season`-scoped seats — which is
- *     what "the coaching staff" means in this schema;
- *   * membership activation is exactly the constitutional offices plus the
- *     General Manager — which is what "Exec/GM" was read as.
- *
- * If somebody adds a fourth coaching seat or a fifth office to the catalogue,
- * these fail and the grant gets revisited deliberately, with Brian, instead of
- * drifting.
+ * The attendance-recorder grant used to be checked the same way — "exactly the
+ * `season`-scoped seats" — and that tripwire fired, as designed, when LAN-128
+ * installed the approved twenty-role catalogue and the coaching staff went from
+ * three seats to ten. The catalogue growing is not a grant widening: the packet
+ * that approved the ten seats says in terms that the catalogue includes roles
+ * carrying no privileged capability yet. So the assertion is now the stricter
+ * pair it always meant — the recorders are exactly the three seats Brian
+ * decided on 12 August 2026, and the seven seats added since hold **nothing**,
+ * in any capability. Granting one of them anything fails here, which is the
+ * deliberate conversation the old assertion existed to force.
  *
  * Local Supabase only, and the seeded dataset — `openLocalClient` refuses any
  * non-loopback host. Requires `npm run db:seed`; CI does it.
@@ -74,20 +78,64 @@ describe.runIf(configured)("the capability map against public.roles", () => {
     }
   });
 
-  it("grants attendance recording to exactly the coaching seats the catalogue has", () => {
+  it("has the approved ten coaching seats in the catalogue", () => {
     const coachingSeats = catalogue
       .filter((role) => role.scope === "season")
       .map((role) => role.code)
       .sort();
 
-    expect(coachingSeats).toEqual(["defence_coach", "head_coach", "offence_coach"]);
-    // The coaching seats, plus the administrative seat Brian decided on LAN-124.
-    // `it_officer` is `committee_year`-scoped, so it is emphatically not one of
-    // the season-scoped coaching seats above — it is named separately here.
+    // REQ-static-role-catalogue, the Coaching Staff group, checked against the
+    // database rather than against the migration's own text.
+    expect(coachingSeats).toEqual(
+      [
+        "defence_coach",
+        "defensive_backs_coach",
+        "defensive_line_coach",
+        "head_coach",
+        "linebackers_coach",
+        "offence_coach",
+        "offensive_line_coach",
+        "quarterbacks_coach",
+        "special_teams_coach",
+        "wide_receivers_coach",
+      ].sort(),
+    );
+  });
+
+  it("grants attendance recording to the three decided seats plus the administrator", () => {
+    // Brian, 12 August 2026 (LAN-108/LAN-110). `it_officer` is
+    // `committee_year`-scoped, so it is emphatically not one of the
+    // season-scoped coaching seats — it is named separately, by LAN-124.
     expect([...CAPABILITIES.attendance_recorder.roleCodes].sort()).toEqual(
-      [...coachingSeats, "it_officer"].sort(),
+      ["defence_coach", "head_coach", "it_officer", "offence_coach"].sort(),
     );
     expect(catalogue.find((role) => role.code === "it_officer")?.scope).toBe("committee_year");
+  });
+
+  it("grants the seven coaching seats added with the catalogue nothing at all", () => {
+    // The other half of the sentence above, and the reason it is safe to grow
+    // the catalogue in a package that owns no authorization decision: a seat
+    // nobody has decided about holds nothing, everywhere, and absence of a
+    // decision is never permission.
+    const undecided = [
+      "quarterbacks_coach",
+      "offensive_line_coach",
+      "wide_receivers_coach",
+      "defensive_line_coach",
+      "linebackers_coach",
+      "defensive_backs_coach",
+      "special_teams_coach",
+    ];
+
+    for (const code of undecided) {
+      expect(
+        catalogue.find((role) => role.code === code),
+        `${code} is not in public.roles`,
+      ).toBeDefined();
+      for (const key of CAPABILITY_KEYS) {
+        expect(CAPABILITIES[key].roleCodes, `${key} grants ${code}`).not.toContain(code);
+      }
+    }
   });
 
   it("grants membership activation to exactly the constitutional offices plus the GM", () => {
