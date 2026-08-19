@@ -211,6 +211,13 @@ components, and not in route handlers; routes in `src/app/`. Colocate tests with
 what they cover (`*.test.ts` beside the source) and keep cross-cutting
 integration tests in `tests/`.
 
+**A test that uses the database declares itself.** There is one local database,
+so `vitest.config.ts` runs the files named in `DATABASE_TEST_SUITES` one at a
+time and refuses every other file a PostgreSQL connection or a call to the local
+Supabase Data API. Add the path when a new test needs one; you do not have to
+remember, because the guard fails the file and says so. See
+[`docs/adr/0029-serialized-database-test-suites.md`](docs/adr/0029-serialized-database-test-suites.md).
+
 ## Styling
 
 Material UI is the component baseline — anything MUI provides (buttons, inputs,

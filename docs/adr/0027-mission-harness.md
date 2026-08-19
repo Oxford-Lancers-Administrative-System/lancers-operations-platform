@@ -1,6 +1,6 @@
 # 0027 — Mission Harness v1: mission-oriented orchestration with a guarded autonomous merge lane
 
-**Status:** Accepted; concurrency topology superseded by [0029](0029-concurrent-missions.md) · **Date:** 2026-08-18 · **Extends:**
+**Status:** Accepted; concurrency topology superseded by [0030](0030-concurrent-missions.md) · **Date:** 2026-08-18 · **Extends:**
 [0017](0017-batched-fast-lane.md), [0020](0020-zero-command-visual-review.md),
 [0024](0024-bounded-lineage-aware-review.md),
 [0025](0025-separate-finding-impact-from-gate-disposition.md) ·
@@ -177,7 +177,7 @@ synthetic readiness rehearsals, and are themselves protected governance.
   evidence, not this decision's evidence: v1 readiness is proved by
   deterministic synthetic rehearsals only.
 - The original v1 topology allowed one Mission Lead, two workers total, and two
-  database slots. ADR 0029 supersedes that topology: missions may run
+  database slots. ADR 0030 supersedes that topology: missions may run
   concurrently, with two workers and one dynamically allocated database per
   mission. Automatic wake-up after usage limits remains out of scope.
 
