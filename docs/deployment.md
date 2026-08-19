@@ -315,15 +315,18 @@ That value appears in exactly two places and they must agree: `APP_BASE_URL` in
 
 **1. Authentication → URL Configuration.**
 
-| Field                | Value                                                                       |
-| -------------------- | --------------------------------------------------------------------------- |
-| Site URL             | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app`               |
-| Redirect URL (exact) | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app/auth/recovery` |
+| Field                | Value                                                                         |
+| -------------------- | ----------------------------------------------------------------------------- |
+| Site URL             | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app`                 |
+| Redirect URL (exact) | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app/auth/recovery`   |
+| Redirect URL (exact) | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app/auth/invitation` |
 
-One exact URL, not a wildcard. The application asks for that destination and no
-other; anything Supabase does not recognise it silently replaces with the Site
-URL, which would land every recovery link on the sign-in page rather than the
-reset page — a failure with no error message anywhere.
+Two exact URLs, not a wildcard — the second is LAN-131's first-access
+invitation. The application asks for those destinations and no others; anything
+Supabase does not recognise it silently replaces with the Site URL, which would
+land every recovery link on the sign-in page rather than the reset page, and
+every invitation link on the sign-in page holding a token nothing consumes — a
+failure with no error message anywhere.
 
 The local CLI equivalent is `[auth] site_url` and `additional_redirect_urls` in
 `supabase/config.toml`, which is **local only**. Nothing in this repository
@@ -345,6 +348,25 @@ form also works from a different device than the one that asked for the reset,
 which is what an operator who requests it on a laptop and opens the email on a
 phone actually does.
 
+**2b. Authentication → Email Templates → Invite user.** (LAN-131)
+
+Set the subject to `Your Oxford Lancers operations account` and paste the body
+from [`supabase/templates/invite.html`](../supabase/templates/invite.html). The
+link in it must stay in this shape:
+
+```
+{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=invite
+```
+
+Same reasoning as the recovery template, and one more that is specific to an
+invitation: nobody asks for their own invitation, so a PKCE link — which only
+works in the browser that requested it — cannot work at all here. The invited
+person opens the email wherever they read email.
+
+Until this template is set, the hosted project sends its own built-in invite
+email, whose link this application cannot complete, and it does so **without any
+error** — the send succeeds and the person simply cannot get in.
+
 **3. Project Settings → Authentication → SMTP Settings.**
 
 Supabase's built-in email sender is for development traffic only: it is rate
@@ -358,6 +380,15 @@ pull request.
 The SMTP credential is Brian's to enter directly into the Supabase dashboard. It
 must not be added to this repository, to Secret Manager, to a workflow, or to any
 prompt.
+
+**Do not switch hosted Auth to custom SMTP yet.** Brian's recorded answer during
+mission M-OPERATOR-ADMIN-WITHOUT-SQL (question `Q-1`, 19 August 2026) is that the
+Resend sending domain `mail.oxfordlancers.com` is not verified, and switching now
+would break the password recovery that currently works through the built-in
+sender. Production first-access delivery is tracked as an open external gate
+(LAN-136) and the dashboard steps above as LAN-137. Until both close, hosted
+invitation email is **untested in production** and no agent may configure any of
+it.
 
 **4. Authentication → Rate Limits.** The hosted project enforces an
 emails-per-hour limit that the local stack does not. Leave it at the project

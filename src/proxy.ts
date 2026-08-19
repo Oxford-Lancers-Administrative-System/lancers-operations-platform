@@ -1,7 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/env";
-import { isRecoveryAuthenticatedSession, RESET_PASSWORD_PATH } from "@/lib/auth/recovery";
+import { INVITATION_CALLBACK_PATH } from "@/lib/auth/invitation";
+import {
+  isRecoveryAuthenticatedSession,
+  RECOVERY_CALLBACK_PATH,
+  RESET_PASSWORD_PATH,
+} from "@/lib/auth/recovery";
 
 /**
  * Next.js 16 renamed the `middleware` convention to `proxy`. This runs before
@@ -79,8 +84,19 @@ const PRIVATE_LINK_HEADERS: ReadonlyArray<readonly [string, string]> = [
  * Supabase session work this function does, and the two pages are ordinary
  * unauthenticated pages that benefit from it. The headers are applied to
  * whatever response the rest of this function produces.
+ *
+ * LAN-131 adds `/auth/invitation` to the same list rather than to a second one.
+ * It is the same kind of URL as `/auth/recovery` — a one-time token in a
+ * request URL, exchanged for a session whose only purpose is choosing a
+ * password — so it needs the same three headers for the same three reasons, and
+ * it lands on `/reset-password`, which is already here.
  */
-const RECOVERY_PREFIXES = ["/forgot-password", "/reset-password", "/auth/recovery"];
+const RECOVERY_PREFIXES = [
+  "/forgot-password",
+  RESET_PASSWORD_PATH,
+  RECOVERY_CALLBACK_PATH,
+  INVITATION_CALLBACK_PATH,
+];
 
 function matchesPrefix(pathname: string, prefixes: readonly string[]): boolean {
   return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));

@@ -43,6 +43,20 @@ function setting(key: string): string {
   return match[1].trim();
 }
 
+/** The same, scoped to one TOML table, for keys that appear in several. */
+function blockSetting(table: string, key: string): string {
+  const lines = config.split("\n");
+  const start = lines.findIndex((line) => line.trim() === `[${table}]`);
+  if (start === -1) throw new Error(`[${table}] is not present in supabase/config.toml.`);
+
+  for (const line of lines.slice(start + 1)) {
+    if (/^\s*\[/.test(line)) break;
+    const match = new RegExp(`^${key}\\s*=\\s*(.+)$`).exec(line);
+    if (match) return match[1].trim();
+  }
+  throw new Error(`${key} is not set under [${table}] in supabase/config.toml.`);
+}
+
 const allowedRedirects: string[] = JSON.parse(setting("additional_redirect_urls"));
 
 describe("the local allow-list names the exact recovery destination", () => {
@@ -76,7 +90,12 @@ describe("the local allow-list names the exact recovery destination", () => {
 describe("the recovery email template is configured and is the right shape", () => {
   it("is declared, with a path that resolves", () => {
     expect(config).toMatch(/^\[auth\.email\.template\.recovery\]$/m);
-    const contentPath = JSON.parse(setting("content_path"));
+    // Read from inside `[auth.email.template.recovery]` rather than by
+    // first-match on the whole file. LAN-131 added a second template block
+    // (`[auth.email.template.invite]`), and a first-match read would then have
+    // silently checked *that* template's path and reported the recovery
+    // template configured whatever had happened to it.
+    const contentPath = JSON.parse(blockSetting("auth.email.template.recovery", "content_path"));
     expect(fs.existsSync(path.join(repoRoot, contentPath))).toBe(true);
   });
 

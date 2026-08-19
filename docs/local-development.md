@@ -242,16 +242,40 @@ the fixed review login unless you intend to change that login's password — the
 review login's password lives in protected machine-local state and is what
 `npm run db:seed-user` restores.
 
+## Operator invitation, locally
+
+The same machinery, and the same Mailpit: an invitation never leaves the machine
+either. This is the whole first-access journey, end to end.
+
+1. Sign in as the local review operator, who holds `role_management`, and invite
+   somebody through the Administration surfaces — or call
+   `inviteOperator()` from a script or a test.
+2. Open Mailpit at <http://127.0.0.1:54324> and click the link in **Your Oxford
+   Lancers operations account**.
+3. The link lands on `/auth/invitation`, which exchanges the one-time invite
+   token and sends the browser to `/reset-password` with the token stripped from
+   the URL.
+4. Choose a password. The account is recorded as activated at that moment — not
+   when the link was opened — and Administration moves it from **Invitation
+   pending** to **Active**.
+5. You are signed out and returned to `/login`, where the new password works.
+
+An expired link is normal and is not an error: ask for a resend. **Delivery
+failed** is what an account shows when the send itself failed; the person, the
+account and their role assignment are all still there, and Resend is offered.
+
 ### The Auth configuration this depends on
 
-Two entries in `supabase/config.toml`, and both are **local only** — the hosted
-project's equivalents are set in the Supabase dashboard and are listed in
+Four entries in `supabase/config.toml`, and all of them are **local only** — the
+hosted project's equivalents are set in the Supabase dashboard and are listed in
 [`deployment.md`](deployment.md) § Password recovery.
 
-| Setting                           | Value                                                                                            |
-| --------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `[auth] additional_redirect_urls` | includes `http://localhost:3000/auth/recovery` and `http://127.0.0.1:3000/auth/recovery`         |
-| `[auth.email.template.recovery]`  | `./supabase/templates/recovery.html`, which links `{{ .RedirectTo }}?token_hash=…&type=recovery` |
+| Setting                           | Value                                                                                                                                                                                                       |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[auth] additional_redirect_urls` | includes `http://localhost:3000/auth/recovery`, `http://127.0.0.1:3000/auth/recovery`, `http://localhost:3000/auth/invitation` and `http://127.0.0.1:3000/auth/invitation`                                  |
+| `[auth.email.template.recovery]`  | `./supabase/templates/recovery.html`, which links `{{ .RedirectTo }}?token_hash=…&type=recovery`                                                                                                            |
+| `[auth.email.template.invite]`    | `./supabase/templates/invite.html`, which links `{{ .RedirectTo }}?token_hash=…&type=invite`                                                                                                                |
+| `[auth.rate_limit] email_sent`    | 60 an hour. The CLI default of 2 makes the invitation flow untestable — one invitation, a resend and a correction is already three — and the limit protects nothing on a stack whose mail server is Mailpit |
 
 The port is rewritten per slot when the coordinator renders the runtime config,
 so the overflow slot allow-lists `http://localhost:3010/auth/recovery` instead.
