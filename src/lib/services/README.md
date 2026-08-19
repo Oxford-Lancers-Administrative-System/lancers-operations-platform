@@ -20,6 +20,8 @@ src/lib/db/                 the data-access substrate — not a service
 
 src/lib/services/           one module per aggregate
   audit.ts                  recordAudit — the single writer for audit_events
+  administration-events.ts  the administration event vocabulary (pure)
+  administration-audit.ts   recordAdministrationEvent, and the two projections
   <aggregate>.ts            e.g. events.ts, memberships.ts, invitations.ts
   <aggregate>.test.ts       colocated
 ```
@@ -94,6 +96,35 @@ TypeScript_ names, and implements them the way that section describes:
   `rejected`, `cancelled`, `occurred` and `not_held` belong to LAN-77 and later.
 - **Writing the audit record** (M2) — every transition calls `recordAudit` with
   the same `Tx` as the status change.
+
+`administration-events.ts` and `administration-audit.ts` are LAN-130's half of
+the operator-administration mission, and they are the pattern for **one event
+read two ways**. The vocabulary module is pure — a closed set of administration
+actions, the rules each one carries, and the versioned envelope stored under
+`audit_events.context.administration`. The audit module writes exactly one row
+per change through `recordAudit`, and reads it back as _Operator audit history_
+(keyed on the envelope's target Person) or _Holder history_ (keyed on its role,
+restricted to the role-related subset).
+
+Three things about it are load-bearing rather than stylistic:
+
+- **Nothing is written twice.** Both projections are filters over the same
+  stream, so a role assignment appears in both from one stored row. A second
+  copy shaped for the second screen is the reconciliation problem register D9
+  refuses, and `administration-audit.test.ts` proves the absence of one by
+  counting committed rows rather than by inspecting what came back.
+- **The reads are guarded here**, including the `…In(tx)` variants, because
+  administration history says who did what to whom. There is deliberately no
+  exported read without a capability check on it.
+- **There is no update or delete path**, and there is no term in the vocabulary
+  for amending an event. A correction is a new event.
+- **A row this version cannot read is marked, not dropped.** `occurred_at`
+  defaults to transaction time, so two events written atomically share a
+  timestamp and are separated by a causal position declared on the vocabulary
+  (`instantOrder`) rather than by an arbitrary identifier; and an entry whose
+  stored envelope is from a later version comes back with `unreadable` set
+  instead of being filtered out. For an audit surface, a history that looks
+  complete and is not is worse than one with a visible gap.
 
 Still **not implemented**, each with its own issue: the non-empty confirmed
 audience (E1b), sequential report-version allocation (M5), atomic job claiming
