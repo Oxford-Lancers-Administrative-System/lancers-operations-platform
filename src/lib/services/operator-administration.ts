@@ -91,24 +91,37 @@ import { personDisplayNameSql } from "./sql-text";
  *      snapshot taken before the transaction is stale by construction, and a
  *      stale snapshot is the one way to disarm the leadership rules.
  *
+ *      {@link startOperatorEmailRehome} is the one write that cannot be a
+ *      single transaction — it has to move the address on the Auth server
+ *      between deciding and writing, and holding a database transaction open
+ *      across an unbounded network call is the thing this repository's
+ *      transaction helper exists to prevent. It therefore asserts **twice**:
+ *      once to refuse before anything is touched, and again inside the
+ *      transaction that writes, against a freshly locked row. The second
+ *      assertion is the one that is load-bearing; the first only saves a
+ *      pointless Auth call.
+ *
  *   4. **A scheduled seat reaches the guard.** `readAdministrationSubject` is
  *      always called with `includeScheduled: true`, so a seat dated to begin at
  *      a handover protects its holder *now* rather than from the handover date.
  *      It can only ever make the guard stricter, and the last blocking finding
  *      of the previous package was exactly this option being absent.
  *
- * ## Two opposite directions, both fail-closed
+ * ## Two questions about scheduled seats, answered differently
  *
- * The guard snapshot includes seats that have not started yet; the
- * administration-path snapshot ({@link readAdministrationPaths}) deliberately
- * does not. That is not an inconsistency — each is the conservative direction
- * for the question being asked:
+ * Both reads see seats that have not started yet, and they do different things
+ * with them, because they are asked different questions:
  *
- *   * the guard asks "does this target need protecting?", and a seat nobody
- *     can see yet still needs protecting, so **more** seats is stricter;
- *   * the path count asks "can somebody still administer the club after this?",
- *     and an administrator whose seat begins next month cannot help today, so
- *     **fewer** paths is stricter.
+ *   * the guard asks "does this target need protecting?" — a President-elect
+ *     whose seat begins at the handover needs protecting **now**, so the seat
+ *     counts from the moment it is recorded;
+ *   * the path check asks "can somebody still administer the club?" — which has
+ *     no answer without a date, so it is asked on every date the answer can
+ *     change. A seat beginning next month is not a path today and is one then,
+ *     and a seat *ending* next month is a path today and is not one then. The
+ *     second half is LAN132-B2: reading only today let two scheduled endings
+ *     each pass while the other holder was still effective, and empty the club
+ *     on the day they both lapsed.
  *
  * ## Nothing here deletes anything
  *
@@ -387,11 +400,11 @@ export async function endRoleAssignment(
     refuseAlreadyEnded(assignment);
     refuseEndBeforeStart(assignment, effectiveTo);
 
-    await assertClubKeepsAnAdministrator(tx, {
-      kind: "end_role",
-      personId: assignment.personId,
-      roleCode: assignment.roleCode,
-    });
+    await assertClubKeepsAnAdministrator(
+      tx,
+      { kind: "end_role", personId: assignment.personId, roleCode: assignment.roleCode },
+      effectiveTo,
+    );
 
     await tx.query("update public.role_assignments set effective_to = $2::date where id = $1", [
       assignment.id,
@@ -535,12 +548,16 @@ export async function replaceRoleHolder(
     refuseAlreadyEnded(outgoing);
     refuseEndBeforeStart(outgoing, effectiveFrom);
 
-    await assertClubKeepsAnAdministrator(tx, {
-      kind: "replace_role_holder",
-      personId: outgoing.personId,
-      roleCode: role.code,
-      successor: await administrationPathFor(tx, params.successorPersonId, role.code),
-    });
+    await assertClubKeepsAnAdministrator(
+      tx,
+      {
+        kind: "replace_role_holder",
+        personId: outgoing.personId,
+        roleCode: role.code,
+        successor: await administrationPathFor(tx, params.successorPersonId, role.code),
+      },
+      effectiveFrom,
+    );
 
     // A replacement always carries a reason — it ends an assignment — so a
     // backdated handover is audited by construction and needs no second check.
@@ -667,10 +684,14 @@ export async function deactivateOperatorAccess(
       );
     }
 
-    await assertClubKeepsAnAdministrator(tx, {
-      kind: "deactivate_account",
-      personId: account.personId,
-    });
+    await assertClubKeepsAnAdministrator(
+      tx,
+      { kind: "deactivate_account", personId: account.personId },
+      // Immediately. A deactivation has no date to choose, and modelling it as
+      // permanent from today is the conservative reading — nothing here knows
+      // whether or when it will be undone.
+      await currentDateIn(tx),
+    );
 
     const after = await updateAccount(
       tx,
@@ -926,30 +947,70 @@ export async function startOperatorEmailRehome(
   // database agreeing with each other.
   await identity.changeLoginEmail(account.authUserId, email);
 
-  const after = await withTransaction(async (tx) => {
-    const updated = await updateAccount(
-      tx,
-      account.id,
-      `login_email = $2,
-       email_rehome_pending_at = coalesce(email_rehome_pending_at, now())`,
-      [email],
-    );
+  let after: OperatorAccountRecord;
+  try {
+    after = await withTransaction(async (tx) => {
+      // **Everything the first transaction decided is decided again here**, and
+      // this is LAN132-B3. The first transaction committed and released its
+      // `FOR UPDATE` lock before the Auth call above, which is an unbounded
+      // network call; every fact it checked is therefore a snapshot from before
+      // that window. A different administrator assigning the President seat
+      // inside it would have made this a re-home of the President's login,
+      // authorized against a target who was nobody in particular when the
+      // question was asked.
+      //
+      // So the lock is retaken, the target's seats are re-read, and the guard,
+      // the state rule and the address rule are all re-asserted against the row
+      // as it is now — inside the transaction that writes, which is what this
+      // module's rule 3 promises and what the first version of this function
+      // was alone in not delivering.
+      const current = await lockAccount(tx, params.operatorAccountId);
 
-    await recordAdministrationEvent(tx, {
-      action: retry
-        ? "administration.operator.email_rehome_retried"
-        : "administration.operator.email_rehome_started",
-      actorPersonId: actor.personId,
-      authority: administrationAuthority(actor),
-      target: { personId: account.personId, operatorAccountId: account.id },
-      operatingYear: prepared.operatingYear,
-      ...(retry ? {} : { fromState: account.state, toState: updated.state }),
-      reason,
-      detail: { previousLoginEmail, loginEmail: email },
+      const subject = await readAdministrationSubject(tx, current.personId, {
+        includeScheduled: true,
+      });
+      assertAdministrationTarget(params.operator, { action: "recover_email", target: subject });
+
+      refuseUnlessRehomable(current);
+      await refuseTakenEmail(tx, email, current.id);
+
+      const updated = await updateAccount(
+        tx,
+        current.id,
+        `login_email = $2,
+         email_rehome_pending_at = coalesce(email_rehome_pending_at, now())`,
+        [email],
+      );
+
+      await recordAdministrationEvent(tx, {
+        action: retry
+          ? "administration.operator.email_rehome_retried"
+          : "administration.operator.email_rehome_started",
+        actorPersonId: actor.personId,
+        authority: administrationAuthority(actor),
+        target: { personId: current.personId, operatorAccountId: current.id },
+        operatingYear: prepared.operatingYear,
+        ...(retry ? {} : { fromState: current.state, toState: updated.state }),
+        reason,
+        detail: { previousLoginEmail, loginEmail: email },
+      });
+
+      return updated;
     });
-
-    return updated;
-  });
+  } catch (error) {
+    // The login was already moved, and the write that was supposed to record it
+    // did not happen — because the re-assertion above refused, or because the
+    // database did. Put the address back, so the login and the club's record of
+    // it agree, and so the refusal is a refusal rather than a half-performed
+    // recovery. Best effort: if the move back fails, the original refusal is
+    // still what the administrator needs to see.
+    if (previousLoginEmail !== null) {
+      await identity
+        .changeLoginEmail(account.authUserId, previousLoginEmail)
+        .catch(() => undefined);
+    }
+    throw error;
+  }
 
   const delivery = await deliverVerification(identity, email, callbackUrl);
 
@@ -1618,30 +1679,68 @@ async function deliverVerification(
 // ---------------------------------------------------------------------------
 
 /**
- * Every Person who could administer the club today, as the authority module's
- * rule wants them.
+ * One administration seat, with the period it is held over.
  *
- * **Currently effective only**, and never scheduled — see the module note. An
- * administrator whose seat begins next month cannot help the club this
- * afternoon, so counting them would let the last usable path be removed today
- * on the strength of somebody who cannot sign in until the handover.
- *
- * `usable` is the account's own answer: a Person with no operator account, an
- * invitation nobody has taken up, a deactivated account and an account waiting
- * on an email verification are all `false`. That is exactly what
- * `AdministrationPath` asks for.
+ * Seats rather than people, and dates rather than a snapshot, because
+ * LAN132-B2: an administrator already scheduled to lapse is still effective
+ * *today*, so a today-only snapshot counts them as the surviving path and
+ * nothing ever re-evaluates on the date they go. Two ordinary endings by one
+ * administrator, no race and no second actor, then left the club with nobody
+ * able to administer it — which is the state `REQ-final-admin-protection`
+ * exists to prevent.
  */
-async function readAdministrationPaths(tx: Tx): Promise<AdministrationPath[]> {
+interface AdministrationSeat {
+  readonly personId: string;
+  readonly roleCode: string;
+  /** ISO date. May be later than today — a seat that has not started yet. */
+  readonly effectiveFrom: string;
+  /** ISO date, exclusive, or `null` for open-ended. */
+  readonly effectiveTo: string | null;
+  /** Can this person sign in today? Treated as constant — see the note below. */
+  readonly usable: boolean;
+}
+
+/**
+ * Every administration seat the club has that has not already lapsed, with its
+ * period and its holder's account state.
+ *
+ * Three things about it are decisions rather than shape:
+ *
+ *   * **Seats that have not started are included.** The previous version
+ *     excluded them, on the reasoning that an administrator whose seat begins
+ *     next month cannot help the club this afternoon. That is true of *this
+ *     afternoon* and it is the wrong shape for the question: the guard now asks
+ *     what the club looks like on each date, and on the date that seat begins
+ *     it is a path. Excluding them made a legitimate succession — schedule the
+ *     outgoing officer's departure, schedule the incoming one's start — refuse
+ *     for no reason, while the far worse case it was meant to catch went
+ *     through.
+ *
+ *   * **Seats that have already lapsed are excluded**, because they are history
+ *     and no future date brings them back.
+ *
+ *   * **`usable` is a present-tense fact carried forward unchanged.** Whether
+ *     somebody's invitation will have been taken up by September is not
+ *     knowable, and guessing either way would be inventing a fact. Carrying
+ *     today's answer forward is the conservative direction: a pending
+ *     invitation counts as unusable at every date, so it can only make the
+ *     guard stricter, never permissive.
+ */
+async function readAdministrationSeats(tx: Tx): Promise<AdministrationSeat[]> {
   const result = await tx.query<{
     person_id: string;
-    role_codes: string[];
+    code: string;
+    effective_from: string;
+    effective_to: string | null;
     is_active: boolean | null;
     activated_at: Date | null;
     invitation_delivery_failed_at: Date | null;
     email_rehome_pending_at: Date | null;
   }>(
     `select ra.person_id,
-            array_agg(distinct r.code) as role_codes,
+            r.code,
+            ra.effective_from::text as effective_from,
+            ra.effective_to::text   as effective_to,
             oa.is_active,
             oa.activated_at,
             oa.invitation_delivery_failed_at,
@@ -1650,16 +1749,15 @@ async function readAdministrationPaths(tx: Tx): Promise<AdministrationPath[]> {
        join public.roles r on r.id = ra.role_id
        left join public.operator_accounts oa on oa.person_id = ra.person_id
       where r.code = any($1::text[])
-        and ra.effective_from <= current_date
-        and (ra.effective_to is null or ra.effective_to > current_date)
-      group by ra.person_id, oa.is_active, oa.activated_at,
-               oa.invitation_delivery_failed_at, oa.email_rehome_pending_at`,
+        and (ra.effective_to is null or ra.effective_to > current_date)`,
     [[...capabilityRoleCodes(ADMINISTRATION_CAPABILITY)]],
   );
 
   return result.rows.map((row) => ({
     personId: row.person_id,
-    roleCodes: row.role_codes,
+    roleCode: row.code,
+    effectiveFrom: row.effective_from,
+    effectiveTo: row.effective_to,
     usable:
       row.is_active !== null &&
       operatorAccountState(
@@ -1670,6 +1768,36 @@ async function readAdministrationPaths(tx: Tx): Promise<AdministrationPath[]> {
           emailChangePending: row.email_rehome_pending_at !== null,
         }),
       ).usable,
+  }));
+}
+
+/**
+ * The club's administration paths **on one date**, as the authority module's
+ * rule wants them.
+ *
+ * `[effectiveFrom, effectiveTo)` — the same half-open period the GiST exclusion
+ * constraints use, so a seat handed over on a date is held by exactly one of
+ * the two people on it.
+ */
+function administrationPathsOn(
+  seats: readonly AdministrationSeat[],
+  date: string,
+): AdministrationPath[] {
+  const byPerson = new Map<string, { roleCodes: string[]; usable: boolean }>();
+
+  for (const seat of seats) {
+    if (seat.effectiveFrom > date) continue;
+    if (seat.effectiveTo !== null && seat.effectiveTo <= date) continue;
+
+    const existing = byPerson.get(seat.personId);
+    if (existing) existing.roleCodes.push(seat.roleCode);
+    else byPerson.set(seat.personId, { roleCodes: [seat.roleCode], usable: seat.usable });
+  }
+
+  return [...byPerson.entries()].map(([personId, entry]) => ({
+    personId,
+    roleCodes: entry.roleCodes,
+    usable: entry.usable,
   }));
 }
 
@@ -1719,37 +1847,64 @@ async function administrationPathFor(
  * `AdministrationPathEffect` union does not model it because `WP-authorization`
  * decided it should not.
  *
- * The projection is arithmetic over a snapshot read inside this transaction, so
- * it sees the rows the write is about to change and no others.
+ * ## It is checked on every date the answer can change, not only today
+ *
+ * This is LAN132-B2, and the defect it closes needed no race and no second
+ * actor. `effectiveOn` is the date the pending action takes hold — today for a
+ * deactivation, the chosen date for an ending or a handover — and the club's
+ * paths are recomputed on **every** date at which any administration seat
+ * starts or stops, because between two such dates the answer cannot change.
+ * Evaluating only today let one administrator schedule two endings for the same
+ * future date, each permitted because the other holder was still effective *at
+ * the moment of asking*, and leave the club with nobody on the day they both
+ * lapsed — recoverable only by Brian, through a migration or the owner-run
+ * bootstrap.
+ *
+ * ## The effect is applied only from the date it takes hold
+ *
+ * A seat ending in September is still held in August, so applying the effect at
+ * every date would refuse legitimate successions by pretending the departure
+ * had already happened. Before `effectiveOn` the club is unchanged; from it,
+ * `remainingAdministrationPaths` projects the change — which is also why
+ * replacement is still handed to that function whole rather than decomposed
+ * here (LAN129-A1): it is the one place that knows a successor's `usable` must
+ * merge as a conjunction.
+ *
+ * ## "Eliminate" is still a comparison, now per date
+ *
+ * An action cannot eliminate what is already gone, so each date is judged
+ * against itself: a date that had no usable path before this action is not one
+ * this action emptied. That keeps a freshly migrated database — role
+ * assignments from the seed, no `operator_accounts` rows, which is what CI runs
+ * against — from refusing every ending and every deactivation with a message
+ * about administration roles that has nothing to do with the action.
  */
 async function assertClubKeepsAnAdministrator(
   tx: Tx,
   effect: AdministrationPathEffect,
+  effectiveOn: string,
 ): Promise<void> {
-  const paths = await readAdministrationPaths(tx);
+  const seats = await readAdministrationSeats(tx);
+  const today = await currentDateIn(tx);
 
-  // The requirement's verb is **eliminate**, and it is load-bearing: an action
-  // cannot eliminate what is already gone. A club with no usable administration
-  // path at all is a state this application cannot produce — that is the whole
-  // point of the rule — but it is a state that exists before the application
-  // has produced anything: a freshly migrated database has role assignments
-  // from the seed and no `operator_accounts` rows, which is exactly what CI
-  // runs against.
-  //
-  // Asserting survival unconditionally there refuses **every** ending and every
-  // deactivation, including ones with no bearing on administration at all —
-  // ending a Kit Manager's assignment would be refused because nobody has an
-  // operator login yet, with a message telling the operator to give somebody an
-  // administration role first. That is not the requirement being enforced; it
-  // is the arithmetic being read backwards.
-  //
-  // So the check is a comparison rather than a floor: it fires when this action
-  // is what empties the set, and stays silent when the set was already empty.
-  // In every state the application can reach it is identical to the unqualified
-  // version, because the application refuses to reach the empty state.
-  if (usableAdministrationPaths(paths).length === 0) return;
+  // Every date the picture can change: today, the date this action takes hold,
+  // and every start or end already scheduled. Between two consecutive dates in
+  // this set no seat begins or ends, so no date between them can be worse than
+  // the one that opened the interval.
+  const horizon = new Set<string>([today, effectiveOn]);
+  for (const seat of seats) {
+    if (seat.effectiveFrom > today) horizon.add(seat.effectiveFrom);
+    if (seat.effectiveTo !== null && seat.effectiveTo > today) horizon.add(seat.effectiveTo);
+  }
 
-  assertAdministrationPathSurvives(remainingAdministrationPaths(paths, effect));
+  for (const date of [...horizon].sort()) {
+    const before = administrationPathsOn(seats, date);
+    if (usableAdministrationPaths(before).length === 0) continue;
+
+    const after = date >= effectiveOn ? remainingAdministrationPaths(before, effect) : before;
+
+    assertAdministrationPathSurvives(after);
+  }
 }
 
 /** Re-exported so a caller can build the same subject shape this module judges. */

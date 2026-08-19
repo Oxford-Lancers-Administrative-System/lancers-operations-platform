@@ -46,7 +46,7 @@ import pg, { type Client } from "pg";
 import { FINAL_ADMINISTRATION_PATH_RULE } from "@/lib/auth/administration-authority";
 import { capabilityRoleCodes } from "@/lib/auth/capabilities";
 import type { ResolvedOperator } from "@/lib/auth/operator";
-import { closePool, isServiceError, resolveDatabaseUrl } from "@/lib/db";
+import { closePool, isServiceError, resolveDatabaseUrl, withTransaction } from "@/lib/db";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readHolderHistory, readOperatorAuditHistory } from "./administration-audit";
 import {
@@ -75,6 +75,11 @@ import {
   type OperatorEmailRecoveryPort,
 } from "./operator-administration";
 import { supabaseOperatorIdentity } from "./operator-identity";
+import {
+  insertRoleAssignmentIn,
+  resolveActiveCommitteeYear,
+  resolveCycleFor,
+} from "./operator-invitations";
 
 /** This suite's own marker on every Person it creates. */
 const MARKER = "LAN132Fixture:operator-administration";
@@ -511,10 +516,7 @@ describe("A — assigning a role", () => {
     expect(row?.committee_year_id).toBeNull();
   });
 
-  it("copies the single-holder flag from the catalogue rather than defaulting it", async () => {
-    // There is no trigger — LAN-128 decided that deliberately — so a value
-    // taken from anywhere but the catalogue row is refused by the composite
-    // foreign key. This is the assertion that the right value is read.
+  it("carries the catalogue's scope and office status onto the assignment", async () => {
     const restore = await vacateThePresidency();
     try {
       const personId = await insertPerson("assign-office");
@@ -526,6 +528,62 @@ describe("A — assigning a role", () => {
       const row = await assignmentRow(result.roleAssignmentId);
       expect(row?.is_single_holder_seat).toBe(false);
       expect(row?.scope).toBe("committee_year");
+    } finally {
+      await restore();
+    }
+  });
+
+  /**
+   * LAN132-A1. The test above cannot prove this and no longer claims to:
+   * `general_manager` is the only seat whose `is_single_holder_seat` is true,
+   * and it is unassignable through every guarded path in this module, so every
+   * assignment reachable from `assignRole` asserts `false` for a role whose
+   * flag is `false`. Hardcoding `false` at the insert passed it.
+   *
+   * So the insert helper is exercised directly against the one catalogue row
+   * where the answer differs. There is no trigger — LAN-128 decided that
+   * deliberately — so a value taken from anywhere but the catalogue row is
+   * refused by `role_assignments_agree_with_single_holder_rule`, and this is
+   * the case that makes the difference visible: hardcode `false` and the
+   * composite foreign key rejects the insert.
+   */
+  it("reads the single-holder flag from the catalogue, on the one seat where it is true", async () => {
+    const restore = await vacateTheGeneralManagership();
+    try {
+      const personId = await insertPerson("single-holder-flag");
+
+      const assignmentId = await withTransaction(async (tx) => {
+        const role = (
+          await tx.query<{
+            id: string;
+            code: string;
+            scope: "committee_year" | "season";
+            is_constitutional_office: boolean;
+            is_single_holder_seat: boolean;
+          }>(
+            `select id, code, scope::text as scope, is_constitutional_office,
+                    is_single_holder_seat
+               from public.roles where code = 'general_manager'`,
+          )
+        ).rows[0];
+        expect(role.is_single_holder_seat, "the catalogue's own answer").toBe(true);
+
+        const cycle = await resolveCycleFor(tx, role.scope, await resolveActiveCommitteeYear(tx));
+        return insertRoleAssignmentIn(tx, {
+          personId,
+          entry: {
+            role,
+            effectiveFrom: today,
+            backdated: false,
+            scheduled: false,
+            reason: null,
+          },
+          cycle,
+          appointedByPersonId: actorPersonId,
+        });
+      });
+
+      expect((await assignmentRow(assignmentId))?.is_single_holder_seat).toBe(true);
     } finally {
       await restore();
     }
@@ -971,6 +1029,133 @@ describe("B — ending a role assignment", () => {
   });
 });
 
+/**
+ * LAN132-B2 — the finding this round exists for.
+ *
+ * `REQ-final-admin-protection` says no action may eliminate every usable
+ * administration path, and the first version asked that question only about
+ * today. An administrator already scheduled to lapse is still effective today,
+ * so it counted them as the surviving path and nothing re-evaluated on the date
+ * they went. One administrator, two ordinary endings through the normal
+ * surface, no race and no second actor — and on the effective date the club had
+ * nobody able to administer operator accounts or roles, recoverable only by
+ * Brian through a migration or the owner-run bootstrap.
+ */
+describe("B2 — a scheduled ending cannot empty the club on the day it takes effect", () => {
+  it("refuses the second scheduled ending that would leave the date with nobody", async () => {
+    const firstPersonId = await insertPerson("scheduled-first");
+    const firstAssignment = await giveRole(firstPersonId, "it_officer", { from: pastDate(3) });
+    const first = await giveOperatorAccount(firstPersonId);
+
+    const secondPersonId = await insertPerson("scheduled-second");
+    const secondAssignment = await giveRole(secondPersonId, "it_officer", { from: pastDate(3) });
+    const second = await giveOperatorAccount(secondPersonId);
+
+    const handover = futureDate(30);
+
+    await withOnlyOneAdministrator([first.id, second.id], async () => {
+      // Permitted: the other administrator survives the date.
+      const ended = await endRoleAssignment({
+        operator: administrator(),
+        roleAssignmentId: firstAssignment,
+        effectiveTo: handover,
+        reason: "Stepping down at the AGM.",
+      });
+      expect(ended.scheduled).toBe(true);
+
+      // Refused: today both are still effective, and on the handover date
+      // neither would be.
+      expect(
+        await refusalOf(
+          endRoleAssignment({
+            operator: administrator(),
+            roleAssignmentId: secondAssignment,
+            effectiveTo: handover,
+            reason: "Also stepping down at the AGM.",
+          }),
+        ),
+      ).toEqual({ kind: "not_permitted", rule: FINAL_ADMINISTRATION_PATH_RULE });
+
+      // …and the ordering does not matter: ending the second one *today* is
+      // refused too, because the first is gone from the handover date on.
+      expect(
+        await refusalOf(
+          endRoleAssignment({
+            operator: administrator(),
+            roleAssignmentId: secondAssignment,
+            reason: "Leaving now.",
+          }),
+        ),
+      ).toEqual({ kind: "not_permitted", rule: FINAL_ADMINISTRATION_PATH_RULE });
+    });
+
+    expect((await assignmentRow(secondAssignment))?.effective_to).toBeNull();
+  });
+
+  it("permits it once somebody else's seat starts before that date", async () => {
+    // The other half of the same arithmetic, and the reason the guard reasons
+    // over dates rather than simply refusing every second ending: a scheduled
+    // *start* is a path on the date it starts. A succession planned properly —
+    // the successor's seat begins before the outgoing seats end — must go
+    // through, or the rule would forbid the very thing it is protecting.
+    const firstPersonId = await insertPerson("succession-first");
+    const firstAssignment = await giveRole(firstPersonId, "it_officer", { from: pastDate(3) });
+    const first = await giveOperatorAccount(firstPersonId);
+
+    const secondPersonId = await insertPerson("succession-second");
+    const secondAssignment = await giveRole(secondPersonId, "it_officer", { from: pastDate(3) });
+    const second = await giveOperatorAccount(secondPersonId);
+
+    const successorPersonId = await insertPerson("succession-successor");
+    await giveRole(successorPersonId, "it_officer", { from: futureDate(10) });
+    const successor = await giveOperatorAccount(successorPersonId);
+
+    await withOnlyOneAdministrator([first.id, second.id, successor.id], async () => {
+      await endRoleAssignment({
+        operator: administrator(),
+        roleAssignmentId: firstAssignment,
+        effectiveTo: futureDate(30),
+        reason: "Stepping down at the AGM.",
+      });
+
+      const ended = await endRoleAssignment({
+        operator: administrator(),
+        roleAssignmentId: secondAssignment,
+        effectiveTo: futureDate(30),
+        reason: "Also stepping down at the AGM.",
+      });
+      expect(ended.effectiveTo).toBe(futureDate(30));
+    });
+  });
+
+  it("refuses a deactivation that empties a date the club had already scheduled itself into", async () => {
+    // The same defect reached through a different verb: the surviving path is
+    // scheduled to lapse, so deactivating the only other administrator today is
+    // fine today and fatal from the lapse date.
+    const lapsingPersonId = await insertPerson("lapsing-administrator");
+    await giveRole(lapsingPersonId, "it_officer", { from: pastDate(3), to: futureDate(20) });
+    const lapsing = await giveOperatorAccount(lapsingPersonId);
+
+    const otherPersonId = await insertPerson("other-administrator");
+    await giveRole(otherPersonId, "it_officer", { from: pastDate(3) });
+    const other = await giveOperatorAccount(otherPersonId);
+
+    await withOnlyOneAdministrator([lapsing.id, other.id], async () => {
+      expect(
+        await refusalOf(
+          deactivateOperatorAccess({
+            operator: administrator(),
+            operatorAccountId: other.id,
+            reason: "Suspended.",
+          }),
+        ),
+      ).toEqual({ kind: "not_permitted", rule: FINAL_ADMINISTRATION_PATH_RULE });
+    });
+
+    expect((await accountRow(other.id))?.is_active).toBe(true);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Replacement
 // ---------------------------------------------------------------------------
@@ -1132,6 +1317,56 @@ describe("C — replacing the holder of a role", () => {
       });
       expect(result.successorPersonId).toBe(successor);
     });
+  });
+
+  /**
+   * LAN132-B1. Independent review downgraded each of this module's seven
+   * `assertAdministrationTarget` calls to the capability floor in turn; six
+   * produced failures and this one did not, because nothing exercised the
+   * *outgoing* holder's protection through Replace.
+   *
+   * It is reachable only here. `endRoleAssignment` has its own guard and is
+   * never entered on this path, and the successor guard below asks about the
+   * successor — so an IT Officer taking an ordinary seat away from the sitting
+   * President passed every other test in this file.
+   */
+  it("asks the replacement question about the outgoing holder", async () => {
+    const restore = await vacateThePresidency();
+    try {
+      const sittingPresident = await insertPerson("replace-outgoing-president");
+      await giveRole(sittingPresident, "president");
+      const assignmentId = await giveRole(sittingPresident, "kit_manager", { from: pastDate(3) });
+      const successor = await insertPerson("replace-outgoing-president-successor");
+
+      // The seat changing hands is ordinary and the successor is ordinary. The
+      // only thing protecting this action is who currently holds it.
+      expect(
+        await refusalOf(
+          replaceRoleHolder({
+            operator: itOfficer(),
+            roleAssignmentId: assignmentId,
+            successorPersonId: successor,
+            reason: "Taking the kit off the President.",
+          }),
+        ),
+      ).toMatchObject({ kind: "not_permitted", rule: "administration_leadership_target" });
+
+      expect((await assignmentRow(assignmentId))?.effective_to).toBeNull();
+
+      // And the General Manager, who may administer the President, is not
+      // refused — so the refusal above is the leadership rule and not a blanket
+      // denial of replacement.
+      const done = await replaceRoleHolder({
+        operator: generalManager(),
+        roleAssignmentId: assignmentId,
+        successorPersonId: successor,
+        reason: "Handing the kit over.",
+      });
+      expect(done.outgoingPersonId).toBe(sittingPresident);
+      expect(done.successorPersonId).toBe(successor);
+    } finally {
+      await restore();
+    }
   });
 
   it("asks the assignment question about the successor as well", async () => {
@@ -1614,6 +1849,70 @@ describe("E — the administrator email re-home", () => {
       } finally {
         await restoreGeneralManagership();
       }
+    } finally {
+      await restore();
+    }
+  });
+
+  /**
+   * LAN132-B3. The re-home cannot be one transaction: it has to move the
+   * address on the Auth server between deciding and writing, and the first
+   * transaction commits and releases its `FOR UPDATE` lock before that call. So
+   * every fact the guard checked is a snapshot from before an unbounded network
+   * window, and the write that follows used to trust it.
+   *
+   * The window is staged deterministically here by making the Auth call itself
+   * the moment a different administrator assigns the President seat to the
+   * target. At the guard the target is nobody in particular; by the write they
+   * are the sitting President, and a President-held actor may not recover them
+   * (`REQ-rehome-email`: recovery of the presiding seat belongs to the General
+   * Manager and the IT Officer).
+   *
+   * The address must also be put back — a refused recovery that had already
+   * moved somebody's login would be a half-performed one.
+   */
+  it("re-asserts the guard after the Auth call, and puts the address back when it refuses", async () => {
+    const restore = await vacateThePresidency();
+    try {
+      const targetPersonId = await insertPerson("rehome-window");
+      const account = await giveOperatorAccount(targetPersonId);
+      const replacement = uniqueAddress("rehome-window-new");
+      const real = supabaseOperatorIdentity();
+
+      const port: OperatorEmailRecoveryPort = {
+        async changeLoginEmail(authUserId, email) {
+          await real.changeLoginEmail(authUserId, email);
+          // The window. Another administrator, acting legitimately, makes this
+          // person the President while the Auth call is in flight.
+          await giveRole(targetPersonId, "president");
+        },
+        async sendVerification() {
+          throw new Error("the verification must never be sent for a refused recovery");
+        },
+      };
+
+      expect(
+        await refusalOf(
+          startOperatorEmailRehome({
+            operator: president(),
+            operatorAccountId: account.id,
+            email: replacement,
+            reason: "Mailbox lost.",
+            callbackUrl: CALLBACK,
+            identity: port,
+          }),
+        ),
+      ).toMatchObject({ kind: "not_permitted", rule: "administration_leadership_target" });
+
+      const row = await accountRow(account.id);
+      expect(row?.email_rehome_pending_at, "no re-home may have been recorded").toBeNull();
+      expect(row?.login_email, "the address must be back").toBe(account.email);
+
+      const admin = createAdminClient();
+      const { data } = await admin.auth.admin.getUserById(account.authUserId);
+      expect(data?.user?.email, "the login must be back too").toBe(account.email);
+
+      expect(await auditActions(targetPersonId)).toEqual([]);
     } finally {
       await restore();
     }
