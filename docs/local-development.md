@@ -181,6 +181,26 @@ contains no password.
 
 Run `npm run verify` before opening a pull request. It is what CI runs.
 
+### Two test projects, and why your new test may be refused a database
+
+There is one local database, so `vitest.config.ts` splits the suite in two. The
+files listed in `DATABASE_TEST_SUITES` run in the `database` project, **one at a
+time**; everything else runs in the `unit` project, in parallel, and is refused
+a PostgreSQL connection and a call to the local Supabase Data API.
+
+If a test you have just written fails with
+
+> … opened a PostgreSQL connection, but it is not declared as a database suite.
+
+then add its repository-relative path to `DATABASE_TEST_SUITES` in
+`vitest.config.ts` and run it again. That is the whole procedure — the guard
+exists so that nobody has to know this rule in advance.
+
+Run one project on its own with `npx vitest run --project database` or
+`--project unit`. The `database` project is the slow half by design; ADR
+[0029](adr/0029-serialized-database-test-suites.md) records what it costs and
+what it bought.
+
 ## Building and running the production container locally
 
 The same image CI builds and Cloud Run runs. Worth doing before touching the
