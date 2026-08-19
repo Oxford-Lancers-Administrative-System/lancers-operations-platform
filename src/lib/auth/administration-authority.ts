@@ -44,6 +44,40 @@ import { resolveOperatorAccess, type ResolvedOperator } from "./operator";
  *
  * Every guard here calls layer 1 **first** and layer 2 second. A target rule is
  * never a way in: it can only refuse somebody the capability already admitted.
+ * One check runs ahead of both, and it is not a third layer: a role-scoped
+ * request that does not name its role is malformed, and is refused as malformed
+ * rather than evaluated. It discloses nothing — the sentence is about the shape
+ * of the request, not about the club or the target — and refusing it early is
+ * what stops a missing seat being read as "no seat is involved".
+ *
+ * ## A protected seat is protected when it is *empty*, too
+ *
+ * The first version of this module derived protection entirely from what the
+ * target **already holds**, and independent review found the hole that leaves
+ * (LAN129-B1): `assign_role` could not name the role being conferred, so the
+ * check was vacuous at exactly the moment a seat can be installed — when it is
+ * vacant. An IT Officer could install themselves into the General Manager seat, or a
+ * confederate into it, and thereby become unremovable by every seat in the catalogue,
+ * because nobody may ordinarily administer a General Manager. A vacant General
+ * Manager seat is the initial state of every environment including hosted, and
+ * is precisely the state this mission exists to move out of.
+ *
+ * `REQ-final-admin-protection` names four verbs and **assign** is the first:
+ * "President and IT Officer may not ordinarily *assign*, replace, end or
+ * deactivate General Manager." Three were enforced; the fourth was not.
+ *
+ * So a decision about a role now carries the role. The three role-scoped
+ * actions — `assign_role`, `replace_role_holder` and `end_role` — require a
+ * `roleCode` in the type, not as an option a caller can forget, and the
+ * protected tier is the strongest among **what the target holds and what the
+ * decision confers or removes**. Installing the General Manager seat is
+ * therefore refused to everybody, and installing the President seat to
+ * everybody but the General Manager, whether or not anyone holds it today.
+ *
+ * Folding the role code in also hardens `end_role` against the one weakness
+ * this module's inputs otherwise have: a caller that passes stale or empty
+ * `target.roleCodes` no longer escapes the leadership rule, because the role
+ * being ended is named separately and is considered on its own.
  *
  * ## Where the role codes are, and why they are not here
  *
@@ -147,6 +181,13 @@ export interface AdministrationTargetRule {
   readonly action: AdministrationTargetAction;
   readonly kind: "management" | "recovery";
   readonly selfForbidden: boolean;
+  /**
+   * Whether this decision is about a particular role, and therefore carries a
+   * `roleCode` that the leadership rule considers alongside the target's own
+   * seats. LAN129-B1: without it, `assign_role` cannot express which seat is
+   * being installed and a vacant protected seat is unguarded.
+   */
+  readonly roleScoped: boolean;
   /** Club-facing verb phrase, for the refusal sentence. */
   readonly phrase: string;
 }
@@ -173,6 +214,7 @@ export const ADMINISTRATION_TARGET_RULES: Readonly<
     action: "assign_role",
     kind: "management",
     selfForbidden: false,
+    roleScoped: true,
     phrase: "assign this role",
   }),
   /**
@@ -186,18 +228,21 @@ export const ADMINISTRATION_TARGET_RULES: Readonly<
     action: "replace_role_holder",
     kind: "management",
     selfForbidden: true,
+    roleScoped: true,
     phrase: "replace the holder of this role",
   }),
   end_role: rule({
     action: "end_role",
     kind: "management",
     selfForbidden: true,
+    roleScoped: true,
     phrase: "end this role assignment",
   }),
   deactivate_account: rule({
     action: "deactivate_account",
     kind: "management",
     selfForbidden: true,
+    roleScoped: false,
     phrase: "deactivate this operator's access",
   }),
   /**
@@ -211,11 +256,35 @@ export const ADMINISTRATION_TARGET_RULES: Readonly<
    * `selfForbidden` is `false` and unreachable: a deactivated operator cannot
    * sign in, so nobody restores their own access. Marking it `true` would
    * record a rule no source states, for a case that cannot occur.
+   *
+   * ## The neighbouring case that is not unreachable (LAN129-A3)
+   *
+   * Independent review asked about the order "deactivate a person, then give
+   * them a protected seat": the seat's management list then decides whether
+   * they can be restored, and the General Manager's is empty, so such a person
+   * could never sign in again.
+   *
+   * LAN129-B1's fix is most of the answer. Installing the General Manager seat
+   * is now refused to **everybody** in the application, so that order cannot be
+   * produced through any Administration surface. The President half is
+   * reachable — a General Manager may assign the President seat to a
+   * deactivated person — and is not a trap, because the same General Manager
+   * may restore them: one tier, one authority, both directions.
+   *
+   * What remains is a General Manager seat created outside the application, by
+   * the owner-run bootstrap or by a migration, on a person whose account is
+   * deactivated. That state is repaired the way it was made, and
+   * `REQ-final-admin-protection` already says so: "General Manager replacement
+   * remains exceptional IT/service recovery outside this mission." Reclassifying
+   * restoration as recovery would let the IT Officer reinstate a President the
+   * General Manager stood down, which is a real hole traded for a state the
+   * application can no longer create. Both halves are pinned by test.
    */
   restore_account: rule({
     action: "restore_account",
     kind: "management",
     selfForbidden: false,
+    roleScoped: false,
     phrase: "restore this operator's access",
   }),
   /**
@@ -230,12 +299,14 @@ export const ADMINISTRATION_TARGET_RULES: Readonly<
     action: "resend_invitation",
     kind: "management",
     selfForbidden: false,
+    roleScoped: false,
     phrase: "resend this invitation",
   }),
   correct_invitation: rule({
     action: "correct_invitation",
     kind: "management",
     selfForbidden: false,
+    roleScoped: false,
     phrase: "correct and resend this invitation",
   }),
   /**
@@ -252,6 +323,7 @@ export const ADMINISTRATION_TARGET_RULES: Readonly<
     action: "recover_email",
     kind: "recovery",
     selfForbidden: true,
+    roleScoped: false,
     phrase: "recover this operator's email access",
   }),
 });
@@ -280,10 +352,43 @@ export interface AdministrationSubject {
   readonly roleCodes: readonly string[];
 }
 
+/**
+ * The three decisions that are about a particular role rather than about an
+ * account. Each one carries the `roleCode` it concerns.
+ */
+export type RoleScopedAdministrationAction = "assign_role" | "replace_role_holder" | "end_role";
+
+/**
+ * One target decision, complete.
+ *
+ * A discriminated union rather than three positional arguments, and that is the
+ * whole point of LAN129-B1's correction: for a role-scoped action the compiler
+ * **requires** `roleCode`, so a caller cannot ask "may I do this to this
+ * person" while leaving out the seat that makes the answer no. The previous
+ * signature accepted a subject alone, which meant a caller doing everything
+ * right still could not enforce the assignment half of
+ * `REQ-final-admin-protection`.
+ *
+ * `roleCode` is a `public.roles.code`. For `assign_role` it is the seat being
+ * conferred; for `end_role` the seat being ended; for `replace_role_holder` the
+ * seat changing hands, which is the same seat on both sides of the replacement.
+ */
+export type AdministrationTargetRequest =
+  | {
+      readonly action: RoleScopedAdministrationAction;
+      readonly target: AdministrationSubject;
+      readonly roleCode: string;
+    }
+  | {
+      readonly action: Exclude<AdministrationTargetAction, RoleScopedAdministrationAction>;
+      readonly target: AdministrationSubject;
+    };
+
 /** Programmatic rule names, so a caller never matches on message text. */
 export const SELF_ACTION_RULE = "administration_self_action_forbidden";
 export const LEADERSHIP_TARGET_RULE = "administration_leadership_target";
 export const UNKNOWN_ACTION_RULE = "administration_action_unknown";
+export const MISSING_ROLE_CODE_RULE = "administration_role_code_required";
 export const FINAL_ADMINISTRATION_PATH_RULE = "administration_final_path";
 
 /** The first sentence of every refusal in this module. Matches UX-05's heading. */
@@ -327,7 +432,14 @@ export function protectedTierOf(roleCodes: readonly string[]): ProtectedLeadersh
   return strongest;
 }
 
-/** The refusal for a protected target. Names the requirement, never the reader. */
+/**
+ * The refusal for a protected target. Names the requirement, never the reader.
+ *
+ * The seat comes first in the sentence because since LAN129-B1 the seat is not
+ * necessarily one the target already sits in — it may be the one they are being
+ * put into. "This action affects the General Manager" is true either way, where
+ * "for the General Manager" read as though somebody already held it.
+ */
 function protectedRefusal(
   tier: ProtectedLeadershipTier,
   kind: "management" | "recovery",
@@ -338,8 +450,9 @@ function protectedRefusal(
 
   if (permitted.length === 0) {
     return (
-      `${REFUSAL_HEADLINE} No club role may ${phrase} for the ${seat}. Changing that ` +
-      "seat is an exceptional service-recovery procedure performed outside the application."
+      `${REFUSAL_HEADLINE} This action affects the ${seat}. No club role may ${phrase} ` +
+      "for that seat — changing it is an exceptional service-recovery procedure performed " +
+      "outside the application."
     );
   }
 
@@ -348,7 +461,25 @@ function protectedRefusal(
     roles.length === 1
       ? `${roles[0]} role`
       : `${roles.slice(0, -1).join(", ")} or ${roles[roles.length - 1]} roles`;
-  return `${REFUSAL_HEADLINE} Only the ${list} may ${phrase} for the ${seat}.`;
+  return (
+    `${REFUSAL_HEADLINE} This action affects the ${seat}. Only the ${list} may ${phrase} ` +
+    "for that seat."
+  );
+}
+
+/**
+ * Every role code this decision is about: the seats the target holds, plus the
+ * seat the decision itself names.
+ *
+ * The union, and the union is the correction LAN129-B1 asked for. Protection
+ * must not depend on somebody already sitting in the seat, because installing a
+ * General Manager into a vacant seat is the escalation the requirement's first
+ * verb forbids.
+ */
+function decisionRoleCodes(request: AdministrationTargetRequest): readonly string[] {
+  return "roleCode" in request
+    ? [...request.target.roleCodes, request.roleCode]
+    : request.target.roleCodes;
 }
 
 /**
@@ -366,13 +497,13 @@ function protectedRefusal(
  */
 export function assertAdministrationTarget(
   operator: ResolvedOperator | null,
-  action: AdministrationTargetAction,
-  target: AdministrationSubject,
+  request: AdministrationTargetRequest,
 ): ResolvedOperator {
   if (!operator) {
     throw new NotPermitted(OPERATOR_REQUIRED_MESSAGE, { rule: OPERATOR_REQUIRED_RULE });
   }
 
+  const { action, target } = request;
   const definition = ADMINISTRATION_TARGET_RULES[action];
   if (!definition) {
     // An action nobody classified is refused rather than permitted. Unreachable
@@ -381,6 +512,21 @@ export function assertAdministrationTarget(
     throw new NotPermitted(`${REFUSAL_HEADLINE} This administration action is not recognized.`, {
       rule: UNKNOWN_ACTION_RULE,
     });
+  }
+
+  // A role-scoped decision that did not name its role is refused rather than
+  // evaluated. TypeScript makes `roleCode` mandatory for these three actions, so
+  // this is unreachable from typed code — and it is the whole of LAN129-B1, so
+  // it is checked at runtime as well. A missing seat must never mean "no seat is
+  // involved", which is the reading that left a vacant General Manager
+  // installable by anybody.
+  if (definition.roleScoped) {
+    const named = "roleCode" in request ? request.roleCode : undefined;
+    if (typeof named !== "string" || named.trim() === "") {
+      throw new NotPermitted(`${REFUSAL_HEADLINE} This action must name the role it concerns.`, {
+        rule: MISSING_ROLE_CODE_RULE,
+      });
+    }
   }
 
   // Layer 1. Three seats hold `role_management`; everybody else stops here,
@@ -396,8 +542,9 @@ export function assertAdministrationTarget(
     );
   }
 
-  // Layer 2b — REQ-final-admin-protection and REQ-rehome-email.
-  const tier = protectedTierOf(target.roleCodes);
+  // Layer 2b — REQ-final-admin-protection and REQ-rehome-email. Over the seats
+  // the target holds *and* the seat this decision names — see `decisionRoleCodes`.
+  const tier = protectedTierOf(decisionRoleCodes(request));
   if (tier) {
     const permitted = PROTECTED_LEADERSHIP_AUTHORITY[tier][definition.kind];
     const held = operator.roleCodes.some((code) => permitted.includes(code));
@@ -428,15 +575,10 @@ export function assertAdministrationTarget(
  * than from the form.
  */
 export async function requireAdministrationTarget(
-  action: AdministrationTargetAction,
-  target: AdministrationSubject,
+  request: AdministrationTargetRequest,
 ): Promise<ResolvedOperator> {
   const access = await resolveOperatorAccess();
-  return assertAdministrationTarget(
-    access.state === "active" ? access.operator : null,
-    action,
-    target,
-  );
+  return assertAdministrationTarget(access.state === "active" ? access.operator : null, request);
 }
 
 /**
@@ -446,11 +588,10 @@ export async function requireAdministrationTarget(
  */
 export function canAdministerTarget(
   operator: ResolvedOperator | null,
-  action: AdministrationTargetAction,
-  target: AdministrationSubject,
+  request: AdministrationTargetRequest,
 ): boolean {
   try {
-    assertAdministrationTarget(operator, action, target);
+    assertAdministrationTarget(operator, request);
     return true;
   } catch {
     return false;
@@ -495,23 +636,70 @@ export function usableAdministrationPaths(
 /**
  * The effect one pending action would have on the set of administration paths.
  *
- * Only two actions can remove a path, and this projects each. It is arithmetic
- * over the caller's own snapshot rather than a database read: `WP-assignment`
- * holds the transaction, so it holds the truth about what the rows will be.
+ * Three actions change the set, and this projects each. It is arithmetic over
+ * the caller's own snapshot rather than a database read: `WP-assignment` holds
+ * the transaction, so it holds the truth about what the rows will be.
+ *
+ * **Replacement is modelled here rather than decomposed by the caller**
+ * (LAN129-A1). It is the one action that both removes a path and adds one, and
+ * leaving a caller to take it apart invites the mistake this whole type exists
+ * to prevent: counting the successor as a surviving administrator while their
+ * invitation is still pending. `successor.usable` is the field that decides
+ * that, and `REQ-invitation-states` is unambiguous that Invitation pending and
+ * Delivery failed are not Active — a successor who has never signed in cannot
+ * administer anything, and a replacement that ended the club's last usable
+ * administrator must be refused even though a name now sits in the seat.
  */
 export type AdministrationPathEffect =
   | { readonly kind: "deactivate_account"; readonly personId: string }
-  | { readonly kind: "end_role"; readonly personId: string; readonly roleCode: string };
+  | { readonly kind: "end_role"; readonly personId: string; readonly roleCode: string }
+  | {
+      readonly kind: "replace_role_holder";
+      /** The outgoing holder, who loses `roleCode`. */
+      readonly personId: string;
+      readonly roleCode: string;
+      /**
+       * The incoming holder **as they will be**, including `roleCode`.
+       *
+       * Supplied whole rather than as an id because the successor may be a
+       * Person who has no path in the snapshot at all — a brand-new operator
+       * created by the same invitation. `usable` is the caller's honest answer
+       * to "can this person sign in today", which for a pending invitation is
+       * `false`.
+       */
+      readonly successor: AdministrationPath;
+    };
 
 export function remainingAdministrationPaths(
   paths: readonly AdministrationPath[],
   effect: AdministrationPathEffect,
 ): readonly AdministrationPath[] {
-  return paths.map((path) => {
+  const withoutOutgoing = paths.map((path) => {
     if (path.personId !== effect.personId) return path;
     if (effect.kind === "deactivate_account") return { ...path, usable: false };
     return { ...path, roleCodes: path.roleCodes.filter((code) => code !== effect.roleCode) };
   });
+
+  if (effect.kind !== "replace_role_holder") return withoutOutgoing;
+
+  const { successor } = effect;
+  const existing = withoutOutgoing.find((path) => path.personId === successor.personId);
+
+  if (!existing) return [...withoutOutgoing, successor];
+
+  // The successor already has a path. Union the seats, and take `usable` as the
+  // conjunction: a replacement hands somebody a role and never restores an
+  // account, so it must not turn a deactivated or pending operator into a
+  // usable administrator. Fail-closed, in the one direction that matters.
+  return withoutOutgoing.map((path) =>
+    path.personId === successor.personId
+      ? {
+          ...path,
+          roleCodes: [...new Set([...path.roleCodes, ...successor.roleCodes])],
+          usable: path.usable && successor.usable,
+        }
+      : path,
+  );
 }
 
 /**

@@ -297,11 +297,20 @@ target**", which a flat table of role codes cannot express. So
 `administration-authority.ts` sits on top of `requireCapability("role_management")`
 and can only ever narrow it:
 
-- **Two seats are protected.** The General Manager may be assigned, replaced,
-  ended or deactivated by nobody in the application — that route is exceptional
-  service recovery, deliberately left outside the mission — and the President by
-  the General Manager alone. Everything else is open to any of the three seats
-  that hold `role_management` (President, General Manager, IT Officer).
+- **Two seats are protected, whether or not anyone is sitting in them.** No
+  operator may assign, replace, end or deactivate the **General Manager** seat —
+  including installing somebody into it while it is vacant. That route is
+  exceptional service recovery, deliberately left outside the mission. The
+  **President** seat is open to the General Manager alone, again including
+  installation. Everything else is open to any of the three seats that hold
+  `role_management` (President, General Manager, IT Officer).
+- **A decision about a role carries the role.** `assign_role`,
+  `replace_role_holder` and `end_role` require a `roleCode` in the type, and the
+  protected tier is the strongest among what the target already holds _and_ the
+  seat the decision names. Deriving protection from the target's current seats
+  alone left the check vacuous exactly when a seat can be installed — when it is
+  vacant — which is how an IT Officer could have made themselves General Manager
+  and thereby unremovable by every seat in the catalogue.
 - **Recovery is permitted where management is not.** The IT Officer may re-home
   the email address of a President or a General Manager, because that restores a
   person's access without moving any authority, and may not administer either

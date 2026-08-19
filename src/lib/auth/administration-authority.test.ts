@@ -20,9 +20,13 @@
  * has never had. That is the point of the pure layer: none of it needs a
  * session, a database or a mock of either.
  */
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
+// The one stub, and it is the same one `guards.test.ts` uses: the request-bound
+// wrapper resolves its actor from the verified session and from nowhere else,
+// so the session is the only thing a test may pose.
+vi.mock("./operator", () => ({ resolveOperatorAccess: vi.fn() }));
 
 import { NotPermitted } from "@/lib/db/errors";
 import {
@@ -40,14 +44,17 @@ import {
   protectedTierOf,
   remainingAdministrationPaths,
   SELF_ACTION_RULE,
+  MISSING_ROLE_CODE_RULE,
+  requireAdministrationTarget,
   UNKNOWN_ACTION_RULE,
   usableAdministrationPaths,
   type AdministrationPath,
   type AdministrationTargetAction,
+  type AdministrationTargetRequest,
 } from "./administration-authority";
 import { CAPABILITY_KEYS, capabilityRoleCodes } from "./capabilities";
-import { OPERATOR_REQUIRED_RULE } from "./guards";
-import type { ResolvedOperator } from "./operator";
+import { capabilityRule, OPERATOR_REQUIRED_MESSAGE, OPERATOR_REQUIRED_RULE } from "./guards";
+import { resolveOperatorAccess, type OperatorAccess, type ResolvedOperator } from "./operator";
 
 /** Every role code in the approved catalogue — LAN-128's migration. */
 const CATALOGUE = [
@@ -113,17 +120,43 @@ function refusalOf(run: () => unknown): NotPermitted {
   throw new Error("expected a NotPermitted refusal, and the guard permitted the action");
 }
 
+/**
+ * The seat a role-scoped decision names when a case is not about which seat.
+ *
+ * Deliberately an ordinary one. Every assertion below that is *about* the
+ * conferred seat names it explicitly, so this default can never be what makes
+ * one of them pass — and if it silently became a protected seat, the cases that
+ * expect permission would fail rather than the cases that expect refusal.
+ */
+const ORDINARY_SEAT = "kit_manager";
+
+function request(
+  action: AdministrationTargetAction,
+  targetPersonId: string,
+  targetRoles: string[],
+  roleCode: string,
+): AdministrationTargetRequest {
+  const subject = target(targetPersonId, targetRoles);
+  return ADMINISTRATION_TARGET_RULES[action].roleScoped
+    ? ({ action, target: subject, roleCode } as AdministrationTargetRequest)
+    : ({ action, target: subject } as AdministrationTargetRequest);
+}
+
 function permits(
   actorRoles: string[],
   action: AdministrationTargetAction,
   targetRoles: string[],
-  options: { sameperson?: boolean } = {},
+  options: { sameperson?: boolean; roleCode?: string } = {},
 ): boolean {
   const personId = options.sameperson ? "same" : "actor";
   return canAdministerTarget(
     actor(personId, actorRoles),
-    action,
-    target(options.sameperson ? "same" : "target", targetRoles),
+    request(
+      action,
+      options.sameperson ? "same" : "target",
+      targetRoles,
+      options.roleCode ?? ORDINARY_SEAT,
+    ),
   );
 }
 
@@ -165,7 +198,11 @@ describe("layer 1 — role_management is the floor, and it is checked first", ()
 
   it("refuses a null operator with the operator-required rule, not a capability rule", () => {
     const refusal = refusalOf(() =>
-      assertAdministrationTarget(null, "assign_role", target("someone")),
+      assertAdministrationTarget(null, {
+        action: "assign_role",
+        target: target("someone"),
+        roleCode: ORDINARY_SEAT,
+      }),
     );
     expect(refusal.rule).toBe(OPERATOR_REQUIRED_RULE);
   });
@@ -205,7 +242,10 @@ describe("layer 2a — DEC-no-self-removal", () => {
 
   it("names the self rule, and says nothing about what the actor holds", () => {
     const refusal = refusalOf(() =>
-      assertAdministrationTarget(actor("me", [GM]), "deactivate_account", target("me")),
+      assertAdministrationTarget(actor("me", [GM]), {
+        action: "deactivate_account",
+        target: target("me"),
+      }),
     );
     expect(refusal.rule).toBe(SELF_ACTION_RULE);
     expect(refusal.message).toMatch(/your own account/i);
@@ -233,7 +273,11 @@ describe("layer 2a — DEC-no-self-removal", () => {
     // rather than as a protected target. Both refuse, and the ordering matters
     // for the message: "ask another administrator" is the useful sentence.
     const refusal = refusalOf(() =>
-      assertAdministrationTarget(actor("gm", [GM]), "end_role", target("gm", [GM])),
+      assertAdministrationTarget(actor("gm", [GM]), {
+        action: "end_role",
+        target: target("gm", [GM]),
+        roleCode: GM,
+      }),
     );
     expect(refusal.rule).toBe(SELF_ACTION_RULE);
   });
@@ -290,11 +334,15 @@ describe("layer 2b — the General Manager seat, which nobody may ordinarily adm
 
   it("says the seat is changed outside the application, and names no permitted role", () => {
     const refusal = refusalOf(() =>
-      assertAdministrationTarget(actor("p", [PRESIDENT]), "end_role", target("gm", [GM])),
+      assertAdministrationTarget(actor("p", [PRESIDENT]), {
+        action: "end_role",
+        target: target("gm", [GM]),
+        roleCode: GM,
+      }),
     );
     expect(refusal.rule).toBe(LEADERSHIP_TARGET_RULE);
+    expect(refusal.message).toMatch(/This action affects the General Manager/);
     expect(refusal.message).toMatch(/No club role may/);
-    expect(refusal.message).toMatch(/General Manager/);
     expect(refusal.message).toMatch(/outside the application/);
   });
 
@@ -371,11 +419,14 @@ describe("layer 2b — the President seat, which the General Manager alone admin
 
   it("names the permitted role in the refusal, and not the reader's holdings", () => {
     const refusal = refusalOf(() =>
-      assertAdministrationTarget(actor("it", [IT]), "deactivate_account", target("p", [PRESIDENT])),
+      assertAdministrationTarget(actor("it", [IT]), {
+        action: "deactivate_account",
+        target: target("p", [PRESIDENT]),
+      }),
     );
     expect(refusal.rule).toBe(LEADERSHIP_TARGET_RULE);
+    expect(refusal.message).toMatch(/This action affects the President/);
     expect(refusal.message).toMatch(/Only the General Manager role/);
-    expect(refusal.message).toMatch(/President/);
     expect(refusal.message).not.toMatch(/IT Officer|you hold|your role/i);
   });
 });
@@ -447,11 +498,10 @@ describe("the action table itself", () => {
     }
 
     const refusal = refusalOf(() =>
-      assertAdministrationTarget(
-        actor("it", [IT]),
-        "promote_to_president" as AdministrationTargetAction,
-        target("someone"),
-      ),
+      assertAdministrationTarget(actor("it", [IT]), {
+        action: "promote_to_president" as AdministrationTargetAction,
+        target: target("someone"),
+      } as AdministrationTargetRequest),
     );
     expect(refusal.rule).toBe(UNKNOWN_ACTION_RULE);
   });
@@ -632,5 +682,475 @@ describe("the two layers cannot be confused for one another", () => {
       expect(capabilityRoleCodes(key), key).not.toEqual(capabilityRoleCodes("role_management"));
     }
     expect(capabilityRoleCodes("event_approval")).not.toContain("treasurer");
+  });
+});
+
+/**
+ * LAN129-B1 — a protected seat is protected when it is **empty**.
+ *
+ * The finding, in one sentence: the first version of this module derived
+ * protection entirely from what the target already held, so `assign_role` could
+ * not name the seat being conferred and the guard was vacuous at exactly the
+ * moment a seat can be installed. `REQ-final-admin-protection` names four verbs
+ * and *assign* is the first.
+ *
+ * The escalation the reviewer executed at f44be1c, written out as the test it
+ * should always have been: an IT Officer assigns `general_manager` to
+ * themselves, and thereby becomes unremovable by every seat in the catalogue.
+ * Every step of it is asserted, including the steps that still succeed, because
+ * a regression test for a chain has to show where the chain now breaks.
+ */
+describe("LAN129-B1 — installing a protected seat is a protected action", () => {
+  it("refuses every seat in the catalogue the installation of general_manager", () => {
+    // The empty management list now bites on the way *in* as well as on the way
+    // out. Walked over the whole catalogue, over an empty target and over a
+    // target that already holds ordinary seats, and over the whole catalogue
+    // held at once — the strongest actor there could be.
+    for (const code of CATALOGUE) {
+      expect(permits([code], "assign_role", [], { roleCode: GM }), code).toBe(false);
+      expect(
+        permits([code], "assign_role", ["kit_manager", "head_coach"], { roleCode: GM }),
+        code,
+      ).toBe(false);
+    }
+    expect(permits(CATALOGUE, "assign_role", [], { roleCode: GM })).toBe(false);
+  });
+
+  it("refuses an IT Officer installing general_manager on themselves", () => {
+    // The exact escalation. Self-assignment is still permitted in general —
+    // Brian recorded that consequence — and it is permitted for ordinary seats
+    // below, so this refusal comes from the leadership rule and not from a
+    // blanket prohibition nobody decided.
+    expect(permits([IT], "assign_role", [], { sameperson: true, roleCode: GM })).toBe(false);
+    expect(permits([IT], "assign_role", [], { sameperson: true, roleCode: ORDINARY_SEAT })).toBe(
+      true,
+    );
+  });
+
+  it("refuses everyone but the General Manager the installation of president", () => {
+    // REQ-final-admin-protection: "General Manager may assign, replace, end or
+    // deactivate President." The seat being vacant changes nothing.
+    expect(permits([GM], "assign_role", [], { roleCode: PRESIDENT })).toBe(true);
+    for (const code of CATALOGUE.filter((candidate) => candidate !== GM)) {
+      expect(permits([code], "assign_role", [], { roleCode: PRESIDENT }), code).toBe(false);
+    }
+  });
+
+  it("refuses a President installing president on a second person", () => {
+    // The other half of "a second President administering the first", now from
+    // the installation side: no source gives a President authority over the
+    // President seat, and absence of a decision is never permission.
+    expect(permits([PRESIDENT], "assign_role", [], { roleCode: PRESIDENT })).toBe(false);
+    expect(permits([PRESIDENT], "assign_role", [], { sameperson: true, roleCode: PRESIDENT })).toBe(
+      false,
+    );
+  });
+
+  it("still permits every administrator to assign an ordinary seat", () => {
+    // The correction must narrow and nothing else. Every ordinary seat in the
+    // catalogue, conferred by each of the three administrators.
+    const ordinary = CATALOGUE.filter((code) => code !== GM && code !== PRESIDENT);
+
+    for (const actorCode of ADMINISTRATORS) {
+      for (const conferred of ordinary) {
+        expect(
+          permits([actorCode], "assign_role", [], { roleCode: conferred }),
+          `${actorCode} → ${conferred}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("protects replacement of a protected seat whose holder has already gone", () => {
+    // Replacing the holder of a seat is installing somebody into it, so the
+    // conferred seat has to count even when the outgoing holder's assignment is
+    // already over and the target's role codes are empty.
+    expect(permits([GM], "replace_role_holder", [], { roleCode: GM })).toBe(false);
+    expect(permits([IT], "replace_role_holder", [], { roleCode: GM })).toBe(false);
+    expect(permits([GM], "replace_role_holder", [], { roleCode: PRESIDENT })).toBe(true);
+    expect(permits([IT], "replace_role_holder", [], { roleCode: PRESIDENT })).toBe(false);
+  });
+
+  it("hardens end_role against a stale or empty target snapshot", () => {
+    // The module's one genuine input weakness is a caller passing role codes
+    // that no longer describe the target. Naming the role being ended
+    // separately means the leadership rule still fires when the snapshot is
+    // wrong — the seat is named on its own, and considered on its own.
+    expect(permits([IT], "end_role", [], { roleCode: PRESIDENT })).toBe(false);
+    expect(permits([GM], "end_role", [], { roleCode: PRESIDENT })).toBe(true);
+    expect(permits([GM], "end_role", [], { roleCode: GM })).toBe(false);
+  });
+
+  it("takes the strongest tier across the target's seats and the named one", () => {
+    // A President being given the General Manager seat is a General Manager
+    // decision, not a President one — the union, not either half.
+    expect(protectedTierOf([PRESIDENT])).toBe("presiding");
+    expect(permits([GM], "assign_role", [PRESIDENT], { roleCode: ORDINARY_SEAT })).toBe(true);
+    expect(permits([GM], "assign_role", [PRESIDENT], { roleCode: GM })).toBe(false);
+    expect(permits([GM], "assign_role", [], { roleCode: GM })).toBe(false);
+  });
+
+  it("refuses a role-scoped decision that does not name its role", () => {
+    // Unreachable from typed code — the union makes `roleCode` mandatory for
+    // these three — and checked at runtime anyway, because a missing seat must
+    // never be read as "no seat is involved". That reading is the whole of the
+    // finding.
+    for (const action of ["assign_role", "replace_role_holder", "end_role"] as const) {
+      for (const bad of [undefined, "", "   "]) {
+        const refusal = refusalOf(() =>
+          assertAdministrationTarget(actor("it", [IT]), {
+            action,
+            target: target("someone"),
+            roleCode: bad,
+          } as unknown as AdministrationTargetRequest),
+        );
+        expect(refusal.rule, `${action} / ${JSON.stringify(bad)}`).toBe(MISSING_ROLE_CODE_RULE);
+      }
+    }
+  });
+
+  it("checks the missing role code before the capability, so it cannot be probed", () => {
+    // A caller with no authority at all gets the same refusal shape either way,
+    // but the ordering is asserted so that the runtime check is never quietly
+    // moved below layer 1 and made unreachable for the actors who matter.
+    const refusal = refusalOf(() =>
+      assertAdministrationTarget(actor("s", ["secretary"]), {
+        action: "assign_role",
+        target: target("someone"),
+      } as unknown as AdministrationTargetRequest),
+    );
+    expect(refusal.rule).toBe(MISSING_ROLE_CODE_RULE);
+  });
+
+  it("marks exactly the three role-scoped actions as role-scoped", () => {
+    const scoped = ADMINISTRATION_TARGET_ACTIONS.filter(
+      (action) => ADMINISTRATION_TARGET_RULES[action].roleScoped,
+    );
+    expect([...scoped].sort()).toEqual(["assign_role", "end_role", "replace_role_holder"]);
+  });
+});
+
+/**
+ * LAN129-A3 — the deactivated holder of a protected seat.
+ *
+ * Asked as: can somebody be deactivated, then given a protected seat, and
+ * thereby become unrestorable? B1's fix is most of the answer, and the rest is
+ * a deliberate boundary rather than an oversight. Both halves are pinned here
+ * so that neither can move silently.
+ */
+describe("LAN129-A3 — restoring the holder of a protected seat", () => {
+  it("cannot be reached for general_manager, because nobody may install it", () => {
+    // The order the finding describes — deactivate, then assign — no longer
+    // exists in the application for this seat. That is what makes the empty
+    // restore list safe rather than a trap.
+    for (const code of CATALOGUE) {
+      expect(permits([code], "assign_role", [], { roleCode: GM }), code).toBe(false);
+    }
+    // And the state, if some out-of-band route produced it, is still closed to
+    // everybody — asserted rather than assumed, because it is the residual risk.
+    for (const code of CATALOGUE) {
+      expect(permits([code], "restore_account", [GM]), code).toBe(false);
+    }
+  });
+
+  it("is not a trap for president: whoever may assign the seat may also restore it", () => {
+    // One tier, one authority, both directions. The General Manager may put a
+    // deactivated person into the President seat, and may restore them.
+    expect(permits([GM], "assign_role", [], { roleCode: PRESIDENT })).toBe(true);
+    expect(permits([GM], "restore_account", [PRESIDENT])).toBe(true);
+    expect(permits([IT], "restore_account", [PRESIDENT])).toBe(false);
+  });
+
+  it("keeps restoration symmetric with deactivation for every seat", () => {
+    // The property the symmetry argument rests on, stated once over the whole
+    // catalogue rather than by example: nobody may restore an operator they
+    // could not have deactivated. Losing it is how the IT Officer would come to
+    // reinstate a President the General Manager stood down.
+    for (const actorCode of CATALOGUE) {
+      for (const targetCode of CATALOGUE) {
+        const canDeactivate = permits([actorCode], "deactivate_account", [targetCode]);
+        const canRestore = permits([actorCode], "restore_account", [targetCode]);
+        expect(canRestore, `${actorCode} → ${targetCode}`).toBe(canDeactivate);
+      }
+    }
+  });
+});
+
+/**
+ * LAN129-A1 — replacement is projected here, not decomposed by the caller.
+ *
+ * The mistake this exists to prevent: counting the successor as a surviving
+ * administration path while their invitation is still pending.
+ */
+describe("LAN129-A1 — projecting a replacement onto the administration paths", () => {
+  const outgoing: AdministrationPath = { personId: "out", roleCodes: [PRESIDENT], usable: true };
+  const other: AdministrationPath = { personId: "gm", roleCodes: [GM], usable: true };
+
+  it("moves the seat from the outgoing holder to the successor", () => {
+    const after = remainingAdministrationPaths([outgoing, other], {
+      kind: "replace_role_holder",
+      personId: "out",
+      roleCode: PRESIDENT,
+      successor: { personId: "in", roleCodes: [PRESIDENT], usable: true },
+    });
+
+    expect(after.find((path) => path.personId === "out")?.roleCodes).toEqual([]);
+    expect(after.find((path) => path.personId === "in")?.roleCodes).toEqual([PRESIDENT]);
+    expect(
+      usableAdministrationPaths(after)
+        .map((path) => path.personId)
+        .sort(),
+    ).toEqual(["gm", "in"]);
+  });
+
+  it("does not count a successor whose invitation is still pending", () => {
+    // REQ-invitation-states: Invitation pending and Delivery failed are not
+    // Active. A name in the seat is not an administrator.
+    const after = remainingAdministrationPaths([outgoing], {
+      kind: "replace_role_holder",
+      personId: "out",
+      roleCode: PRESIDENT,
+      successor: { personId: "in", roleCodes: [PRESIDENT], usable: false },
+    });
+
+    expect(usableAdministrationPaths(after)).toEqual([]);
+    expect(() => assertAdministrationPathSurvives(after)).toThrow(NotPermitted);
+  });
+
+  it("refuses the replacement that hands the club's last seat to a pending operator", () => {
+    // The whole finding, end to end: every earlier layer permits this — the
+    // General Manager may replace the President — and the final-path rule is
+    // what stops it.
+    const lastAdministrator: AdministrationPath = {
+      personId: "only",
+      roleCodes: [PRESIDENT],
+      usable: true,
+    };
+    expect(permits([GM], "replace_role_holder", [PRESIDENT], { roleCode: PRESIDENT })).toBe(true);
+
+    const after = remainingAdministrationPaths([lastAdministrator], {
+      kind: "replace_role_holder",
+      personId: "only",
+      roleCode: PRESIDENT,
+      successor: { personId: "successor", roleCodes: [PRESIDENT], usable: false },
+    });
+    const refusal = refusalOf(() => assertAdministrationPathSurvives(after));
+    expect(refusal.rule).toBe(FINAL_ADMINISTRATION_PATH_RULE);
+  });
+
+  it("appends a successor who had no path at all", () => {
+    // The ordinary case for an invitation: the successor is a Person created by
+    // the same action and is not in the snapshot.
+    const after = remainingAdministrationPaths([outgoing], {
+      kind: "replace_role_holder",
+      personId: "out",
+      roleCode: PRESIDENT,
+      successor: { personId: "brand-new", roleCodes: [PRESIDENT], usable: true },
+    });
+
+    expect(after).toHaveLength(2);
+    expect(after.map((path) => path.personId)).toContain("brand-new");
+  });
+
+  it("unions the seats when the successor already has a path", () => {
+    const existing: AdministrationPath = {
+      personId: "in",
+      roleCodes: ["kit_manager"],
+      usable: true,
+    };
+    const after = remainingAdministrationPaths([outgoing, existing], {
+      kind: "replace_role_holder",
+      personId: "out",
+      roleCode: PRESIDENT,
+      successor: { personId: "in", roleCodes: [PRESIDENT], usable: true },
+    });
+
+    expect([...(after.find((path) => path.personId === "in")?.roleCodes ?? [])].sort()).toEqual(
+      ["kit_manager", PRESIDENT].sort(),
+    );
+  });
+
+  it("never makes a deactivated successor usable — the conjunction is fail-closed", () => {
+    // A replacement hands somebody a role. It does not restore an account, and
+    // a caller passing an optimistic `usable` must not be able to make it one.
+    const deactivated: AdministrationPath = { personId: "in", roleCodes: [], usable: false };
+    const after = remainingAdministrationPaths([outgoing, deactivated], {
+      kind: "replace_role_holder",
+      personId: "out",
+      roleCode: PRESIDENT,
+      successor: { personId: "in", roleCodes: [PRESIDENT], usable: true },
+    });
+
+    expect(after.find((path) => path.personId === "in")?.usable).toBe(false);
+    expect(usableAdministrationPaths(after)).toEqual([]);
+  });
+
+  it("leaves everybody else's path untouched, and mutates no input", () => {
+    const after = remainingAdministrationPaths([outgoing, other], {
+      kind: "replace_role_holder",
+      personId: "out",
+      roleCode: PRESIDENT,
+      successor: { personId: "in", roleCodes: [PRESIDENT], usable: true },
+    });
+
+    expect(after.find((path) => path.personId === "gm")).toEqual(other);
+    expect(outgoing.roleCodes).toEqual([PRESIDENT]);
+    expect(other.roleCodes).toEqual([GM]);
+  });
+
+  it("models every path-affecting action, so no caller has to decompose one", () => {
+    // The property the finding is really about: `end_role`, `deactivate_account`
+    // and `replace_role_holder` are the three decisions that change the set,
+    // and all three are expressible. Asserted against the rule table so that a
+    // fourth added later shows up here.
+    const pathAffecting: AdministrationTargetAction[] = [
+      "assign_role",
+      "end_role",
+      "deactivate_account",
+      "restore_account",
+      "replace_role_holder",
+    ];
+    for (const action of pathAffecting) {
+      expect(ADMINISTRATION_TARGET_ACTIONS, action).toContain(action);
+    }
+    // `assign_role` and `restore_account` only ever *add* a path, so no
+    // projection is needed to prove the club keeps one.
+    expect(
+      (["deactivate_account", "end_role", "replace_role_holder"] as const).every((kind) =>
+        ADMINISTRATION_TARGET_ACTIONS.includes(kind),
+      ),
+    ).toBe(true);
+  });
+});
+
+/**
+ * LAN129-A2 — the request-bound wrapper.
+ *
+ * Everything above exercises the pure assertion with an actor supplied
+ * directly. `requireAdministrationTarget` is the function that takes the actor
+ * from the **verified session** and nowhere else, and it was uncovered. The
+ * shape of these tests deliberately mirrors `guards.test.ts`: one stub, at
+ * `resolveOperatorAccess`, so that no test can prove a guard by supplying an
+ * actor the way a browser never could.
+ */
+describe("LAN129-A2 — requireAdministrationTarget takes the actor from the session", () => {
+  beforeEach(() => {
+    vi.mocked(resolveOperatorAccess).mockReset();
+  });
+
+  function givenSession(access: OperatorAccess) {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue(access);
+  }
+
+  async function refusalFromAsync(call: () => Promise<unknown>): Promise<NotPermitted> {
+    try {
+      await call();
+    } catch (error) {
+      if (error instanceof NotPermitted) return error;
+      throw error;
+    }
+    throw new Error("expected a NotPermitted refusal, and the guard permitted the action");
+  }
+
+  it.each([
+    ["no_session", { state: "no_session" } as OperatorAccess],
+    ["unlinked", { state: "unlinked" } as OperatorAccess],
+    ["inactive", { state: "inactive" } as OperatorAccess],
+  ])("refuses a %s request, with the operator-required rule", async (_name, access) => {
+    // The three unresolved causes collapse into one refusal, exactly as
+    // `requireCapability` does — a privileged path never tells the caller which.
+    givenSession(access);
+
+    const refusal = await refusalFromAsync(() =>
+      requireAdministrationTarget({
+        action: "assign_role",
+        target: target("someone"),
+        roleCode: ORDINARY_SEAT,
+      }),
+    );
+
+    expect(refusal.rule).toBe(OPERATOR_REQUIRED_RULE);
+    expect(refusal.message).toBe(OPERATOR_REQUIRED_MESSAGE);
+  });
+
+  it("returns the session's operator when every rule permits", async () => {
+    const operator = actor("gm", [GM]);
+    givenSession({ state: "active", operator });
+
+    await expect(
+      requireAdministrationTarget({
+        action: "end_role",
+        target: target("p", [PRESIDENT]),
+        roleCode: PRESIDENT,
+      }),
+    ).resolves.toBe(operator);
+  });
+
+  it("applies the capability floor to the session's operator", async () => {
+    givenSession({ state: "active", operator: actor("s", ["secretary"]) });
+
+    const refusal = await refusalFromAsync(() =>
+      requireAdministrationTarget({
+        action: "assign_role",
+        target: target("someone"),
+        roleCode: ORDINARY_SEAT,
+      }),
+    );
+
+    expect(refusal.rule).toBe(capabilityRule("role_management"));
+  });
+
+  it("applies the self rule to the session's operator, not to a supplied one", async () => {
+    // The property that makes the wrapper worth having: "who am I" is never an
+    // argument, so a browser cannot claim to be somebody else in order to act
+    // on this target.
+    const operator = actor("me", [GM]);
+    givenSession({ state: "active", operator });
+
+    const refusal = await refusalFromAsync(() =>
+      requireAdministrationTarget({
+        action: "deactivate_account",
+        target: target("me"),
+      }),
+    );
+
+    expect(refusal.rule).toBe(SELF_ACTION_RULE);
+  });
+
+  it("applies the leadership rule to the session's operator", async () => {
+    givenSession({ state: "active", operator: actor("it", [IT]) });
+
+    const refusal = await refusalFromAsync(() =>
+      requireAdministrationTarget({
+        action: "deactivate_account",
+        target: target("p", [PRESIDENT]),
+      }),
+    );
+
+    expect(refusal.rule).toBe(LEADERSHIP_TARGET_RULE);
+  });
+
+  it("refuses the B1 escalation through the request-bound path too", async () => {
+    // The finding's own scenario, driven through the function a server action
+    // actually calls rather than through the pure assertion.
+    const operator = actor("it", [IT]);
+    givenSession({ state: "active", operator });
+
+    const refusal = await refusalFromAsync(() =>
+      requireAdministrationTarget({
+        action: "assign_role",
+        target: { personId: "it", roleCodes: [] },
+        roleCode: GM,
+      }),
+    );
+
+    expect(refusal.rule).toBe(LEADERSHIP_TARGET_RULE);
+    expect(refusal.message).toMatch(/This action affects the General Manager/);
+  });
+
+  it("takes no actor argument at all", () => {
+    // Asserted on the function itself: one parameter, the request. A guard that
+    // accepted an actor would accept whatever the browser sent.
+    expect(requireAdministrationTarget).toHaveLength(1);
   });
 });
