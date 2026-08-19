@@ -6,6 +6,7 @@ import {
   assertAdministrationPathSurvives,
   assertAdministrationTarget,
   remainingAdministrationPaths,
+  usableAdministrationPaths,
   type AdministrationPath,
   type AdministrationPathEffect,
   type AdministrationSubject,
@@ -1726,6 +1727,28 @@ async function assertClubKeepsAnAdministrator(
   effect: AdministrationPathEffect,
 ): Promise<void> {
   const paths = await readAdministrationPaths(tx);
+
+  // The requirement's verb is **eliminate**, and it is load-bearing: an action
+  // cannot eliminate what is already gone. A club with no usable administration
+  // path at all is a state this application cannot produce — that is the whole
+  // point of the rule — but it is a state that exists before the application
+  // has produced anything: a freshly migrated database has role assignments
+  // from the seed and no `operator_accounts` rows, which is exactly what CI
+  // runs against.
+  //
+  // Asserting survival unconditionally there refuses **every** ending and every
+  // deactivation, including ones with no bearing on administration at all —
+  // ending a Kit Manager's assignment would be refused because nobody has an
+  // operator login yet, with a message telling the operator to give somebody an
+  // administration role first. That is not the requirement being enforced; it
+  // is the arithmetic being read backwards.
+  //
+  // So the check is a comparison rather than a floor: it fires when this action
+  // is what empties the set, and stays silent when the set was already empty.
+  // In every state the application can reach it is identical to the unqualified
+  // version, because the application refuses to reach the empty state.
+  if (usableAdministrationPaths(paths).length === 0) return;
+
   assertAdministrationPathSurvives(remainingAdministrationPaths(paths, effect));
 }
 

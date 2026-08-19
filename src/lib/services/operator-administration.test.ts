@@ -910,6 +910,35 @@ describe("B — ending a role assignment", () => {
     ).toEqual({ kind: "constraint_violated", rule: END_BEFORE_START_RULE });
   });
 
+  /**
+   * The other half of `REQ-final-admin-protection`'s arithmetic, and the half a
+   * floor rather than a comparison gets wrong.
+   *
+   * A club with no usable administration path at all is a state this
+   * application refuses to produce — and it is the state a freshly migrated
+   * database is *in*, because the seed creates role assignments and no operator
+   * logins. That is what CI runs against, and it is what caught this: with an
+   * unqualified survival check, ending a Kit Manager's assignment was refused
+   * because nobody anywhere had a login, with a message about administration
+   * roles that had nothing to do with the action.
+   *
+   * An action cannot eliminate what is already gone. Deleting the guard's
+   * emptiness test fails here; deleting the guard fails the test above.
+   */
+  it("permits an unrelated ending when the club has no usable administrator to lose", async () => {
+    const personId = await insertPerson("no-administrators");
+    const assignmentId = await giveRole(personId, "kit_manager", { from: pastDate(3) });
+
+    await withOnlyOneAdministrator([], async () => {
+      const result = await endRoleAssignment({
+        operator: administrator(),
+        roleAssignmentId: assignmentId,
+        reason: "Handed the kit over at the end of the season.",
+      });
+      expect(result.effectiveTo).toBe(today);
+    });
+  });
+
   it("refuses to leave the club with nobody able to administer it", async () => {
     const personId = await insertPerson("last-administrator");
     const assignmentId = await giveRole(personId, "it_officer", { from: pastDate(3) });
