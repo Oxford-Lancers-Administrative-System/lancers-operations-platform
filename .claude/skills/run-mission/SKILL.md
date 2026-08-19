@@ -21,8 +21,9 @@ workflow.
 
 Require `$ARGUMENTS` to match exactly `^M-[A-Za-z0-9][A-Za-z0-9-]*$` after
 trimming whitespace. Refuse a missing argument, extra words, or more than one
-identifier. One Mission Lead executes at a time; never start a second mission
-in parallel.
+identifier. Missions may run concurrently; Brian decides how many to start.
+The two-worker limit is per mission, never a repository-wide worker pool or a
+limit on active missions.
 
 ## 2. Resume or initialize from durable state
 
@@ -39,6 +40,11 @@ after a kill, compaction, disconnect, or usage stop reconstructs completed
 work, active and stopped work, existing PRs, prior decisions and rules,
 blockers, and the next action from this state alone — never from a previous
 conversation.
+
+At the start of the Lead session, generate one random UUID and keep it in
+`LANCERS_MISSION_LEAD_ID` for every mission CLI call. The journal fences every
+mutation to that stable per-mission identity; a transient CLI PID is only
+liveness evidence. Never reuse the identity for another Lead session.
 
 For a new mission, Brian supplies the approved packet file;
 `npm run mission -- init $ARGUMENTS --packet <file>` validates it and fails
@@ -152,13 +158,13 @@ normal owner question and is never reported as an owner action.
 
 ## 6. Dispatch bounded implementation workers
 
-Spawn at most two `implementation-worker` agents, and only for genuinely
+Spawn at most two `implementation-worker` agents for this mission, and only for genuinely
 independent packages: the CLI refuses a third active worker, a colliding
 collision domain, a second migration owner, an unmerged dependency, a
 drift-stopped package, and a package affected by an unanswered owner
-question. Treat local database capacity as a scheduling input: two workers
-need two coordinator slots, and a `review-ready` slot is never reclaimed —
-prefer database-independent packages when a slot is pinned.
+question. Workers share the mission-owned stack by default. Serialize only
+commands that mutate that shared stack; use a temporary worker stack only when
+two workers demonstrate incompatible database states.
 
 Record `dispatch` before the worker starts. The worker brief names one work
 package, its Linear issue, its requirement excerpts and acceptance criteria,
@@ -171,6 +177,28 @@ When a worker returns `blocked` or `owner-decision-required`, record the
 question durably before pausing that package; unaffected packages continue.
 When it returns `failed-recoverably`, the package returns to the frontier
 and the same worker contract applies to the retry.
+If a worker crashes or cannot return, record `abandon-worker` with the evidence.
+That clears only its active record so a replacement may be dispatched; it does
+not discard the branch, worktree, issue, or journal history.
+
+### 6a. Mission-owned local database
+
+After fetching current `main`, record its full commit and current migration
+head, then allocate the mission stack with `npm run db:acquire-mission --
+$ARGUMENTS --base-commit <sha> --migration-head <number>`. Start with a clean
+rebuild and deterministic synthetic seed. Attach each worker worktree with
+`db:attach-mission`; ordinary `/start-issue` retains the optional standing
+non-mission stack. The allocator lock exists only while choosing unique project
+identity and ports and never limits mission count.
+
+On resume, compare the recorded commit and migration head with the mission
+branch and inspect stack health. Preserve a healthy current volume; rebuild on
+migration change, drift, or failed health. Before final integration, fetch
+current `main`, reconcile it with every mission change, clean-rebuild from zero,
+seed, and run the applicable full verification. Compatible earlier merges do
+not require owner confirmation; an actual failure becomes bounded correction
+work. After acceptance, stop and release the mission stack. Never copy
+production data or deploy a hosted migration.
 
 ## 7. Orchestrate review and correction
 

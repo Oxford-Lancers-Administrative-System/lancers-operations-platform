@@ -50,7 +50,11 @@ function mission() {
   temporary.push(root);
   const repo = path.join(root, "repo");
   fs.mkdirSync(repo, { recursive: true });
-  const env = { ...process.env, LANCERS_MISSION_ROOT: path.join(root, "state") };
+  const env = {
+    ...process.env,
+    LANCERS_MISSION_ROOT: path.join(root, "state"),
+    LANCERS_MISSION_LEAD_ID: "lead-rehearsal-1",
+  };
   let tick = 1_700_000_000_000;
   const append = (event: object) => appendEvent(repo, MISSION, event, { env, now: (tick += 1000) });
   return { repo, env, append };

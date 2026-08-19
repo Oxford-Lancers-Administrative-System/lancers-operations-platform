@@ -2,12 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import {
-  prepareRuntime,
-  readSession,
-  SLOT_DEFINITIONS,
-  updateLease,
-} from "./lib/local-supabase-coordinator.mjs";
+import { prepareRuntime, readSession, updateLease } from "./lib/local-supabase-coordinator.mjs";
 import { ensureLocalReviewAccount, readLocalReviewAccount } from "./lib/local-review-account.mjs";
 
 const repoPath = process.cwd();
@@ -70,10 +65,7 @@ try {
   // which is a stale-configuration bug that looks like a code fault. Re-render
   // before anything that reads it.
   if (["start", "reset"].includes(operation)) {
-    prepareRuntime(
-      repoPath,
-      SLOT_DEFINITIONS.find((slot) => slot.name === lease.slot),
-    );
+    prepareRuntime(repoPath, lease);
   }
 
   if (operation === "start") {

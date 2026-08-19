@@ -21,6 +21,9 @@ Only genuinely Claude-specific notes belong in this file.
   `/run-mission` never implements in its own session, keeps delegation flat,
   and records every material transition in durable mission state
   (`npm run mission`).
+- **Concurrency is per mission.** Brian may start concurrent missions. Each has
+  one fenced Lead, at most two implementation workers, and its own disposable
+  local Supabase stack; the merge workflow remains repository-serialized.
 - **Visual acceptance is a mid-workflow gate.** UI-affecting work stops only
   after a complete agent browser preflight and before final correctness review;
   nonvisual work does not stop. Brian receives a live, protected environment and

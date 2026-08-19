@@ -31,6 +31,7 @@ import { evaluateMissionGate, journalConjuncts, loadRules } from "./merge-gate.m
 import { parseNameStatus } from "../fast-lane/classify.mjs";
 
 const repoPath = process.cwd();
+const leadId = process.env.LANCERS_MISSION_LEAD_ID;
 
 function fail(message) {
   console.error(message);
@@ -63,6 +64,13 @@ const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 
 async function append(missionId, event) {
   try {
+    if (event.type !== "mission-init") {
+      if (!leadId) fail("LANCERS_MISSION_LEAD_ID must hold this Lead session's stable UUID.");
+      const current = replayState(repoPath, missionId);
+      if (!leadLeaseAvailable(current, { leadId, pid: process.pid })) {
+        fail(`Mission ${missionId} is fenced to another live Lead (${current.lead.lead_id}).`);
+      }
+    }
     return await appendEvent(repoPath, missionId, event);
   } catch (error) {
     fail(error.message);
@@ -163,11 +171,17 @@ async function main() {
   switch (command) {
     case "init": {
       if (!missionId || !flags.packet) fail("Usage: mission init <mission-id> --packet <file>");
+      if (!leadId) fail("LANCERS_MISSION_LEAD_ID must hold this Lead session's stable UUID.");
       const packet = readJson(flags.packet);
       if (packet.mission_id !== missionId) {
         fail(`The packet is for ${packet.mission_id}, not ${missionId}.`);
       }
       await append(missionId, { type: "mission-init", packet });
+      await appendEvent(repoPath, missionId, {
+        type: "lead-heartbeat",
+        lead_id: leadId,
+        pid: process.pid,
+      });
       console.log(`Mission ${missionId} initialized from its approved packet.`);
       break;
     }
@@ -265,6 +279,22 @@ async function main() {
         receipt: readJson(flags.receipt),
       });
       console.log(`Receipt recorded for ${packageId}.`);
+      break;
+    }
+
+    case "abandon-worker": {
+      const [, packageId] = positional;
+      if (!missionId || !packageId || !flags.reason) {
+        fail("Usage: mission abandon-worker <mission-id> <package-id> --reason <why>");
+      }
+      await append(missionId, {
+        type: "worker-abandoned",
+        package_id: packageId,
+        reason: flags.reason,
+      });
+      console.log(
+        `Abandoned worker cleared from ${packageId}; the package may be dispatched again.`,
+      );
       break;
     }
 
@@ -464,7 +494,7 @@ async function main() {
 
     case "heartbeat": {
       if (!missionId) fail("Usage: mission heartbeat <mission-id>");
-      await append(missionId, { type: "lead-heartbeat", pid: process.pid });
+      await append(missionId, { type: "lead-heartbeat", lead_id: leadId, pid: process.pid });
       console.log("Lead heartbeat recorded.");
       break;
     }
@@ -492,14 +522,19 @@ async function main() {
       if (!missionId) fail("Usage: mission resume <mission-id>");
       const state = replayState(repoPath, missionId);
       if (!state.initialized) fail(`No mission ${missionId} exists here.`);
-      if (!leadLeaseAvailable(state, { pid: process.pid })) {
+      if (!leadId) fail("LANCERS_MISSION_LEAD_ID must hold this Lead session's stable UUID.");
+      if (!leadLeaseAvailable(state, { leadId, pid: process.pid })) {
         fail(
           `Mission Lead pid ${state.lead.pid} still holds this mission (heartbeat ${state.lead.at}). A second live Lead is refused.`,
         );
       }
       const resumed = state.stopped
-        ? await append(missionId, { type: "mission-resumed", pid: process.pid })
-        : await append(missionId, { type: "lead-heartbeat", pid: process.pid });
+        ? await append(missionId, {
+            type: "mission-resumed",
+            lead_id: leadId,
+            pid: process.pid,
+          })
+        : await append(missionId, { type: "lead-heartbeat", lead_id: leadId, pid: process.pid });
       console.log(JSON.stringify({ state: resumed, next_actions: nextActions(resumed) }, null, 2));
       break;
     }
@@ -530,7 +565,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: validate, init, plan, preflight, sync-intent, sync-result, dispatch, receipt, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
       );
   }
 }

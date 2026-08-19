@@ -38,6 +38,7 @@ export const EVENT_TYPES = [
   "linear-sync-result",
   "worker-dispatched",
   "worker-receipt",
+  "worker-abandoned",
   "correction-dispatched",
   "pr-opened",
   "review-receipt",
@@ -252,6 +253,7 @@ export function validateEvent(event, state) {
 
     case "lead-heartbeat": {
       if (!Number.isInteger(event.pid) || event.pid <= 0) errors.push("A live pid is required.");
+      if (!isNonEmptyString(event.lead_id)) errors.push("A stable Lead identity is required.");
       break;
     }
 
@@ -414,6 +416,13 @@ export function validateEvent(event, state) {
       if (!WORKER_RESULTS.includes(receipt.result)) {
         errors.push(`Worker receipt result must be one of ${WORKER_RESULTS.join(", ")}.`);
       }
+      break;
+    }
+
+    case "worker-abandoned": {
+      const worker = activeWorkerFor(state, event.package_id);
+      if (!worker) errors.push(`No active worker for ${event.package_id}.`);
+      if (!isNonEmptyString(event.reason)) errors.push("Abandonment records why the worker ended.");
       break;
     }
 
@@ -631,6 +640,8 @@ export function validateEvent(event, state) {
       if (!Number.isInteger(event.pid) || event.pid <= 0) {
         errors.push("A resume records the fresh session's pid.");
       }
+      if (!isNonEmptyString(event.lead_id))
+        errors.push("A resume records the stable Lead identity.");
       break;
     }
 
@@ -654,7 +665,7 @@ export function validateEvent(event, state) {
  *   checkpoints: number,
  *   lastCheckpointIndex: number,
  *   stopped: { at: string, reason: string, detail: string } | null,
- *   lead: { pid: number, at: string } | null,
+ *   lead: { lead_id: string, pid: number, at: string } | null,
  *   rulesApplied: Array<Record<string, any>>,
  *   eventCount: number,
  * }} MissionState
@@ -693,7 +704,7 @@ export function reduce(events) {
         state.packet = event.packet;
         break;
       case "lead-heartbeat":
-        state.lead = { pid: event.pid, at: event.at };
+        state.lead = { lead_id: event.lead_id, pid: event.pid, at: event.at };
         break;
       case "plan-recorded":
         for (const pkg of event.packages) {
@@ -767,6 +778,19 @@ export function reduce(events) {
             "owner-decision-required": "owner-decision",
             "failed-recoverably": "synced",
           }[event.receipt.result] ?? pkg.status;
+        break;
+      }
+      case "worker-abandoned": {
+        const pkg = state.packages[event.package_id];
+        state.activeWorkers = state.activeWorkers.filter(
+          (worker) => worker.package_id !== event.package_id,
+        );
+        pkg.status = "synced";
+        pkg.abandoned_workers = [
+          ...(pkg.abandoned_workers ?? []),
+          { at: event.at, worker_id: pkg.worker_id, reason: event.reason },
+        ];
+        pkg.worker_id = null;
         break;
       }
       case "pr-opened": {
@@ -857,7 +881,7 @@ export function reduce(events) {
         break;
       case "mission-resumed":
         state.stopped = null;
-        state.lead = { pid: event.pid, at: event.at };
+        state.lead = { lead_id: event.lead_id, pid: event.pid, at: event.at };
         break;
       default:
         break;
@@ -904,10 +928,10 @@ export async function appendEvent(repoPath, missionId, event, options = {}) {
  * expired with the process gone — permission uncertainty counts as alive,
  * exactly as the database coordinator treats worker ownership.
  */
-/** @param {MissionState} state @param {{ pid?: number, now?: number, probe?: (pid: number, signal?: number) => unknown }} [options] */
-export function leadLeaseAvailable(state, { pid, now = Date.now(), probe = process.kill } = {}) {
+/** @param {MissionState} state @param {{ leadId?: string, pid?: number, now?: number, probe?: (pid: number, signal?: number) => unknown }} [options] */
+export function leadLeaseAvailable(state, { leadId, now = Date.now(), probe = process.kill } = {}) {
   if (!state.lead) return true;
-  if (state.lead.pid === pid) return true;
+  if (state.lead.lead_id === leadId) return true;
   const expired = now - Date.parse(state.lead.at) > LEAD_TTL_MS;
   return expired && !ownerAlive(state.lead.pid, probe);
 }

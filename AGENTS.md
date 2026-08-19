@@ -516,8 +516,13 @@ and a completely fresh Mission Lead reconstructs the mission from that durable
 state alone. The Mission Lead orchestrates and never implements application
 code itself; delegation is flat — only the Mission Lead spawns workers and
 reviewers, workers spawn nothing, at most two implementation workers run
-concurrently, colliding collision domains are serialized, and only one
-migration-owning package runs at a time. No worker starts before its work
+concurrently per mission, colliding collision domains are serialized within
+that mission, and only one migration-owning package runs at a time within it.
+Missions themselves may run concurrently; Brian decides how many to start.
+Each has one fenced Lead and one disposable mission-owned local Supabase stack,
+while the standing stack remains available for non-mission issue work. The
+repository-global merge workflow orders integration but never admits or denies
+mission starts. No worker starts before its work
 package has a created or reconciled Linear issue, review corrections resume
 the original worker with lineage, approved owner rules are checked before
 Brian is asked any product or visual question, and Brian's hourly checkpoint

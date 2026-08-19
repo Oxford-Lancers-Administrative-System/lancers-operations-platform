@@ -38,13 +38,12 @@ branch the receipt names. The primary checkout and other workers' worktrees
 are never touched. Prove `git rev-parse --show-toplevel` before changing
 anything.
 
-For database-backed work, acquire a lease with
-`npm run db:acquire -- <linear-issue>` and use only the guarded repository
-commands — they validate the fencing token and fail closed. Never break a
-live or uncertain lease, never touch a `review-ready` stack, and never run
-anything against hosted Supabase. If both slots are legitimately occupied,
-do database-independent work and report the contention in the receipt rather
-than waiting indefinitely.
+For database-backed mission work, attach this worktree to the mission-owned
+lease supplied by the Lead and use only guarded repository commands. Ordinary
+`/start-issue` work still acquires the optional standing non-mission lease with
+`npm run db:acquire -- <linear-issue>`. Never create an ordinary per-worker
+stack; use a temporary isolated stack only after demonstrating incompatible
+simultaneous database states. Never touch hosted Supabase.
 
 ## Implement and verify
 

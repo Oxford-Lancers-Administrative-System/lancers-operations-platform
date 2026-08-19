@@ -1027,6 +1027,25 @@ describe("guarded merge recording", () => {
 });
 
 describe("drift, stops, and resumption", () => {
+  it("clears an abandoned worker without losing package history", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-crashed",
+      worktree: ".claude/worktrees/wp-events",
+      branch: "feat/wp-events",
+    });
+    const state = await m.append({
+      type: "worker-abandoned",
+      package_id: "WP-events-filter",
+      reason: "worker process exited without a receipt",
+    });
+    expect(state.activeWorkers).toEqual([]);
+    expect(state.packages["WP-events-filter"].status).toBe("synced");
+    expect(state.packages["WP-events-filter"].abandoned_workers).toHaveLength(1);
+  });
   it("stops only drift-affected work and resumes it with a revised approved packet", async () => {
     const m = fixture();
     await readyMission(m);
@@ -1074,9 +1093,13 @@ describe("drift, stops, and resumption", () => {
     await expect(
       m.append({ type: "linear-sync-intent", package_id: "WP-events-filter" }),
     ).rejects.toThrow(/mission is stopped/);
-    const resumed = await m.append({ type: "mission-resumed", pid: 4242 });
+    const resumed = await m.append({
+      type: "mission-resumed",
+      lead_id: "lead-resumed",
+      pid: 4242,
+    });
     expect(resumed.stopped).toBeNull();
-    expect(resumed.lead?.pid).toBe(4242);
+    expect(resumed.lead).toMatchObject({ lead_id: "lead-resumed", pid: 4242 });
   });
 
   it("numbers checkpoints consecutively", async () => {
@@ -1110,20 +1133,39 @@ describe("durable reconstruction", () => {
   it("holds the Lead lease for a live pid and frees it only when expired and dead", () => {
     const state = reduce([
       { type: "mission-init", at: "2026-08-18T10:00:00.000Z", packet },
-      { type: "lead-heartbeat", at: "2026-08-18T10:00:00.000Z", pid: 111 },
+      {
+        type: "lead-heartbeat",
+        at: "2026-08-18T10:00:00.000Z",
+        lead_id: "lead-one",
+        pid: 111,
+      },
     ]);
     const start = Date.parse("2026-08-18T10:00:00.000Z");
     const alive = () => undefined;
     const dead = () => {
       throw Object.assign(new Error("gone"), { code: "ESRCH" });
     };
-    expect(leadLeaseAvailable(state, { pid: 111, now: start, probe: alive })).toBe(true);
-    expect(leadLeaseAvailable(state, { pid: 222, now: start + 1000, probe: alive })).toBe(false);
     expect(
-      leadLeaseAvailable(state, { pid: 222, now: start + LEAD_TTL_MS + 1000, probe: alive }),
+      leadLeaseAvailable(state, { leadId: "lead-one", pid: 111, now: start, probe: alive }),
+    ).toBe(true);
+    expect(
+      leadLeaseAvailable(state, { leadId: "lead-two", pid: 222, now: start + 1000, probe: alive }),
     ).toBe(false);
     expect(
-      leadLeaseAvailable(state, { pid: 222, now: start + LEAD_TTL_MS + 1000, probe: dead }),
+      leadLeaseAvailable(state, {
+        leadId: "lead-two",
+        pid: 222,
+        now: start + LEAD_TTL_MS + 1000,
+        probe: alive,
+      }),
+    ).toBe(false);
+    expect(
+      leadLeaseAvailable(state, {
+        leadId: "lead-two",
+        pid: 222,
+        now: start + LEAD_TTL_MS + 1000,
+        probe: dead,
+      }),
     ).toBe(true);
   });
 });

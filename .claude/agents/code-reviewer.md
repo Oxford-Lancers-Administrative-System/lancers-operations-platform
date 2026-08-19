@@ -152,12 +152,11 @@ Only `block` independently triggers a correction-review invocation.
 
 ## Local Supabase ownership
 
-Reviewers are independently isolated and acquire their own coordinator lease
-before any database-backed check or mutation. The brief states whether a slot is
-already assigned. Use only guarded repository commands; never take or break a
-live or uncertain lease, reuse the implementation worktree's token, or operate
-against hosted Supabase. If both slots are occupied, perform database-independent
-review first and retry later.
+Reviewers are independently isolated. For mission work they attach to the
+mission-owned stack before any database-backed check or mutation; ordinary
+`/start-issue` review acquires its own standing coordinator lease. Use only
+guarded repository commands; never take or break a live or uncertain lease,
+reuse another mission's token, or operate against hosted Supabase.
 
 ## Challenge critical behaviors
 

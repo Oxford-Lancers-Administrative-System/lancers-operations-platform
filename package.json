@@ -20,6 +20,8 @@
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
     "db:coordinator": "node scripts/local-supabase-coordinator.mjs",
     "db:acquire": "node scripts/local-supabase-coordinator.mjs acquire",
+    "db:acquire-mission": "node scripts/local-supabase-coordinator.mjs acquire-mission",
+    "db:attach-mission": "node scripts/local-supabase-coordinator.mjs attach-mission",
     "db:heartbeat": "node scripts/local-supabase-coordinator.mjs heartbeat",
     "db:review-ready": "node scripts/local-supabase-coordinator.mjs review-ready",
     "db:release": "node scripts/local-supabase-coordinator.mjs release",

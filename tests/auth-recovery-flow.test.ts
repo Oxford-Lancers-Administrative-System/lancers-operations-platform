@@ -33,7 +33,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { SLOT_DEFINITIONS } from "../scripts/lib/local-supabase-coordinator.mjs";
+import { coordinatorStatus } from "../scripts/lib/local-supabase-coordinator.mjs";
 import { RECOVERY_CALLBACK_PATH } from "../src/lib/auth/recovery";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -50,15 +50,16 @@ if (process.env.REQUIRE_SUPABASE_TESTS === "1" && !configured) {
 /**
  * The captured-email server's port, for whichever slot this stack is.
  *
- * Taken from the coordinator's own slot table rather than hard-coded, because
- * the overflow slot runs Mailpit on 55324 and a hard-coded 54324 would make
- * this suite pass against another worktree's database.
+ * Taken from the coordinator registry rather than a fixed slot table, because
+ * mission stacks are dynamically ported and a hard-coded Mailpit port would
+ * make this suite pass against another worktree's database.
  */
 function mailpitBaseUrl(): string {
   const apiPort = Number(new URL(url!).port);
-  const slot = SLOT_DEFINITIONS.find(
-    (candidate: { ports: { api: number } }) => candidate.ports.api === apiPort,
-  );
+  const slots = Object.values(coordinatorStatus(process.cwd()).slots) as Array<{
+    ports: { api: number; mailpit: number };
+  }>;
+  const slot = slots.find((candidate) => candidate.ports.api === apiPort);
   if (!slot) throw new Error(`No coordinator slot serves the Supabase API on port ${apiPort}.`);
   return `http://127.0.0.1:${slot.ports.mailpit}`;
 }

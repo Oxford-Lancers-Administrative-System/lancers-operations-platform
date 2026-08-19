@@ -38,3 +38,4 @@ accident. Routine implementation choices do not need an ADR.
 | [0026](0026-hosted-runtime-database-connection.md)            | The hosted runtime is a least-privilege login on the shared transaction pooler                         | Accepted                                            |
 | [0027](0027-mission-harness.md)                               | Mission Harness v1: mission-oriented orchestration with a guarded autonomous merge lane                | Accepted                                            |
 | [0028](0028-role-catalogue-is-read-only-reference-data.md)    | The role catalogue is read-only reference data for the application                                     | Accepted                                            |
+| [0029](0029-concurrent-missions.md)                           | Concurrent missions are independently fenced and own disposable local databases                        | Accepted                                            |
