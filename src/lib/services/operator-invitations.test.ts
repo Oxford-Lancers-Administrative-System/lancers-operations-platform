@@ -47,6 +47,7 @@ import {
 import { capabilityRoleCodes } from "@/lib/auth/capabilities";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { closePool, resolveDatabaseUrl, withTransaction } from "@/lib/db";
+import { readOperatorAuditHistory } from "./administration-audit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   activateOperatorAccount,
@@ -87,6 +88,8 @@ const people = new Set<string>();
 
 /** Sends the identity wrapper recorded, in order. */
 let sends: { email: string; redirectTo: string }[] = [];
+/** Logins the identity wrapper was asked to create, in order. */
+let logins: string[] = [];
 
 function uniqueAddress(tag: string): string {
   return `lan131-${tag}-${Math.random().toString(36).slice(2, 10)}@example.test`;
@@ -106,6 +109,7 @@ function identity(options: { send?: "record" | "fail" | "real"; failure?: string
 
   const port: OperatorIdentityPort = {
     async createLogin(email) {
+      logins.push(email);
       const result = await real.createLogin(email);
       authUsers.add(result.authUserId);
       return result;
@@ -150,13 +154,22 @@ async function insertPerson(tag: string): Promise<string> {
   return result.rows[0].id;
 }
 
+/**
+ * Every administration action recorded against one Person, **sorted**.
+ *
+ * Sorted rather than in stored order on purpose. `audit_events.occurred_at`
+ * defaults to transaction time, so two events written atomically carry an
+ * identical timestamp and fall through to an arbitrary tie-break on a random
+ * identifier. Causal order within an instant is `instantOrder` on LAN-130's
+ * vocabulary, applied by its projection at read time and tested there; a raw
+ * `order by occurred_at, id` here would look like an ordering assertion and be
+ * a coin toss.
+ */
 async function auditActions(personId: string): Promise<string[]> {
   const result = await observer.query<{ action: string }>(
     `select action from public.audit_events
       where context -> 'administration' ->> 'targetPersonId' = $1
-      order by occurred_at,
-               (context -> 'administration' ->> 'version'),
-               id`,
+      order by action`,
     [personId],
   );
   return result.rows.map((row) => row.action);
@@ -224,6 +237,7 @@ beforeAll(async () => {
 
 afterEach(() => {
   sends = [];
+  logins = [];
 });
 
 afterAll(async () => {
@@ -797,12 +811,13 @@ describe("rows 14, 15, 16 — the guard is the target-level one, not the capabil
     ).rejects.toMatchObject({ kind: "not_permitted" });
   });
 
-  it("creates no login when the guard refuses", async () => {
-    const before = sends.length;
+  it("creates no login and sends nothing when the guard refuses", async () => {
     await expect(inviteSomebody({ actor: itOfficer(), roleCode: "president" })).rejects.toThrow();
     // The pre-flight guard runs before the Auth call, so a refused invitation
-    // costs nothing and leaves nothing to clean up.
-    expect(sends).toHaveLength(before);
+    // costs nothing, leaves nothing to clean up, and cannot be detected by the
+    // person who was not invited.
+    expect(logins).toEqual([]);
+    expect(sends).toEqual([]);
   });
 });
 
@@ -900,13 +915,30 @@ describe("row 19 — activation ends the invitation, once", () => {
 });
 
 describe("row 21 — one act, one ledger, in causal order", () => {
-  it("writes the invitation before the assignment it carries", async () => {
+  it("writes exactly two events — the invitation, and the assignment it carries", async () => {
     const result = await inviteSomebody();
-    const actions = await auditRows(result.personId);
 
-    expect(actions.map((row) => row.action)).toEqual([
+    // Two facts, two rows. Not three: whether the Person was created or linked
+    // is `detail` on the invitation, not a second event, and a second row
+    // shaped for a second screen is the duplication `DEC-audit-boundary`
+    // refuses. Their causal order within the instant belongs to LAN-130's
+    // projection — see `auditActions`.
+    expect(await auditActions(result.personId)).toEqual([
       "administration.operator.invited",
       "administration.role.assigned",
+    ]);
+  });
+
+  it("renders the invitation above the assignment in the history projection", async () => {
+    const result = await inviteSomebody();
+
+    // The ordering assertion, made where ordering is actually decided:
+    // `instantOrder` puts a role assignment last within an instant, and the
+    // projection is newest-first, so the assignment is the first entry.
+    const history = await readOperatorAuditHistory(administrator(), result.personId);
+    expect(history.map((entry) => entry.action)).toEqual([
+      "administration.role.assigned",
+      "administration.operator.invited",
     ]);
   });
 

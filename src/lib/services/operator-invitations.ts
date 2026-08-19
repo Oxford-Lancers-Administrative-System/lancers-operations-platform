@@ -251,6 +251,18 @@ export const BACKDATING_REASON_MESSAGE =
   "A role that starts before today has to say why it is being backdated. Record the reason " +
   "and try again.";
 
+export const DUPLICATE_ROLE_RULE = "operator_invitation_duplicate_role";
+export const DUPLICATE_ROLE_MESSAGE =
+  "That role has been chosen twice. Choose each role once — one person can hold several " +
+  "different roles, but not the same one twice.";
+
+export const INVALID_DATE_RULE = "operator_invitation_date_invalid";
+export const INVALID_DATE_MESSAGE =
+  "That start date is not a date. Give the day the role begins, or leave it blank for today.";
+
+/** A calendar day, as a `date` column stores one. Not a validity check — only a shape. */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 export const NOT_RESENDABLE_RULE = "operator_invitation_not_resendable";
 export const NO_ACTIVE_COMMITTEE_YEAR_RULE = "no_active_committee_year";
 export const CALLBACK_URL_RULE = "operator_invitation_callback_url_required";
@@ -1450,7 +1462,23 @@ async function resolveRoles(
       );
     }
 
+    if (resolved.some((already) => already.role.code === found.rows[0].code)) {
+      // Two assignments of one seat to one person, starting the same day, is
+      // not something any schema constraint forbids for a multi-holder seat —
+      // and it is not something an administrator ever means. Refused here
+      // rather than de-duplicated silently, because "I picked it twice" and "I
+      // meant two different seats" look identical afterwards.
+      throw new ConstraintViolated(DUPLICATE_ROLE_MESSAGE, { rule: DUPLICATE_ROLE_RULE });
+    }
+
     const effectiveFrom = blankToNull(entry.effectiveFrom) ?? today;
+    if (!ISO_DATE.test(effectiveFrom)) {
+      // Caught here so the administrator gets a sentence rather than a date
+      // cast failing inside the insert and arriving as "the database refused
+      // this change".
+      throw new ConstraintViolated(INVALID_DATE_MESSAGE, { rule: INVALID_DATE_RULE });
+    }
+
     const reason = blankToNull(entry.reason);
     const backdated = effectiveFrom < today;
     if (backdated && reason === null) {
