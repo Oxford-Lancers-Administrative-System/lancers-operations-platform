@@ -7,6 +7,7 @@ import {
   type AdministrationSubject,
 } from "@/lib/auth/administration-authority";
 import type { CapabilityKey } from "@/lib/auth/capabilities";
+import { assertCapability } from "@/lib/auth/guards";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { looksLikeEmailAddress } from "@/lib/auth/recovery";
 import {
@@ -1177,17 +1178,24 @@ function requireOperator(operator: ResolvedOperator | null): ResolvedOperator {
   return operator;
 }
 
-/** The floor, for the reads that precede a decision about a particular role. */
+/**
+ * The capability floor, for the two **reads** in this module.
+ *
+ * The floor and not the target-level guard, and that is not the mistake the
+ * mission warns about — it is the case the target-level guard has nothing to
+ * say about. `assertAdministrationTarget` answers "may this operator do X *to
+ * this target*", and a duplicate search has no target: it is the step that
+ * decides who the target will be. Reading one account is the same shape.
+ *
+ * Every **write** below asks the target-aware question instead, twice, and it
+ * is the write that decides anything. Guarding the reads matters for a
+ * different reason — a duplicate check discloses names, addresses and phone
+ * numbers of people who are not its subject — and `role_management` is exactly
+ * the line `administration-audit.ts` draws around administration history for
+ * the same reason.
+ */
 function assertAdministrationCapability(operator: ResolvedOperator | null): ResolvedOperator {
-  // Expressed as a target rule with the actor as their own target rather than
-  // as a bare `assertCapability`, so that this module has exactly one way of
-  // asking. `restore_account` is chosen because it is the one account-scoped
-  // action with no self rule; the target carries no seats, so nothing but the
-  // capability floor can fire.
-  return assertAdministrationTarget(operator, {
-    action: "restore_account",
-    target: { personId: requireOperator(operator).personId, roleCodes: [] },
-  });
+  return assertCapability(requireOperator(operator), ADMINISTRATION_CAPABILITY);
 }
 
 function administrationAuthority(operator: ResolvedOperator | null) {
