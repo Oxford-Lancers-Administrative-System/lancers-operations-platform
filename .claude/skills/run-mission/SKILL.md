@@ -51,7 +51,8 @@ unaffected work.
 
 Then read current `main`, the packet's pinned sources, and the state of every
 worktree, branch, draft PR, and CI run the journal names, before starting any
-new work.
+new work. Also reconcile the mission's existing Linear `owner-action` issues
+as described in §5a before deciding what is executable.
 
 ## 3. Authority
 
@@ -108,6 +109,46 @@ implementation worker starts until its package has a created or reconciled
 Linear issue — the CLI refuses the dispatch. Issue-creation cadence is the
 Lead's decision: all stable packages after initial planning, or stage by
 stage.
+
+### 5a. Consume asynchronous owner actions from Mission Intake
+
+Mission Intake, not the Mission Lead, detects qualifying asynchronous human
+actions and creates their Linear issues. At every start or resume, and again at
+each normal checkpoint, query Linear for existing issues that both carry the
+`owner-action` label and reference this mission identifier. Reconcile them by
+Linear issue identifier; never create a replacement issue or a second
+owner-action ledger. Existing missions with no matching issues proceed exactly
+as before.
+
+For each matching issue, read its required outcome and its link to a mission
+requirement, acceptance criterion, external gate, or verification package.
+Connect it to the smallest dependent unit named by that evidence. When the
+relationship is incomplete or ambiguous, keep the issue visible and ask a
+normal owner question for the missing relationship; do not guess that the
+whole mission is blocked. Linear remains the durable source for the human
+action. Under the instruction-only v1 boundary, reconstruct these relationships
+from Linear on reconciliation rather than adding journal events, packet fields,
+or another store.
+
+Interpret Linear status narrowly:
+
+- `Backlog` means an external prerequisite must clear before Brian can act.
+- `Todo` means Brian can act now.
+- `In Progress` means Brian is performing the human action.
+- `Done` means only that Brian completed the human action.
+
+An unresolved action blocks only the package, gate, or acceptance verification
+that depends on its outcome. Continue every unrelated executable package. An
+owner-action issue reaching `Done` never satisfies its linked requirement,
+criterion, or gate: at the next reconciliation, make the linked agent
+verification visibly ready or pending, assign the next agent action through the
+normal mission workflow, and require recorded verification evidence. Only
+successful agent verification may satisfy the linked acceptance criterion.
+
+Owner actions are distinct from the existing owner-question queue. A question,
+decision, approval, clarification, information request, visual judgment, or
+hourly check-in item that Brian can resolve in the mission conversation stays a
+normal owner question and is never reported as an owner action.
 
 ## 6. Dispatch bounded implementation workers
 
@@ -175,6 +216,19 @@ deploy, so tell Brian how far `main` is ahead and that
 journal, never in the checkpoint. Persist Brian's answers with `answer`
 before dependent execution resumes.
 
+Append a concise **Owner actions** section built from the Linear reconciliation,
+separate from the numbered owner-question queue, grouped as:
+
+- **Ready for Brian** — `Todo` or `In Progress`.
+- **Waiting on prerequisites** — `Backlog`.
+- **Brian acted; verification pending** — `Done` while linked agent
+  verification is incomplete.
+
+For every item give the Linear issue and status, required outcome, linked
+requirement/criterion/gate, remaining human action (if any), remaining agent
+verification, and next actor. Omit an empty group. Never put routine owner
+questions or scheduled check-in items in this section.
+
 ## 10. Merge only through the guarded mission lane
 
 Never run `gh pr merge`, `gh pr ready`, or any direct merge, and never use
@@ -199,7 +253,26 @@ secrets, deployment, WhatsApp and external configuration, Highest-risk work,
 and unapproved visual behavior are owner-gated: hand them to Brian as normal
 draft PRs and record his merges with route `owner`.
 
-## 11. Stops, drift, and recovery
+## 11. Completion and acceptance
+
+Before any completion receipt, reconcile owner actions once more and report one
+of exactly these outcomes:
+
+- **Fully accepted** — required implementation and every required acceptance
+  verification are complete with recorded evidence.
+- **Implementation complete; acceptance pending** — implementation is complete,
+  but one or more owner actions, external prerequisites, or linked agent
+  verifications remain open.
+- **Incomplete** — required implementation work remains unfinished.
+
+Code merged, packages completed, an owner-action issue marked `Done`, or active
+implementation stopped is not by itself full acceptance. For an acceptance-
+pending outcome, include a structured **Acceptance pending** section in the
+existing receipt, with each affected criterion, linked owner-action issue and
+status, remaining verification, and next actor. This is receipt structure, not
+a new packet or journal schema.
+
+## 12. Stops, drift, and recovery
 
 When Claude usage capacity is exhausted, or Brian says stop, run
 `npm run mission -- stop $ARGUMENTS --reason usage-exhausted --detail <why>`
@@ -209,7 +282,7 @@ genuinely new scope appears, record `scope-drift` for the affected packages
 only; they wait for a revised approved packet (`packet-revised`) while
 unaffected work continues safely.
 
-## 12. Boundaries
+## 13. Boundaries
 
 The Mission Lead never implements a work package in its own session, never
 launches an agent that is not `implementation-worker` or `code-reviewer`,
