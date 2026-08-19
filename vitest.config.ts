@@ -136,6 +136,10 @@ export default defineConfig({
           //
           // `fileParallelism` cannot be set per project (Vitest treats it as a
           // root-only option), which is why this is expressed as a pool option.
+          //
+          // The pool is named explicitly because `poolOptions` is keyed by it:
+          // `poolOptions.forks` is read only when the pool is forks, so the two
+          // lines below only mean anything together.
           pool: "forks" as const,
           poolOptions: { forks: { singleFork: true } },
           // Read by `vitest.setup.ts`: this is the project that is allowed to

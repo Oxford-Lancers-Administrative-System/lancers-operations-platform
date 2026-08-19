@@ -58,6 +58,7 @@ interface ProjectShape {
     include?: string[];
     exclude?: string[];
     env?: Record<string, string>;
+    pool?: string;
     poolOptions?: { forks?: { singleFork?: boolean } };
     setupFiles?: string[];
   };
@@ -128,6 +129,16 @@ describe("the two projects", () => {
     // serialization is expressed as a pool option. If this ever reads false or
     // disappears, the database files go back to running concurrently and every
     // race LAN-139 closed is reopened.
+    //
+    // Both halves, because `singleFork` alone does not say what it sounds like.
+    // `poolOptions` is keyed by pool — `{threads, vmThreads, forks}` — so
+    // `poolOptions.forks` is read only when the pool IS forks. Switching one
+    // token to `pool: "threads"` leaves `singleFork: true` sitting there,
+    // ignored, and the 43 database files run concurrently again. Asserted on
+    // what the pool RESOLVES to rather than on the literal being present:
+    // Vitest 3 defaults to forks, so deleting the line is harmless and must not
+    // fail here.
+    expect(database.pool ?? "forks").toBe("forks");
     expect(database.poolOptions?.forks?.singleFork).toBe(true);
   });
 
