@@ -7,6 +7,7 @@ import {
   LEADERSHIP_TIERS,
   PROTECTED_LEADERSHIP_AUTHORITY,
   roleLabel,
+  ROLE_LABELS,
   type LeadershipTier,
   type ProtectedLeadershipTier,
 } from "./capabilities";
@@ -134,6 +135,27 @@ import { resolveOperatorAccess, type ResolvedOperator } from "./operator";
  * decision in whichever direction it is collapsed: fold recovery into
  * management and a locked-out President stays locked out; fold management into
  * recovery and the IT Officer can depose the General Manager.
+ *
+ * ## One asymmetry between assignment and replacement (LAN129-R2-A8)
+ *
+ * `AdministrationTargetRequest` names the seat a decision concerns and the
+ * person it is done to, and for a replacement that person is the **outgoing**
+ * holder. The successor is modelled in `AdministrationPathEffect`, where the
+ * final-path rule needs them, and not here — so the incoming half of a
+ * replacement is not put through the leadership rule.
+ *
+ * The visible consequence: an IT Officer is refused `assign_role` of an
+ * ordinary seat to a President, and permitted `replace_role_holder` of that
+ * same ordinary seat where the successor happens to be that same President.
+ *
+ * This is an inconsistency and not an escalation, and it is recorded rather
+ * than fixed because fixing the wrong half would be worse. No authority moves
+ * toward the actor: the protected person gains an ordinary seat, and the seats
+ * that make them protected are untouched. If anything the assignment side is
+ * the over-strict half — refusing an IT Officer the right to make a President
+ * the Kit Manager is protection of a seat that was never at risk. Narrowing
+ * that is a decision about what "administer the President" means, which is
+ * Brian's and not this module's to take in passing.
  *
  * ## What this module does not do
  *
@@ -290,10 +312,47 @@ export const ADMINISTRATION_TARGET_RULES: Readonly<
   /**
    * Resending and correcting an invitation are classified as management, which
    * is the conservative reading. No source ranks them, and both send a
-   * credential-establishing link to an address the administrator may change —
-   * so whoever may not assign a seat may not re-issue the invitation that
-   * confers it either. Neither is self-reachable: an operator with a pending
-   * invitation has no session.
+   * credential-establishing link to an address the administrator may change.
+   * Neither is self-reachable: an operator with a pending invitation has no
+   * session.
+   *
+   * ## What that classification does and does not buy (LAN129-R2-A9)
+   *
+   * An earlier version of this note said "whoever may not assign a seat may
+   * not re-issue the invitation that confers it either", as though it were
+   * enforced. It is not, and independent review confirmed it by execution: an
+   * IT Officer is permitted `resend_invitation` against a target holding
+   * nothing at all.
+   *
+   * The reason is that these two are **not role-scoped**. They are judged on
+   * the seats the target currently holds, so an invitation to somebody who
+   * already sits in a protected seat is protected, and an invitation carrying
+   * an initial protected role for a Person with no seats yet is not.
+   *
+   * What that would cost, stated plainly so nobody has to reconstruct it:
+   * `correct_invitation` exists to change the address an invitation was sent to
+   * and send it again. An administrator who may correct a pending invitation
+   * can therefore redirect the credential link that invitation carries. If a
+   * pending invitation conferred a protected seat and the target held no seat
+   * yet, whoever could correct it could take that seat.
+   *
+   * It is left as it is, deliberately, because the precondition does not exist
+   * on the path the approved requirements describe. Since LAN129-B1 the seat in
+   * question can only be President — installing General Manager is refused to
+   * everybody — and only a General Manager can have created that invitation,
+   * since only they may assign it. The remaining question is whether the role
+   * assignment is materialised when the invitation is sent or only when it is
+   * accepted, and `REQ-deactivate-and-reinstate` answers it the safe way: a
+   * successor "may remain Invitation pending without capabilities until
+   * activation", which describes an assignment that exists while the account
+   * does not. An assignment effective today puts the seat in
+   * `target.roleCodes`, and the leadership rule then protects the invitation
+   * exactly as it protects the holder.
+   *
+   * So this depends on a precondition `WP-invitation` creates or avoids, and it
+   * is carried in that package's brief rather than pre-solved here. If that
+   * package ever defers materialising the assignment, the fix is the one
+   * LAN129-B1 applied: make these two role-scoped.
    */
   resend_invitation: rule({
     action: "resend_invitation",
@@ -389,6 +448,7 @@ export const SELF_ACTION_RULE = "administration_self_action_forbidden";
 export const LEADERSHIP_TARGET_RULE = "administration_leadership_target";
 export const UNKNOWN_ACTION_RULE = "administration_action_unknown";
 export const MISSING_ROLE_CODE_RULE = "administration_role_code_required";
+export const UNKNOWN_ROLE_CODE_RULE = "administration_role_code_unknown";
 export const FINAL_ADMINISTRATION_PATH_RULE = "administration_final_path";
 
 /** The first sentence of every refusal in this module. Matches UX-05's heading. */
@@ -424,12 +484,50 @@ export function protectedTierOf(roleCodes: readonly string[]): ProtectedLeadersh
   let strongest: ProtectedLeadershipTier | null = null;
 
   for (const code of roleCodes) {
-    const tier = LEADERSHIP_TIERS[code];
+    const tier = leadershipTierOf(code);
     if (!tier || !isProtectedTier(tier)) continue;
     if (!strongest || TIER_STRENGTH[tier] > TIER_STRENGTH[strongest]) strongest = tier;
   }
 
   return strongest;
+}
+
+/**
+ * The tier a role code sits in, reading only the map's **own** keys.
+ *
+ * `LEADERSHIP_TIERS[code]` alone is not safe on an arbitrary string, and
+ * independent review found it (LAN129-R2-A7): every JavaScript object inherits
+ * `constructor`, `toString`, `__proto__` and the rest, so
+ * `LEADERSHIP_TIERS["constructor"]` is the `Object` function rather than
+ * `undefined`. That value is not `"technical_administration"`, so it passed the
+ * protected-tier test, and the authority lookup keyed on it then threw a
+ * `TypeError` — fail-*closed*, in that nothing was permitted, but a broken
+ * contract: this module promises to return the operator or throw
+ * `NotPermitted`, and a `TypeError` reaches an operator as "something went
+ * wrong" rather than as a refusal. Once a role code arrives from a form, that is
+ * a 500 instead of a refusal.
+ *
+ * `Object.hasOwn` is the whole fix, and it is used for every map keyed by role
+ * code in this module.
+ */
+function leadershipTierOf(code: string): LeadershipTier | null {
+  return Object.hasOwn(LEADERSHIP_TIERS, code) ? LEADERSHIP_TIERS[code] : null;
+}
+
+/**
+ * Is this string a role code the approved catalogue actually has?
+ *
+ * Checked against `ROLE_LABELS`, which covers exactly the twenty catalogue
+ * codes and is pinned character-for-character against `public.roles` by
+ * `tests/operator-capability-catalogue.test.ts`. Reading it here keeps this
+ * module free of role codes, which `tests/capability-map-single-source.test.ts`
+ * requires.
+ *
+ * `Object.hasOwn` again, and for the same reason as above: `ROLE_LABELS`
+ * inherits `constructor` too, so a truthiness test would accept it.
+ */
+function isCatalogueRoleCode(code: string): boolean {
+  return Object.hasOwn(ROLE_LABELS, code);
 }
 
 /**
@@ -514,18 +612,51 @@ export function assertAdministrationTarget(
     });
   }
 
-  // A role-scoped decision that did not name its role is refused rather than
-  // evaluated. TypeScript makes `roleCode` mandatory for these three actions, so
-  // this is unreachable from typed code — and it is the whole of LAN129-B1, so
-  // it is checked at runtime as well. A missing seat must never mean "no seat is
+  // A role-scoped decision must name a role, and must name one the catalogue
+  // really has. Both halves are refusals rather than evaluations.
+  //
+  // The first half is LAN129-B1: a missing seat must never mean "no seat is
   // involved", which is the reading that left a vacant General Manager
-  // installable by anybody.
+  // installable by anybody. TypeScript makes `roleCode` mandatory for these
+  // three actions, so it is unreachable from typed code and checked anyway.
+  //
+  // The second half is LAN129-R2-A6, and it is the same defect wearing a
+  // different hat. `protectedTierOf` treats an unrecognised code as
+  // *unprotected*, which is right for the seats a target **holds** — an unknown
+  // code granting protection would let anyone shield a target by inventing a
+  // string — and exactly backwards for the code the decision itself names,
+  // where unrecognised has to mean refused. Independent review executed the
+  // bypass: " general_manager ", "GENERAL_MANAGER", "General Manager",
+  // "general-manager" and a code with a zero-width space appended were all
+  // permitted, because none of them is a catalogue key.
+  //
+  // The two directions are deliberately asymmetric, and that asymmetry is the
+  // point rather than an inconsistency: held seats fail open into "not
+  // protected", named seats fail closed into "refused".
+  //
+  // Nothing is normalised on the way through. A caller passing
+  // " general_manager " is refused rather than trimmed, because trimming is
+  // this module guessing what a caller meant about the most dangerous seat in
+  // the club. An exact `public.roles.code` is the contract, and it is now
+  // enforced instead of assumed — the compensating control the alternative
+  // needed was "WP-invitation and WP-assignment remember to pass an exact
+  // code", and depending on a future caller remembering is the dependency
+  // LAN129-B1 already proved unsafe.
   if (definition.roleScoped) {
     const named = "roleCode" in request ? request.roleCode : undefined;
     if (typeof named !== "string" || named.trim() === "") {
       throw new NotPermitted(`${REFUSAL_HEADLINE} This action must name the role it concerns.`, {
         rule: MISSING_ROLE_CODE_RULE,
       });
+    }
+    if (!isCatalogueRoleCode(named)) {
+      // The message names no role and echoes nothing the caller sent: a
+      // refusal is not a place to reflect input back, and "which strings are
+      // real role codes" is not a question this surface answers.
+      throw new NotPermitted(
+        `${REFUSAL_HEADLINE} This action names a club role that does not exist.`,
+        { rule: UNKNOWN_ROLE_CODE_RULE },
+      );
     }
   }
 

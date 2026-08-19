@@ -47,6 +47,7 @@ import {
   MISSING_ROLE_CODE_RULE,
   requireAdministrationTarget,
   UNKNOWN_ACTION_RULE,
+  UNKNOWN_ROLE_CODE_RULE,
   usableAdministrationPaths,
   type AdministrationPath,
   type AdministrationTargetAction,
@@ -1152,5 +1153,209 @@ describe("LAN129-A2 — requireAdministrationTarget takes the actor from the ses
     // Asserted on the function itself: one parameter, the request. A guard that
     // accepted an actor would accept whatever the browser sent.
     expect(requireAdministrationTarget).toHaveLength(1);
+  });
+});
+
+/**
+ * LAN129-R2-A6 and A7 — the role code a decision names is validated, and no
+ * string can crash the guard.
+ *
+ * A6 is LAN129-B1 wearing a different hat. B1 made the decision carry its role;
+ * this makes the module insist that the role is real. `protectedTierOf` treats
+ * an unrecognised code as *unprotected*, which is right for the seats a target
+ * **holds** and exactly backwards for the code the decision itself names — so
+ * a caller who resolved the seat by name, by alias, by id, or who trimmed after
+ * guarding, would have installed a General Manager past the check B1 added.
+ *
+ * The strings below are the ones independent review executed at 3311d2a. Every
+ * one of them was PERMITTED then.
+ */
+describe("LAN129-R2-A6 — a named role must be one the catalogue really has", () => {
+  const NEAR_MISSES = [
+    " general_manager ",
+    "general_manager ",
+    " general_manager",
+    "GENERAL_MANAGER",
+    "General Manager",
+    "general-manager",
+    "general manager",
+    "general_manager​",
+    "​general_manager",
+    "general_manager\n",
+    "president ",
+    "PRESIDENT",
+    "President",
+  ];
+
+  it.each(NEAR_MISSES)("refuses the role-scoped decision naming %j", (code) => {
+    // Refused for all three role-scoped actions, and refused for the strongest
+    // actor there is — so the refusal is the validation and not a leadership
+    // rule that happened to catch it.
+    for (const action of ["assign_role", "replace_role_holder", "end_role"] as const) {
+      const refusal = refusalOf(() =>
+        assertAdministrationTarget(actor("it", CATALOGUE), {
+          action,
+          target: target("someone"),
+          roleCode: code,
+        }),
+      );
+      expect(refusal.rule, `${action} / ${JSON.stringify(code)}`).toBe(UNKNOWN_ROLE_CODE_RULE);
+    }
+  });
+
+  it("does not normalise a near miss into the seat it resembles", () => {
+    // The point of refusing rather than trimming: this module never guesses
+    // what a caller meant about the most dangerous seat in the club.
+    expect(permits([IT], "assign_role", [], { roleCode: " general_manager " })).toBe(false);
+    expect(permits([GM], "assign_role", [], { roleCode: " president " })).toBe(false);
+    // And the exact codes still behave exactly as LAN129-B1 decided.
+    expect(permits([IT], "assign_role", [], { roleCode: GM })).toBe(false);
+    expect(permits([GM], "assign_role", [], { roleCode: PRESIDENT })).toBe(true);
+  });
+
+  it("accepts every code the catalogue has, and only those", () => {
+    // The validation must not have narrowed anything legitimate: each of the
+    // twenty seats is nameable by an administrator.
+    for (const code of CATALOGUE) {
+      let rule: string | undefined;
+      try {
+        assertAdministrationTarget(actor("gm", [GM]), {
+          action: "assign_role",
+          target: target("someone"),
+          roleCode: code,
+        });
+      } catch (error) {
+        rule = (error as NotPermitted).rule;
+      }
+      expect(rule, code).not.toBe(UNKNOWN_ROLE_CODE_RULE);
+    }
+  });
+
+  it("refuses an invented seat, which is the ordinary case this also covers", () => {
+    for (const code of ["chairman", "founder", "assistant_coach", "president_elect"]) {
+      const refusal = refusalOf(() =>
+        assertAdministrationTarget(actor("gm", [GM]), {
+          action: "assign_role",
+          target: target("someone"),
+          roleCode: code,
+        }),
+      );
+      expect(refusal.rule, code).toBe(UNKNOWN_ROLE_CODE_RULE);
+    }
+  });
+
+  it("still refuses a missing role with the missing rule, not the unknown one", () => {
+    // Two different faults, two different rules, so a caller can tell "you did
+    // not say which seat" from "that seat does not exist".
+    const refusal = refusalOf(() =>
+      assertAdministrationTarget(actor("gm", [GM]), {
+        action: "assign_role",
+        target: target("someone"),
+        roleCode: "",
+      }),
+    );
+    expect(refusal.rule).toBe(MISSING_ROLE_CODE_RULE);
+  });
+
+  it("leaves the target's own unknown seats unprotected, which is the other direction", () => {
+    // The asymmetry, asserted so nobody "fixes" it into symmetry. A code the
+    // catalogue does not have must not confer protection on a target, or
+    // anyone could shield a person by inventing a string.
+    expect(protectedTierOf(["chairman", "GENERAL_MANAGER", " general_manager "])).toBeNull();
+    expect(permits([IT], "deactivate_account", ["GENERAL_MANAGER"])).toBe(true);
+    expect(permits([IT], "deactivate_account", [GM])).toBe(false);
+  });
+
+  it("echoes nothing the caller sent, and names no seat", () => {
+    const refusal = refusalOf(() =>
+      assertAdministrationTarget(actor("gm", [GM]), {
+        action: "assign_role",
+        target: target("someone"),
+        roleCode: "GENERAL_MANAGER",
+      }),
+    );
+    expect(refusal.message).not.toMatch(/GENERAL_MANAGER|General Manager|general_manager/);
+    expect(refusal.message).toMatch(/does not exist/);
+  });
+});
+
+/**
+ * LAN129-R2-A7 — a prototype-chain key is a refusal, never a `TypeError`.
+ *
+ * Every object inherits `constructor`, `toString` and the rest, so
+ * `LEADERSHIP_TIERS["constructor"]` was the `Object` function rather than
+ * `undefined`. It passed the protected-tier test, and the authority lookup
+ * keyed on it threw. Fail-closed — nothing was permitted — but it breaks this
+ * module's contract of "returns the operator or throws `NotPermitted`", and
+ * once a role code arrives from a form it is a 500 rather than a refusal.
+ */
+describe("LAN129-R2-A7 — inherited keys do not reach the authority lookup", () => {
+  const INHERITED = [
+    "constructor",
+    "toString",
+    "__proto__",
+    "valueOf",
+    "hasOwnProperty",
+    "isPrototypeOf",
+    "propertyIsEnumerable",
+    "toLocaleString",
+  ];
+
+  it.each(INHERITED)("resolves %s to no tier at all", (key) => {
+    expect(protectedTierOf([key])).toBeNull();
+  });
+
+  it.each(INHERITED)("refuses %s as a named role, as a NotPermitted", (key) => {
+    // The contract: a refusal, with a rule, and not an exception of some other
+    // class that a caller would render as "something went wrong".
+    const refusal = refusalOf(() =>
+      assertAdministrationTarget(actor("gm", [GM]), {
+        action: "assign_role",
+        target: target("someone"),
+        roleCode: key,
+      }),
+    );
+    expect(refusal).toBeInstanceOf(NotPermitted);
+    expect(refusal.kind).toBe("not_permitted");
+    expect(refusal.rule).toBe(UNKNOWN_ROLE_CODE_RULE);
+  });
+
+  it.each(INHERITED)("does not throw when %s is among the target's own seats", (key) => {
+    // The half that validating the named code does not reach: the target's
+    // held seats are never validated, by design, so `protectedTierOf` itself
+    // has to be safe on any string.
+    for (const action of ADMINISTRATION_TARGET_ACTIONS) {
+      const run = () =>
+        canAdministerTarget(
+          actor("gm", [GM]),
+          request(action, "someone", [key, "kit_manager"], ORDINARY_SEAT),
+        );
+      expect(run, `${action} / ${key}`).not.toThrow();
+      expect(typeof run()).toBe("boolean");
+    }
+  });
+
+  it("does not throw when an inherited key is the actor's own seat", () => {
+    // The third place a role code is compared. `permitted.includes(code)` is
+    // an array scan and is safe, but it is asserted rather than assumed.
+    expect(() =>
+      canAdministerTarget(actor("odd", ["constructor", "__proto__"]), {
+        action: "deactivate_account",
+        target: target("p", [PRESIDENT]),
+      }),
+    ).not.toThrow();
+    expect(
+      canAdministerTarget(actor("odd", ["constructor"]), {
+        action: "deactivate_account",
+        target: target("p", [PRESIDENT]),
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps every real seat resolving to its tier", () => {
+    // `Object.hasOwn` must not have narrowed the map's own keys.
+    expect(protectedTierOf([GM])).toBe("standing_continuity");
+    expect(protectedTierOf([PRESIDENT])).toBe("presiding");
+    expect(protectedTierOf([IT])).toBeNull();
   });
 });
