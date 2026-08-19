@@ -41,46 +41,55 @@
  * silently denying a legitimate operator forever.
  *
  * The catalogue that migration installs has twenty seats, and this map grants
- * capabilities to a subset of them. Seven of the ten coaching seats —
- * Quarterbacks, Offensive Line, Wide Receivers, Defensive Line, Linebackers,
- * Defensive Backs and Special Teams — hold **nothing** here: the approved
- * catalogue deliberately includes roles that carry no privileged capability
- * yet, and the coaching grant that reaches them is a separate, separately
- * reviewed decision. Nothing was widened by the catalogue growing.
+ * capabilities to a subset of them. Ten of them are the fixed coaching
+ * hierarchy, and since LAN-129 all ten hold the same narrow attendance pair —
+ * see `FIXED_COACHING_ROLE_CODES` for what that grant is and where it came
+ * from. The other seats that hold nothing (Treasurer aside, who holds
+ * membership activation) hold nothing because no decision has reached them.
  *
  * ## The grants, and who decided them
  *
  * | Capability                | Roles                                          | Decided by         |
  * | ------------------------- | ---------------------------------------------- | ------------------ |
- * | Attendance recorder       | `head_coach`, `offence_coach`, `defence_coach` | Brian, 12 Aug 2026 |
- * | Attendance recording      | the four calendar roles, plus those three seats | Lead, 14 Aug 2026  |
+ * | Attendance recorder       | the ten fixed coaching seats                    | Brian, 12+18 Aug   |
+ * | Attendance recording      | the four calendar roles, plus those ten seats   | Lead, 14 Aug 2026  |
  * | Membership activation     | the four offices, plus `general_manager`       | Lead, 12 Aug 2026  |
  * | Event calendar management | President, VP, Secretary, General Manager      | Brian, 12 Aug 2026 |
  * | Event approval            | President, VP, Secretary, General Manager      | Brian, 12 Aug 2026 |
  * | Occurrence assertion      | President, VP, Secretary, General Manager      | Lead, 14 Aug 2026  |
  * | Delivery administration   | President, VP, Secretary, General Manager      | Lead, 13 Aug 2026  |
  * | Leadership report         | President, VP, Secretary, General Manager      | Lead, 14 Aug 2026  |
- * | Role management           | `it_officer` alone                             | Brian, 15 Aug 2026 |
+ * | Role management           | President, General Manager, IT Officer         | Brian, 18 Aug 2026 |
  *
  * **Every capability above also lists `it_officer`.** Brian decided on 15
  * August 2026 (LAN-124) that the IT Officer is the club's administrative seat
  * and holds every privileged action in the slice. That is an administrative
  * grant rather than a demonstration affordance: `role_management` was held by
- * nobody at all. It is worth being exact about what that changed, because an
- * earlier version of this note was not: **no screen or service implements
- * operator management yet.** `manageRoles` is still `notImplemented`, so an IT
- * Officer holds the authority and not yet the ability, and accounts and role
- * assignments are still written to the database by hand. The seat is a real,
- * non-constitutional committee office in the catalogue migration, so holding it
- * is truthful.
+ * nobody at all.
  *
- * It is also the widest grant in the file, and worth narrowing later: whoever
- * holds `role_management` can assign themselves anything else. Brian recorded
- * that consequence when he took the decision.
+ * `role_management` is no longer the IT Officer's alone. Brian widened it on 18
+ * August 2026 (`DEC-role-management-authority`) to the President, the General
+ * Manager and the IT Officer, and that is the decision LAN-129 applies.
+ *
+ * ## The hazard that widening carries, and the layer that answers it
+ *
+ * The note this file has carried since LAN-124 is still true and is now true of
+ * three seats rather than one: **whoever holds `role_management` can assign
+ * themselves anything else.** Widening the grant widens that hazard, and Brian
+ * took the decision knowing it.
+ *
+ * What answers it is not a condition in this file. `./administration-authority.ts`
+ * adds a second, separate layer: capabilities answer *"may this operator do X
+ * at all"*, and the leadership, self-action and final-path guards there answer
+ * *"may this operator do X **to this particular target**"*. The General Manager
+ * seat, the President seat and the actor's own account are protected there, by
+ * rules that read the tier data below. Keeping the two apart is what lets each
+ * be checked by reading: this file stays a flat table of grants with no
+ * conditionals in it, and the target rules stay a short list of named cases.
  *
  * None of them is re-derived here, and none may be re-derived by a later
  * implementer: they are recorded owner and lead decisions on LAN-73, LAN-77,
- * LAN-78 and LAN-124.
+ * LAN-78, LAN-124 and LAN-129.
  */
 
 /** The privileged actions this slice knows about. */
@@ -112,13 +121,31 @@ export interface Capability {
 }
 
 /**
- * Display labels for the role codes this map uses.
+ * Display labels for **every** role code in the approved catalogue.
  *
- * Presentation text owned by this module, mirroring `roles.name` in the
- * catalogue migration. It exists so that a refusal can say "the President
- * role" rather than "the president role code", and it covers only the codes
- * named below — `describeRoles()` falls back to the raw code for anything
- * else, which is ugly on screen but never wrong.
+ * Presentation text owned by this module, mirroring `roles.name` in
+ * `supabase/migrations/20260819090100_role_catalogue.sql`. It exists so that a
+ * refusal can say "the President role" rather than "the president role code",
+ * and since LAN-129 so that Administration's plain-language copy comes from the
+ * same module the server enforces from (`REQ-capability-copy-consistency`,
+ * `DEC-permission-transparency`).
+ *
+ * ## Why a second copy of the names is tolerable here, and what stops it drifting
+ *
+ * Independent review recorded this as a duplication (LAN128-A1): `roles.name`
+ * is migration-owned and authoritative, and this map repeats it. The
+ * duplication is not removable by reading the database, because the two
+ * properties this module is built to have — pure, and frozen at runtime — mean
+ * it may not open a connection, and `tests/capability-map-single-source.test.ts`
+ * enforces that by scanning the source.
+ *
+ * So the copy stays and is **pinned instead**:
+ * `tests/operator-capability-catalogue.test.ts` reads `public.roles` and asserts
+ * that this map covers exactly the catalogue's codes and that every label is
+ * character-for-character the catalogue's `name`. Renaming a seat in a
+ * migration without renaming it here fails that test, which is the drift the
+ * finding was about. It was previously nine codes with a silent fallback to the
+ * raw code, and nothing checked it at all.
  *
  * The club says "Offensive Coordinator" and "Defensive Coordinator" for the two
  * seats the catalogue calls `offence_coach` and `defence_coach`; Brian
@@ -127,18 +154,161 @@ export interface Capability {
  * the names changed (LAN-128): a code is an identifier, and renaming it would
  * have rewritten every existing assignment's key for a cosmetic reason. The
  * previous names survive as `role_aliases` rows.
+ *
+ * `describeRoles()` still falls back to the raw code for anything absent, which
+ * is ugly on screen but never wrong. Nothing in the catalogue reaches that
+ * branch any more; an invented or mistyped code does.
  */
-const ROLE_LABELS: Readonly<Record<string, string>> = Object.freeze({
+export const ROLE_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  // Operational Administration
+  general_manager: "General Manager",
+  it_officer: "IT Officer",
+  // Club Committee
   president: "President",
   vice_president: "Vice-President",
   secretary: "Secretary",
   treasurer: "Treasurer",
-  general_manager: "General Manager",
-  it_officer: "IT Officer",
+  social_secretary: "Social Secretary",
+  gameday_secretary: "Gameday Secretary",
+  kit_manager: "Kit Manager",
+  media_secretary: "Media Secretary",
+  // Coaching Staff
   head_coach: "Head Coach",
   offence_coach: "Offensive Coordinator",
   defence_coach: "Defensive Coordinator",
+  quarterbacks_coach: "Quarterbacks Coach",
+  offensive_line_coach: "Offensive Line Coach",
+  wide_receivers_coach: "Wide Receivers Coach",
+  defensive_line_coach: "Defensive Line Coach",
+  linebackers_coach: "Linebackers Coach",
+  defensive_backs_coach: "Defensive Backs Coach",
+  special_teams_coach: "Special Teams Coach",
 });
+
+/**
+ * The **leadership tiers** `DEC-two-tier-operating-model` names, as data.
+ *
+ * This is the one thing `./administration-authority.ts` needs from the
+ * catalogue and cannot express without naming a role code — and
+ * `tests/capability-map-single-source.test.ts` makes this module the only place
+ * in `src/` allowed to name one. So the codes live here, beside every other
+ * code, and the *rules* about them live there. Neither file has both.
+ *
+ * It is emphatically **not** a hierarchy the capability map consults. No
+ * function in this file reads it, no grant is derived from it, and holding a
+ * tier confers nothing: `role_management` is granted to three seats by being
+ * written into that entry's list, exactly as every other grant is. A tier only
+ * ever makes a seat *harder* to administer.
+ *
+ * The three tiers, quoted from `DEC-two-tier-operating-model`:
+ *
+ *   * `standing_continuity` — the General Manager, "the standing continuity
+ *     authority above President for leadership transition".
+ *   * `presiding` — the President.
+ *   * `technical_administration` — the IT Officer, who "holds transitional
+ *     technical administration".
+ *
+ * The Vice-President and Secretary are deliberately absent. The same decision
+ * puts them in "the broad ordinary operating tier": they keep every ordinary
+ * operating capability and administer no account and no assignment, which is
+ * expressed by their absence from `role_management` above, not by a tier.
+ */
+export type LeadershipTier = "standing_continuity" | "presiding" | "technical_administration";
+
+/** Which tier a role code sits in, or absent for the seventeen that sit in none. */
+export const LEADERSHIP_TIERS: Readonly<Record<string, LeadershipTier>> = Object.freeze({
+  general_manager: "standing_continuity",
+  president: "presiding",
+  it_officer: "technical_administration",
+});
+
+/** The seat each tier is, so a refusal can name it without a code literal. */
+export const LEADERSHIP_TIER_SEATS: Readonly<Record<LeadershipTier, string>> = Object.freeze({
+  standing_continuity: "general_manager",
+  presiding: "president",
+  technical_administration: "it_officer",
+});
+
+/**
+ * The two tiers `REQ-final-admin-protection` **protects** from ordinary
+ * administration. The IT Officer's tier is deliberately not one — see
+ * `./administration-authority.ts`, which explains why at length.
+ */
+export type ProtectedLeadershipTier = "standing_continuity" | "presiding";
+
+/**
+ * Who may act on a protected seat, by tier and by kind of action.
+ *
+ * This is here rather than beside the rules that read it for one reason:
+ * `tests/capability-map-single-source.test.ts` makes this module the only place
+ * in `src/` allowed to name a `roles.code`, and that property is worth more than
+ * the tidiness of keeping the table beside its rules. So the split is by *kind
+ * of knowledge* — role codes live here with every other role code, and the
+ * rules that consume them live in `./administration-authority.ts` and mention
+ * no code at all. One file to read when the catalogue changes; one file to read
+ * when the authority model changes.
+ *
+ * It is **not** a capability and nothing in this file consults it. Holding a
+ * listed code permits nothing on its own: an actor reaches these rules only
+ * after `role_management` has already admitted them, and these lists can only
+ * narrow that. An empty list means the mission leaves no ordinary route, which
+ * is a decision (`REQ-final-admin-protection`: "General Manager replacement
+ * remains exceptional IT/service recovery outside this mission") and never a
+ * placeholder.
+ *
+ * Every entry is quoted from an approved source in the rules module's note.
+ */
+export const PROTECTED_LEADERSHIP_AUTHORITY: Readonly<
+  Record<ProtectedLeadershipTier, Readonly<Record<"management" | "recovery", readonly string[]>>>
+> = Object.freeze({
+  standing_continuity: Object.freeze({
+    management: Object.freeze([]) as readonly string[],
+    recovery: Object.freeze(["it_officer"]) as readonly string[],
+  }),
+  presiding: Object.freeze({
+    management: Object.freeze(["general_manager"]) as readonly string[],
+    recovery: Object.freeze(["general_manager", "it_officer"]) as readonly string[],
+  }),
+});
+
+/**
+ * The ten fixed coaching seats — the catalogue's Coaching Staff group.
+ *
+ * Listed rather than derived, for the same reason every grant in this file is
+ * listed: a set computed from a scope, a group or a name pattern silently
+ * adopts the next row that matches it, and `tests/operator-capability-catalogue.test.ts`
+ * exists because that exact thing nearly happened when the catalogue grew from
+ * three coaching seats to ten.
+ *
+ * `REQ-coach-operator-onboarding` and `DEC-coach-catalogue` (Brian, 18 August
+ * 2026) are what put all ten on the attendance grants: "every fixed coaching
+ * role receives only the approved narrow attendance capability, including
+ * minimal walk-up capture". Walk-up capture is guarded by
+ * `attendance_recording`, so "the narrow attendance capability" is the pair —
+ * `attendance_recorder`, which decides that the constrained coach screen is
+ * theirs, and `attendance_recording`, which decides that they may write to it.
+ * A seat holding only the first would be classified a narrow recorder, offered
+ * the coach's surface, and refused every action on it.
+ *
+ * The same requirement's "plus current availability viewing and Orange/Red
+ * reporting" grants nothing here and deliberately so: **there is no
+ * availability feature in this repository**, no capability guards one, and
+ * inventing a grant for an action no code performs would record a decision as
+ * enforcement when it is neither. The Availability Management mission owns it,
+ * and this note is where it starts.
+ */
+export const FIXED_COACHING_ROLE_CODES: readonly string[] = Object.freeze([
+  "head_coach",
+  "offence_coach",
+  "defence_coach",
+  "quarterbacks_coach",
+  "offensive_line_coach",
+  "wide_receivers_coach",
+  "defensive_line_coach",
+  "linebackers_coach",
+  "defensive_backs_coach",
+  "special_teams_coach",
+]);
 
 function capability(entry: Capability): Capability {
   return Object.freeze({ ...entry, roleCodes: Object.freeze([...entry.roleCodes]) });
@@ -161,13 +331,19 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   attendance_recorder: capability({
     key: "attendance_recorder",
     action: "record attendance for an occurred event",
-    roleCodes: ["head_coach", "offence_coach", "defence_coach", "it_officer"],
+    roleCodes: [...FIXED_COACHING_ROLE_CODES, "it_officer"],
     decision:
       "Brian, 12 August 2026 (LAN-108/LAN-110): the Head Coach, Offensive Coordinator " +
       "and Defensive Coordinator seats only. Assistant coaches do not hold them, and no " +
       "assistant role exists in the catalogue. " +
       "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
-      "holds every capability in this file.",
+      "holds every capability in this file. " +
+      "Brian, 18 August 2026 (REQ-coach-operator-onboarding, DEC-coach-catalogue, " +
+      "LAN-129) widened it to all ten fixed coaching seats: 'every fixed coaching role " +
+      "receives only the approved narrow attendance capability'. Still no assistant seat, " +
+      "and still nothing else — the seven added here hold these two capabilities and no " +
+      "other, which tests/operator-capability-catalogue.test.ts asserts against the real " +
+      "catalogue.",
   }),
 
   /**
@@ -333,9 +509,7 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
       "vice_president",
       "secretary",
       "general_manager",
-      "head_coach",
-      "offence_coach",
-      "defence_coach",
+      ...FIXED_COACHING_ROLE_CODES,
       "it_officer",
     ],
     decision:
@@ -345,7 +519,11 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
       "any-linked-operator floor that failed LAN-80's criterion that an ordinary player is " +
       "refused at the service boundary. Recorded as an assumption on LAN-80. " +
       "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
-      "holds every capability in this file.",
+      "holds every capability in this file. " +
+      "Brian, 18 August 2026 (REQ-coach-operator-onboarding, LAN-129) extended the " +
+      "coaching half to all ten fixed coaching seats, because the approved narrow " +
+      "attendance capability includes 'minimal walk-up capture' and walk-up capture is " +
+      "guarded here. The Treasurer is still excluded.",
   }),
 
   /**
@@ -389,28 +567,61 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
   }),
 
   /**
-   * Undecided, and therefore refused to everyone.
+   * Operator-account and role administration — the floor every Administration
+   * read and every Administration write stands on.
    *
-   * Operator-account and role administration is explicitly out of this slice
-   * (`docs/ux/tickets/LAN-73-shell-and-access.md`, "Explicitly not in this
-   * ticket"). The capability is named here so that the map enumerates every
-   * privileged action the slice can refuse, and so that an attendance recorder
-   * can be *proved* to be refused it. Whoever builds it decides who holds it —
-   * with Brian, not in passing.
+   * ## The grant
+   *
+   * President, General Manager and IT Officer, and nobody else. That is
+   * `DEC-role-management-authority`, locked by Brian on 18 August 2026, and
+   * `REQ-role-management-authority` states it in the same words: "President,
+   * General Manager and IT Officer hold role_management. Vice-President and
+   * Secretary retain broad ordinary operating capabilities but cannot
+   * administer accounts or role assignments."
+   *
+   * The Vice-President and the Secretary are the two seats a reader is most
+   * likely to add by mistake, because they hold every *other* capability the
+   * President does — the calendar, approval, occurrence, delivery, the Monday
+   * report. Administration is the one place the operating tier stops, and that
+   * is the whole content of the two-tier model.
+   *
+   * The IT Officer's grant is **transitional**. `DEC-role-management-authority`
+   * says so, and says it "may later be removed only by a reviewed owner
+   * decision and code change" — which, because this file is data, is the
+   * deletion of one string from one array.
+   *
+   * ## What this capability is not
+   *
+   * It is not permission to administer a *particular person*. Holding it means
+   * the Administration surfaces open and their actions are reachable; whether
+   * this actor may end *that* assignment, deactivate *that* account or recover
+   * *that* email is a second question, answered in
+   * `./administration-authority.ts` by `REQ-final-admin-protection`'s
+   * leadership, self-action and final-path rules. A screen that called
+   * `requireCapability("role_management")` and stopped there would let the
+   * President deactivate the General Manager, and would let any of the three
+   * remove their own last administration path.
+   *
+   * The hazard Brian recorded on 15 August 2026 is unchanged and now applies to
+   * three seats rather than one: whoever holds this can assign themselves every
+   * other capability in this file. Nothing here prevents that, self-assignment
+   * is deliberately not forbidden by the self-action rule, and the mitigation is
+   * that every such assignment is a recorded, attributable audit event.
    */
   role_management: capability({
     key: "role_management",
     action: "manage operator accounts and role assignments",
-    roleCodes: ["it_officer"],
+    roleCodes: ["president", "general_manager", "it_officer"],
     decision:
       "Brian, 15 August 2026 (LAN-124): the IT Officer is the club's administrative seat and " +
-      "holds this. It was the one entry the slice left open. **No screen or service " +
-      "implements it yet** — `manageRoles` is still `notImplemented`, so holding this grants " +
-      "the authority and not yet the ability, and operator accounts and role assignments are " +
-      "still written to the database by hand. The grant is deliberately the narrowest list in " +
-      "this file and the widest in it: whoever holds it can assign themselves every other " +
-      "capability the moment a screen exists, which is why no calendar role was added " +
-      "alongside.",
+      "holds this. It was the one entry the slice left open. " +
+      "Brian, 18 August 2026 (DEC-role-management-authority, applied by LAN-129): widened to " +
+      "the President and the General Manager alongside it. The Vice-President and Secretary " +
+      "are deliberately excluded — they keep every ordinary operating capability and " +
+      "administer no account and no assignment. The IT Officer's share is transitional and " +
+      "may be removed only by a reviewed owner decision and a code change. Target-level " +
+      "authority over a particular person is a separate layer: see " +
+      "src/lib/auth/administration-authority.ts.",
   }),
 
   /**
@@ -635,6 +846,20 @@ export function describeHeldCoachingSeats(roleCodes: readonly string[]): string 
  * `tests/operator-capability-catalogue.test.ts` checks every code named in this
  * module against the real seeded `public.roles`, so a typo fails a test rather
  * than silently emptying the coaching group.
+ *
+ * ## Why this is three seats while `FIXED_COACHING_ROLE_CODES` is ten
+ *
+ * They answer different questions, and only one of them is LAN-129's. This one
+ * decides **who the club invites to a practice under "All active coaches"** —
+ * real messages to real phones. Widening it would put seven more people on
+ * every coaching audience, which is a change to who the club contacts rather
+ * than to who may do what, and no approved source in this mission asks for it:
+ * `REQ-coach-operator-onboarding` is about onboarding coaches as *operators*.
+ *
+ * Leaving it is the fail-closed direction this note already argued for. A
+ * season-scoped seat that is not listed here is not offered at all, so the
+ * seven are uninvitable as coaches rather than wrongly invited as them. That is
+ * a real gap and it is recorded on LAN-129 rather than closed in passing.
  */
 export const COACH_ROLE_CODES: readonly string[] = Object.freeze([
   "head_coach",
@@ -658,7 +883,7 @@ export function capabilityRoleCodes(key: CapabilityKey): readonly string[] {
  * needs — never to say what they hold.
  */
 export function describeRoles(codes: readonly string[]): string {
-  const labels = codes.map((code) => ROLE_LABELS[code] ?? code);
+  const labels = codes.map((code) => roleLabel(code));
   if (labels.length === 0) return "";
   if (labels.length === 1) return labels[0];
   return `${labels.slice(0, -1).join(", ")} or ${labels[labels.length - 1]}`;
@@ -696,4 +921,65 @@ export function roleCodesPermit(roleCodes: readonly string[], key: CapabilityKey
   const permitted = CAPABILITIES[key].roleCodes;
   if (permitted.length === 0) return false;
   return roleCodes.some((code) => permitted.includes(code));
+}
+
+/**
+ * The club's name for one role code, or the code itself.
+ *
+ * The one function Administration calls to render a seat, so that every screen
+ * spells "Offensive Coordinator" the way the catalogue migration does.
+ */
+export function roleLabel(code: string): string {
+  return ROLE_LABELS[code] ?? code;
+}
+
+/**
+ * Every capability one role code holds, in map order.
+ *
+ * `REQ-capability-copy-consistency` and `DEC-permission-transparency`: the
+ * Permissions summary the Roles page shows is "derived from the same reviewed
+ * capability definition as enforcement", so that "a later approved grant change
+ * updates authorization and plain-language UI copy together rather than leaving
+ * stale duplicated descriptions".
+ *
+ * This is the derivation, and it is the whole mechanism: the copy is not a
+ * second list somebody maintains beside the grants — it is a projection *of*
+ * the grants, computed from the same arrays `roleCodesPermit()` reads. Adding a
+ * role to a grant changes the sentence on the Roles page in the same commit,
+ * because there is nowhere else for the sentence to come from.
+ */
+export function roleCapabilities(code: string): readonly Capability[] {
+  return CAPABILITY_KEYS.filter((key) => CAPABILITIES[key].roleCodes.includes(code)).map(
+    (key) => CAPABILITIES[key],
+  );
+}
+
+/**
+ * What Administration says about a role that holds nothing.
+ *
+ * Ten of the twenty seats hold no privileged action at all, and a blank
+ * Permissions summary reads as an omission rather than as the fact it is. The
+ * approved catalogue deliberately includes such roles
+ * (`REQ-role-definition-and-permission-boundary`: administrators "may assign
+ * people to the approved static catalogue, including roles that currently carry
+ * no privileged capabilities"), so the empty case is a sentence, not an absence.
+ */
+export const NO_CAPABILITY_SUMMARY =
+  "This role carries no privileged actions in the application. Someone holding it " +
+  "signs in as an ordinary operator.";
+
+/**
+ * The plain-language Permissions summary for one role code.
+ *
+ * One phrase per capability, taken verbatim from each entry's `action` — which
+ * is already written in the club's language because it is what a refusal
+ * quotes. Never empty: a role with no grant gets `NO_CAPABILITY_SUMMARY`.
+ *
+ * It describes the **role**, never a person and never what the reader holds,
+ * which is the same rule `describeRoleRequirement()` follows and for the same
+ * reason: the Roles page is read by anyone who reaches Administration.
+ */
+export function describeRoleCapabilities(code: string): readonly string[] {
+  const held = roleCapabilities(code).map((entry) => entry.action);
+  return held.length === 0 ? [NO_CAPABILITY_SUMMARY] : held;
 }

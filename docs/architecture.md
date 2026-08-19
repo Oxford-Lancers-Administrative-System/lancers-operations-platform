@@ -38,6 +38,9 @@ src/
     operator.ts           session → club Person and currently-effective role codes
     capabilities.ts       privileged action → permitted role codes. The policy.
     guards.ts             requireOperator / requireRole / requireCapability
+    administration-authority.ts
+                          may this actor administer *this target*? Leadership,
+                          self-action and final-administration-path rules
   lib/supabase/
     env.ts                env resolution; the NEXT_PUBLIC_ boundary
     client.ts             browser client (publishable key, RLS applies)
@@ -237,6 +240,9 @@ src/lib/auth/guards.ts         the decision: assertRole / assertCapability (pure
                                take an actor) and requireOperator / requireRole /
                                requireCapability (take the actor from the verified
                                session and nowhere else)
+src/lib/auth/administration-authority.ts
+                               the second layer, LAN-129: whether this actor may
+                               take this action against *this target*
 ```
 
 Four properties this arrangement is built to have, and which tests hold it to:
@@ -246,8 +252,9 @@ Four properties this arrangement is built to have, and which tests hold it to:
   scans `src/` and fails on a role code in a string literal anywhere else.
 - **An undecided grant refuses everybody.** A capability with an empty role list
   is refused to every operator including the President — absence of a decision is
-  never permission. Three capabilities are in that state today, each naming the
-  issue that owes the answer.
+  never permission. No capability is in that state today; the property is held by
+  a test, so the next one added before its decision is taken is refused rather
+  than defaulted.
 - **Enforcement is in the action, not the route.** A Server Action is a POST
   endpoint that anyone with a session can call whether or not a screen offered it,
   so every privileged action calls `requireCapability()` itself. Actions take no
@@ -283,10 +290,42 @@ attendance pair. Three consequences worth knowing:
   have been enough: a Server Action is reachable whether or not a screen offered
   it.
 
-**The role catalogue is seeded, not migrated.** `public.roles` is populated only
-by `scripts/seed-local.mjs`; no migration defines it, so a hosted database has no
-role rows until somebody creates them, and every capability keys on codes that do
-not exist there yet. Recorded on LAN-73 as an owner action.
+**Target-level authority is a second layer, not more capability entries**
+(LAN-129). Capabilities answer "may this operator do X at all"; operator
+administration also has to answer "may this operator do X **to this particular
+target**", which a flat table of role codes cannot express. So
+`administration-authority.ts` sits on top of `requireCapability("role_management")`
+and can only ever narrow it:
+
+- **Two seats are protected.** The General Manager may be assigned, replaced,
+  ended or deactivated by nobody in the application — that route is exceptional
+  service recovery, deliberately left outside the mission — and the President by
+  the General Manager alone. Everything else is open to any of the three seats
+  that hold `role_management` (President, General Manager, IT Officer).
+- **Recovery is permitted where management is not.** The IT Officer may re-home
+  the email address of a President or a General Manager, because that restores a
+  person's access without moving any authority, and may not administer either
+  seat. Collapsing the two into one rule breaks a locked decision in whichever
+  direction it is collapsed.
+- **Nobody acts on themselves.** No operator may deactivate their own access, end
+  their own assignment or run the administrator recovery flow on their own email.
+  Self-_assignment_ is deliberately not forbidden: whoever holds `role_management`
+  can grant themselves any other capability, which Brian recorded when he took
+  that decision, and the mitigation is attribution rather than prevention.
+- **The club is never locked out.** `assertAdministrationPathSurvives()` refuses
+  any action whose projected result leaves nobody who can both sign in and
+  administer. It fires even when every rule above permitted the action.
+
+The role codes all four rules read stay in `capabilities.ts`, so exactly one
+module in `src/` names a `roles.code`; the rules themselves name none.
+
+**The role catalogue is migrated** (LAN-128). `public.roles`, `public.role_aliases`
+and `public.role_groups` are created and populated by
+`supabase/migrations/20260819090*`, idempotently, so hosted and local hold the
+same twenty seats once Brian applies them. The application holds `select` on all
+three and no write privilege — the catalogue is read-only reference data, and
+changing it is a reviewed owner decision and a migration
+([ADR 0028](adr/0028-role-catalogue-is-read-only-reference-data.md)).
 
 Google OAuth is deferred — it needs an approved redirect domain and a club
 administrator able to create OAuth credentials, both open club-side items.

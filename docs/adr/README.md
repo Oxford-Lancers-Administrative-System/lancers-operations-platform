@@ -37,3 +37,4 @@ accident. Routine implementation choices do not need an ADR.
 | [0025](0025-separate-finding-impact-from-gate-disposition.md) | Finding impact is separate from correction-review gate disposition                                     | Accepted                                            |
 | [0026](0026-hosted-runtime-database-connection.md)            | The hosted runtime is a least-privilege login on the shared transaction pooler                         | Accepted                                            |
 | [0027](0027-mission-harness.md)                               | Mission Harness v1: mission-oriented orchestration with a guarded autonomous merge lane                | Accepted                                            |
+| [0028](0028-role-catalogue-is-read-only-reference-data.md)    | The role catalogue is read-only reference data for the application                                     | Accepted                                            |

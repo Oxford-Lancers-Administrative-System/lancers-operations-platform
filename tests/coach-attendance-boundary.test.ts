@@ -143,7 +143,7 @@ import {
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
-import { COACH_ROLE_CODES } from "@/lib/auth/capabilities";
+import { FIXED_COACHING_ROLE_CODES } from "@/lib/auth/capabilities";
 import {
   activateMembershipAction,
   reactivateMembershipAction,
@@ -265,7 +265,12 @@ beforeEach(() => {
 });
 
 describe("LAN-110 — a coaching assignment is refused every action that is not recording", () => {
-  for (const code of COACH_ROLE_CODES) {
+  // Every fixed coaching seat, not the three the audience catalogue calls
+  // coaches. LAN-129 put all ten on the narrow attendance grant
+  // (`REQ-coach-operator-onboarding`), so all ten are inside this boundary and
+  // the seven added there would otherwise be checked by nothing at all — the
+  // failure by omission this file exists to prevent.
+  for (const code of FIXED_COACHING_ROLE_CODES) {
     it.each(FORBIDDEN)(`refuses a ${code} at $name`, async ({ call }) => {
       givenCaller({ state: "active", operator: actor([code]) });
 
@@ -275,9 +280,9 @@ describe("LAN-110 — a coaching assignment is refused every action that is not 
     });
   }
 
-  it("refuses a coach holding all three seats, not merely one", async () => {
+  it("refuses a coach holding all ten seats, not merely one", async () => {
     for (const { name, call } of FORBIDDEN) {
-      givenCaller({ state: "active", operator: actor([...COACH_ROLE_CODES]) });
+      givenCaller({ state: "active", operator: actor([...FIXED_COACHING_ROLE_CODES]) });
 
       const refusal = await refusalFrom(call);
 
