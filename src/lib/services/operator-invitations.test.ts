@@ -244,9 +244,14 @@ afterAll(async () => {
   const ids = [...people];
   if (ids.length > 0) {
     await observer.query(
+      // The envelope's `targetPersonId` is JSON text, so it is compared
+      // against a text array. `any($1::uuid[])` on that side is
+      // `text = uuid`, which PostgreSQL has no operator for and which fails
+      // the whole cleanup — leaving this suite's rows behind for the next run
+      // to trip over.
       `delete from public.audit_events
         where actor_person_id = any($1::uuid[])
-           or context -> 'administration' ->> 'targetPersonId' = any($1::uuid[])`,
+           or context -> 'administration' ->> 'targetPersonId' = any($1::text[])`,
       [ids],
     );
     await observer.query("delete from public.role_assignments where person_id = any($1::uuid[])", [

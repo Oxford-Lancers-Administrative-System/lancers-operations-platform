@@ -1455,7 +1455,18 @@ async function resolveRoles(
   const resolved: ResolvedRole[] = [];
 
   for (const entry of requested) {
-    const code = (entry.roleCode ?? "").trim();
+    // **Not trimmed.** `" kit_manager "` is refused, not tidied up.
+    //
+    // Trimming and then looking the result up in the catalogue would not have
+    // been a bypass — the guard would still have received an exact
+    // `roles.code`, or the lookup would have failed — but it is leniency
+    // nothing needs. A role code comes from a fixed list of twenty, chosen from
+    // a control; whitespace around one means a caller built the request
+    // wrongly, and `WP-authorization` refuses the same input for the same
+    // reason rather than guessing what was meant about the most dangerous seat
+    // in the club. Two layers refusing identically is one fewer thing to
+    // reason about than two layers disagreeing harmlessly.
+    const code = entry.roleCode ?? "";
     const found = await tx.query<RoleRow>(
       `select id, code, scope::text as scope, is_constitutional_office, is_single_holder_seat
          from public.roles where code = $1`,
