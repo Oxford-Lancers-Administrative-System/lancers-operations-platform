@@ -234,7 +234,7 @@ export async function resolveOperatorAccess(): Promise<OperatorAccess> {
 
   const { data: account, error: accountError } = await admin
     .from("operator_accounts")
-    .select("person_id, is_active")
+    .select("person_id, is_active, email_rehome_pending_at")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
@@ -243,6 +243,29 @@ export async function resolveOperatorAccess(): Promise<OperatorAccess> {
   }
   if (!account) return { state: "unlinked" };
   if (!account.is_active) return { state: "inactive" };
+
+  // LAN-132, `REQ-rehome-email`. An administrator has moved this login to a
+  // replacement address and sent a verification link to it, and the account
+  // "cannot sign in until they confirm the new address" — which is what
+  // `operator-account-state.ts` has told the club since LAN-131, and what this
+  // line makes true.
+  //
+  // Without it the flow would be a hole rather than a control. Moving the
+  // address stops the *old* mailbox signing in and stops it receiving a reset
+  // link, which is most of the point; but this stack runs with
+  // `enable_confirmations = false`, so an unconfirmed address signs in
+  // perfectly well with a password that already existed. In the case the
+  // requirement names — a compromised mailbox, from which somebody may already
+  // have taken the password — that would leave the intruder signed in and the
+  // administrator believing they had locked them out.
+  //
+  // Reported as `inactive` rather than as a fifth state, deliberately. The two
+  // screens at `/operate` carry copy Brian approved on 12 August 2026 (LAN-107)
+  // and a third one is his to write, not this package's to invent; `inactive`
+  // is the honest one of the two — access is suspended and the club
+  // administrator is who to ask about it. Nothing is disclosed either way:
+  // every unresolved state renders the same screen with no operator data on it.
+  if (account.email_rehome_pending_at !== null) return { state: "inactive" };
 
   const { data: person, error: personError } = await admin
     .from("people")

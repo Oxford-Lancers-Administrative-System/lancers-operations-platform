@@ -533,6 +533,12 @@ export interface OperatorAccountRecord {
   readonly activatedAt: Date | null;
   readonly deliveryFailedAt: Date | null;
   readonly deliveryFailureReason: string | null;
+  /**
+   * When an administrator started the email re-home flow, or `null` — LAN-132.
+   * Non-null is the fifth state, and it is read here rather than assumed
+   * `false` so that every consumer of this record sees the same account.
+   */
+  readonly emailRehomePendingAt: Date | null;
   readonly state: OperatorAccountState;
 }
 
@@ -546,6 +552,7 @@ interface AccountRow {
   activated_at: Date | null;
   invitation_delivery_failed_at: Date | null;
   invitation_delivery_failure_reason: string | null;
+  email_rehome_pending_at: Date | null;
 }
 
 function toAccount(row: AccountRow): OperatorAccountRecord {
@@ -559,17 +566,24 @@ function toAccount(row: AccountRow): OperatorAccountRecord {
     activatedAt: row.activated_at,
     deliveryFailedAt: row.invitation_delivery_failed_at,
     deliveryFailureReason: row.invitation_delivery_failure_reason,
+    emailRehomePendingAt: row.email_rehome_pending_at,
     state: deriveOperatorAccountState({
       isActive: row.is_active,
       activatedAt: row.activated_at,
       invitationDeliveryFailedAt: row.invitation_delivery_failed_at,
-      emailChangePending: false,
+      // LAN-132 supplied the column this argument was left open for. Reading
+      // it here is what makes `refuseUnlessResendable` refuse a resend for an
+      // account waiting on an email verification, rather than offering one
+      // that would send a second link to the replacement address and read as
+      // though the invitation flow were still running.
+      emailChangePending: row.email_rehome_pending_at !== null,
     }),
   };
 }
 
 const ACCOUNT_COLUMNS = `id, person_id, auth_user_id, login_email, is_active, invited_at,
-         activated_at, invitation_delivery_failed_at, invitation_delivery_failure_reason`;
+         activated_at, invitation_delivery_failed_at, invitation_delivery_failure_reason,
+         email_rehome_pending_at`;
 
 /** One account by its own id, inside a transaction. `null` when there is none. */
 export async function readOperatorAccountIn(
@@ -638,7 +652,17 @@ interface RoleRow {
   is_single_holder_seat: boolean;
 }
 
-interface ResolvedRole {
+/**
+ * A role the caller asked for, resolved against the catalogue with its dates
+ * checked.
+ *
+ * Exported for `./operator-administration.ts` (LAN-132), which creates the same
+ * rows for a standalone assignment and for a replacement's successor. Writing
+ * those rules a second time there would have been two copies of "the catalogue
+ * decides `scope`, `is_constitutional_office` and `is_single_holder_seat`",
+ * which is exactly what the composite foreign keys exist to make loud.
+ */
+export interface ResolvedRole {
   readonly role: RoleRow;
   readonly effectiveFrom: string;
   readonly backdated: boolean;
@@ -740,7 +764,7 @@ export async function inviteOperator(params: InviteOperatorParams): Promise<Invi
       const roleAssignmentIds: string[] = [];
       for (const entry of preflight.roles) {
         const cycle = await resolveCycleFor(tx, entry.role.scope, preflight.operatingYear);
-        const assignmentId = await insertRoleAssignment(tx, {
+        const assignmentId = await insertRoleAssignmentIn(tx, {
           personId,
           entry,
           cycle,
@@ -1391,7 +1415,7 @@ async function insertOperatorAccount(
   return inserted.rows[0].id;
 }
 
-interface ResolvedCycle {
+export interface ResolvedCycle {
   readonly committeeYearId: string | null;
   readonly seasonId: string | null;
   readonly operatingYear: AdministrationOperatingYear;
@@ -1406,7 +1430,7 @@ interface ResolvedCycle {
  * season, because coaches are appointed around seasons and do not turn over at
  * the AGM. The role says which, so this reads the role rather than asking.
  */
-async function resolveCycleFor(
+export async function resolveCycleFor(
   tx: Tx,
   scope: "committee_year" | "season",
   committeeYear: AdministrationOperatingYear,
@@ -1423,7 +1447,7 @@ async function resolveCycleFor(
   return { committeeYearId: null, seasonId: season.id, operatingYear: season };
 }
 
-async function insertRoleAssignment(
+export async function insertRoleAssignmentIn(
   tx: Tx,
   input: {
     personId: string;
@@ -1479,7 +1503,7 @@ async function resolveRoles(
   tx: Tx,
   requested: readonly InitialRoleAssignment[],
 ): Promise<ResolvedRole[]> {
-  const today = await currentDate(tx);
+  const today = await currentDateIn(tx);
   const resolved: ResolvedRole[] = [];
 
   for (const entry of requested) {
@@ -1544,7 +1568,7 @@ async function resolveRoles(
   return resolved;
 }
 
-async function currentDate(tx: Tx): Promise<string> {
+export async function currentDateIn(tx: Tx): Promise<string> {
   const result = await tx.query<{ today: string }>("select current_date::text as today");
   return result.rows[0].today;
 }
@@ -1614,7 +1638,9 @@ export async function resolveActiveCommitteeYear(tx: Tx): Promise<Administration
  * but then nobody could have been invited either, since `inviteOperator`
  * requires an active one.
  */
-async function resolveCommitteeYearForActivation(tx: Tx): Promise<AdministrationOperatingYear> {
+export async function resolveCommitteeYearForActivation(
+  tx: Tx,
+): Promise<AdministrationOperatingYear> {
   try {
     return await resolveActiveCommitteeYear(tx);
   } catch (error) {
@@ -1632,7 +1658,7 @@ async function resolveCommitteeYearForActivation(tx: Tx): Promise<Administration
 }
 
 /** The season a coaching appointment hangs off. Same fail-closed shape. */
-async function resolveActiveSeason(tx: Tx): Promise<AdministrationOperatingYear> {
+export async function resolveActiveSeason(tx: Tx): Promise<AdministrationOperatingYear> {
   const result = await tx.query<{ id: string; label: string }>(
     `select id, label from public.seasons where status in ('open', 'active') order by label`,
   );

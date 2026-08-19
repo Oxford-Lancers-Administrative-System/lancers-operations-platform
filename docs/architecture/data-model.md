@@ -23,7 +23,8 @@ model wins and the difference is a defect here.
 | View-correction migration                              | 1 — the mismatch view sees walk-ups (LAN-81)                                                |
 | Role-catalogue migrations                              | 2 — structure, then the twenty approved seats (LAN-128)                                     |
 | Invitation-state migration                             | 1 — invitation state on `operator_accounts` (LAN-131)                                       |
-| **Files applied by a rebuild from empty**              | **21**                                                                                      |
+| Email re-home migration                                | 1 — `email_rehome_pending_at` on `operator_accounts` (LAN-132)                              |
+| **Files applied by a rebuild from empty**              | **22**                                                                                      |
 
 The schema is **40 tables, 9 views and 31 enum types** in `public`, plus **3
 tables** in the unexposed `staging` schema. (The published totals had been left
@@ -326,6 +327,56 @@ Three things about this are decisions rather than shape:
 
 No grant changes: columns inherit the table's privileges, which are still
 `select, insert, update` to `service_role` and deliberately no `delete`.
+
+##### Email re-home (LAN-132)
+
+`20260819160000_operator_email_rehome.sql` adds the fifth state's one stored
+fact, `email_rehome_pending_at`, and nothing else.
+
+| Column                    | Means                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------- |
+| `email_rehome_pending_at` | When an administrator started the email re-home flow. Non-null **is** Email change pending. |
+
+`REQ-rehome-email` describes four things — the old login path disabled, a reason
+recorded, a verification link sent to an unused replacement address, and the
+account held pending until verification — and only the last of them needs a
+column:
+
+- **The replacement address is `login_email`.** The flow's first act is moving
+  the login to it, which is what disabling the old path _is_: the old address
+  then signs in nowhere and receives no reset link. A second column holding
+  "the address we are moving to" would be a copy of `login_email` that can
+  disagree with it, and there is no moment at which the two legitimately differ.
+- **The reason and the previous address are on the audit events.**
+  `administration.operator.email_rehome_started` carries `reasonRequired: true`
+  and the previous address in its detail, exactly as `invitation_corrected`
+  does. `operator_accounts.disabled_reason` is the other shape and is
+  deliberately not followed: it predates the ledger by a mission, and
+  duplication register D9 and `DEC-audit-boundary` refuse a second copy of
+  history shaped for one screen.
+- **Null covers both "never had one" and "verified".** Verification clears the
+  column rather than stamping a second one; that it happened, and when, is
+  `administration.operator.email_rehome_verified`.
+
+Two check constraints keep the state honest rather than merely stored:
+`operator_accounts_rehome_needs_a_login_email` (a re-home moves an address, so
+there has to be one) and `operator_accounts_rehome_follows_activation` (a
+re-home presupposes credentials to lose — an account whose invitation was never
+taken up is corrected and resent instead, which is the flow LAN-131 already
+built and which refuses an activated account, so the two meet with no gap and
+no overlap).
+
+**Non-null here refuses sign-in.** `src/lib/auth/operator.ts` reads the column
+and reports the session as having no operator. That is a control and not a
+label: measured against this repository's own local stack,
+`auth.admin.updateUserById(id, { email, email_confirm: false })` moves the
+address without un-confirming it, and `enable_confirmations` is `false` here, so
+the _new_ address would otherwise sign in immediately with the password that
+already existed — which in the case the requirement names, a compromised
+mailbox, is the intruder still holding the account.
+
+No grant changes, no new table, and RLS is untouched: a column inherits the
+table's privileges.
 
 #### RSVP links and delivery machinery
 

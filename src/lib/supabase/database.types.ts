@@ -1503,6 +1503,7 @@ export type Database = {
           created_at: string
           disabled_at: string | null
           disabled_reason: string | null
+          email_rehome_pending_at: string | null
           id: string
           invitation_delivery_failed_at: string | null
           invitation_delivery_failure_reason: string | null
@@ -1518,6 +1519,7 @@ export type Database = {
           created_at?: string
           disabled_at?: string | null
           disabled_reason?: string | null
+          email_rehome_pending_at?: string | null
           id?: string
           invitation_delivery_failed_at?: string | null
           invitation_delivery_failure_reason?: string | null
@@ -1533,6 +1535,7 @@ export type Database = {
           created_at?: string
           disabled_at?: string | null
           disabled_reason?: string | null
+          email_rehome_pending_at?: string | null
           id?: string
           invitation_delivery_failed_at?: string | null
           invitation_delivery_failure_reason?: string | null
