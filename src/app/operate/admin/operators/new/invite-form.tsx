@@ -17,6 +17,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { inviteOperatorAction, searchCandidatesAction } from "../../actions";
 import { EMPTY_ADMIN_ACTION_STATE } from "../../action-state";
+import AdminOutcome from "../../outcome";
 
 /** One assignable seat, as the page read it from the catalogue. */
 export interface AssignableRole {
@@ -147,11 +148,7 @@ export default function InviteOperatorForm({ roles }: { roles: readonly Assignab
           </Box>
         </Stack>
 
-        {search.error ? (
-          <Alert severity="error" sx={{ mt: 2 }}>
-            {search.error}
-          </Alert>
-        ) : null}
+        <AdminOutcome state={{ ...search, notice: null, candidates: null }} />
 
         {search.candidates ? (
           search.candidates.length === 0 ? (
@@ -271,11 +268,7 @@ export default function InviteOperatorForm({ roles }: { roles: readonly Assignab
             </Box>
           </Stack>
 
-          {invite.error ? (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {invite.error}
-            </Alert>
-          ) : null}
+          <AdminOutcome state={invite} />
         </Paper>
       </Box>
     </Stack>

@@ -5,6 +5,7 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import Link from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
@@ -18,6 +19,7 @@ import {
   searchCandidatesAction,
 } from "../../actions";
 import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "../../action-state";
+import AdminOutcome, { OutcomeSlotProvider, useOutcomeSlot } from "../../outcome";
 import type { PermittedRoleActions } from "../../permissions";
 
 /**
@@ -96,57 +98,59 @@ export default function RoleActions({
   }
 
   return (
-    <Stack spacing={2}>
-      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-        {offered.assign ? (
-          <Button variant="contained" onClick={() => toggle("assign")} sx={{ minHeight: 44 }}>
-            Assign role
-          </Button>
+    <OutcomeSlotProvider>
+      <Stack spacing={2}>
+        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+          {offered.assign ? (
+            <Button variant="contained" onClick={() => toggle("assign")} sx={{ minHeight: 44 }}>
+              Assign role
+            </Button>
+          ) : null}
+          {offered.replace ? (
+            <Button variant="contained" onClick={() => toggle("replace")} sx={{ minHeight: 44 }}>
+              Replace role
+            </Button>
+          ) : null}
+          {offered.end ? (
+            <Button onClick={() => toggle("end")} sx={{ minHeight: 44 }}>
+              End role
+            </Button>
+          ) : null}
+        </Stack>
+
+        {open === "assign" ? (
+          <PersonPanel
+            title={`Assign ${roleLabel}`}
+            explanation="The start date is today unless you say otherwise. A future date is fine; a date in the past is backdating and has to say why."
+            action={assignRoleAction}
+            submitLabel="Assign role"
+            testId="assign-panel"
+            reasonRequired={false}
+            reasonHelp="Required only when the start date is before today."
+          >
+            <input type="hidden" name="roleId" value={roleId} />
+            <input type="hidden" name="roleCode" value={roleCode} />
+          </PersonPanel>
         ) : null}
-        {offered.replace ? (
-          <Button variant="contained" onClick={() => toggle("replace")} sx={{ minHeight: 44 }}>
-            Replace role
-          </Button>
+
+        {open === "replace" ? (
+          <PersonPanel
+            title={`Replace ${roleLabel}`}
+            explanation="The outgoing assignment ends and the successor's begins. Both stay in the club's history, and neither is rewritten."
+            action={replaceRoleHolderAction}
+            submitLabel="Replace role"
+            testId="replace-panel"
+            reasonRequired
+            personField="successorPersonId"
+            successorOf={holders}
+          >
+            <input type="hidden" name="roleId" value={roleId} />
+          </PersonPanel>
         ) : null}
-        {offered.end ? (
-          <Button onClick={() => toggle("end")} sx={{ minHeight: 44 }}>
-            End role
-          </Button>
-        ) : null}
+
+        {open === "end" ? <EndPanel roleId={roleId} holders={holders} /> : null}
       </Stack>
-
-      {open === "assign" ? (
-        <PersonPanel
-          title={`Assign ${roleLabel}`}
-          explanation="The start date is today unless you say otherwise. A future date is fine; a date in the past is backdating and has to say why."
-          action={assignRoleAction}
-          submitLabel="Assign role"
-          testId="assign-panel"
-          reasonRequired={false}
-          reasonHelp="Required only when the start date is before today."
-        >
-          <input type="hidden" name="roleId" value={roleId} />
-          <input type="hidden" name="roleCode" value={roleCode} />
-        </PersonPanel>
-      ) : null}
-
-      {open === "replace" ? (
-        <PersonPanel
-          title={`Replace ${roleLabel}`}
-          explanation="The outgoing assignment ends and the successor's begins. Both stay in the club's history, and neither is rewritten."
-          action={replaceRoleHolderAction}
-          submitLabel="Replace role"
-          testId="replace-panel"
-          reasonRequired
-          personField="successorPersonId"
-          successorOf={holders}
-        >
-          <input type="hidden" name="roleId" value={roleId} />
-        </PersonPanel>
-      ) : null}
-
-      {open === "end" ? <EndPanel roleId={roleId} holders={holders} /> : null}
-    </Stack>
+    </OutcomeSlotProvider>
   );
 }
 
@@ -181,6 +185,43 @@ function PersonPanel({
   );
   const [result, submitAction, submitting] = useActionState(action, EMPTY_ADMIN_ACTION_STATE);
   const [chosen, setChosen] = useState("");
+  const slot = useOutcomeSlot(testId);
+
+  /**
+   * The search terms, held here rather than in the DOM — LAN133-BRIAN-7.
+   *
+   * React resets a form after its action runs, which is right for a form that
+   * *submits* something and wrong for one that *asks* something: pressing
+   * Search emptied the three fields the administrator had just typed, so the
+   * result appeared beneath a blank form with no way to tell what had been
+   * searched for, and refining a near miss meant retyping all of it.
+   *
+   * Controlled inputs survive that reset, because their value comes from state
+   * the reset does not touch. It also makes the terms available to the empty
+   * result below, which can then say what it looked for.
+   */
+  const [terms, setTerms] = useState({ givenName: "", familyName: "", email: "" });
+  const term = (field: keyof typeof terms) => ({
+    value: terms[field],
+    onChange: (event: { target: { value: string } }) =>
+      setTerms((current) => ({ ...current, [field]: event.target.value })),
+  });
+
+  /**
+   * LAN133-BRIAN-8, below. The constraint an empty result expresses is real — a
+   * seat goes to somebody the club already holds a record for — but stating a
+   * rule is not the same as showing the way out. It told the administrator to
+   * invite the person first, then left them on a screen with no link to do it
+   * and a submit button that could never enable, which reads as a broken page
+   * rather than as a rule. The alert now carries the route, and the disabled
+   * button says what would enable it.
+   */
+
+  /** What the administrator asked for, so an empty answer can name it. */
+  const typed = [terms.givenName, terms.familyName, terms.email]
+    .map((value) => value.trim())
+    .filter((value) => value !== "");
+  const searchedFor = typed.length > 0 ? typed.join(" ") : "those details";
 
   return (
     <Paper variant="outlined" sx={{ p: 2 }} data-testid={testId}>
@@ -191,16 +232,16 @@ function PersonPanel({
         {explanation}
       </Typography>
 
-      <Box component="form" action={searchAction}>
+      <Box component="form" action={searchAction} onSubmit={slot.claim}>
         <Stack spacing={2}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             Find the person
           </Typography>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <TextField name="givenName" label="First name" fullWidth />
-            <TextField name="familyName" label="Last name" fullWidth />
+            <TextField name="givenName" label="First name" fullWidth {...term("givenName")} />
+            <TextField name="familyName" label="Last name" fullWidth {...term("familyName")} />
           </Stack>
-          <TextField name="email" type="email" label="Email" fullWidth />
+          <TextField name="email" type="email" label="Email" fullWidth {...term("email")} />
           <Box>
             <Button type="submit" disabled={searching} sx={{ minHeight: 44 }}>
               Search
@@ -209,17 +250,21 @@ function PersonPanel({
         </Stack>
       </Box>
 
-      {search.error ? (
-        <Alert severity="error" sx={{ mt: 2 }}>
-          {search.error}
-        </Alert>
-      ) : null}
+      <AdminOutcome state={{ ...search, notice: null, candidates: null }} />
 
       {search.candidates ? (
         search.candidates.length === 0 ? (
           <Alert severity="info" sx={{ mt: 2 }} data-testid="no-candidates">
-            Nobody in the club&rsquo;s records matches exactly. Check the spelling, or invite them
-            as an operator first if they are new.
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              Nobody in the club&rsquo;s records matches {searchedFor} exactly. The search matches
+              whole names and whole addresses, so a near miss finds nothing — check the spelling
+              first.
+            </Typography>
+            <Typography variant="body2">
+              If they are new to the club, they need a record before they can hold a seat.{" "}
+              <Link href="/operate/admin/operators/new">Invite them as an operator</Link>, then come
+              back to this role.
+            </Typography>
           </Alert>
         ) : (
           <Box sx={{ mt: 2 }}>
@@ -255,7 +300,7 @@ function PersonPanel({
         )
       ) : null}
 
-      <Box component="form" action={submitAction} sx={{ mt: 2 }}>
+      <Box component="form" action={submitAction} sx={{ mt: 2 }} onSubmit={slot.claim}>
         <Stack spacing={2}>
           {children}
           <input type="hidden" name={personField} value={chosen} />
@@ -288,11 +333,26 @@ function PersonPanel({
             >
               {submitLabel}
             </Button>
+            {chosen === "" ? (
+              // A disabled control that does not say what would enable it is a
+              // dead end — LAN133-BRIAN-8. This is the one sentence that turns
+              // it back into a step.
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: "block", mt: 1 }}
+                data-testid="choose-somebody-first"
+              >
+                {search.candidates && search.candidates.length > 0
+                  ? "Choose the person above to enable this."
+                  : "Find the person above and choose them to enable this."}
+              </Typography>
+            ) : null}
           </Box>
         </Stack>
       </Box>
 
-      <Outcome state={result} />
+      <AdminOutcome state={result} showing={slot.showing} />
     </Paper>
   );
 }
@@ -307,6 +367,7 @@ function EndPanel({
 }) {
   const [state, formAction, pending] = useActionState(endRoleAction, EMPTY_ADMIN_ACTION_STATE);
   const [assignment, setAssignment] = useState(holders[0]?.roleAssignmentId ?? "");
+  const slot = useOutcomeSlot("end-panel");
 
   return (
     <Paper variant="outlined" sx={{ p: 2 }} data-testid="end-panel">
@@ -319,7 +380,7 @@ function EndPanel({
         untouched.
       </Typography>
 
-      <Box component="form" action={formAction}>
+      <Box component="form" action={formAction} onSubmit={slot.claim}>
         <Stack spacing={2}>
           <input type="hidden" name="roleId" value={roleId} />
           {holders.length > 1 ? (
@@ -354,25 +415,7 @@ function EndPanel({
         </Stack>
       </Box>
 
-      <Outcome state={state} />
+      <AdminOutcome state={state} showing={slot.showing} />
     </Paper>
   );
-}
-
-function Outcome({ state }: { state: AdminActionState }) {
-  if (state.error) {
-    return (
-      <Alert severity="error" sx={{ mt: 2 }}>
-        {state.error}
-      </Alert>
-    );
-  }
-  if (state.notice) {
-    return (
-      <Alert severity="success" sx={{ mt: 2 }}>
-        {state.notice}
-      </Alert>
-    );
-  }
-  return null;
 }

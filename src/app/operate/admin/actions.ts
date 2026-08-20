@@ -47,12 +47,20 @@ import type { AdminActionState, CandidateChoice } from "./action-state";
  * same floor for the reason `findOperatorCandidates` records: a search has no
  * target yet.
  *
- * ## A refusal is never a form message
+ * ## A refusal is never a form message, and never an exception either
  *
- * `NotPermitted` is excluded from every `catch` and rethrown, exactly as
- * `roster/actions.ts` and `events/actions.ts` do it. A refusal rendered as red
- * text beside a button reads as "try again", which is the wrong instruction and
- * hides an authorization event inside a validation failure.
+ * `NotPermitted` used to be excluded from every `catch` and rethrown, as
+ * `roster/actions.ts` and `events/actions.ts` do it. Half of that was right: a
+ * refusal rendered as red text beside a button reads as "try again", which is
+ * the wrong instruction and hides an authorization event inside a validation
+ * failure. The other half was wrong, and Brian found it by inviting somebody to
+ * a protected seat — rethrowing out of a server action does not reach a refusal
+ * screen, it reaches the framework, and the guard's carefully written sentence
+ * arrived as a stack trace.
+ *
+ * A refusal now comes back in `refusal` on the action state, which is neither
+ * `error` nor `notice`, and every screen renders it as a rule rather than as a
+ * failed attempt. `./action-state` carries the full reasoning.
  *
  * ## The one thing worth reading twice
  *
@@ -81,15 +89,25 @@ function optional(formData: FormData, field: string): string | undefined {
   return value === "" ? undefined : value;
 }
 
-/** A service failure the operator can act on, or a refusal, rethrown. */
+/**
+ * A service failure the operator can act on, or a refusal the club's rules make.
+ *
+ * Both come back as state; neither escapes as an exception. A refusal used to be
+ * rethrown, which reached the operator as a Next.js error page — see the note on
+ * `refusal` in `./action-state`. Anything that is not a service error still
+ * throws, because an unexpected fault is not something to render beside a
+ * button.
+ */
 function failure(error: unknown): AdminActionState {
   if (!isServiceError(error)) throw error;
-  if (error.kind === "not_permitted") throw error;
-  return { error: error.message, notice: null, candidates: null };
+  if (error.kind === "not_permitted") {
+    return { error: null, notice: null, candidates: null, refusal: error.message };
+  }
+  return { error: error.message, notice: null, candidates: null, refusal: null };
 }
 
 function done(notice: string): AdminActionState {
-  return { error: null, notice, candidates: null };
+  return { error: null, notice, candidates: null, refusal: null };
 }
 
 /**
@@ -180,7 +198,7 @@ export async function searchCandidatesAction(
       operatorAccountId: candidate.operatorAccount?.id ?? null,
     }));
 
-    return { error: null, notice: null, candidates };
+    return { error: null, notice: null, candidates, refusal: null };
   } catch (error) {
     return failure(error);
   }

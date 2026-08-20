@@ -14,8 +14,11 @@
  *
  * So the proof here is **agreement**, seat by seat, against the merged function,
  * on data staged to include each of those cases. An implementation that filters
- * on `effective_to is null` instead of overlapping the cycle passes every
- * "does the holder appear?" test; it fails this one.
+ * on `effective_to is null`, or one that asks whether an assignment overlapped
+ * the operating cycle rather than whether it is in force today, passes every
+ * "does the holder appear?" test; it fails this one. Both readers held the
+ * second of those defects until Brian's review of `WP-surfaces` found all
+ * three of its faces on screen, and this test is what proved they shared it.
  *
  * The other half is the guard. Both reads are the capability floor, and a
  * Secretary — a broad ordinary operator, and the most plausible near-miss — is
@@ -143,6 +146,16 @@ function offset(days: number): string {
   const date = new Date(`${today}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
+}
+
+/** One seat out of the whole catalogue, as an administrator reads it. */
+async function seatNamed(roleCode: string) {
+  const catalogue = await readRoleCatalogue(administrator());
+  const seat = catalogue.groups
+    .flatMap((group) => group.roles)
+    .find((role) => role.code === roleCode);
+  if (!seat) throw new Error(`no seat named ${roleCode} in the catalogue`);
+  return seat;
 }
 
 /** The refusal a read threw, as `{ kind, rule }`, or a failure. */
@@ -274,6 +287,44 @@ describe("the role catalogue", () => {
         expect(role.admitsMultipleHolders).toBe(single.role.admitsMultipleHolders);
       }
     }
+  });
+
+  /**
+   * The three currency cases, from Brian's review of `WP-surfaces`.
+   *
+   * They are one defect wearing three faces: the catalogue asked whether an
+   * assignment overlapped the operating cycle, where every screen reading it
+   * asks who holds the seat today. Each direction is asserted separately
+   * because each was separately wrong on screen, and a single combined case
+   * could pass while one direction stayed inverted.
+   */
+  it("drops a holder whose assignment ends today — the day is half-open", async () => {
+    const person = await insertPerson("ends-today");
+    await giveRole(person, "linebackers_coach", { from: offset(-30), to: offset(0) });
+
+    const seat = await seatNamed("linebackers_coach");
+
+    expect(seat.holders).toHaveLength(0);
+    expect(seat.vacant).toBe(true);
+  });
+
+  it("keeps a holder whose assignment ends in the future", async () => {
+    const person = await insertPerson("ends-later");
+    await giveRole(person, "social_secretary", { from: offset(-30), to: offset(7) });
+
+    const seat = await seatNamed("social_secretary");
+
+    expect(seat.holders.map((holder) => holder.personId)).toContain(person);
+    expect(seat.vacant).toBe(false);
+  });
+
+  it("leaves a holder who has not started off the index", async () => {
+    const person = await insertPerson("starts-later");
+    await giveRole(person, "gameday_secretary", { from: offset(7) });
+
+    const seat = await seatNamed("gameday_secretary");
+
+    expect(seat.holders.map((holder) => holder.personId)).not.toContain(person);
   });
 
   it("keeps a deactivated holder as the holder, and says their access is off", async () => {

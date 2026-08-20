@@ -126,14 +126,44 @@ interface CatalogueRow {
 }
 
 /**
- * The whole catalogue, grouped, with the holders of the active operating year.
+ * The whole catalogue, grouped, with the holders of each seat **today**.
  *
- * "Holders from different years are never mixed"
- * (`REQ-explicit-cycle-assignment`) is why the join is an overlap against one
- * cycle per scope rather than a filter on `effective_to is null`: a seat that
- * ended mid-year belonged to this year, and a standing seat held since a
- * previous year is still held now. Only the cycle's own period tells those
- * apart, and the expression is the one `readRoleHolders()` documents.
+ * ## Why this asks about today rather than about the cycle
+ *
+ * It used to join every assignment whose period *overlapped the active cycle*,
+ * and that is a different question from the one `REQ-admin-surfaces` asks. The
+ * page says "current holders", and an assignment can overlap this year's
+ * committee term without being in force this morning. Brian found all three
+ * faces of that in one review:
+ *
+ *   * A Vice-President ended **today** still appeared as the current holder.
+ *     The period `[10 Jun 2026, 20 Aug 2026)` overlaps the committee year, so
+ *     the old join kept it — but the range is half-open, and an assignment
+ *     whose `effective_to` is today is already over.
+ *   * A Head Coach ended with a **future** date showed the seat as
+ *     `Not assigned`. His appointment `[20 Aug, 27 Aug)` sits *before* the
+ *     active season opens on 27 Sep, so it overlapped no cycle at all and was
+ *     dropped — even though he holds the seat today.
+ *   * Successors who have not started appeared as holders, tagged
+ *     "not started yet", which the top level is not supposed to list at all.
+ *
+ * One predicate caused all three, and one predicate answers all three: the
+ * same half-open currency test the schema's own exclusion constraint uses —
+ * `effective_from <= today` and `effective_to` either absent or still in the
+ * future. `readRoleHolders()` carried the identical cycle-overlap defect and
+ * was corrected with it; the agreement test between the two readers is what
+ * caught that, and is why it exists.
+ *
+ * "Holders from different years are never mixed" (`REQ-explicit-cycle-assignment`)
+ * survives this, and is better served by it: everyone listed holds the seat on
+ * the same day, so there is only one year in the answer by construction. The
+ * cycle is still read, because `cycleMissing` — "no season under way" — is a
+ * genuinely different state from a vacancy and still has to be told apart from
+ * one.
+ *
+ * `scheduled` is now always false here and is deliberately kept: it is the
+ * seam a future decision to surface an incoming holder on the index would use,
+ * and re-deriving it later would mean re-deriving this predicate too.
  */
 export async function readRoleCatalogue(operator: ResolvedOperator | null): Promise<RoleCatalogue> {
   assertCapability(requireOperator(operator), ADMINISTRATION_CAPABILITY);
@@ -178,13 +208,8 @@ export async function readRoleCatalogue(operator: ResolvedOperator | null): Prom
          left join cycles c on c.scope = r.scope
          left join public.role_assignments ra
                 on ra.role_id = r.id
-               and c.id is not null
-               and case
-                     when c.starts_on is null
-                       then coalesce(ra.committee_year_id, ra.season_id) = c.id
-                     else daterange(ra.effective_from, ra.effective_to, '[)')
-                          && daterange(c.starts_on, c.ends_on, '[)')
-                   end
+               and ra.effective_from <= current_date
+               and (ra.effective_to is null or ra.effective_to > current_date)
          left join public.people p on p.id = ra.person_id
          left join public.operator_accounts oa on oa.person_id = ra.person_id
         order by rg.sort_order, r.sort_order, ra.effective_from, ra.id`,

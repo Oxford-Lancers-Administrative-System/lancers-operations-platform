@@ -1170,6 +1170,18 @@ export interface RoleHolders {
  * years. The fallback for a cycle with no recorded start date is the strict
  * cycle id, which cannot mix years either.
  */
+/**
+ * The day a seat's holders are read as at, as SQL over the joined cycle `c`.
+ *
+ * Today while the cycle is still running — including the open-ended current
+ * one, whose `ends_on` is null. The cycle's last day once it is over, because
+ * `[starts_on, ends_on)` is half-open and `ends_on` itself belongs to the next
+ * cycle. Reading a finished year then answers "who held this when it closed"
+ * rather than "who holds it now", which is the only sense the question has.
+ */
+const AS_AT =
+  "(case when c.ends_on is null or c.ends_on > current_date then current_date else c.ends_on - 1 end)";
+
 export async function readRoleHolders(
   operator: ResolvedOperator | null,
   roleCode: string,
@@ -1190,7 +1202,6 @@ export async function readRoleHolders(
         : await requireCycle(tx, role.scope, options.cycleId);
 
     const table = role.scope === "committee_year" ? "committee_years" : "seasons";
-    const column = role.scope === "committee_year" ? "committee_year_id" : "season_id";
 
     const result = await tx.query<HolderRow>(
       `select ra.id,
@@ -1211,11 +1222,24 @@ export async function readRoleHolders(
          join public.${table} c on c.id = $2
          left join public.operator_accounts oa on oa.person_id = ra.person_id
         where ra.role_id = $1
-          and case
-                when c.starts_on is null then ra.${column} = c.id
-                else daterange(ra.effective_from, ra.effective_to, '[)')
-                     && daterange(c.starts_on, c.ends_on, '[)')
-              end
+          -- Who holds the seat *on one day*, not who touched it during the
+          -- cycle. Overlapping the cycle used to be the whole of the test, and
+          -- it answered a question no caller asks — it kept an assignment that
+          -- had already ended today, and it dropped one in force today whose
+          -- dates fell outside the cycle window. A coach appointed in August
+          -- for a season that opens in September holds the seat now and
+          -- overlaps nothing, which is exactly how a live Head Coach came to
+          -- read as Not assigned.
+          --
+          -- The day is today for the operating year in progress, and the
+          -- cycle's own last day when an earlier one is read back, so a
+          -- historical read still answers instead of going silently vacant.
+          -- Scoping to the cycle is what the as-at day now does: an assignment in
+          -- force on a day inside the cycle belongs to it, and the FK cannot
+          -- disagree without the row being wrong in the first place. Half-open
+          -- at both ends, matching the exclusion constraint over these rows.
+          and ra.effective_from <= ${AS_AT}
+          and (ra.effective_to is null or ra.effective_to > ${AS_AT})
         order by ra.effective_from, ra.id`,
       [role.id, cycle.id],
     );
