@@ -1,9 +1,39 @@
 # Intake sources — M-EVENTS-CALENDAR-TARGET-STATE
 
-| ID  | Authority class | Durable reference | Observed version | Used for |
-| --- | --------------- | ----------------- | ---------------- | -------- |
+Authority classes follow `SKILL.md`: `1-owner` (commissioned outcome and Brian's
+recorded decisions) · `2-notion` (product records and controlling briefs) ·
+`3-linear` · `4-github` · `5-provenance` (transcripts and dropped evidence,
+which never become authority by discovery).
+
+| ID                     | Authority class | Durable reference                                                                                                                                                                        | Observed version                                                                  | Used for                                                      |
+| ---------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| SRC-project-home       | 2-notion        | [Oxford Lancers project home / Mission Control](https://app.notion.com/p/3aa488886d5780428888da8b5792fa96)                                                                               | fetched 2026-08-20T10:42Z                                                         | Authority order, mission pipeline, routing rules              |
+| SRC-status             | 2-notion        | [Lancers Current Project Status](https://app.notion.com/p/3bb488886d578126a88cdd747f590a01)                                                                                              | fetched 2026-08-19T17:13Z; portfolio approved 2026-08-19                          | Release One Mission Portfolio; commissioned row for mission 2 |
+| SRC-portfolio-row-2    | 1-owner         | [Release One Mission Portfolio, row 2](https://app.notion.com/p/3bb488886d578126a88cdd747f590a01) — "**2 · Events & Calendar Target State**"                                             | approved by Brian Schuster 2026-08-19                                             | The commissioned boundary this intake must confirm or amend   |
+| SRC-authority-manifest | 2-notion        | [Release 1 Authority Manifest — Final](https://app.notion.com/p/3bf488886d57818aa53ec09f4fc5f757)                                                                                        | published 2026-08-17; **not yet read in this intake**                             | Requirement/brief/scope index; to be read at Stage 0          |
+| SRC-agents-md          | 4-github        | `AGENTS.md` @ `bc6770b1c6a616dde041324ef99329b231becfc3`                                                                                                                                 | bc6770b                                                                           | Working agreement, hard rules, stop-and-ask boundary          |
+| SRC-mission-harness    | 4-github        | `docs/mission-harness.md` @ `bc6770b`                                                                                                                                                    | bc6770b                                                                           | How an approved packet is executed                            |
+| SRC-packet-schema      | 4-github        | `scripts/mission/lib/packet.mjs` @ `bc6770b`                                                                                                                                             | bc6770b                                                                           | Canonical packet schema and validator                         |
+| SRC-canonical-packet   | 4-github        | `missions/packets/M-OPERATOR-ADMIN-WITHOUT-SQL/` @ `bc6770b`                                                                                                                             | packet_version 2, merged via PR #44 at `fea3f0cff6b3a32bf2f2550ac41a489694ef7cef` | The approved shape an intake-produced packet must match       |
+| SRC-main-baseline      | 4-github        | [`main` @ `bc6770b1c6a616dde041324ef99329b231becfc3`](https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/tree/bc6770b1c6a616dde041324ef99329b231becfc3) | observed 2026-08-20                                                               | Baseline pinned in `state.json`; drift is computed against it |
 
 ## Evidence drop-in (provenance only)
 
-| File | Origin | Indexed at | Notes |
-| ---- | ------ | ---------- | ----- |
+Nothing here is authority. The failed first and second Events intakes produced a
+packet that was closed unmerged; its content is preserved only so that Stage 3
+can put each line to Brian as _confirmed / rejected / partly_, and only confirmed
+lines may seed this ledger.
+
+| File                                       | Origin                                                                                                                                                                                                                         | Indexed at | Notes                                                                                                                                                                                                                                                                        |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| —                                          | [Mission Intake Agent Failure](https://app.notion.com/p/3c2488886d5780a59f89fe0200773a2e)                                                                                                                                      | 2026-08-20 | Owner-written failure record for Events intake attempts one and two. Diagnostic, not product authority. Records that the 8-workflow set validated in attempt one was never written down, and that a later 16-item inventory was an agent re-derivation Brian never approved. |
+| —                                          | [Evidence — Contaminated Packet v1 (PR #53, unmerged)](https://app.notion.com/p/3c2488886d57812a88adc22cd798c9d7)                                                                                                              | 2026-08-20 | Verbatim copy of the closed packet, preserved before the branch could be deleted.                                                                                                                                                                                            |
+| `evidence/pr-53-verification-checklist.md` | [PR #53](https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/pull/53), branch `agent/event-rsvp-participation-intake` @ `9be6ce083bccfe6d38a192de659688ae655c7744`, closed unmerged 2026-08-20 | 2026-08-20 | Local transcription of that packet's 15 requirements and 6 dated decisions, for line-by-line owner verification. Every line is unverified until Brian marks it.                                                                                                              |
+
+Named in the closed packet but deliberately **not** carried forward as sources:
+its `SRC-owner-intake` ("the mission intake conversation", no message-level
+provenance), `SRC-design-review` (a ChatGPT-hosted review site that is not an
+owner-approved artifact), and two opaque ChatGPT file identifiers
+(`file_00000000ed70…`, `file_0000000094748…`) that cannot be resolved outside a
+dead conversation. `SKILL.md` prohibits citing chat-file identifiers and
+unapproved external sites.
