@@ -28,9 +28,12 @@
  *      that has not ended. A second run finds all of it and writes nothing.
  *   2. **Dry run first, and the dry run writes nothing.** That is the default:
  *      running it with no mode flag previews and stops. It is not a promise the
- *      code merely intends to keep, either — the dry run takes a fingerprint of
- *      every table it could write to before and after itself, and reports a
- *      failure if they differ.
+ *      code merely intends to keep, either — the dry run takes a **content
+ *      digest** of the five `public` tables this script can write, before and
+ *      after itself, and reports a failure if they differ. That covers updates
+ *      as well as inserts and deletes; it does not cover the Auth server, which
+ *      the dry run never writes to and which the hosted credential cannot read.
+ *      `fingerprint` in `bootstrap/database.mjs` sets out both halves.
  *   3. **Duplicate-checked.** Existing Person, operator-account and Supabase
  *      Auth state are all read before anything is decided, and a Person who
  *      might already be one of the three refuses the run rather than being
@@ -251,8 +254,10 @@ export async function runBootstrap({
 
   if (mode !== APPLY) {
     // The promise, checked rather than asserted. Reading is not writing, and
-    // this proves it for the run that just happened rather than for the code
-    // in general.
+    // this proves it for the run that just happened rather than for the code in
+    // general — by content, so a count-neutral update cannot slip past it. The
+    // Auth server is out of scope here and provably untouched: `createLogin` is
+    // reachable only from `applyOperator`, which this branch never enters.
     const after = await fingerprint(client);
     const wroteNothing = JSON.stringify(before) === JSON.stringify(after);
 
@@ -391,7 +396,10 @@ async function main() {
         process.exitCode = 1;
         return;
       }
-      console.log("The dry run wrote nothing — checked, not assumed.");
+      console.log(
+        "The dry run changed nothing in the five tables this script writes — checked by " +
+          "content, not assumed. It created no login either; the dry run never calls Auth.",
+      );
       if (!report.plan.clean) process.exitCode = 1;
       else if (!report.plan.settled) {
         console.log("\nRe-run with --apply to make these changes.");

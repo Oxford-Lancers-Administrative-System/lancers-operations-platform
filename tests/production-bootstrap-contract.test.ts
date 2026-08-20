@@ -44,7 +44,7 @@
  * fails for a reason unrelated to what it tests; and a delivery *failure* has to
  * be poseable, because the state it produces is one the club's record must show.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import pg, { type Client } from "pg";
@@ -80,7 +80,7 @@ import {
   operatorInvitedRow,
   roleAssignedRow,
 } from "../scripts/production/bootstrap/audit.mjs";
-import { fingerprint } from "../scripts/production/bootstrap/database.mjs";
+import { FINGERPRINTED_TABLES, fingerprint } from "../scripts/production/bootstrap/database.mjs";
 import {
   assertIdentityTarget,
   supabaseIdentity,
@@ -296,21 +296,66 @@ describe("the bootstrap refuses to run anywhere it should not", () => {
     // `REQ-no-production-boundary-expansion`, and the repository's standing
     // rule that no real member data is committed. The identities arrive at run
     // time in a file outside the repository; nothing here may pre-empt them.
-    for (const file of [
-      "scripts/production/bootstrap-founding-operators.mjs",
-      "scripts/production/bootstrap/manifest.mjs",
-      "scripts/production/bootstrap/plan.mjs",
-      "scripts/production/bootstrap/database.mjs",
-      "scripts/production/bootstrap/identity.mjs",
-      "scripts/production/bootstrap/audit.mjs",
-    ]) {
-      const contents = readFileSync(path.join(repoRoot, file), "utf8");
-      expect(contents, `${file} must contain no email address`).not.toMatch(
-        /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/,
-      );
+    //
+    // **Read the directory, never a list.** This enumerated its six files until
+    // LAN-135 review finding R3, and a seventh module added under `bootstrap/`
+    // — with an address in it — passed both contract suites. A guard against
+    // committing personal data to a public repository that inspects only the
+    // files somebody remembered to name is not a guard.
+    const files = bootstrapPackageFiles();
+
+    // A vacuous pass is the failure this replaces: a broken walk that found
+    // nothing would assert nothing, silently and forever.
+    expect(files.length, "the package walk found no files").toBeGreaterThanOrEqual(6);
+
+    for (const file of files) {
+      const contents = readFileSync(file, "utf8");
+      expect(
+        contents,
+        `${path.relative(repoRoot, file)} must contain no email address`,
+      ).not.toMatch(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+    }
+  });
+
+  it("finds a newly added module, which is the whole point of reading the directory", () => {
+    // The regression test for R3 itself: the walk must pick up a file nobody
+    // has named anywhere, because that is exactly how the gap was reachable.
+    const planted = path.join(repoRoot, "scripts/production/bootstrap/r3-probe.mjs");
+    writeFileSync(planted, "// probe\n");
+    try {
+      expect(bootstrapPackageFiles()).toContain(planted);
+    } finally {
+      rmSync(planted, { force: true });
     }
   });
 });
+
+/**
+ * Every file of the bootstrap package, found by walking rather than by list.
+ *
+ * The rule is "everything under `scripts/production/` whose name begins with
+ * `bootstrap`" — the entry script, and the directory beside it — and it needs
+ * no maintenance when a module is added.
+ */
+function bootstrapPackageFiles(): string[] {
+  const root = path.join(repoRoot, "scripts/production");
+  const found: string[] = [];
+
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (!entry.name.startsWith("bootstrap")) continue;
+    const full = path.join(root, entry.name);
+
+    if (entry.isDirectory()) {
+      for (const nested of readdirSync(full, { withFileTypes: true, recursive: true })) {
+        if (nested.isFile()) found.push(path.join(nested.parentPath ?? full, nested.name));
+      }
+    } else if (entry.isFile()) {
+      found.push(full);
+    }
+  }
+
+  return found;
+}
 
 // ---------------------------------------------------------------------------
 // 2 — the manifest
@@ -557,6 +602,37 @@ describe("the audit rows it builds are the vocabulary's own", () => {
     );
   });
 
+  it("builds the invitation-resent envelope exactly as the vocabulary does", () => {
+    // The fourth of four, and it was the one without a field-level guard until
+    // LAN-135 review finding R4. Injecting a wrong `entityTable` — and a
+    // from/to pair that `prepareAdministrationEvent` refuses outright — left
+    // every other pure test in this file passing.
+    //
+    // It matters beyond symmetry: `--resend` is the recovery the runbook tells
+    // Brian to use after a delivery failure, so this is the row written on the
+    // one path he reaches when something has already gone wrong.
+    const mine = invitationResentRow({
+      personId: PERSON,
+      operatorAccountId: ACCOUNT,
+      operatingYear: YEAR,
+      correlationId: CORRELATION,
+      detail: DETAIL,
+    });
+    const theirs = prepared({ action: "administration.operator.invitation_resent" });
+
+    expect(mine.action).toBe(theirs.action);
+    expect(mine.entityTable).toBe(theirs.entityTable);
+    expect(mine.entityId).toBe(theirs.entityId);
+    // `attempt` shape: a resend is a thing that was tried against an account
+    // whose state it did not move, so there is no before and no after to record.
+    expect(mine.fromState).toBe(theirs.fromState);
+    expect(mine.toState).toBe(theirs.toState);
+    expect(mine.reason).toBe(theirs.reason);
+    expect(withoutAuthority(mine.context[ADMINISTRATION_CONTEXT_KEY])).toEqual(
+      withoutAuthority(theirs.envelope as unknown as Record<string, unknown>),
+    );
+  });
+
   it("builds the delivery-failure envelope exactly as the vocabulary does", () => {
     const mine = invitationDeliveryFailedRow({
       personId: PERSON,
@@ -580,6 +656,13 @@ describe("the audit rows it builds are the vocabulary's own", () => {
     );
   });
 });
+
+/** Just the row counts out of a fingerprint, so "same count, different content" is provable. */
+function rowCounts(digest: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(digest).map(([table, value]) => [table, value.split(":")[0]]),
+  );
+}
 
 /**
  * One envelope, minus the single field a bootstrap genuinely cannot state the
@@ -722,6 +805,59 @@ describe.runIf(configured)("the bootstrap, run against local Supabase", () => {
   }, 60_000);
 
   const manifest = () => parseManifest(structuredClone(MANIFEST));
+
+  it("fingerprints exactly the tables the writers touch, and no stale list", async () => {
+    // The digest is only a safety check if it covers what the script writes.
+    // Derived from the source rather than compared to a second list, so a table
+    // added to a write path with no fingerprint entry fails here.
+    const writers = readFileSync(
+      path.join(repoRoot, "scripts/production/bootstrap/database.mjs"),
+      "utf8",
+    );
+    const written = new Set(
+      [...writers.matchAll(/\b(?:insert into|update)\s+(public\.[a-z_]+)/g)].map((m) => m[1]),
+    );
+
+    expect(written.size).toBeGreaterThan(0);
+    expect([...written].sort()).toEqual([...FINGERPRINTED_TABLES].sort());
+  });
+
+  it("sees a write that changes no row count — LAN-135 finding R2", async () => {
+    // The injection the reviewer used. `recordInvitationOutcome` really does
+    // write `updated_at`, `invited_at` and the two delivery-failure columns
+    // without inserting anything, so a row-count fingerprint could report
+    // `wroteNothing: true` with rows genuinely changed.
+    const before = await fingerprint(client);
+
+    await client.query("begin");
+    await client.query("update public.operator_accounts set updated_at = now()");
+    const during = await fingerprint(client);
+    await client.query("rollback");
+
+    expect(during).not.toEqual(before);
+    // Same row count, different content — which is exactly the case a count
+    // could not see.
+    expect(rowCounts(during)).toEqual(rowCounts(before));
+    expect(await fingerprint(client)).toEqual(before);
+  }, 60_000);
+
+  it("creates no Auth login during a dry run, which is why the digest need not cover auth", async () => {
+    // `fingerprint` deliberately does not read `auth.users`: the hosted run
+    // authenticates as `app_runtime`, which has no reach into the `auth` schema
+    // (ADR 0026). The claim that this is safe rests on `createLogin` being
+    // reachable only from `applyOperator`, so that is measured here directly
+    // rather than argued in a comment.
+    const before = await client.query<{ count: string }>(
+      "select count(*)::text as count from auth.users",
+    );
+
+    await bootstrap({ client, identity, manifest: manifest(), mode: DRY_RUN });
+
+    const after = await client.query<{ count: string }>(
+      "select count(*)::text as count from auth.users",
+    );
+    expect(after.rows[0].count).toBe(before.rows[0].count);
+  }, 60_000);
 
   it("previews a complete plan and writes nothing at all", async () => {
     const before = await fingerprint(client);

@@ -260,24 +260,88 @@ export async function observeCandidates(client, entry) {
 }
 
 /**
- * A cheap, total summary of everything this script can write.
+ * The five `public` tables this script can write, and nothing else.
  *
- * The dry run compares one of these before and after itself and refuses to
- * report success if they differ. "The dry run writes nothing" is then a fact
- * the run has checked, not a property somebody has to trust the code for — and
- * the contract test asserts on the same value.
+ * Exported so the contract test asserts the list is the same one `applyOperator`
+ * and `recordInvitationOutcome` actually touch, rather than a list that was
+ * right when it was written.
+ */
+export const FINGERPRINTED_TABLES = Object.freeze([
+  "public.people",
+  "public.contact_points",
+  "public.operator_accounts",
+  "public.role_assignments",
+  "public.audit_events",
+]);
+
+/**
+ * A **content** digest of every `public` table this script can write.
+ *
+ * The dry run takes one of these before and after itself and refuses to report
+ * success if they differ, so "the dry run wrote nothing" is a fact the run has
+ * checked rather than a property somebody has to trust the code for.
+ *
+ * ## Why it is a digest and not a row count — LAN-135 review finding R2
+ *
+ * It was a row count, and a row count is not the claim being made. An
+ * `update … set updated_at = now()` changes no count at all, and this script
+ * genuinely does run updates: `recordInvitationOutcome` writes
+ * `invitation_delivery_failed_at`, `invitation_delivery_failure_reason` and
+ * `invited_at` without inserting anything. A count-neutral write injected into
+ * the observation path left the old fingerprint reporting `wroteNothing: true`
+ * with rows genuinely changed — no reachable defect, because the dry run makes
+ * no such write, but a safety check that cannot see the one kind of write the
+ * script performs is a safety check making a promise it does not keep.
+ *
+ * So each table is reduced to `count:md5-of-the-row-digests`. The inner digest
+ * is `md5(t::text)` — the whole row, every column, as PostgreSQL renders it —
+ * and the outer aggregate is ordered by that digest rather than by any column,
+ * so the value is content-sensitive and row-order-independent. An update, an
+ * insert, a delete and a swap all change it; a re-read does not.
+ *
+ * ## What it deliberately does not cover, and why that is safe
+ *
+ * **The Auth server.** Two reasons, and both matter:
+ *
+ *   * the hosted run authenticates as `app_runtime`, which by ADR 0026 has no
+ *     reach into the `auth` schema at all — a digest that selected from
+ *     `auth.users` would fail the hosted run outright, which is the one run
+ *     this check exists for;
+ *   * and there is nothing for it to catch. `createLogin` is called from
+ *     exactly one place, inside `applyOperator`, which the dry run never
+ *     reaches. The observation path calls only `findLoginByEmail`, which reads.
+ *
+ * The contract test proves the second point directly rather than taking this
+ * paragraph's word for it: it counts `auth.users` around a dry run.
+ *
+ * Cost is one aggregate per table per fingerprint, twice per run. At club scale
+ * that is milliseconds; it is stated because `audit_events` grows forever and
+ * this is the kind of check that quietly becomes expensive.
+ *
+ * @param {import("pg").Client} client
+ * @returns {Promise<Record<string, string>>} one `count:md5` entry per table
  */
 export async function fingerprint(client) {
-  const { rows } = await client.query(
-    `select (select count(*) from public.people)             as people,
-            (select count(*) from public.contact_points)     as contact_points,
-            (select count(*) from public.operator_accounts)  as operator_accounts,
-            (select count(*) from public.role_assignments)   as role_assignments,
-            (select count(*) from public.audit_events)       as audit_events,
-            (select coalesce(max(occurred_at)::text, '')
-               from public.audit_events)                     as last_audit_event`,
-  );
-  return rows[0];
+  /** @type {Record<string, string>} */
+  const digests = {};
+
+  for (const table of FINGERPRINTED_TABLES) {
+    // Compile-time constants from this repository, never caller input — and
+    // this assertion is what keeps them that way rather than a comment saying
+    // so. Same device as `INSTANT_ORDER_CASE` in `administration-audit.ts`.
+    if (!/^public\.[a-z_]+$/.test(table)) {
+      throw new Error(`"${table}" cannot be embedded in a fingerprint query.`);
+    }
+
+    const { rows } = await client.query(
+      `select count(*)::text as rows,
+              coalesce(md5(string_agg(digest, '' order by digest)), '') as content
+         from (select md5(t::text) as digest from ${table} t) s`,
+    );
+    digests[table] = `${rows[0].rows}:${rows[0].content}`;
+  }
+
+  return digests;
 }
 
 /**

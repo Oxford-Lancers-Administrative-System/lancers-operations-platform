@@ -77,7 +77,12 @@ node scripts/production/bootstrap-founding-operators.mjs --manifest ~/founding-o
 ```
 
 The hosted run, in two steps. **Always the dry run first** — it is the default,
-and it writes nothing:
+and it writes nothing. It does not merely intend to: it takes a content digest of
+the five `public` tables it can write, before and after itself, and reports a
+failure rather than success if they differ. Updates are caught as well as
+inserts. The Auth server is outside that digest and provably untouched — the dry
+run never reaches the code that creates a login, and the hosted credential has no
+reach into the `auth` schema anyway:
 
 ```bash
 DATABASE_URL="$(gcloud secrets versions access latest --secret=database-url)" SUPABASE_URL="https://fggbgeraiadetyiyjlvb.supabase.co" SUPABASE_SECRET_KEY="$(gcloud secrets versions access latest --secret=supabase-secret-key)" node scripts/production/bootstrap-founding-operators.mjs --manifest ~/founding-operators.json --app-base-url https://<the application origin> --confirm-target fggbgeraiadetyiyjlvb
