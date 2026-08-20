@@ -51,6 +51,23 @@ import { OPERATOR_ACCOUNT_STATE_DEFINITIONS } from "@/lib/services/operator-acco
  * any procedure performed outside the application. Where the club's answer is
  * genuinely "this is not done here" the guide says so plainly and stops —
  * see the escalation entry, which names no tool, no console and no person.
+ *
+ * ## And nothing here describes a screen that does not exist
+ *
+ * The operating-year entry used to say "An earlier year can be opened and read,
+ * but not changed" — LAN-141 finding 6. `readRoleHolders()` takes a `cycleId`,
+ * returns `readOnly`, and is tested end to end; no production code calls it,
+ * and the page-facing `readRoleCatalogue()` takes no year. So there was no way
+ * to open an earlier year, and the guide sent a reader hunting for a control
+ * that had never shipped — which is the same defect as the action labels below
+ * being paraphrases, in the one place a club officer is most likely to believe
+ * what they read.
+ *
+ * The entry now describes the application as it is, and points at the surface
+ * that genuinely answers the question: each seat's **Holder history**, which
+ * covers this year and past years. Building the switcher is a separate piece of
+ * work against `REQ-explicit-cycle-assignment`, not a wording change, and it is
+ * recorded as such rather than implied by a sentence.
  */
 
 /** A run of answer text. `strong` is used only for a label the reader clicks or sees. */
@@ -339,7 +356,15 @@ export const ADMINISTRATION_GUIDE: readonly GuideEntry[] = Object.freeze([
           "why the forms neither ask for it nor repeat it.",
       ),
       points(
-        ["An earlier year can be opened and read, but not changed."],
+        [
+          "Every seat shows the year in progress. There is no year switcher in this version, " +
+            "and no screen here can change an earlier year.",
+        ],
+        [
+          "What happened in an earlier year is on the seat's own page, under ",
+          s(HOLDER_HISTORY),
+          " — it covers this year and past years.",
+        ],
         [
           "The General Manager and the IT Officer are standing seats: they carry across years " +
             "rather than belonging to one.",

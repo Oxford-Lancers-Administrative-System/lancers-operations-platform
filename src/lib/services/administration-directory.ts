@@ -3,10 +3,10 @@ import "server-only";
 import { roleLabel } from "@/lib/auth/capabilities";
 import { assertCapability } from "@/lib/auth/guards";
 import type { ResolvedOperator } from "@/lib/auth/operator";
-import { NotFound, NotPermitted, withTransaction, type Tx } from "@/lib/db";
+import { NotPermitted, withTransaction } from "@/lib/db";
 import type { AdministrationOperatingYear } from "./administration-events";
 import { deriveOperatorAccountState, type OperatorAccountState } from "./operator-account-state";
-import { resolveActiveCommitteeYear, resolveActiveSeason } from "./operator-invitations";
+import { resolveCommitteeYearForReading, resolveSeasonForReading } from "./operator-invitations";
 import { personDisplayNameSql } from "./sql-text";
 
 /**
@@ -100,8 +100,24 @@ export interface CatalogueRole {
    * True when the operating year this seat hangs off does not exist yet, so
    * "Not assigned" would be a claim rather than a fact. Coaching seats hang off
    * the season, and a club between seasons has none.
+   *
+   * It says nothing about who holds the seat. Assignments are written
+   * open-ended and outlive the cycle that started them, so a seat with no
+   * current cycle can still have a holder in post this morning —
+   * `describeHolders()` reads the holders first for that reason, and LAN-141
+   * finding 4 is what it cost when it did not.
    */
   readonly cycleMissing: boolean;
+  /**
+   * A new assignment for this seat can be recorded **today**.
+   *
+   * False when the cycle it would hang off does not exist, and false for a
+   * season in `closing` — which is current to read and closed to write. The
+   * surfaces use it so that they never offer an Assign that the service is
+   * certain to refuse, which is the same rule LAN-141 finding 2 applies to the
+   * end date: an action that cannot succeed is not offered.
+   */
+  readonly assignable: boolean;
 }
 
 /** One approved group, in the catalogue's own order. */
@@ -113,9 +129,17 @@ export interface CatalogueGroup {
 
 export interface RoleCatalogue {
   readonly groups: readonly CatalogueGroup[];
-  readonly committeeYear: AdministrationOperatingYear;
-  /** `null` only when the club has no season under way. */
+  /**
+   * `null` during a gap between committee years. `committee_years.ends_on` is
+   * exclusive, so a club that closes one year the day before the next opens has
+   * one — and before LAN-141 finding 8 that gap took every Administration
+   * screen down rather than showing the club's seats without a year label.
+   */
+  readonly committeeYear: AdministrationOperatingYear | null;
+  /** `null` only when the club has no season under way, closing included. */
   readonly season: AdministrationOperatingYear | null;
+  /** False when `season` is `null`, and false for a season in `closing`. */
+  readonly seasonWritable: boolean;
 }
 
 interface CatalogueRow {
@@ -188,15 +212,15 @@ export async function readRoleCatalogue(operator: ResolvedOperator | null): Prom
   assertCapability(requireOperator(operator), ADMINISTRATION_CAPABILITY);
 
   return withTransaction(async (tx) => {
-    const committeeYear = await resolveActiveCommitteeYear(tx);
-    const season = await activeSeasonOrNull(tx);
+    const committeeYear = await resolveCommitteeYearForReading(tx);
+    const season = await resolveSeasonForReading(tx);
 
     const result = await tx.query<CatalogueRow>(
       `with cycles as (
          select 'committee_year'::public.role_scope as scope,
                 cy.id, cy.starts_on, cy.ends_on
            from public.committee_years cy
-          where cy.id = $1
+          where cy.id = $1::uuid
          union all
          select 'season'::public.role_scope,
                 s.id, s.starts_on, s.ends_on
@@ -231,10 +255,18 @@ export async function readRoleCatalogue(operator: ResolvedOperator | null): Prom
          left join public.people p on p.id = ra.person_id
          left join public.operator_accounts oa on oa.person_id = ra.person_id
         order by rg.sort_order, r.sort_order, ra.effective_from, ra.id`,
-      [committeeYear.id, season?.id ?? null],
+      [committeeYear?.id ?? null, season?.year.id ?? null],
     );
 
-    return { groups: groupCatalogue(result.rows), committeeYear, season };
+    return {
+      groups: groupCatalogue(result.rows, {
+        committee_year: committeeYear !== null,
+        season: season?.writable === true,
+      }),
+      committeeYear,
+      season: season?.year ?? null,
+      seasonWritable: season?.writable === true,
+    };
   });
 }
 
@@ -248,7 +280,11 @@ export async function readRoleCatalogue(operator: ResolvedOperator | null): Prom
  * split is what keeps "who holds this seat today" from being answered by
  * somebody who does not hold it yet. Only holders decide `vacant`.
  */
-function groupCatalogue(rows: readonly CatalogueRow[]): CatalogueGroup[] {
+function groupCatalogue(
+  rows: readonly CatalogueRow[],
+  /** Whether each scope's cycle can take a new assignment today. */
+  writable: Readonly<Record<"committee_year" | "season", boolean>>,
+): CatalogueGroup[] {
   const groups: { code: string; label: string; roles: CatalogueRole[] }[] = [];
   const seen = new Map<string, { holders: CatalogueHolder[]; scheduled: CatalogueHolder[] }>();
 
@@ -274,6 +310,7 @@ function groupCatalogue(rows: readonly CatalogueRow[]): CatalogueGroup[] {
         // indistinguishable from "not read yet" while the rows are streaming.
         vacant: true,
         cycleMissing: row.cycle_id === null,
+        assignable: writable[row.scope],
       };
 
       const group = groups.find((candidate) => candidate.code === row.group_code);
@@ -355,7 +392,8 @@ export interface DirectoryOperator {
 
 export interface OperatorDirectory {
   readonly operators: readonly DirectoryOperator[];
-  readonly committeeYear: AdministrationOperatingYear;
+  /** `null` during a gap between committee years. See {@link RoleCatalogue}. */
+  readonly committeeYear: AdministrationOperatingYear | null;
 }
 
 interface DirectoryOperatorRow {
@@ -407,7 +445,7 @@ export async function readOperatorDirectory(
   assertCapability(requireOperator(operator), ADMINISTRATION_CAPABILITY);
 
   return withTransaction(async (tx) => {
-    const committeeYear = await resolveActiveCommitteeYear(tx);
+    const committeeYear = await resolveCommitteeYearForReading(tx);
 
     // One account or all of them, through the same query. A separate
     // single-account read would be a second copy of the state derivation and
@@ -548,7 +586,7 @@ export async function readPlayerMembership(
   assertCapability(requireOperator(operator), ADMINISTRATION_CAPABILITY);
 
   return withTransaction(async (tx) => {
-    const season = await activeSeasonOrNull(tx);
+    const season = await resolveSeasonForReading(tx);
     if (!season) return null;
 
     const result = await tx.query<{ id: string; status: string; label: string }>(
@@ -556,7 +594,7 @@ export async function readPlayerMembership(
          from public.season_memberships sm
          join public.seasons s on s.id = sm.season_id
         where sm.person_id = $1 and sm.season_id = $2`,
-      [personId, season.id],
+      [personId, season.year.id],
     );
 
     if (result.rows.length === 0) return null;
@@ -610,22 +648,4 @@ function accountStateOf(row: {
     invitationDeliveryFailedAt: row.operator_delivery_failed_at,
     emailChangePending: row.operator_rehome_pending_at !== null,
   });
-}
-
-/**
- * The season coaching seats hang off, or `null` when the club is between them.
- *
- * `resolveActiveSeason()` refuses, correctly, for the write it was built for: a
- * coaching appointment with no season to hang off cannot be recorded. A
- * *reading* screen must not inherit that refusal, or the Roles page goes blank
- * for all twenty seats because the club has not opened next season yet — and
- * the ten committee seats have nothing to do with the season at all.
- */
-async function activeSeasonOrNull(tx: Tx): Promise<AdministrationOperatingYear | null> {
-  try {
-    return await resolveActiveSeason(tx);
-  } catch (error) {
-    if (error instanceof NotFound) return null;
-    throw error;
-  }
 }

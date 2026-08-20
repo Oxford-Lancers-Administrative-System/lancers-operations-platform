@@ -1,4 +1,9 @@
-import { describeRoleCapabilities, NO_CAPABILITY_SUMMARY } from "@/lib/auth/capabilities";
+import {
+  describeLeadershipLimits,
+  describeRoleCapabilities,
+  NO_CAPABILITY_SUMMARY,
+} from "@/lib/auth/capabilities";
+import { formatClubDay, UNREADABLE_DATE } from "@/lib/club-time";
 import {
   operatorAccountState,
   type OperatorAccountState,
@@ -89,11 +94,26 @@ export function sectionLabelForGroup(groupCode: string, groupLabel: string): str
 /**
  * Operators, split into the approved sections, in catalogue order.
  *
- * An operator holding seats in more than one group — `DEC-one-person-multiple-capacities`
- * makes that ordinary, a President who also coaches — appears **once**, under
- * the earliest group in the catalogue's own order. Listing them twice would
- * make the page's own count wrong and would offer the same account two
- * different-looking routes to the same record.
+ * ## Somebody appears under every part of the club they serve
+ *
+ * An operator holding seats in more than one group appears in **each** of those
+ * sections, once per section — LAN-141 finding 9. The first version placed each
+ * account once, under the earliest group it sat in, and the consequence was
+ * that a coach who also held a committee seat was absent from **Coaches**
+ * entirely. `DEC-one-person-multiple-capacities` makes that combination
+ * ordinary rather than exotic ("a returning player who becomes a coach or an
+ * officer keeps the same record"), and `REQ-coach-operator-onboarding` requires
+ * Administration to "visually separate Coaching Staff" — a Coaches section that
+ * silently omits some of the club's coaches does not separate them, it hides
+ * them.
+ *
+ * The objection the first version recorded was that listing an account twice
+ * makes the page's own count wrong. It does not: the heading counts operator
+ * *accounts*, which the directory supplies, and no section carries a count. The
+ * second objection — two different-looking routes to one record — was never
+ * true either; both rows link to the same page, and each row still names every
+ * seat the person holds, so a reader meeting them under Coaches can see at once
+ * that they are also on the committee.
  *
  * The order of the sections is the catalogue's `sort_order`, carried on every
  * seat, so the page never restates "Operational Administration first". Sections
@@ -109,20 +129,31 @@ export function operatorSections(
     { sort: number; label: string; operators: DirectoryOperator[] }
   >();
 
-  for (const operator of operators) {
-    const seat = primarySeat(operator.roles);
-    const code = seat?.groupCode ?? "";
-    const label = seat
-      ? sectionLabelForGroup(seat.groupCode, seat.groupLabel)
-      : UNASSIGNED_SECTION_LABEL;
-    // The remainder sorts after every real group. `Number.MAX_SAFE_INTEGER`
-    // rather than a large literal, so a catalogue with many groups cannot
-    // overtake it.
-    const sort = seat?.groupSortOrder ?? Number.MAX_SAFE_INTEGER;
-
+  const place = (code: string, label: string, sort: number, operator: DirectoryOperator): void => {
     const section = sections.get(code);
     if (section) section.operators.push(operator);
     else sections.set(code, { sort, label, operators: [operator] });
+  };
+
+  for (const operator of operators) {
+    const groups = distinctGroups(operator.roles);
+
+    if (groups.length === 0) {
+      // The remainder sorts after every real group. `Number.MAX_SAFE_INTEGER`
+      // rather than a large literal, so a catalogue with many groups cannot
+      // overtake it.
+      place("", UNASSIGNED_SECTION_LABEL, Number.MAX_SAFE_INTEGER, operator);
+      continue;
+    }
+
+    for (const group of groups) {
+      place(
+        group.groupCode,
+        sectionLabelForGroup(group.groupCode, group.groupLabel),
+        group.groupSortOrder,
+        operator,
+      );
+    }
   }
 
   return [...sections.entries()]
@@ -130,9 +161,11 @@ export function operatorSections(
     .map(([code, section]) => ({ code, label: section.label, operators: section.operators }));
 }
 
-/** The seat that decides an operator's section: the earliest group they sit in. */
-function primarySeat(roles: readonly DirectoryRole[]): DirectoryRole | null {
-  return [...roles].sort((left, right) => left.groupSortOrder - right.groupSortOrder)[0] ?? null;
+/** Every catalogue group this operator holds a seat in, in the catalogue's order. */
+function distinctGroups(roles: readonly DirectoryRole[]): readonly DirectoryRole[] {
+  const seen = new Map<string, DirectoryRole>();
+  for (const role of roles) if (!seen.has(role.groupCode)) seen.set(role.groupCode, role);
+  return [...seen.values()].sort((left, right) => left.groupSortOrder - right.groupSortOrder);
 }
 
 /**
@@ -150,11 +183,26 @@ function primarySeat(roles: readonly DirectoryRole[]): DirectoryRole | null {
  */
 export function describeSeats(roles: readonly DirectoryRole[]): string {
   if (roles.length === 0) return "No current role";
-  return roles
-    .map((role) =>
-      role.scheduled ? `${role.label} (from ${formatDay(role.effectiveFrom)})` : role.label,
-    )
-    .join(" \u00b7 ");
+  return roles.map(describeSeat).join(" \u00b7 ");
+}
+
+/**
+ * One seat, with whichever of its two dates the club already knows.
+ *
+ * **A seat that is due to end says so** \u2014 LAN-141 finding 11. This column's own
+ * note claimed to follow the roles index's rule and followed half of it: a
+ * scheduled start was shown, a scheduled end was not, on the page an
+ * administrator scans to see who is leaving. Brian's ruling was both directions
+ * at once \u2014 "I like showing the successors and also showing people when they
+ * go" \u2014 and one of them had quietly not shipped.
+ */
+function describeSeat(role: DirectoryRole): string {
+  const notes: string[] = [];
+  if (role.scheduled) notes.push(`from ${formatDay(role.effectiveFrom)}`);
+  // The same word `describeHolders()` uses for the same fact, so the two
+  // columns cannot describe one departure in two ways.
+  if (role.effectiveTo) notes.push(`ends ${formatDay(role.effectiveTo)}`);
+  return notes.length === 0 ? role.label : `${role.label} (${notes.join(", ")})`;
 }
 
 // ---------------------------------------------------------------------------
@@ -213,9 +261,13 @@ export function describeInvitationProgress(operator: {
   readonly deliveryFailureReason: string | null;
 }): string {
   if (operator.state === "delivery_failed") {
+    // "Failed" alone was the answer when the moment had not been recorded, and
+    // it is a word rather than a sentence — LAN-141. Beside a chip that already
+    // reads "Delivery failed" it says nothing at all, and it does not say that
+    // the missing part is the *time* rather than the failure.
     const when = operator.deliveryFailedAt
       ? `Failed ${formatInstant(operator.deliveryFailedAt)}`
-      : "Failed";
+      : "Failed, at a time that was not recorded";
     return operator.deliveryFailureReason ? `${when} · ${operator.deliveryFailureReason}` : when;
   }
   if (operator.activatedAt) return `Accepted ${formatDay(operator.activatedAt)}`;
@@ -229,6 +281,20 @@ export function describeInvitationProgress(operator: {
 
 /** What Administration calls a seat nobody holds. `DEC-account-state-separation`. */
 export const NOT_ASSIGNED = "Not assigned";
+
+/**
+ * What a seat says when the operating year it hangs off does not exist, and
+ * nobody holds it either.
+ *
+ * Two sentences because there are two cycles. Coaching seats hang off the
+ * season; the ten committee seats hang off the committee year, and telling a
+ * reader of the Treasurer's row that there is "no season under way" is an
+ * answer to a question nobody asked.
+ */
+export const NO_CYCLE: Readonly<Record<"committee_year" | "season", string>> = Object.freeze({
+  committee_year: "No committee year recorded",
+  season: "No season under way",
+});
 
 /**
  * Who holds one seat, as the Roles index says it.
@@ -272,6 +338,7 @@ export const NOT_ASSIGNED = "Not assigned";
  *     seasons has none.
  */
 export function describeHolders(role: {
+  readonly scope: "committee_year" | "season";
   readonly vacant: boolean;
   readonly cycleMissing: boolean;
   readonly holders: readonly {
@@ -287,11 +354,19 @@ export function describeHolders(role: {
     readonly effectiveFrom: string;
   }[];
 }): string {
-  if (role.cycleMissing) return "No season under way";
-
   const arriving = (role.scheduled ?? [])
     .map((entry) => `${entry.displayName} from ${formatDay(entry.effectiveFrom)}`)
     .join(", ");
+
+  // The cycle is the *last* thing consulted, not the first — LAN-141 finding 4.
+  // It used to short-circuit ahead of the holders, and because assignments are
+  // written open-ended and a `closing` season is not an "active" one, every
+  // coaching seat in the club read "No season under way" while role detail
+  // named the live holder and the Operators index printed a third answer. A
+  // missing cycle is only an answer when there is no holder to give instead.
+  if (role.holders.length === 0 && arriving === "" && role.cycleMissing) {
+    return NO_CYCLE[role.scope];
+  }
 
   const current = role.vacant
     ? NOT_ASSIGNED
@@ -345,6 +420,24 @@ export function permissionsLine(code: string): string {
 }
 
 /**
+ * What one seat may **not** do, as one sentence, or `null`.
+ *
+ * The other half of the Permissions panel — LAN-141 finding 10, and the
+ * prototype's own second paragraph. General Manager and President hold the same
+ * nine grants and produced word-for-word identical summaries, in the mission
+ * whose subtlest locked decision is that one of them outranks the other; what
+ * separates them is which protected seats they may act on, and that is already
+ * data. `describeLeadershipLimits()` reads it.
+ *
+ * `null` for the seventeen seats that do not administer at all. Telling a Kit
+ * Manager which seats they may not manage would imply they may manage the rest.
+ */
+export function limitsLine(code: string): string | null {
+  const limits = describeLeadershipLimits(code);
+  return limits.length === 0 ? null : `Cannot ${limits.join("; ")}.`;
+}
+
+/**
  * How many phrases the Roles **index** shows before it stops.
  *
  * The catalogue's strongest seats hold nine capabilities, and nine verb phrases
@@ -381,6 +474,8 @@ export function permissionsPreview(code: string): string {
  */
 const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+export { UNREADABLE_DATE } from "@/lib/club-time";
+
 /**
  * The moment to render, and the zone to render it in.
  *
@@ -397,9 +492,13 @@ const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
  *   * any other string — an ISO instant, rendered on club time.
  *   * a `Date` — an instant already, likewise.
  *
- * `null` for anything that does not parse. A history surface that throws is
- * worse than one that shows a raw value: the value is still the truth, and the
- * page still renders around it.
+ * `null` for anything that does not parse, which the two formatters render as
+ * {@link UNREADABLE_DATE}. A history surface that throws is worse than one that
+ * says a value could not be read — one bad row must not take the other twenty
+ * with it. Showing the raw value instead was the first answer and was wrong in
+ * both directions (LAN-141): `"2026-13-45"` reached the screen unchanged, and an
+ * invalid `Date` reached it as the string `"Invalid Date"`, on pages where every
+ * other date reads `27 Aug 2026`.
  */
 function toInstant(value: Date | string): { instant: Date; zone: string } | null {
   if (typeof value !== "string") {
@@ -423,8 +522,10 @@ function part(
 
 /** "18 Aug 2026" — a calendar date, or an instant reduced to its day. */
 export function formatDay(value: Date | string): string {
+  if (typeof value === "string" && CALENDAR_DATE.test(value)) return formatClubDay(value);
+
   const moment = toInstant(value);
-  if (!moment) return String(value);
+  if (!moment) return UNREADABLE_DATE;
   return `${part(moment, { day: "numeric" })} ${part(moment, { month: "short" })} ${part(moment, {
     year: "numeric",
   })}`;
@@ -433,7 +534,7 @@ export function formatDay(value: Date | string): string {
 /** "18 Aug 2026, 14:22" — a recorded moment, in the club's own time. */
 export function formatInstant(value: Date | string): string {
   const moment = toInstant(value);
-  if (!moment) return String(value);
+  if (!moment) return UNREADABLE_DATE;
   return `${formatDay(value)}, ${part(moment, {
     hour: "2-digit",
     minute: "2-digit",

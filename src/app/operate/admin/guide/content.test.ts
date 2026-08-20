@@ -215,4 +215,27 @@ describe("the rules an administrator will otherwise get wrong", () => {
     expect(answerFor("invite")).toMatch(/never set somebody else's password/i);
     expect(answerFor("invite")).toMatch(/no public sign-up/i);
   });
+
+  /**
+   * LAN-141 finding 6.
+   *
+   * The operating-year answer said "An earlier year can be opened and read, but
+   * not changed" — a control that has never shipped. `readRoleHolders()` takes
+   * a `cycleId` and returns `readOnly`, is tested end to end, and no production
+   * code calls it; the page-facing `readRoleCatalogue()` takes no year at all.
+   * A guide that sends a club officer hunting for a screen that does not exist
+   * is wrong in the one place they are most likely to believe it.
+   *
+   * This asserts the honest answer *and* the way out it now points at, so a
+   * later edit cannot satisfy it by deleting the topic. When the switcher is
+   * built, this test is what says the sentence has to change with it.
+   */
+  it("does not describe a year switcher, and says where past years are read", () => {
+    const answer = answerFor("operating-year");
+
+    expect(answer).toMatch(/no year switcher in this version/i);
+    expect(answer).not.toMatch(/earlier year can be opened/i);
+    expect(answer).toMatch(/Holder history/);
+    expect(answer).toMatch(/this year and past years/i);
+  });
 });

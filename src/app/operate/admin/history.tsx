@@ -3,6 +3,7 @@ import Box from "@mui/material/Box";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { roleLabel } from "@/lib/auth/capabilities";
 import type { AdministrationHistoryEntry } from "@/lib/services/administration-audit";
 import { formatInstant } from "./presentation";
 
@@ -35,10 +36,26 @@ export default function AdministrationHistory({
   entries,
   emptyMessage,
   testId,
+  identify,
 }: {
   entries: readonly AdministrationHistoryEntry[];
   emptyMessage: string;
   testId: string;
+  /**
+   * Which half of each event this surface has to name — LAN-141 finding 7.
+   *
+   * The service resolves the target's name through a dedicated join and carries
+   * the role on every role event, and this component rendered neither. On role
+   * detail that made **Holder history** a panel about holders that named no
+   * holder: "Role assigned · By Clint Grohmann · 2026-27", three times over,
+   * with the past holders it exists to record unrecoverable from it.
+   *
+   * Each surface already knows one of the two — role detail is one seat,
+   * operator detail is one person — so each names the other. Repeating the
+   * page's own subject on every row would be noise, and omitting both was the
+   * defect.
+   */
+  identify: "target" | "role";
 }) {
   if (entries.length === 0) {
     return (
@@ -65,6 +82,12 @@ export default function AdministrationHistory({
                 {formatInstant(entry.occurredAt)}
               </Typography>
             </Stack>
+
+            {describeSubject(entry, identify) ? (
+              <Typography variant="body2" data-testid="history-entry-subject">
+                {describeSubject(entry, identify)}
+              </Typography>
+            ) : null}
 
             <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
               {describeActor(entry)}
@@ -97,6 +120,19 @@ export default function AdministrationHistory({
  * requirement rather than anybody's holdings. Who acted is the club's business;
  * which seats they happened to hold at the time is the record's.
  */
+/**
+ * Who the entry is about, or which seat it concerns — whichever the surface
+ * showing it does not already know. `null` where the stored envelope named
+ * neither, which is only ever an entry this version cannot read.
+ */
+function describeSubject(
+  entry: AdministrationHistoryEntry,
+  identify: "target" | "role",
+): string | null {
+  if (identify === "target") return entry.target.name;
+  return entry.role ? roleLabel(entry.role.code) : null;
+}
+
 function describeActor(entry: AdministrationHistoryEntry): string {
   const parts = [`By ${entry.actor.name}`, entry.operatingYear.label];
   if (entry.backdated) parts.push("backdated");

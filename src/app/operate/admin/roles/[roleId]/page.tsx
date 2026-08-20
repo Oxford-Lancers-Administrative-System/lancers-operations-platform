@@ -9,8 +9,10 @@ import ListItemText from "@mui/material/ListItemText";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { todayInClubZone } from "@/lib/club-time";
 import { isServiceError } from "@/lib/db";
 import { readHolderHistory } from "@/lib/services/administration-audit";
+import { earliestEndFor } from "@/lib/services/operator-administration";
 import {
   readRoleCatalogue,
   type CatalogueGroup,
@@ -25,6 +27,8 @@ import { permittedRoleActions } from "../../permissions";
 import {
   accountStateColour,
   describePeriod,
+  limitsLine,
+  NO_CYCLE,
   NOT_ASSIGNED,
   permissionsSummary,
 } from "../../presentation";
@@ -81,8 +85,10 @@ export default async function RoleRecordPage({
           group,
           cycleLabel:
             role.scope === "committee_year"
-              ? catalogue.committeeYear.label
-              : (catalogue.season?.label ?? "No season under way"),
+              ? // LAN-141 finding 8: a gap between committee years is an
+                // ordinary Monday, not a reason to refuse the page.
+                (catalogue.committeeYear?.label ?? NO_CYCLE.committee_year)
+              : (catalogue.season?.label ?? NO_CYCLE.season),
         };
         break;
       }
@@ -102,6 +108,11 @@ export default async function RoleRecordPage({
     role.holders[0]?.personId ?? null,
   );
   const permissions = permissionsSummary(role.code);
+  const limits = limitsLine(role.code);
+  // The club's own day, so "today" on this form means the same day the service
+  // means by it. `currentDateIn()` is the database's answer and is not reachable
+  // from a page; both read Europe/London, which is the whole of the agreement.
+  const today = todayInClubZone();
 
   return (
     <Stack spacing={3}>
@@ -118,10 +129,16 @@ export default async function RoleRecordPage({
 
         {role.holders.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
-            {role.cycleMissing
-              ? "There is no season under way, so this role has no holder to show yet."
-              : role.scheduled.length > 0
-                ? `${NOT_ASSIGNED}. Nobody holds this role today; it has been assigned from a date still to come.`
+            {role.scheduled.length > 0
+              ? `${NOT_ASSIGNED}. Nobody holds this role today; it has been assigned from a date still to come.`
+              : role.cycleMissing
+                ? // Scope-aware — LAN-141 finding 8. The ten committee seats
+                  // hang off the committee year and have nothing to do with the
+                  // season, and telling the Treasurer's reader that no season is
+                  // under way answers a question nobody asked.
+                  role.scope === "season"
+                  ? "There is no season under way, so this role has no holder to show yet."
+                  : "No committee year is recorded as running, so this role has no holder to show yet."
                 : `${NOT_ASSIGNED}. Nobody holds this role for ${cycleLabel}, and nobody is due to.`}
           </Typography>
         ) : (
@@ -230,6 +247,20 @@ export default async function RoleRecordPage({
             </List>
           </Paper>
         )}
+        {/*
+          The negative half — LAN-141 finding 10, and the reviewed prototype's
+          own second paragraph. Without it the General Manager and the President
+          produced word-for-word identical panels, in the mission whose subtlest
+          locked decision is that one outranks the other. Every phrase is
+          projected from `PROTECTED_LEADERSHIP_AUTHORITY`, the same table the
+          guards read, so it cannot say one thing here and refuse another.
+        */}
+        {limits ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }} data-testid="limits">
+            {limits}
+          </Typography>
+        ) : null}
+
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
           These come from the same definition the application enforces, so they cannot say one thing
           here and allow another. They are not editable in the application.
@@ -245,10 +276,18 @@ export default async function RoleRecordPage({
           roleCode={role.code}
           roleLabel={role.label}
           vacant={role.vacant}
+          assignable={role.assignable}
           admitsMultipleHolders={role.admitsMultipleHolders}
+          today={today}
           holders={role.holders.map((holder) => ({
             roleAssignmentId: holder.roleAssignmentId,
             displayName: holder.displayName,
+            effectiveFrom: holder.effectiveFrom,
+            // The one rule, computed where it is defined — LAN-141 finding 2.
+            // The form must not offer a date the service will refuse, and the
+            // date it may not offer is decided by the same function the guard
+            // uses.
+            earliestEnd: earliestEndFor(holder),
           }))}
           permitted={permitted}
         />
@@ -275,6 +314,7 @@ export default async function RoleRecordPage({
               : "No changes to this role have been recorded, and nobody is assigned to it."
           }
           testId="holder-history"
+          identify="target"
         />
       </Box>
     </Stack>

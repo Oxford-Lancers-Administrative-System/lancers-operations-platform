@@ -68,9 +68,19 @@ export default async function RolesPage() {
 
   return (
     <Stack spacing={3}>
+      {/*
+        The committee year is a label, not a precondition — LAN-141 finding 8.
+        `committee_years.ends_on` is exclusive, so a club that closes one year
+        the day before the next opens has a gap, and this page used to refuse to
+        draw the club's twenty seats at all during it.
+      */}
       <AdminPageHeading
         title="Roles"
-        subtitle={`${catalogue.committeeYear.label} · current holders`}
+        subtitle={
+          catalogue.committeeYear
+            ? `${catalogue.committeeYear.label} · current holders`
+            : "Current holders · no committee year is recorded as running"
+        }
         help
       />
 
@@ -131,7 +141,14 @@ export default async function RolesPage() {
                         href={`/operate/admin/roles/${role.id}`}
                         sx={{ textTransform: "none" }}
                       >
-                        {role.vacant && !role.cycleMissing ? "Assign" : "View"}
+                        {/*
+                          `assignable` rather than `!cycleMissing`: a season in
+                          `closing` exists to read and takes no new coaching
+                          appointment, so offering Assign there would send the
+                          administrator to a form the service is certain to
+                          refuse — LAN-141 findings 2 and 4.
+                        */}
+                        {role.vacant && role.assignable ? "Assign" : "View"}
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -330,7 +330,21 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
    */
   attendance_recorder: capability({
     key: "attendance_recorder",
-    action: "record attendance for an occurred event",
+    /**
+     * Names the **surface**, not the act — LAN-141 finding 12.
+     *
+     * All ten coaching seats hold this and `attendance_recording`, and their
+     * two `action` strings were written by different issues and never read side
+     * by side: "record attendance for an occurred event" above "record
+     * attendance for an event that has occurred", one under the other, on every
+     * coach's Permissions panel. No reader could tell them apart, because as
+     * sentences they are the same sentence.
+     *
+     * They are not the same grant. This one decides who gets the **narrow**
+     * coach's screen (see the note above); the other decides who may record at
+     * all. Saying which is which is what makes the pair legible.
+     */
+    action: "use the coach's own attendance screen, on a phone",
     roleCodes: [...FIXED_COACHING_ROLE_CODES, "it_officer"],
     decision:
       "Brian, 12 August 2026 (LAN-108/LAN-110): the Head Coach, Offensive Coordinator " +
@@ -1007,4 +1021,70 @@ export const NO_CAPABILITY_SUMMARY =
 export function describeRoleCapabilities(code: string): readonly string[] {
   const held = roleCapabilities(code).map((entry) => entry.action);
   return held.length === 0 ? [NO_CAPABILITY_SUMMARY] : held;
+}
+
+/**
+ * The tiers this projection walks, strongest first. Not derived from the object
+ * key order, so that adding a tier is a decision about where it reads rather
+ * than an accident of where it was typed.
+ */
+const PROTECTED_TIER_ORDER: readonly ProtectedLeadershipTier[] = Object.freeze([
+  "standing_continuity",
+  "presiding",
+]);
+
+/**
+ * The one limit every administering seat carries, whatever else it may do.
+ *
+ * `DEC-no-self-removal`. It is a relation between an actor and a target like
+ * the tier rules, but it needs no table: the target is always the actor.
+ */
+const SELF_ACTION_LIMIT =
+  "act on their own account — ending their own role, deactivating themselves, or " +
+  "recovering their own address";
+
+/**
+ * What a seat that administers operators may **not** do — LAN-141 finding 10.
+ *
+ * ## Why this exists
+ *
+ * `describeRoleCapabilities()` answers "what may this seat do", and for the two
+ * strongest seats in the club it answered *identically*: General Manager and
+ * President hold the same nine grants, so the Permissions panel showed the same
+ * nine sentences on both pages — in the mission whose subtlest locked decision
+ * (`DEC-two-tier-operating-model`) is that one of them outranks the other. The
+ * distinction was enforced everywhere and visible nowhere.
+ *
+ * It is not new copy. What separates the two seats is already data:
+ * {@link PROTECTED_LEADERSHIP_AUTHORITY} says who may manage and who may
+ * recover each protected tier, `administration-authority.ts` enforces exactly
+ * those lists, and this reads the same lists from the other side — the seats a
+ * given code is **absent** from. The reviewed prototype's own negative line
+ * ("Cannot remove the General Manager, end their own assignment or deactivate
+ * their own account") is what it reconstructs, per seat rather than by hand.
+ *
+ * Empty for the seventeen seats that do not administer at all: telling a Kit
+ * Manager which seats they may not manage would imply they may manage the rest.
+ *
+ * Phrases are verb phrases with no subject, matching `action` above, so a
+ * surface can put one sentence in front of the list.
+ */
+export function describeLeadershipLimits(code: string): readonly string[] {
+  if (!CAPABILITIES.role_management.roleCodes.includes(code)) return [];
+
+  const limits: string[] = [];
+
+  for (const tier of PROTECTED_TIER_ORDER) {
+    const seat = roleLabel(LEADERSHIP_TIER_SEATS[tier]);
+    const authority = PROTECTED_LEADERSHIP_AUTHORITY[tier];
+    if (!authority.management.includes(code)) {
+      limits.push(`assign, replace, end or deactivate the ${seat}`);
+    }
+    if (!authority.recovery.includes(code)) {
+      limits.push(`recover email access for the ${seat}`);
+    }
+  }
+
+  limits.push(SELF_ACTION_LIMIT);
+  return Object.freeze(limits);
 }

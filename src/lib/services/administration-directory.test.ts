@@ -273,9 +273,18 @@ describe("the role catalogue", () => {
 
     const catalogue = await readRoleCatalogue(administrator());
 
+    let compared = 0;
+
     for (const group of catalogue.groups) {
       for (const role of group.roles) {
-        if (role.cycleMissing) continue;
+        // `readRoleHolders()` scopes to a cycle, so with none at all there is
+        // no cycle-scoped answer to compare against. The blanket
+        // `if (role.cycleMissing) continue` this replaces hid LAN-141 finding
+        // 4 entirely — under a `closing` season every coaching seat was
+        // `cycleMissing`, and the loop skipped ten of the twenty without
+        // saying so. Counting is what stops that being invisible again.
+        if (role.scope === "season" && catalogue.season === null) continue;
+        compared += 1;
         const single = await readRoleHolders(administrator(), role.code);
 
         expect(
@@ -295,6 +304,10 @@ describe("the role catalogue", () => {
         expect(role.admitsMultipleHolders).toBe(single.role.admitsMultipleHolders);
       }
     }
+
+    // All twenty, on a seeded club. A skip that quietly swallowed half the
+    // catalogue is what let the two readers disagree about every coaching seat.
+    expect(compared).toBe(20);
   });
 
   /**
@@ -408,11 +421,164 @@ describe("the role catalogue", () => {
     expect(mine?.operatorState).toBeNull();
     expect(mine?.accessDeactivated).toBe(false);
   });
+
+  /**
+   * LAN-141 finding 4, against the database that produces it.
+   *
+   * `closing` is an ordinary `season_status` — every season the club ever runs
+   * reaches it — and `resolveActiveSeason()` accepts only `open` and `active`,
+   * because it guards a **write**. The reading path inherited that refusal, so
+   * marking the season `closing` made `season` null and every coaching seat
+   * `cycleMissing`, while their open-ended appointments were still in force.
+   * The Roles index then said "No season under way", role detail named the live
+   * holder, and the Operators index printed a third answer.
+   *
+   * Three of the four hunters found this independently. The season status is
+   * restored in `finally` because there is one local database and the next
+   * suite in the file expects it back.
+   */
+  describe("a season that is closing", () => {
+    async function withClosingSeason<T>(action: () => Promise<T>): Promise<T> {
+      const before = await observer.query<{ id: string; status: string }>(
+        "select id, status::text as status from public.seasons where status in ('open','active')",
+      );
+      try {
+        await observer.query(
+          "update public.seasons set status = 'closing' where id = any($1::uuid[])",
+          [before.rows.map((row) => row.id)],
+        );
+        return await action();
+      } finally {
+        for (const row of before.rows) {
+          await observer.query(
+            "update public.seasons set status = $2::public.season_status where id = $1",
+            [row.id, row.status],
+          );
+        }
+      }
+    }
+
+    it("is still the current season to read, and is not one to write to", async () => {
+      const catalogue = await withClosingSeason(() => readRoleCatalogue(administrator()));
+
+      expect(catalogue.season).not.toBeNull();
+      expect(catalogue.seasonWritable).toBe(false);
+    });
+
+    it("does not hide a coach who is in post", async () => {
+      const personId = await insertPerson("closing-season-coach");
+      await giveRole(personId, "linebackers_coach");
+
+      const catalogue = await withClosingSeason(() => readRoleCatalogue(administrator()));
+      const seat = catalogue.groups
+        .flatMap((group) => group.roles)
+        .find((role) => role.code === "linebackers_coach");
+
+      expect(seat?.cycleMissing).toBe(false);
+      expect(seat?.vacant).toBe(false);
+      expect(seat?.holders.map((holder) => holder.personId)).toContain(personId);
+      // And no coaching seat may be assigned into a season that is winding up.
+      expect(seat?.assignable).toBe(false);
+    });
+
+    it("keeps the two readers agreeing about it", async () => {
+      const personId = await insertPerson("closing-season-agreement");
+      await giveRole(personId, "defensive_backs_coach");
+
+      const [catalogue, single] = await withClosingSeason(async () => [
+        await readRoleCatalogue(administrator()),
+        await readRoleHolders(administrator(), "defensive_backs_coach"),
+      ]);
+
+      const seat = catalogue.groups
+        .flatMap((group) => group.roles)
+        .find((role) => role.code === "defensive_backs_coach");
+
+      expect(seat?.holders.map((holder) => holder.roleAssignmentId).sort()).toEqual(
+        single.holders.map((holder) => holder.roleAssignmentId).sort(),
+      );
+      expect(seat?.vacant).toBe(single.vacant);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
 // The directory
 // ---------------------------------------------------------------------------
+
+/**
+ * LAN-141 finding 8, at the layer that produces it.
+ *
+ * `committee_years.ends_on` is exclusive, so a club that closes one year the
+ * day before the next opens has a gap — an ordinary Monday, not an exotic
+ * state. `resolveActiveCommitteeYear()` fails closed because it guards a
+ * **write**, and both plural reads inherited that: during the gap the whole of
+ * Administration answered with an unavailable screen telling the reader the
+ * current committee year "has to be recorded first", from a page with no route
+ * in the application to record one.
+ *
+ * The screen tests mock these two functions, so nothing there could have caught
+ * it — which is the untested-layer pattern this mission keeps meeting. This is
+ * the layer out.
+ */
+describe("a gap between committee years", () => {
+  async function withNoCommitteeYear<T>(action: () => Promise<T>): Promise<T> {
+    const before = await observer.query<{ id: string; ends_on: string | null }>(
+      `select id, ends_on::text as ends_on
+         from public.committee_years
+        where starts_on <= current_date and (ends_on is null or ends_on > current_date)`,
+    );
+    try {
+      // `ends_on` is exclusive, so setting it to today ends the year today.
+      await observer.query(
+        "update public.committee_years set ends_on = current_date where id = any($1::uuid[])",
+        [before.rows.map((row) => row.id)],
+      );
+      return await action();
+    } finally {
+      for (const row of before.rows) {
+        await observer.query("update public.committee_years set ends_on = $2::date where id = $1", [
+          row.id,
+          row.ends_on,
+        ]);
+      }
+    }
+  }
+
+  it("still draws the whole catalogue, with no year to label it", async () => {
+    const catalogue = await withNoCommitteeYear(() => readRoleCatalogue(administrator()));
+
+    expect(catalogue.committeeYear).toBeNull();
+    expect(catalogue.groups.flatMap((group) => group.roles)).toHaveLength(20);
+  });
+
+  it("still names the committee seats' holders, and refuses new assignments", async () => {
+    const personId = await insertPerson("committee-year-gap");
+    await giveRole(personId, "media_secretary");
+
+    const catalogue = await withNoCommitteeYear(() => readRoleCatalogue(administrator()));
+    const seat = catalogue.groups
+      .flatMap((group) => group.roles)
+      .find((role) => role.code === "media_secretary");
+
+    // The holder is in post whatever the calendar says — assignments are
+    // written open-ended and outlive the cycle that started them.
+    expect(seat?.holders.map((holder) => holder.personId)).toContain(personId);
+    // And nothing may be assigned against a year that is not running.
+    expect(seat?.cycleMissing).toBe(true);
+    expect(seat?.assignable).toBe(false);
+  });
+
+  it("still lists the club's operator accounts", async () => {
+    const personId = await insertPerson("committee-year-gap-account");
+    const accountId = await giveOperatorAccount(personId);
+
+    const directory = await withNoCommitteeYear(() => readOperatorDirectory(administrator()));
+
+    expect(directory.committeeYear).toBeNull();
+    expect(directory.operators.map((row) => row.operatorAccountId)).toContain(accountId);
+  });
+});
 
 describe("the operator directory", () => {
   it("carries the seats an operator holds, in catalogue order", async () => {
