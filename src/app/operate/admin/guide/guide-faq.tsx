@@ -117,7 +117,17 @@ function AnswerBlock({ block }: { block: GuideBlock }) {
     <Typography
       component={block.kind === "steps" ? "ol" : "ul"}
       variant="body2"
-      sx={{ pl: 3, mb: 1.5, "&:last-child": { mb: 0 }, "& li": { mb: 0.75 } }}
+      sx={{
+        pl: 3,
+        mb: 1.5,
+        // Asked for explicitly, because Tailwind's preflight resets every list
+        // to `list-style: none`. Found in browser preflight: without this the
+        // invite answer's five ordered steps render as five unnumbered
+        // sentences, which loses the one thing an ordered list is for.
+        listStyleType: block.kind === "steps" ? "decimal" : "disc",
+        "&:last-child": { mb: 0 },
+        "& li": { mb: 0.75, listStyleType: "inherit" },
+      }}
     >
       {block.items.map((item, index) => (
         <li key={index}>
