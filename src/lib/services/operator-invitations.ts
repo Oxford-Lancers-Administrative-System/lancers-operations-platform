@@ -89,25 +89,29 @@ import {
  *     control and the first is courtesy.
  *
  *   * **`resendOperatorInvitation` and `correctOperatorInvitation` assert
- *     once**, in a transaction that reads the snapshot and then **commits
- *     before** the Auth call and before the write. So there is a window between
- *     the decision and the change.
+ *     twice too**, and for the same reason `inviteOperator` does. The
+ *     pre-flight transaction refuses before the Auth call, so an unauthorized
+ *     attempt moves nobody's login; the write transaction locks the row,
+ *     re-reads the target's seats and re-asserts the guard, the state rule and
+ *     the address rule against the row as it is *then*. The second assertion is
+ *     the control and the first is courtesy.
  *
- * That window confers nothing, which is why it is recorded rather than closed.
- * The only thing it could hide is a change in the target's seats between the
- * read and the write — and the actor was permitted a moment earlier on the
- * seats the target held then, so nothing is granted that was refused. The
- * asymmetry exists because these two have an untransactional step in the
- * middle: correction moves the address on the login before it moves in the
- * database, so holding one transaction across the guard, the Auth call and the
- * write would hold a pooled connection open across the network — the thing the
- * paragraph above declines to do for session resolution, for the same reason.
+ * An earlier version of this note argued the window between those two
+ * transactions "confers nothing" and recorded it as deliberately open. That
+ * argument was wrong on the state rule, and LAN-141 finding 3 is the case it
+ * missed: the holder can **activate** inside the window. `refuseUnlessResendable`
+ * had already passed on a pending account, so the write proceeded, and
+ * "correct the invitation" became an address change on a working account —
+ * `REQ-rehome-email`'s flow without its `recover_email` authority list, without
+ * a recorded reason and without Email change pending. The guard half is real
+ * too, for the reason `startOperatorEmailRehome` gives at length (LAN132-B3):
+ * seats can be assigned inside an unbounded network window, and a snapshot
+ * from before it is not the snapshot the write is judged on.
  *
- * Closing it properly would mean re-reading the snapshot and re-asserting
- * inside the write transaction, which is a real option and not a large one. It
- * is not taken here because it would buy no authorization property, and a
- * second assertion that buys nothing invites the reader to assume the first one
- * was insufficient.
+ * The transaction still does not span the Auth call, and must not: holding a
+ * pooled connection open across the network is the thing the paragraph above
+ * declines to do for session resolution, for the same reason. Two transactions
+ * with the decision made in the second is the shape that satisfies both.
  *
  * ### The role code passed to the guard is the exact `roles.code`
  *
@@ -348,6 +352,7 @@ interface CandidateRow {
   operator_is_active: boolean | null;
   operator_activated_at: Date | null;
   operator_delivery_failed_at: Date | null;
+  operator_email_rehome_pending_at: Date | null;
   matched_given: boolean;
   matched_family: boolean;
   matched_known_as: boolean;
@@ -446,6 +451,7 @@ export async function findOperatorCandidates(
          oa.is_active               as operator_is_active,
          oa.activated_at            as operator_activated_at,
          oa.invitation_delivery_failed_at as operator_delivery_failed_at,
+         oa.email_rehome_pending_at as operator_email_rehome_pending_at,
          coalesce(lower(btrim(p.given_name)) = w.given_name
                   or lower(btrim(p.known_as)) = w.given_name
                   or am.by_given, false)    as matched_given,
@@ -527,7 +533,13 @@ function toCandidate(row: CandidateRow): OperatorCandidate {
               isActive: row.operator_is_active === true,
               activatedAt: row.operator_activated_at,
               invitationDeliveryFailedAt: row.operator_delivery_failed_at,
-              emailChangePending: false,
+              // Read, not assumed. This was hard-coded `false` and the column
+              // was not selected, so an operator whose sign-in is refused
+              // pending verification of a replacement address was reported as
+              // **Active** — here and in the successor picker this search
+              // feeds. `toAccount` and `readOperatorDirectory` both read it
+              // correctly; this projection was the one that did not.
+              emailChangePending: row.operator_email_rehome_pending_at !== null,
             }),
           },
     matchedOn,
@@ -630,12 +642,20 @@ export async function readOperatorAccount(
  * The target's role codes, read from the database inside the caller's
  * transaction. **This is the input the leadership rules stand on.**
  *
- * `includeScheduled` widens "currently effective" to "not yet ended", and is
- * used for the two invitation actions. A pending invitation may carry a seat
- * dated to begin at a handover; that seat is not in force today, and a guard
- * that could not see it would let somebody who may not assign the President
- * seat redirect the link that confers it. Including it is the fail-closed
- * direction — it can only ever make the guard stricter.
+ * `includeScheduled` widens "currently effective" to "not yet ended", and every
+ * caller that hands the result to a guard passes it. A pending invitation may
+ * carry a seat dated to begin at a handover; that seat is not in force today,
+ * and a guard that could not see it would let somebody who may not assign the
+ * President seat redirect the link that confers it. Including it is the
+ * fail-closed direction — it can only ever make the guard stricter.
+ *
+ * **No production caller asks for the narrow answer.** It stays an option so
+ * that a test can read the snapshot both ways and show what the widening is
+ * doing — but a guard judging the narrow answer is a defect, and LAN-141
+ * finding 1 is what it cost when six of the ten sites were left to the default.
+ * `operator-administration.test.ts` and `operator-invitations.test.ts` each read
+ * their own module's source and fail if a call to this function reaches a guard
+ * without it, so a tenth site added later cannot repeat the omission quietly.
  */
 export async function readAdministrationSubject(
   tx: Tx,
@@ -726,7 +746,7 @@ export async function inviteOperator(params: InviteOperatorParams): Promise<Invi
 
     const subject: AdministrationSubject =
       params.subject.kind === "existing"
-        ? await readAdministrationSubject(tx, personId)
+        ? await readAdministrationSubject(tx, personId, { includeScheduled: true })
         : { personId, roleCodes: [] };
 
     assertEachRolePermitted(params.operator, subject, roles);
@@ -754,7 +774,15 @@ export async function inviteOperator(params: InviteOperatorParams): Promise<Invi
       // inserted. `WP-authorization` records that a stale or empty snapshot is
       // the one way to disarm the leadership rules; this is the read that stops
       // that being possible.
-      const subject = await readAdministrationSubject(tx, personId);
+      //
+      // `includeScheduled` for the reason every other administration write
+      // gives, and because leaving it off here was the sharper half of it: a
+      // Person holding a seat dated to begin at a handover, and no login yet,
+      // is exactly the target this flow reaches. Without the widening they are
+      // invisible to the leadership rule, and whoever may not assign that seat
+      // could give them another one *and* an account at an address they chose.
+      // Fail-closed is the only direction the option can move the guard.
+      const subject = await readAdministrationSubject(tx, personId, { includeScheduled: true });
       assertEachRolePermitted(params.operator, subject, preflight.roles);
 
       const operatorAccountId = await insertOperatorAccount(tx, {
@@ -980,6 +1008,40 @@ async function sendAgain(
 
   try {
     await withTransaction(async (tx) => {
+      // **Everything the first transaction decided is decided again here.**
+      //
+      // The first transaction committed before the Auth call above, so every
+      // fact it checked is a snapshot taken before an unbounded network window.
+      // `startOperatorEmailRehome` closes the identical window (LAN132-B3) and
+      // this path was missed; LAN-141 finding 3 is that omission.
+      //
+      // The sharp case is `correct_invitation` on an account that activates
+      // inside the window: without this, correcting an invitation silently
+      // becomes an email re-home of a working account with none of
+      // `REQ-rehome-email`'s protections — no `recover_email` guard with its
+      // different authority list, no reason, no Email change pending. The
+      // guard's own window is the second: an administrator assigning a
+      // protected seat inside it would have made this a redirection of the
+      // link that confers it, authorized against a target who held nothing
+      // when the question was asked.
+      //
+      // So the row is locked, the target's seats are re-read with the same
+      // `includeScheduled` widening, and the guard, the state rule and the
+      // address rule are all re-asserted against the row as it is now. On a
+      // refusal the `catch` below moves the login back, exactly as the
+      // sibling flow does.
+      const current = await lockAccount(tx, prepared.account.id);
+
+      const subject = await readAdministrationSubject(tx, current.personId, {
+        includeScheduled: true,
+      });
+      assertAdministrationTarget(params.operator, { action, target: subject });
+
+      refuseUnlessResendable(current);
+      if (correctedEmail !== null) {
+        await refuseTakenEmail(tx, correctedEmail, current.id);
+      }
+
       await tx.query(
         `update public.operator_accounts
             set login_email = $2,
@@ -988,7 +1050,7 @@ async function sendAgain(
                 invitation_delivery_failure_reason = null,
                 updated_at = now()
           where id = $1`,
-        [prepared.account.id, email],
+        [current.id, email],
       );
 
       await recordAdministrationEvent(tx, {
@@ -998,7 +1060,7 @@ async function sendAgain(
             : "administration.operator.invitation_corrected",
         actorPersonId: requireOperator(params.operator).personId,
         authority: administrationAuthority(params.operator),
-        target: { personId: prepared.account.personId, operatorAccountId: prepared.account.id },
+        target: { personId: current.personId, operatorAccountId: current.id },
         operatingYear: prepared.operatingYear,
         detail:
           correctedEmail === null
@@ -1313,6 +1375,28 @@ async function requireAccount(tx: Tx, operatorAccountId: string): Promise<Operat
     });
   }
   return account;
+}
+
+/**
+ * The same read, holding the row for the rest of the transaction.
+ *
+ * Used by the write half of {@link sendAgain}, which re-decides everything the
+ * pre-flight transaction decided. A re-assertion against a row another
+ * transaction can still change while this one deliberates is not a
+ * re-assertion, which is why the lock comes first and the record is read
+ * behind it.
+ */
+async function lockAccount(tx: Tx, operatorAccountId: string): Promise<OperatorAccountRecord> {
+  const locked = await tx.query<{ id: string }>(
+    "select id from public.operator_accounts where id = $1 for update",
+    [operatorAccountId],
+  );
+  if (locked.rows.length === 0) {
+    throw new NotFound("That operator record no longer exists.", {
+      rule: "operator_account_not_found",
+    });
+  }
+  return requireAccount(tx, operatorAccountId);
 }
 
 /** Refuses an address another operator login already holds. */

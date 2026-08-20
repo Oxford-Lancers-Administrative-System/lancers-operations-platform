@@ -250,6 +250,18 @@ const INSTANT_ORDER_CASE = (() => {
  *     administration history however its context is shaped. Absence of a rule
  *     is not permission here either.
  *
+ *     The two projections pass *different* sets, and only one of them is
+ *     separately observable. `readOperatorAuditHistory` passes the whole closed
+ *     set, and {@link toEntry} independently returns `null` for anything
+ *     outside it — so widening the filter there changes no answer, and LAN-141
+ *     recorded that as an unbound line. It is not unbound and it is not
+ *     unbacked; the two layers are one rule written twice, and the forged
+ *     `event.approved` row in `administration-audit.test.ts` proves the rule
+ *     rather than either copy of it. `readHolderHistory` passes the strictly
+ *     narrower role-related subset, which `toEntry` does not re-apply, and that
+ *     one **was** genuinely unbound — a forged account-state row carrying a
+ *     `roleId` now fails if the subset is widened or the filter dropped.
+ *
  *   * **It compares the target id as text**, `p.id::text = context->>…`, rather
  *     than casting the stored value to `uuid`. A cast would make a single
  *     malformed stored value an error for the whole read; a text comparison
