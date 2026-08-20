@@ -74,7 +74,10 @@
       "state": "not_started",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {},
+      "carried_questions": [
+        "Does the club-link tier survive as approved (D2/D3), or does Brian's 2026-08-20 wording move RSVP and attendance behind an operator account? Deferred here from W1 on 2026-08-20 at Brian's instruction; settle against the W7 mockup."
+      ]
     },
     {
       "id": "W8",
