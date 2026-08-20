@@ -1,0 +1,11 @@
+{
+  "mission_id": "M-REPLACE-ME",
+  "stage": "boundary",
+  "baseline": {
+    "branch": "main",
+    "commit": "0000000000000000000000000000000000000000"
+  },
+  "approvals": {},
+  "workflows": [],
+  "next_action": "Complete and approve 00-boundary.md"
+}

@@ -63,6 +63,22 @@ export const OWNER_GATED_CLASSES = [
 
 const isNonEmptyString = (value) => typeof value === "string" && value.trim() !== "";
 const isStringArray = (value) => Array.isArray(value) && value.every(isNonEmptyString);
+const isNotApplicable = (value) =>
+  value !== null &&
+  typeof value === "object" &&
+  !Array.isArray(value) &&
+  value.status === "not_applicable" &&
+  isNonEmptyString(value.reason);
+
+function requireSection(packet, name, validator, expected, errors) {
+  if (!(name in packet)) {
+    errors.push(`${name} is required (populate it or mark it not_applicable with a reason).`);
+    return;
+  }
+  if (!isNotApplicable(packet[name]) && !validator(packet[name])) {
+    errors.push(`${name} must be ${expected}, or not_applicable with a non-empty reason.`);
+  }
+}
 
 /**
  * Validate one mission packet. Returns every defect found; a packet is valid
@@ -184,6 +200,58 @@ export function validatePacket(packet) {
     errors.push("completion_evidence must name at least one observable proof of completion.");
   }
 
+  requireSection(
+    packet,
+    "workflow_matrix",
+    (value) =>
+      Array.isArray(value) &&
+      value.length > 0 &&
+      value.every((workflow) => isNonEmptyString(workflow?.id)),
+    "a non-empty array of workflows with ids",
+    errors,
+  );
+  requireSection(
+    packet,
+    "delegated_to_mission_lead",
+    isStringArray,
+    "an array of non-empty strings",
+    errors,
+  );
+  requireSection(
+    packet,
+    "nonblocking_unknowns",
+    (value) =>
+      Array.isArray(value) &&
+      value.every((item) => isNonEmptyString(item?.unknown) && isNonEmptyString(item?.handling)),
+    "an array of { unknown, handling } objects",
+    errors,
+  );
+  requireSection(
+    packet,
+    "escalation_rules",
+    (value) =>
+      value !== null &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      isStringArray(value.permitted_clarifications) &&
+      isStringArray(value.requires_packet_revision),
+    "an object with permitted_clarifications and requires_packet_revision arrays",
+    errors,
+  );
+  requireSection(
+    packet,
+    "repository_drift",
+    (value) =>
+      value !== null &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      isNonEmptyString(value.startup_rule) &&
+      isNonEmptyString(value.stop_rule),
+    "an object with startup_rule and stop_rule",
+    errors,
+  );
+  requireSection(packet, "blockers", Array.isArray, "an array", errors);
+
   const approval = packet.approval;
   if (approval === null || typeof approval !== "object" || Array.isArray(approval)) {
     errors.push("approval is required — an unapproved packet cannot initialize a mission.");
@@ -197,6 +265,32 @@ export function validatePacket(packet) {
     }
   }
 
+  return errors;
+}
+
+/**
+ * Compare packet workflows with the separately approved frozen intake inventory.
+ * The CLI obtains the inventory from 02-workflows.md; keeping that file separate
+ * prevents the packet from declaring its own expected list and validating itself.
+ */
+export function validateWorkflowInventory(packet, inventoryIds) {
+  const errors = [];
+  if (!Array.isArray(inventoryIds) || inventoryIds.length === 0) {
+    return ["The frozen workflow inventory must contain at least one workflow id."];
+  }
+  const matrixIds = Array.isArray(packet?.workflow_matrix)
+    ? packet.workflow_matrix.map((workflow) => workflow?.id)
+    : [];
+  if (
+    matrixIds.length !== inventoryIds.length ||
+    matrixIds.some((id, index) => id !== inventoryIds[index])
+  ) {
+    errors.push(
+      `workflow_matrix must match the frozen inventory exactly (expected ${inventoryIds.join(
+        ", ",
+      )}; received ${matrixIds.join(", ") || "none"}).`,
+    );
+  }
   return errors;
 }
 

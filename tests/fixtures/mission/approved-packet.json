@@ -69,6 +69,22 @@
   "completion_evidence": [
     "All three synthetic packages carry worker receipts, review receipts, and recorded merges"
   ],
+  "workflow_matrix": [
+    {
+      "id": "W1"
+    }
+  ],
+  "delegated_to_mission_lead": [],
+  "nonblocking_unknowns": [],
+  "escalation_rules": {
+    "permitted_clarifications": [],
+    "requires_packet_revision": []
+  },
+  "repository_drift": {
+    "startup_rule": "Compare current main with the synthetic baseline.",
+    "stop_rule": "Stop when drift changes the synthetic contract."
+  },
+  "blockers": [],
   "approval": {
     "approved_by": "Brian",
     "date": "2026-08-18",

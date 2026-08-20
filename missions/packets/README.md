@@ -6,8 +6,11 @@ The canonical, repository-durable home of approved mission packets:
 missions/packets/<mission-id>/packet.json
 ```
 
-**Brian's merge of a packet PR is the approval.** The Mission Intake Agent
-drafts a packet here on a dedicated branch and opens a packet-only pull
+**Brian's merge of a packet PR is the approval.** Run
+`/mission-intake <portfolio mission number>` from the repository root. The
+Claude Code skill at `.claude/skills/mission-intake/SKILL.md` uses the durable
+ledger under `missions/intake/<mission-id>/`, drafts a packet here on a
+dedicated branch, and opens a packet-only pull
 request — nothing else may ride in it, and `missions/**` is prohibited from
 every automatic merge lane, so only Brian can merge one. The merged commit
 on `main` identifies the exact approved packet version; approval is never a
@@ -26,6 +29,10 @@ Rules that hold for every packet:
   never from a file handed to it directly.
 - A material revision is a new `packet_version` in a new packet PR — the
   original approved packet is never mutated. History stays in git.
+- Every packet includes `workflow_matrix`, `delegated_to_mission_lead`,
+  `nonblocking_unknowns`, `escalation_rules`, `repository_drift`, and
+  `blockers`, populated or explicitly not applicable with a reason. Its
+  workflow IDs and count match the frozen intake inventory exactly.
 
 The synthetic rehearsal fixture (never a real mission) lives in
 `tests/fixtures/mission/approved-packet.json`. See `docs/mission-harness.md`

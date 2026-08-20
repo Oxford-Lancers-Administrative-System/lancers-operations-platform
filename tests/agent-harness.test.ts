@@ -24,10 +24,12 @@ const flat = (value: string) => value.replace(/\*\*/g, "").replace(/\s+/g, " ");
 const skillPath = path.join(skills, "start-issue", "SKILL.md");
 const reviewerPath = path.join(agents, "code-reviewer.md");
 const missionSkillPath = path.join(skills, "run-mission", "SKILL.md");
+const intakeSkillPath = path.join(skills, "mission-intake", "SKILL.md");
 const workerPath = path.join(agents, "implementation-worker.md");
 const skill = frontMatter(skillPath);
 const reviewer = frontMatter(reviewerPath);
 const missionSkill = frontMatter(missionSkillPath);
+const intakeSkill = frontMatter(intakeSkillPath);
 const worker = frontMatter(workerPath);
 const agreement = readFileSync(path.join(root, "AGENTS.md"), "utf8");
 const narrowCorrectionTranscript = readFileSync(
@@ -67,12 +69,28 @@ const contradictoryPolicyPatterns = {
 const settings = JSON.parse(readFileSync(path.join(root, ".claude", "settings.json"), "utf8"));
 
 describe("single-issue Claude workflow", () => {
-  it("has exactly the two user-invoked workflows and no obsolete batch artifacts", () => {
-    expect([...readdirSync(skills)].sort()).toEqual(["run-mission", "start-issue"]);
+  it("has exactly the three user-invoked workflows and no obsolete batch artifacts", () => {
+    expect([...readdirSync(skills)].sort()).toEqual([
+      "mission-intake",
+      "run-mission",
+      "start-issue",
+    ]);
     expect(skill.fields.name).toBe("start-issue");
     expect(skill.fields["disable-model-invocation"]).toBe("true");
     expect(skill.fields["argument-hint"]).toBe("LAN-###");
     expect(existsSync(path.join(skills, "supervise-batch"))).toBe(false);
+  });
+
+  it("keeps mission intake explicitly invoked and restricted to one portfolio number", () => {
+    const body = flat(intakeSkill.body);
+    expect(intakeSkill.fields.name).toBe("mission-intake");
+    expect(intakeSkill.fields["disable-model-invocation"]).toBe("true");
+    expect(intakeSkill.fields["argument-hint"]).toBe("<portfolio mission number>");
+    expect(body).toMatch(/match exactly `\^\[1-9\]\[0-9\]\*\$`/i);
+    expect(body).toMatch(
+      /Refuse a missing value, mission id, range, list, words, or more than one/i,
+    );
+    expect(body).toMatch(/never executes a mission/i);
   });
 
   it("requires exactly one explicit Linear identifier and never selects more work", () => {
