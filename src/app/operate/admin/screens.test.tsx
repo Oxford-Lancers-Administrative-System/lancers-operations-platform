@@ -26,7 +26,7 @@
  * needs a human at that width.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -89,6 +89,8 @@ import {
   type RoleCatalogue,
 } from "@/lib/services/administration-directory";
 import { permittedAccountActions, permittedRoleActions } from "./permissions";
+import { correctInvitationAction } from "./actions";
+import { EMPTY_ADMIN_ACTION_STATE } from "./action-state";
 import OperatorsPage from "./operators/page";
 import OperatorRecordPage from "./operators/[operatorId]/page";
 import InviteOperatorPage from "./operators/new/page";
@@ -445,6 +447,67 @@ describe("the Operators page", () => {
 // ---------------------------------------------------------------------------
 
 describe("one operator's record", () => {
+  /**
+   * The one-result rule, on the real page — LAN133-R2-B1.
+   *
+   * The mechanism has its own tests in `outcome.test.tsx`, and they passed
+   * while the page wiring was missing entirely: `ArrivalNotice` has exactly one
+   * production caller, and nothing rendered this page with a `notice` query
+   * parameter. Reverting the notice to a plain `Alert`, or dropping the
+   * provider from the page, reintroduced the defect Brian raised twice with
+   * every gate green.
+   *
+   * So this renders the page, with the parameter `inviteOperatorAction`
+   * actually redirects with, and follows the instruction that banner gives:
+   * correct the address and send it again. The banner must go when it does.
+   */
+  it("clears the arrival banner when the action it tells you to take is started", async () => {
+    vi.mocked(readOperatorRecord).mockResolvedValue(
+      operatorRow({
+        state: "delivery_failed",
+        activatedAt: null,
+        deliveryFailedAt: new Date("2026-08-20T10:45:00Z"),
+        deliveryFailureReason:
+          "550 5.1.1 The email account that you tried to reach does not exist.",
+      }),
+    );
+
+    render(
+      await OperatorRecordPage(
+        pageProps({ operatorId: "aaaa" }, { notice: "invited-undelivered" }),
+      ),
+    );
+
+    expect(screen.getByTestId("arrival-notice")).toHaveTextContent("could not be delivered");
+
+    // Every action returns a state; the type demands it. A mock that resolves
+    // to `undefined` would make `useActionState` hand the panel something
+    // production cannot produce.
+    vi.mocked(correctInvitationAction).mockResolvedValue(EMPTY_ADMIN_ACTION_STATE);
+
+    fireEvent.click(screen.getByRole("button", { name: "Correct email and resend" }));
+    const panel = screen.getByTestId("correct-panel");
+    const form = panel.querySelector("form");
+    if (!form) throw new Error("the correct-and-resend panel has no form to submit");
+    fireEvent.submit(form);
+
+    expect(screen.queryByTestId("arrival-notice")).toBeNull();
+  });
+
+  /**
+   * The banner itself, so that a fix which simply stopped rendering it would
+   * fail rather than pass the test above by deleting the feature.
+   */
+  it("shows the arrival banner the invitation redirect sends it", async () => {
+    vi.mocked(readOperatorRecord).mockResolvedValue(
+      operatorRow({ state: "invitation_pending", activatedAt: null }),
+    );
+
+    render(await OperatorRecordPage(pageProps({ operatorId: "aaaa" }, { notice: "invited" })));
+
+    expect(screen.getByTestId("arrival-notice")).toHaveTextContent("The invitation has been sent");
+  });
+
   it("separates the operator account from the roles they hold", async () => {
     vi.mocked(readOperatorRecord).mockResolvedValue(
       operatorRow({ state: "deactivated", displayName: "Morgan Pike" }),

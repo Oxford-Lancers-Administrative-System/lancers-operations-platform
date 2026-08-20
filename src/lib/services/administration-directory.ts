@@ -21,11 +21,14 @@ import { personDisplayNameSql } from "./sql-text";
  *
  * So this module is three queries, and it adds no rule. Every fact it derives is
  * derived by an existing function — the account state by
- * {@link deriveOperatorAccountState}, the seat's name by {@link roleLabel}, the
- * cycle overlap by the same `daterange` expression `readRoleHolders()` explains
- * at length. Where the two disagree it is a defect here, and
- * `administration-directory.test.ts` runs both against the same data for
- * exactly that reason.
+ * {@link deriveOperatorAccountState}, the seat's name by {@link roleLabel},
+ * and who holds a seat by the same currency test `readRoleHolders()` applies:
+ * in force on the day being asked about, half-open at both ends, with
+ * assignments recorded to start later kept separately rather than counted as
+ * holders. Where the two disagree it is a defect here, and
+ * `administration-directory.test.ts` runs both against the same data — on both
+ * halves of that answer — for exactly that reason. It has caught the two
+ * readers drifting apart twice.
  *
  * ## Both list reads are guarded, at the capability floor
  *
