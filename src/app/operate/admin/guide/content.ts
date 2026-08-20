@@ -241,9 +241,9 @@ export const ADMINISTRATION_GUIDE: readonly GuideEntry[] = Object.freeze([
         ],
         ["The assignment is not deleted. It keeps its dates and stays in the seat's history."],
         [
-          "An ending that has already taken effect cannot be moved, because moving it would " +
-            "rewrite what the record says happened. If it was wrong, assign the seat again " +
-            "from the correct date.",
+          "Once an ending is recorded it cannot be changed or cancelled — not even one dated " +
+            "in the future that has not arrived yet. Moving it would rewrite what the record " +
+            "says happened. If the seat needs somebody in it again, assign it.",
         ],
       ),
     ],

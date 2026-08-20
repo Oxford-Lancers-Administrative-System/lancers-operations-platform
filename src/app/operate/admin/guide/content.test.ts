@@ -161,6 +161,16 @@ describe("the rules an administrator will otherwise get wrong", () => {
     expect(answerFor("end-role")).toMatch(/only action that leaves a seat unfilled/i);
   });
 
+  it("says a recorded ending cannot be cancelled, including a scheduled one", () => {
+    // `refuseAlreadyEnded()` refuses whenever `effective_to` is set at all, so a
+    // scheduled ending is as immovable as one that has already happened. Saying
+    // only "an ending that has taken effect" would send somebody to a control
+    // that will refuse them.
+    const answer = answerFor("end-role");
+    expect(answer).toMatch(/cannot be changed or cancelled/i);
+    expect(answer).toMatch(/not even one dated in the future/i);
+  });
+
   it("says restoring returns only what is still in force", () => {
     expect(answerFor("deactivate-restore-access")).toMatch(
       /seat that ended while they were deactivated does not come back/i,
