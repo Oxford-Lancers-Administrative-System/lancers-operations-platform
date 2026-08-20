@@ -11,7 +11,7 @@ a stage or a cross-cutting invariant — not a workflow. Those are listed
 separately below, and that list is where the previous intake's inflation from
 eight items to sixteen came from.
 
-## Proposed inventory — 10 workflows
+## Proposed inventory — 8 workflows
 
 1. `W1` — Read the club calendar: anyone with a browser and no account → they
    know when and where the club's events are. Calendar View and the continuous
@@ -20,33 +20,51 @@ eight items to sixteen came from.
 2. `W2` — Subscribe to the club calendar: anyone → the club's events sit in
    their own Google, Microsoft or Apple calendar and keep themselves up to date
    afterwards. (Brian 2026-08-20, closing D11/Q3)
-3. `W3` — Load a term's events by import: the Secretary holding a term card →
-   a term's worth of drafts on the calendar, each carrying its type's template
-   defaults, with unparseable rows refused individually. (D32, D33, D38, D48,
-   D82; F2)
-4. `W4` — Correct a batch: an operator whose term-card details have changed →
-   the affected events updated after a confirmation naming exactly which ones
-   change, or the batch deleted so it can be re-imported clean. (D34–D36; F2)
-5. `W5` — Draft a single event: an operator with one event to add → a saved
-   draft, visible on the calendar immediately, created from scratch or
-   duplicated from a past event. (D13–D26, D39, D78, D86; F5, F10, F13, F16)
-6. `W6` — Confirm the audience and approve an event: an operator → an approved
-   event with an explicitly confirmed audience, refused if a required field or
-   the audience is missing. (D16, D43–D48; F7)
-7. `W7` — Amend or reschedule an approved event: an operator → the event
+3. `W3` — Load and correct a term's events by import: the Secretary holding a
+   term card → a term's worth of drafts on the calendar, and later the same
+   file re-imported to update exactly the events a confirmation names, or the
+   batch deleted so it can be loaded clean. Unparseable rows are refused
+   individually while the rest proceed. (D32–D38, D48, D82; F2)
+4. `W4` — Draft an event and approve it with its audience: an operator → an
+   approved event with an explicitly confirmed audience, reached from a blank
+   form, a duplicate of a past event, or an imported draft, and refused while a
+   required field or the audience is missing. (D13–D26, D39, D40–D48, D78, D86;
+   F5, F7, F10, F13, F16)
+5. `W5` — Amend or reschedule an approved event: an operator → the event
    changed, its invitations and RSVPs intact, and the invited audience told
    about it — or deliberately not told, recoverably. (D49–D55, OD-1 Q6/Q7/Q9;
    F1)
-8. `W8` — Cancel an event: an operator → the event visibly cancelled with its
+6. `W6` — Cancel an event: an operator → the event visibly cancelled with its
    history and responses retained, everyone invited told by default, and no
    reason shown to them. (D31, D56–D61, D76; F1)
-9. `W9` — See who is coming, and who turned up: an operator or anyone holding
+7. `W7` — See who is coming, and who turned up: an operator or anyone holding
    the club link → the three headline numbers, the audience list with RSVP and
    attendance, and the one-row-per-person participation table. (D62–D65, D68,
    D74; F7, F8)
-10. `W10` — Administer event-type templates: an operator → every future draft of
-    that type arrives with the right defaults, questions and audience already
-    set. (D40–D42, D47, D66, D67; F9)
+8. `W8` — Administer event-type templates: an operator → every future draft of
+   that type arrives with the right defaults, questions and audience already
+   set. (D40–D42, D47, D66, D67; F9)
+
+## What was combined, and what was not
+
+Combined on Brian's instruction of 2026-08-20, "Yeah, combine where possible":
+
+- Import and re-import/mass-delete are now one workflow, `W3`. Same operator,
+  same screen; loading a term and correcting it are the same journey at
+  different points in the term.
+- Drafting and approval are now one workflow, `W4`. Approval remains the
+  endpoint of an imported draft too, so `W3` hands off to `W4` rather than
+  duplicating it.
+
+Not combined, and why:
+
+- **`W1` and `W2`** end in different results — knowing when the next game is,
+  versus having the club's calendar live inside your own for the rest of the
+  season. The second keeps working when nobody visits the site.
+- **`W5` and `W6`** are different actions by decision, not by presentation. D56
+  makes cancellation its own action rather than a round trip through draft, D61
+  removes the approval gate from it, and D60 makes it terminal. Folding them
+  would bury three approved rules.
 
 ## Excluded stages and invariants
 
@@ -55,7 +73,7 @@ actor journey, or a rule that applies across several workflows.
 
 - **The status and occurrence migration.** The portfolio's named first work
   package. Nobody journeys through it and it produces no user-visible result of
-  its own; it is the precondition for W5–W9. It removes
+  its own; it is the precondition for `W4`–`W7`. It removes
   `events_outcome_is_asserted`, narrows `event_status` to three values and
   `event_type` to seven, retires invariant E3 with its
   `events_one_approved_per_alternative_group` index, and applies the
@@ -64,7 +82,7 @@ actor journey, or a rule that applies across several workflows.
   assertion: the sheet opens on a buffer before the event, never closes, and
   saved-versus-untouched is the record of whether the session was assessed. This
   changes an existing Task 04 journey rather than creating one, and it shows up
-  as the "—" rule inside `W9`.
+  as the "—" rule inside `W7`.
 - **The three access tiers.** Public, club link, operator — a rule every
   workflow obeys, not a journey. (D1–D3, D81)
 - **The state vocabulary.** Three stored statuses, `occurred` derived,
@@ -74,23 +92,8 @@ actor journey, or a rule that applies across several workflows.
   choice retained and queryable; internal cancellation reason never shown to
   recipients. (D54, D59, D76)
 - **Everything on Mission 4's side of the seam** — scheduling, sending,
-  channels, retry, diagnostics, reminders and the escalation ladder. `W7` and
-  `W8` decide that a message is owed and to whom; they stop there.
-
-## Two judgment calls worth your ruling
-
-Both are places where the list could legitimately be shorter, and getting the
-count wrong in either direction is what went wrong last time.
-
-1. **`W3` and `W4` could be one workflow.** Both are the operator at the import
-   screen. I split them because the triggers and results genuinely differ — a
-   new term card versus details that firmed up — and because mass delete is the
-   recovery path when a batch was simply wrong. Merging them gives 9.
-2. **`W5` and `W6` could be one workflow.** Drafting and approving are one
-   continuous act for an operator adding a single event. I split them because
-   approval is also the endpoint of `W3`'s imported drafts and has its own
-   refusal behaviour, so it is not exclusively the tail of drafting. Merging
-   them gives 9, or 8 alongside the first merge.
+  channels, retry, diagnostics, reminders and the escalation ladder. `W5` and
+  `W6` decide that a message is owed and to whom; they stop there.
 
 ## Inventory amendments
 
