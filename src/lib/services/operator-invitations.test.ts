@@ -1163,6 +1163,46 @@ describe("the duplicate check the flow starts with", () => {
     });
     expect(candidates.find((c) => c.personId === personId)?.operatorAccount).toBeNull();
   });
+
+  /**
+   * The address an operator signs in with is an address the club holds, and
+   * nothing copies it into `contact_points`. Searching for it used to match
+   * nothing at all, so the screen promised a new record and the send then
+   * failed on the unique index — a refusal `REQ-invitation-states` requires to
+   * be actionable, arriving as a constraint name instead.
+   */
+  it("matches an address that is only ever an operator login", async () => {
+    const invited = await inviteSomebody({ tag: "login-only" });
+    const login = await observer.query<{ login_email: string }>(
+      "select login_email from public.operator_accounts where person_id = $1",
+      [invited.personId],
+    );
+    const address = login.rows[0].login_email;
+
+    // Stage the shape Brian hit: the address survives as the login and as
+    // nothing else. An invitation happens to leave a contact point behind, but
+    // an operator entered any other way — or one whose contact details were
+    // later corrected — has only the login, and that is the case that failed.
+    await observer.query(
+      `delete from public.contact_points
+        where person_id = $1 and lower(btrim(raw_value)) = lower(btrim($2))`,
+      [invited.personId, address],
+    );
+
+    const held = await observer.query<{ count: string }>(
+      `select count(*)::text as count
+         from public.contact_points
+        where person_id = $1 and lower(btrim(raw_value)) = lower(btrim($2))`,
+      [invited.personId, address],
+    );
+    expect(held.rows[0].count, "the address must exist only as a login").toBe("0");
+
+    const candidates = await findOperatorCandidates(administrator(), { email: address });
+    const found = candidates.find((candidate) => candidate.personId === invited.personId);
+
+    expect(found, "an address already in use as a login must match").toBeDefined();
+    expect(found?.matchedOn).toContain("email");
+  });
 });
 
 describe("the operating year is inherited, never asked for", () => {

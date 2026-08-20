@@ -454,7 +454,12 @@ export async function findOperatorCandidates(
          coalesce(lower(btrim(p.known_as)) = w.known_as
                   or lower(btrim(p.given_name)) = w.known_as
                   or am.by_known_as, false) as matched_known_as,
-         coalesce(cm.by_email, false)       as matched_email,
+         -- An address already in use as a login is a match on the address,
+         -- and says so in the same word the other matches use. Without the
+         -- second half of this the search could see the row, print the login
+         -- it had just read, and still report that nobody matched.
+         coalesce(cm.by_email
+                  or lower(btrim(oa.login_email)) = w.email, false) as matched_email,
          coalesce(cm.by_phone, false)       as matched_phone
        from public.people p
        cross join wanted w
@@ -471,6 +476,17 @@ export async function findOperatorCandidates(
           or lower(btrim(p.given_name)) = w.known_as
           or coalesce(am.by_given or am.by_family or am.by_known_as, false)
           or coalesce(cm.by_email or cm.by_phone, false)
+          -- REQ-invitation-states requires a duplicate address to be refused
+          -- with an actionable reason. An operator login is an address the club
+          -- holds, and it is frequently the *only* one it holds: nothing copies
+          -- a login into contact_points, so an administrator who invited
+          -- somebody at their work address and later searched for that address
+          -- was told "Nobody in the club's records matches. A new record will
+          -- be created." The send then failed on the unique index — fail-closed,
+          -- so no duplicate was ever written, but the screen had already
+          -- promised the opposite and the error named a constraint rather than
+          -- the person. Matching here is what makes the refusal actionable.
+          or lower(btrim(oa.login_email)) = w.email
         )
       order by p.family_name nulls last, p.given_name, p.id`,
       [

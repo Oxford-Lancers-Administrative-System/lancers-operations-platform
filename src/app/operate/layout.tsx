@@ -7,7 +7,7 @@ import { describeHeldCoachingSeats, isNarrowAttendanceRecorder } from "@/lib/aut
 import { resolveOperatorAccess } from "@/lib/auth/operator";
 import { signOut } from "../login/actions";
 import OperatorAccountState from "./account-state";
-import { destinationsFor } from "./destinations";
+import { administrationDestinationsFor, destinationsFor } from "./destinations";
 import ShellNav from "./shell-nav";
 
 /** The sidebar's second line, and the caption under the signed-in name. */
@@ -76,6 +76,11 @@ export default async function OperateLayout({ children }: LayoutProps<"/operate"
       <ShellNav
         operatorName={access.operator.displayName}
         destinations={destinationsFor(access.operator.roleCodes)}
+        // LAN-133. Resolved here, on the server, from the verified session —
+        // the same rule the coach shell follows: `ShellNav` is handed the
+        // answer and never the role codes it would have to be trusted with to
+        // work it out. Empty for every operator who does not administer.
+        administration={administrationDestinationsFor(access.operator.roleCodes)}
         sectionLabel={isCoachShell ? COACH_SECTION : OPERATOR_SECTION}
         roleCaption={roleCaption}
       />
