@@ -1,9 +1,10 @@
 # Frozen workflow inventory — M-EVENTS-CALENDAR-TARGET-STATE
 
-**Status: proposed, not yet frozen.** Nothing below is approved until Brian
-approves the numbered list and its count, and that approval is committed here
-and in `state.json`. Once frozen, no agent re-derives, splits, merges, adds,
-removes or renumbers it.
+**Status: FROZEN by Brian Schuster, 2026-08-20.** The IDs, order, names and
+count below are locked. No agent re-derives, splits, merges, adds, removes or
+renumbers them. A discovered gap becomes a proposed amendment in the section
+below and requires Brian's approval and an atomic change to this file and
+`state.json` together.
 
 Definition: one primary actor's end-to-end journey from trigger and entry point
 to one user-visible result. An item with no actor, or no user-visible result, is
@@ -101,6 +102,7 @@ None.
 
 ## Brian approval
 
-- Exact approved list/count:
-- Exact words:
-- Date:
+- **Exact approved list/count:** the eight workflows above, `W1`–`W8`, in this
+  order, after the two merges Brian instructed — count 8.
+- **Exact words:** "freeze it. Let's continue"
+- **Date:** 2026-08-20

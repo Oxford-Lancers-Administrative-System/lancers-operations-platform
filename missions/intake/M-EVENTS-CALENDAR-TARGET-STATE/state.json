@@ -1,6 +1,6 @@
 {
   "mission_id": "M-EVENTS-CALENDAR-TARGET-STATE",
-  "stage": "inventory",
+  "stage": "workflows",
   "baseline": {
     "branch": "main",
     "commit": "bc6770b1c6a616dde041324ef99329b231becfc3"
@@ -13,8 +13,77 @@
     "overview": {
       "words": "okay, that's fair. Fine by me. I'll deal with the consequences of that.",
       "date": "2026-08-20"
+    },
+    "inventory": {
+      "words": "freeze it. Let's continue",
+      "date": "2026-08-20"
     }
   },
-  "workflows": [],
-  "next_action": "Stage 2 - present the numbered workflow inventory in 02-workflows.md for Brian to freeze"
+  "workflows": [
+    {
+      "id": "W1",
+      "name": "Read the club calendar",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W2",
+      "name": "Subscribe to the club calendar",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W3",
+      "name": "Load and correct a term's events by import",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W4",
+      "name": "Draft an event and approve it with its audience",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W5",
+      "name": "Amend or reschedule an approved event",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W6",
+      "name": "Cancel an event",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W7",
+      "name": "See who is coming, and who turned up",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W8",
+      "name": "Administer event-type templates",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    }
+  ],
+  "next_action": "Stage 3 - draft the W1 specification and mockup, grounded in the running application"
 }
