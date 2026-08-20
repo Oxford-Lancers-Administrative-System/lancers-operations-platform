@@ -17,6 +17,7 @@ import {
   AUTO_MERGE_CLASSES,
   OWNER_GATED_CLASSES,
   validatePacket,
+  validateWorkflowInventory,
 } from "../scripts/mission/lib/packet.mjs";
 import { promoteRule, readRules, validateRule } from "../scripts/mission/lib/owner-rules.mjs";
 
@@ -136,6 +137,40 @@ describe("mission packet validation", () => {
       requirements: [{ id: "REQ-x", text: "x", source_id: "SRC-missing" }],
     };
     expect(validatePacket(orphaned).join("\n")).toMatch(/reference a declared source/);
+  });
+
+  it("requires every packet-completeness section or an explicit not-applicable reason", () => {
+    for (const section of [
+      "workflow_matrix",
+      "delegated_to_mission_lead",
+      "nonblocking_unknowns",
+      "escalation_rules",
+      "repository_drift",
+      "blockers",
+    ]) {
+      const incomplete: Record<string, unknown> = structuredClone(packet);
+      delete incomplete[section];
+      expect(validatePacket(incomplete).join("\n")).toContain(`${section} is required`);
+    }
+
+    const notApplicable = {
+      ...packet,
+      delegated_to_mission_lead: {
+        status: "not_applicable",
+        reason: "Synthetic mission has no delegated product decisions.",
+      },
+    };
+    expect(validatePacket(notApplicable)).toEqual([]);
+  });
+
+  it("requires the workflow matrix to match the separately frozen inventory exactly", () => {
+    expect(validateWorkflowInventory(packet, ["W1"])).toEqual([]);
+    expect(validateWorkflowInventory(packet, ["W1", "W2"]).join("\n")).toMatch(
+      /must match the frozen inventory exactly/,
+    );
+    expect(
+      validateWorkflowInventory({ ...packet, workflow_matrix: [{ id: "W2" }] }, ["W1"]),
+    ).toEqual([expect.stringMatching(/expected W1; received W2/)]);
   });
 
   it("requires a status and a pinned baseline commit, and refuses executing a not_ready packet", async () => {

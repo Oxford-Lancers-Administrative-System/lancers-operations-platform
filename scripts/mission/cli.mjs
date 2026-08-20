@@ -188,9 +188,16 @@ async function main() {
 
     case "validate": {
       if (!flags.packet) fail("Usage: mission validate --packet <file>");
-      const { validatePacket } = await import("./lib/packet.mjs");
+      const { validatePacket, validateWorkflowInventory } = await import("./lib/packet.mjs");
       const packet = readJson(flags.packet);
       const defects = validatePacket(packet);
+      if (flags.inventory) {
+        const inventoryText = fs.readFileSync(flags.inventory, "utf8");
+        const inventoryIds = [...inventoryText.matchAll(/^\s*\d+\.\s+`(W[1-9][0-9]*)`\s+—/gm)].map(
+          (match) => match[1],
+        );
+        defects.push(...validateWorkflowInventory(packet, inventoryIds));
+      }
       if (defects.length > 0) {
         fail(`Invalid packet:\n- ${defects.join("\n- ")}`);
       }
@@ -200,7 +207,7 @@ async function main() {
         );
       }
       console.log(
-        `Packet ${packet.mission_id} v${packet.packet_version} is valid and approved (baseline ${packet.baseline.commit.slice(0, 12)}). No state was written.`,
+        `Packet ${packet.mission_id} v${packet.packet_version} is valid and approved (baseline ${packet.baseline.commit.slice(0, 12)}).${flags.inventory ? " Frozen workflow inventory matches." : ""} No state was written.`,
       );
       break;
     }

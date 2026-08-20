@@ -250,7 +250,9 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
       expect(runbook, `the runbook must cover ${clause}`).toMatch(clause);
     }
     const agreement = flat(read("AGENTS.md"));
-    expect(agreement).toMatch(/Exactly two user-invoked workflows and two subagents are approved/i);
+    expect(agreement).toMatch(
+      /Exactly three user-invoked workflows and two subagents are approved/i,
+    );
     expect(agreement).toMatch(
       /No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to production/i,
     );
