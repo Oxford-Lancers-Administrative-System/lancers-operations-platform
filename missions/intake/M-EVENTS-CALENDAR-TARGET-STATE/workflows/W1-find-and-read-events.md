@@ -223,7 +223,7 @@ path — and the public surfaces must keep that property rather than re-earn it.
 
 ## Repository reconciliation
 
-`src/app/operate/events/calendar/page.tsx` on `main` at `bc6770b` gates the
+`src/app/operate/events/calendar/page.tsx` on `main` at `2072ecd` gates the
 calendar behind an operator session and records why in its own comment:
 _"Opening a calendar to unauthenticated visitors would be a change to the
 security posture rather than a calendar feature, and `AGENTS.md` reserves that

@@ -3,7 +3,7 @@
   "stage": "workflows",
   "baseline": {
     "branch": "main",
-    "commit": "bc6770b1c6a616dde041324ef99329b231becfc3"
+    "commit": "2072ecded1d2b6cc28701fd634a28112b9e16a50"
   },
   "approvals": {
     "boundary": {

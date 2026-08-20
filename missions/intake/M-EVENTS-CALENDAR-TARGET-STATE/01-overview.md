@@ -278,7 +278,7 @@ for this overview are the
 (published 2026-08-17), the
 [Release One Mission Portfolio](https://app.notion.com/p/3bb488886d578126a88cdd747f590a01)
 (approved 2026-08-19), and repository `main` at
-`bc6770b1c6a616dde041324ef99329b231becfc3`.
+`2072ecded1d2b6cc28701fd634a28112b9e16a50`.
 
 ## Brian approval
 

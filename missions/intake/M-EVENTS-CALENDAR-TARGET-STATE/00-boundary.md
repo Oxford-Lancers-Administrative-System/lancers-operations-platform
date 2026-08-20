@@ -11,7 +11,7 @@
   "Owner-approved direction"; packet and execution "No packet"; next step
   "Commission Mission Intake after Mission 1 completes". Page fetched
   2026-08-20.
-- **Observed `main` SHA:** `bc6770b1c6a616dde041324ef99329b231becfc3`
+- **Observed `main` SHA:** `2072ecded1d2b6cc28701fd634a28112b9e16a50`
 
 ## Primary coverage
 
@@ -122,3 +122,22 @@ another mission.
 - **Left open by the same decision:** what the public calendar and its feeds
   carry versus what stays behind the club link. Recorded as open item 1 in
   `01-overview.md` and settled when the calendar workflow is specified.
+
+## Baseline drift — 2026-08-20
+
+The baseline moved from `bc6770b1c6a616dde041324ef99329b231becfc3` to
+`2072ecded1d2b6cc28701fd634a28112b9e16a50` during intake, and the ledger branch
+was rebased onto it so that the packet pins a real `main`.
+
+**Assessment: tolerated, no re-intake.** The two commits are
+`ea9a2fb` (Administration holders, dates and limits — Mission 1's work) and
+`2072ecd` (Playwright added as a development dependency). Neither changes
+meaning, feasibility, invariants, interfaces or acceptance evidence for this
+mission:
+
+- No file under `src/app/operate/events/`, `supabase/migrations/`,
+  `src/lib/services/calendar.ts` or `src/lib/services/events.ts` was touched.
+- `src/lib/club-time.ts` gained `formatClubDay` and `addClubDays` additively;
+  `todayInClubZone`, which the calendar uses, is unchanged.
+
+Every code reading recorded in this ledger was re-verified against the new SHA.
