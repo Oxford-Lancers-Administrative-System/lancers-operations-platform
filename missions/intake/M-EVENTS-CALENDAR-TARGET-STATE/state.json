@@ -1,6 +1,6 @@
 {
   "mission_id": "M-EVENTS-CALENDAR-TARGET-STATE",
-  "stage": "overview",
+  "stage": "inventory",
   "baseline": {
     "branch": "main",
     "commit": "bc6770b1c6a616dde041324ef99329b231becfc3"
@@ -9,8 +9,12 @@
     "boundary": {
       "words": "I approve the name. Keep the approved split. Mission 2 should just be on those things. Delivery belongs to the other one.",
       "date": "2026-08-20"
+    },
+    "overview": {
+      "words": "okay, that's fair. Fine by me. I'll deal with the consequences of that.",
+      "date": "2026-08-20"
     }
   },
   "workflows": [],
-  "next_action": "Stage 1 \u2014 draft 01-overview.md from the Authority Manifest and Task 01 brief, and obtain Brian's overview approval"
+  "next_action": "Stage 2 - present the numbered workflow inventory in 02-workflows.md for Brian to freeze"
 }

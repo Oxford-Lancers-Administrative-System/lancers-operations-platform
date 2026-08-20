@@ -281,5 +281,9 @@ for this overview are the
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- **Exact words:** "okay, that's fair. Fine by me. I'll deal with the
+  consequences of that." (approving the Mission 4 seam as written, after the
+  escalation ladder — WhatsApp, WhatsApp, email, escalation — was confirmed as
+  Mission 4's coverage under R6 and R12, and after "Okay, yes, we definitely
+  want calendar distribution" scoped the feeds.)
+- **Date:** 2026-08-20
