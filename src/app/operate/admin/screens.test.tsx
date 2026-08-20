@@ -174,6 +174,7 @@ function catalogueRole(overrides: Partial<CatalogueRole> = {}): CatalogueRole {
     label: "President",
     scope: "committee_year",
     admitsMultipleHolders: false,
+    scheduled: [],
     vacant: holders.length === 0,
     cycleMissing: false,
     ...overrides,

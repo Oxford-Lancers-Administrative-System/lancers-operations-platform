@@ -138,6 +138,7 @@ describe("holders", () => {
     displayName: "Clint Grohmann",
     scheduled: false,
     accessDeactivated: false,
+    effectiveTo: null as string | null,
     operatorState: "active" as const,
     ...overrides,
   });
@@ -164,14 +165,74 @@ describe("holders", () => {
     );
   });
 
-  it("marks a holder whose seat has not begun", () => {
-    expect(
-      describeHolders({
+  /**
+   * The four states Brian fixed on 20 August 2026. Each is asserted for what a
+   * reader can tell from the cell, and each asserts the *current* answer is
+   * still there — the scheduled half is context, and a version that replaced
+   * the headline with it would pass a looser test.
+   */
+  describe("the four states of a seat", () => {
+    it("shows a holder alone when nothing is scheduled", () => {
+      const text = describeHolders({
         vacant: false,
         cycleMissing: false,
-        holders: [holder({ scheduled: true })],
-      }),
-    ).toContain("not started yet");
+        holders: [holder({})],
+        scheduled: [],
+      });
+
+      expect(text).toBe("Clint Grohmann");
+    });
+
+    it("shows a holder and when the seat empties", () => {
+      const text = describeHolders({
+        vacant: false,
+        cycleMissing: false,
+        holders: [holder({ effectiveTo: "2026-08-27" })],
+        scheduled: [],
+      });
+
+      expect(text).toContain("Clint Grohmann");
+      expect(text).toContain("ends 27 Aug 2026");
+      expect(text).not.toContain(NOT_ASSIGNED);
+    });
+
+    it("shows Not assigned and who is coming, in that order", () => {
+      const text = describeHolders({
+        vacant: true,
+        cycleMissing: false,
+        holders: [],
+        scheduled: [{ displayName: "Alwyn Cholmondley", effectiveFrom: "2026-09-01" }],
+      });
+
+      expect(text).toContain(NOT_ASSIGNED);
+      expect(text).toContain("Alwyn Cholmondley from 1 Sept 2026");
+      expect(text.indexOf(NOT_ASSIGNED)).toBeLessThan(text.indexOf("Alwyn Cholmondley"));
+    });
+
+    it("shows Not assigned alone when nobody is coming", () => {
+      expect(
+        describeHolders({ vacant: true, cycleMissing: false, holders: [], scheduled: [] }),
+      ).toBe(NOT_ASSIGNED);
+    });
+
+    it("still says a deactivated holder holds the seat, and when it ends", () => {
+      const text = describeHolders({
+        vacant: false,
+        cycleMissing: false,
+        holders: [
+          holder({
+            accessDeactivated: true,
+            operatorState: "deactivated" as const,
+            effectiveTo: "2026-09-30",
+          }),
+        ],
+        scheduled: [],
+      });
+
+      expect(text).toContain("access deactivated");
+      expect(text).toContain("ends 30 Sept 2026");
+      expect(text).not.toContain(NOT_ASSIGNED);
+    });
   });
 });
 

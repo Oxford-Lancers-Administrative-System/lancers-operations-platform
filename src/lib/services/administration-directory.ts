@@ -79,7 +79,19 @@ export interface CatalogueRole {
   readonly scope: "committee_year" | "season";
   readonly admitsMultipleHolders: boolean;
   readonly holders: readonly CatalogueHolder[];
-  /** Nobody holds this seat this year — the **Not assigned** state. */
+  /**
+   * Assignments recorded to begin later — never holders, and never counted
+   * towards `vacant`.
+   *
+   * Brian, 20 August 2026, on the roles index: "I like showing the successors
+   * and also showing people when they go." A seat nobody holds today whose
+   * successor starts on 1 September is still Not assigned today, and saying
+   * only that leaves an administrator to discover the cover — or the gap — on
+   * the day it happens. The current answer stays the headline and this is the
+   * context beside it.
+   */
+  readonly scheduled: readonly CatalogueHolder[];
+  /** Nobody holds this seat **today** — the **Not assigned** state. */
   readonly vacant: boolean;
   /**
    * True when the operating year this seat hangs off does not exist yet, so
@@ -208,7 +220,6 @@ export async function readRoleCatalogue(operator: ResolvedOperator | null): Prom
          left join cycles c on c.scope = r.scope
          left join public.role_assignments ra
                 on ra.role_id = r.id
-               and ra.effective_from <= current_date
                and (ra.effective_to is null or ra.effective_to > current_date)
          left join public.people p on p.id = ra.person_id
          left join public.operator_accounts oa on oa.person_id = ra.person_id
@@ -221,20 +232,27 @@ export async function readRoleCatalogue(operator: ResolvedOperator | null): Prom
 }
 
 /**
- * Rows to groups. One row per seat with no holder, one row per holder
- * otherwise — a `left join`, so a vacant seat is present and empty rather than
- * absent.
+ * Rows to groups. One row per seat with nobody attached, one row per assignment
+ * otherwise — a `left join`, so a seat nobody holds is present and empty rather
+ * than absent.
+ *
+ * Each seat's rows are split in two on the way past. An assignment already in
+ * force is a **holder**; one recorded to start later is **scheduled**, and the
+ * split is what keeps "who holds this seat today" from being answered by
+ * somebody who does not hold it yet. Only holders decide `vacant`.
  */
 function groupCatalogue(rows: readonly CatalogueRow[]): CatalogueGroup[] {
   const groups: { code: string; label: string; roles: CatalogueRole[] }[] = [];
-  const seen = new Map<string, CatalogueHolder[]>();
+  const seen = new Map<string, { holders: CatalogueHolder[]; scheduled: CatalogueHolder[] }>();
 
   for (const row of rows) {
-    let holders = seen.get(row.role_id);
+    let seat = seen.get(row.role_id);
 
-    if (!holders) {
-      holders = [];
-      seen.set(row.role_id, holders);
+    if (!seat) {
+      const holders: CatalogueHolder[] = [];
+      const scheduled: CatalogueHolder[] = [];
+      seat = { holders, scheduled };
+      seen.set(row.role_id, seat);
 
       const role: CatalogueRole = {
         id: row.role_id,
@@ -243,6 +261,7 @@ function groupCatalogue(rows: readonly CatalogueRow[]): CatalogueGroup[] {
         scope: row.scope,
         admitsMultipleHolders: !row.is_constitutional_office && !row.is_single_holder_seat,
         holders,
+        scheduled,
         // Recomputed below, once the whole result is in: a seat with no holder
         // arrives as one row with null assignment columns, which is
         // indistinguishable from "not read yet" while the rows are streaming.
@@ -256,7 +275,8 @@ function groupCatalogue(rows: readonly CatalogueRow[]): CatalogueGroup[] {
     }
 
     if (row.assignment_id !== null && row.person_id !== null) {
-      holders.push(toCatalogueHolder(row));
+      const entry = toCatalogueHolder(row);
+      (entry.scheduled ? seat.scheduled : seat.holders).push(entry);
     }
   }
 

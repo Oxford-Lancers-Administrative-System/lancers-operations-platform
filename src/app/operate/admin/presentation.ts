@@ -222,12 +222,36 @@ export const NOT_ASSIGNED = "Not assigned";
 /**
  * Who holds one seat, as the Roles index says it.
  *
- * Three facts have to survive being compressed into one cell, and each of them
- * is a requirement rather than a nicety:
+ * Four states, and Brian fixed all four on 20 August 2026 after seeing the
+ * first two: "Don't do the strict version. I like showing the successors and
+ * also showing people when they go."
+ *
+ * | Situation                     | Reads                                    |
+ * | ----------------------------- | ---------------------------------------- |
+ * | Filled, no end date           | the holder alone                         |
+ * | Filled, with an end recorded  | the holder, and when it ends             |
+ * | Vacant, successor recorded    | Not assigned, and who starts when        |
+ * | Vacant, nobody recorded       | Not assigned alone                       |
+ *
+ * **The current answer is always first, and is never replaced.** A seat nobody
+ * holds today reads `Not assigned` even when a successor starts next week, and
+ * a seat held today names its holder even though the assignment ends on Friday.
+ * `REQ-admin-surfaces` asks the top level for current holders and that is what
+ * the head of every cell is; the scheduled half is context after it, never
+ * instead of it.
+ *
+ * The reason it is there at all is the one Brian gave for wanting both
+ * directions: he does not want to find out that a seat is uncovered on the day
+ * it empties, and he does not want to find out that somebody has left after
+ * they have gone. Both are the same complaint about being surprised by a date
+ * the club already knew.
+ *
+ * Three further facts survive from before and are unchanged:
  *
  *   * **Not assigned** is a real state and the *only* thing that produces it is
- *     an ended role (`DEC-account-state-separation`: "only End role creates a
- *     Not assigned vacancy"). It is never what a deactivated account looks like.
+ *     a seat nobody holds today (`DEC-account-state-separation`: "only End role
+ *     creates a Not assigned vacancy"). It is never what a deactivated account
+ *     looks like.
  *   * A holder whose operator access is deactivated is still the holder, and
  *     says so: `REQ-deactivate-and-reinstate` requires role detail to show "that
  *     the current holder's operator access is deactivated" instead of a vacancy,
@@ -241,24 +265,39 @@ export function describeHolders(role: {
   readonly cycleMissing: boolean;
   readonly holders: readonly {
     readonly displayName: string;
+    readonly effectiveTo: string | null;
     readonly scheduled: boolean;
     readonly accessDeactivated: boolean;
     readonly operatorState: OperatorAccountState | null;
   }[];
+  /** Recorded to start later. Never holders, and never a substitute for one. */
+  readonly scheduled?: readonly {
+    readonly displayName: string;
+    readonly effectiveFrom: string;
+  }[];
 }): string {
   if (role.cycleMissing) return "No season under way";
-  if (role.vacant) return NOT_ASSIGNED;
 
-  return role.holders
-    .map((holder) => {
-      const notes: string[] = [];
-      if (holder.scheduled) notes.push("not started yet");
-      if (holder.accessDeactivated) notes.push("access deactivated");
-      return notes.length === 0
-        ? holder.displayName
-        : `${holder.displayName} (${notes.join(", ")})`;
-    })
+  const arriving = (role.scheduled ?? [])
+    .map((entry) => `${entry.displayName} from ${formatDay(entry.effectiveFrom)}`)
     .join(", ");
+
+  const current = role.vacant
+    ? NOT_ASSIGNED
+    : role.holders
+        .map((holder) => {
+          const notes: string[] = [];
+          if (holder.accessDeactivated) notes.push("access deactivated");
+          // Half-open, and shown the way `describePeriod` shows it, so the two
+          // renderings of the same date cannot drift apart.
+          if (holder.effectiveTo) notes.push(`ends ${formatDay(holder.effectiveTo)}`);
+          return notes.length === 0
+            ? holder.displayName
+            : `${holder.displayName} (${notes.join(", ")})`;
+        })
+        .join(", ");
+
+  return arriving === "" ? current : `${current} \u00b7 ${arriving}`;
 }
 
 // ---------------------------------------------------------------------------

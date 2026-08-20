@@ -327,6 +327,45 @@ describe("the role catalogue", () => {
     expect(seat.holders.map((holder) => holder.personId)).not.toContain(person);
   });
 
+  /**
+   * Brian, 20 August 2026: the index shows the current answer *and* the
+   * scheduled transition either side of it. The two cases below did not exist
+   * before that ruling, and both are real in his own data — a Head Coach whose
+   * appointment ends this month, and coaching seats whose holders start in
+   * September.
+   */
+  it("carries a scheduled arrival separately from the holders", async () => {
+    const successor = await insertPerson("successor");
+    await giveRole(successor, "quarterbacks_coach", { from: offset(12) });
+
+    const seat = await seatNamed("quarterbacks_coach");
+
+    expect(seat.holders.map((holder) => holder.personId)).not.toContain(successor);
+    expect(seat.scheduled.map((entry) => entry.personId)).toContain(successor);
+  });
+
+  it("is still vacant today when only a successor is recorded", async () => {
+    const successor = await insertPerson("successor-only");
+    await giveRole(successor, "special_teams_coach", { from: offset(20) });
+
+    const seat = await seatNamed("special_teams_coach");
+
+    expect(seat.vacant, "a successor is not a holder").toBe(true);
+    expect(seat.scheduled).toHaveLength(1);
+  });
+
+  it("keeps the end date on a holder whose seat is scheduled to empty", async () => {
+    const leaving = await insertPerson("leaving");
+    await giveRole(leaving, "defensive_backs_coach", { from: offset(-10), to: offset(7) });
+
+    const seat = await seatNamed("defensive_backs_coach");
+    const mine = seat.holders.find((holder) => holder.personId === leaving);
+
+    expect(mine, "still the holder until the end date").toBeDefined();
+    expect(mine?.effectiveTo).toBe(offset(7));
+    expect(seat.vacant).toBe(false);
+  });
+
   it("keeps a deactivated holder as the holder, and says their access is off", async () => {
     const personId = await insertPerson("deactivated-flag");
     await giveOperatorAccount(personId, { active: false });
