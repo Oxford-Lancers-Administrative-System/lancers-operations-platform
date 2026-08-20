@@ -827,18 +827,44 @@ describe.runIf(configured)("the bootstrap, run against local Supabase", () => {
     // write `updated_at`, `invited_at` and the two delivery-failure columns
     // without inserting anything, so a row-count fingerprint could report
     // `wroteNothing: true` with rows genuinely changed.
-    const before = await fingerprint(client);
-
+    //
+    // The probe inserts its own row and then updates it, rather than updating
+    // whatever the seed happens to have left in a table. The first version of
+    // this test ran `update public.operator_accounts set updated_at = now()`
+    // and passed locally and failed in CI — where that table is empty, because
+    // the workflow seeds the dataset and the Auth user but never links an
+    // operator. An assertion about a guard that quietly becomes vacuous when
+    // the ambient data changes is worse than no assertion, so this one owns
+    // every row it depends on.
+    //
+    // All of it inside a transaction that always rolls back: this suite shares
+    // one database, and a probe that leaves a row behind is a probe that breaks
+    // somebody else's count.
     await client.query("begin");
-    await client.query("update public.operator_accounts set updated_at = now()");
-    const during = await fingerprint(client);
-    await client.query("rollback");
+    try {
+      const before = await fingerprint(client);
 
-    expect(during).not.toEqual(before);
-    // Same row count, different content — which is exactly the case a count
-    // could not see.
-    expect(rowCounts(during)).toEqual(rowCounts(before));
-    expect(await fingerprint(client)).toEqual(before);
+      await client.query("insert into public.people (given_name, family_name) values ($1, $2)", [
+        MARKER,
+        "R2probe",
+      ]);
+      const inserted = await fingerprint(client);
+      expect(inserted).not.toEqual(before);
+
+      // The count-neutral write — the shape the old fingerprint could not see.
+      const updated = await client.query(
+        "update public.people set known_as = $1 where given_name = $2 and family_name = $3",
+        ["Changed", MARKER, "R2probe"],
+      );
+      expect(updated.rowCount, "the probe must have updated its own row").toBe(1);
+
+      const after = await fingerprint(client);
+
+      expect(rowCounts(after), "the row counts must be identical").toEqual(rowCounts(inserted));
+      expect(after, "the content digest must not be").not.toEqual(inserted);
+    } finally {
+      await client.query("rollback");
+    }
   }, 60_000);
 
   it("creates no Auth login during a dry run, which is why the digest need not cover auth", async () => {
