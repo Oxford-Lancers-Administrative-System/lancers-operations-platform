@@ -71,6 +71,11 @@ Bounded by `00-boundary.md`, which Brian approved on 2026-08-20.
   View and the continuous academic-year Oxford View; per-type shared colors;
   grouped list projections; Europe/London time entry shown explicitly.
   (D1–D11, D83–D86)
+- **Calendar distribution — subscription feeds for Google, Microsoft and
+  Apple.** Anyone on the website clicks a button and the club calendar is saved
+  into their own calendar. The subscription is **live**: an event created,
+  changed or cancelled afterwards updates in the subscriber's calendar without
+  them doing anything. This closes Q3 and scopes D11. (Brian, 2026-08-20)
 - **The event page and the participation view.** Three headline numbers,
   audience list with RSVP and attendance, discrepancy marker, operator-only
   delivery flag and exit link, and the full one-row-per-person participation
@@ -106,24 +111,46 @@ Bounded by `00-boundary.md`, which Brian approved on 2026-08-20.
 This is the boundary the previous intake crossed silently, so it is stated once
 here and every workflow inherits it.
 
-**Mission 2 owns the event-side fact**: that a change or cancellation is
-material, whether it notifies, who is in the audience, what the recipient is
-being told about, and that the operator's choice and the actor are recorded.
-**Mission 4 owns the machinery**: when a message is scheduled, how it is sent,
-what happens when it fails, retry, diagnostics, and the reminder and escalation
-streams.
+**Mission 2 decides that a message is owed, and to whom. Mission 4 makes a
+message arrive.**
 
-Concretely: D54's notify choice, D55's per-field notify defaults, OD-1/Q9's
-"the whole invited audience is re-notified", D58's cancellation default and its
-silent override, and D53's re-notify action are **Mission 2**. The dispatch that
-results, and Task 02 D5's rule that undelivered jobs are cancelled on
-return-to-draft while nothing already sent is recalled, are **Mission 4**.
+Mission 2 is the club's rules about its own events: this change is material,
+so people should hear about it; these people are the audience; the operator
+chose to notify (or not); a cancellation tells everyone by default. It produces
+a _fact_ — someone is owed a message about this event — and records who decided
+it and when.
 
-The chase thresholds — 2 days for Practice, S&C, Chalk, Recruitment and
-Meeting; 7 for Game; 5 for Social (D75, D77) — are _event-type configuration_
-this mission stores and exposes, and _chase behavior_ Mission 4 executes.
-OD-1/Q6 requires that rescheduling recompute the threshold against the new
-date; the recomputation is Mission 2's, the chasing is Mission 4's.
+Mission 4 is the machine that discharges that obligation: it picks the moment,
+formats and sends the message, knows which number or address it went to, sees
+that it was delivered or failed, retries, and runs the chase and escalation
+streams over people who have not answered.
+
+**The test, when a case is unclear:** _would the answer change if the club
+switched from WhatsApp to email tomorrow?_ If yes, it is Mission 4. If the rule
+holds regardless of how the message travels, it is Mission 2.
+
+| The question                                                      | Owner                                     |
+| ----------------------------------------------------------------- | ----------------------------------------- |
+| Is this change material enough to tell people?                    | Mission 2 (D55)                           |
+| Does the operator want this particular change to notify?          | Mission 2 (D54)                           |
+| Who is told — everyone invited, or only some of them?             | Mission 2 (OD-1/Q9: everyone)             |
+| Does a cancellation tell people by default? Can it be silent?     | Mission 2 (D58)                           |
+| Can a missed notification be sent again?                          | Mission 2 owns the re-notify action (D54) |
+| When is the invitation actually sent, and the follow-up after it? | Mission 4                                 |
+| What does the message say, in which template, over which channel? | Mission 4                                 |
+| Did it reach this person's number? Did it fail? Retry?            | Mission 4                                 |
+| Who has not answered yet, and when do we chase them?              | Mission 4                                 |
+| What happens to undelivered jobs when the event returns to draft? | Mission 4 (Task 02 D5)                    |
+
+Two shared values sit exactly on the line, and the split is the same in both:
+
+- **The chase thresholds** — 2 days for Practice, S&C, Chalk, Recruitment and
+  Meeting; 7 for Game; 5 for Social (D75, D77). Mission 2 stores them as
+  event-type configuration and recomputes the threshold against the new date
+  when an event is rescheduled (OD-1/Q6). Mission 4 does the chasing.
+- **The delivery flag on the event page** (D65). Mission 2 owns that a problem
+  indicator appears at the operator tier and nowhere else; Mission 4 owns what
+  the indicator is reporting.
 
 ### Privacy and capability boundary
 
@@ -143,10 +170,14 @@ link, not a public URL. Authorization is enforced in the service layer, never
 by route visibility. Drafts are visible on the calendar the moment they are
 saved (D4) and there are no private or hidden events (D5).
 
-Two consequences worth naming because they are new: the calendar becomes the
+Three consequences worth naming because they are new. The calendar becomes the
 application's first genuinely anonymous read surface, so viewing must be
-side-effect-free for traffic that has no session at all; and a public event
-page must expose event facts without exposing who was invited.
+side-effect-free for traffic that has no session at all. A public event page
+must expose event facts without exposing who was invited. And a subscription
+feed is a long-lived URL that leaves the application entirely — it sits in
+someone's phone for a year, is re-fetched without a session, and may be shared
+or indexed — so whatever the public feed carries should be treated as published,
+which is why open item 1 below has to be settled before the feed is built.
 
 ### State vocabulary
 
@@ -216,10 +247,13 @@ decision.
 Recorded so they are not lost, and resolved before or during Stage 3 rather
 than assumed:
 
-1. **Calendar distribution — feed, subscription, Google/Microsoft/Apple.**
-   D11 says it is wanted and unscoped; Q3 is open with Brian. A design review
-   during the failed intake showed calendar-feed actions, but that review is
-   provenance, not authority. **Question for Brian, below.**
+1. **What the public calendar and its feeds carry, versus what stays behind the
+   club link.** Brian on 2026-08-20: "We will confirm what goes into the public
+   versus the private calendar." D5 locks that there are no private or hidden
+   _events_ — every event exists on the calendar — so this is a question about
+   how much of each event a stranger sees, and whether every type appears in the
+   public feed. Resolved when the calendar workflow is specified at Stage 3, not
+   assumed here.
 2. **The discrepancy marker's shape** — column, flag, or derived from the two
    columns (D64, Q4, Brian). Resolvable at Stage 3 as a workflow decision.
 3. **Players and coaches as separate sublists on the participation view**

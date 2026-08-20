@@ -99,3 +99,26 @@ Mission 4. Brian was offered the explicit amendment and declined it.
 - **What it approved:** the mission id `M-EVENTS-CALENDAR-TARGET-STATE`, and
   option (a) of the boundary question put to him — keep the portfolio's approved
   split, with per-event RSVP delivery remaining Mission 4's.
+
+## Amendment 1 — calendar distribution, 2026-08-20
+
+Calendar distribution is **in scope**: live subscription feeds for Google,
+Microsoft and Apple, reachable by a button on the public website.
+
+The approved brief left this open — D11 records it as "wanted and unscoped" and
+Q3 carries it as an open question owned by Brian — so scoping it closes Q3
+inside Task 01's own boundary ("calendar readership and the three access
+tiers", brief §1). It is not a portfolio amendment and takes nothing from
+another mission.
+
+- **Brian's exact words:** "Okay, yes, we definitely want calendar distribution.
+  There should be a Google, Microsoft, and Apple feed that automatically goes
+  through and is included. That should be a normal part of this. Anyone should
+  be able to come up to the website and click a button, and it's saved into
+  their calendar. There's a public calendar. We will confirm what goes into the
+  public versus the private calendar. […] Any time the calendar is created, it
+  should automatically have the update, whatever that is."
+- **Date:** 2026-08-20
+- **Left open by the same decision:** what the public calendar and its feeds
+  carry versus what stays behind the club link. Recorded as open item 1 in
+  `01-overview.md` and settled when the calendar workflow is specified.
