@@ -32,6 +32,7 @@
 import { describe, expect, it } from "vitest";
 
 import { resolveLocalDatabaseUrl } from "../scripts/lib/local-db.mjs";
+import { isLoopbackDatabaseUrl } from "../scripts/production/showcase/target.mjs";
 import { APPROVED_HOSTED_TARGET, resolveRuntimeDatabaseUrl } from "@/lib/db/runtime-target";
 import { assertLocalDatabaseUrl } from "@/lib/db/url";
 
@@ -61,6 +62,11 @@ const CASES: readonly string[] = [
   "postgresql://postgres:pw@10.0.0.7:5432/postgres",
   "postgresql://postgres:pw@db.oxfordlancers.example:5432/postgres",
   "postgresql://u:p@localhost.evil.example:5432/db",
+  // Loopback by RFC 6761 convention, and still not what the database guards
+  // accept. `src/lib/auth/recovery.ts` allows `*.localhost` for an HTTP origin;
+  // an origin rule and a database rule are two different rules, and all three
+  // database guards use the exact four-name set.
+  "postgresql://u:p@app.localhost:5432/db",
   "postgresql://u:p@127.0.0.1.nip.io:5432/db",
   "host=db.example port=5432 user=postgres",
   "not a url at all",
@@ -186,5 +192,60 @@ describe("the runtime policy agrees with both guards outside Cloud Run", () => {
         ),
       ).toBe("refused");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4 — the owner-procedure guard joins the parity too
+// ---------------------------------------------------------------------------
+
+describe("the owner-run procedures' local guard agrees with both of them", () => {
+  /**
+   * `scripts/production/showcase/target.mjs` is the **fourth** copy of the
+   * loopback rule, and until LAN-135 it was referenced by no test at all.
+   *
+   * That mattered more than it looks. `resolveTarget` is what decides which
+   * database an owner-run procedure opens when there is no `--confirm-target`,
+   * and LAN-135 made it the connection path for the club's founding-operator
+   * rows. It inspected only the hostname, so
+   *
+   *     postgresql://postgres:pw@127.0.0.1:5432/postgres?host=elsewhere.example
+   *
+   * read as loopback, printed "local database 127.0.0.1:5432/postgres", and
+   * opened a database off the machine — while the two guards it deliberately
+   * does *not* use both refuse that string by name. Found by independent
+   * review of LAN-135 (finding R1).
+   *
+   * The point of pinning it here rather than in its own file is that the whole
+   * safety argument for owner-run procedures is "it opens its own connection
+   * instead of weakening the shared guard". That argument is only worth
+   * anything while its own connection is at least as strict.
+   */
+  it.each(CASES)("agrees about %s", (value) => {
+    const owner = isLoopbackDatabaseUrl(value) ? "accepted" : "refused";
+    const scripts = verdict((url) => resolveLocalDatabaseUrl(url), value);
+
+    expect(owner).toBe(scripts);
+  });
+
+  it("refuses query and fragment smuggling by name, not incidentally", () => {
+    // Pins the reason. A future change that drops the check but still happens
+    // to reject these for some other reason fails here.
+    const local = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
+    expect(isLoopbackDatabaseUrl(local)).toBe(true);
+
+    for (const smuggled of [
+      `${local}?host=203.0.113.9`,
+      `${local}?port=5432`,
+      `${local}?user=postgres`,
+      `${local}#?host=203.0.113.9`,
+      `${local}?`.slice(0, -1) + "#fragment",
+    ]) {
+      expect(isLoopbackDatabaseUrl(smuggled), smuggled).toBe(false);
+    }
+  });
+
+  it("refuses the approved production target, like every other local path", () => {
+    expect(isLoopbackDatabaseUrl(APPROVED_HOSTED)).toBe(false);
   });
 });

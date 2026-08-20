@@ -52,19 +52,66 @@ const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 const LOCAL_DEFAULT_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 
 /**
- * Is this connection string pointed at this machine?
+ * Is this connection string pointed at this machine, and only at this machine?
  *
- * Parsed rather than pattern-matched, for the reason `isLoopbackBaseUrl` gives
- * in the delivery configuration: `postgres://user@localhost.example.com/db`
- * contains the string "localhost" and is emphatically not loopback.
+ * **This is the fourth copy of the loopback rule in this repository, and until
+ * LAN-135 it was the weakest of the four and the only one no test referenced.**
+ * `src/lib/db/url.ts`, `scripts/lib/local-db.mjs` and `assertApprovedTarget` in
+ * `../connection-smoke-test.mjs` all carry it; the first two are pinned against
+ * each other by `tests/service-layer-guard-parity.test.ts`, and since LAN-135
+ * this one is pinned there too. If you change any of them, change all of them.
+ *
+ * It now applies the same three refusals, in the same order, for the same
+ * reasons:
+ *
+ *  1. **Not a URL at all** — refused. A malformed connection string is still a
+ *     connection string and may still carry a password, so nothing about it is
+ *     echoed anywhere.
+ *
+ *  2. **A query or fragment component** — refused, whatever it contains.
+ *     `pg-connection-string` copies query parameters into the client
+ *     configuration, where `host`, `port` and `user` override the authority, so
+ *
+ *         postgresql://postgres:pw@127.0.0.1:5432/postgres?host=db.example.net
+ *
+ *     reads as loopback here and opens a database somewhere else entirely.
+ *     Refusing the whole component closes that without this file having to
+ *     track which parameters the driver honours. This was the gap: the loader
+ *     that first copied this rule dropped the check, and LAN-135 made the same
+ *     function the connection path for the club's founding-operator rows —
+ *     which would have printed "local database 127.0.0.1" while writing them
+ *     off-machine. Found by independent review of LAN-135 (finding R1).
+ *
+ *  3. **A host that is not loopback**, matched against the same four-name set
+ *     the other three guards use — an exact set, not a suffix rule.
+ *     `postgres://user@localhost.example.com/db` contains the string
+ *     "localhost" and is emphatically not loopback, and `app.localhost` is
+ *     loopback by RFC 6761 convention but is *not* what the other database
+ *     guards accept. This file used to accept it and now does not: an origin
+ *     rule (`src/lib/auth/recovery.ts`) and a database rule are two different
+ *     rules, and the database ones must agree exactly or the parity test is
+ *     pinning a fiction.
+ *
+ * Plus the hosted-Supabase refusal the other two carry, which is unreachable
+ * behind the host check today and costs nothing to keep in step.
+ *
+ * Returns a boolean rather than throwing, because its caller turns a refusal
+ * into a sentence about what to do instead. What it must never do is return
+ * `true` for something the other three would refuse.
  */
 export function isLoopbackDatabaseUrl(value) {
+  let parsed;
   try {
-    const hostname = new URL(value).hostname.toLowerCase();
-    return LOOPBACK.has(hostname) || hostname.endsWith(".localhost");
+    parsed = new URL(value);
   } catch {
     return false;
   }
+
+  if (parsed.search !== "" || parsed.hash !== "") return false;
+  if (!LOOPBACK.has(parsed.hostname)) return false;
+  if (/supabase\.(co|com|in)/i.test(value) || /pooler/i.test(parsed.hostname)) return false;
+
+  return true;
 }
 
 /** Reads one variable out of `.env.local`, without pulling in a dotenv parser. */
@@ -132,10 +179,16 @@ export function resolveTarget(argv = process.argv.slice(2), env = process.env) {
 
   if (!isLoopbackDatabaseUrl(connectionString)) {
     // The whole reason a local run needs no ceremony is that it cannot reach
-    // anything real. A non-loopback string arriving without `--confirm-target`
-    // is somebody about to do something they have not said out loud.
+    // anything real. A string that is not loopback — or that carries query
+    // parameters able to redirect the driver somewhere that is not — arriving
+    // without `--confirm-target` is somebody about to do something they have
+    // not said out loud.
+    //
+    // The message names both causes without quoting the string, which carries
+    // a password.
     throw new Error(
-      "Refusing a database that is not on this machine without an explicit target. " +
+      "Refusing a database that is not on this machine, or that carries query or fragment " +
+        "parameters able to redirect the driver off it, without an explicit target. " +
         `A hosted run is: --confirm-target ${PRODUCTION_PROJECT_REF}, with DATABASE_URL set.`,
     );
   }

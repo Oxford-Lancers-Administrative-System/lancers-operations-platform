@@ -70,6 +70,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "tests/pilot-scenario-lan-81.test.ts",
   "tests/pilot-scenario-lan-82.test.ts",
   "tests/pilot-scenario-lan-93.test.ts",
+  "tests/production-bootstrap-contract.test.ts",
   "tests/production-smoke-contract.test.ts",
   "tests/rls-posture.test.ts",
   "tests/role-catalogue.test.ts",
