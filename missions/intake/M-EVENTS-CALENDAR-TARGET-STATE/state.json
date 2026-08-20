@@ -1,0 +1,11 @@
+{
+  "mission_id": "M-EVENTS-CALENDAR-TARGET-STATE",
+  "stage": "boundary",
+  "baseline": {
+    "branch": "main",
+    "commit": "bc6770b1c6a616dde041324ef99329b231becfc3"
+  },
+  "approvals": {},
+  "workflows": [],
+  "next_action": "Stage 0 \u2014 complete 00-boundary.md and obtain Brian's boundary approval"
+}
