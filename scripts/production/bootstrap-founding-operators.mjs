@@ -255,9 +255,14 @@ export async function runBootstrap({
   if (mode !== APPLY) {
     // The promise, checked rather than asserted. Reading is not writing, and
     // this proves it for the run that just happened rather than for the code in
-    // general — by content, so a count-neutral update cannot slip past it. The
-    // Auth server is out of scope here and provably untouched: `createLogin` is
-    // reachable only from `applyOperator`, which this branch never enters.
+    // general — by content, so a count-neutral update cannot slip past it.
+    //
+    // The Auth server is out of scope here and provably **unwritten** — not
+    // untouched, and the difference is the whole point of saying it carefully.
+    // The observation path does call Auth: `findLoginByEmail` reads the
+    // directory, which is how the duplicate check works at all. What it cannot
+    // do is create anything, because `createLogin` is reachable only from
+    // `applyOperator`, which this branch never enters.
     const after = await fingerprint(client);
     const wroteNothing = JSON.stringify(before) === JSON.stringify(after);
 
@@ -398,7 +403,8 @@ async function main() {
       }
       console.log(
         "The dry run changed nothing in the five tables this script writes — checked by " +
-          "content, not assumed. It created no login either; the dry run never calls Auth.",
+          "content, not assumed. It created no login either: it only read the Auth " +
+          "directory, and a login is created on the apply path alone.",
       );
       if (!report.plan.clean) process.exitCode = 1;
       else if (!report.plan.settled) {
