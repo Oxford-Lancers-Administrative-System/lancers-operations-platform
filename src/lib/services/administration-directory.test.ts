@@ -273,9 +273,18 @@ describe("the role catalogue", () => {
 
     const catalogue = await readRoleCatalogue(administrator());
 
+    let compared = 0;
+
     for (const group of catalogue.groups) {
       for (const role of group.roles) {
-        if (role.cycleMissing) continue;
+        // `readRoleHolders()` scopes to a cycle, so with none at all there is
+        // no cycle-scoped answer to compare against. The blanket
+        // `if (role.cycleMissing) continue` this replaces hid LAN-141 finding
+        // 4 entirely — under a `closing` season every coaching seat was
+        // `cycleMissing`, and the loop skipped ten of the twenty without
+        // saying so. Counting is what stops that being invisible again.
+        if (role.scope === "season" && catalogue.season === null) continue;
+        compared += 1;
         const single = await readRoleHolders(administrator(), role.code);
 
         expect(
@@ -295,6 +304,10 @@ describe("the role catalogue", () => {
         expect(role.admitsMultipleHolders).toBe(single.role.admitsMultipleHolders);
       }
     }
+
+    // All twenty, on a seeded club. A skip that quietly swallowed half the
+    // catalogue is what let the two readers disagree about every coaching seat.
+    expect(compared).toBe(20);
   });
 
   /**
@@ -407,6 +420,85 @@ describe("the role catalogue", () => {
     expect(mine?.operatorAccountId).toBeNull();
     expect(mine?.operatorState).toBeNull();
     expect(mine?.accessDeactivated).toBe(false);
+  });
+
+  /**
+   * LAN-141 finding 4, against the database that produces it.
+   *
+   * `closing` is an ordinary `season_status` — every season the club ever runs
+   * reaches it — and `resolveActiveSeason()` accepts only `open` and `active`,
+   * because it guards a **write**. The reading path inherited that refusal, so
+   * marking the season `closing` made `season` null and every coaching seat
+   * `cycleMissing`, while their open-ended appointments were still in force.
+   * The Roles index then said "No season under way", role detail named the live
+   * holder, and the Operators index printed a third answer.
+   *
+   * Three of the four hunters found this independently. The season status is
+   * restored in `finally` because there is one local database and the next
+   * suite in the file expects it back.
+   */
+  describe("a season that is closing", () => {
+    async function withClosingSeason<T>(action: () => Promise<T>): Promise<T> {
+      const before = await observer.query<{ id: string; status: string }>(
+        "select id, status::text as status from public.seasons where status in ('open','active')",
+      );
+      try {
+        await observer.query(
+          "update public.seasons set status = 'closing' where id = any($1::uuid[])",
+          [before.rows.map((row) => row.id)],
+        );
+        return await action();
+      } finally {
+        for (const row of before.rows) {
+          await observer.query(
+            "update public.seasons set status = $2::public.season_status where id = $1",
+            [row.id, row.status],
+          );
+        }
+      }
+    }
+
+    it("is still the current season to read, and is not one to write to", async () => {
+      const catalogue = await withClosingSeason(() => readRoleCatalogue(administrator()));
+
+      expect(catalogue.season).not.toBeNull();
+      expect(catalogue.seasonWritable).toBe(false);
+    });
+
+    it("does not hide a coach who is in post", async () => {
+      const personId = await insertPerson("closing-season-coach");
+      await giveRole(personId, "linebackers_coach");
+
+      const catalogue = await withClosingSeason(() => readRoleCatalogue(administrator()));
+      const seat = catalogue.groups
+        .flatMap((group) => group.roles)
+        .find((role) => role.code === "linebackers_coach");
+
+      expect(seat?.cycleMissing).toBe(false);
+      expect(seat?.vacant).toBe(false);
+      expect(seat?.holders.map((holder) => holder.personId)).toContain(personId);
+      // And no coaching seat may be assigned into a season that is winding up.
+      expect(seat?.assignable).toBe(false);
+    });
+
+    it("keeps the two readers agreeing about it", async () => {
+      const personId = await insertPerson("closing-season-agreement");
+      await giveRole(personId, "defensive_backs_coach");
+
+      const [catalogue, single] = await withClosingSeason(async () => [
+        await readRoleCatalogue(administrator()),
+        await readRoleHolders(administrator(), "defensive_backs_coach"),
+      ]);
+
+      const seat = catalogue.groups
+        .flatMap((group) => group.roles)
+        .find((role) => role.code === "defensive_backs_coach");
+
+      expect(seat?.holders.map((holder) => holder.roleAssignmentId).sort()).toEqual(
+        single.holders.map((holder) => holder.roleAssignmentId).sort(),
+      );
+      expect(seat?.vacant).toBe(single.vacant);
+    });
   });
 });
 

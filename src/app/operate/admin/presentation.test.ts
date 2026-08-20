@@ -19,7 +19,9 @@ import {
   describeSeats,
   formatDay,
   formatInstant,
+  limitsLine,
   membershipStatusLabel,
+  NO_CYCLE,
   NOT_ASSIGNED,
   operatorSections,
   permissionsLine,
@@ -27,6 +29,7 @@ import {
   permissionsSummary,
   sectionLabelForGroup,
   UNASSIGNED_SECTION_LABEL,
+  UNREADABLE_DATE,
 } from "./presentation";
 
 function seat(overrides: Partial<DirectoryRole> = {}): DirectoryRole {
@@ -104,11 +107,32 @@ describe("the Operators sections", () => {
     ]);
   });
 
-  it("puts somebody with two seats in one section, the earliest group they sit in", () => {
+  /**
+   * LAN-141 finding 9, and the reason it is a defect rather than a preference.
+   *
+   * The first version placed each account once, under the earliest group it sat
+   * in, so a coach who also held a committee seat was absent from **Coaches**
+   * altogether. `DEC-one-person-multiple-capacities` makes that combination
+   * ordinary, and `REQ-coach-operator-onboarding` requires Administration to
+   * "visually separate Coaching Staff" — which a section that silently omits
+   * some of the club's coaches does not do.
+   */
+  it("shows somebody with two seats under both parts of the club they serve", () => {
     const sections = operatorSections([person("Clint", [COACHING, seat()])]);
 
+    expect(sections.map((section) => section.label)).toEqual(["Club Officers", "Coaches"]);
+    expect(sections[0].operators).toHaveLength(1);
+    expect(sections[1].operators).toHaveLength(1);
+    expect(sections[1].operators[0].displayName).toBe("Clint");
+  });
+
+  /** Once per section, not once per seat: two coaching seats are still one row. */
+  it("lists somebody once in a section however many of its seats they hold", () => {
+    const sections = operatorSections([
+      person("Casey", [COACHING, { ...COACHING, roleAssignmentId: "b", code: "head_coach" }]),
+    ]);
+
     expect(sections).toHaveLength(1);
-    expect(sections[0].label).toBe("Club Officers");
     expect(sections[0].operators).toHaveLength(1);
   });
 
@@ -144,11 +168,14 @@ describe("holders", () => {
   });
 
   it("says Not assigned only for a seat nobody holds", () => {
-    expect(describeHolders({ vacant: true, cycleMissing: false, holders: [] })).toBe(NOT_ASSIGNED);
+    expect(
+      describeHolders({ scope: "season" as const, vacant: true, cycleMissing: false, holders: [] }),
+    ).toBe(NOT_ASSIGNED);
   });
 
   it("keeps a deactivated holder as the holder", () => {
     const text = describeHolders({
+      scope: "season" as const,
       vacant: false,
       cycleMissing: false,
       holders: [holder({ accessDeactivated: true, operatorState: "deactivated" as const })],
@@ -160,9 +187,67 @@ describe("holders", () => {
   });
 
   it("distinguishes a seat with no operating year from a vacant one", () => {
-    expect(describeHolders({ vacant: true, cycleMissing: true, holders: [] })).toBe(
-      "No season under way",
-    );
+    expect(
+      describeHolders({
+        scope: "season" as const,
+        vacant: true,
+        cycleMissing: true,
+        holders: [],
+      }),
+    ).toBe(NO_CYCLE.season);
+  });
+
+  /**
+   * LAN-141 finding 4, found independently by three of the four hunters.
+   *
+   * `cycleMissing` short-circuited **ahead of** the holders, so under a season
+   * marked `closing` — an ordinary status every season reaches — this cell read
+   * "No season under way" for every coaching seat in the club, while role
+   * detail named the live holder and the Operators index printed a third
+   * answer. Assignments are written open-ended and outlive the cycle that
+   * started them, so a missing cycle says nothing whatever about who is in post.
+   */
+  it("names the holder even when the seat's operating year has gone", () => {
+    const text = describeHolders({
+      scope: "season" as const,
+      vacant: false,
+      cycleMissing: true,
+      holders: [holder({})],
+      scheduled: [],
+    });
+
+    expect(text).toBe("Clint Grohmann");
+    expect(text).not.toContain(NO_CYCLE.season);
+  });
+
+  it("names a successor even when the seat's operating year has gone", () => {
+    const text = describeHolders({
+      scope: "season" as const,
+      vacant: true,
+      cycleMissing: true,
+      holders: [],
+      scheduled: [{ displayName: "Alwyn Cholmondley", effectiveFrom: "2026-09-01" }],
+    });
+
+    expect(text).toContain("Alwyn Cholmondley");
+    expect(text).not.toContain(NO_CYCLE.season);
+  });
+
+  /**
+   * The ten committee seats hang off the committee year, not the season, and
+   * telling the Treasurer's reader that no season is under way answers a
+   * question nobody asked — LAN-141 finding 8.
+   */
+  it("says which operating year is missing, in the seat's own terms", () => {
+    expect(
+      describeHolders({
+        scope: "committee_year" as const,
+        vacant: true,
+        cycleMissing: true,
+        holders: [],
+        scheduled: [],
+      }),
+    ).toBe(NO_CYCLE.committee_year);
   });
 
   it("dates a seat that has not begun instead of naming it flatly", () => {
@@ -186,6 +271,31 @@ describe("holders", () => {
   });
 
   /**
+   * The other half of the same rule — LAN-141 finding 11.
+   *
+   * This column's own note claimed to follow the roles index's rule and
+   * followed half of it: a scheduled start was shown, a scheduled end was not,
+   * on the page an administrator scans to see who is leaving. Brian asked for
+   * both directions at once — "I like showing the successors and also showing
+   * people when they go".
+   */
+  it("says when a seat somebody currently holds is due to end", () => {
+    const seats = describeSeats([seat({ effectiveTo: "2026-08-27" })]);
+
+    expect(seats).toContain("President");
+    expect(seats).toContain("ends 27 Aug 2026");
+  });
+
+  it("says both dates when a seat has not begun and already has an end", () => {
+    const seats = describeSeats([
+      seat({ effectiveFrom: "2026-09-01", effectiveTo: "2027-06-01", scheduled: true }),
+    ]);
+
+    expect(seats).toContain("from 1 Sept 2026");
+    expect(seats).toContain("ends 1 Jun 2027");
+  });
+
+  /**
    * The four states Brian fixed on 20 August 2026. Each is asserted for what a
    * reader can tell from the cell, and each asserts the *current* answer is
    * still there — the scheduled half is context, and a version that replaced
@@ -194,6 +304,7 @@ describe("holders", () => {
   describe("the four states of a seat", () => {
     it("shows a holder alone when nothing is scheduled", () => {
       const text = describeHolders({
+        scope: "season" as const,
         vacant: false,
         cycleMissing: false,
         holders: [holder({})],
@@ -205,6 +316,7 @@ describe("holders", () => {
 
     it("shows a holder and when the seat empties", () => {
       const text = describeHolders({
+        scope: "season" as const,
         vacant: false,
         cycleMissing: false,
         holders: [holder({ effectiveTo: "2026-08-27" })],
@@ -218,6 +330,7 @@ describe("holders", () => {
 
     it("shows Not assigned and who is coming, in that order", () => {
       const text = describeHolders({
+        scope: "season" as const,
         vacant: true,
         cycleMissing: false,
         holders: [],
@@ -231,12 +344,19 @@ describe("holders", () => {
 
     it("shows Not assigned alone when nobody is coming", () => {
       expect(
-        describeHolders({ vacant: true, cycleMissing: false, holders: [], scheduled: [] }),
+        describeHolders({
+          scope: "season" as const,
+          vacant: true,
+          cycleMissing: false,
+          holders: [],
+          scheduled: [],
+        }),
       ).toBe(NOT_ASSIGNED);
     });
 
     it("still says a deactivated holder holds the seat, and when it ends", () => {
       const text = describeHolders({
+        scope: "season" as const,
         vacant: false,
         cycleMissing: false,
         holders: [
@@ -293,6 +413,25 @@ describe("account state", () => {
     });
 
     expect(line).toContain("Failed");
+  });
+
+  /**
+   * LAN-141: with no recorded moment the cell said the single word "Failed",
+   * beside a chip that already read "Delivery failed". It repeated the state
+   * and did not say that what was missing was the *time* rather than the
+   * failure.
+   */
+  it("says a delivery failed at a time nobody recorded, rather than just Failed", () => {
+    const line = describeInvitationProgress({
+      state: "delivery_failed",
+      invitedAt: null,
+      activatedAt: null,
+      deliveryFailedAt: null,
+      deliveryFailureReason: null,
+    });
+
+    expect(line).not.toBe("Failed");
+    expect(line).toContain("not recorded");
   });
 
   it("reports acceptance, then sending, then neither", () => {
@@ -369,7 +508,95 @@ describe("permissions", () => {
   it("says the empty sentence on the index too", () => {
     expect(permissionsPreview("kit_manager")).toContain("no privileged actions");
   });
+
+  /**
+   * LAN-141 finding 10.
+   *
+   * General Manager and President hold the same nine grants, so the Permissions
+   * panel said word-for-word the same thing on both pages — in the mission
+   * whose subtlest locked decision (`DEC-two-tier-operating-model`) is that one
+   * of them outranks the other. `DEC-two-tier-operating-model` was enforced
+   * everywhere and visible nowhere.
+   *
+   * What separates them is already data, so this asserts the *difference*
+   * rather than the sentences: whichever way the wording is revised, the two
+   * strongest seats in the club must not read identically.
+   */
+  it("tells the General Manager and the President apart", () => {
+    expect(permissionsLine("general_manager")).toBe(permissionsLine("president"));
+
+    const gm = limitsLine("general_manager");
+    const president = limitsLine("president");
+
+    expect(gm).not.toBeNull();
+    expect(president).not.toBeNull();
+    expect(gm).not.toBe(president);
+  });
+
+  it("says what each administering seat may not do, from the enforced table", () => {
+    // Nobody may manage the General Manager: `PROTECTED_LEADERSHIP_AUTHORITY`
+    // gives that tier an empty management list on purpose.
+    expect(limitsLine("general_manager")).toContain(
+      "assign, replace, end or deactivate the General Manager",
+    );
+    expect(limitsLine("president")).toContain(
+      "assign, replace, end or deactivate the General Manager",
+    );
+    expect(limitsLine("it_officer")).toContain("assign, replace, end or deactivate the President");
+
+    // The asymmetry that is easiest to get wrong: recovery is permitted where
+    // management is not, so the IT Officer's limits name neither recovery.
+    expect(limitsLine("it_officer")).not.toContain("recover email access");
+    expect(limitsLine("president")).toContain("recover email access for the President");
+
+    // `DEC-no-self-removal`, on every one of them.
+    for (const code of ["general_manager", "president", "it_officer"]) {
+      expect(limitsLine(code)).toContain("act on their own account");
+    }
+  });
+
+  /**
+   * Telling a Kit Manager which seats they may not manage would imply they may
+   * manage the rest.
+   */
+  it("says nothing about limits for a seat that does not administer at all", () => {
+    expect(limitsLine("kit_manager")).toBeNull();
+    expect(limitsLine("head_coach")).toBeNull();
+    expect(limitsLine("vice_president")).toBeNull();
+  });
+
+  /**
+   * LAN-141 finding 12: all ten coaching seats hold `attendance_recorder` and
+   * `attendance_recording`, and their two `action` strings were written by
+   * different issues and never read side by side — "record attendance for an
+   * occurred event" above "record attendance for an event that has occurred".
+   * As sentences they were the same sentence.
+   */
+  it("gives a coach two permission phrases a reader can tell apart", () => {
+    const items = permissionsSummary("head_coach").items;
+
+    expect(new Set(items).size).toBe(items.length);
+    for (const left of items) {
+      for (const right of items) {
+        if (left === right) continue;
+        // Not merely unequal: unequal after the filler words a reader skips.
+        expect(gist(left)).not.toBe(gist(right));
+      }
+    }
+  });
 });
+
+/** One phrase reduced to the words that carry it, so near-duplicates collide. */
+function gist(phrase: string): string {
+  const filler = new Set(["a", "an", "the", "for", "that", "has", "on", "of", "own"]);
+  return phrase
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, "")
+    .split(/\s+/)
+    .filter((word) => word !== "" && !filler.has(word))
+    .sort()
+    .join(" ");
+}
 
 describe("dates", () => {
   it("renders a stored calendar date as the same day everywhere", () => {
@@ -394,9 +621,23 @@ describe("dates", () => {
     expect(formatDay("2026-08-18T22:30:00.123Z")).toBe("18 Aug 2026");
   });
 
-  it("shows an unreadable value rather than throwing out of the page", () => {
-    expect(formatInstant("not a date")).toBe("not a date");
-    expect(formatDay("not a date")).toBe("not a date");
+  /**
+   * LAN-141: three shapes of unreadable, one answer, and none of them the raw
+   * value.
+   *
+   * Showing the stored string was the first fix and was wrong in both
+   * directions — `"2026-13-45"` reached the screen unchanged, and an invalid
+   * `Date` reached it as the JavaScript artefact `"Invalid Date"`, on pages
+   * where every other date reads `27 Aug 2026`. Neither is a sentence a club
+   * officer can act on, and the second looks like a value rather than a fault.
+   * Not throwing is still the rule: one bad row must not take the page with it.
+   */
+  it("says a date could not be read, rather than showing the raw value", () => {
+    expect(formatInstant("not a date")).toBe(UNREADABLE_DATE);
+    expect(formatDay("not a date")).toBe(UNREADABLE_DATE);
+    expect(formatDay("2026-13-45")).toBe(UNREADABLE_DATE);
+    expect(formatDay(new Date("nonsense"))).toBe(UNREADABLE_DATE);
+    expect(formatInstant(new Date("nonsense"))).toBe(UNREADABLE_DATE);
   });
 
   it("says an open-ended assignment is open-ended", () => {

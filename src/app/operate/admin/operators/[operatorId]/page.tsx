@@ -242,6 +242,7 @@ export default async function OperatorRecordPage({
             entries={history}
             emptyMessage="Nothing has been recorded against this operator yet."
             testId="operator-audit-history"
+            identify="role"
           />
         </Box>
       </Stack>

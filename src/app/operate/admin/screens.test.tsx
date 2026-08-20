@@ -26,7 +26,7 @@
  * needs a human at that width.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({
@@ -57,18 +57,29 @@ vi.mock("./permissions", () => ({
 }));
 // The server actions are POST endpoints; these tests render the screens that
 // post to them. Their own behaviour is the services' and is covered there.
-vi.mock("./actions", () => ({
-  assignRoleAction: vi.fn(),
-  correctInvitationAction: vi.fn(),
-  deactivateOperatorAction: vi.fn(),
-  endRoleAction: vi.fn(),
-  inviteOperatorAction: vi.fn(),
-  replaceRoleHolderAction: vi.fn(),
-  resendInvitationAction: vi.fn(),
-  restoreOperatorAction: vi.fn(),
-  searchCandidatesAction: vi.fn(),
-  startEmailRehomeAction: vi.fn(),
-}));
+//
+// Every one of them resolves to an `AdminActionState`, because every real one
+// does and the type demands it — LAN-141. A bare `vi.fn()` resolves to
+// `undefined`, which `useActionState` then hands the panel as its state: a
+// shape production cannot produce, and one that would make a component
+// tolerating it look correct here and crash on the real page. The literal is
+// inline rather than imported because `vi.mock` factories are hoisted above the
+// imports.
+vi.mock("./actions", () => {
+  const state = () => ({ notice: null, error: null, refusal: null, candidates: null });
+  return {
+    assignRoleAction: vi.fn(state),
+    correctInvitationAction: vi.fn(state),
+    deactivateOperatorAction: vi.fn(state),
+    endRoleAction: vi.fn(state),
+    inviteOperatorAction: vi.fn(state),
+    replaceRoleHolderAction: vi.fn(state),
+    resendInvitationAction: vi.fn(state),
+    restoreOperatorAction: vi.fn(state),
+    searchCandidatesAction: vi.fn(state),
+    startEmailRehomeAction: vi.fn(state),
+  };
+});
 
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
@@ -88,8 +99,9 @@ import {
   type OperatorDirectory,
   type RoleCatalogue,
 } from "@/lib/services/administration-directory";
+import { addClubDays, formatClubDay, todayInClubZone } from "@/lib/club-time";
 import { permittedAccountActions, permittedRoleActions } from "./permissions";
-import { correctInvitationAction } from "./actions";
+import { assignRoleAction, correctInvitationAction, searchCandidatesAction } from "./actions";
 import { EMPTY_ADMIN_ACTION_STATE } from "./action-state";
 import OperatorsPage from "./operators/page";
 import OperatorRecordPage from "./operators/[operatorId]/page";
@@ -179,6 +191,7 @@ function catalogueRole(overrides: Partial<CatalogueRole> = {}): CatalogueRole {
     scheduled: [],
     vacant: holders.length === 0,
     cycleMissing: false,
+    assignable: true,
     ...overrides,
     holders,
   };
@@ -189,6 +202,7 @@ function catalogue(overrides: Partial<RoleCatalogue> = {}): RoleCatalogue {
   return {
     committeeYear: YEAR,
     season: SEASON,
+    seasonWritable: true,
     groups: [
       {
         code: "operational_administration",
@@ -440,6 +454,77 @@ describe("the Operators page", () => {
     expect(html).not.toContain("access history");
     expect(html).not.toContain("person_id");
   });
+
+  /**
+   * LAN-141 finding 9.
+   *
+   * Each account used to be placed once, under the earliest group it sat in, so
+   * a coach who also held a committee seat was absent from **Coaches**
+   * entirely. `DEC-one-person-multiple-capacities` makes that combination
+   * ordinary and `REQ-coach-operator-onboarding` requires Coaching Staff to be
+   * visually separated — which a section missing some of the club's coaches
+   * does not do.
+   */
+  it("shows a coach who also holds a committee seat under Coaches too", async () => {
+    vi.mocked(readOperatorDirectory).mockResolvedValue(
+      directory([
+        operatorRow({
+          displayName: "Casey Quinn",
+          roles: [
+            seat(),
+            seat({
+              roleAssignmentId: "assignment-2",
+              roleId: "role-head-coach",
+              code: "head_coach",
+              label: "Head Coach",
+              groupCode: "coaching_staff",
+              groupLabel: "Coaching Staff",
+              groupSortOrder: 3,
+            }),
+          ],
+        }),
+      ]),
+    );
+
+    render(await OperatorsPage());
+
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((node) => node.textContent);
+    expect(headings).toEqual(["Club Officers", "Coaches"]);
+    // The heading counts accounts, not rows, so one person in two sections does
+    // not make the page's own count wrong.
+    expect(screen.getByTestId("admin-page-subtitle")).toHaveTextContent("1 operator account");
+  });
+
+  /**
+   * LAN-141 finding 11. This column showed a scheduled *start* and hid a
+   * scheduled *end*, on the page an administrator scans to see who is leaving —
+   * half of Brian's ruling, on the half he would notice last.
+   */
+  it("says when somebody's seat is due to end", async () => {
+    vi.mocked(readOperatorDirectory).mockResolvedValue(
+      directory([operatorRow({ roles: [seat({ effectiveTo: "2026-08-27" })] })]),
+    );
+
+    const { container } = render(await OperatorsPage());
+
+    expect(container.textContent).toContain("ends 27 Aug 2026");
+  });
+
+  /** LAN-141 finding 8, on the other index. */
+  it("lists the club's operators during a gap between committee years", async () => {
+    vi.mocked(readOperatorDirectory).mockResolvedValue({
+      operators: [operatorRow()],
+      committeeYear: null,
+    });
+
+    render(await OperatorsPage());
+
+    expect(screen.queryByTestId("operators-unavailable")).toBeNull();
+    expect(screen.getAllByTestId("operator-row").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("admin-page-subtitle")).toHaveTextContent(
+      "No committee year recorded",
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -570,6 +655,33 @@ describe("one operator's record", () => {
     expect(entries[0]).toHaveTextContent("18 Aug 2026, 23:30");
     expect(entries[0]).toHaveTextContent("By Clint Grohmann");
     expect(entries[1]).toHaveTextContent("Access removed after a lost device.");
+  });
+
+  /**
+   * The other half of LAN-141 finding 7.
+   *
+   * Holder history had to name the holder because the page is one seat; this
+   * page is one person, so what it lacks is the **seat**. The service carries
+   * the role on every role event and the panel rendered neither half, which
+   * left "Role assigned · By Clint Grohmann · 2026-27" — an entry about
+   * something, with the something missing.
+   */
+  it("names the seat a role event concerns", async () => {
+    vi.mocked(readOperatorAuditHistory).mockResolvedValue([
+      historyEntry({
+        action: "administration.role.assigned",
+        label: "Role assigned",
+        role: { id: "role-head-coach", code: "head_coach", assignmentId: "assignment-2" },
+      }),
+      historyEntry({ id: "event-2", label: "Invitation resent", role: null }),
+    ]);
+
+    render(await OperatorRecordPage(pageProps({ operatorId: "aaaa" })));
+
+    const entries = screen.getAllByTestId("history-entry");
+    expect(entries[0]).toHaveTextContent("Head Coach");
+    // An event that concerns no seat says nothing rather than an empty line.
+    expect(within(entries[1]).queryByTestId("history-entry-subject")).toBeNull();
   });
 
   it("shows an entry a newer version wrote, rather than a shorter list", async () => {
@@ -708,6 +820,99 @@ describe("the Roles page", () => {
       "/operate/admin/guide",
     );
     expect(screen.queryByRole("link", { name: "Invite operator" })).toBeNull();
+  });
+
+  /**
+   * LAN-141 finding 4, on the page it was found on.
+   *
+   * A season marked `closing` is not an "active" one, so `cycleMissing` was
+   * true for every coaching seat while their open-ended appointments were still
+   * in force. The cell short-circuited on that flag before it looked at the
+   * holders, so the club's Head Coach vanished from the Roles index while role
+   * detail still named him.
+   */
+  it("still names a coach in post when no season is under way", async () => {
+    vi.mocked(readRoleCatalogue).mockResolvedValue(
+      catalogue({
+        season: null,
+        seasonWritable: false,
+        groups: [
+          {
+            code: "coaching_staff",
+            label: "Coaching Staff",
+            roles: [
+              catalogueRole({
+                id: "role-head-coach",
+                code: "head_coach",
+                label: "Head Coach",
+                scope: "season",
+                cycleMissing: true,
+                assignable: false,
+                holders: [holder({ displayName: "Zenas Yaxlington" })],
+              }),
+            ],
+          },
+        ],
+      }),
+    );
+
+    const { container } = render(await RolesPage());
+
+    expect(container.textContent).toContain("Zenas Yaxlington");
+    expect(container.textContent).not.toContain("No season under way");
+  });
+
+  /**
+   * The other half: with no cycle *and* no holder, Assign would open a form the
+   * service is certain to refuse — LAN-141 findings 2 and 4 meeting.
+   */
+  it("does not offer Assign for a seat whose operating year cannot take one", async () => {
+    vi.mocked(readRoleCatalogue).mockResolvedValue(
+      catalogue({
+        season: null,
+        seasonWritable: false,
+        groups: [
+          {
+            code: "coaching_staff",
+            label: "Coaching Staff",
+            roles: [
+              catalogueRole({
+                id: "role-head-coach",
+                code: "head_coach",
+                label: "Head Coach",
+                scope: "season",
+                cycleMissing: true,
+                assignable: false,
+              }),
+            ],
+          },
+        ],
+      }),
+    );
+
+    render(await RolesPage());
+
+    expect(screen.queryAllByRole("link", { name: "Assign" })).toHaveLength(0);
+    expect(screen.getAllByRole("link", { name: "View" }).length).toBeGreaterThan(0);
+  });
+
+  /**
+   * LAN-141 finding 8. `committee_years.ends_on` is exclusive, so a club that
+   * closes one year the day before the next opens has a gap — and during it the
+   * whole of Administration answered with an unavailable screen telling the
+   * reader the year "has to be recorded first", from a page with no route in
+   * the application to record one.
+   */
+  it("draws the club's seats during a gap between committee years", async () => {
+    vi.mocked(readRoleCatalogue).mockResolvedValue(catalogue({ committeeYear: null }));
+
+    const { container } = render(await RolesPage());
+
+    expect(screen.queryByTestId("roles-unavailable")).toBeNull();
+    expect(container.textContent).toContain("Clint Grohmann");
+    expect(screen.getByTestId("admin-page-subtitle")).toHaveTextContent(
+      "no committee year is recorded as running",
+    );
   });
 });
 
@@ -879,6 +1084,137 @@ describe("one role's record", () => {
 
   it("answers an unknown seat with not-found", async () => {
     await expect(RoleRecordPage(pageProps({ roleId: "role-nope" }))).rejects.toThrow("NOT_FOUND");
+  });
+
+  /**
+   * LAN-141 finding 10, on the page.
+   *
+   * `permissionsLine` is identical for the two strongest seats in the club,
+   * because they hold the same nine grants. The panel is only able to tell them
+   * apart if the *limits* reach it, and nothing rendered them.
+   */
+  it("tells the General Manager's Permissions panel apart from the President's", async () => {
+    render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
+    const president = screen.getByTestId("limits").textContent;
+    cleanup();
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-gm" })));
+    const generalManager = screen.getByTestId("limits").textContent;
+
+    expect(president).toBeTruthy();
+    expect(generalManager).toBeTruthy();
+    expect(president).not.toBe(generalManager);
+    expect(president).toContain("General Manager");
+  });
+
+  it("says nothing about limits on a seat that administers nothing", async () => {
+    render(await RoleRecordPage(pageProps({ roleId: "role-kit-manager" })));
+
+    expect(screen.queryByTestId("limits")).toBeNull();
+  });
+
+  /**
+   * LAN-141 finding 7. The service resolves the target's name through a
+   * dedicated join and carries the role on every role event, and the panel
+   * rendered neither — so **Holder history**, the panel whose whole purpose is
+   * holders, named no holder, and the past holders it exists to record were
+   * unrecoverable from it.
+   */
+  it("names the holder each entry of Holder history is about", async () => {
+    vi.mocked(readHolderHistory).mockResolvedValue([
+      historyEntry({
+        action: "administration.role.assigned",
+        label: "Role assigned",
+        target: { personId: "p", operatorAccountId: "a", name: "Avery Fielding" },
+        role: { id: "role-1", code: "president", assignmentId: "assignment-9" },
+      }),
+    ]);
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
+
+    expect(screen.getByTestId("holder-history")).toHaveTextContent("Avery Fielding");
+  });
+
+  /**
+   * LAN-141 finding 2, on the form that offers the date.
+   *
+   * The end date and the assignment's start both default to today, and the
+   * schema requires `effective_to > effective_from`, so a role given to the
+   * wrong person this morning could not be undone today by any route — while
+   * the helper text read "Leave blank to end it today". There is no delete, and
+   * deactivating the account deliberately does not vacate the seat.
+   */
+  it("names the earliest usable end date instead of offering today", async () => {
+    const today = todayInClubZone();
+    vi.mocked(readRoleCatalogue).mockResolvedValue(
+      catalogue({
+        groups: [
+          {
+            code: "club_committee",
+            label: "Club Committee",
+            roles: [catalogueRole({ holders: [holder({ effectiveFrom: today })] })],
+          },
+        ],
+      }),
+    );
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
+    fireEvent.click(screen.getByRole("button", { name: "End role" }));
+
+    const field = screen.getByTestId("end-panel").querySelector('input[name="effectiveTo"]');
+    if (!(field instanceof HTMLInputElement)) throw new Error("the end panel has no date field");
+
+    const tomorrow = addClubDays(today, 1) as string;
+    expect(field.min).toBe(tomorrow);
+    expect(field.required).toBe(true);
+    expect(field.value).toBe(tomorrow);
+    expect(screen.getByTestId("end-panel")).toHaveTextContent(formatClubDay(tomorrow));
+    expect(screen.getByTestId("end-panel")).not.toHaveTextContent("Leave blank to end it today");
+  });
+
+  it("still offers today when the assignment did not start today", async () => {
+    render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
+    fireEvent.click(screen.getByRole("button", { name: "End role" }));
+
+    const field = screen.getByTestId("end-panel").querySelector('input[name="effectiveTo"]');
+    if (!(field instanceof HTMLInputElement)) throw new Error("the end panel has no date field");
+
+    expect(field.required).toBe(false);
+    expect(screen.getByTestId("end-panel")).toHaveTextContent("Leave blank to end it today");
+  });
+
+  /**
+   * LAN-141 finding 15 — the one-result rule, on the screen with three panels.
+   *
+   * `outcome.test.tsx` proves the mechanism against synthetic panels, and
+   * operator detail binds it to a real page. Roles detail was unbound, and the
+   * defect it was unbound against is real: each of these panels runs **two**
+   * actions, a search and a submit, and only the second was inside the slot. A
+   * failed search therefore sat above a fresh confirmation with both reading as
+   * current — Brian's original complaint, on the other screen.
+   */
+  it("clears a failed search once the assignment itself is submitted", async () => {
+    vi.mocked(searchCandidatesAction).mockResolvedValue({
+      ...EMPTY_ADMIN_ACTION_STATE,
+      error: "That is not an address this search can use.",
+    });
+    vi.mocked(assignRoleAction).mockResolvedValue({
+      ...EMPTY_ADMIN_ACTION_STATE,
+      notice: "Kit Manager has been assigned.",
+    });
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-kit-manager" })));
+    fireEvent.click(screen.getByRole("button", { name: "Assign role" }));
+
+    const panel = screen.getByTestId("assign-panel");
+    const [searchForm, submitForm] = panel.querySelectorAll("form");
+    fireEvent.submit(searchForm);
+    expect(await screen.findByTestId("admin-error")).toHaveTextContent("not an address");
+
+    fireEvent.submit(submitForm);
+
+    expect(await screen.findByTestId("admin-notice")).toHaveTextContent("has been assigned");
+    expect(screen.queryByTestId("admin-error")).toBeNull();
   });
 });
 

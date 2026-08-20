@@ -12,6 +12,7 @@ import RadioGroup from "@mui/material/RadioGroup";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { formatClubDay } from "@/lib/club-time";
 import {
   assignRoleAction,
   endRoleAction,
@@ -50,12 +51,28 @@ import type { PermittedRoleActions } from "../../permissions";
  * to exist as a Person before they can be given a seat, and the invitation flow
  * is where a new one is created.
  */
+/** One current holder, with the two dates the forms below have to respect. */
+export interface RoleActionHolder {
+  readonly roleAssignmentId: string;
+  readonly displayName: string;
+  readonly effectiveFrom: string;
+  /**
+   * The earliest date this assignment may be given as its end, `YYYY-MM-DD`.
+   *
+   * Computed by `earliestEndFor()` — the same function the service's guard uses
+   * — so the form and the refusal cannot disagree about it.
+   */
+  readonly earliestEnd: string;
+}
+
 export default function RoleActions({
   roleId,
   roleCode,
   roleLabel,
   vacant,
+  assignable,
   admitsMultipleHolders,
+  today,
   holders,
   permitted,
 }: {
@@ -63,6 +80,15 @@ export default function RoleActions({
   roleCode: string;
   roleLabel: string;
   vacant: boolean;
+  /**
+   * Whether the cycle this seat hangs off can take a new assignment today.
+   *
+   * False between committee years, and false for a season in `closing` — which
+   * is current to read and closed to write. Offering Assign there would open a
+   * form the service is certain to refuse, which is the same defect as the end
+   * date below wearing different clothes.
+   */
+  assignable: boolean;
   /**
    * `DEC-assignment-dates-and-cardinality`: "Single-holder restrictions follow
    * the constitution, with General Manager additionally single-holder; other
@@ -72,27 +98,34 @@ export default function RoleActions({
    * one that does not cannot, which is why Assign is not simply "when vacant".
    */
   admitsMultipleHolders: boolean;
+  /** The club's own day, `YYYY-MM-DD`, as the page read it. */
+  today: string;
   /** The current holders, for Replace and End. Empty when the seat is vacant. */
-  holders: readonly { roleAssignmentId: string; displayName: string }[];
+  holders: readonly RoleActionHolder[];
   permitted: PermittedRoleActions;
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const toggle = (panel: string) => setOpen((current) => (current === panel ? null : panel));
 
   const offered = {
-    assign: permitted.assign && (vacant || admitsMultipleHolders),
+    assign: permitted.assign && assignable && (vacant || admitsMultipleHolders),
     // Replacement hands **one** assignment over, so it is offered only when
     // there is exactly one to hand over. On a seat with several holders the
     // question "who is being replaced?" has no single answer, and End plus
-    // Assign say the same thing without guessing.
-    replace: holders.length === 1 && permitted.replace,
+    // Assign say the same thing without guessing. It creates the successor's
+    // assignment, so it needs a cycle to hang it off exactly as Assign does.
+    replace: assignable && holders.length === 1 && permitted.replace,
+    // Ending needs no cycle: it dates an assignment that already hangs off one.
     end: holders.length > 0 && permitted.end,
   };
 
   if (!offered.assign && !offered.replace && !offered.end) {
     return (
       <Typography variant="body2" color="text.secondary" data-testid="no-role-actions">
-        There is nothing you can change about who holds this role.
+        {assignable
+          ? "There is nothing you can change about who holds this role."
+          : "There is no operating year running for this role, so nobody can be assigned to it " +
+            "yet. Opening the year is not done here."}
       </Typography>
     );
   }
@@ -127,6 +160,7 @@ export default function RoleActions({
             testId="assign-panel"
             reasonRequired={false}
             reasonHelp="Required only when the start date is before today."
+            today={today}
           >
             <input type="hidden" name="roleId" value={roleId} />
             <input type="hidden" name="roleCode" value={roleCode} />
@@ -143,12 +177,20 @@ export default function RoleActions({
             reasonRequired
             personField="successorPersonId"
             successorOf={holders}
+            today={today}
+            /*
+              A replacement's start date is also the outgoing assignment's end
+              date, so it carries the same floor End does — LAN-141 finding 2.
+              Handing over a seat somebody took up this morning cannot happen
+              until tomorrow, and the form is where that has to be said.
+            */
+            earliestFrom={holders[0]?.earliestEnd}
           >
             <input type="hidden" name="roleId" value={roleId} />
           </PersonPanel>
         ) : null}
 
-        {open === "end" ? <EndPanel roleId={roleId} holders={holders} /> : null}
+        {open === "end" ? <EndPanel roleId={roleId} holders={holders} today={today} /> : null}
       </Stack>
     </OutcomeSlotProvider>
   );
@@ -165,6 +207,8 @@ function PersonPanel({
   reasonHelp,
   personField = "personId",
   successorOf,
+  today,
+  earliestFrom,
   children,
 }: {
   title: string;
@@ -176,7 +220,18 @@ function PersonPanel({
   reasonHelp?: string;
   personField?: string;
   /** Present for a replacement: which assignment is being handed over. */
-  successorOf?: readonly { roleAssignmentId: string; displayName: string }[];
+  successorOf?: readonly RoleActionHolder[];
+  /** The club's own day, `YYYY-MM-DD`. */
+  today: string;
+  /**
+   * The earliest start this form may offer, `YYYY-MM-DD`, where one applies.
+   *
+   * Absent for an assignment into a vacancy: nothing is being ended, so any day
+   * is a legitimate start. Present for a replacement, where the successor's
+   * start is the incumbent's end and the schema requires it to be later than
+   * the incumbent's own start.
+   */
+  earliestFrom?: string;
   children?: ReactNode;
 }) {
   const [search, searchAction, searching] = useActionState(
@@ -185,6 +240,18 @@ function PersonPanel({
   );
   const [result, submitAction, submitting] = useActionState(action, EMPTY_ADMIN_ACTION_STATE);
   const [chosen, setChosen] = useState("");
+  /**
+   * Two slots on one panel, not one — LAN-141 finding 15.
+   *
+   * This panel runs **two** actions: a search that asks something, and a submit
+   * that changes something. Only the second was inside the slot, so a failed
+   * search sat above a fresh confirmation and both read as current — which is
+   * exactly the state LAN133-BRIAN-3's rule exists to forbid, reached on the
+   * screen with three panels rather than the one with two. Registering the
+   * search as its own panel is what puts it under the rule: starting either
+   * clears the other.
+   */
+  const searchSlot = useOutcomeSlot(`${testId}-search`);
   const slot = useOutcomeSlot(testId);
 
   /**
@@ -217,6 +284,12 @@ function PersonPanel({
    * button says what would enable it.
    */
 
+  /**
+   * Whether leaving the date blank — which the service reads as today — is a
+   * date this form may offer. LAN-141 finding 2.
+   */
+  const todayIsAllowed = earliestFrom === undefined || earliestFrom <= today;
+
   /** What the administrator asked for, so an empty answer can name it. */
   const typed = [terms.givenName, terms.familyName, terms.email]
     .map((value) => value.trim())
@@ -232,7 +305,7 @@ function PersonPanel({
         {explanation}
       </Typography>
 
-      <Box component="form" action={searchAction} onSubmit={slot.claim}>
+      <Box component="form" action={searchAction} onSubmit={searchSlot.claim}>
         <Stack spacing={2}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             Find the person
@@ -250,7 +323,10 @@ function PersonPanel({
         </Stack>
       </Box>
 
-      <AdminOutcome state={{ ...search, notice: null, candidates: null }} />
+      <AdminOutcome
+        state={{ ...search, notice: null, candidates: null }}
+        showing={searchSlot.showing}
+      />
 
       {search.candidates ? (
         search.candidates.length === 0 ? (
@@ -311,8 +387,15 @@ function PersonPanel({
             name="effectiveFrom"
             type="date"
             label="Effective from"
-            slotProps={{ inputLabel: { shrink: true } }}
-            helperText="Leave blank for today."
+            required={!todayIsAllowed}
+            defaultValue={todayIsAllowed ? "" : earliestFrom}
+            slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: earliestFrom } }}
+            helperText={
+              todayIsAllowed
+                ? "Leave blank for today."
+                : `The holder this replaces started today, and an assignment cannot end on the ` +
+                  `day it started. The earliest handover is ${formatClubDay(earliestFrom ?? "")}.`
+            }
             fullWidth
           />
           <TextField
@@ -361,13 +444,37 @@ function PersonPanel({
 function EndPanel({
   roleId,
   holders,
+  today,
 }: {
   roleId: string;
-  holders: readonly { roleAssignmentId: string; displayName: string }[];
+  holders: readonly RoleActionHolder[];
+  today: string;
 }) {
   const [state, formAction, pending] = useActionState(endRoleAction, EMPTY_ADMIN_ACTION_STATE);
   const [assignment, setAssignment] = useState(holders[0]?.roleAssignmentId ?? "");
   const slot = useOutcomeSlot("end-panel");
+
+  /**
+   * The earliest end the chosen assignment can be given, and whether that is
+   * today — LAN-141 finding 2.
+   *
+   * The period is half-open and `role_assignments_period_ordered` requires
+   * `effective_to > effective_from`, so a seat filled this morning cannot be
+   * vacated until tomorrow. Both this field and the service's own default were
+   * "today", so leaving it blank produced a refusal every time — under helper
+   * text that read "Leave blank to end it today", on the only action that
+   * corrects a role given to the wrong person. There is no delete, and
+   * deactivating the account deliberately does not vacate the seat, so this was
+   * the whole of the recovery route.
+   *
+   * Correcting it same-day would mean relaxing a schema constraint on the
+   * frozen domain model, which is Brian's decision and not this package's. What
+   * is this package's is that the form stops offering a date the service will
+   * refuse, and names the one it will accept.
+   */
+  const chosen = holders.find((holder) => holder.roleAssignmentId === assignment) ?? holders[0];
+  const earliestEnd = chosen?.earliestEnd;
+  const todayIsAllowed = earliestEnd === undefined || earliestEnd <= today;
 
   return (
     <Paper variant="outlined" sx={{ p: 2 }} data-testid="end-panel">
@@ -402,8 +509,17 @@ function EndPanel({
             name="effectiveTo"
             type="date"
             label="Ends on"
-            slotProps={{ inputLabel: { shrink: true } }}
-            helperText="Leave blank to end it today. A future date schedules it."
+            required={!todayIsAllowed}
+            defaultValue={todayIsAllowed ? "" : earliestEnd}
+            key={earliestEnd ?? "none"}
+            slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: earliestEnd } }}
+            helperText={
+              todayIsAllowed
+                ? "Leave blank to end it today. A future date schedules it."
+                : `This assignment started today, and an assignment cannot end on the day it ` +
+                  `started. The earliest it can end is ${formatClubDay(earliestEnd ?? "")}, ` +
+                  `which schedules it.`
+            }
             fullWidth
           />
           <TextField name="reason" label="Reason" required multiline minRows={2} fullWidth />

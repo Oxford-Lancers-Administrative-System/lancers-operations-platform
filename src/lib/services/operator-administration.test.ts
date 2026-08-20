@@ -47,6 +47,7 @@ import { FINAL_ADMINISTRATION_PATH_RULE } from "@/lib/auth/administration-author
 import { capabilityRoleCodes } from "@/lib/auth/capabilities";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { closePool, isServiceError, resolveDatabaseUrl, withTransaction } from "@/lib/db";
+import { addClubDays, formatClubDay } from "@/lib/club-time";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { readHolderHistory, readOperatorAuditHistory } from "./administration-audit";
 import {
@@ -57,6 +58,7 @@ import {
   deactivateOperatorAccess,
   DEACTIVATION_REASON_RULE,
   EmailRehomeDeliveryFailure,
+  earliestEndFor,
   END_BEFORE_START_RULE,
   END_REASON_RULE,
   endRoleAssignment,
@@ -214,6 +216,17 @@ async function refusalOf(action: Promise<unknown>): Promise<{ kind: string; rule
     await action;
   } catch (error) {
     if (isServiceError(error)) return { kind: error.kind, rule: error.rule };
+    throw error;
+  }
+  throw new Error("The action was permitted, and should not have been.");
+}
+
+/** The sentence a refusal gave the operator, which is the half they read. */
+async function messageOf(action: Promise<unknown>): Promise<string> {
+  try {
+    await action;
+  } catch (error) {
+    if (isServiceError(error)) return error.message;
     throw error;
   }
   throw new Error("The action was permitted, and should not have been.");
@@ -966,6 +979,57 @@ describe("B — ending a role assignment", () => {
         }),
       ),
     ).toEqual({ kind: "constraint_violated", rule: END_BEFORE_START_RULE });
+  });
+
+  /**
+   * LAN-141 finding 2: the refusal has to name a date the administrator can
+   * actually use, in the words every screen uses for a date.
+   *
+   * Both the end date and the assignment's start default to today, so a role
+   * given to the wrong person this morning is refused by every route — there is
+   * no delete, and deactivating the account deliberately does not vacate the
+   * seat. The refusal said only "Choose a later date", and said it about
+   * `2026-08-20` while the page behind it read `20 Aug 2026`, so two spellings
+   * of one date read as two dates.
+   *
+   * Correcting it *same-day* would mean relaxing `role_assignments_period_ordered`
+   * on the frozen domain model, which is Brian's decision. Naming the earliest
+   * date that works is not.
+   */
+  it("names the earliest usable end date, in the club's own words", async () => {
+    const personId = await insertPerson("end-same-day-message");
+    const assignmentId = await giveRole(personId, "kit_manager", { from: today });
+    const tomorrow = addClubDays(today, 1) as string;
+
+    const message = await messageOf(
+      endRoleAssignment({
+        operator: administrator(),
+        roleAssignmentId: assignmentId,
+        reason: "Appointed by mistake.",
+      }),
+    );
+
+    expect(message).toContain(formatClubDay(today));
+    expect(message).toContain(formatClubDay(tomorrow));
+    // Never the stored form: `27 Aug 2026` everywhere, or the two disagree.
+    expect(message).not.toContain(today);
+    expect(message).not.toContain(tomorrow);
+  });
+
+  it("accepts the earliest date it names", async () => {
+    const personId = await insertPerson("end-earliest-accepted");
+    const assignmentId = await giveRole(personId, "kit_manager", { from: today });
+    const earliest = earliestEndFor({ effectiveFrom: today });
+
+    const result = await endRoleAssignment({
+      operator: administrator(),
+      roleAssignmentId: assignmentId,
+      effectiveTo: earliest,
+      reason: "Appointed by mistake; handing it back tomorrow.",
+    });
+
+    expect(result.effectiveTo).toBe(earliest);
+    expect(result.scheduled).toBe(true);
   });
 
   /**

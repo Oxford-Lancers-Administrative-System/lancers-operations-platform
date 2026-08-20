@@ -15,6 +15,7 @@ import { capabilityRoleCodes, roleLabel } from "@/lib/auth/capabilities";
 import { assertCapability } from "@/lib/auth/guards";
 import type { ResolvedOperator } from "@/lib/auth/operator";
 import { looksLikeEmailAddress } from "@/lib/auth/recovery";
+import { addClubDays, formatClubDay } from "@/lib/club-time";
 import {
   Conflict,
   ConstraintViolated,
@@ -42,6 +43,7 @@ import {
   resolveActiveCommitteeYear,
   resolveCommitteeYearForActivation,
   resolveCycleFor,
+  resolveSeasonForReading,
   type OperatorAccountRecord,
   type ResolvedRole,
 } from "./operator-invitations";
@@ -1211,10 +1213,16 @@ export async function readRoleHolders(
 
   return withTransaction(async (tx) => {
     const role = await requireRole(tx, roleCode);
+    // The **reading** resolvers, so this and `readRoleCatalogue()` answer about
+    // the same cycle. A season in `closing` is current to read and closed to
+    // write, and using the write resolver here is what made the two readers
+    // disagree about every coaching seat under it — LAN-141 finding 4.
     const active =
       role.scope === "committee_year"
         ? await resolveActiveCommitteeYear(tx)
-        : (await resolveCycleFor(tx, "season", await resolveActiveCommitteeYear(tx))).operatingYear;
+        : ((await resolveSeasonForReading(tx))?.year ??
+          (await resolveCycleFor(tx, "season", await resolveActiveCommitteeYear(tx)))
+            .operatingYear);
 
     const cycle =
       options.cycleId === undefined || options.cycleId === active.id
@@ -1497,17 +1505,35 @@ async function lockAssignment(tx: Tx, roleAssignmentId: string): Promise<Assignm
 function refuseAlreadyEnded(assignment: AssignmentRow): void {
   if (assignment.effectiveTo === null) return;
   throw new InvalidTransition(
-    `This assignment already ends on ${assignment.effectiveTo}. History is not rewritten here — ` +
-      "if the seat needs somebody in it again, assign it.",
+    `This assignment already ends on ${formatClubDay(assignment.effectiveTo)}. History is not ` +
+      "rewritten here — if the seat needs somebody in it again, assign it.",
     { rule: ALREADY_ENDED_RULE },
   );
+}
+
+/**
+ * The earliest date one assignment may be given as its end, as `YYYY-MM-DD`.
+ *
+ * The day after it started. `role_assignments_period_ordered` enforces
+ * `effective_to > effective_from` and the period is half-open, so an end equal
+ * to the start would describe an assignment that never existed — which is a
+ * deletion, and nothing in this module deletes.
+ *
+ * Exported because the surfaces need the same answer the guard uses. LAN-141
+ * finding 2: both the end date and the start default to today, so a role
+ * assigned this morning could not be ended by any route today, while the form
+ * said "Leave blank to end it today" and the refusal named no usable date at
+ * all. The date is one rule and this is where it lives.
+ */
+export function earliestEndFor(assignment: { readonly effectiveFrom: string }): string {
+  return addClubDays(assignment.effectiveFrom, 1) ?? assignment.effectiveFrom;
 }
 
 function refuseEndBeforeStart(assignment: AssignmentRow, effectiveTo: string): void {
   if (effectiveTo > assignment.effectiveFrom) return;
   throw new ConstraintViolated(
-    `This assignment started on ${assignment.effectiveFrom}, so it cannot end on or before ` +
-      "that date. Choose a later date.",
+    `This assignment started on ${formatClubDay(assignment.effectiveFrom)}, so it cannot end on ` +
+      `or before that date. The earliest it can end is ${formatClubDay(earliestEndFor(assignment))}.`,
     { rule: END_BEFORE_START_RULE },
   );
 }

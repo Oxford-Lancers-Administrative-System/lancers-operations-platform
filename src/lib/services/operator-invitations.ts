@@ -294,6 +294,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const NOT_RESENDABLE_RULE = "operator_invitation_not_resendable";
 export const NO_ACTIVE_COMMITTEE_YEAR_RULE = "no_active_committee_year";
+export const NO_OPEN_SEASON_RULE = "no_open_season";
 export const CALLBACK_URL_RULE = "operator_invitation_callback_url_required";
 export const CALLBACK_URL_MESSAGE =
   "This installation does not know its own web address, so it cannot build an invitation " +
@@ -1683,7 +1684,7 @@ export async function resolveActiveSeason(tx: Tx): Promise<AdministrationOperati
     throw new NotFound(
       "There is no season under way, so a coaching role cannot be given a start yet. " +
         "The President or Secretary opens the season first.",
-      { rule: "no_open_season" },
+      { rule: NO_OPEN_SEASON_RULE },
     );
   }
   if (result.rows.length > 1) {
@@ -1695,4 +1696,89 @@ export async function resolveActiveSeason(tx: Tx): Promise<AdministrationOperati
   }
 
   return { scope: "season", id: result.rows[0].id, label: result.rows[0].label };
+}
+
+// ---------------------------------------------------------------------------
+// The same two cycles, as a reading surface has to ask about them
+// ---------------------------------------------------------------------------
+
+/**
+ * The committee year a *reading* surface means by "this year", or `null`.
+ *
+ * The two resolvers above fail closed because they are asked before a **write**:
+ * an assignment with no cycle to hang off cannot be recorded, and refusing is
+ * the only truthful answer. A reading screen must not inherit that refusal, and
+ * LAN-141 finding 8 is what that costs when it does — `resolveActiveCommitteeYear()`
+ * throwing took the whole of Administration down and told the reader the current
+ * committee year "has to be recorded first", from a page with no route in the
+ * application to record one. Half-open currency (`ends_on` exclusive) gives a
+ * one-day hole at every handover, so this is an ordinary Monday rather than an
+ * exotic state.
+ *
+ * The season was wrapped for exactly this reason when `WP-surfaces` was built.
+ * The committee year was not, and this is the missing half.
+ */
+export async function resolveCommitteeYearForReading(
+  tx: Tx,
+): Promise<AdministrationOperatingYear | null> {
+  try {
+    return await resolveActiveCommitteeYear(tx);
+  } catch (error) {
+    const isMissing =
+      error instanceof NotFound && (error as NotFound).rule === NO_ACTIVE_COMMITTEE_YEAR_RULE;
+    if (isMissing) return null;
+    throw error;
+  }
+}
+
+/** The season a reading surface means by "this season", and whether it takes writes. */
+export interface SeasonForReading {
+  readonly year: AdministrationOperatingYear;
+  /**
+   * False for a season in `closing`. It is the club's current season to read —
+   * its coaches are in post and its fixtures are being wound up — and it is not
+   * one a new coaching appointment may be recorded against.
+   */
+  readonly writable: boolean;
+}
+
+/**
+ * The season a reading surface means by "this season", or `null`.
+ *
+ * `resolveActiveSeason()` accepts `open` and `active` only, which is right for
+ * the write it guards. `closing` is an ordinary `season_status` and it is
+ * reached by every season the club ever runs — so under it, every coaching
+ * assignment (written open-ended) was still in force while the Roles index said
+ * "No season under way" and role detail named the live holder. LAN-141 finding
+ * 4, found independently by three of the four hunters.
+ *
+ * So reading widens by exactly one status and says so on the way out: a
+ * `closing` season is current, and it is not writable. Nothing here relaxes the
+ * write guard, and a coaching assignment against a closing season is still
+ * refused by `resolveActiveSeason()` where it always was.
+ *
+ * `open`/`active` is preferred over `closing` when both exist, which is the
+ * ordinary shape of a handover between two seasons.
+ */
+export async function resolveSeasonForReading(tx: Tx): Promise<SeasonForReading | null> {
+  try {
+    return { year: await resolveActiveSeason(tx), writable: true };
+  } catch (error) {
+    const isMissing = error instanceof NotFound && (error as NotFound).rule === NO_OPEN_SEASON_RULE;
+    if (!isMissing) throw error;
+
+    const result = await tx.query<{ id: string; label: string }>(
+      `select id, label
+         from public.seasons
+        where status = 'closing'
+        order by starts_on desc, label desc
+        limit 1`,
+    );
+    if (result.rows.length === 0) return null;
+
+    return {
+      year: { scope: "season", id: result.rows[0].id, label: result.rows[0].label },
+      writable: false,
+    };
+  }
 }

@@ -81,9 +81,14 @@ export default async function OperatorsPage() {
     <Stack spacing={3}>
       <AdminPageHeading
         title="Operators"
-        subtitle={`${directory.committeeYear.label} · ${count} ${
-          count === 1 ? "operator account" : "operator accounts"
-        }`}
+        subtitle={[
+          // LAN-141 finding 8: the year is a label. A gap between committee
+          // years used to take this page down entirely, telling the reader a
+          // year "has to be recorded first" from a page with no route to record
+          // one.
+          directory.committeeYear?.label ?? "No committee year recorded",
+          `${count} ${count === 1 ? "operator account" : "operator accounts"}`,
+        ].join(" · ")}
         help
         actions={
           <Button variant="contained" href="/operate/admin/operators/new" sx={{ minHeight: 44 }}>
