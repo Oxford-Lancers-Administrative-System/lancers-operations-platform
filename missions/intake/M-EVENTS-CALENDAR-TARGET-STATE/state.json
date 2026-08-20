@@ -23,7 +23,7 @@
     {
       "id": "W1",
       "name": "Read the club calendar",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -85,5 +85,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - draft the W1 specification and mockup, grounded in the running application"
+  "next_action": "Stage 3 - W1 specification is drafted; obtain Brian's spec approval, then build the W1 mockup"
 }
