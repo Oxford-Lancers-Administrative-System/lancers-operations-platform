@@ -27,10 +27,15 @@
     {
       "id": "W1",
       "name": "Find and read events",
-      "state": "spec_draft",
+      "state": "spec_approved",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "Approved.",
+          "date": "2026-08-20"
+        }
+      }
     },
     {
       "id": "W2",
@@ -94,5 +99,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - rewrite the W1 specification to cover the list arrangement, then obtain Brian's spec approval"
+  "next_action": "Stage 3 - build mockups/W1-find-and-read-events.html and the mockup hub, then obtain Brian's mock approval"
 }

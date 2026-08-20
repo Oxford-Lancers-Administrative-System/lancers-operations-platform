@@ -301,5 +301,10 @@ package rather than on this specification:
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- **Exact words:** "Approved."
+- **Date:** 2026-08-20
+- **What it approved:** this specification of `W1 — Find and read events`,
+  covering all three arrangements, the public and operator tiers, the continuous
+  Oxford column and the season-ownership rule, with nineteen locked decisions,
+  four delegated to the Mission Lead, one deferred to `W7` and one nonblocking
+  unknown carrying its handling rule. The mockup is a separate approval.
