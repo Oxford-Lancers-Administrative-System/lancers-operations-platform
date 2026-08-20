@@ -14,8 +14,9 @@ eight items to sixteen came from.
 
 ## Proposed inventory — 8 workflows
 
-1. `W1` — Read the club calendar: anyone with a browser and no account → they
-   know when and where the club's events are. Calendar View and the continuous
+1. `W1` — Find and read events: anyone with a browser and no account → they
+   know when and where the club's events are, from whichever of the three
+   arrangements suits them — the list, Calendar View, or Oxford View. Calendar View and the continuous
    academic-year Oxford View, per-type colours, grouped list projections, and
    the public event page. (D1–D10, D83–D85; F3, F4)
 2. `W2` — Subscribe to the club calendar: anyone → the club's events sit in
@@ -98,7 +99,20 @@ actor journey, or a rule that applies across several workflows.
 
 ## Inventory amendments
 
-None.
+### Amendment 1 — three coverage gaps closed, 2026-08-20
+
+A sweep of the brief's thirteen surfaces and sixteen actions against this
+inventory (`coverage.md`) found three things owned by no workflow. Brian
+approved closing them by widening three existing workflows rather than adding
+any: "okay, that's fine."
+
+| Gap                                                                                                         | Closed by | How                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The operator event list as a reading surface — columns, search, filters, sorting, D84's grouped projections | `W1`      | `W1` renamed from "Read the club calendar" to **"Find and read events"** and re-scoped to all three arrangements of the one query: list, Gregorian, Oxford |
+| Delete a draft (D29)                                                                                        | `W4`      | The end of the drafting journey; mass delete already sat in `W3`                                                                                           |
+| Issue or share the club link (§4.7, §4.15, Q2)                                                              | `W7`      | Issuing the link is how somebody else comes to see who is coming, so it belongs with the surface it unlocks                                                |
+
+The count is unchanged at eight. No workflow was added, removed or renumbered.
 
 ## Brian approval
 

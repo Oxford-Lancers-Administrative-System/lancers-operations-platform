@@ -67,10 +67,11 @@ Bounded by `00-boundary.md`, which Brian approved on 2026-08-20.
   defaults; explicit re-notify; cancellation as its own terminal action with no
   approval gate; internal cancellation reason never shown to recipients.
   (D49–D61, D76, and OD-1's Q6/Q7/Q9 closures)
-- **The calendar.** Public read with no account; three access tiers; Calendar
-  View and the continuous academic-year Oxford View; per-type shared colors;
-  grouped list projections; Europe/London time entry shown explicitly.
-  (D1–D11, D83–D86)
+- **The calendar and the event list.** Public read with no account; three
+  access tiers; the list, Calendar View and the continuous academic-year Oxford
+  View as three arrangements of one query; per-type shared colors; a list that
+  opens on upcoming and groups by period; Europe/London time entry shown
+  explicitly. (D1–D11, D83–D86, §4.1–§4.6)
 - **Calendar distribution — subscription feeds for Google, Microsoft and
   Apple.** Anyone on the website clicks a button and the club calendar is saved
   into their own calendar. The subscription is **live**: an event created,
