@@ -173,9 +173,13 @@ interface CatalogueRow {
  * genuinely different state from a vacancy and still has to be told apart from
  * one.
  *
- * `scheduled` is now always false here and is deliberately kept: it is the
- * seam a future decision to surface an incoming holder on the index would use,
- * and re-deriving it later would mean re-deriving this predicate too.
+ * `scheduled` is a live partition, not a leftover. Assignments recorded to
+ * start later are read alongside the current ones and separated in
+ * `groupCatalogue`: holders are those in force today, `scheduled` are those
+ * still to begin, and only holders decide `vacant`. That is what lets one cell
+ * say "Not assigned" and name who arrives next week without either statement
+ * contradicting the other — Brian's ruling of 20 August 2026, after seeing the
+ * version that showed only the current answer.
  */
 export async function readRoleCatalogue(operator: ResolvedOperator | null): Promise<RoleCatalogue> {
   assertCapability(requireOperator(operator), ADMINISTRATION_CAPABILITY);

@@ -29,6 +29,7 @@ import {
   sectionLabelForGroup,
 } from "../../presentation";
 import AdministrationHistory from "../../history";
+import { ArrivalNotice, OutcomeSlotProvider } from "../../outcome";
 import OperatorActions from "./operator-actions";
 
 /**
@@ -99,149 +100,152 @@ export default async function OperatorRecordPage({
   const notice = noticeFor(await searchParams);
 
   return (
-    <Stack spacing={3}>
-      <AdminPageHeading
-        title={operator.displayName}
-        subtitle="Operator account and current roles"
-      />
+    <OutcomeSlotProvider>
+      <Stack spacing={3}>
+        <AdminPageHeading
+          title={operator.displayName}
+          subtitle="Operator account and current roles"
+        />
 
-      <Link href="/operate/admin/operators" variant="body2">
-        Back to Operators
-      </Link>
+        <Link href="/operate/admin/operators" variant="body2">
+          Back to Operators
+        </Link>
 
-      {notice ? <Alert severity={notice.severity}>{notice.message}</Alert> : null}
+        {notice ? <ArrivalNotice severity={notice.severity} message={notice.message} /> : null}
 
-      <Box
-        sx={{
-          display: "grid",
-          gap: 2,
-          gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
-        }}
-      >
-        <Paper variant="outlined" sx={{ p: 2 }} data-testid="operator-account-panel">
-          <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 1.5 }}>
-            Operator account
-          </Typography>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
+          }}
+        >
+          <Paper variant="outlined" sx={{ p: 2 }} data-testid="operator-account-panel">
+            <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 1.5 }}>
+              Operator account
+            </Typography>
 
-          <Stack spacing={1.5}>
-            <Box>
-              <Chip
-                label={accountStateLabel(operator.state)}
-                color={accountStateColour(operator.state)}
-                variant={operator.state === "active" ? "filled" : "outlined"}
-                data-testid="account-state-chip"
-              />
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                {definition.description}
-              </Typography>
-            </Box>
+            <Stack spacing={1.5}>
+              <Box>
+                <Chip
+                  label={accountStateLabel(operator.state)}
+                  color={accountStateColour(operator.state)}
+                  variant={operator.state === "active" ? "filled" : "outlined"}
+                  data-testid="account-state-chip"
+                />
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  {definition.description}
+                </Typography>
+              </Box>
 
-            {/*
+              {/*
               LAN131-A5. The transport's own sentence, shown wherever Delivery
               failed is. It is the only place an administrator is told that an
               invitation which was opened and abandoned is recovered through
               Forgot password rather than through another invitation.
             */}
-            {operator.state === "delivery_failed" && operator.deliveryFailureReason ? (
-              <Alert severity="warning" data-testid="delivery-failure-reason">
-                {operator.deliveryFailureReason}
-              </Alert>
-            ) : null}
+              {operator.state === "delivery_failed" && operator.deliveryFailureReason ? (
+                <Alert severity="warning" data-testid="delivery-failure-reason">
+                  {operator.deliveryFailureReason}
+                </Alert>
+              ) : null}
 
-            <Fact label="Sign-in email" value={operator.loginEmail ?? "None recorded"} />
-            <Fact
-              label="Invitation sent"
-              value={
-                operator.invitedAt ? formatInstant(operator.invitedAt) : "No invitation recorded"
-              }
-            />
-            <Fact
-              label="Accepted"
-              value={operator.activatedAt ? formatInstant(operator.activatedAt) : "Not yet"}
-            />
-            {operator.deliveryFailedAt ? (
-              <Fact label="Delivery failed" value={formatInstant(operator.deliveryFailedAt)} />
-            ) : null}
-            {operator.emailRehomePendingAt ? (
+              <Fact label="Sign-in email" value={operator.loginEmail ?? "None recorded"} />
               <Fact
-                label="Email change started"
-                value={formatInstant(operator.emailRehomePendingAt)}
+                label="Invitation sent"
+                value={
+                  operator.invitedAt ? formatInstant(operator.invitedAt) : "No invitation recorded"
+                }
               />
-            ) : null}
-          </Stack>
-        </Paper>
+              <Fact
+                label="Accepted"
+                value={operator.activatedAt ? formatInstant(operator.activatedAt) : "Not yet"}
+              />
+              {operator.deliveryFailedAt ? (
+                <Fact label="Delivery failed" value={formatInstant(operator.deliveryFailedAt)} />
+              ) : null}
+              {operator.emailRehomePendingAt ? (
+                <Fact
+                  label="Email change started"
+                  value={formatInstant(operator.emailRehomePendingAt)}
+                />
+              ) : null}
+            </Stack>
+          </Paper>
 
-        <Paper variant="outlined" sx={{ p: 2 }} data-testid="operator-relationships-panel">
+          <Paper variant="outlined" sx={{ p: 2 }} data-testid="operator-relationships-panel">
+            <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 1.5 }}>
+              Current relationships
+            </Typography>
+
+            <Stack spacing={1.5}>
+              {operator.roles.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  This person holds no club role at the moment. Their account still exists and their
+                  history is unchanged.
+                </Typography>
+              ) : (
+                operator.roles.map((role) => (
+                  <Box key={role.roleAssignmentId}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {role.label}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {sectionLabelForGroup(role.groupCode, role.groupLabel)} ·{" "}
+                      {describePeriod(role)}
+                    </Typography>
+                  </Box>
+                ))
+              )}
+
+              <Divider />
+
+              <Fact
+                label="Player"
+                value={
+                  membership
+                    ? `${membershipStatusLabel(membership.status)} · ${membership.seasonLabel}`
+                    : "No current player membership"
+                }
+              />
+            </Stack>
+          </Paper>
+        </Box>
+
+        <Box component="section">
           <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 1.5 }}>
-            Current relationships
+            Account actions
           </Typography>
+          <OperatorActions
+            operatorAccountId={operator.operatorAccountId}
+            state={operator.state}
+            resendAvailable={definition.resendAvailable}
+            loginEmail={operator.loginEmail}
+            permitted={permitted}
+          />
+        </Box>
 
-          <Stack spacing={1.5}>
-            {operator.roles.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                This person holds no club role at the moment. Their account still exists and their
-                history is unchanged.
-              </Typography>
-            ) : (
-              operator.roles.map((role) => (
-                <Box key={role.roleAssignmentId}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {role.label}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {sectionLabelForGroup(role.groupCode, role.groupLabel)} · {describePeriod(role)}
-                  </Typography>
-                </Box>
-              ))
-            )}
-
-            <Divider />
-
-            <Fact
-              label="Player"
-              value={
-                membership
-                  ? `${membershipStatusLabel(membership.status)} · ${membership.seasonLabel}`
-                  : "No current player membership"
-              }
-            />
+        <Box component="section">
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1}
+            sx={{ alignItems: { sm: "baseline" }, justifyContent: "space-between", mb: 1.5 }}
+          >
+            <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
+              Operator audit history
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Account and role events affecting this person
+            </Typography>
           </Stack>
-        </Paper>
-      </Box>
-
-      <Box component="section">
-        <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700, mb: 1.5 }}>
-          Account actions
-        </Typography>
-        <OperatorActions
-          operatorAccountId={operator.operatorAccountId}
-          state={operator.state}
-          resendAvailable={definition.resendAvailable}
-          loginEmail={operator.loginEmail}
-          permitted={permitted}
-        />
-      </Box>
-
-      <Box component="section">
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1}
-          sx={{ alignItems: { sm: "baseline" }, justifyContent: "space-between", mb: 1.5 }}
-        >
-          <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 700 }}>
-            Operator audit history
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Account and role events affecting this person
-          </Typography>
-        </Stack>
-        <AdministrationHistory
-          entries={history}
-          emptyMessage="Nothing has been recorded against this operator yet."
-          testId="operator-audit-history"
-        />
-      </Box>
-    </Stack>
+          <AdministrationHistory
+            entries={history}
+            emptyMessage="Nothing has been recorded against this operator yet."
+            testId="operator-audit-history"
+          />
+        </Box>
+      </Stack>
+    </OutcomeSlotProvider>
   );
 }
 

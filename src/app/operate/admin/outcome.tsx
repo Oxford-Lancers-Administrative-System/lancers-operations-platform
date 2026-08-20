@@ -93,6 +93,41 @@ export function useOutcomeSlot(panel: string): { showing: boolean; claim: () => 
 }
 
 /**
+ * A notice this page arrived carrying, rather than one an action produced here.
+ *
+ * `inviteOperatorAction` redirects to operator detail with a `notice` query
+ * parameter, and the banner it produces is server-rendered from `searchParams`.
+ * That put it outside the slot and therefore outside the rule — which the
+ * undelivered-invitation banner then broke on the very path it instructs. It
+ * says to check the address, correct it and send it again;
+ * `correctInvitationAction` refreshes without redirecting, so the query
+ * parameter survives and its banner sat above the panel's fresh confirmation.
+ * Two results, both reading as current: Brian's original complaint, reached by
+ * following the page's own instruction.
+ *
+ * Reading the slot like any panel is what fixes it. The moment another action
+ * on this page starts, the arrival notice stops being the current result and
+ * stops being drawn. It never *claims* the slot, because arriving on a page is
+ * not an action the operator took on it.
+ */
+export function ArrivalNotice({
+  severity,
+  message,
+}: {
+  severity: "success" | "warning";
+  message: string;
+}) {
+  const slot = useOutcomeSlot("arrival");
+  if (!slot.showing) return null;
+
+  return (
+    <Alert severity={severity} data-testid="arrival-notice">
+      {message}
+    </Alert>
+  );
+}
+
+/**
  * The outcome of one action, or nothing.
  *
  * Refusal first: an action can only end one way, but a refusal is the one an

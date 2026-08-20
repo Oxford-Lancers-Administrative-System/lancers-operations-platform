@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "./action-state";
-import AdminOutcome, { OutcomeSlotProvider, useOutcomeSlot } from "./outcome";
+import AdminOutcome, { ArrivalNotice, OutcomeSlotProvider, useOutcomeSlot } from "./outcome";
 
 function state(overrides: Partial<AdminActionState>): AdminActionState {
   return { ...EMPTY_ADMIN_ACTION_STATE, ...overrides };
@@ -119,6 +119,40 @@ describe("a screen shows the result of at most one action", () => {
     expect(
       screen.queryByText("The invitation has been sent again, to somebody@example.test"),
     ).toBeNull();
+  });
+
+  /**
+   * The path the page itself instructs — LAN133-F2.
+   *
+   * `inviteOperatorAction` redirects with a `notice` parameter whose banner says
+   * to correct the address and send it again. `correctInvitationAction` refreshes
+   * without redirecting, so the parameter survives and its banner used to sit
+   * above the panel's fresh confirmation: two results, both reading as current,
+   * reached by following the instruction. The arrival notice is inside the slot
+   * now, and this is what holds it there.
+   */
+  it("clears a notice the page arrived with once an action is started", () => {
+    function Screen() {
+      return (
+        <OutcomeSlotProvider>
+          <ArrivalNotice
+            severity="warning"
+            message="The account and the role are recorded, but the invitation could not be delivered."
+          />
+          <Panel name="correct" notice="The invitation has been sent again, to a@example.test" />
+        </OutcomeSlotProvider>
+      );
+    }
+
+    render(<Screen />);
+    expect(screen.getByTestId("arrival-notice")).toBeInTheDocument();
+
+    fireEvent.submit(screen.getByTestId("form-correct"));
+
+    expect(screen.queryByTestId("arrival-notice")).toBeNull();
+    expect(
+      screen.getByText("The invitation has been sent again, to a@example.test"),
+    ).toBeInTheDocument();
   });
 
   /** A screen with one action needs no provider and must not need one. */

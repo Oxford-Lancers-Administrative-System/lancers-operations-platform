@@ -16,7 +16,7 @@ import {
   startEmailRehomeAction,
 } from "../../actions";
 import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "../../action-state";
-import AdminOutcome, { OutcomeSlotProvider, useOutcomeSlot } from "../../outcome";
+import AdminOutcome, { useOutcomeSlot } from "../../outcome";
 import type { PermittedAccountActions } from "../../permissions";
 
 /**
@@ -90,108 +90,106 @@ export default function OperatorActions({
   }
 
   return (
-    <OutcomeSlotProvider>
-      <Stack spacing={2}>
-        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-          {offered.resend ? <ResendButton operatorAccountId={operatorAccountId} /> : null}
-          {offered.correct ? (
-            <Button onClick={() => toggle("correct")} sx={{ minHeight: 44 }}>
-              Correct email and resend
-            </Button>
-          ) : null}
-          {offered.recover ? (
-            <Button onClick={() => toggle("recover")} sx={{ minHeight: 44 }}>
-              Recover email access
-            </Button>
-          ) : null}
-          {offered.deactivate ? (
-            <Button color="error" onClick={() => toggle("deactivate")} sx={{ minHeight: 44 }}>
-              Deactivate operator access
-            </Button>
-          ) : null}
-          {offered.restore ? (
-            <Button variant="contained" onClick={() => toggle("restore")} sx={{ minHeight: 44 }}>
-              Restore operator access
-            </Button>
-          ) : null}
-        </Stack>
-
-        {open === "correct" ? (
-          <ActionPanel
-            title="Correct the address and send the invitation again"
-            explanation="The invitation stays attached to this same account. Nothing is duplicated, and the address it was originally sent to is kept in the record."
-            action={correctInvitationAction}
-            submitLabel="Correct and resend"
-            testId="correct-panel"
-          >
-            <input type="hidden" name="operatorAccountId" value={operatorAccountId} />
-            <TextField
-              name="email"
-              type="email"
-              label="Corrected email"
-              defaultValue={loginEmail ?? ""}
-              required
-              fullWidth
-            />
-          </ActionPanel>
+    <Stack spacing={2}>
+      <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+        {offered.resend ? <ResendButton operatorAccountId={operatorAccountId} /> : null}
+        {offered.correct ? (
+          <Button onClick={() => toggle("correct")} sx={{ minHeight: 44 }}>
+            Correct email and resend
+          </Button>
         ) : null}
-
-        {open === "recover" ? (
-          <ActionPanel
-            title="Recover email access"
-            explanation="Use this only when the sign-in address is lost or compromised. The old address stops working immediately, a verification link goes to the replacement, and this account stays in Email change pending until it is followed. Roles, history and the person's record are unchanged."
-            action={startEmailRehomeAction}
-            submitLabel="Send verification"
-            testId="recover-panel"
-          >
-            <input type="hidden" name="operatorAccountId" value={operatorAccountId} />
-            <TextField
-              name="email"
-              type="email"
-              label="Replacement email"
-              required
-              fullWidth
-              helperText="An address nobody else signs in with."
-            />
-            <TextField name="reason" label="Reason" required fullWidth multiline minRows={2} />
-          </ActionPanel>
+        {offered.recover ? (
+          <Button onClick={() => toggle("recover")} sx={{ minHeight: 44 }}>
+            Recover email access
+          </Button>
         ) : null}
-
-        {open === "deactivate" ? (
-          <ActionPanel
-            title="Deactivate operator access"
-            explanation="Sign-in stops immediately. The roles this person holds are not ended, no seat becomes vacant, and nothing is deleted."
-            action={deactivateOperatorAction}
-            submitLabel="Deactivate operator access"
-            submitColor="error"
-            testId="deactivate-panel"
-          >
-            <input type="hidden" name="operatorAccountId" value={operatorAccountId} />
-            <TextField name="reason" label="Reason" required fullWidth multiline minRows={2} />
-          </ActionPanel>
+        {offered.deactivate ? (
+          <Button color="error" onClick={() => toggle("deactivate")} sx={{ minHeight: 44 }}>
+            Deactivate operator access
+          </Button>
         ) : null}
-
-        {open === "restore" ? (
-          <ActionPanel
-            title="Restore operator access"
-            explanation="The same account works again. Only the roles still in effect come back with it — a seat that ended while access was off stays ended."
-            action={restoreOperatorAction}
-            submitLabel="Restore operator access"
-            testId="restore-panel"
-          >
-            <input type="hidden" name="operatorAccountId" value={operatorAccountId} />
-            <TextField
-              name="reason"
-              label="Reason (optional)"
-              fullWidth
-              multiline
-              minRows={2}
-              helperText="Coming back needs no excuse; record one if it helps the next reader."
-            />
-          </ActionPanel>
+        {offered.restore ? (
+          <Button variant="contained" onClick={() => toggle("restore")} sx={{ minHeight: 44 }}>
+            Restore operator access
+          </Button>
         ) : null}
       </Stack>
-    </OutcomeSlotProvider>
+
+      {open === "correct" ? (
+        <ActionPanel
+          title="Correct the address and send the invitation again"
+          explanation="The invitation stays attached to this same account. Nothing is duplicated, and the address it was originally sent to is kept in the record."
+          action={correctInvitationAction}
+          submitLabel="Correct and resend"
+          testId="correct-panel"
+        >
+          <input type="hidden" name="operatorAccountId" value={operatorAccountId} />
+          <TextField
+            name="email"
+            type="email"
+            label="Corrected email"
+            defaultValue={loginEmail ?? ""}
+            required
+            fullWidth
+          />
+        </ActionPanel>
+      ) : null}
+
+      {open === "recover" ? (
+        <ActionPanel
+          title="Recover email access"
+          explanation="Use this only when the sign-in address is lost or compromised. The old address stops working immediately, a verification link goes to the replacement, and this account stays in Email change pending until it is followed. Roles, history and the person's record are unchanged."
+          action={startEmailRehomeAction}
+          submitLabel="Send verification"
+          testId="recover-panel"
+        >
+          <input type="hidden" name="operatorAccountId" value={operatorAccountId} />
+          <TextField
+            name="email"
+            type="email"
+            label="Replacement email"
+            required
+            fullWidth
+            helperText="An address nobody else signs in with."
+          />
+          <TextField name="reason" label="Reason" required fullWidth multiline minRows={2} />
+        </ActionPanel>
+      ) : null}
+
+      {open === "deactivate" ? (
+        <ActionPanel
+          title="Deactivate operator access"
+          explanation="Sign-in stops immediately. The roles this person holds are not ended, no seat becomes vacant, and nothing is deleted."
+          action={deactivateOperatorAction}
+          submitLabel="Deactivate operator access"
+          submitColor="error"
+          testId="deactivate-panel"
+        >
+          <input type="hidden" name="operatorAccountId" value={operatorAccountId} />
+          <TextField name="reason" label="Reason" required fullWidth multiline minRows={2} />
+        </ActionPanel>
+      ) : null}
+
+      {open === "restore" ? (
+        <ActionPanel
+          title="Restore operator access"
+          explanation="The same account works again. Only the roles still in effect come back with it — a seat that ended while access was off stays ended."
+          action={restoreOperatorAction}
+          submitLabel="Restore operator access"
+          testId="restore-panel"
+        >
+          <input type="hidden" name="operatorAccountId" value={operatorAccountId} />
+          <TextField
+            name="reason"
+            label="Reason (optional)"
+            fullWidth
+            multiline
+            minRows={2}
+            helperText="Coming back needs no excuse; record one if it helps the next reader."
+          />
+        </ActionPanel>
+      ) : null}
+    </Stack>
   );
 }
 

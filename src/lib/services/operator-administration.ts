@@ -1170,18 +1170,25 @@ export interface RoleHolders {
  *
  * ## "Holders from different years are never mixed"
  *
- * The rule is `REQ-explicit-cycle-assignment`'s, and it is implemented as an
- * overlap rather than as `committee_year_id = ?`, because the two disagree on
- * exactly the case the same requirement set names: General Manager and IT
- * Officer are standing seats and "neither expires automatically at year end". A
- * General Manager appointed in 2025-26 and never ended is the holder in 2026-27
- * too, and a strict cycle-id filter would report that seat vacant the day the
- * committee year turned over.
+ * The rule is `REQ-explicit-cycle-assignment`'s. It used to be implemented as a
+ * period overlap against the cycle, and that was the defect Brian's review of
+ * `WP-surfaces` found on three screens at once: overlapping a year is not the
+ * same question as holding the seat on a day, and it answered the second with
+ * the first. It kept an assignment that had already ended today and dropped one
+ * in force today whose dates fell outside the cycle window.
  *
- * So an assignment appears in a year's view when its effective period overlaps
- * that year's period. Each view is one year's holders; no view is a union across
- * years. The fallback for a cycle with no recorded start date is the strict
- * cycle id, which cannot mix years either.
+ * It is now a currency test against a single day — see `AS_AT` below — and the
+ * requirement is better served by it than it was before: everyone in the answer
+ * holds the seat on the same day, so there is exactly one year in it by
+ * construction rather than by a filter that had to be got right.
+ *
+ * The standing-seat case that motivated the overlap still works, and works more
+ * simply. General Manager and IT Officer "neither expire automatically at year
+ * end", so an appointment made in 2025-26 and never ended has no end date; it
+ * is in force today and is therefore the holder today, whatever cycle row it
+ * hangs off. A strict `committee_year_id = ?` filter would still report that
+ * seat vacant the day the committee year turned over, which is why this is not
+ * that either.
  */
 /**
  * The day a seat's holders are read as at, as SQL over the joined cycle `c`.
