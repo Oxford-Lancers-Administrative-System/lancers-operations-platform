@@ -1,11 +1,16 @@
 {
   "mission_id": "M-EVENTS-CALENDAR-TARGET-STATE",
-  "stage": "boundary",
+  "stage": "overview",
   "baseline": {
     "branch": "main",
     "commit": "bc6770b1c6a616dde041324ef99329b231becfc3"
   },
-  "approvals": {},
+  "approvals": {
+    "boundary": {
+      "words": "I approve the name. Keep the approved split. Mission 2 should just be on those things. Delivery belongs to the other one.",
+      "date": "2026-08-20"
+    }
+  },
   "workflows": [],
-  "next_action": "Stage 0 \u2014 complete 00-boundary.md and obtain Brian's boundary approval"
+  "next_action": "Stage 1 \u2014 draft 01-overview.md from the Authority Manifest and Task 01 brief, and obtain Brian's overview approval"
 }
