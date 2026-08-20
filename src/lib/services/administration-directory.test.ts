@@ -506,6 +506,80 @@ describe("the role catalogue", () => {
 // The directory
 // ---------------------------------------------------------------------------
 
+/**
+ * LAN-141 finding 8, at the layer that produces it.
+ *
+ * `committee_years.ends_on` is exclusive, so a club that closes one year the
+ * day before the next opens has a gap — an ordinary Monday, not an exotic
+ * state. `resolveActiveCommitteeYear()` fails closed because it guards a
+ * **write**, and both plural reads inherited that: during the gap the whole of
+ * Administration answered with an unavailable screen telling the reader the
+ * current committee year "has to be recorded first", from a page with no route
+ * in the application to record one.
+ *
+ * The screen tests mock these two functions, so nothing there could have caught
+ * it — which is the untested-layer pattern this mission keeps meeting. This is
+ * the layer out.
+ */
+describe("a gap between committee years", () => {
+  async function withNoCommitteeYear<T>(action: () => Promise<T>): Promise<T> {
+    const before = await observer.query<{ id: string; ends_on: string | null }>(
+      `select id, ends_on::text as ends_on
+         from public.committee_years
+        where starts_on <= current_date and (ends_on is null or ends_on > current_date)`,
+    );
+    try {
+      // `ends_on` is exclusive, so setting it to today ends the year today.
+      await observer.query(
+        "update public.committee_years set ends_on = current_date where id = any($1::uuid[])",
+        [before.rows.map((row) => row.id)],
+      );
+      return await action();
+    } finally {
+      for (const row of before.rows) {
+        await observer.query("update public.committee_years set ends_on = $2::date where id = $1", [
+          row.id,
+          row.ends_on,
+        ]);
+      }
+    }
+  }
+
+  it("still draws the whole catalogue, with no year to label it", async () => {
+    const catalogue = await withNoCommitteeYear(() => readRoleCatalogue(administrator()));
+
+    expect(catalogue.committeeYear).toBeNull();
+    expect(catalogue.groups.flatMap((group) => group.roles)).toHaveLength(20);
+  });
+
+  it("still names the committee seats' holders, and refuses new assignments", async () => {
+    const personId = await insertPerson("committee-year-gap");
+    await giveRole(personId, "media_secretary");
+
+    const catalogue = await withNoCommitteeYear(() => readRoleCatalogue(administrator()));
+    const seat = catalogue.groups
+      .flatMap((group) => group.roles)
+      .find((role) => role.code === "media_secretary");
+
+    // The holder is in post whatever the calendar says — assignments are
+    // written open-ended and outlive the cycle that started them.
+    expect(seat?.holders.map((holder) => holder.personId)).toContain(personId);
+    // And nothing may be assigned against a year that is not running.
+    expect(seat?.cycleMissing).toBe(true);
+    expect(seat?.assignable).toBe(false);
+  });
+
+  it("still lists the club's operator accounts", async () => {
+    const personId = await insertPerson("committee-year-gap-account");
+    const accountId = await giveOperatorAccount(personId);
+
+    const directory = await withNoCommitteeYear(() => readOperatorDirectory(administrator()));
+
+    expect(directory.committeeYear).toBeNull();
+    expect(directory.operators.map((row) => row.operatorAccountId)).toContain(accountId);
+  });
+});
+
 describe("the operator directory", () => {
   it("carries the seats an operator holds, in catalogue order", async () => {
     const personId = await insertPerson("many-seats");
