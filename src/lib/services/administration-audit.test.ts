@@ -541,6 +541,71 @@ describe("row 6 — Holder history shows the role-related subset", () => {
     expect(history[0].target.personId).toBe(targetPersonId);
     expect(history[0].target.name).toBe(`${MARKER} target`);
   });
+
+  /**
+   * The subset filter, from the only angle that can see it — LAN-141.
+   *
+   * The test above writes an account-state event through
+   * `recordAdministrationEvent`, which refuses to put a `roleId` on one
+   * (`administration_role_not_permitted`). So that event's envelope carries no
+   * `roleId`, the envelope-key predicate excludes it on its own, and widening
+   * `ROLE_RELATED_ADMINISTRATION_ACTIONS` to the whole closed set leaves the
+   * whole suite green — which is exactly what was found.
+   *
+   * The filter is still load-bearing, because it is the layer that holds when
+   * the writer's rule does not: a row forged here, or written by a future
+   * caller that reaches `recordAudit` directly, or left by a version of the
+   * vocabulary in which that action *was* role-related. Holder history is
+   * "who has held this seat"; `REQ-deactivate-and-reinstate` is explicit that a
+   * holder whose access is deactivated keeps the seat, so an account-state
+   * event appearing here would say the opposite of what the requirement says.
+   *
+   * So the row is forged past the writer, deliberately, and the two projections
+   * are read side by side: the operator's history is where it belongs, and the
+   * role's is where it does not.
+   */
+  it("excludes an account-state event even when its envelope names a role", async () => {
+    await write(assignment());
+
+    await withTransaction((tx) =>
+      recordAudit(tx, {
+        actorPersonId,
+        action: "administration.operator.deactivated",
+        entityTable: "public.operator_accounts",
+        entityId: ACCOUNT,
+        fromState: "active",
+        toState: "deactivated",
+        reason: "Stepped away from the club.",
+        context: {
+          administration: {
+            version: 1,
+            targetPersonId,
+            targetOperatorAccountId: ACCOUNT,
+            authority: { kind: "capability", capability: "role_management", roleCodes: [] },
+            operatingYear: OPERATING_YEAR,
+            // The forgery: a role the writer would have refused to record.
+            roleId: ROLE,
+            roleCode: "kit_manager",
+            roleAssignmentId: ASSIGNMENT,
+          },
+        },
+      }),
+    );
+
+    const holders = await readHolderHistory(administrator(), ROLE);
+    expect(
+      holders.map((entry) => entry.action),
+      "holder history is who has held the seat, and a deactivation is not that",
+    ).toEqual(["administration.role.assigned"]);
+
+    // And it is excluded rather than lost: the same row is on the operator's
+    // own history, which is the projection it belongs to.
+    const operatorHistory = await readOperatorAuditHistory(administrator(), targetPersonId);
+    expect(operatorHistory.map((entry) => entry.action).sort()).toEqual([
+      "administration.operator.deactivated",
+      "administration.role.assigned",
+    ]);
+  });
 });
 
 describe("row 10 — administration history is a privileged read", () => {

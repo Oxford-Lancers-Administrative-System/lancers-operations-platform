@@ -73,6 +73,18 @@ import { personDisplayNameSql } from "./sql-text";
  * package in this mission, and each is checked by a test that fails if the line
  * enforcing it is deleted.
  *
+ * That last sentence was **false when it was written**, and LAN-141 finding 1
+ * is the record of it: rule 4 held at all eight sites in this module, but only
+ * three of them were bound by a test, so flipping the option at the other five
+ * changed nothing any suite could see. It is true now, two ways. Every action
+ * below has a case in `operator-administration.test.ts` § "the guard, on every
+ * write" that stages a protected target whose only seat is scheduled and fails
+ * if that site loses the widening; and one test reads this module's own source
+ * and fails if any call to `readAdministrationSubject` here omits it, so a
+ * ninth site cannot be added without one. A claim like this is worth only what
+ * the test behind it is worth, which is why the mechanism is named rather than
+ * asserted.
+ *
  *   1. **Every write asks the target-aware question.**
  *      `assertAdministrationTarget` and never `assertCapability("role_management")`
  *      alone — the capability floor admits the President, and the President may

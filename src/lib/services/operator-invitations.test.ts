@@ -56,6 +56,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 
 vi.mock("server-only", () => ({}));
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import pg, { type Client } from "pg";
 
 import {
@@ -108,6 +111,16 @@ const people = new Set<string>();
 let sends: { email: string; redirectTo: string }[] = [];
 /** Logins the identity wrapper was asked to create, in order. */
 let logins: string[] = [];
+/**
+ * Addresses the identity wrapper was asked to move a login to, in order.
+ *
+ * Recorded because "the login was never touched" is a property in its own
+ * right, and the only way to tell the two assertions on the correction path
+ * apart: both refuse, so the caller sees the same error either way, and what
+ * differs is whether somebody's sign-in address was relocated and put back in
+ * between.
+ */
+let moves: { authUserId: string; email: string }[] = [];
 
 function uniqueAddress(tag: string): string {
   return `lan131-${tag}-${Math.random().toString(36).slice(2, 10)}@example.test`;
@@ -141,7 +154,10 @@ function identity(options: { send?: "record" | "fail" | "real"; failure?: string
       }
       if (mode === "real") await real.sendInvitation(email, redirectTo);
     },
-    changeLoginEmail: (id, email) => real.changeLoginEmail(id, email),
+    changeLoginEmail(id, email) {
+      moves.push({ authUserId: id, email });
+      return real.changeLoginEmail(id, email);
+    },
     deleteLogin: (id) => real.deleteLogin(id),
   };
 
@@ -178,6 +194,72 @@ async function insertPerson(tag: string): Promise<string> {
   );
   people.add(result.rows[0].id);
   return result.rows[0].id;
+}
+
+/**
+ * A Person with names a human would actually type, for the duplicate check.
+ *
+ * The other fixtures put `MARKER` in `given_name` so that a suite's rows are
+ * identifiable, which is right for everything except the one thing this file
+ * tests that is *about* names. Matching is exact, and a search term that is a
+ * whole name here and a prefix of another name over there is the shape the
+ * exactness rule exists for — so these are ordinary-looking names, deliberately
+ * rare enough that the synthetic seed cannot contain one.
+ */
+async function insertNamedPerson(
+  givenName: string,
+  familyName: string,
+  options: { knownAs?: string; email?: string; phone?: string } = {},
+): Promise<string> {
+  const result = await observer.query<{ id: string }>(
+    `insert into public.people (given_name, family_name, known_as)
+     values ($1, $2, $3) returning id`,
+    [givenName, familyName, options.knownAs ?? null],
+  );
+  const personId = result.rows[0].id;
+  people.add(personId);
+
+  for (const [kind, value] of [
+    ["email", options.email],
+    ["phone", options.phone],
+  ] as const) {
+    if (!value) continue;
+    await observer.query(
+      `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
+       values ($1, $2, $3, true)`,
+      [personId, kind, value],
+    );
+  }
+
+  return personId;
+}
+
+/**
+ * A role assignment written directly, so a fixture does not depend on the code
+ * the test is about. The denormalised columns come from the catalogue row in
+ * the same statement, which is what `role_assignments_agree_with_role` requires.
+ */
+async function giveRole(personId: string, roleCode: string, from: string): Promise<void> {
+  const cycle = await observer.query<{ id: string }>(
+    `select id from public.committee_years
+      where starts_on <= current_date and (ends_on is null or ends_on > current_date)`,
+  );
+  const season = await observer.query<{ id: string }>(
+    "select id from public.seasons where status in ('open', 'active')",
+  );
+
+  await observer.query(
+    `insert into public.role_assignments
+       (person_id, role_id, scope, is_constitutional_office, is_single_holder_seat,
+        committee_year_id, season_id, effective_from)
+     select $1, r.id, r.scope, r.is_constitutional_office, r.is_single_holder_seat,
+            case when r.scope = 'committee_year' then $3::uuid end,
+            case when r.scope = 'season' then $4::uuid end,
+            $5::date
+       from public.roles r
+      where r.code = $2`,
+    [personId, roleCode, cycle.rows[0].id, season.rows[0].id, from],
+  );
 }
 
 /**
@@ -264,6 +346,7 @@ beforeAll(async () => {
 afterEach(() => {
   sends = [];
   logins = [];
+  moves = [];
 });
 
 afterAll(async () => {
@@ -828,6 +911,160 @@ describe("rows 11, 12, 13 — resend, correct, and when neither is offered", () 
       await expect(attempt()).rejects.toMatchObject({ rule: NOT_RESENDABLE_RULE });
     }
   });
+
+  /**
+   * The window between the two transactions — LAN-141 finding 3.
+   *
+   * A correction decides in one transaction, moves the address on the Auth
+   * server outside any transaction, and writes in a second. Everything the
+   * first transaction checked is therefore a snapshot from before an unbounded
+   * network call. `startOperatorEmailRehome` closes the identical window
+   * (LAN132-B3) and this path was missed; this module's own note argued the
+   * window "confers nothing", and these two cases are what that argument
+   * missed.
+   *
+   * Both are staged deterministically by making the Auth call itself the moment
+   * the world changes — the same technique LAN132-B3's test uses, because a
+   * genuine race cannot be written down.
+   */
+  describe("the window between deciding and writing", () => {
+    it("refuses a correction the holder's activation invalidated inside it", async () => {
+      // The sharp case. `refuseUnlessResendable` passed on a pending account;
+      // by the write the holder has followed the link they already had and set
+      // a password. Without the re-assertion "correct the invitation" silently
+      // becomes an address change on an **Active** account — `REQ-rehome-email`
+      // without its `recover_email` authority list, without a reason and
+      // without Email change pending.
+      const invited = await inviteSomebody({ tag: "window-activation" });
+      const real = supabaseOperatorIdentity();
+      let opened = false;
+
+      const port: OperatorIdentityPort = {
+        createLogin: (email) => real.createLogin(email),
+        async sendInvitation() {
+          throw new Error("no invitation may be sent for a refused correction");
+        },
+        async changeLoginEmail(id, email) {
+          await real.changeLoginEmail(id, email);
+          if (opened) return;
+          opened = true;
+          await activateOperatorAccount(invited.authUserId);
+        },
+        deleteLogin: (id) => real.deleteLogin(id),
+      };
+
+      await expect(
+        correctOperatorInvitation({
+          operator: administrator(),
+          operatorAccountId: invited.operatorAccountId,
+          email: uniqueAddress("window-activation-new"),
+          callbackUrl: CALLBACK,
+          identity: port,
+        }),
+      ).rejects.toMatchObject({ rule: NOT_RESENDABLE_RULE });
+
+      // The address is back on both sides. A refusal that had already moved
+      // somebody's sign-in is a half-performed correction, not a refusal.
+      const account = await withTransaction((tx) =>
+        readOperatorAccountIn(tx, invited.operatorAccountId),
+      );
+      expect(account?.loginEmail).toBe(invited.loginEmail);
+
+      const admin = createAdminClient();
+      const { data } = await admin.auth.admin.getUserById(invited.authUserId);
+      expect(data?.user?.email, "the login must be back too").toBe(invited.loginEmail);
+
+      expect(await auditActions(invited.personId)).not.toContain(
+        "administration.operator.invitation_corrected",
+      );
+    });
+
+    it("refuses a correction a seat recorded inside it put out of reach", async () => {
+      // The guard's half, and the reason the seats are re-read rather than
+      // carried forward: at the decision the target holds an ordinary seat and
+      // an IT Officer may redirect their invitation; by the write they are the
+      // President-elect, and redirecting a credential-establishing link to an
+      // address of one's choosing is how somebody takes that seat.
+      const restorePresidency = await vacateThePresidency();
+      let invited: Awaited<ReturnType<typeof inviteOperator>> | null = null;
+
+      try {
+        invited = await inviteSomebody({ tag: "window-seat" });
+        const real = supabaseOperatorIdentity();
+        let opened = false;
+
+        const port: OperatorIdentityPort = {
+          createLogin: (email) => real.createLogin(email),
+          async sendInvitation() {
+            throw new Error("no invitation may be sent for a refused correction");
+          },
+          async changeLoginEmail(id, email) {
+            await real.changeLoginEmail(id, email);
+            if (opened) return;
+            opened = true;
+            // Dated to the handover, which is the shape an AGM decision takes
+            // and the shape a "currently effective" snapshot cannot see.
+            await giveRole(invited!.personId, "president", futureDate(45));
+          },
+          deleteLogin: (id) => real.deleteLogin(id),
+        };
+
+        await expect(
+          correctOperatorInvitation({
+            operator: itOfficer(),
+            operatorAccountId: invited.operatorAccountId,
+            email: uniqueAddress("window-seat-new"),
+            callbackUrl: CALLBACK,
+            identity: port,
+          }),
+        ).rejects.toMatchObject({ kind: "not_permitted" });
+
+        const account = await withTransaction((tx) =>
+          readOperatorAccountIn(tx, invited!.operatorAccountId),
+        );
+        expect(account?.loginEmail).toBe(invited.loginEmail);
+
+        const admin = createAdminClient();
+        const { data } = await admin.auth.admin.getUserById(invited.authUserId);
+        expect(data?.user?.email).toBe(invited.loginEmail);
+
+        expect(await auditActions(invited.personId)).not.toContain(
+          "administration.operator.invitation_corrected",
+        );
+      } finally {
+        if (invited) {
+          await observer.query(
+            `delete from public.role_assignments ra
+              using public.roles r
+              where r.id = ra.role_id and r.code = 'president' and ra.person_id = $1`,
+            [invited.personId],
+          );
+        }
+        await restorePresidency();
+      }
+    });
+
+    it("still corrects the address when nothing changed inside the window", async () => {
+      // The counterweight. Two of the three re-assertions above refuse; a
+      // correction that had quietly stopped working would satisfy them both.
+      const invited = await inviteSomebody({ tag: "window-clear" });
+      const replacement = uniqueAddress("window-clear-new");
+
+      const corrected = await correctOperatorInvitation({
+        operator: administrator(),
+        operatorAccountId: invited.operatorAccountId,
+        email: replacement,
+        callbackUrl: CALLBACK,
+        identity: identity(),
+      });
+
+      expect(corrected.loginEmail).toBe(replacement);
+      expect(corrected.delivered).toBe(true);
+      expect(await auditActions(invited.personId)).toContain(
+        "administration.operator.invitation_corrected",
+      );
+    });
+  });
 });
 
 describe("rows 14, 15, 16 — the guard is the target-level one, not the capability floor", () => {
@@ -887,6 +1124,155 @@ describe("rows 14, 15, 16 — the guard is the target-level one, not the capabil
     // person who was not invited.
     expect(logins).toEqual([]);
     expect(sends).toEqual([]);
+  });
+});
+
+describe("row 17b — the seats an invitation's own guard is judged on", () => {
+  /**
+   * LAN-141, "also in scope": `inviteOperator`'s two guard snapshots omitted
+   * `includeScheduled`, and neither behaviour was pinned — adding the option
+   * passed 1338 tests, so no test said which was intended.
+   *
+   * It is intended. The narrow snapshot is the same defect this mission has
+   * now found three times, and the consequence here is the sharpest of them: a
+   * Person holding a seat dated to begin at the handover and *no login yet* is
+   * exactly the target this flow reaches. Invisible to the leadership rule,
+   * they can be given another seat **and** an account at an address the
+   * inviter picks, by an actor who may not administer the seat they are about
+   * to hold. `includeScheduled` can only ever make the guard stricter, so the
+   * only question was whether anyone had asked it. This is the asking.
+   */
+  it("refuses inviting a Person whose seat begins at a future handover", async () => {
+    const restorePresidency = await vacateThePresidency();
+    const elect = await insertPerson("invite-president-elect");
+
+    try {
+      await giveRole(elect, "president", futureDate(45));
+
+      // The precondition: today, they hold nothing.
+      const asOfToday = await withTransaction((tx) => readAdministrationSubject(tx, elect));
+      expect(asOfToday.roleCodes).toEqual([]);
+
+      await expect(
+        inviteOperator({
+          operator: itOfficer(),
+          subject: { kind: "existing", personId: elect },
+          email: uniqueAddress("invite-elect-refused"),
+          roles: [{ roleCode: "kit_manager" }],
+          callbackUrl: CALLBACK,
+          identity: identity(),
+        }),
+      ).rejects.toMatchObject({ kind: "not_permitted" });
+
+      // The pre-flight assertion is what makes this cost nothing. Without the
+      // widening *there*, the login is created and then deleted again — a
+      // refused invitation that minted and destroyed an Auth user.
+      expect(logins, "a refused invitation must create no login").toEqual([]);
+      expect(sends).toEqual([]);
+
+      const account = await observer.query(
+        "select 1 from public.operator_accounts where person_id = $1",
+        [elect],
+      );
+      expect(account.rowCount).toBe(0);
+
+      // And the General Manager, who may assign the seat they are about to
+      // hold, may invite them — so the refusal is the leadership rule rather
+      // than a blanket denial.
+      const invited = await inviteOperator({
+        operator: generalManager(),
+        subject: { kind: "existing", personId: elect },
+        email: uniqueAddress("invite-elect-permitted"),
+        roles: [{ roleCode: "kit_manager" }],
+        callbackUrl: CALLBACK,
+        identity: identity(),
+      });
+      expect(invited.personId).toBe(elect);
+    } finally {
+      await observer.query(
+        `delete from public.role_assignments ra
+          using public.roles r
+          where r.id = ra.role_id and r.code = 'president' and ra.person_id = $1`,
+        [elect],
+      );
+      await restorePresidency();
+    }
+  });
+
+  it("refuses an invitation a seat recorded inside the login window put out of reach", async () => {
+    // The **second** of `inviteOperator`'s two assertions, which the case above
+    // cannot reach because the first one already refuses. `createLogin` is the
+    // network call between them, so it is where the world is made to change —
+    // the same technique LAN132-B3 uses on the re-home.
+    const restorePresidency = await vacateThePresidency();
+    const elect = await insertPerson("invite-window-elect");
+    const real = supabaseOperatorIdentity();
+    let opened = false;
+
+    try {
+      const port: OperatorIdentityPort = {
+        async createLogin(email) {
+          const result = await real.createLogin(email);
+          authUsers.add(result.authUserId);
+          logins.push(email);
+          if (!opened) {
+            opened = true;
+            await giveRole(elect, "president", futureDate(45));
+          }
+          return result;
+        },
+        async sendInvitation() {
+          throw new Error("nothing may be sent for a refused invitation");
+        },
+        changeLoginEmail: (id, email) => real.changeLoginEmail(id, email),
+        deleteLogin: (id) => real.deleteLogin(id),
+      };
+
+      await expect(
+        inviteOperator({
+          operator: itOfficer(),
+          subject: { kind: "existing", personId: elect },
+          email: uniqueAddress("invite-window-refused"),
+          roles: [{ roleCode: "kit_manager" }],
+          callbackUrl: CALLBACK,
+          identity: port,
+        }),
+      ).rejects.toMatchObject({ kind: "not_permitted" });
+
+      // Nothing was written, and the login created inside the window was
+      // compensated away — the module's one compensation, doing its job.
+      const account = await observer.query(
+        "select 1 from public.operator_accounts where person_id = $1",
+        [elect],
+      );
+      expect(account.rowCount).toBe(0);
+      expect(sends).toEqual([]);
+    } finally {
+      await observer.query(
+        `delete from public.role_assignments ra
+          using public.roles r
+          where r.id = ra.role_id and r.code = 'president' and ra.person_id = $1`,
+        [elect],
+      );
+      await restorePresidency();
+    }
+  });
+
+  it("asks for the widened snapshot at every site in this module", () => {
+    // Behaviour is asserted above and in row 17; this is the guard against a
+    // fifth call site being added later on the default. Six of the mission's
+    // ten sites were unwidened before LAN-141, and every one of them looked
+    // fine in isolation.
+    const source = readFileSync(
+      path.join(process.cwd(), "src/lib/services/operator-invitations.ts"),
+      "utf8",
+    );
+    const callSites = source.split("readAdministrationSubject(tx").slice(1);
+
+    expect(callSites.length, "invite twice, and send-again twice").toBe(4);
+    for (const site of callSites) {
+      expect(site.slice(0, 200)).toMatch(/includeScheduled:\s*true/);
+    }
   });
 });
 
@@ -984,6 +1370,13 @@ describe("row 17 — a pending invitation's seat reaches the guard", () => {
         readOperatorAccountIn(tx, invited!.operatorAccountId),
       );
       expect(account?.loginEmail).toBe(invited.loginEmail);
+
+      // And the login was never touched at all — which is what the **first**
+      // of the two assertions buys, now that the second one exists. Both
+      // refuse, so the caller cannot tell them apart from the error; what
+      // separates them is whether the President-elect's sign-in address was
+      // relocated on the Auth server and moved back again in between.
+      expect(moves, "a refused correction must touch no login").toEqual([]);
 
       // And the refusal is about the seat, not about invitations: the General
       // Manager, who is the one role that may assign the President seat, may
@@ -1202,6 +1595,139 @@ describe("the duplicate check the flow starts with", () => {
 
     expect(found, "an address already in use as a login must match").toBeDefined();
     expect(found?.matchedOn).toContain("email");
+  });
+
+  /**
+   * The exactness rule, from the side that was never asserted — LAN-141
+   * finding 5.
+   *
+   * Every case above asks whether the intended person **is** found. None asked
+   * whether anybody else is **excluded**, so widening
+   * `lower(btrim(p.given_name)) = w.given_name` to a `like … || '%'` prefix
+   * match passed the whole suite.
+   *
+   * That is not a cosmetic difference. The projection returns given, family and
+   * known-as names plus a preferred email and a preferred phone for every row
+   * it returns. Exact, it answers "is this person already in the club's
+   * records?". Prefixed — which is exactly what "it cannot find Jonny when I
+   * type Jon" would be asked for — it is a contact directory, readable by the
+   * three seats that hold `role_management`.
+   *
+   * **The matching behaviour is correct and is not changed here.** What is
+   * added is the half that binds it.
+   */
+  describe("matches whole values, and discloses nobody else", () => {
+    /**
+     * Two people whose every searchable value is a prefix of the other's, so a
+     * search for the shorter one finds the longer one under any widening and
+     * only under a widening.
+     */
+    async function twoSimilarPeople(tag: string) {
+      const shorter = await insertNamedPerson(`Jonquil${tag}`, `Ashgrovemoor${tag}`, {
+        knownAs: `Bexley${tag}`,
+        email: `jonquil${tag}@lan141.example`,
+        phone: "07700 900123",
+      });
+      const longer = await insertNamedPerson(`Jonquil${tag}ine`, `Ashgrovemoor${tag}land`, {
+        knownAs: `Bexley${tag}ham`,
+        email: `jonquil${tag}@lan141.example.test`,
+        phone: "07700 900133",
+      });
+      return { shorter, longer };
+    }
+
+    it("finds a whole given name and not the longer name it begins", async () => {
+      const { shorter, longer } = await twoSimilarPeople("gn");
+      const found = await findOperatorCandidates(administrator(), { givenName: "Jonquilgn" });
+      const ids = found.map((candidate) => candidate.personId);
+
+      expect(ids, "the person searched for must be found").toContain(shorter);
+      expect(ids, "a name this one merely begins must not be disclosed").not.toContain(longer);
+    });
+
+    it("finds a whole family name and not the longer name it begins", async () => {
+      const { shorter, longer } = await twoSimilarPeople("fn");
+      const found = await findOperatorCandidates(administrator(), {
+        familyName: "Ashgrovemoorfn",
+      });
+      const ids = found.map((candidate) => candidate.personId);
+
+      expect(ids).toContain(shorter);
+      expect(ids).not.toContain(longer);
+    });
+
+    it("finds a whole known-as name and not the longer name it begins", async () => {
+      const { shorter, longer } = await twoSimilarPeople("ka");
+      const found = await findOperatorCandidates(administrator(), { knownAs: "Bexleyka" });
+      const ids = found.map((candidate) => candidate.personId);
+
+      expect(ids).toContain(shorter);
+      expect(ids).not.toContain(longer);
+    });
+
+    it("finds a whole address and not the longer address it begins", async () => {
+      const { shorter, longer } = await twoSimilarPeople("em");
+      const found = await findOperatorCandidates(administrator(), {
+        email: "jonquilem@lan141.example",
+      });
+      const ids = found.map((candidate) => candidate.personId);
+
+      expect(ids).toContain(shorter);
+      expect(ids).not.toContain(longer);
+    });
+
+    it("compares a phone on its last nine digits, exactly", async () => {
+      const { shorter, longer } = await twoSimilarPeople("ph");
+
+      // Formatting is not part of the comparison, and that is intended: the
+      // international and national spellings of one number share their last
+      // nine digits and are one number.
+      const found = await findOperatorCandidates(administrator(), { phone: "+44 7700 900123" });
+      const ids = found.map((candidate) => candidate.personId);
+      expect(ids, "the same number spelled differently must still match").toContain(shorter);
+
+      // A different number is a different number, however close.
+      expect(ids, "a neighbouring number must not be disclosed").not.toContain(longer);
+
+      // And a number nobody holds discloses nobody — the case a prefix or
+      // fuzzy comparison on the tail would break.
+      const near = await findOperatorCandidates(administrator(), { phone: "07700 900129" });
+      const nearIds = near.map((candidate) => candidate.personId);
+      expect(nearIds).not.toContain(shorter);
+      expect(nearIds).not.toContain(longer);
+    });
+
+    it("discloses nobody at all for a term the club does not hold", async () => {
+      await twoSimilarPeople("no");
+      const found = await findOperatorCandidates(administrator(), {
+        givenName: "Quorlimbethsayle",
+      });
+      expect(found).toEqual([]);
+    });
+  });
+
+  it("reports an operator pending email verification as pending, not Active", async () => {
+    // LAN-141 finding 16. `toCandidate` hard-coded `emailChangePending: false`
+    // and the query never selected the column, so an operator whose sign-in is
+    // refused until they verify a replacement address was reported **Active**
+    // here and in the successor picker this search feeds — the one state in
+    // which the honest answer changes what an administrator should do next.
+    const invited = await inviteSomebody({ tag: "pending-verification" });
+    await observer.query(
+      `update public.operator_accounts
+          set activated_at = coalesce(activated_at, now()),
+              email_rehome_pending_at = now()
+        where id = $1`,
+      [invited.operatorAccountId],
+    );
+
+    const candidates = await findOperatorCandidates(administrator(), {
+      givenName: MARKER,
+      familyName: "pending-verification",
+    });
+    const found = candidates.find((candidate) => candidate.personId === invited.personId);
+
+    expect(found?.operatorAccount?.state).toBe("email_change_pending");
   });
 });
 

@@ -77,6 +77,7 @@ import {
 import { supabaseOperatorIdentity } from "./operator-identity";
 import {
   insertRoleAssignmentIn,
+  readAdministrationSubject,
   resolveActiveCommitteeYear,
   resolveCycleFor,
 } from "./operator-invitations";
@@ -830,6 +831,252 @@ describe("A/B — the guard, on every write", () => {
     } finally {
       await restore();
     }
+  });
+
+  /**
+   * Caller check 4, at the five sites the test above never reached — LAN-141
+   * finding 1.
+   *
+   * The claim in this module's header was that every one of its four rules "is
+   * checked by a test that fails if the line enforcing it is deleted". For rule
+   * 4 that was true of three actions out of ten. Flipping `includeScheduled`
+   * to `false` at `replaceRoleHolder`'s two sites, at `restoreOperatorAccess`
+   * and at both of `startOperatorEmailRehome`'s left the whole suite green,
+   * which is what let a President re-home the President-elect's login and an IT
+   * Officer restore a President the General Manager had stood down.
+   *
+   * Each case below stages the same target — a Person whose *only* protection
+   * is a seat dated to begin at a handover — against an actor who holds
+   * `role_management` and would be permitted every one of these against an
+   * unprotected target. Each ends by showing an actor the leadership rule does
+   * admit, so a refusal cannot be a blanket denial wearing the right rule name.
+   */
+  describe("a seat that begins at a future handover, at the remaining sites", () => {
+    /** A Person protected by nothing except a seat that has not started. */
+    async function aPresidentElect(tag: string): Promise<string> {
+      const personId = await insertPerson(tag);
+      await giveRole(personId, "president", { from: futureDate(45) });
+
+      // The precondition that makes every case below dangerous: today, the
+      // leadership rules can see nothing at all about this person.
+      const asOfToday = await withTransaction((tx) => readAdministrationSubject(tx, personId));
+      expect(asOfToday.roleCodes).not.toContain("president");
+      return personId;
+    }
+
+    it("protects the outgoing holder when a seat is handed over", async () => {
+      const restore = await vacateThePresidency();
+      try {
+        const elect = await aPresidentElect("replace-outgoing-elect");
+        const ordinary = await giveRole(elect, "kit_manager", { from: pastDate(3) });
+        const successor = await insertPerson("replace-outgoing-successor");
+
+        expect(
+          await refusalOf(
+            replaceRoleHolder({
+              operator: itOfficer(),
+              roleAssignmentId: ordinary,
+              successorPersonId: successor,
+              reason: "Handing the kit over.",
+            }),
+          ),
+        ).toMatchObject({ rule: "administration_leadership_target" });
+
+        // A refusal that had already ended the outgoing assignment would be the
+        // defect wearing a refusal's clothes.
+        expect((await assignmentRow(ordinary))?.effective_to).toBeNull();
+
+        const handed = await replaceRoleHolder({
+          operator: generalManager(),
+          roleAssignmentId: ordinary,
+          successorPersonId: successor,
+          reason: "Handing the kit over.",
+        });
+        expect(handed.successorPersonId).toBe(successor);
+      } finally {
+        await restore();
+      }
+    });
+
+    it("protects the successor a seat is handed to", async () => {
+      // The second guard `replaceRoleHolder` asks, and the one an outgoing-only
+      // test cannot reach: a successor who is themselves protected must be as
+      // hard to install as they are to administer.
+      const restore = await vacateThePresidency();
+      try {
+        const elect = await aPresidentElect("replace-successor-elect");
+        const outgoing = await insertPerson("replace-successor-outgoing");
+        const ordinary = await giveRole(outgoing, "kit_manager", { from: pastDate(3) });
+
+        expect(
+          await refusalOf(
+            replaceRoleHolder({
+              operator: itOfficer(),
+              roleAssignmentId: ordinary,
+              successorPersonId: elect,
+              reason: "New kit manager.",
+            }),
+          ),
+        ).toMatchObject({ rule: "administration_leadership_target" });
+        expect((await assignmentRow(ordinary))?.effective_to).toBeNull();
+
+        const handed = await replaceRoleHolder({
+          operator: generalManager(),
+          roleAssignmentId: ordinary,
+          successorPersonId: elect,
+          reason: "New kit manager.",
+        });
+        expect(handed.successorPersonId).toBe(elect);
+      } finally {
+        await restore();
+      }
+    });
+
+    it("protects a target whose access is being restored", async () => {
+      // `restore_account` is management and protected symmetrically with
+      // deactivation on purpose — otherwise the IT Officer reinstates a
+      // President the General Manager stood down, which is exactly what the
+      // missing widening permitted here.
+      const restore = await vacateThePresidency();
+      try {
+        const elect = await aPresidentElect("restore-elect");
+        const account = await giveOperatorAccount(elect, { active: false });
+
+        expect(
+          await refusalOf(
+            restoreOperatorAccess({ operator: itOfficer(), operatorAccountId: account.id }),
+          ),
+        ).toMatchObject({ rule: "administration_leadership_target" });
+        expect((await accountRow(account.id))?.is_active).toBe(false);
+
+        const restored = await restoreOperatorAccess({
+          operator: generalManager(),
+          operatorAccountId: account.id,
+        });
+        expect(restored.state).toBe("active");
+      } finally {
+        await restore();
+      }
+    });
+
+    it("protects a target before the login is touched, when an email is recovered", async () => {
+      const restore = await vacateThePresidency();
+      try {
+        const elect = await aPresidentElect("rehome-elect");
+        const account = await giveOperatorAccount(elect);
+        const refused = recovery();
+
+        expect(
+          await refusalOf(
+            startOperatorEmailRehome({
+              operator: president(),
+              operatorAccountId: account.id,
+              email: uniqueAddress("rehome-elect-new"),
+              reason: "Mailbox lost.",
+              callbackUrl: CALLBACK,
+              identity: refused.port,
+            }),
+          ),
+        ).toMatchObject({ rule: "administration_leadership_target" });
+
+        // This is what binds the **first** of the re-home's two assertions,
+        // which the refusal alone cannot: the second one refuses too, so the
+        // caller sees the same error either way. What differs is that without
+        // the widening on the first, the President-elect's sign-in address is
+        // moved on the Auth server and then moved back — a refusal that
+        // relocated somebody's login.
+        expect(refused.moves, "a refused recovery must touch no login").toEqual([]);
+        expect(refused.sends).toEqual([]);
+        expect((await accountRow(account.id))?.login_email).toBe(account.email);
+
+        // Recovery of the presiding seat belongs to the General Manager and the
+        // IT Officer — a different authority list from management, which is
+        // half of what `REQ-rehome-email` loses when the seat is invisible.
+        const recovered = await startOperatorEmailRehome({
+          operator: itOfficer(),
+          operatorAccountId: account.id,
+          email: uniqueAddress("rehome-elect-ok"),
+          reason: "Mailbox lost.",
+          callbackUrl: CALLBACK,
+          identity: recovery().port,
+        });
+        expect(recovered.state).toBe("email_change_pending");
+      } finally {
+        await restore();
+      }
+    });
+
+    it("protects a target handed a future seat inside the Auth window", async () => {
+      // The re-home's **second** assertion, which is the load-bearing one. The
+      // window is staged exactly as LAN132-B3's test stages it, with the one
+      // difference that decides this case: the seat recorded inside the window
+      // begins at the handover rather than today, so only the widened snapshot
+      // can see it when the write transaction re-asks.
+      const restore = await vacateThePresidency();
+      try {
+        const targetPersonId = await insertPerson("rehome-window-scheduled");
+        const account = await giveOperatorAccount(targetPersonId);
+        const real = supabaseOperatorIdentity();
+        let recorded = false;
+
+        const port: OperatorEmailRecoveryPort = {
+          async changeLoginEmail(authUserId, email) {
+            await real.changeLoginEmail(authUserId, email);
+            // Once only: this port is called a second time to compensate, and
+            // a second President assignment would be refused by the Office
+            // exclusion and swallowed by the compensation's `catch`.
+            if (recorded) return;
+            recorded = true;
+            await giveRole(targetPersonId, "president", { from: futureDate(45) });
+          },
+          async sendVerification() {
+            throw new Error("the verification must never be sent for a refused recovery");
+          },
+        };
+
+        expect(
+          await refusalOf(
+            startOperatorEmailRehome({
+              operator: president(),
+              operatorAccountId: account.id,
+              email: uniqueAddress("rehome-window-scheduled-new"),
+              reason: "Mailbox lost.",
+              callbackUrl: CALLBACK,
+              identity: port,
+            }),
+          ),
+        ).toMatchObject({ rule: "administration_leadership_target" });
+
+        const row = await accountRow(account.id);
+        expect(row?.email_rehome_pending_at, "no re-home may have been recorded").toBeNull();
+        expect(row?.login_email, "the address must be back").toBe(account.email);
+
+        const admin = createAdminClient();
+        const { data } = await admin.auth.admin.getUserById(account.authUserId);
+        expect(data?.user?.email, "the login must be back too").toBe(account.email);
+      } finally {
+        await restore();
+      }
+    });
+
+    it("asks for the widened snapshot at every site in this module", () => {
+      // The behavioural cases above bind the eight sites that exist today. This
+      // binds the ninth: a site added later cannot quietly take the default,
+      // which is how six of the ten came to be unwidened in the first place.
+      // Deliberately a source read rather than a lint rule — the rule is about
+      // one function in one module, and `G` already reads this file for the
+      // same kind of reason.
+      const source = readFileSync(
+        path.join(process.cwd(), "src/lib/services/operator-administration.ts"),
+        "utf8",
+      );
+      const callSites = source.split("readAdministrationSubject(tx").slice(1);
+
+      expect(callSites.length, "every write here reads the target's seats").toBe(8);
+      for (const site of callSites) {
+        expect(site.slice(0, 200)).toMatch(/includeScheduled:\s*true/);
+      }
+    });
   });
 
   it("refuses an operator acting on their own account", async () => {

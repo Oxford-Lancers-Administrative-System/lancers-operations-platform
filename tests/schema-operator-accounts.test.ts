@@ -387,6 +387,144 @@ describe("invitation state — LAN-131", () => {
   });
 });
 
+/**
+ * The administrator email re-home — LAN-132's migration, LAN-141 finding 14.
+ *
+ * The three checks the invitation-state migration added are all asserted above.
+ * The next migration's two were not: replacing either with `check (true)`
+ * passed 1338 database tests, and `grep -rn rehome tests/*.test.ts` returned
+ * nothing at all. This is that suite being extended when the neighbouring
+ * migration landed, a mission late.
+ *
+ * `rehome_follows_activation` is the one that matters most, and the reason is
+ * not obvious from the SQL. `email_rehome_pending_at` **is** the Email change
+ * pending state — `deriveOperatorAccountState` reads that column and refuses
+ * sign-in on it — and both resend and re-home are refused in that state: resend
+ * because the state's `resendAvailable` is false, re-home because the flow
+ * requires credentials to lose. So an account that reached Email change pending
+ * without ever having been activated is unrecoverable through every surface the
+ * application has. The service refuses it in the club's own words; this is what
+ * refuses a caller that found another way in.
+ */
+describe("the email re-home state — LAN-132", () => {
+  beforeEach(async () => {
+    await client.query("begin");
+  });
+  afterEach(async () => {
+    await client.query("rollback");
+  });
+
+  it("accepts a re-home in flight on an activated account with a login address", async () => {
+    const { authUserId, personId } = await createIdentity("ab");
+
+    await expectAccepted(
+      client,
+      `insert into public.operator_accounts
+         (auth_user_id, person_id, login_email, invited_at, activated_at,
+          email_rehome_pending_at)
+       values ($1, $2, 'rehome@oxfordlancers.local', now(), now(), now())`,
+      [authUserId, personId],
+    );
+  });
+
+  it("refuses a re-home against an account that has never been activated", async () => {
+    // The trap. Without this the row is accepted, the account reports Email
+    // change pending, sign-in is refused, resend is refused because the state
+    // does not permit it, and re-home is refused because there are no
+    // credentials to recover — with no route back through any surface.
+    const { authUserId, personId } = await createIdentity("ac");
+
+    await expectRejected(
+      client,
+      `insert into public.operator_accounts
+         (auth_user_id, person_id, login_email, invited_at, email_rehome_pending_at)
+       values ($1, $2, 'pending@oxfordlancers.local', now(), now())`,
+      [authUserId, personId],
+      "operator_accounts_rehome_follows_activation",
+    );
+  });
+
+  it("refuses a re-home started on an account by update, not only on insert", async () => {
+    // The shape the service actually writes: the row exists, and one statement
+    // stamps the column. A constraint that only held at insert would not be in
+    // the path of the write it is protecting.
+    const { authUserId, personId } = await createIdentity("ad");
+    await client.query(
+      `insert into public.operator_accounts
+         (auth_user_id, person_id, login_email, invited_at)
+       values ($1, $2, 'not-yet-active@oxfordlancers.local', now())`,
+      [authUserId, personId],
+    );
+
+    await expectRejected(
+      client,
+      `update public.operator_accounts set email_rehome_pending_at = now()
+        where auth_user_id = $1`,
+      [authUserId],
+      "operator_accounts_rehome_follows_activation",
+    );
+  });
+
+  it("refuses a re-home on an account with no login address to move", async () => {
+    // A re-home moves the address this login signs in with, so there has to be
+    // one. Reachable only for a row created before `login_email` existed, and
+    // refused rather than left pending the verification of nothing.
+    const { authUserId, personId } = await createIdentity("ae");
+
+    await expectRejected(
+      client,
+      `insert into public.operator_accounts
+         (auth_user_id, person_id, activated_at, email_rehome_pending_at)
+       values ($1, $2, now(), now())`,
+      [authUserId, personId],
+      "operator_accounts_rehome_needs_a_login_email",
+    );
+  });
+
+  it("refuses clearing the login address out from under a re-home in flight", async () => {
+    const { authUserId, personId } = await createIdentity("af");
+    await client.query(
+      `insert into public.operator_accounts
+         (auth_user_id, person_id, login_email, invited_at, activated_at,
+          email_rehome_pending_at)
+       values ($1, $2, 'in-flight@oxfordlancers.local', now(), now(), now())`,
+      [authUserId, personId],
+    );
+
+    await expectRejected(
+      client,
+      "update public.operator_accounts set login_email = null where auth_user_id = $1",
+      [authUserId],
+      "operator_accounts_rehome_needs_a_login_email",
+    );
+  });
+
+  it("accepts an account with no re-home in flight, before and after one", async () => {
+    // Null is "no re-home in flight", which covers both "never had one" and
+    // "verified" — and verification clears the column rather than stamping a
+    // second one, so the cleared row must be as legal as the untouched one.
+    const { authUserId, personId } = await createIdentity("ag");
+
+    await expectAccepted(
+      client,
+      `insert into public.operator_accounts
+         (auth_user_id, person_id, login_email, invited_at, activated_at)
+       values ($1, $2, 'never@oxfordlancers.local', now(), now())`,
+      [authUserId, personId],
+    );
+
+    await client.query(
+      "update public.operator_accounts set email_rehome_pending_at = now() where auth_user_id = $1",
+      [authUserId],
+    );
+    await expectAccepted(
+      client,
+      "update public.operator_accounts set email_rehome_pending_at = null where auth_user_id = $1",
+      [authUserId],
+    );
+  });
+});
+
 describe("referenced identities cannot be deleted out from under history", () => {
   beforeEach(async () => {
     await client.query("begin");
