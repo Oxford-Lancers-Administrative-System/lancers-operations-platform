@@ -136,14 +136,25 @@ function primarySeat(roles: readonly DirectoryRole[]): DirectoryRole | null {
 }
 
 /**
- * The seats an operator holds, as one line: "President · Wide Receivers Coach".
+ * The seats an operator holds, as one line: "President \u00b7 Wide Receivers Coach".
  *
  * "No current role" rather than an empty cell, for the reason every label map in
  * this repository keeps a fallback: a blank reads as an omission.
+ *
+ * A seat that has not begun is named **and dated**, under the same rule the
+ * roles index follows: the current answer is never replaced, and a date the
+ * club already knows is never withheld. The reader of this column was
+ * previously told "Offensive Coordinator" flatly about somebody who does not
+ * hold it until September — the third surface to answer "who holds this seat"
+ * differently from the other two, and the one Brian had not yet reached.
  */
 export function describeSeats(roles: readonly DirectoryRole[]): string {
   if (roles.length === 0) return "No current role";
-  return roles.map((role) => role.label).join(" · ");
+  return roles
+    .map((role) =>
+      role.scheduled ? `${role.label} (from ${formatDay(role.effectiveFrom)})` : role.label,
+    )
+    .join(" \u00b7 ");
 }
 
 // ---------------------------------------------------------------------------

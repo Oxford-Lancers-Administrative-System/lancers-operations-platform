@@ -687,6 +687,105 @@ describe("one role's record", () => {
     expect(screen.queryByText(/^Not assigned/)).toBeNull();
   });
 
+  /**
+   * Role detail and the roles index answer the same question and must not
+   * contradict each other. Brian found them doing exactly that: the index read
+   * "Not assigned + Alwyn Cholmondley from 1 Sept 2026" while detail said
+   * "Nobody holds this role", and Holder history said nothing was recorded at
+   * all. Two of those three statements were false about the same seat.
+   */
+  it("names the successor on a vacant seat instead of denying one", async () => {
+    vi.mocked(readRoleCatalogue).mockResolvedValue(
+      catalogue({
+        groups: [
+          {
+            code: "club_committee",
+            label: "Club Committee",
+            roles: [
+              catalogueRole({
+                holders: [],
+                scheduled: [
+                  holder({
+                    displayName: "Alwyn Cholmondley",
+                    effectiveFrom: "2026-09-01",
+                    scheduled: true,
+                  }),
+                ],
+              }),
+            ],
+          },
+        ],
+      }),
+    );
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
+
+    expect(screen.getByTestId("scheduled-holder")).toHaveTextContent("Alwyn Cholmondley");
+    expect(screen.getByTestId("current-holder")).toHaveTextContent("Not assigned");
+    expect(screen.getByTestId("current-holder")).not.toHaveTextContent(/nobody is due to/i);
+  });
+
+  it("does not claim nothing is recorded when an assignment exists", async () => {
+    vi.mocked(readRoleCatalogue).mockResolvedValue(
+      catalogue({
+        groups: [
+          {
+            code: "club_committee",
+            label: "Club Committee",
+            roles: [
+              catalogueRole({
+                holders: [],
+                scheduled: [
+                  holder({
+                    displayName: "Alwyn Cholmondley",
+                    effectiveFrom: "2026-09-01",
+                    scheduled: true,
+                  }),
+                ],
+              }),
+            ],
+          },
+        ],
+      }),
+    );
+    vi.mocked(readHolderHistory).mockResolvedValue([]);
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
+
+    expect(screen.getByTestId("holder-history-empty")).not.toHaveTextContent(
+      /Nothing has been recorded/i,
+    );
+  });
+
+  it("shows a filled seat's scheduled end rather than an open-ended holder", async () => {
+    vi.mocked(readRoleCatalogue).mockResolvedValue(
+      catalogue({
+        groups: [
+          {
+            code: "club_committee",
+            label: "Club Committee",
+            roles: [
+              catalogueRole({
+                holders: [
+                  holder({
+                    displayName: "Zenas Yaxlington",
+                    effectiveFrom: "2026-08-20",
+                    effectiveTo: "2026-08-27",
+                  }),
+                ],
+              }),
+            ],
+          },
+        ],
+      }),
+    );
+
+    render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
+
+    expect(screen.getByTestId("holder")).toHaveTextContent("Zenas Yaxlington");
+    expect(screen.getByTestId("holder")).toHaveTextContent("27 Aug 2026");
+  });
+
   it("offers Replace role and End role to a held seat", async () => {
     render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
 

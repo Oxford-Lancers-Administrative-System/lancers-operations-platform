@@ -1131,8 +1131,21 @@ export interface RoleHolders {
     readonly admitsMultipleHolders: boolean;
   };
   readonly cycle: AdministrationOperatingYear;
+  /** In force on the day this was read. Never anybody who has not started. */
   readonly holders: readonly RoleHolder[];
-  /** Nobody held this seat in this operating year. The Not assigned state. */
+  /**
+   * Recorded to begin later. Never holders, never counted towards `vacant`.
+   *
+   * Kept beside them rather than merged into them because the two questions a
+   * screen asks are different: "who holds this seat" and "is anybody coming".
+   * Answering the first with the second is what made a seat starting on 1
+   * September read as though it were held today; answering it with *nothing*
+   * is what made the same seat read as though nobody were coming at all.
+   * `readRoleCatalogue` partitions identically, and the agreement test between
+   * the two readers now compares both halves.
+   */
+  readonly scheduled: readonly RoleHolder[];
+  /** Nobody holds this seat **today**. The Not assigned state. */
   readonly vacant: boolean;
   /** True for any year that is not the active one — `REQ-explicit-cycle-assignment`. */
   readonly readOnly: boolean;
@@ -1238,13 +1251,16 @@ export async function readRoleHolders(
           -- force on a day inside the cycle belongs to it, and the FK cannot
           -- disagree without the row being wrong in the first place. Half-open
           -- at both ends, matching the exclusion constraint over these rows.
-          and ra.effective_from <= ${AS_AT}
           and (ra.effective_to is null or ra.effective_to > ${AS_AT})
         order by ra.effective_from, ra.id`,
       [role.id, cycle.id],
     );
 
-    const holders = result.rows.map(toHolder);
+    // One read, split the way every screen needs it. `scheduled` is computed in
+    // SQL against today, so the partition here cannot drift from the flag.
+    const all = result.rows.map(toHolder);
+    const holders = all.filter((holder) => !holder.scheduled);
+    const scheduled = all.filter((holder) => holder.scheduled);
 
     return {
       role: {
@@ -1256,6 +1272,7 @@ export async function readRoleHolders(
       },
       cycle,
       holders,
+      scheduled,
       vacant: holders.length === 0,
       readOnly: cycle.id !== active.id,
     };

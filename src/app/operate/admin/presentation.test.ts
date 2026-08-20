@@ -165,6 +165,26 @@ describe("holders", () => {
     );
   });
 
+  it("dates a seat that has not begun instead of naming it flatly", () => {
+    const seats = describeSeats([
+      {
+        roleAssignmentId: "a",
+        roleId: "r",
+        code: "offence_coach",
+        label: "Offensive Coordinator",
+        groupCode: "coaching_staff",
+        groupLabel: "Coaching Staff",
+        groupSortOrder: 3,
+        effectiveFrom: "2026-09-01",
+        effectiveTo: null,
+        scheduled: true,
+      },
+    ]);
+
+    expect(seats).toContain("Offensive Coordinator");
+    expect(seats).toContain("from 1 Sept 2026");
+  });
+
   /**
    * The four states Brian fixed on 20 August 2026. Each is asserted for what a
    * reader can tell from the cell, and each asserts the *current* answer is

@@ -282,6 +282,14 @@ describe("the role catalogue", () => {
           role.holders.map((holder) => holder.roleAssignmentId).sort(),
           `holders of ${role.code}`,
         ).toEqual(single.holders.map((holder) => holder.roleAssignmentId).sort());
+        // Both halves, since Brian's review of the four states: the index and
+        // role detail disagreed about a seat starting on 1 September because
+        // only one of them had been taught that scheduled assignments exist.
+        // Agreement on holders alone would have passed through that.
+        expect(
+          role.scheduled.map((entry) => entry.roleAssignmentId).sort(),
+          `scheduled arrivals of ${role.code}`,
+        ).toEqual(single.scheduled.map((entry) => entry.roleAssignmentId).sort());
         expect(role.vacant, `vacancy of ${role.code}`).toBe(single.vacant);
         expect(role.label).toBe(single.role.label);
         expect(role.admitsMultipleHolders).toBe(single.role.admitsMultipleHolders);
@@ -304,8 +312,12 @@ describe("the role catalogue", () => {
 
     const seat = await seatNamed("linebackers_coach");
 
-    expect(seat.holders).toHaveLength(0);
-    expect(seat.vacant).toBe(true);
+    // Asserted against this fixture rather than against the seat being empty:
+    // a multi-holder seat may carry other assignments, and a test that needs
+    // the rest of the database to be quiet fails for reasons that are not the
+    // rule it is about.
+    expect(seat.holders.map((holder) => holder.personId)).not.toContain(person);
+    expect(seat.scheduled.map((entry) => entry.personId)).not.toContain(person);
   });
 
   it("keeps a holder whose assignment ends in the future", async () => {

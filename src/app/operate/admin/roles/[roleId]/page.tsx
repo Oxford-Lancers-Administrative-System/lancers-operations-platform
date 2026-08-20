@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
 import Link from "@mui/material/Link";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
@@ -119,7 +120,9 @@ export default async function RoleRecordPage({
           <Typography variant="body2" color="text.secondary">
             {role.cycleMissing
               ? "There is no season under way, so this role has no holder to show yet."
-              : `${NOT_ASSIGNED}. Nobody holds this role for ${cycleLabel}.`}
+              : role.scheduled.length > 0
+                ? `${NOT_ASSIGNED}. Nobody holds this role today; it has been assigned from a date still to come.`
+                : `${NOT_ASSIGNED}. Nobody holds this role for ${cycleLabel}, and nobody is due to.`}
           </Typography>
         ) : (
           <Stack spacing={2}>
@@ -167,6 +170,45 @@ export default async function RoleRecordPage({
             ))}
           </Stack>
         )}
+
+        {/*
+          The half the index already showed and this page denied. Brian, on
+          finding a seat that read "Not assigned + Alwyn Cholmondley from
+          1 Sept 2026" on the index and "Nobody holds this role" here: "That
+          doesn't make sense."
+
+          It sits inside the Current holder panel rather than in one of its own,
+          because it is part of the answer to "who holds this seat" - the part
+          about the near future. It is drawn whether or not the seat is filled:
+          a successor lined up behind a departing holder is exactly as much a
+          surprise, later, as one lined up behind a vacancy.
+        */}
+        {role.scheduled.length > 0 ? (
+          <Box sx={{ mt: role.holders.length === 0 ? 1.5 : 2 }} data-testid="scheduled-holders">
+            <Divider sx={{ mb: 1.5 }} />
+            <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+              {role.holders.length === 0 ? "Assigned from" : "Also assigned from"}
+            </Typography>
+            <Stack spacing={1}>
+              {role.scheduled.map((entry) => (
+                <Box key={entry.roleAssignmentId} data-testid="scheduled-holder">
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {entry.operatorAccountId ? (
+                      <Link href={`/operate/admin/operators/${entry.operatorAccountId}`}>
+                        {entry.displayName}
+                      </Link>
+                    ) : (
+                      entry.displayName
+                    )}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {describePeriod(entry)}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Box>
+        ) : null}
       </Paper>
 
       <Box component="section">
@@ -227,7 +269,11 @@ export default async function RoleRecordPage({
         </Stack>
         <AdministrationHistory
           entries={history}
-          emptyMessage="Nothing has been recorded about who holds this role yet."
+          emptyMessage={
+            role.holders.length > 0 || role.scheduled.length > 0
+              ? "No changes to this role have been recorded here. Assignments that came with the club\u2019s records, rather than being made on this screen, appear above."
+              : "No changes to this role have been recorded, and nobody is assigned to it."
+          }
           testId="holder-history"
         />
       </Box>
