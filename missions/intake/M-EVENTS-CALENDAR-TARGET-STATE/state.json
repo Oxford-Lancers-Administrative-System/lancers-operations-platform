@@ -150,7 +150,32 @@
       "name": "See who is coming, and who turned up",
       "state": "mock_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W7-01",
+          "text": "Show the event's own details, description included, on this screen - it still felt isolated from the event."
+        },
+        {
+          "screen_id": "W7-01",
+          "text": "Put Take the register directly under invited / said yes / showed, not at the bottom."
+        },
+        {
+          "screen_id": "W7-01",
+          "text": "Every column sortable, and add filters - only players, only yes, only no, that sort of thing."
+        },
+        {
+          "screen_id": "W7-01",
+          "text": "On mobile, buttons that can sit side by side should: Share link and Edit event."
+        },
+        {
+          "screen_id": "W7-04",
+          "text": "Drop send-to-WhatsApp. The club cannot message groups yet."
+        },
+        {
+          "screen_id": "W7-05",
+          "text": "The washout explanation is flavour text and must not be in the real app. Use NA for a register nobody has opened; 0 out of 47 when one was taken and nobody came."
+        }
+      ],
       "approvals": {}
     },
     {

@@ -573,6 +573,18 @@
         flex-direction: column;
       }
 
+      /* A pair of short actions stays side by side at 375 — Brian, 2026-08-21:
+         "if buttons can be side by side, they generally should be". */
+      .phone .btn-row.inline {
+        flex-direction: row;
+        gap: 8px;
+      }
+
+      .phone .btn-row.inline .btn {
+        width: auto;
+        flex: 1;
+      }
+
       .phone .btn-row .btn {
         width: 100%;
       }
@@ -1600,7 +1612,7 @@
           Absent: 'style="background:#fdecea;border-color:#c62828;color:#b71c1c"',
         };
         return a === "—"
-          ? `<span class="body2 sec">not recorded</span>`
+          ? `<span class="body2 sec">NA</span>`
           : `<span class="chip" ${map[a] ?? ""}>${a}</span>`;
       };
       const ansChip = (a) =>
@@ -1651,6 +1663,39 @@
           </table></div>
         </div>`;
 
+      const details = `
+        <div class="paper">
+          <div class="grid2">
+            <div class="fact"><p class="over">Type</p><p class="body1 bold">Practice</p></div>
+            <div class="fact"><p class="over">Where</p><p class="body1 bold">Iffley Road Astro</p><p class="body2 sec">In person</p></div>
+            <div class="fact"><p class="over">Term / week</p><p class="body1 bold">Hilary 2026-27 · 5th week</p></div>
+            <div class="fact"><p class="over">Attendance</p><p class="body1 bold">Mandatory</p></div>
+            <div class="fact"><p class="over">Required equipment</p><p class="body1 bold">Gumshield, boots</p></div>
+            <div class="fact"><p class="over">Description</p><p class="body1 bold">Full contact. Bring a light and a dark top — we are splitting the squad for the second hour.</p></div>
+          </div>
+        </div>`;
+
+      const register = (open) => `
+        <div class="paper">
+          <div class="row" style="justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+            <div>
+              <p class="over" style="margin:0">Attendance</p>
+              <p class="body2 sec" style="margin:2px 0 0">${open ? "Open. It never closes — fill it in or correct it whenever." : "Opens about six hours before the event."}</p>
+            </div>
+            <button class="btn ${open ? "btn-contained" : "btn-outlined"} btn-sm">Take the register</button>
+          </div>
+        </div>`;
+
+      const filters = (operator) => `
+        <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center">
+          <span class="field-inline" style="flex:1;min-width:170px">Search name</span>
+          <span class="field-inline">As: All ▾</span>
+          <span class="field-inline">Answer: All ▾</span>
+          <span class="field-inline">Attendance: All ▾</span>
+          ${operator ? `<span class="field-inline">Delivery: All ▾</span>` : ""}
+          <span class="body2 sec">Applied as you type — combines</span>
+        </div>`;
+
       const headline = (showed) => `
         <div class="paper">
           <div class="row" style="gap:38px;flex-wrap:wrap">
@@ -1663,61 +1708,52 @@
       /* ------------------------------ W7-01 ------------------------------ */
 
       const W701 = opShell(`
-        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
-          <div>
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+          <div style="min-width:0">
             <h1 class="h6">Practice — hilary week 5</h1>
-            <p class="body2 sec">Approved · Wednesday, 17 February 2027 · 20:00–22:30 · Iffley Road Astro</p>
+            <p class="body2 sec">Approved · Wednesday, 17 February 2027 · 20:00–22:30</p>
           </div>
-          <div class="btn-row">
+          <div class="btn-row inline" style="flex-wrap:nowrap">
             <button class="btn btn-outlined btn-sm">Share link</button>
             <button class="btn btn-outlined btn-sm">Edit event</button>
           </div>
         </div>
-        ${headline("—")}
-        ${table(true)}
-        <div class="paper">
-          <div class="row" style="justify-content:space-between;align-items:center;gap:12px">
-            <div>
-              <p class="over" style="margin:0">Attendance</p>
-              <p class="body2 sec" style="margin:2px 0 0">Opens about six hours before the event, and never closes after it.</p>
-            </div>
-            <button class="btn btn-outlined btn-sm">Take the register</button>
-          </div>
-        </div>`);
+        ${details}
+        ${headline("NA / 47")}
+        ${register(false)}
+        ${filters(true)}
+        ${table(true)}`);
 
       /* ------------------------------ W7-02 ------------------------------ */
 
       const W702 = opShell(`
-        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
-          <div>
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+          <div style="min-width:0">
             <h1 class="h6">Practice — hilary week 5</h1>
-            <p class="body2 sec">Occurred · Wednesday, 17 February 2027 · 20:00–22:30 · Iffley Road Astro</p>
+            <p class="body2 sec">Occurred · Wednesday, 17 February 2027 · 20:00–22:30</p>
           </div>
-          <div class="btn-row"><button class="btn btn-outlined btn-sm">Share link</button></div>
+          <div class="btn-row inline" style="flex-wrap:nowrap">
+            <button class="btn btn-outlined btn-sm">Share link</button>
+            <button class="btn btn-outlined btn-sm">Edit event</button>
+          </div>
         </div>
+        ${details}
         ${headline("28 / 47")}
-        ${table(true)}
-        <div class="paper">
-          <p class="over">Two people do not match</p>
-          <p class="body2" style="margin:4px 0 0">
-            Alaric Brindlewood said yes and was marked absent. Cassian Wolvercote never answered and
-            turned up. Both are marked <span class="disc">≠</span> and neither is reconciled — they are
-            two facts that differ, not an accusation.
-          </p>
-        </div>`);
+        ${register(true)}
+        ${filters(true)}
+        ${table(true)}`);
 
       /* ------------------------------ W7-03 ------------------------------ */
 
       const W703 = clubShell(`
         <div>
           <h1 class="h6">Practice — hilary week 5</h1>
-          <p class="body2 sec">Wednesday, 17 February 2027 · 20:00–22:30 · Iffley Road Astro</p>
+          <p class="body2 sec">Wednesday, 17 February 2027 · 20:00–22:30</p>
         </div>
+        ${details}
         ${headline("28 / 47")}
-        ${table(false)}
-        <p class="body2 sec">
-          Anyone with this link can see this. No account needed. Delivery detail is not here.
-        </p>`);
+        ${filters(false)}
+        ${table(false)}`);
 
       /* ------------------------------ W7-04 ------------------------------ */
 
@@ -1725,7 +1761,7 @@
         <div style="position:relative">
           <div style="opacity:.35">
             <div><h1 class="h6">Practice — hilary week 5</h1><p class="body2 sec">Approved · Wed 17 Feb 2027</p></div>
-            ${headline("—")}
+            ${headline("NA / 47")}
           </div>
           <div class="scrim" style="position:absolute;inset:0">
             <div class="dialog">
@@ -1737,7 +1773,6 @@
               <div class="urlbox">https://oxfordlancers.example/e/7f3c9a21</div>
               <div class="btn-row" style="margin-top:12px">
                 <button class="btn btn-contained btn-sm">Copy link</button>
-                <button class="btn btn-outlined btn-sm">Send to WhatsApp</button>
               </div>
               <p class="body2 sec" style="margin:14px 0 0">
                 It is a private link, not a secret one — a squad list is not a secret from the squad.
@@ -1752,36 +1787,36 @@
       const W705 = opShell(`
         <div class="stack g2">
           <div class="paper">
-            <p class="h6" style="margin:0 0 6px">Nothing recorded yet</p>
-            ${headline("—")}
-            <p class="body2" style="margin:8px 0 0">
-              <strong>“—”, not 0 / 47.</strong> An event nobody has got round to must not read as a
-              disaster. The register has not been opened.
-            </p>
+            <p class="over">Nobody has opened the register</p>
+            <div class="row" style="gap:38px;flex-wrap:wrap;margin-top:6px">
+              <div><p class="big">47</p><p class="body2 sec">Invited</p></div>
+              <div><p class="big">31</p><p class="body2 sec">Said yes</p></div>
+              <div><p class="big">NA / 47</p><p class="body2 sec">Showed / Invited</p></div>
+            </div>
           </div>
           <div class="paper">
-            <p class="h6" style="margin:0 0 6px">A washout, recorded</p>
-            <div class="row" style="gap:38px;flex-wrap:wrap">
+            <p class="over">The register was taken, and nobody came</p>
+            <div class="row" style="gap:38px;flex-wrap:wrap;margin-top:6px">
               <div><p class="big">47</p><p class="body2 sec">Invited</p></div>
               <div><p class="big">31</p><p class="body2 sec">Said yes</p></div>
               <div><p class="big">0 / 47</p><p class="body2 sec">Showed / Invited</p></div>
             </div>
-            <p class="body2" style="margin:8px 0 0">
-              <strong>A real zero.</strong> Somebody opened the register, marked everyone absent and
-              saved it. It snowed. The save is what makes this different from the one above.
-            </p>
           </div>
           <div class="paper">
-            <p class="h6" style="margin:0 0 6px">Before the buffer</p>
-            ${alert("info", "<strong>The register opens about six hours before the event.</strong> The realistic moment to take it is standing at the pitch as people arrive.")}
-            <p class="body2 sec" style="margin:8px 0 0">
-              Nobody asserts that the event is happening first. It is assumed to happen unless
-              somebody cancels it.
-            </p>
+            <p class="over">Before the register opens</p>
+            <div class="row" style="justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:6px">
+              <p class="body2 sec" style="margin:0">Opens about six hours before the event.</p>
+              <button class="btn btn-outlined btn-sm" style="opacity:.5">Take the register</button>
+            </div>
           </div>
           <div class="paper">
-            <p class="h6" style="margin:0 0 6px">A public reader opening the same event</p>
-            ${alert("info", "They get the event's facts and nothing else. No names, no answers, no attendance — and none of it in the payload behind the page either.")}
+            <p class="over">A public reader opening the same event</p>
+            <div class="grid2" style="margin-top:8px">
+              <div class="fact"><p class="over">Type</p><p class="body1 bold">Practice</p></div>
+              <div class="fact"><p class="over">Where</p><p class="body1 bold">Iffley Road Astro</p></div>
+              <div class="fact"><p class="over">Description</p><p class="body1 bold">Full contact. Bring a light and a dark top.</p></div>
+            </div>
+            <p class="body2 sec" style="margin-top:10px">No names, no answers, no attendance.</p>
           </div>
         </div>`);
 
@@ -1793,7 +1828,10 @@
           deltas: [
             "Three headline numbers, large, at the top — they do not exist today",
             "One row per person: capacity, invitation, delivery, answer, reason, attendance, questions",
-            "Showed / Invited reads “—” until a register is saved",
+            "Showed / Invited reads NA / 47 until a register is saved",
+            "The event's own details, description included, sit above the numbers",
+            "Take the register sits directly under the numbers, not at the bottom",
+            "Search and filters on capacity, answer, attendance and delivery",
             "Confirm what happened, Mark occurred and Mark not held are gone",
             "The register opens on a buffer instead of after an assertion",
           ],
@@ -1817,6 +1855,7 @@
           title: "After it happens — who turned up",
           deltas: [
             "Showed / Invited becomes a real pair once a register is saved",
+            "Same layout: details, numbers, register, filters, table",
             "Attendance joins the same table rather than living only on its own screen",
             "Disagreements between RSVP and attendance are marked, never reconciled",
             "A walk-up appears with no invitation and no answer",
@@ -1842,7 +1881,7 @@
           deltas: [
             "No account needed, and nothing can be changed",
             "The delivery column is absent — it is the only operator-locked element",
-            "Everything else is the same table, because the squad list is not a secret from the squad",
+            "Everything else is the same table, filters included",
           ],
           blurb:
             "This is why the club link exists, and it closes the tier question deferred all the way from W1. Coaches hold no operator account; without this they cannot see who is coming to their own session. D3 makes delivery the only thing the middle tier loses.",
@@ -1861,6 +1900,7 @@
             "An operator issues and shares it",
             "Says plainly what the holder will be able to see",
             "A private link, not a secret one",
+            "No send-to-WhatsApp — the club cannot message groups yet",
           ],
           blurb:
             "Given to this workflow by inventory amendment 1. The link is not privacy-blocking by D81 — Brian's framing was that if somebody shares it further, that is their prerogative — but it is still signed rather than guessable. Expiry, rotation and revocation are Q2, which the owner chose to settle by testing; a link that cannot yet be revoked is still a link, and revocation is additive.",
@@ -1875,12 +1915,12 @@
           disposition: "new",
           title: "The states that decide whether the numbers are honest",
           deltas: [
-            "“—” for an unopened register versus 0 / 47 for a saved washout",
+            "NA / 47 for an unopened register versus 0 / 47 for a saved one",
             "The register before its buffer",
             "What a public reader gets: facts, and nothing about people",
           ],
           blurb:
-            "The distinction the brief is most insistent about, and the easiest to lose in implementation: an event nobody has got round to must not read like an event nobody came to. The save is the signal. Everything else on this screen protects the boundary — the public tier receives no person, in the page or in the payload behind it.",
+            "The distinction the brief is most insistent about, and the easiest to lose in implementation: an event nobody has got round to must not read like an event nobody came to. NA means nobody has taken the register; 0 / 47 means somebody took it and nobody came. The save is the signal, and the application says neither of those things out loud — the numbers carry it.",
           clockTag: "Now: Thursday, 18 February 2027, 09:30",
           url: "localhost:3000/operate/events/{id}",
           now: null,

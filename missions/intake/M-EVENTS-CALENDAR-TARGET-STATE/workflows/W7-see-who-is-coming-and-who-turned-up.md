@@ -22,10 +22,14 @@ be shared with the squad without giving anybody an account.
 they are the primary operational facts and the current build renders them
 nowhere.
 
-**`Showed / Invited` reads "—" until an attendance sheet has been saved** (D74).
-An event nobody has got round to must not read as a disaster. A sheet saved with
-everyone absent reads `0 / 37` and is a different fact: the session was a
-washout and somebody assessed it.
+**`Showed / Invited` reads `NA / 47` until a register has been saved** (D74).
+Once one has been saved it reads a real pair — including `0 / 47`, which means
+somebody took the register and nobody came. An event nobody has got round to
+must not read like an event nobody attended.
+
+The application does not explain the difference in words. The two values carry
+it, and explanatory text about washouts belongs in a review artifact, not in the
+product. (Brian, 2026-08-21.)
 
 ## The table
 
@@ -43,8 +47,13 @@ centre of the workflow.
 | Attendance              | Present · Late · Excused · Absent · not recorded                                     |
 | One column per question | The answers `W4` now authors (D68)                                                   |
 
-**Sortable on every column** (§4.5). **A discrepancy marker** where RSVP and
-attendance disagree (D64) — somebody said yes and did not come, or came without
+**Sortable on every column** (§4.5), and **filterable** — by name, by capacity,
+by answer, by attendance, and by delivery at the operator tier. The filters
+combine and apply as you type, exactly as `W1`'s do. Brian, 2026-08-21: _"I also
+should have filters to only players, a filter to only yes, a filter to only no
+… I can see only the nos."_
+
+**A discrepancy marker** where RSVP and attendance disagree (D64) — somebody said yes and did not come, or came without
 saying anything.
 
 ## The tiers, and the shareable link
@@ -63,7 +72,9 @@ exists.
 - **Delivery is the only operator-locked element** (D3). A club-link reader sees
   the same table without the delivery column.
 - **The link is issued and shared by an operator** (§4.15), and issuing it is
-  this workflow's (inventory amendment 1).
+  this workflow's (inventory amendment 1). **Copy the link, and nothing else** —
+  there is no send-to-WhatsApp, because the club cannot message groups
+  (Brian, 2026-08-21).
 - **It is not privacy-blocking** (D81). The participation data is ordinary team
   information; a squad list is not a secret from the squad. Brian's own framing
   when D81 was taken: _"if they share it outside of it, that's their own
