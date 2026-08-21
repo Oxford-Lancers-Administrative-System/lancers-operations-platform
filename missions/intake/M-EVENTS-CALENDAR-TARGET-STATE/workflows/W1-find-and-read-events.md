@@ -307,6 +307,25 @@ package rather than on this specification:
 | **How a reader reaches a season other than the one they are in**                                                                                                                                               | `proposed for owner approval` | Removing the calendar's season selector leaves no control anywhere in `W1` that changes season, so only the current season is reachable. Recommended default: season is context rather than a filter — set once in the Events header for every arrangement, not repeated per calendar — and reading a closed season is a `W1` capability rather than a new surface                                                                                                                                                       | **Open — Brian**            |
 | Does the club-link tier survive as approved?                                                                                                                                                                   | **deferred to `W7`**          | D2/D3 give the club link audience, RSVP and attendance. Brian's 2026-08-20 wording may collapse that tier. It is a question about who sees participation data, which is `W7`'s subject                                                                                                                                                                                                                                                                                                                                   | Deferred — `W7`             |
 
+## Correction C1 — cancelled events on the public list, 2026-08-21
+
+The approved `W1-03` blurb read _"Cancelled events are simply absent from what is
+on."_ That was written here and is wrong on the authority:
+
+- **D57** keeps a cancelled event visible, with its history, on the calendar, in
+  the list and on its own page.
+- **`W2` keeps it in the subscription feed**, marked cancelled, on Brian's
+  decision of 2026-08-21 — an event that silently disappears from somebody's
+  calendar reads as a sync failure.
+
+Hiding it on the public list would therefore have made two public surfaces
+disagree: absent from the list a reader is looking at, present in the calendar
+they subscribed to from that same list.
+
+**Corrected:** a cancelled event stays on the public list, marked cancelled.
+Applied as a correction to authority rather than as a product decision, and
+recorded here because it changes an approved workflow.
+
 ## Brian approval
 
 - **Exact words:** "Approved."

@@ -34,7 +34,13 @@ when D76 was taken: low stakes — _"they know each other."_
 ## What survives
 
 - **The event stays visible**, on the calendar and in the list, marked
-  cancelled, with its history (D57).
+  cancelled, with its history (D57) — at every tier, public included.
+- **It stays in the subscription feed too**, marked cancelled rather than
+  removed (`W2`). A subscriber sees "Cancelled: vs Brackenridge Bulls" in their
+  own calendar; an event that silently disappears reads as a sync failure, not
+  as a cancellation. **They may see it hours late** — that is `W2`'s recorded
+  refresh non-guarantee, and it is why the message, not the calendar, is how
+  people find out.
 - **Every response it collected stays with it.** The 25 people who said yes
   still said yes; that is a fact about what happened, not a live obligation.
 - **Attendance records, if any, are untouched.**
