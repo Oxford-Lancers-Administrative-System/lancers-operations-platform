@@ -1,0 +1,304 @@
+# W5 — Amend or reschedule an approved event
+
+## What this workflow is for
+
+An approved event changes — the pitch is waterlogged and it moves to University
+Parks, the time shifts an hour, the kit list grows — and everyone who needs to
+know finds out, without anybody losing the answer they already gave.
+
+Today this is impossible. There is no amendment path on `main` at all, so a
+rescheduled practice means telling people in WhatsApp and leaving the record
+wrong.
+
+- **Primary actor:** an operator holding event approval — President,
+  Vice-President, Secretary or General Manager.
+- **Trigger:** something about an approved event is now untrue.
+- **Entry point:** the approved event's own page.
+- **User-visible result:** the event is right, every response still stands, and
+  the people who needed telling have been told — or deliberately have not,
+  recoverably.
+- **Controlling source:** Events & Calendar brief D49–D55, D76, §4.13; owner
+  decision OD-1 of 2026-08-18, closing Q6, Q7 and Q9.
+
+## The shape of it
+
+**The event is edited in place and never leaves approved.**
+
+1. **Press Edit event.** The event stays approved, and stays approved on the
+   public calendar, throughout.
+2. **Everything survives** — details, invitations, and every RSVP already
+   collected. Nothing is cleared.
+3. **Change what is wrong**, in the ordinary editor from `W4`. Changes are held
+   as a pending amendment and are not live.
+4. **Save**, and decide whether this change notifies. Saving is the moment the
+   change lands.
+5. **Or abandon it**, and nothing whatever has happened.
+6. **If it went out silently by mistake, re-notify** (D54).
+
+### Why not "return to draft"
+
+D49 makes `approved → draft` a real transition, and an earlier draft of this
+workflow took that literally: the operator pressed _Return to draft_, edited, and
+re-approved.
+
+That is wrong in practice for a reason the decision could not have anticipated,
+because D4 was decided separately: **drafts are visible on the public calendar.**
+An approved event with 37 invitations already sent would therefore appear
+publicly as a draft for as long as somebody was editing it — and if they were
+interrupted, indefinitely. A club event that silently becomes a draft after
+people have been invited to it is a worse outcome than any amendment it was
+meant to enable.
+
+**D49 is therefore superseded for the amendment path**, by Brian on 2026-08-21.
+The event is amended in place; the operator never meets the word "draft"; and
+the public never sees the event flicker. `approved → draft` remains a real
+transition in the model and remains unused by this workflow.
+
+_Recorded as a proposed correction to the Events brief in
+`notion-corrections.md`._
+
+## Who is told, and when
+
+**The whole invited audience**, when a change notifies. OD-1/Q9 closed this and
+simplified D51 and D53 into one rule: yes-responders, no-responders and
+non-responders alike. One rule for all recipients.
+
+- **A yes still stands.** People who answered yes are told the event has changed
+  and to re-read the details. **They are not asked to answer again** (D51, D52).
+- **A non-responder's message doubles as an ordinary "please RSVP" prompt**
+  (D53).
+- **Decliners are included.** A venue or date change might reverse their answer,
+  and one rule is simpler than three.
+
+## Whether it notifies
+
+**One decision for the whole amendment, not one per field.** Brian, 2026-08-21:
+_"You don't notify per thing. You just resend the whole invitation, or you
+renotify that something was changed or not. It's one tick."_
+
+A person does not receive three messages because three fields moved. They
+receive one message saying the event changed and to re-read it, or they receive
+nothing.
+
+### Where the tick starts
+
+D55's per-field defaults survive, but as the thing that decides **the starting
+position of the single tick** rather than as six separate switches:
+
+| If the amendment changed            | The tick starts |
+| ----------------------------------- | --------------- |
+| Date, time or venue — any of them   | **On**          |
+| Only description, equipment or name | **Off**         |
+
+The operator moves it either way. The defaults exist so that the changes which
+strand somebody at the wrong place at the wrong time speak up by themselves.
+
+### Silence is deliberate, or it does not happen
+
+Turning the tick **off** when the date, time or venue changed requires a
+confirmation that names the consequence in people, not in fields:
+
+> _37 people were told this is at **Iffley Road Astro**. If you save without
+> notifying, nobody will be told it has moved._
+
+Turning it off when only the description, equipment or name changed asks
+nothing — that is the ordinary case and the default already.
+
+An absolute prohibition was considered and rejected: it would make a corrected
+spelling impossible to fix without messaging the whole squad, which is its own
+bad outcome. The requirement is that silence is chosen, not defaulted into.
+
+_This tightens D55, which is an approved decision. Recorded as a proposed
+correction in `notion-corrections.md`._
+
+### Pending messages pause until the change is assessed
+
+**Saving an amendment holds every not-yet-sent message for that event.** Brian,
+2026-08-21: _"if it gets approved, something changes … the notification process
+should pause. It should see what changed, and then it should continue if it's
+worth notifying them."_
+
+That is the right rule and it is sharper than blanket cancellation:
+
+- **This mission's half:** saving an amendment places a hold on the event's
+  unsent messages and records what changed.
+- **Mission 4's half:** deciding whether a held message resumes as it was,
+  resumes carrying the corrected details, or is replaced — and then doing it.
+
+The failure this prevents is an invitation that was queued on Monday arriving on
+Wednesday describing a venue that changed on Tuesday. Nothing already delivered
+is recalled; that remains impossible and remains true.
+
+## Rescheduling recomputes the chase
+
+**When the date or time moves, the RSVP chase threshold recomputes against the
+new date, and the app says that a reschedule is happening** (OD-1/Q6).
+
+**Both halves of that are Mission 4's.** This mission owns the event's date and
+announces that it changed; Mission 4 owns the threshold, recomputes it, and
+chases. A practice moved from next week to next month must not still be chased
+on next week's schedule — but nothing about that schedule lives here.
+
+_Corrected 2026-08-21. An earlier draft claimed the recomputation for this
+mission on the grounds that the threshold was event-type configuration it owned.
+It is not: the Events brief hands D75 to Task 03 in its §7 and excludes reminder
+scheduling in its §8._
+
+## What this workflow does not do
+
+**It does not send anything.** It decides that a message is owed and to whom;
+Mission 4 formats it, picks the moment, delivers it and retries.
+
+One consequence of the seam is worth stating because it is already decided on
+the other side of it. Task 02's D5 says: **undelivered notification jobs are
+cancelled on return to draft, nothing already sent is recalled, and on
+re-approval invitations never attempted dispatch fresh.**
+
+That rule survives intact, but **its trigger moves**: there is no return to
+draft any more, so the moment at which undelivered jobs are cancelled and
+replaced is **when an amendment is saved**. The substance is unchanged — nothing
+sent is recalled, nothing unsent goes out describing the old event — but Mission
+4 must be told, because D5 names a transition this workflow no longer performs.
+Recorded as a proposed correction to the Task 02 brief in
+`notion-corrections.md`.
+
+## State transitions
+
+- **None on the event's status.** It is approved before, during and after.
+- A **pending amendment** exists between Edit and Save, and is not visible to
+  anyone but the operator editing.
+- **Saving applies the change** and records the notify decision.
+- **Abandoning discards it** and leaves no trace on the event.
+- The event's identity, its audience and its collected responses are unchanged
+  throughout.
+- Change history is retained and queryable, with the actor, the change and the
+  notify choice recorded against it (§4.13).
+
+## Handoffs
+
+- **← `W1`, `W7`** — an operator reaches the event from the list, a calendar, or
+  its own page.
+- **↔ `W4`** — the editing itself is `W4`'s form and `W4`'s audience builder.
+  This workflow is the wrapper that makes them reachable on an approved event
+  and decides what happens on the way out.
+- **→ Mission 4** — the notification, and the recomputed chase.
+- **→ `W6`** — if the answer is that the event should not happen at all.
+
+## Exceptions and recovery
+
+| Situation                                               | Behaviour                                                                                                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A change was saved with notify turned off by mistake    | **Re-notify** sends the change notification to the same audience, without altering the event or its responses (D54, acceptance example F)               |
+| The audience is edited while the event is back in draft | Allowed — it is a draft. People removed keep no obligation; people added are new invitations on re-approval                                             |
+| Re-approval with a now-missing required field           | Refused, exactly as `W4` refuses. The event stays a draft                                                                                               |
+| Re-approval with an empty audience                      | Refused. The event stays a draft                                                                                                                        |
+| The event has already passed                            | It can still be amended — a correction to the record is legitimate. Whether it notifies is the operator's call, and the default for a past event is off |
+| A second operator is editing the same event             | Ordinary concurrency; the Mission Lead's problem, not a product decision                                                                                |
+
+## Safety, privacy, consent, and authority boundaries
+
+- **No response is ever destroyed by an amendment.** This is the load-bearing
+  rule: an operator fixing a venue must never silently discard 25 people's
+  answers.
+- **The audit record is the point.** Actor, change and notify choice, retained
+  and queryable — this is the only place in the mission where somebody changes
+  something people have already acted on.
+- **Approval capability is required**, enforced in the service layer.
+- **Nothing here reaches a person directly.** The obligation to notify is
+  recorded; Mission 4 acts on it.
+
+## A second reversal of LAN-77
+
+`W4` records that D47 reverses LAN-77's "audience selection begins empty".
+**This workflow reverses a second criterion of the same issue**, and it is
+recorded here for the same reason: so that nobody reads the shipped behaviour as
+authority.
+
+LAN-77 shipped with the audience _assembled and frozen at approval, with no
+post-approval edit path_ — and the approved event page still says so today:
+"Confirmed at approval and fixed for this event. Adding or removing someone
+afterwards is deliberately not possible in this workflow."
+
+D49 and D50 override that: an approved event can be changed, and its audience
+changes with it. Under this workflow's in-place amendment, the audience is
+editable during an amendment; people removed keep no obligation, and people
+added become new invitations when it is saved. The brief records the reversal in
+its own §6.
+
+## Repository reconciliation
+
+**There is no amendment path on `main` at `c894f1d`.** The README's own
+limitation list says C4 is absent, and the Authority Manifest records Scope 1's
+C4 as unbuilt. An approved event today is terminal: it cannot be returned to
+draft, edited, or re-notified.
+
+Two things the current approved-event page carries that this mission removes,
+neither of which belongs to this workflow:
+
+- **The "Confirm what happened" panel** — event status, "Occurrence: Not yet
+  asserted", "Attendance: Unavailable, opens only after Mark occurred", and the
+  **Mark occurred** and **Mark not held** buttons. D30 retires occurrence
+  assertion entirely and the brief states that screens UX-70 and UX-75 cease to
+  exist; D71–D74 replace them with a time buffer. **That removal belongs to
+  `W7`**, which owns the event page's attendance-facing content, and it is
+  recorded here so it is not lost between the two.
+- **The "Response solicited / No response requested" block**, which D23 removes.
+  `W4` removes it from the form; the same value is displayed here and goes with
+  it.
+
+## Acceptance evidence
+
+- An approved event can be amended and **never leaves the approved status**,
+  including on the public calendar, at any point during the edit.
+- Every invitation and every RSVP survives an amendment — asserted by count and
+  by identity, not by inspection.
+- Abandoning an amendment leaves the event byte-for-byte as it was, and writes
+  no history entry.
+- A yes-responder is told the event changed and is not asked to answer again;
+  their answer is unchanged afterwards.
+- When a change notifies, the notification obligation is recorded against every
+  invited person, decliners included.
+- Notify defaults on for date, time and venue, and off for description,
+  equipment and name, and the operator's override is honoured and recorded.
+- Re-notify sends the change notification to the same audience and alters
+  neither the event nor its responses.
+- Turning notification off on a date, time or venue change cannot be done
+  without passing the confirmation, and the confirmation names the number of
+  people affected and the value they were last told.
+- Saving an amendment places a hold on that event's unsent messages, and no
+  held message is dispatched describing a superseded value.
+- Moving the date recomputes the chase threshold against the new date.
+- Saving is refused when a required field is missing or the audience would be
+  empty, and the event stays approved and unchanged.
+- The change history records actor, change and notify choice, and is queryable.
+- No amendment creates, alters or destroys an attendance record.
+
+## Core decisions
+
+| Decision                                                                                                                                                          | Classification                           | Governing evidence                                                                                                                                                                                                | Status        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| An approved event is changed by returning it to draft; `approved → draft` is a real transition                                                                    | `locked`                                 | D49                                                                                                                                                                                                               | Settled       |
+| Returning to draft preserves details, invitations and every RSVP                                                                                                  | `locked`                                 | D50                                                                                                                                                                                                               | Settled       |
+| Yes-responders are told and keep their answer; they are never asked to re-RSVP                                                                                    | `locked`                                 | D51, D52                                                                                                                                                                                                          | Settled       |
+| When a change notifies, the **whole invited audience** is notified, decliners included                                                                            | `locked`                                 | OD-1/Q9, 2026-08-18, which supersedes D51/D53's split                                                                                                                                                             | Settled       |
+| The operator decides whether a change notifies, with per-field defaults — on for date, time and venue; off for description, equipment and name                    | `locked`                                 | D54, D55                                                                                                                                                                                                          | Settled       |
+| **Silencing a date, time or venue change requires an explicit confirmation naming the consequence in people.** It cannot be done with one tick                    | `locked`                                 | Brian, 2026-08-21, asking whether any path leaves people un-notified about a venue change. Tightens D55. An outright prohibition was rejected because it makes a typo unfixable without messaging the whole squad | Settled       |
+| **Saving an amendment holds the event's unsent messages until the change is assessed**; Mission 4 decides whether each resumes, resumes corrected, or is replaced | `locked` here, **executed by Mission 4** | Brian, 2026-08-21: "the notification process should pause … then it should continue if it's worth notifying them." Prevents a message queued before the change arriving after it describing the old event         | Settled       |
+| **No mandatory amendment reason.** The required description carries any explanation; actor, change and notify choice are recorded                                 | `locked`                                 | OD-1/Q7, which supersedes the Capability Register's C4 "recorded with reason" wording for the amendment path                                                                                                      | Settled       |
+| Rescheduling recomputes the RSVP chase threshold against the new date, and the app says a reschedule is happening                                                 | `locked`                                 | OD-1/Q6                                                                                                                                                                                                           | Settled       |
+| **Re-notify** exists as an explicit action, so a silently-sent change is recoverable rather than permanent                                                        | `locked`                                 | D54, acceptance example F                                                                                                                                                                                         | Settled       |
+| Change history retains actor, change and notify choice, and is queryable                                                                                          | `locked`                                 | §4.13                                                                                                                                                                                                             | Settled       |
+| Undelivered jobs are cancelled on return to draft; nothing sent is recalled; never-attempted invitations dispatch fresh on re-approval                            | `locked`, **owned by Mission 4**         | Task 02 D5, which closed Q8                                                                                                                                                                                       | Settled there |
+| A past event may still be amended, with notify defaulting off                                                                                                     | `delegated to Mission Lead`              | Follows D31's treatment of a past cancellation as administrative                                                                                                                                                  | Delegated     |
+| How the notify choice is presented — per-field toggles, or one choice with the defaults applied                                                                   | `delegated to Mission Lead`              | The defaults are the product decision; the control is not                                                                                                                                                         | Delegated     |
+| Concurrency when two operators edit one event                                                                                                                     | `delegated to Mission Lead`              | Ordinary engineering                                                                                                                                                                                              | Delegated     |
+
+## Brian approval
+
+- **Exact words:** "Other than that, looks great. I think this works."
+  (2026-08-21)
+- **Date:** 2026-08-21
+- **What it approved:** this specification and the six-screen mockup, after
+  three rounds — the amendment reframed as editing in place, silence made a
+  deliberate act with a screen to make it on, and the notify decision collapsed
+  from one switch per changed field to one for the whole amendment.

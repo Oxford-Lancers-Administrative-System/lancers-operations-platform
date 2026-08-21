@@ -1,0 +1,1790 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W8 · Administer event-type templates — mockup</title>
+    <style>
+      /* ------------------------------------------------------------------ *
+       * Tokens taken from the real application: src/theme.ts (primary
+       * #0b3d91, radius 8, MUI light palette) plus MUI v9 defaults for
+       * Paper/Button/Chip/Alert/TextField. Nothing here is a redesign.
+       * ------------------------------------------------------------------ */
+      :root {
+        --primary: #0b3d91;
+        --primary-hover: #082c69;
+        --primary-outline: rgba(11, 61, 145, 0.5);
+        --primary-tint: rgba(11, 61, 145, 0.04);
+        --text-primary: rgba(0, 0, 0, 0.87);
+        --text-secondary: rgba(0, 0, 0, 0.6);
+        --text-disabled: rgba(0, 0, 0, 0.38);
+        --divider: rgba(0, 0, 0, 0.12);
+        --outline: rgba(0, 0, 0, 0.23);
+        --paper: #ffffff;
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --grey200: #eeeeee;
+        --grey400: #bdbdbd;
+        --grey800: #424242;
+        --grey900: #212121;
+        --info-bg: #e5f6fd;
+        --info-text: #014361;
+        --info-icon: #0288d1;
+        --warn-bg: #fff4e5;
+        --warn-text: #663c00;
+        --warn-icon: #ed6c02;
+        --radius: 8px;
+        --shadow-1:
+          0 3px 1px -2px rgba(0, 0, 0, 0.2), 0 2px 2px 0 rgba(0, 0, 0, 0.14),
+          0 1px 5px 0 rgba(0, 0, 0, 0.12);
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Geist Sans", system-ui, "Helvetica Neue",
+          Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: #e7e9ee;
+        font-family: var(--font);
+        color: var(--text-primary);
+      }
+
+      /* ---------------------------- page frame --------------------------- */
+
+      .page {
+        max-width: 1560px;
+        margin: 0 auto;
+        padding: 40px 32px 96px;
+      }
+
+      .page-head {
+        margin-bottom: 40px;
+        max-width: 900px;
+      }
+
+      .page-head h1 {
+        font-size: 1.75rem;
+        line-height: 1.3;
+        font-weight: 800;
+        margin: 0 0 8px;
+      }
+
+      .page-head p {
+        margin: 0 0 8px;
+        font-size: 0.9375rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(0, 0, 0, 0.14);
+      }
+
+      .legend span {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* ------------------------------ screens ---------------------------- */
+
+      .screen {
+        margin-top: 64px;
+      }
+
+      .screen-head {
+        position: relative;
+        border-top: 2px solid var(--grey900);
+        padding-top: 26px;
+        margin-bottom: 20px;
+        max-width: 1180px;
+      }
+
+      /* the corner tab */
+      .screen-head .tab {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform: translateY(-100%);
+        background: var(--grey900);
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        padding: 6px 14px;
+        border-radius: 6px 6px 0 0;
+      }
+
+      .screen-head h2 {
+        font-size: 1.125rem;
+        font-weight: 700;
+        margin: 0 0 6px;
+      }
+
+      .screen-head p {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+        max-width: 82ch;
+      }
+
+      .screen-head .clock {
+        display: inline-block;
+        margin-top: 10px;
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        padding: 4px 12px;
+      }
+
+      .pair {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 32px;
+      }
+
+      .frame {
+        background: var(--paper);
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 12px 32px rgba(16, 24, 40, 0.12);
+      }
+
+      .frame.desktop {
+        width: 922px;
+        max-width: 100%;
+      }
+
+      .frame.phone {
+        width: 377px;
+        border-radius: 20px;
+      }
+
+      .chrome {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 34px;
+        padding: 0 12px;
+        background: var(--grey100);
+        border-bottom: 1px solid var(--divider);
+      }
+
+      .dots {
+        display: flex;
+        gap: 5px;
+      }
+
+      .dots i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--grey400);
+        display: block;
+      }
+
+      .url {
+        flex: 1;
+        min-width: 0;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        color: var(--text-secondary);
+        padding: 3px 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .frame-badge {
+        font-size: 0.625rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+
+      .viewport {
+        overflow: hidden;
+      }
+
+      .viewport.desktop-vp {
+        width: 1280px;
+        zoom: 0.72;
+      }
+
+      .viewport.phone-vp {
+        width: 375px;
+      }
+
+      /* --------------------------- the app shell ------------------------- */
+
+      .app {
+        display: flex;
+        align-items: stretch;
+        min-height: 760px;
+        background: #fff;
+        font-size: 16px;
+      }
+
+      .phone .app {
+        flex-direction: column;
+        min-height: 700px;
+      }
+
+      nav.shell {
+        background: var(--grey900);
+        color: #fff;
+        flex-shrink: 0;
+        width: 226px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .phone nav.shell {
+        width: 100%;
+        order: 2;
+        position: sticky;
+        bottom: 0;
+      }
+
+      .nav-head {
+        padding: 24px 24px 16px;
+      }
+
+      .phone .nav-head {
+        display: none;
+      }
+
+      .nav-head .over {
+        font-size: 0.75rem;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        line-height: 1.4;
+        color: var(--grey400);
+      }
+
+      .nav-head .sec {
+        font-size: 1.25rem;
+        font-weight: 700;
+        line-height: 1.6;
+      }
+
+      ul.nav-list {
+        list-style: none;
+        margin: 0;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 100%;
+      }
+
+      .phone ul.nav-list {
+        flex-direction: row;
+        padding: 0;
+        gap: 0;
+      }
+
+      ul.nav-list li {
+        display: flex;
+      }
+
+      ul.nav-list a {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 48px;
+        width: 100%;
+        padding: 6px 16px;
+        border-radius: 8px;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .phone ul.nav-list li {
+        flex: 1;
+      }
+
+      .phone ul.nav-list a {
+        align-items: center;
+        border-radius: 0;
+        padding: 6px 8px;
+      }
+
+      ul.nav-list a.sel {
+        background: var(--grey800);
+      }
+
+      .nav-label {
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      .nav-detail {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        color: var(--grey400);
+      }
+
+      .phone .nav-detail {
+        display: none;
+      }
+
+      main.shell {
+        flex-grow: 1;
+        min-width: 0;
+        padding: 32px 32px 32px;
+      }
+
+      .phone main.shell {
+        order: 1;
+        padding: 24px 16px 24px;
+      }
+
+      .shell-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .phone .shell-head {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .shell-head .brand {
+        font-size: 1.5rem;
+        line-height: 1.334;
+        font-weight: 800;
+      }
+
+      .content {
+        max-width: 900px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      /* --------------------------- MUI primitives ------------------------ */
+
+      .h5 {
+        font-size: 1.5rem;
+        line-height: 1.334;
+        font-weight: 700;
+        margin: 0;
+      }
+
+      .h6 {
+        font-size: 1.25rem;
+        line-height: 1.6;
+        font-weight: 500;
+        margin: 0;
+      }
+
+      .body1 {
+        font-size: 1rem;
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      .body2 {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        margin: 0;
+      }
+
+      .sec {
+        color: var(--text-secondary);
+      }
+
+      .bold {
+        font-weight: 600;
+      }
+
+      .over {
+        font-size: 0.75rem;
+        line-height: 2.66;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        margin: 0;
+      }
+
+      .paper {
+        background: var(--paper);
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 24px;
+      }
+
+      .phone .paper {
+        padding: 16px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .g1 {
+        gap: 8px;
+      }
+      .g2 {
+        gap: 16px;
+      }
+      .g3 {
+        gap: 24px;
+      }
+
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .grid2 {
+        display: grid;
+        gap: 24px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid2tight {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid3 {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .phone .grid2,
+      .phone .grid2tight,
+      .phone .grid3 {
+        grid-template-columns: 1fr;
+      }
+
+      .metrics {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 160px));
+      }
+
+      .phone .metrics {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .divider {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 0;
+        width: 100%;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-family: inherit;
+        font-size: 0.875rem;
+        font-weight: 500;
+        letter-spacing: 0.02857em;
+        text-transform: uppercase;
+        line-height: 1.75;
+        padding: 6px 16px;
+        min-height: 44px;
+        border-radius: var(--radius);
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .btn-contained {
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        box-shadow: var(--shadow-1);
+      }
+
+      .btn-outlined {
+        background: transparent;
+        color: var(--primary);
+        border: 1px solid var(--primary-outline);
+      }
+
+      .btn-text {
+        background: transparent;
+        color: var(--primary);
+        border: none;
+        padding: 6px 8px;
+      }
+
+      .btn-text.danger {
+        color: #d32f2f;
+      }
+
+      .btn-sm {
+        min-height: 36px;
+      }
+
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 420px;
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .phone .btn-row {
+        flex-direction: column;
+      }
+
+      /* A pair of short actions stays side by side at 375 — Brian, 2026-08-21:
+         "if buttons can be side by side, they generally should be". */
+      .phone .btn-row.inline {
+        flex-direction: row;
+        gap: 8px;
+      }
+
+      .phone .btn-row.inline .btn {
+        width: auto;
+        flex: 1;
+      }
+
+      .phone .btn-row .btn {
+        width: 100%;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        height: 24px;
+        padding: 0 10px;
+        border-radius: 16px;
+        background: rgba(0, 0, 0, 0.08);
+        font-size: 0.8125rem;
+        line-height: 1;
+        color: var(--text-primary);
+        white-space: nowrap;
+      }
+
+      .chip-outline {
+        background: transparent;
+        border: 1px solid var(--outline);
+      }
+
+      .chip-warn {
+        background: transparent;
+        border: 1px solid rgba(237, 108, 2, 0.6);
+        color: var(--warn-text);
+      }
+
+      .chip-info {
+        background: transparent;
+        border: 1px solid rgba(2, 136, 209, 0.5);
+        color: var(--info-text);
+      }
+
+      .chip-proposed {
+        background: transparent;
+        border: 1px dashed var(--outline);
+        color: var(--text-secondary);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 0.6875rem;
+        font-weight: 600;
+      }
+
+      .alert {
+        display: flex;
+        gap: 12px;
+        padding: 8px 16px;
+        border-radius: var(--radius);
+        font-size: 0.875rem;
+        line-height: 1.43;
+      }
+
+      .alert svg {
+        flex-shrink: 0;
+        margin-top: 7px;
+      }
+
+      .alert-info {
+        background: var(--info-bg);
+        color: var(--info-text);
+      }
+
+      .alert-info svg {
+        fill: var(--info-icon);
+      }
+
+      .alert-warn {
+        background: var(--warn-bg);
+        color: var(--warn-text);
+      }
+
+      .alert-warn svg {
+        fill: var(--warn-icon);
+      }
+
+      /* text field / select / switch, as MUI outlined controls */
+
+      .field {
+        position: relative;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        padding: 14px;
+        font-size: 1rem;
+        line-height: 1.4375;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 56px;
+      }
+
+      .field .lab {
+        position: absolute;
+        top: -9px;
+        left: 9px;
+        background: #fff;
+        padding: 0 6px;
+        font-size: 0.75rem;
+        line-height: 1;
+        color: var(--text-secondary);
+      }
+
+      .field.focused {
+        border: 2px solid var(--primary);
+        padding: 13px;
+      }
+
+      .field.focused .lab {
+        color: var(--primary);
+      }
+
+      .field.disabled {
+        background: var(--grey50);
+        border-color: var(--divider);
+        color: var(--text-secondary);
+      }
+
+      .field .caret {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+      }
+
+      .radio {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        cursor: default;
+      }
+
+      .radio .dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 2px solid var(--text-secondary);
+        flex-shrink: 0;
+        margin-top: 1px;
+        position: relative;
+      }
+
+      .radio.on .dot {
+        border-color: var(--primary);
+      }
+
+      .radio.on .dot::after {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        border-radius: 50%;
+        background: var(--primary);
+      }
+
+      .switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .track {
+        width: 34px;
+        height: 14px;
+        border-radius: 7px;
+        background: rgba(0, 0, 0, 0.38);
+        position: relative;
+        flex-shrink: 0;
+      }
+
+      .thumb {
+        position: absolute;
+        top: -3px;
+        left: -1px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #fafafa;
+        box-shadow: var(--shadow-1);
+      }
+
+      .switch.on .track {
+        background: rgba(11, 61, 145, 0.5);
+      }
+
+      .switch.on .thumb {
+        left: 15px;
+        background: var(--primary);
+      }
+
+      /* --------------------------- plan timeline ------------------------- */
+
+      .plan {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .plan-row {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr) auto;
+        gap: 0 16px;
+        padding: 0 0 20px;
+        position: relative;
+      }
+
+      .phone .plan-row {
+        grid-template-columns: 24px minmax(0, 1fr);
+      }
+
+      .plan-row:last-child {
+        padding-bottom: 0;
+      }
+
+      .rail {
+        position: relative;
+        display: flex;
+        justify-content: center;
+      }
+
+      .rail .node {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid var(--primary);
+        background: #fff;
+        margin-top: 6px;
+        z-index: 1;
+      }
+
+      .rail .node.hollow {
+        border-color: var(--outline);
+      }
+
+      .rail .node.removed {
+        border-color: var(--warn-icon);
+        background: var(--warn-bg);
+      }
+
+      .plan-row:not(:last-child) .rail::after {
+        content: "";
+        position: absolute;
+        top: 18px;
+        bottom: -6px;
+        width: 2px;
+        background: var(--divider);
+      }
+
+      .plan-body {
+        min-width: 0;
+      }
+
+      .plan-when {
+        font-size: 0.75rem;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        line-height: 1.8;
+      }
+
+      .plan-title {
+        font-size: 1rem;
+        line-height: 1.5;
+        font-weight: 600;
+      }
+
+      .plan-note {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        color: var(--text-secondary);
+        margin-top: 2px;
+      }
+
+      .plan-side {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding-top: 4px;
+      }
+
+      .phone .plan-side {
+        grid-column: 2;
+        padding-top: 8px;
+      }
+
+      .struck {
+        text-decoration: line-through;
+        color: var(--text-disabled);
+      }
+
+      .plan-control {
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-width: 460px;
+      }
+
+      /* next-send emphasis strip */
+      .next-send {
+        border: 1px solid var(--divider);
+        border-left: 4px solid var(--primary);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        background: var(--grey50);
+      }
+
+      /* audience list */
+      ul.aud {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      ul.aud li {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--divider);
+      }
+
+      ul.aud li .who {
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+
+      ul.aud li .tags {
+        display: flex;
+        gap: 8px;
+      }
+
+      .more {
+        padding-top: 8px;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+      }
+
+      .qbox {
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 16px;
+        background: var(--grey50);
+      }
+
+      .truncation {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+        font-style: italic;
+      }
+
+      .truncation::before,
+      .truncation::after {
+        content: "";
+        flex: 1;
+        border-top: 1px dashed var(--outline);
+      }
+      /* --- W1 additions: tables and the continuous term card. Built from the
+             same tokens above; no new colour is introduced. --- */
+      .viewport {
+        container-type: inline-size;
+      }
+      .scroll-x {
+        overflow-x: auto;
+      }
+      .narrow-only {
+        display: none;
+      }
+      @container (max-width: 760px) {
+        .wide-only {
+          display: none;
+        }
+        .narrow-only {
+          display: block;
+        }
+      }
+      .ecard {
+        display: block;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--divider);
+        text-decoration: none;
+        color: inherit;
+      }
+      .ecard:last-child {
+        border-bottom: 0;
+      }
+      .ecard-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: baseline;
+      }
+      .ecard-top .en {
+        font-weight: 700;
+        color: var(--primary);
+      }
+      .ecard-mid {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+      .ecard-nums {
+        margin-top: 4px;
+        font-variant-numeric: tabular-nums;
+      }
+      .period-select {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+      }
+      a.en-link {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 700;
+      }
+      a.en-link:hover {
+        text-decoration: underline;
+      }
+      .sortmark {
+        color: var(--text-disabled);
+        font-weight: 400;
+      }
+      .sortmark.on {
+        color: var(--primary);
+      }
+      .wk {
+        border-bottom: 1px solid var(--divider);
+        padding: 10px 12px;
+      }
+      .wk:last-child {
+        border-bottom: 0;
+      }
+      .wk.vac {
+        background: #fffdf5;
+      }
+      .wk-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: baseline;
+      }
+      .tbl {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .tbl th,
+      .tbl td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--divider);
+        vertical-align: top;
+      }
+      .tbl thead th {
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .tbl tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      .tbl .num,
+      .tbl th.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .cal {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      .cal caption {
+        caption-side: top;
+        text-align: left;
+        padding: 12px 16px;
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .cal th,
+      .cal td {
+        border: 1px solid var(--divider);
+        padding: 6px;
+        vertical-align: top;
+        font-size: 12px;
+      }
+      .cal thead th {
+        background: var(--grey50);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-secondary);
+      }
+      .cal tbody th[scope="row"] {
+        width: 132px;
+        background: var(--grey50);
+        text-align: left;
+      }
+      .cal tr.vac th[scope="row"] {
+        background: #fff8e1;
+      }
+      .cal tr.vac td {
+        background: #fffdf5;
+      }
+      .cal tr.skip th {
+        background: var(--grey100);
+        text-align: center;
+        padding: 6px;
+      }
+      .tile {
+        border-radius: 4px;
+        padding: 5px 7px;
+        margin-bottom: 4px;
+      }
+      .field-inline {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 12px;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        font-size: 13px;
+        color: var(--text-secondary);
+        background: var(--paper);
+      }
+      .fact {
+        min-width: 0;
+      }
+      .current-shot {
+        margin-top: 10px;
+      }
+      .current-shot img {
+        width: 100%;
+        display: block;
+        border: 1px solid var(--divider);
+        border-radius: 4px;
+      }
+      .shot-pair {
+        display: grid;
+        grid-template-columns: minmax(0, 1280fr) minmax(0, 375fr);
+        gap: 14px;
+        align-items: start;
+      }
+      @media (max-width: 900px) {
+        .shot-pair {
+          grid-template-columns: 1fr;
+        }
+      }
+      .shot-cap {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin: 0 0 6px;
+      }
+      /* --- W2 additions: the disposition banding required by
+             mockup-conventions.md § 1. Current and proposed are labelled
+             identically on every screen and banded in their own colour. --- */
+      .side {
+        border-radius: 8px;
+        padding: 10px 10px 12px;
+      }
+      .side.current {
+        background: #eceff1;
+        border: 1px solid #90a4ae;
+      }
+      .side.proposed {
+        background: #e8f0fe;
+        border: 1px solid var(--primary-outline);
+      }
+      .side-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: 999px;
+        margin-bottom: 8px;
+      }
+      .side.current .side-label {
+        background: #90a4ae;
+        color: #fff;
+      }
+      .side.proposed .side-label {
+        background: var(--primary);
+        color: #fff;
+      }
+      .side .none {
+        border: 1px dashed #90a4ae;
+        border-radius: 6px;
+        padding: 22px 14px;
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 13px;
+        background: #fff;
+      }
+      .disposition {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: 4px;
+        border: 1px solid var(--outline);
+        color: var(--text-secondary);
+        margin-left: 8px;
+      }
+      .disposition.new {
+        background: #e8f0fe;
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+      .disposition.modified {
+        background: #fff4e5;
+        border-color: #ed6c02;
+        color: #663c00;
+      }
+      .deltas {
+        margin: 10px 0 0;
+        padding-left: 18px;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+      .deltas li {
+        margin: 3px 0;
+      }
+      .subpanel {
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        padding: 14px;
+        background: #fff;
+      }
+      .provider {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        border: 1px solid var(--outline);
+        border-radius: 8px;
+        padding: 11px 13px;
+        margin-bottom: 8px;
+        text-decoration: none;
+        color: inherit;
+      }
+      .provider .pname {
+        font-weight: 700;
+      }
+      .urlbox {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        background: var(--grey100);
+        border: 1px solid var(--divider);
+        border-radius: 6px;
+        padding: 9px 11px;
+        word-break: break-all;
+      }
+      .ics {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11.5px;
+        line-height: 1.5;
+        background: #212121;
+        color: #e0e0e0;
+        border-radius: 6px;
+        padding: 12px 14px;
+        overflow-x: auto;
+        white-space: pre;
+      }
+      .ics .k {
+        color: #90caf9;
+      }
+      .ics .c {
+        color: #ffab91;
+      }
+      .scrim {
+        position: relative;
+        background: rgba(0, 0, 0, 0.45);
+        padding: 26px 14px;
+        min-height: 100%;
+      }
+      .dialog {
+        max-width: 420px;
+        margin: 0 auto;
+        background: var(--paper);
+        border-radius: var(--radius);
+        box-shadow:
+          0 11px 15px -7px rgba(0, 0, 0, 0.2),
+          0 24px 38px 3px rgba(0, 0, 0, 0.14);
+        padding: 20px;
+      }
+      .dialog h3 {
+        font-size: 18px;
+        font-weight: 700;
+        margin: 0 0 4px;
+      }
+      .dialog .close {
+        float: right;
+        border: 0;
+        background: none;
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+        color: var(--text-secondary);
+      }
+      .tick {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: #e8f5e9;
+        color: #2e7d32;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+        margin: 0 auto 10px;
+      }
+      .shot-pair {
+        display: grid;
+        grid-template-columns: minmax(0, 1280fr) minmax(0, 375fr);
+        gap: 14px;
+        align-items: start;
+      }
+      .shot-pair img {
+        width: 100%;
+        display: block;
+        border: 1px solid var(--divider);
+        border-radius: 4px;
+      }
+      .shot-cap {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin: 0 0 6px;
+      }
+      .chg-cell {
+        background: #fff8e1;
+        box-shadow: inset 0 0 0 1px #f0c36d;
+        font-weight: 700;
+      }
+      .was {
+        display: block;
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--text-secondary);
+        text-decoration: line-through;
+      }
+      tr.refused td {
+        background: #fdf3f2;
+      }
+      tr.newrow td {
+        background: #f4faf5;
+      }
+      .icard {
+        padding: 0;
+        border-bottom: 0;
+      }
+      .mcard {
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin: 0 12px 10px;
+        background: var(--paper);
+      }
+      .mcard.refused {
+        border-color: #e6b4b0;
+        background: #fdf3f2;
+      }
+      .mcard.newrow {
+        border-color: #bfe0c4;
+        background: #f4faf5;
+      }
+      .mcard-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+      .mfield {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 4px 0;
+        border-top: 1px dashed var(--divider);
+        font-size: 13px;
+      }
+      .mfield .lbl {
+        color: var(--text-secondary);
+      }
+      .mfield .val {
+        font-weight: 700;
+        text-align: right;
+      }
+      .disc {
+        color: #ed6c02;
+        font-weight: 700;
+      }
+      .pcard {
+        border-bottom: 1px solid var(--divider);
+        padding: 11px 13px;
+      }
+      .pcard:last-child {
+        border-bottom: 0;
+      }
+      .prow {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .big {
+        font-size: 30px;
+        font-weight: 700;
+        line-height: 1.1;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <h1>W8 · Administer event-type templates</h1>
+        <p>
+          One action puts the season's events into the reader's own calendar app, and later changes
+          arrive there on their own. The shell, typography and controls are the running
+          application's, captured from <code>main</code> at <code>2072ecd</code>. Nothing here is a
+          redesign.
+        </p>
+        <p>
+          <strong>Reading this review.</strong> Every screen shows two sides, always labelled the
+          same way and always banded the same way:
+          <span class="side-label" style="background: #90a4ae; color: #fff"
+            >Current — on main today</span
+          >
+          and
+          <span class="side-label" style="background: var(--primary); color: #fff"
+            >Proposed — this mission</span
+          >. Each screen head also states whether the surface is
+          <span class="disposition new">New</span> or
+          <span class="disposition modified">Modified</span>, and lists exactly what changes.
+        </p>
+        <div class="legend">
+          <span
+            >There is no feed, no <code>.ics</code> code and no calendar library on
+            <code>main</code>, so most of this is New with nothing to compare</span
+          >
+          <span>Times are Europe/London. All names and venues are the synthetic local dataset</span>
+        </div>
+      </header>
+      <div id="screens"></div>
+    </div>
+
+    <script>
+      const proposedTag = `<span class="chip chip-proposed">Proposed</span>`;
+      const INFO_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>`;
+      const WARN_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.99 19.53 19H4.47L12 5.99M12 2 1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"/></svg>`;
+      const alert = (severity, html) =>
+        `<div class="alert alert-${severity}">${severity === "warn" ? WARN_ICON : INFO_ICON}<div>${html}</div></div>`;
+
+      const publicShell = (content, action) => `
+        <div class="app">
+          <main class="shell" style="width:100%">
+            <div class="shell-head">
+              <div style="min-width:0">
+                <p class="brand">Oxford Lancers</p>
+                <p class="body2 sec">Club calendar · 2026-27</p>
+              </div>
+              <div>${action ?? `<button class="btn btn-outlined btn-sm">Add to your calendar</button>`}</div>
+            </div>
+            <div class="content">${content}</div>
+          </main>
+        </div>`;
+
+      const operatorShell = (content) => `
+        <div class="app">
+          <nav class="shell" aria-label="Operator">
+            <div class="nav-head">
+              <div class="over" style="color:var(--grey400)">Lancers</div>
+              <div class="sec">Operations</div>
+            </div>
+            <ul class="nav-list">
+              <li><a href="#"><span class="nav-label">Roster</span><span class="nav-detail">People and memberships</span></a></li>
+              <li><a href="#" class="sel" aria-current="page"><span class="nav-label">Events</span><span class="nav-detail">Calendar and approval</span></a></li>
+              <li><a href="#"><span class="nav-label">Report</span><span class="nav-detail">Monday snapshot</span></a></li>
+            </ul>
+          </nav>
+          <main class="shell">
+            <div class="shell-head">
+              <div style="min-width:0">
+                <p class="brand">Lancers Operations</p>
+                <p class="body2 sec">Signed in as Caspian Hallowfield</p>
+              </div>
+              <div><button class="btn btn-outlined btn-sm">Sign out</button></div>
+            </div>
+            <div class="content">${content}</div>
+          </main>
+        </div>`;
+
+      const subscribePanel = `
+        <div class="subpanel">
+          <p class="h6" style="margin:0 0 2px">Add the 2026-27 season to your calendar</p>
+          <p class="body2 sec" style="margin:0 0 12px">
+            Every club event for this season, kept up to date. You add next season's calendar when it opens.
+          </p>
+          <a class="provider" href="#"><span class="pname">Google Calendar</span><span class="body2 sec">Opens Google →</span></a>
+          <a class="provider" href="#"><span class="pname">Outlook / Microsoft 365</span><span class="body2 sec">Opens Outlook →</span></a>
+          <a class="provider" href="#"><span class="pname">Apple Calendar</span><span class="body2 sec">Opens Calendar →</span></a>
+          <p class="over" style="margin-top:14px">Or copy the address</p>
+          <div class="urlbox">https://oxfordlancers.example/calendar/2026-27.ics</div>
+          <p class="body2 sec" style="margin-top:10px">
+            Your calendar app decides how often it checks for changes — usually a few times a day.
+            Cancellations are also messaged to you directly; do not rely on your calendar to hear about them.
+          </p>
+        </div>`;
+
+      /* ------------------------------ bodies ---------------------------- */
+
+      const opShell = operatorShell;
+
+      const field = (label, value, opts = {}) => `
+        <div style="border:1px solid ${opts.focus ? "var(--primary)" : "var(--outline)"};border-radius:var(--radius);padding:9px 12px;margin-bottom:10px;background:${opts.dirty ? "#fff8e1" : "var(--paper)"}">
+          <div class="body2 sec" style="font-size:11px">${label}</div>
+          <div class="body2 ${value ? "bold" : "sec"}">${value || ""}</div>
+          ${opts.was ? `<div class="body2 sec" style="font-size:11px;text-decoration:line-through">${opts.was}</div>` : ""}
+          ${opts.help ? `<div class="body2 sec" style="font-size:11px;margin-top:2px">${opts.help}</div>` : ""}
+        </div>`;
+
+      const TYPES = [
+        ["Practice", "All active players", "In person · Iffley Road Astro", "3 questions"],
+        ["S&C", "All active players", "In person · Iffley Road Gym", "1 question"],
+        ["Chalk", "All active players, all coaches", "Online · Microsoft Teams", "None"],
+        ["Game", "All active players, all coaches", "Not set", "3 questions"],
+        ["Social", "Everyone active", "Not set", "1 question"],
+        ["Recruitment", "Recruits", "In person · Iffley Road Astro", "2 questions"],
+        ["Meeting", "All active committee", "In person · College lecture room", "None"],
+      ];
+
+      /* ------------------------------ W8-01 ------------------------------ */
+
+      const W801 = opShell(`
+        <div><h1 class="h6">Event templates</h1><p class="body2 sec">What each kind of event starts as. Seven types, seven templates.</p></div>
+        <div class="paper" style="padding:0;overflow:hidden">
+          <div class="narrow-only">
+            ${TYPES.map(
+              ([t, a, c, q]) => `
+              <div class="pcard">
+                <div class="prow"><span class="body2 bold" style="color:var(--primary)">${t}</span><span class="body2 sec">${c}</span></div>
+                <div class="body2 sec" style="margin-top:3px">${a}</div>
+                <div class="body2 sec">${q}</div>
+              </div>`,
+            ).join("")}
+          </div>
+          <div class="scroll-x wide-only"><table class="tbl" style="min-width:640px">
+            <thead><tr><th>Type</th><th>Invites by default</th><th>Where</th><th>Questions</th></tr></thead>
+            <tbody>
+              ${TYPES.map(
+                ([t, a, c, q]) => `
+                <tr>
+                  <td><a class="en-link body2" href="#">${t}</a></td>
+                  <td class="body2">${a}</td>
+                  <td class="body2">${c}</td>
+                  <td class="body2">${q}</td>
+                </tr>`,
+              ).join("")}
+            </tbody>
+          </table></div>
+        </div>
+        <p class="body2 sec">
+          There are seven because there are seven kinds of event. Templates cannot be added or removed.
+        </p>`);
+
+      /* ------------------------------ W8-02 ------------------------------ */
+
+      const W802 = opShell(`
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+          <div style="min-width:0"><h1 class="h6">Practice</h1><p class="body2 sec">What a new practice starts as. Leave anything undecided.</p></div>
+          <div class="btn-row inline" style="flex-wrap:nowrap">
+            <button class="btn btn-text btn-sm">Discard</button>
+            <button class="btn btn-contained btn-sm">Save…</button>
+          </div>
+        </div>
+        <div class="paper">
+          <p class="over">Who it invites</p>
+          <div class="btn-row" style="margin:8px 0 4px">
+            <button class="btn btn-outlined btn-sm">Everyone active</button>
+            <button class="btn btn-contained btn-sm">All active players</button>
+            <button class="btn btn-outlined btn-sm">All active coaches</button>
+            <button class="btn btn-outlined btn-sm">All active committee</button>
+          </div>
+          <p class="body2 sec">Groups, never people. Who that actually is gets resolved when an event is approved.</p>
+        </div>
+        <div class="paper">
+          <p class="over">The event itself</p>
+          <div style="margin-top:8px">
+            <div class="row" style="gap:10px">
+              <div style="flex:1">${field("Where", "In person ▾")}</div>
+              <div style="flex:1">${field("Venue", "Iffley Road Astro")}</div>
+            </div>
+            ${field("Default length", "2 hours ▾", { help: "Enter a start on the event and the end fills in from this. There is no default start time — a practice recurs, a particular Wednesday does not." })}
+            ${field("Required equipment", "Gumshield, boots", { dirty: true, was: "Gumshield" })}
+            ${field("Description", "Full contact.", { help: "A starting point. An operator can replace it on any event." })}
+            ${field("Attendance", "Mandatory ▾")}
+            ${field("Name", "", { placeholder: "No default — every event is named individually", help: "Not a template field." })}
+          </div>
+        </div>
+        <div class="paper">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
+            <div><p class="over" style="margin:0">Questions every practice asks</p></div>
+            <button class="btn btn-outlined btn-sm">Add a question</button>
+          </div>
+          <div style="margin-top:10px">
+            <div class="pcard"><div class="prow"><span class="body2 bold">Can you get yourself to the ground?</span><span class="chip">Yes / no · Required</span></div></div>
+            <div class="pcard"><div class="prow"><span class="body2 bold">Which shirt size do you need?</span><span class="chip">Pick from a list · Optional</span></div></div>
+            <div class="pcard"><div class="prow"><span class="body2 bold">Anything we should know?</span><span class="chip">Free text · Optional</span></div></div>
+          </div>
+          <p class="body2 sec" style="margin-top:8px">They arrive on every new practice. Any of them can be removed on a single event.</p>
+        </div>`);
+
+      /* ------------------------------ W8-03 ------------------------------ */
+
+      const W803 = opShell(`
+        <div style="position:relative">
+          <div style="opacity:.35">
+            <div><h1 class="h6">Practice</h1><p class="body2 sec">What a new practice starts as</p></div>
+            <div class="paper"><p class="over">Who it invites</p></div>
+          </div>
+          <div class="scrim" style="position:absolute;inset:0">
+            <div class="dialog">
+              <h3>Save this template?</h3>
+              <p class="body2" style="margin:0 0 12px">
+                Required equipment: <span style="text-decoration:line-through;color:var(--text-secondary)">Gumshield</span>
+                → <strong>Gumshield, boots</strong>
+              </p>
+              <div class="paper" style="box-shadow:none;border:1px solid var(--divider);padding:12px;margin-bottom:12px">
+                <p class="over" style="margin:0 0 6px">3 drafts will take this change</p>
+                <div class="body2">Practice — hilary week 6 · Wed 24 Feb</div>
+                <div class="body2">Practice — hilary week 7 · Wed 3 Mar</div>
+                <div class="body2">Practice — hilary week 8 · Wed 10 Mar</div>
+              </div>
+              <div class="paper" style="box-shadow:none;border:1px solid #f0c36d;background:#fff8e1;padding:12px;margin-bottom:12px">
+                <p class="over" style="margin:0 0 6px">1 draft will not</p>
+                <div class="body2">Sunday session — hilary week 7 · Sun 7 Mar</div>
+                <div class="body2 sec" style="margin-top:2px">Its equipment was edited by hand. What somebody wrote is never overwritten.</div>
+              </div>
+              <div class="paper" style="box-shadow:none;border:1px solid var(--divider);padding:12px;margin-bottom:14px">
+                <p class="over" style="margin:0 0 6px">Nothing else changes</p>
+                <div class="body2 sec">9 approved practices keep what they were approved with.</div>
+                <div class="body2 sec">31 past practices are untouched.</div>
+              </div>
+              <div class="row" style="gap:10px;justify-content:flex-end">
+                <button class="btn btn-text">Back</button>
+                <button class="btn btn-contained">Save and update 3 drafts</button>
+              </div>
+            </div>
+          </div>
+        </div>`);
+
+      /* ------------------------------ W8-04 ------------------------------ */
+
+      const W804 = opShell(`
+        <div class="stack g2">
+          <div class="paper">
+            <p class="over">A change that touches nothing</p>
+            ${alert("info", "<strong>No drafts of this type exist.</strong> The change applies to practices created from now on.")}
+          </div>
+          <div class="paper">
+            <p class="over">Removing a question</p>
+            ${alert("info", "<strong>Removed from 4 drafts.</strong> The 9 approved practices keep it — people were already asked.")}
+          </div>
+          <div class="paper">
+            <p class="over">Adding a type</p>
+            ${alert("warn", "There are seven kinds of event and templates cannot be added or removed. Changing that is a decision about the club's own model, not an administrative one.")}
+          </div>
+        </div>`);
+
+      const SCREENS = [
+        {
+          id: "W8-01",
+          disposition: "new",
+          title: "Seven types, seven templates",
+          deltas: [
+            "One template per event type; none can be added or removed",
+            "What each invites, where it usually is, how many questions it asks",
+            "Nothing like this exists on main — every default is typed by hand today",
+          ],
+          blurb:
+            "The administration screen behind the Events area. It is a short list on purpose: there are exactly seven kinds of event, so there are exactly seven templates, and adding an eighth is a decision about the club's own model rather than an administrative act.",
+          clockTag: "Now: Monday, 15 February 2027, 10:00",
+          url: "localhost:3000/operate/events/templates",
+          now: null,
+          nowNone:
+            "New surface, nothing to compare — there is no template, no per-type default and no admin surface anywhere on main.",
+          proposed: W801,
+        },
+        {
+          id: "W8-02",
+          disposition: "new",
+          title: "One template — what a practice starts as",
+          deltas: [
+            "Default audience as groups, never as people",
+            "Where, venue, equipment, description, mandatory — each one optional",
+            "A default length, not a default start time; no default name or date",
+            "No RSVP timing — when people are chased belongs to the messaging mission",
+            "Default questions, which arrive on every new practice",
+          ],
+          blurb:
+            "Everything a new practice inherits, in one place, and every field optional — a template may leave a detail undecided. There is no default start time or name, because a type recurs and a particular Wednesday does not; what a type can usefully say about time is how long it runs. There is also no RSVP timing here: an earlier draft of this screen carried a chase threshold, which belongs to the mission that does the chasing.",
+          clockTag: "Now: Monday, 15 February 2027, 10:04",
+          url: "localhost:3000/operate/events/templates/practice",
+          now: null,
+          nowNone: "New surface, nothing to compare",
+          proposed: W802,
+        },
+        {
+          id: "W8-03",
+          disposition: "new",
+          title: "What this change will touch, before it touches it",
+          deltas: [
+            "Names the drafts that will take the change",
+            "Names the draft that will not, and why — its field was edited by hand",
+            "States what will not move: approved events, past events",
+            "The button says what it will do",
+          ],
+          blurb:
+            "This is the screen that makes templates safe to edit mid-season. Inheritance is per field, so a template change reaches only fields nobody has touched — the draft whose equipment somebody wrote by hand keeps it, and the screen says so by name. The blast radius is in names rather than a count, and what will not move is stated beside what will.",
+          clockTag: "Now: Monday, 15 February 2027, 10:06",
+          url: "localhost:3000/operate/events/templates/practice",
+          now: null,
+          nowNone: "New surface, nothing to compare",
+          proposed: W803,
+        },
+        {
+          id: "W8-04",
+          disposition: "new",
+          title: "The edges",
+          deltas: [
+            "A change touching nothing says so",
+            "A removed question leaves drafts and spares approved events",
+            "Adding a type is refused, and says whose decision it is",
+          ],
+          blurb:
+            "Three states that would otherwise be silent. The last one matters beyond this screen: seven types is a domain-model decision, and the place an operator would try to add an eighth is the place to say that it is not an administrative act.",
+          clockTag: "Now: Monday, 15 February 2027, 10:10",
+          url: "localhost:3000/operate/events/templates/practice",
+          now: null,
+          nowNone: "New surface, nothing to compare",
+          proposed: W804,
+        },
+      ];
+
+      const frame = (screen, html, kind) => `
+        <div class="frame ${kind}">
+          <div class="chrome">
+            ${kind === "desktop" ? `<span class="dots"><i></i><i></i><i></i></span>` : ""}
+            <span class="url">${screen.url}</span>
+            <span class="frame-badge">${screen.id} · ${kind === "desktop" ? "DESKTOP 1280" : "375"}</span>
+          </div>
+          <div class="viewport ${kind}-vp ${kind}">${html}</div>
+        </div>`;
+
+      const sideBlock = (screen, which) => {
+        const isCurrent = which === "current";
+        const html = isCurrent ? screen.now : screen.proposed;
+        const label = isCurrent ? "Current — on main today" : "Proposed — this mission";
+        const inner = html
+          ? `<div class="pair">${frame(screen, html, "desktop")}${frame(screen, html, "phone")}</div>`
+          : isCurrent && screen.currentShots
+            ? `<p class="shot-cap">${screen.currentCap}</p>
+               <div class="shot-pair">
+                 <img src="${screen.currentShots[0]}" alt="Current build at desktop width" />
+                 <img src="${screen.currentShots[1]}" alt="Current build at 375px" />
+               </div>`
+            : `<div class="none">${screen.nowNone}</div>`;
+        return `
+          <div class="side ${which}">
+            <span class="side-label">${label}</span>
+            ${inner}
+          </div>`;
+      };
+
+      document.getElementById("screens").innerHTML = SCREENS.map(
+        (screen) => `
+        <section class="screen">
+          <div class="screen-head">
+            <span class="tab">${screen.id}</span>
+            <h2>${screen.id} · ${screen.title}<span class="disposition ${screen.disposition}">${screen.disposition}</span></h2>
+            <p>${screen.blurb}</p>
+            <ul class="deltas">${screen.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>
+            ${screen.clockTag ? `<span class="clock">${screen.clockTag}</span>` : ""}
+          </div>
+          ${sideBlock(screen, "current")}
+          <div style="height:12px"></div>
+          ${sideBlock(screen, "proposed")}
+        </section>`,
+      ).join("");
+    </script>
+  </body>
+</html>
