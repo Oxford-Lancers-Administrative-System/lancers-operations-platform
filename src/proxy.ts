@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getSupabasePublishableKey, getSupabaseUrl } from "@/lib/supabase/env";
+import { assertSessionCookieFitsOneCookie, SUPABASE_COOKIE_OPTIONS } from "@/lib/supabase/cookies";
 import { INVITATION_CALLBACK_PATH } from "@/lib/auth/invitation";
 import {
   isRecoveryAuthenticatedSession,
@@ -113,11 +114,13 @@ export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(getSupabaseUrl(), getSupabasePublishableKey(), {
+    cookieOptions: SUPABASE_COOKIE_OPTIONS,
     cookies: {
       getAll() {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet, headers) {
+        assertSessionCookieFitsOneCookie(cookiesToSet);
         for (const { name, value } of cookiesToSet) {
           request.cookies.set(name, value);
         }
