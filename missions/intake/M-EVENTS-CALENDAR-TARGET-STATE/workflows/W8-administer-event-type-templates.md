@@ -47,25 +47,30 @@ me. That is not a field you would have."_ A type recurs; a particular Wednesday
 does not. What a type can usefully say about time is **how long it runs**, and
 that is what the template holds.
 
-## The chase threshold, precisely
+## What a template deliberately does not carry
 
-The template holds **one value**: _how many days before the event an unanswered
-invitation becomes worth chasing._ Practice, S&C, Chalk, Recruitment and Meeting
-are **2 days**; Game is **7**; Social is **5** (D75, D77).
+**RSVP timing.** An earlier draft of this workflow put the per-type chase
+threshold — 2 days, 7 days, 5 days — on the template. **That was wrong and it is
+removed.** Brian, 2026-08-21: _"That should be answered by 4 … Did you just
+include something from mission 4 in mission 2?"_
 
-What that value does **not** do, stated because it would otherwise be assumed:
+He was right. D75 is recorded in the Events brief, but the same brief hands it
+away: §7's downstream notifications tell **Task 03** that "the deadline is a
+chase threshold only and never blocks", and §8 excludes _reminder scheduling_
+and _per-event deadline overrides_ from this workflow entirely. Task 03 is RSVP,
+reminders and escalation — Scope 2, Mission 4.
 
-- **It does not block a late response.** A player may answer up to the hour
-  before, and a late answer creates no new state (D24).
-- **It does not decide when the invitation is sent.** Sending, scheduling and
-  the messages themselves are Mission 4's. This mission stores the value and
-  recomputes it when an event is rescheduled (`W5`); Mission 4 acts on it.
-- **It is not a deadline shown to players as a rule.** It may be displayed as
-  guidance and it drives chasing only (D24).
+So:
 
-It is surfaced and editable rather than held in code because D75 requires it to
-be documented as configuration — the owner expects the values to change after
-the pilot.
+- **Mission 2 owns the event's date.** That is the fact everything else is
+  measured from.
+- **Mission 4 owns the chase** — the threshold, its per-type configuration, when
+  reminders go, and what escalation consists of (R6).
+- When an event is rescheduled, `W5` changes the date and says so; Mission 4
+  recomputes anything derived from it (OD-1/Q6).
+
+Mission 4 will need a configuration surface for those values, and it may well
+sit beside this one. Where it goes is Mission 4's decision, not this packet's.
 
 ## The rule that makes templates safe
 
@@ -122,8 +127,7 @@ that editing a template is safe. That is the screen's whole job.
 - **It does not create or delete types.** Seven types is D12, and adding one is
   a change to the approved domain model, not an administrative act.
 - **It does not touch approved events.** Ever.
-- **It does not schedule anything.** The chase threshold is a value this
-  workflow stores; the chasing is Mission 4's.
+- **It does not schedule anything, and holds no timing values at all.**
 - **It is not the reminder-configuration UI.** That is named in the Release One
   exclusions as expected post-release (LAN-106).
 
@@ -169,9 +173,10 @@ currently typed in by hand, every time.
 Two adjacent facts:
 
 - `response-deadline.ts` holds the per-type chase thresholds **in code**, keyed
-  to the old ten-type enum. D77 remaps Camp to Practice at 2 days and the enum
-  narrows to seven; D75 requires the values to become configuration rather than
-  constants.
+  to the old ten-type enum. The enum narrows to seven in this mission's
+  migration, so those constants have to be remapped — but **making them
+  configurable is Mission 4's work**, not this workflow's. This mission must
+  leave them working, not own them.
 - The audience builder currently starts empty, which D47 reverses — that is
   `W4`'s change, and this workflow supplies the default it reverses to.
 
@@ -194,8 +199,7 @@ Two adjacent facts:
   test, not by inspection.
 - Removing a default question removes it from unapproved drafts and leaves
   approved events untouched.
-- Chase thresholds are stored as configuration, editable, and default to 2 days
-  for Practice, S&C, Chalk, Recruitment and Meeting; 7 for Game; 5 for Social.
+- No template carries an RSVP deadline, a chase threshold or any send timing.
 - No template holds a person, a contact detail or a resolved audience list.
 
 ## Core decisions

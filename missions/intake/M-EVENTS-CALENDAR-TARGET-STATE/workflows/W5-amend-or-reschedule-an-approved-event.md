@@ -134,10 +134,15 @@ is recalled; that remains impossible and remains true.
 **When the date or time moves, the RSVP chase threshold recomputes against the
 new date, and the app says that a reschedule is happening** (OD-1/Q6).
 
-The recomputation is this mission's — the threshold is event-type configuration
-this mission owns. The chasing that follows is Mission 4's. A practice moved
-from next week to next month should not still be chasing people on the old
-schedule.
+**Both halves of that are Mission 4's.** This mission owns the event's date and
+announces that it changed; Mission 4 owns the threshold, recomputes it, and
+chases. A practice moved from next week to next month must not still be chased
+on next week's schedule — but nothing about that schedule lives here.
+
+_Corrected 2026-08-21. An earlier draft claimed the recomputation for this
+mission on the grounds that the threshold was event-type configuration it owned.
+It is not: the Events brief hands D75 to Task 03 in its §7 and excludes reminder
+scheduling in its §8._
 
 ## What this workflow does not do
 

@@ -1518,13 +1518,13 @@
         </div>`;
 
       const TYPES = [
-        ["Practice", "All active players", "2 days", "3 questions"],
-        ["S&C", "All active players", "2 days", "1 question"],
-        ["Chalk", "All active players, all coaches", "2 days", "None"],
-        ["Game", "All active players, all coaches", "7 days", "3 questions"],
-        ["Social", "Everyone active", "5 days", "1 question"],
-        ["Recruitment", "Recruits", "2 days", "2 questions"],
-        ["Meeting", "All active committee", "2 days", "None"],
+        ["Practice", "All active players", "In person · Iffley Road Astro", "3 questions"],
+        ["S&C", "All active players", "In person · Iffley Road Gym", "1 question"],
+        ["Chalk", "All active players, all coaches", "Online · Microsoft Teams", "None"],
+        ["Game", "All active players, all coaches", "Not set", "3 questions"],
+        ["Social", "Everyone active", "Not set", "1 question"],
+        ["Recruitment", "Recruits", "In person · Iffley Road Astro", "2 questions"],
+        ["Meeting", "All active committee", "In person · College lecture room", "None"],
       ];
 
       /* ------------------------------ W8-01 ------------------------------ */
@@ -1543,7 +1543,7 @@
             ).join("")}
           </div>
           <div class="scroll-x wide-only"><table class="tbl" style="min-width:640px">
-            <thead><tr><th>Type</th><th>Invites by default</th><th>Chase after</th><th>Questions</th></tr></thead>
+            <thead><tr><th>Type</th><th>Invites by default</th><th>Where</th><th>Questions</th></tr></thead>
             <tbody>
               ${TYPES.map(
                 ([t, a, c, q]) => `
@@ -1594,15 +1594,6 @@
             ${field("Attendance", "Mandatory ▾")}
             ${field("Name", "", { placeholder: "No default — every event is named individually", help: "Not a template field." })}
           </div>
-        </div>
-        <div class="paper">
-          <p class="over">Chasing people who have not answered</p>
-          ${field("Becomes worth chasing", "2 days before the event ▾", { help: "Game is 7 days, Social is 5, the rest are 2. Expected to change after the pilot, which is why it is here and not in the code." })}
-          <ul class="deltas" style="color:var(--text-primary)">
-            <li>It does <strong>not</strong> stop anyone answering late — a player can answer up to the hour before.</li>
-            <li>It does <strong>not</strong> decide when the invitation goes out. That is the messaging side, not this one.</li>
-            <li>Move an event's date and this recalculates against the new one.</li>
-          </ul>
         </div>
         <div class="paper">
           <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
@@ -1681,7 +1672,7 @@
           title: "Seven types, seven templates",
           deltas: [
             "One template per event type; none can be added or removed",
-            "What each invites, when it chases, how many questions it asks",
+            "What each invites, where it usually is, how many questions it asks",
             "Nothing like this exists on main — every default is typed by hand today",
           ],
           blurb:
@@ -1701,11 +1692,11 @@
             "Default audience as groups, never as people",
             "Where, venue, equipment, description, mandatory — each one optional",
             "A default length, not a default start time; no default name or date",
-            "The chase threshold as an editable value, with what it does not do stated",
+            "No RSVP timing — when people are chased belongs to the messaging mission",
             "Default questions, which arrive on every new practice",
           ],
           blurb:
-            "Everything a new practice inherits, in one place, and every field optional — a template may leave a detail undecided. There is no default start time or name, because a type recurs and a particular Wednesday does not; what a type can usefully say about time is how long it runs. The chase threshold states what it does not do as plainly as what it does, because both would otherwise be assumed.",
+            "Everything a new practice inherits, in one place, and every field optional — a template may leave a detail undecided. There is no default start time or name, because a type recurs and a particular Wednesday does not; what a type can usefully say about time is how long it runs. There is also no RSVP timing here: an earlier draft of this screen carried a chase threshold, which belongs to the mission that does the chasing.",
           clockTag: "Now: Monday, 15 February 2027, 10:04",
           url: "localhost:3000/operate/events/templates/practice",
           now: null,
