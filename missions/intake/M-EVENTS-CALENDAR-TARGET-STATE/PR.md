@@ -19,8 +19,10 @@ and the stored status model narrows to three.
 **Eight frozen workflows, 31 requirements, 37 approved screens.** Every workflow
 carries Brian's dated approval in the intake ledger, in his own words.
 
-**Status is `not_ready`** — the packet cannot initialize a mission. Merging this
-pull request is the approval, and a later packet version carries `approved`.
+**Status is `approved`.** Every workflow carries Brian's dated approval in the
+ledger and he approved the packet on 2026-08-21. Merging this pull request is
+the binding approval and authorises Mission Lead initialization — there is no
+second packet version to wait for.
 
 **The boundary is the portfolio's, not a fused one.** Per-event RSVP delivery
 stays Mission 4's: this mission decides that a message is owed and to whom,
@@ -43,7 +45,7 @@ durable. It is deliberately not in this diff.
 node scripts/mission/cli.mjs validate \
   --packet missions/packets/M-EVENTS-CALENDAR-TARGET-STATE/packet.json \
   --inventory missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/02-workflows.md
-# PASS — valid; status not_ready; workflow matrix matches the frozen inventory W1..W8
+# PASS — valid and approved (baseline c894f1de000e); frozen workflow inventory matches W1..W8
 
 npx prettier --check "missions/packets/M-EVENTS-CALENDAR-TARGET-STATE/**/*.{json,md,html}"
 # PASS
@@ -77,7 +79,7 @@ put to Brian.
 - **Pilot setup required:** No.
 - **Pilot cleanup required:** No.
 - **Other Brian action:** Merge this packet-only pull request — that is the
-  approval. Then: decide the seven held Notion corrections, and settle the
+  binding approval and what authorises execution. Then: decide the seven held Notion corrections, and settle the
   subscription-feed hostname with LAN-126 before any feed URL is published, or
   guarantee a permanent redirect from the URL it ships on.
 - **Verification after Brian acts:** Confirm the merged packet SHA on `main` and
@@ -86,7 +88,6 @@ put to Brian.
 
 ## Limitations
 
-The packet is `not_ready` by design and no Mission Lead may initialize from it.
 Six nonblocking unknowns are recorded with handling rules rather than hidden —
 including how an invited player receives an online event's joining link, which
 this mission stores but does not deliver.

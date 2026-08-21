@@ -5,8 +5,9 @@ Portfolio mission **2**, from the
 approved 2026-08-19. `packet.json` is the machine-readable contract; this file
 is the human-readable one. Where they disagree, `packet.json` is authoritative.
 
-**Status: `not_ready`.** It cannot initialize a mission. Brian's merge of the
-packet-only pull request is the approval.
+**Status: `approved`.** Brian approved every workflow during intake and approved
+this packet on 2026-08-21; his merge of the packet-only pull request is the
+binding approval and is what authorises a Mission Lead to initialize from it.
 
 ## What the mission delivers
 
