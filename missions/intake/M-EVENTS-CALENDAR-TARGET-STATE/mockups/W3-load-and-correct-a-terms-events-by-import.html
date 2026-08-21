@@ -1313,6 +1313,65 @@
         color: var(--text-secondary);
         margin: 0 0 6px;
       }
+      .chg-cell {
+        background: #fff8e1;
+        box-shadow: inset 0 0 0 1px #f0c36d;
+        font-weight: 700;
+      }
+      .was {
+        display: block;
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--text-secondary);
+        text-decoration: line-through;
+      }
+      tr.refused td {
+        background: #fdf3f2;
+      }
+      tr.newrow td {
+        background: #f4faf5;
+      }
+      .icard {
+        padding: 0;
+        border-bottom: 0;
+      }
+      .mcard {
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin: 0 12px 10px;
+        background: var(--paper);
+      }
+      .mcard.refused {
+        border-color: #e6b4b0;
+        background: #fdf3f2;
+      }
+      .mcard.newrow {
+        border-color: #bfe0c4;
+        background: #f4faf5;
+      }
+      .mcard-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+      .mfield {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 4px 0;
+        border-top: 1px dashed var(--divider);
+        font-size: 13px;
+      }
+      .mfield .lbl {
+        color: var(--text-secondary);
+      }
+      .mfield .val {
+        font-weight: 700;
+        text-align: right;
+      }
     </style>
   </head>
   <body>
@@ -1441,26 +1500,71 @@ id,name,type,date,start,end,online,venue,description,required_equipment,mandator
 
 Now here is our calendar:`;
 
+      const howItWorks = (first) => `
+        <ol class="deltas" style="color:var(--text-primary);font-size:14px">
+          <li><strong>${first}</strong></li>
+          <li><strong>Copy the prompt.</strong> Paste it into ChatGPT, Claude or whatever you use, along with the term card, and it will hand you back a file in the right shape.</li>
+          <li><strong>Check the file.</strong> It is a spreadsheet — open it and read it like one.</li>
+          <li><strong>Import it here.</strong> You will see exactly what is about to change, and nothing happens until you say so.</li>
+        </ol>`;
+
+      const promptBlock = `
+        <div class="ics" style="margin-top:14px;max-height:220px;overflow:auto">${IMPORT_PROMPT.replace(
+          /&/g,
+          "&amp;",
+        ).replace(/</g, "&lt;")}</div>`;
+
+      /* ---------------------- W3-01: empty season ------------------------ */
+
       const W301 = opShell(`
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
-          <div><h1 class="h6">Events</h1><p class="body2 sec">Season 2027-28</p></div>
-          <div class="btn-row">
-            <button class="btn btn-outlined btn-sm">Add to your calendar</button>
-            <button class="btn btn-contained btn-sm">Create event ▾</button>
-          </div>
+          <div><h1 class="h6">Bulk import</h1><p class="body2 sec">Season 2027-28</p></div>
         </div>
         <div class="paper">
-          <p class="h6" style="margin:0 0 12px">No events in this season yet</p>
-          <div class="btn-row">
+          <p class="h6" style="margin:0 0 6px">No events in this season yet</p>
+          <p class="body2 sec" style="margin:0 0 10px">
+            The club's term card looks different every year, so this does not try to read it. Convert
+            it to a spreadsheet in the shape below — your own AI tool will do this in one go — and
+            bring the file back here.
+          </p>
+          ${howItWorks("Download the template. It is an empty spreadsheet with the right column headings.")}
+          <div class="btn-row" style="margin-top:12px">
             <button class="btn btn-contained btn-sm">Import CSV</button>
             <button class="btn btn-outlined btn-sm">Download the template</button>
             <button class="btn btn-outlined btn-sm">Copy the prompt</button>
           </div>
-          <div class="ics" style="margin-top:14px;max-height:230px;overflow:auto">${IMPORT_PROMPT.replace(
-            /&/g,
-            "&amp;",
-          ).replace(/</g, "&lt;")}</div>
+          ${promptBlock}
         </div>`);
+
+      /* ------------------- W3-02: season with events --------------------- */
+
+      const W302 = opShell(`
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
+          <div><h1 class="h6">Bulk import</h1><p class="body2 sec">Season 2026-27</p></div>
+        </div>
+        <div class="paper">
+          <p class="h6" style="margin:0 0 6px">This season has 55 events</p>
+          <div class="row" style="gap:22px;flex-wrap:wrap;margin:10px 0 4px">
+            <div><p class="h5" style="font-weight:700;margin:0">12</p><p class="body2 sec">Drafts — an import can change these</p></div>
+            <div><p class="h5" style="font-weight:700;margin:0">41</p><p class="body2 sec">Approved — edit these one at a time</p></div>
+            <div><p class="h5" style="font-weight:700;margin:0">2</p><p class="body2 sec">Cancelled</p></div>
+          </div>
+          <p class="body2 sec" style="margin:8px 0 10px">
+            Start from what is already here rather than from an empty file: the export carries each
+            event's identifier, which is how the system knows you are changing an event rather than
+            adding a second one.
+          </p>
+          ${howItWorks("Download the current season's events. That file is your starting point — edit the rows you want to change.")}
+          <div class="btn-row" style="margin-top:12px">
+            <button class="btn btn-contained btn-sm">Import CSV</button>
+            <button class="btn btn-outlined btn-sm">Download the current season's events</button>
+            <button class="btn btn-outlined btn-sm">Copy the prompt</button>
+          </div>
+          <hr class="divider" style="margin:14px 0" />
+          <p class="over">Keep the id to change an event · clear the id to add one · leave a row out and nothing happens to it</p>
+        </div>`);
+
+      /* --------------------- W3-03: the confirmation --------------------- */
 
       const outcome = (kind) => {
         const map = {
@@ -1472,111 +1576,163 @@ Now here is our calendar:`;
         return `<span class="chip" ${map[kind]}>${kind}</span>`;
       };
 
-      const IMPORT_ROWS = [
+      const R = [
         {
           o: "Updated",
-          line: "12",
           name: "Practice — michaelmas week 3",
           type: "Practice",
-          when: "Wed 28 Oct 2026 · 20:00",
-          venue: "Iffley Road Astro",
+          date: "2026-10-28",
+          start: { v: "19:30", was: "20:00" },
+          end: "21:30",
+          online: "no",
+          venue: { v: "University Parks", was: "Iffley Road Astro" },
+          desc: "",
+          equip: "Gumshield",
+          mand: "yes",
           status: "Draft",
-          changes: [
-            ["venue", "Iffley Road Astro", "University Parks"],
-            ["start", "20:00", "19:30"],
-          ],
         },
         {
           o: "Updated",
-          line: "14",
           name: "S&C — michaelmas week 3",
           type: "S&C",
-          when: "Tue 27 Oct 2026 · 19:00",
+          date: "2026-10-27",
+          start: "19:00",
+          end: "20:00",
+          online: "no",
           venue: "Iffley Road Gym",
+          desc: { v: "Bring a towel.", was: "(empty)" },
+          equip: { v: "Trainers, water", was: "(empty)" },
+          mand: "no",
           status: "Draft",
-          changes: [["required_equipment", "(empty)", "Trainers, water"]],
         },
         {
           o: "New",
-          line: "21",
           name: "Alumni touch game",
           type: "Social",
-          when: "Sat 12 Dec 2026 · 13:00",
+          date: "2026-12-12",
+          start: "13:00",
+          end: "15:00",
+          online: "no",
           venue: "Iffley Road Astro",
+          desc: "Old boys vs current squad.",
+          equip: "",
+          mand: "no",
           status: "—",
-          changes: [],
         },
         {
           o: "New",
-          line: "22",
           name: "vs Coldharbour Corsairs",
           type: "Game",
-          when: "Sun 22 Nov 2026 · 14:00",
+          date: "2026-11-22",
+          start: "14:00",
+          end: "16:30",
+          online: "no",
           venue: "Away",
+          desc: "",
+          equip: "Full kit",
+          mand: "yes",
           status: "—",
-          changes: [],
         },
         {
           o: "Refused",
-          line: "29",
           name: "Practice — michaelmas week 1",
           type: "Practice",
-          when: "Wed 14 Oct 2026 · 20:00",
+          date: "2026-10-14",
+          start: "20:00",
+          end: "22:00",
+          online: "no",
           venue: "Iffley Road Astro",
+          desc: "",
+          equip: "Gumshield",
+          mand: "yes",
           status: "Approved",
-          changes: [],
-          reason: "This event is approved. Imports only change drafts — amend it on its own page.",
+          reason:
+            "This event is approved. An import only changes drafts — amend it on its own page.",
         },
         {
           o: "Refused",
-          line: "31",
           name: "Sunday session — hilary week 2",
           type: "Practice",
-          when: "Sun 17 Jan 2027 · 14:00",
+          date: "2027-01-17",
+          start: "14:00",
+          end: "16:00",
+          online: "no",
           venue: "Iffley Road Astro",
+          desc: "",
+          equip: "",
+          mand: "yes",
           status: "—",
-          changes: [],
-          reason:
-            "No event in this season has id 9c14e0… Clear the id column to add it as a new event.",
+          reason: "No event in this season has id 9c14e0… Clear the id to add it as a new event.",
         },
         {
           o: "Unchanged",
-          line: "33",
           name: "Chalk — michaelmas week 4",
           type: "Chalk",
-          when: "Tue 3 Nov 2026 · 18:00",
-          venue: "Online",
+          date: "2026-11-03",
+          start: "18:00",
+          end: "19:00",
+          online: "yes",
+          venue: "Microsoft Teams",
+          desc: "Install review.",
+          equip: "",
+          mand: "no",
           status: "Draft",
-          changes: [],
         },
       ];
 
-      const changeCell = (r) => {
-        if (r.reason) return `<span class="body2" style="color:#b71c1c">${r.reason}</span>`;
-        if (r.o === "New")
-          return `<span class="body2 sec">Everything — this event does not exist yet</span>`;
-        if (!r.changes.length) return `<span class="body2 sec">—</span>`;
-        return r.changes
-          .map(
-            ([f, was, now]) =>
-              `<div class="body2"><span class="sec">${f}</span> <span style="text-decoration:line-through;color:var(--text-secondary)">${was}</span> → <span class="bold">${now}</span></div>`,
-          )
-          .join("");
+      const cell = (f) => {
+        if (f === "" || f === undefined) return `<td class="body2 sec">—</td>`;
+        if (typeof f === "string") return `<td class="body2">${f}</td>`;
+        return `<td class="body2 chg-cell">${f.v}<span class="was">${f.was}</span></td>`;
       };
 
-      const irow = (r) => `
-        <tr>
+      const changedFields = (r) =>
+        ["date", "start", "end", "online", "venue", "desc", "equip", "mand", "name", "type"].filter(
+          (k) => r[k] && typeof r[k] === "object",
+        );
+
+      const summary = (r) => {
+        if (r.reason) return `<span class="body2" style="color:#b71c1c">${r.reason}</span>`;
+        if (r.o === "New") return `<span class="body2 sec">Will be created as a draft</span>`;
+        const c = changedFields(r);
+        if (!c.length) return `<span class="body2 sec">Nothing differs</span>`;
+        return `<span class="body2">${c.length} field${c.length > 1 ? "s" : ""} changed: ${c
+          .map(
+            (k) =>
+              ({ desc: "description", equip: "required_equipment", mand: "mandatory" })[k] ?? k,
+          )
+          .join(", ")}</span>`;
+      };
+
+      const trow = (r) => `
+        <tr class="${r.o === "Refused" ? "refused" : r.o === "New" ? "newrow" : ""}">
           <td>${outcome(r.o)}</td>
-          <td class="body2 sec">${r.line}</td>
           <td class="body2 bold">${r.name}</td>
           <td class="body2">${r.type}</td>
-          <td class="body2">${r.when}</td>
-          <td class="body2">${r.venue}</td>
+          ${cell(r.date)}${cell(r.start)}${cell(r.end)}${cell(r.online)}${cell(r.venue)}
+          ${cell(r.desc)}${cell(r.equip)}${cell(r.mand)}
           <td class="body2">${r.status}</td>
-          <td>${changeCell(r)}</td>
+          <td style="min-width:230px">${summary(r)}</td>
         </tr>`;
 
-      const W302 = opShell(`
+      const mfield = (lbl, f) =>
+        typeof f === "object"
+          ? `<div class="mfield"><span class="lbl">${lbl}</span><span class="val">${f.v}<span class="was">${f.was}</span></span></div>`
+          : "";
+
+      const mcard = (r) => `
+        <div class="mcard ${r.o === "Refused" ? "refused" : r.o === "New" ? "newrow" : ""}">
+          <div class="mcard-head">${outcome(r.o)}<span class="body2 sec">${r.status}</span></div>
+          <div class="body2 bold">${r.name}</div>
+          <div class="body2 sec" style="margin-bottom:6px">${r.type} · ${r.date} · ${typeof r.venue === "object" ? r.venue.v : r.venue}</div>
+          ${r.reason ? `<div class="body2" style="color:#b71c1c">${r.reason}</div>` : ""}
+          ${r.o === "New" ? `<div class="body2 sec">Will be created as a draft</div>` : ""}
+          ${mfield("date", r.date)}${mfield("start", r.start)}${mfield("end", r.end)}
+          ${mfield("venue", r.venue)}${mfield("description", r.desc)}${mfield("required_equipment", r.equip)}
+          ${r.o === "Unchanged" ? `<div class="body2 sec">Nothing differs</div>` : ""}
+        </div>`;
+
+      const W303 = opShell(`
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
           <div><h1 class="h6">Import — michaelmas-2026.csv</h1><p class="body2 sec">Season 2026-27 · 47 rows read · nothing has been changed yet</p></div>
         </div>
@@ -1589,28 +1745,22 @@ Now here is our calendar:`;
           </div>
         </div>
         <div class="paper" style="padding:0;overflow:hidden">
-          <div class="narrow-only">
-            ${IMPORT_ROWS.map(
-              (r) => `
-              <div class="icard">
-                <div class="icard-head">${outcome(r.o)}<span class="body2 sec">Row ${r.line}</span></div>
-                <div class="body2 bold">${r.name}</div>
-                <div class="body2 sec">${r.type} · ${r.when} · ${r.venue}</div>
-                <div style="margin-top:4px">${changeCell(r)}</div>
-              </div>`,
-            ).join("")}
-          </div>
-          <div class="scroll-x wide-only"><table class="tbl" style="min-width:1000px">
+          <div class="narrow-only" style="padding-top:12px">${R.map(mcard).join("")}</div>
+          <div class="scroll-x wide-only"><table class="tbl" style="min-width:1460px">
             <thead><tr>
-              <th>Outcome</th><th>Row</th><th>Event</th><th>Type</th><th>When</th><th>Venue</th><th>Status</th><th>What changes</th>
+              <th>Outcome</th><th>Event</th><th>Type</th><th>Date</th><th>Start</th><th>End</th>
+              <th>Online</th><th>Venue</th><th>Description</th><th>Equipment</th><th>Mandatory</th>
+              <th>Status</th><th>What changes</th>
             </tr></thead>
-            <tbody>${IMPORT_ROWS.map(irow).join("")}</tbody>
+            <tbody>${R.map(trow).join("")}</tbody>
           </table></div>
         </div>
         <div class="row" style="gap:10px;justify-content:flex-end">
           <button class="btn btn-text">Cancel</button>
           <button class="btn btn-contained">Apply 9 changes</button>
         </div>`);
+
+      /* ------------------- W3-04: where it lives ------------------------- */
 
       const LIST_ROWS = [
         ["S&C — michaelmas week 2", "Tue 20 Oct · 19:00 · Iffley Road Gym"],
@@ -1619,13 +1769,25 @@ Now here is our calendar:`;
         ["Sunday session — michaelmas week 3", "Sun 25 Oct · 14:00 · Iffley Road Astro"],
       ];
 
-      const eventsList = (menu) => `
+      const CREATE_MENU = `
+        <div style="position:absolute;top:38px;right:0;z-index:5;min-width:270px;background:var(--paper);border-radius:var(--radius);box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14);padding:6px 0">
+          <div style="padding:10px 16px">
+            <div class="body2 bold">Add a single event</div>
+            <div class="body2 sec">One fixture, practice or social</div>
+          </div>
+          <div style="padding:10px 16px;background:var(--primary-tint)">
+            <div class="body2 bold">Bulk import</div>
+            <div class="body2 sec">A term's worth at once</div>
+          </div>
+        </div>`;
+
+      const W304 = opShell(`
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
           <div><h1 class="h6">Events</h1><p class="body2 sec">Season 2026-27</p></div>
           <div class="btn-row" style="position:relative">
             <button class="btn btn-outlined btn-sm">Add to your calendar</button>
             <button class="btn btn-contained btn-sm">Create event ▾</button>
-            ${menu}
+            ${CREATE_MENU}
           </div>
         </div>
         <div class="btn-row">
@@ -1648,40 +1810,23 @@ Now here is our calendar:`;
               <div class="body2 sec">${w}</div>
             </div>`,
           ).join("")}
-        </div>`;
+        </div>`);
 
-      const CREATE_MENU = `
-        <div style="position:absolute;top:38px;right:0;z-index:5;min-width:290px;background:var(--paper);border-radius:var(--radius);box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14);padding:6px 0">
-          <div style="padding:9px 16px">
-            <div class="body2 bold">Add one event</div>
-            <div class="body2 sec">A single fixture, practice or social</div>
-          </div>
-          <hr class="divider" style="margin:4px 0" />
-          <div style="padding:9px 16px;background:var(--primary-tint)">
-            <div class="body2 bold">Import from a CSV</div>
-            <div class="body2 sec">A term's worth at once</div>
-          </div>
-          <div style="padding:9px 16px">
-            <div class="body2 bold">Export this season</div>
-            <div class="body2 sec">Edit the file and bring it back</div>
-          </div>
-        </div>`;
+      /* ------------------------ W3-05: refusals -------------------------- */
 
-      const W303 = opShell(eventsList(CREATE_MENU));
-
-      const W304 = opShell(`
+      const W305 = opShell(`
         <div class="stack g2">
           ${alert("warn", "<strong>Nothing was changed.</strong> The file has no header row this importer recognises. Download the template and compare the first line.")}
-          ${alert("warn", "<strong>Row 8 was refused.</strong> <code>type</code> reads “Training”. It must be one of Practice, S&amp;C, Chalk, Game, Social, Recruitment, Meeting.")}
-          ${alert("warn", "<strong>Rows 14 and 51 were refused.</strong> Both carry the same id. The file asks for two different changes to one event, and the system will not choose.")}
-          ${alert("warn", "<strong>Row 22 was refused.</strong> <code>date</code> reads “14/10/2026”. Dates are YYYY-MM-DD.")}
+          ${alert("warn", "<strong>One row was refused.</strong> <code>type</code> reads “Training”. It must be one of Practice, S&amp;C, Chalk, Game, Social, Recruitment, Meeting.")}
+          ${alert("warn", "<strong>Two rows were refused.</strong> Both carry the same id. The file asks for two different changes to one event, and the system will not choose between them.")}
+          ${alert("warn", "<strong>One row was refused.</strong> <code>date</code> reads “14/10/2026”. Dates are YYYY-MM-DD.")}
           ${alert("info", "<strong>All 47 rows are unchanged.</strong> This file matches what is already in the season, so there is nothing to apply.")}
           <div class="paper">
             <p class="over">What an import can never do</p>
             <ul class="deltas" style="color:var(--text-primary)">
               <li><strong>Delete anything.</strong> Events are upsert only. An event missing from the file is left exactly as it was.</li>
               <li><strong>Change an approved event.</strong> Those rows are refused by name; amend the event on its own page.</li>
-              <li><strong>Approve, cancel, or send.</strong> An import produces drafts and nothing leaves the building.</li>
+              <li><strong>Approve, cancel, or send.</strong> An import produces drafts, and nothing leaves the building.</li>
             </ul>
           </div>
         </div>`);
@@ -1690,16 +1835,16 @@ Now here is our calendar:`;
         {
           id: "W3-01",
           disposition: "new",
-          title: "An empty season asks for an import",
+          title: "Bulk import — a season with nothing in it",
           deltas: [
-            "A season with no events offers Import and Download the template",
-            "A copyable prompt explains the whole conversion, for the club's own AI tool",
-            "Creating events one at a time is still there, demoted to what it is",
+            "Four numbered steps, in plain words, above the buttons",
+            "Import CSV · Download the template · Copy the prompt",
+            "The prompt itself, in full, ready to copy",
           ],
           blurb:
-            "How a season starts. The club's term card is a different shape every year, so nothing here parses it — the conversion happens outside the system and this screen hands over everything needed to do it. The prompt is a fixed, versioned block of text, and its worked example is asserted by test to import cleanly.",
+            "How a season starts. The club's term card is a different shape every year, so nothing here tries to read it — the conversion happens in the club's own AI tool and this screen hands over everything needed to do it. The prompt is fixed and versioned, and its worked example is asserted by test to import cleanly.",
           clockTag: "Now: Monday, 7 September 2027, 10:05",
-          url: "localhost:3000/operate/events",
+          url: "localhost:3000/operate/events/import",
           now: null,
           nowNone:
             "New surface, nothing to compare — there is no import, no export and no CSV handling anywhere on main.",
@@ -1708,17 +1853,15 @@ Now here is our calendar:`;
         {
           id: "W3-02",
           disposition: "new",
-          title: "What will change, before anything changes",
+          title: "Bulk import — a season that already has events",
           deltas: [
-            "Every row is classified New, Updated, Unchanged or Refused",
-            "An updated row names each changed field, old value and new",
-            "A refused row says why, in words the operator can act on",
-            "Totals first, so the operator confirms a number they can sanity-check",
-            "Nothing is written until Apply; abandoning writes nothing",
+            "Download the current season's events replaces Download the template",
+            "A three-number summary: drafts an import can change, approved it cannot, cancelled",
+            "The identifier rule stated in one line where it matters",
           ],
           blurb:
-            "The heart of the workflow. An import is a proposal until the operator accepts it. The two refusals shown are the two that matter: a row that would change an approved event, and a row whose id matches nothing. Everything else in the file still applies — a bad row never rejects the file.",
-          clockTag: "Now: Monday, 19 October 2026, 09:30",
+            "The same screen once the season is populated. It shows a count rather than a list — the Events page is one click away and does that job better — but it does state how many events an import can actually touch, which is the thing that would otherwise surprise an operator halfway through.",
+          clockTag: "Now: Monday, 19 October 2026, 09:18",
           url: "localhost:3000/operate/events/import",
           now: null,
           nowNone: "New surface, nothing to compare",
@@ -1726,15 +1869,34 @@ Now here is our calendar:`;
         },
         {
           id: "W3-03",
-          disposition: "modified",
-          title: "Where import and export live",
+          disposition: "new",
+          title: "What will change, before anything changes",
           deltas: [
-            "Create event becomes a menu: Add one event · Import from a CSV · Export this season",
-            "Nothing else in the header changes — Add to your calendar stays where W1 put it",
-            "No new page, no new navigation, no fourth button",
+            "Every importable column is a column, so nothing is hidden",
+            "A changed cell is highlighted in place, with the old value beneath it",
+            "The right-hand column names which fields changed, derived not written",
+            "Row numbers are gone",
+            "Nothing is written until Apply; abandoning writes nothing",
           ],
           blurb:
-            "Importing is a way of creating events, so it belongs under Create event rather than as another button competing for the header. Export sits with it because it is the same round trip read backwards. The rest of the page is the Events list exactly as W1 approved it — this screen changes one control and nothing else.",
+            "The heart of the workflow. An import is a proposal until the operator accepts it. The table is wide and scrolls right on purpose — the point is to see the record, not a summary of it. New rows are tinted green, refused rows red, and the two refusals shown are the two that matter: a row that would change an approved event, and a row whose identifier matches nothing.",
+          clockTag: "Now: Monday, 19 October 2026, 09:30",
+          url: "localhost:3000/operate/events/import",
+          now: null,
+          nowNone: "New surface, nothing to compare",
+          proposed: W303,
+        },
+        {
+          id: "W3-04",
+          disposition: "modified",
+          title: "Where bulk import lives",
+          deltas: [
+            "Create event becomes a menu of two: Add a single event · Bulk import",
+            "Export is not here — it belongs on the bulk import screen, beside the file it produces",
+            "Nothing else in the header changes",
+          ],
+          blurb:
+            "Importing is a way of creating events, so it sits under Create event rather than as another button competing in the header. Exporting is not a way of creating anything, so it lives on the bulk import screen next to the file it makes. The rest of the page is the Events list exactly as W1 approved it.",
           clockTag: "Now: Monday, 19 October 2026, 09:20",
           url: "localhost:3000/operate/events",
           now: null,
@@ -1742,25 +1904,25 @@ Now here is our calendar:`;
           currentShots: ["current/list-desktop.png", "current/list-phone.png"],
           currentCap:
             "The Events page on main today — Create event is a single button, and there is no import, no export and no subscribe.",
-          proposed: W303,
+          proposed: W304,
         },
         {
-          id: "W3-04",
+          id: "W3-05",
           disposition: "new",
           title: "Refusals, and the three things an import cannot do",
           deltas: [
-            "Malformed file refused whole, before any row is read",
-            "Bad rows refused individually, by row number, with the rule they broke",
-            "A duplicated id refuses both rows rather than picking one",
+            "A malformed file is refused whole, before any row is read",
+            "Bad rows are refused individually, with the rule they broke",
+            "A duplicated identifier refuses both rows rather than picking one",
             "The upsert-only boundary stated where an operator will read it",
           ],
           blurb:
-            "The states that make this safe to hand to a Secretary with a spreadsheet. The last block is the one worth reading twice: an import can create and update drafts, and it can do nothing else — no deletion, no approval, no cancellation, nothing sent.",
+            "The states that make this safe to hand to a Secretary with a spreadsheet. The last block is the one worth reading twice: an import can create and update drafts, and it can do nothing else.",
           clockTag: "Now: Monday, 19 October 2026, 09:34",
           url: "localhost:3000/operate/events/import",
           now: null,
           nowNone: "New surface, nothing to compare",
-          proposed: W304,
+          proposed: W305,
         },
       ];
 
