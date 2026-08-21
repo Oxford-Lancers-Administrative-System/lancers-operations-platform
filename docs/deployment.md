@@ -265,13 +265,13 @@ action's `env_vars:` input, leaves whichever ran last as the only environment th
 revision has — and the variables in the other list are simply absent, which looks
 exactly like the defect below.
 
-| Variable                | Set by the deploy            | What happens if it is absent                                                                   |
-| ----------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------- |
-| `DATABASE_POOL_MAX`     | **Yes** — `5`                | The code default of 10 applies: 30 connections over three instances, past the pooler's 15      |
-| `VENUE_SEARCH_PROVIDER` | **Yes** — `photon`           | Event venue entry degrades to plain text and says "address search is not set up here"          |
-| `VENUE_SEARCH_BASE_URL` | No, on purpose               | Blank means the free public Photon instance; set it only to point at a self-hosted one         |
-| `APP_BASE_URL`          | **Yes** — the Cloud Run host | Password recovery has no trusted origin to build a link from and quietly sends nobody anything |
-| `WHATSAPP_*` (three)    | **No — not yet**             | Approval creates invitations and **delivers nothing**, recorded as a configuration failure     |
+| Variable                | Set by the deploy            | What happens if it is absent                                                                    |
+| ----------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| `DATABASE_POOL_MAX`     | **Yes** — `5`                | The code default of 10 applies: 30 connections over three instances, past the pooler's 15       |
+| `VENUE_SEARCH_PROVIDER` | **Yes** — `photon`           | Event venue entry degrades to plain text and says "address search is not set up here"           |
+| `VENUE_SEARCH_BASE_URL` | No, on purpose               | Blank means the free public Photon instance; set it only to point at a self-hosted one          |
+| `APP_BASE_URL`          | **Yes** — the Cloud Run host | Recovery and invitation have no trusted origin: no email is sent, and the return hop falls back |
+| `WHATSAPP_*` (three)    | **No — not yet**             | Approval creates invitations and **delivers nothing**, recorded as a configuration failure      |
 
 `tests/deployment-configuration.test.ts` compares this table's reality against
 the workflow: a feature that refuses to run unconfigured must either be
@@ -295,6 +295,17 @@ so setting it enables no delivery. It is in the workflow rather than typed into
 the Cloud Run console because `--set-env-vars` replaces the environment: a value
 set by hand would be erased by the next merge to `main`, and recovery would stop
 sending without any error appearing anywhere.
+
+**It also decides where an email link lands after the token is spent** — LAN-141.
+`/auth/invitation` and `/auth/recovery` used to build that redirect from the
+request's own origin, which behind Cloud Run is the container's bind address, so
+a working invitation ended at `http://0.0.0.0:8080/reset-password` and
+`ERR_CONNECTION_REFUSED`. They now use the same rule as the outbound link:
+`APP_BASE_URL`, otherwise a loopback request origin, otherwise a relative path.
+A `Host` header is still not evidence. So `APP_BASE_URL` and the Cloud Run
+hostname agreeing matters twice, and the acceptance test for a deploy is to open
+a fresh invitation and a password reset end to end, not just to watch the email
+arrive.
 
 ## Password recovery — hosted Supabase Auth
 

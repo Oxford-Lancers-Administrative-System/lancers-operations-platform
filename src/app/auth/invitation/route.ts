@@ -4,10 +4,11 @@ import {
   INVITATION_LINK_TYPE,
   isPlausibleInvitationTokenHash,
 } from "@/lib/auth/invitation";
+import { emailLinkRedirectDestination } from "@/lib/auth/recovery";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * The one-time exchange the invitation email lands on — LAN-131.
+ * The one-time exchange the invitation email lands on — LAN-131, LAN-141.
  *
  * A deliberate mirror of `/auth/recovery` (LAN-125), for the reasons that route
  * records at length and which apply here unchanged: `verifyOtp` writes the
@@ -49,8 +50,25 @@ export async function GET(request: NextRequest) {
     await supabase.auth.verifyOtp({ type: "invite", token_hash: tokenHash });
   }
 
-  const destination = new URL(INVITATION_DESTINATION_PATH, request.nextUrl.origin);
-  const response = NextResponse.redirect(destination, { status: 303 });
+  // LAN-141. Not `request.nextUrl.origin`: behind Cloud Run that is the
+  // container's own listen address, and a real operator's working invitation
+  // ended at `http://0.0.0.0:8080/reset-password`. The origin rule that already
+  // governs the outbound link governs the return hop too.
+  //
+  // `NextResponse.redirect` demands an absolute URL and this may legitimately
+  // be a relative path, so the 303 is built directly. It carries nothing but a
+  // status and a `Location`, which is all `NextResponse.redirect` sets; the
+  // session cookies `verifyOtp` wrote went to the request's cookie store, not
+  // to this object.
+  const destination = emailLinkRedirectDestination({
+    path: INVITATION_DESTINATION_PATH,
+    appBaseUrl: process.env.APP_BASE_URL,
+    requestOrigin: request.nextUrl.origin,
+  });
+  const response = new NextResponse(null, {
+    status: 303,
+    headers: { location: destination },
+  });
 
   response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   response.headers.set("Referrer-Policy", "no-referrer");

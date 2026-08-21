@@ -10,6 +10,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  emailLinkRedirectDestination,
   INVALID_RECOVERY_LINK_MESSAGE,
   isPlausibleRecoveryTokenHash,
   isRecoveryAuthenticatedSession,
@@ -23,6 +24,7 @@ import {
   recoveryCallbackUrl,
   recoveryCompletionDestination,
   remainingPublicResponseDelayMs,
+  RESET_PASSWORD_PATH,
   resolveRecoveryOrigin,
   validateNewPassword,
 } from "./recovery";
@@ -167,6 +169,121 @@ describe("the recovery link's origin is never taken from an untrusted host", () 
       `https://lancers.example.org${RECOVERY_CALLBACK_PATH}`,
     );
     expect(recoveryCallbackUrl({ requestOrigin: "https://evil.example" })).toBeNull();
+  });
+});
+
+describe("the redirect after an email-link exchange obeys the same origin rule", () => {
+  // LAN-141. The outbound link obeyed it; the return hop did not, and used
+  // `request.nextUrl.origin` — which behind Cloud Run is the container's own
+  // listen address. A real operator's invitation exchanged correctly and then
+  // sent the browser to `http://0.0.0.0:8080/reset-password`.
+
+  it("sends the browser to the configured origin, not the container's own", () => {
+    // This is the observed production defect, written down as an assertion:
+    // the request arrives at the container on 0.0.0.0:8080 and must leave for
+    // the public host.
+    expect(
+      emailLinkRedirectDestination({
+        path: RESET_PASSWORD_PATH,
+        appBaseUrl: "https://lancers-operations-platform.a.run.app",
+        requestOrigin: "http://0.0.0.0:8080",
+      }),
+    ).toBe("https://lancers-operations-platform.a.run.app/reset-password");
+  });
+
+  it("prefers the configured origin over a request origin that claims to be the host", () => {
+    expect(
+      emailLinkRedirectDestination({
+        path: RESET_PASSWORD_PATH,
+        appBaseUrl: "https://lancers.example.org",
+        requestOrigin: "https://evil.example",
+      }),
+    ).toBe("https://lancers.example.org/reset-password");
+  });
+
+  it("prefers the configured origin even over a loopback request", () => {
+    expect(
+      emailLinkRedirectDestination({
+        path: RESET_PASSWORD_PATH,
+        appBaseUrl: "https://lancers.example.org",
+        requestOrigin: "http://localhost:3000",
+      }),
+    ).toBe("https://lancers.example.org/reset-password");
+  });
+
+  it("keeps a developer machine and the review environment working with no configuration", () => {
+    expect(
+      emailLinkRedirectDestination({
+        path: RESET_PASSWORD_PATH,
+        requestOrigin: "http://localhost:3010",
+      }),
+    ).toBe("http://localhost:3010/reset-password");
+  });
+
+  it("ignores any path on the configured value", () => {
+    expect(
+      emailLinkRedirectDestination({
+        path: RESET_PASSWORD_PATH,
+        appBaseUrl: "https://lancers.example.org/operate",
+      }),
+    ).toBe("https://lancers.example.org/reset-password");
+  });
+
+  it.each([
+    "https://evil.example",
+    "http://localhost.evil.example",
+    "https://lancers-operations-platform.a.run.app",
+    "http://0.0.0.0:8080",
+  ])(
+    "falls back to a relative path rather than trusting the request origin %s",
+    (requestOrigin) => {
+      // Unconfigured and not loopback: the browser resolves this against the URL
+      // it actually asked for, which is the host it is looking at and the host
+      // the session cookies were just set on. Nothing is read from the request,
+      // so no `Host` header becomes evidence, and the person is not stranded
+      // holding a session they cannot use.
+      const destination = emailLinkRedirectDestination({
+        path: RESET_PASSWORD_PATH,
+        requestOrigin,
+      });
+
+      expect(destination).toBe(RESET_PASSWORD_PATH);
+      expect(destination).not.toContain(new URL(requestOrigin).hostname);
+    },
+  );
+
+  it.each([undefined, null, "", "   ", "not-a-url", "ftp://lancers.example.org"])(
+    "treats the unusable configured value %s as unconfigured",
+    (appBaseUrl) => {
+      expect(emailLinkRedirectDestination({ path: RESET_PASSWORD_PATH, appBaseUrl })).toBe(
+        RESET_PASSWORD_PATH,
+      );
+    },
+  );
+
+  it.each(["https://evil.example", "//evil.example", "/\\evil.example", "/\r\n/evil.example"])(
+    "cannot be steered off-origin by the destination path %j",
+    (path) => {
+      // `new URL("//evil.example", origin)` resolves to a foreign host — the
+      // mistake `./destination.ts` already records. Both call sites pass a
+      // module constant, so this guards the next one.
+      const destination = emailLinkRedirectDestination({
+        path,
+        appBaseUrl: "https://lancers.example.org",
+      });
+
+      expect(new URL(destination).origin).toBe("https://lancers.example.org");
+      expect(destination).not.toContain("evil.example");
+    },
+  );
+
+  it("never leaves a query string on the destination it was not given", () => {
+    expect(
+      emailLinkRedirectDestination({
+        path: RESET_PASSWORD_PATH,
+        appBaseUrl: "https://lancers.example.org",
+      }),
+    ).not.toContain("?");
   });
 });
 
