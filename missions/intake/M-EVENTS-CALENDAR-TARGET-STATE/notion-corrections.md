@@ -1,9 +1,26 @@
 # Notion corrections
 
-Proposed edits to authoritative Notion records, arising from this intake. **None
-has been applied.** Each needs Brian's explicit approval of that exact edit
-before it is made, and re-fetching afterwards to verify. Packet approval is not
-blanket correction approval.
+Proposed edits to authoritative Notion records, arising from this intake.
+
+**Eight were applied on 2026-08-21**, on Brian's instruction to "update the
+notions where there are clear reasons to do so", and each was verified by
+re-fetching the page. They were applied as **dated callouts appended to the
+page**, matching how both records already carry their August amendments — no
+existing text was rewritten or deleted, so the original decisions and their
+supersessions both remain readable.
+
+**The rest are not applied.** Each needs Brian's explicit approval of that exact
+edit before it is made, and re-fetching afterwards to verify. Packet approval is
+not blanket correction approval.
+
+**What was held back, and why.** The applied set is limited to corrections where
+Brian's own decision is on record in his words, or where the Events brief itself
+already directs the change (its F14 closes C3 and C7; OD-1/Q7 says the C4
+register pointer was to be updated). Held: the D55 tightening, which is this
+intake's derivation rather than Brian's wording; register entries **C2**, **C5b**
+and **C6**, which restate scope rather than correct a fact; the **portfolio
+row**, which the Project Manager maintains; and the **Task 02 brief**, which
+belongs to Mission 4 and has never been put to Brian at all.
 
 | Page                                                                                                                                   | Old text                                                                                                                                                                                                                                                                            | Proposed new text                                                                                                                                                                                                                                                                                                                                                                                                          | Exact approval                                                                                                                                                                                                                                                                                   | Applied and verified at |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
