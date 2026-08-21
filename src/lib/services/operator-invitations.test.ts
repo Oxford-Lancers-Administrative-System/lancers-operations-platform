@@ -205,11 +205,15 @@ async function insertPerson(tag: string): Promise<string> {
  * whole name here and a prefix of another name over there is the shape the
  * exactness rule exists for — so these are ordinary-looking names, deliberately
  * rare enough that the synthetic seed cannot contain one.
+ *
+ * `alias` writes `person_aliases`, which the duplicate check compares against
+ * **all three** name terms. An alias is a name the club holds and the search
+ * discloses on, so it is staged here rather than left to a fixture of its own.
  */
 async function insertNamedPerson(
   givenName: string,
   familyName: string,
-  options: { knownAs?: string; email?: string; phone?: string } = {},
+  options: { knownAs?: string; alias?: string; email?: string; phone?: string } = {},
 ): Promise<string> {
   const result = await observer.query<{ id: string }>(
     `insert into public.people (given_name, family_name, known_as)
@@ -228,6 +232,13 @@ async function insertNamedPerson(
       `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
        values ($1, $2, $3, true)`,
       [personId, kind, value],
+    );
+  }
+
+  if (options.alias) {
+    await observer.query(
+      "insert into public.person_aliases (person_id, alias, source) values ($1, $2, 'fixture')",
+      [personId, options.alias],
     );
   }
 
@@ -1625,15 +1636,49 @@ describe("the duplicate check the flow starts with", () => {
     async function twoSimilarPeople(tag: string) {
       const shorter = await insertNamedPerson(`Jonquil${tag}`, `Ashgrovemoor${tag}`, {
         knownAs: `Bexley${tag}`,
+        alias: `Quillon${tag}`,
         email: `jonquil${tag}@lan141.example`,
         phone: "07700 900123",
       });
       const longer = await insertNamedPerson(`Jonquil${tag}ine`, `Ashgrovemoor${tag}land`, {
         knownAs: `Bexley${tag}ham`,
+        alias: `Quillon${tag}dale`,
         email: `jonquil${tag}@lan141.example.test`,
         phone: "07700 900133",
       });
       return { shorter, longer };
+    }
+
+    /**
+     * The same shape, staged the one way the fixture above cannot stage it:
+     * the two addresses exist **only** as operator logins.
+     *
+     * `insertNamedPerson` writes `contact_points`, so every address case here
+     * reaches the `c.raw_value` branch and stops there. `oa.login_email` is a
+     * separate branch of the same `where` clause, and it exists precisely
+     * because nothing copies a login into `contact_points` — a person whose
+     * only address is their login is reachable through it and through nothing
+     * else. Widening it to a prefix match therefore passed every one of the
+     * sixty-six tests this file had: LAN-141 finding F1.
+     */
+    async function twoSimilarLogins(tag: string) {
+      const address = `marrowvale${tag}@lan141.example`;
+      const shorter = await insertNamedPerson(`Marrowvale${tag}`, `Underhaywood${tag}`);
+      const longer = await insertNamedPerson(`Marrowvale${tag}ford`, `Underhaywood${tag}mere`);
+      await giveLoginOnly(shorter, address);
+      await giveLoginOnly(longer, `${address}.test`);
+      return { shorter, longer, address };
+    }
+
+    /** A real login for this Person, and no contact point carrying its address. */
+    async function giveLoginOnly(personId: string, email: string): Promise<void> {
+      const { authUserId } = await supabaseOperatorIdentity().createLogin(email);
+      authUsers.add(authUserId);
+      await observer.query(
+        `insert into public.operator_accounts (auth_user_id, person_id, login_email, invited_at)
+         values ($1, $2, $3, now())`,
+        [authUserId, personId, email],
+      );
     }
 
     it("finds a whole given name and not the longer name it begins", async () => {
@@ -1695,6 +1740,126 @@ describe("the duplicate check the flow starts with", () => {
       const nearIds = near.map((candidate) => candidate.personId);
       expect(nearIds).not.toContain(shorter);
       expect(nearIds).not.toContain(longer);
+    });
+
+    /**
+     * LAN-141 finding F1, and the reason the case above does not cover it: the
+     * address searched for is held as a **login** and by nothing else, so the
+     * only branch that can return either person is `oa.login_email`.
+     */
+    it("finds a whole login address and not the longer login it begins", async () => {
+      const { shorter, longer, address } = await twoSimilarLogins("lg");
+
+      const found = await findOperatorCandidates(administrator(), { email: address });
+      const ids = found.map((candidate) => candidate.personId);
+
+      expect(ids, "the operator whose login this is must be found").toContain(shorter);
+      expect(ids, "a login this address merely begins must not be disclosed").not.toContain(longer);
+    });
+
+    /**
+     * A name typed in the wrong box still finds the person — a known-as name
+     * from the given-name field and the other way round — and the two branches
+     * that do it are exact in the same way as the rest.
+     */
+    it("crosses the name fields whole, and never by prefix", async () => {
+      const { shorter, longer } = await twoSimilarPeople("xf");
+
+      for (const [what, query] of [
+        ["a known-as name typed as the given name", { givenName: "Bexleyxf" }],
+        ["a given name typed as the known-as name", { knownAs: "Jonquilxf" }],
+      ] as const) {
+        const ids = (await findOperatorCandidates(administrator(), query)).map(
+          (candidate) => candidate.personId,
+        );
+        expect(ids, `${what} must find the person who holds it`).toContain(shorter);
+        expect(ids, `${what} must not disclose the name it merely begins`).not.toContain(longer);
+      }
+    });
+
+    /**
+     * An alias is a fourth name, compared against all three name terms, and it
+     * discloses exactly as much as the other three do.
+     */
+    it("matches a recorded alias whole, from every name field", async () => {
+      const { shorter, longer } = await twoSimilarPeople("al");
+
+      for (const query of [
+        { givenName: "Quillonal" },
+        { familyName: "Quillonal" },
+        { knownAs: "Quillonal" },
+      ]) {
+        const ids = (await findOperatorCandidates(administrator(), query)).map(
+          (candidate) => candidate.personId,
+        );
+        const where = Object.keys(query)[0];
+        expect(ids, `an alias searched as ${where} must find its holder`).toContain(shorter);
+        expect(ids, `an alias this term merely begins must not be disclosed`).not.toContain(longer);
+      }
+    });
+
+    /**
+     * The labels, which are a second copy of the same equality rules — LAN-141
+     * finding F4.
+     *
+     * `matched_on` is why a person was returned, and each of its five parts
+     * repeats a comparison the `where` clause already makes. Widening one of
+     * those copies discloses nobody extra, so it is not the same hazard; it
+     * makes the screen say an administrator's search term *is* somebody's name
+     * or address when it is only the start of one, which is the sentence the
+     * administrator decides "same person or not" on.
+     *
+     * Each search below returns the longer person for exactly one whole-value
+     * reason, while every other term is a strict prefix of one of their values.
+     * The complete label set is therefore the assertion: a widened copy adds a
+     * word to it.
+     */
+    it("names only the fields that matched whole", async () => {
+      const { longer } = await twoSimilarPeople("lb");
+      const login = await twoSimilarLogins("lbl");
+
+      for (const [what, personId, query, expected] of [
+        [
+          "an exact given name, every other term a prefix",
+          longer,
+          {
+            givenName: "Jonquillbine",
+            familyName: "Ashgrovemoorlb",
+            knownAs: "Bexleylb",
+            email: "jonquillb@lan141.example",
+            phone: "07700 900123",
+          },
+          ["given name"],
+        ],
+        [
+          "a given name that begins theirs",
+          longer,
+          { familyName: "Ashgrovemoorlbland", givenName: "Jonquillb" },
+          ["family name"],
+        ],
+        [
+          "a given-name term that begins their known-as name",
+          longer,
+          { familyName: "Ashgrovemoorlbland", givenName: "Bexleylb" },
+          ["family name"],
+        ],
+        [
+          "a known-as term that begins their given name",
+          longer,
+          { familyName: "Ashgrovemoorlbland", knownAs: "Jonquillb" },
+          ["family name"],
+        ],
+        [
+          "an address that begins their login",
+          login.longer,
+          { givenName: "Marrowvalelblford", email: login.address },
+          ["given name"],
+        ],
+      ] as const) {
+        const found = await findOperatorCandidates(administrator(), query);
+        const candidate = found.find((row) => row.personId === personId);
+        expect(candidate?.matchedOn, what).toEqual(expected);
+      }
     });
 
     it("discloses nobody at all for a term the club does not hold", async () => {
