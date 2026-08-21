@@ -257,5 +257,14 @@ dropped by an agent that only read this workflow.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- **Exact words:** "Other than that, I think this looks good. This is approved."
+  (2026-08-21)
+- **Date:** 2026-08-21
+- **What it approved:** this specification and the five-screen mockup, after two
+  rounds of correction — the first for useless flavour text and a summary column
+  that hid the changes, the second for an ungrounded Events page that this
+  intake had invented rather than read.
+- **Applied with the approval, no further review requested:** at 375 the
+  period control collapses to one control exactly as `W1` established, rather
+  than stacking five full-width buttons. Brian: "I just want to make sure that
+  the UIs are as consistent as we can make them going in."

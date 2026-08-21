@@ -1794,12 +1794,17 @@ Now here is our calendar:`;
           <button class="btn btn-contained btn-sm">List</button>
           <button class="btn btn-outlined btn-sm">Calendar</button>
         </div>
-        <div class="btn-row">
-          <button class="btn btn-outlined btn-sm">This week</button>
-          <button class="btn btn-contained btn-sm">This month</button>
-          <button class="btn btn-outlined btn-sm">This term</button>
-          <button class="btn btn-outlined btn-sm">All upcoming</button>
-          <button class="btn btn-outlined btn-sm">All events</button>
+        <div>
+          <div class="btn-row wide-only">
+            <button class="btn btn-outlined btn-sm">This week</button>
+            <button class="btn btn-contained btn-sm">This month</button>
+            <button class="btn btn-outlined btn-sm">This term</button>
+            <button class="btn btn-outlined btn-sm">All upcoming</button>
+            <button class="btn btn-outlined btn-sm">All events</button>
+          </div>
+          <div class="narrow-only">
+            <span class="field-inline period-select"><span>This month</span><span>▾</span></span>
+          </div>
         </div>
         <div class="paper" style="padding:0;overflow:hidden">
           <div style="padding:12px 16px;border-bottom:1px solid var(--divider)"><p class="over">This week and next · 4 events</p></div>
