@@ -61,7 +61,7 @@
     {
       "id": "W3",
       "name": "Load and correct a term's events by import",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -112,5 +112,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - draft the W3 specification (Load and correct a term's events by import)"
+  "next_action": "Stage 3 - W3 direction recorded; five open questions are with Brian before the specification is completed"
 }
