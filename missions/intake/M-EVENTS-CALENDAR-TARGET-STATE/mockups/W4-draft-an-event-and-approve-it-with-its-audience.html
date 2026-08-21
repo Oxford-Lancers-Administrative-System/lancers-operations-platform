@@ -1545,7 +1545,7 @@
                 <span class="body2 bold">${q.text}</span>
                 <span class="chip">${q.type}</span>
                 <span class="chip" style="${q.required ? "background:#e3f2fd;border-color:#0b3d91;color:#0b3d91" : ""}">${q.required ? "Required" : "Optional"}</span>
-                ${q.fromTemplate ? `<span class="chip chip-outline">from the Game template</span>` : ""}
+                ${q.fromTemplate ? `<span class="chip chip-outline">from the ${q.fromTemplate} template</span>` : ""}
               </div>
               ${q.options ? `<div style="margin-top:2px">${q.options.map((o) => `<span class="qopt">${o}</span>`).join("")}</div>` : ""}
             </div>
@@ -1561,13 +1561,13 @@
           text: "Can you get yourself to the ground?",
           type: "Yes / no",
           required: true,
-          fromTemplate: true,
+          fromTemplate: "Practice",
         },
         {
           text: "Which shirt size do you need?",
           type: "Pick from a list",
           required: false,
-          fromTemplate: true,
+          fromTemplate: "Practice",
           options: ["S", "M", "L", "XL"],
         },
         { text: "Anything we should know before kick-off?", type: "Free text", required: false },
