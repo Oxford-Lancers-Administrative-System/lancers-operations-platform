@@ -99,7 +99,7 @@
     {
       "id": "W5",
       "name": "Amend or reschedule an approved event",
-      "state": "not_started",
+      "state": "mock_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -121,7 +121,8 @@
       "approvals": {},
       "carried_questions": [
         "Does the club-link tier survive as approved (D2/D3), or does Brian's 2026-08-20 wording move RSVP and attendance behind an operator account? Deferred here from W1 on 2026-08-20 at Brian's instruction; settle against the W7 mockup.",
-        "Amendment 1 (2026-08-20): W7 also owns issuing and sharing the club link, including Q2's expiry, rotation and revocation mechanism."
+        "Amendment 1 (2026-08-20): W7 also owns issuing and sharing the club link, including Q2's expiry, rotation and revocation mechanism.",
+        "Carried from W5 (2026-08-21): the approved event page still carries the 'Confirm what happened' panel with Mark occurred / Mark not held. D30 retires occurrence assertion and the brief states UX-70 and UX-75 cease to exist; D71-D74 replace them with a time buffer. W7 owns that removal."
       ]
     },
     {
@@ -133,5 +134,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - draft the W5 specification (Amend or reschedule an approved event)"
+  "next_action": "Stage 3 - present the W5 specification and mockup for Brian's approvals"
 }
