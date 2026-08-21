@@ -1565,14 +1565,23 @@
 
       /* --------------------------- W5-03 --------------------------------- */
 
-      const notifyRow = (field, from, to, on, why) => `
-        <div class="row" style="justify-content:space-between;gap:14px;padding:11px 0;border-bottom:1px solid var(--divider);align-items:flex-start">
+      const toggle = (on, locked) => `
+        <span class="row" style="gap:8px;align-items:center">
+          <span style="width:34px;height:20px;border-radius:999px;background:${on ? "var(--primary)" : "var(--grey400)"};position:relative;display:inline-block">
+            <span style="position:absolute;top:2px;${on ? "right:2px" : "left:2px"};width:16px;height:16px;border-radius:50%;background:#fff"></span>
+          </span>
+          <span class="body2 ${on ? "bold" : "sec"}">${on ? "Notify" : "Silent"}</span>
+          ${locked ? `<span class="chip chip-outline" title="Turning this off asks first">asks first</span>` : ""}
+        </span>`;
+
+      const notifyRow = (field, from, to, on, why, locked) => `
+        <div class="row" style="justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--divider);align-items:flex-start">
           <div style="min-width:0">
             <div class="body2 bold">${field}</div>
             <div class="body2"><span style="text-decoration:line-through;color:var(--text-secondary)">${from}</span> → <strong>${to}</strong></div>
             <div class="body2 sec">${why}</div>
           </div>
-          <span class="chip" style="${on ? "background:#e3f2fd;border-color:#0b3d91;color:#0b3d91" : "background:var(--grey100)"}">${on ? "Notifies" : "Silent"}</span>
+          ${toggle(on, locked)}
         </div>`;
 
       const W503 = opShell(`
@@ -1580,8 +1589,8 @@
         <div class="paper">
           <p class="over">What changed</p>
           <div style="margin-top:6px">
-            ${notifyRow("Venue", "Iffley Road Astro", "University Parks", true, "Venue changes notify by default — somebody could go to the wrong place.")}
-            ${notifyRow("Required equipment", "Gumshield", "Gumshield, boots", false, "Equipment changes are silent by default.")}
+            ${notifyRow("Venue", "Iffley Road Astro", "University Parks", true, "Date, time and venue notify by default. Turning this off asks you to confirm first.", true)}
+            ${notifyRow("Required equipment", "Gumshield", "Gumshield, boots", false, "Description, equipment and name are silent by default. Switch it on if it matters.", false)}
           </div>
         </div>
         <div class="paper">
@@ -1596,6 +1605,13 @@
           </ul>
         </div>
         <div class="paper">
+          <p class="over">Messages already queued</p>
+          <p class="body2" style="margin:6px 0 0">
+            <strong>2 reminders were due to go out on Tuesday.</strong> Saving holds them until this
+            change has been taken into account, so nobody receives a message describing the old venue.
+          </p>
+        </div>
+        <div class="paper">
           <p class="over">Explaining the change</p>
           <p class="body2 sec" style="margin:4px 0 0">
             There is no reason field. If people need an explanation, put it in the description —
@@ -1605,6 +1621,33 @@
         <div class="row" style="gap:10px;justify-content:flex-end">
           <button class="btn btn-text">Back</button>
           <button class="btn btn-contained">Save and notify 37</button>
+        </div>`);
+
+      /* ------------------------ W5-03b silencing ------------------------- */
+
+      const W503b = opShell(`
+        <div style="position:relative">
+          <div style="opacity:.35">
+            <div><h1 class="h6">Save changes to Practice — michaelmas week 5</h1><p class="body2 sec">Two changes. Decide who hears about them.</p></div>
+            <div class="paper"><p class="over">What changed</p></div>
+          </div>
+          <div class="scrim" style="position:absolute;inset:0">
+            <div class="dialog">
+              <h3>Change the venue without telling anyone?</h3>
+              <p class="body2" style="margin:0 0 12px">
+                <strong>37 people were told this is at Iffley Road Astro.</strong> If you save without
+                notifying, nobody will be told it has moved to University Parks.
+              </p>
+              <p class="body2 sec" style="margin:0 0 16px">
+                This is the right choice for a corrected spelling. It is the wrong one for an event
+                that has actually moved.
+              </p>
+              <div class="row" style="gap:10px;justify-content:flex-end">
+                <button class="btn btn-contained">Notify them</button>
+                <button class="btn btn-text" style="color:#c62828">Save silently</button>
+              </div>
+            </div>
+          </div>
         </div>`);
 
       /* --------------------------- W5-04 --------------------------------- */
@@ -1712,7 +1755,8 @@
           disposition: "new",
           title: "Saving — who hears about it",
           deltas: [
-            "Each changed field carries its own notify default, and says why",
+            "Each changed field carries its own notify default, as a real switch",
+            "Queued messages are held until the change is taken into account",
             "Venue, date and time notify; description, equipment and name are silent",
             "The whole invited audience is told, decliners included",
             "A yes stands — nobody is asked to answer twice",
@@ -1725,6 +1769,23 @@
           now: null,
           nowNone: "New surface, nothing to compare",
           proposed: W503,
+        },
+        {
+          id: "W5-03b",
+          disposition: "new",
+          title: "Turning notification off on a venue change",
+          deltas: [
+            "Silencing date, time or venue asks first, and names the consequence in people",
+            "Description, equipment and name switch freely, with no confirmation",
+            "An outright prohibition was rejected — a corrected spelling should not message 37 people",
+          ],
+          blurb:
+            "This is the screen that was missing. The previous draft showed Notifies and Silent as read-only labels, so the question of how an operator turns notification off had no answer anywhere — which is precisely how a venue could move silently and nobody notice. Silence is now a decision somebody makes on purpose, in front of the number of people it affects.",
+          clockTag: "Now: Monday, 9 November 2026, 19:42",
+          url: "localhost:3000/operate/events/{id}?step=review",
+          now: null,
+          nowNone: "New surface, nothing to compare",
+          proposed: W503b,
         },
         {
           id: "W5-04",

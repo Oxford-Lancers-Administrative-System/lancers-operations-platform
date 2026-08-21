@@ -72,25 +72,57 @@ non-responders alike. One rule for all recipients.
 
 ## Whether it notifies
 
-**The operator decides, and the decision has a default per field** (D54, D55):
+**The operator decides, and the decision has a default per field** (D54, D55) —
+but the defaults are not all equally soft.
 
-| Field changed      | Notify defaults |
-| ------------------ | --------------- |
-| Date               | **On**          |
-| Time               | **On**          |
-| Venue              | **On**          |
-| Description        | Off             |
-| Required equipment | Off             |
-| Name               | Off             |
+| Field changed      | Notify | Can it be turned off?                 |
+| ------------------ | ------ | ------------------------------------- |
+| Date               | **On** | Only through an explicit confirmation |
+| Time               | **On** | Only through an explicit confirmation |
+| Venue              | **On** | Only through an explicit confirmation |
+| Description        | Off    | Freely                                |
+| Required equipment | Off    | Freely                                |
+| Name               | Off    | Freely                                |
 
-The operator may override either way. The default is a starting position, not a
-rule — but it is chosen so that the changes which strand somebody at the wrong
-place at the wrong time are the ones that speak up by themselves.
+### Silence on date, time or venue is deliberate, or it does not happen
 
-**No reason is required** (OD-1/Q7). An amendment does not carry a separate
-reason field; the description already exists, is required on every approvable
-event, and can hold any explanation. The actor, the change and the notify choice
-are all recorded regardless.
+D54 as written lets an operator turn notification off on any field with one
+tick. On description or equipment that is fine. On **venue** it means 37 people
+believe the practice is at Iffley Road when it is at University Parks, and
+nothing in the system will ever tell them.
+
+**Tightened by Brian on 2026-08-21.** Date, time and venue may still be changed
+silently — a corrected spelling should not message the squad — but not by
+accident. Turning notification off on one of those three requires a confirmation
+that names the consequence in people, not in fields:
+
+> _37 people were told this is at **Iffley Road Astro**. If you save without
+> notifying, nobody will be told it has moved._
+
+An absolute prohibition was considered and rejected: it would make a typo
+unfixable without messaging the whole squad, which is its own bad outcome. The
+requirement is that silence is chosen, not defaulted into.
+
+_This tightens D55, which is an approved decision. Recorded as a proposed
+correction in `notion-corrections.md`._
+
+### Pending messages pause until the change is assessed
+
+**Saving an amendment holds every not-yet-sent message for that event.** Brian,
+2026-08-21: _"if it gets approved, something changes … the notification process
+should pause. It should see what changed, and then it should continue if it's
+worth notifying them."_
+
+That is the right rule and it is sharper than blanket cancellation:
+
+- **This mission's half:** saving an amendment places a hold on the event's
+  unsent messages and records what changed.
+- **Mission 4's half:** deciding whether a held message resumes as it was,
+  resumes carrying the corrected details, or is replaced — and then doing it.
+
+The failure this prevents is an invitation that was queued on Monday arriving on
+Wednesday describing a venue that changed on Tuesday. Nothing already delivered
+is recalled; that remains impossible and remains true.
 
 ## Rescheduling recomputes the chase
 
@@ -202,6 +234,11 @@ neither of which belongs to this workflow:
   equipment and name, and the operator's override is honoured and recorded.
 - Re-notify sends the change notification to the same audience and alters
   neither the event nor its responses.
+- Turning notification off on a date, time or venue change cannot be done
+  without passing the confirmation, and the confirmation names the number of
+  people affected and the value they were last told.
+- Saving an amendment places a hold on that event's unsent messages, and no
+  held message is dispatched describing a superseded value.
 - Moving the date recomputes the chase threshold against the new date.
 - Saving is refused when a required field is missing or the audience would be
   empty, and the event stays approved and unchanged.
@@ -210,21 +247,23 @@ neither of which belongs to this workflow:
 
 ## Core decisions
 
-| Decision                                                                                                                                       | Classification                   | Governing evidence                                                                                           | Status        |
-| ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------- |
-| An approved event is changed by returning it to draft; `approved → draft` is a real transition                                                 | `locked`                         | D49                                                                                                          | Settled       |
-| Returning to draft preserves details, invitations and every RSVP                                                                               | `locked`                         | D50                                                                                                          | Settled       |
-| Yes-responders are told and keep their answer; they are never asked to re-RSVP                                                                 | `locked`                         | D51, D52                                                                                                     | Settled       |
-| When a change notifies, the **whole invited audience** is notified, decliners included                                                         | `locked`                         | OD-1/Q9, 2026-08-18, which supersedes D51/D53's split                                                        | Settled       |
-| The operator decides whether a change notifies, with per-field defaults — on for date, time and venue; off for description, equipment and name | `locked`                         | D54, D55                                                                                                     | Settled       |
-| **No mandatory amendment reason.** The required description carries any explanation; actor, change and notify choice are recorded              | `locked`                         | OD-1/Q7, which supersedes the Capability Register's C4 "recorded with reason" wording for the amendment path | Settled       |
-| Rescheduling recomputes the RSVP chase threshold against the new date, and the app says a reschedule is happening                              | `locked`                         | OD-1/Q6                                                                                                      | Settled       |
-| **Re-notify** exists as an explicit action, so a silently-sent change is recoverable rather than permanent                                     | `locked`                         | D54, acceptance example F                                                                                    | Settled       |
-| Change history retains actor, change and notify choice, and is queryable                                                                       | `locked`                         | §4.13                                                                                                        | Settled       |
-| Undelivered jobs are cancelled on return to draft; nothing sent is recalled; never-attempted invitations dispatch fresh on re-approval         | `locked`, **owned by Mission 4** | Task 02 D5, which closed Q8                                                                                  | Settled there |
-| A past event may still be amended, with notify defaulting off                                                                                  | `delegated to Mission Lead`      | Follows D31's treatment of a past cancellation as administrative                                             | Delegated     |
-| How the notify choice is presented — per-field toggles, or one choice with the defaults applied                                                | `delegated to Mission Lead`      | The defaults are the product decision; the control is not                                                    | Delegated     |
-| Concurrency when two operators edit one event                                                                                                  | `delegated to Mission Lead`      | Ordinary engineering                                                                                         | Delegated     |
+| Decision                                                                                                                                                          | Classification                           | Governing evidence                                                                                                                                                                                                | Status        |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| An approved event is changed by returning it to draft; `approved → draft` is a real transition                                                                    | `locked`                                 | D49                                                                                                                                                                                                               | Settled       |
+| Returning to draft preserves details, invitations and every RSVP                                                                                                  | `locked`                                 | D50                                                                                                                                                                                                               | Settled       |
+| Yes-responders are told and keep their answer; they are never asked to re-RSVP                                                                                    | `locked`                                 | D51, D52                                                                                                                                                                                                          | Settled       |
+| When a change notifies, the **whole invited audience** is notified, decliners included                                                                            | `locked`                                 | OD-1/Q9, 2026-08-18, which supersedes D51/D53's split                                                                                                                                                             | Settled       |
+| The operator decides whether a change notifies, with per-field defaults — on for date, time and venue; off for description, equipment and name                    | `locked`                                 | D54, D55                                                                                                                                                                                                          | Settled       |
+| **Silencing a date, time or venue change requires an explicit confirmation naming the consequence in people.** It cannot be done with one tick                    | `locked`                                 | Brian, 2026-08-21, asking whether any path leaves people un-notified about a venue change. Tightens D55. An outright prohibition was rejected because it makes a typo unfixable without messaging the whole squad | Settled       |
+| **Saving an amendment holds the event's unsent messages until the change is assessed**; Mission 4 decides whether each resumes, resumes corrected, or is replaced | `locked` here, **executed by Mission 4** | Brian, 2026-08-21: "the notification process should pause … then it should continue if it's worth notifying them." Prevents a message queued before the change arriving after it describing the old event         | Settled       |
+| **No mandatory amendment reason.** The required description carries any explanation; actor, change and notify choice are recorded                                 | `locked`                                 | OD-1/Q7, which supersedes the Capability Register's C4 "recorded with reason" wording for the amendment path                                                                                                      | Settled       |
+| Rescheduling recomputes the RSVP chase threshold against the new date, and the app says a reschedule is happening                                                 | `locked`                                 | OD-1/Q6                                                                                                                                                                                                           | Settled       |
+| **Re-notify** exists as an explicit action, so a silently-sent change is recoverable rather than permanent                                                        | `locked`                                 | D54, acceptance example F                                                                                                                                                                                         | Settled       |
+| Change history retains actor, change and notify choice, and is queryable                                                                                          | `locked`                                 | §4.13                                                                                                                                                                                                             | Settled       |
+| Undelivered jobs are cancelled on return to draft; nothing sent is recalled; never-attempted invitations dispatch fresh on re-approval                            | `locked`, **owned by Mission 4**         | Task 02 D5, which closed Q8                                                                                                                                                                                       | Settled there |
+| A past event may still be amended, with notify defaulting off                                                                                                     | `delegated to Mission Lead`              | Follows D31's treatment of a past cancellation as administrative                                                                                                                                                  | Delegated     |
+| How the notify choice is presented — per-field toggles, or one choice with the defaults applied                                                                   | `delegated to Mission Lead`              | The defaults are the product decision; the control is not                                                                                                                                                         | Delegated     |
+| Concurrency when two operators edit one event                                                                                                                     | `delegated to Mission Lead`              | Ordinary engineering                                                                                                                                                                                              | Delegated     |
 
 ## Brian approval
 

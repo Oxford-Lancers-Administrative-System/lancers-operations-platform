@@ -103,12 +103,8 @@
       "stale": false,
       "feedback": [
         {
-          "screen_id": "W5-01",
-          "text": "Confirm this is the operator view. The details at the top are right, but the per-person table is missing below them: who is invited, what they are, when the invitation went, delivery status, their answer, the reason for a no, attendance, and answers to any questions."
-        },
-        {
-          "screen_id": "W5-02",
-          "text": "Reconsider 'return to draft'. Once invitations have gone out, the operator's intent is to edit details, not to demote the event. The framing needs another look."
+          "screen_id": "W5-03",
+          "text": "There was no way to turn notification off anywhere in the mockup - the Notifies and Silent chips were read-only labels, which is why the silent-venue-change hole was invisible."
         }
       ],
       "approvals": {}
@@ -119,7 +115,10 @@
       "state": "not_started",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {},
+      "carried_questions": [
+        "Brian, 2026-08-21: is 'cancelled' the right word, or would 'paused' be better? Note that cancelled is a stored status in the approved model (D27) and D60 makes it terminal, so introducing a paused state would change the approved domain model and needs Brian's decision as scope, not as wording."
+      ]
     },
     {
       "id": "W7",
