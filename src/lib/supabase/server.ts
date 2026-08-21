@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { Database } from "./database.types";
 import { getSupabasePublishableKey, getSupabaseUrl } from "./env";
+import { assertSessionCookieFitsOneCookie, SUPABASE_COOKIE_OPTIONS } from "./cookies";
 
 /**
  * Server Supabase client bound to the request's cookies.
@@ -13,11 +14,13 @@ export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(getSupabaseUrl(), getSupabasePublishableKey(), {
+    cookieOptions: SUPABASE_COOKIE_OPTIONS,
     cookies: {
       getAll() {
         return cookieStore.getAll();
       },
       setAll(cookiesToSet) {
+        assertSessionCookieFitsOneCookie(cookiesToSet);
         try {
           for (const { name, value, options } of cookiesToSet) {
             cookieStore.set(name, value, options);
