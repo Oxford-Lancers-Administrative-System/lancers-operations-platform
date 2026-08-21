@@ -101,7 +101,16 @@
       "name": "Amend or reschedule an approved event",
       "state": "mock_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W5-01",
+          "text": "Confirm this is the operator view. The details at the top are right, but the per-person table is missing below them: who is invited, what they are, when the invitation went, delivery status, their answer, the reason for a no, attendance, and answers to any questions."
+        },
+        {
+          "screen_id": "W5-02",
+          "text": "Reconsider 'return to draft'. Once invitations have gone out, the operator's intent is to edit details, not to demote the event. The framing needs another look."
+        }
+      ],
       "approvals": {}
     },
     {
@@ -122,7 +131,9 @@
       "carried_questions": [
         "Does the club-link tier survive as approved (D2/D3), or does Brian's 2026-08-20 wording move RSVP and attendance behind an operator account? Deferred here from W1 on 2026-08-20 at Brian's instruction; settle against the W7 mockup.",
         "Amendment 1 (2026-08-20): W7 also owns issuing and sharing the club link, including Q2's expiry, rotation and revocation mechanism.",
-        "Carried from W5 (2026-08-21): the approved event page still carries the 'Confirm what happened' panel with Mark occurred / Mark not held. D30 retires occurrence assertion and the brief states UX-70 and UX-75 cease to exist; D71-D74 replace them with a time buffer. W7 owns that removal."
+        "Carried from W5 (2026-08-21): the approved event page still carries the 'Confirm what happened' panel with Mark occurred / Mark not held. D30 retires occurrence assertion and the brief states UX-70 and UX-75 cease to exist; D71-D74 replace them with a time buffer. W7 owns that removal.",
+        "Brian, 2026-08-21: the per-person table is W7's - invited, capacity, when the invitation went, delivery status, answer, reason for a no, attendance, and answers to questions.",
+        "Brian, 2026-08-21, bearing on the deferred club-link tier question: 'The event ID shared with anyone should be openable by anyone ... Here's the list of everyone here.' That is D2's club link, and it points at keeping the middle tier rather than collapsing it."
       ]
     },
     {
@@ -134,5 +145,15 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - present the W5 specification and mockup for Brian's approvals"
+  "next_action": "Stage 3 - two decisions with Brian: whether to reopen W4 for per-event questions, and the edit-versus-return-to-draft framing",
+  "open_items": [
+    {
+      "id": "OPEN-questions",
+      "text": "Per-event questions were never specified. D66-D68 define answer types, a per-question mandatory toggle and two reading surfaces; D42 gives templates default questions. W4 is the natural home for authoring and approving them and is already done, so adding them requires reopening an approved workflow. Raised with Brian 2026-08-21."
+    },
+    {
+      "id": "OPEN-edit-framing",
+      "text": "Whether editing an approved event publicly returns it to draft (D49 as written) or is held as a pending amendment that only lands on re-approval. Raised with Brian 2026-08-21."
+    }
+  ]
 }
