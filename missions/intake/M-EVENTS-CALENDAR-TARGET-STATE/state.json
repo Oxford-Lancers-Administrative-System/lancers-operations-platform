@@ -61,7 +61,7 @@
     {
       "id": "W3",
       "name": "Load and correct a term's events by import",
-      "state": "spec_draft",
+      "state": "mock_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -73,7 +73,10 @@
       "stale": false,
       "feedback": [],
       "approvals": {},
-      "carried_questions": ["Amendment 1 (2026-08-20): W4 also owns deleting a draft (D29)."]
+      "carried_questions": [
+        "Amendment 1 (2026-08-20): W4 also owns deleting a draft (D29).",
+        "Conflict carried from W3 (2026-08-21): D35 says mass delete must exist; Brian doubts it will be supported. W3 settles only that no deletion happens through import. Whether bulk delete exists anywhere is open, and W4 already owns deleting a draft."
+      ]
     },
     {
       "id": "W5",
@@ -112,5 +115,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - W3 direction recorded; five open questions are with Brian before the specification is completed"
+  "next_action": "Stage 3 - present the W3 specification and mockup for Brian's approvals"
 }
