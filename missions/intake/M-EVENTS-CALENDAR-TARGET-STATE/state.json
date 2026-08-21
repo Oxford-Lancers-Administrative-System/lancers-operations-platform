@@ -44,7 +44,7 @@
     {
       "id": "W2",
       "name": "Subscribe to the club calendar",
-      "state": "not_started",
+      "state": "mock_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -103,5 +103,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - draft the W2 specification (Subscribe to the club calendar)"
+  "next_action": "Stage 3 - present W2 specification and mockup for Brian's approvals"
 }
