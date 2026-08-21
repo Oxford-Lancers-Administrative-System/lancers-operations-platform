@@ -227,7 +227,7 @@ its own §6.
 
 ## Repository reconciliation
 
-**There is no amendment path on `main` at `2072ecd`.** The README's own
+**There is no amendment path on `main` at `c894f1d`.** The README's own
 limitation list says C4 is absent, and the Authority Manifest records Scope 1's
 C4 as unbuilt. An approved event today is terminal: it cannot be returned to
 draft, edited, or re-notified.

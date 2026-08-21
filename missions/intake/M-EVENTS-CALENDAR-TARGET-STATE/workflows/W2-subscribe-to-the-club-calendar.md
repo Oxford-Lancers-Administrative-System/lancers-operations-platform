@@ -111,7 +111,7 @@ session — is silent and lands on the club rather than on the software.
 ## Repository reconciliation
 
 Nothing to reconcile — there is no feed, no `.ics` code and no calendar library
-on `main` at `2072ecd`. This workflow is entirely new.
+on `main` at `c894f1d`. This workflow is entirely new.
 
 Two facts that shape the work:
 

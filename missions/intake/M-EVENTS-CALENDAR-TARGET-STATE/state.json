@@ -1,9 +1,9 @@
 {
   "mission_id": "M-EVENTS-CALENDAR-TARGET-STATE",
-  "stage": "workflows",
+  "stage": "assembly",
   "baseline": {
     "branch": "main",
-    "commit": "2072ecded1d2b6cc28701fd634a28112b9e16a50"
+    "commit": "c894f1de000e1b6f20427dec41a3c86a79b3973e"
   },
   "approvals": {
     "boundary": {
@@ -180,7 +180,7 @@
       }
     }
   ],
-  "next_action": "Stage 4 - packet assembly, once Brian approves the coherence pass",
+  "next_action": "Stage 5 - open the packet-only pull request",
   "open_items": [],
   "coherence_review": {
     "date": "2026-08-21",

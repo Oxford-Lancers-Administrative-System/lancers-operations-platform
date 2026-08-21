@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>M-EVENTS-CALENDAR-TARGET-STATE · mockup review</title>
+    <style>
+      /* Tokens taken from src/theme.ts and MUI defaults. Nothing here is a redesign. */
+      body {
+        margin: 0;
+        font:
+          16px/1.55 -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          system-ui,
+          Arial,
+          sans-serif;
+        color: rgba(0, 0, 0, 0.87);
+        background: #e7e9ee;
+      }
+      main {
+        max-width: 980px;
+        margin: 48px auto;
+        padding: 32px;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+      }
+      h1 {
+        font-size: 24px;
+        margin: 0 0 4px;
+      }
+      .sub {
+        color: rgba(0, 0, 0, 0.6);
+        margin: 0 0 24px;
+        font-size: 14px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+      }
+      th {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: rgba(0, 0, 0, 0.6);
+      }
+      a {
+        color: #0b3d91;
+        font-weight: 600;
+      }
+      .state {
+        font-size: 12px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        border: 1px solid rgba(0, 0, 0, 0.23);
+        color: rgba(0, 0, 0, 0.6);
+        white-space: nowrap;
+      }
+      .state.done {
+        background: #e8f5e9;
+        border-color: #2e7d32;
+        color: #1b5e20;
+      }
+      .state.live {
+        background: #e3f2fd;
+        border-color: #0b3d91;
+        color: #0b3d91;
+      }
+      .note {
+        margin-top: 24px;
+        font-size: 14px;
+        color: rgba(0, 0, 0, 0.6);
+        border-left: 3px solid rgba(0, 0, 0, 0.12);
+        padding-left: 14px;
+      }
+      .muted {
+        color: rgba(0, 0, 0, 0.38);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Events &amp; Calendar Target State · mockup review</h1>
+      <p class="sub">
+        M-EVENTS-CALENDAR-TARGET-STATE · eight frozen workflows · 37 screens · all approved ·
+        grounded in
+        <code>main</code> at <code>2072ecd</code>
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Workflow</th>
+            <th>Screens</th>
+            <th>State</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>W1</td>
+            <td><a href="W1-find-and-read-events.html">Find and read events</a></td>
+            <td>6</td>
+            <td><span class="state done">done</span></td>
+          </tr>
+          <tr>
+            <td>W2</td>
+            <td>
+              <a href="W2-subscribe-to-the-club-calendar.html">Subscribe to the club calendar</a>
+            </td>
+            <td>2</td>
+            <td><span class="state done">done</span></td>
+          </tr>
+          <tr>
+            <td>W3</td>
+            <td>
+              <a href="W3-load-and-correct-a-terms-events-by-import.html"
+                >Load and correct a term's events by import</a
+              >
+            </td>
+            <td>5</td>
+            <td><span class="state done">done</span></td>
+          </tr>
+          <tr>
+            <td>W4</td>
+            <td>
+              <a href="W4-draft-an-event-and-approve-it-with-its-audience.html"
+                >Draft an event and approve it with its audience</a
+              >
+            </td>
+            <td>6</td>
+            <td><span class="state done">done</span></td>
+          </tr>
+          <tr>
+            <td>W5</td>
+            <td>
+              <a href="W5-amend-or-reschedule-an-approved-event.html"
+                >Amend or reschedule an approved event</a
+              >
+            </td>
+            <td>6</td>
+            <td><span class="state done">done</span></td>
+          </tr>
+          <tr>
+            <td>W6</td>
+            <td><a href="W6-cancel-an-event.html">Cancel an event</a></td>
+            <td>3</td>
+            <td><span class="state done">done</span></td>
+          </tr>
+          <tr>
+            <td>W7</td>
+            <td>
+              <a href="W7-see-who-is-coming-and-who-turned-up.html"
+                >See who is coming, and who turned up</a
+              >
+            </td>
+            <td>5</td>
+            <td><span class="state done">done</span></td>
+          </tr>
+          <tr>
+            <td>W8</td>
+            <td>
+              <a href="W8-administer-event-type-templates.html">Administer event-type templates</a>
+            </td>
+            <td>4</td>
+            <td><span class="state done">done</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="note">
+        All eight workflows are approved and their acceptance records written. Every screen is
+        rendered at 1280 and at a true 375. Feedback is by screen ID, for example
+        <code>W3-02</code>. Where a surface exists on <code>main</code> today, the current build is
+        captured with Playwright and shown beside the proposal.
+        <strong>W1 predates the current-versus-new banding</strong> that W2 onward use — same
+        content, older presentation.
+      </p>
+    </main>
+  </body>
+</html>

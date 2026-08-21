@@ -120,7 +120,7 @@ system.
 
 ## Repository reconciliation
 
-There is no cancellation path on `main` at `2072ecd`; `cancelled` exists as a
+There is no cancellation path on `main` at `c894f1d`; `cancelled` exists as a
 status and nothing can reach it. The approved event page carries **Mark not
 held**, which is not this: `not_held` is one of the four statuses D28 removes,
 and its migration mapping folds it into `cancelled` silently. The removal of

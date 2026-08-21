@@ -36,7 +36,7 @@ possible.
 
 ## What changes on the event record
 
-The form on `main` at `2072ecd` carries Name, Type, Date, Start, End, Venue,
+The form on `main` at `c894f1d` carries Name, Type, Date, Start, End, Venue,
 Attendance and _Response requested_. The target state differs in five ways, and
 each is an approved decision rather than a preference:
 
@@ -109,7 +109,7 @@ Given to this workflow by inventory amendment 1.
 - **Only a draft may be deleted.** An approved event is cancelled (`W6`), never
   deleted, because people have been told about it.
 - **Deletion is permanent and is confirmed first**, naming the event.
-- **There is no delete path anywhere on `main` at `2072ecd`.** An event cannot
+- **There is no delete path anywhere on `main` at `c894f1d`.** An event cannot
   currently be removed by any means. This workflow specifies one from nothing.
 
 ## State transitions
@@ -176,7 +176,7 @@ owner-approved brief and no agent may drop it.
 
 ## Repository reconciliation
 
-Every surface here exists on `main` at `2072ecd` and is modified, not new:
+Every surface here exists on `main` at `c894f1d` and is modified, not new:
 `src/app/operate/events/new`, `event-form.tsx`, `[id]/edit`,
 `[id]/audience-builder.tsx` and `[id]/page.tsx`'s review and approval steps.
 

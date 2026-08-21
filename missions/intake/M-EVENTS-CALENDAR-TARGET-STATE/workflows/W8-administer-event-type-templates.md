@@ -167,7 +167,7 @@ that editing a template is safe. That is the screen's whole job.
 ## Repository reconciliation
 
 **Nothing exists.** There is no template, no per-type default and no admin
-surface anywhere on `main` at `2072ecd`. Every default an event needs is
+surface anywhere on `main` at `c894f1d`. Every default an event needs is
 currently typed in by hand, every time.
 
 Two adjacent facts:

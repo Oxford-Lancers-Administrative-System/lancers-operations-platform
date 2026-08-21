@@ -203,7 +203,7 @@ operator confirms a number they can sanity-check rather than a wall of rows.
 ## Repository reconciliation
 
 There is no import, no export and no CSV handling anywhere on `main` at
-`2072ecd`, so the import and confirmation surfaces are new. **The Events page is
+`c894f1d`, so the import and confirmation surfaces are new. **The Events page is
 not.** It exists, it is what `W1` re-specified, and this workflow changes exactly
 one control on it — `Create event` becomes a menu. An earlier draft of this
 mockup invented an Events page and marked it a new surface; Brian rejected it as

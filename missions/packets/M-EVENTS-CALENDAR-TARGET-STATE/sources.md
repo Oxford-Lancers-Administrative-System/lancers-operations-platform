@@ -1,4 +1,8 @@
-# Intake sources — M-EVENTS-CALENDAR-TARGET-STATE
+# Source manifest — M-EVENTS-CALENDAR-TARGET-STATE
+
+The machine-readable source list and its pinned versions are in `packet.json`.
+This file records **why** each source controls or informs the packet, and is
+carried over from the intake ledger where every claim in the packet was made.
 
 Authority classes follow `SKILL.md`: `1-owner` (commissioned outcome and Brian's
 recorded decisions) · `2-notion` (product records and controlling briefs) ·

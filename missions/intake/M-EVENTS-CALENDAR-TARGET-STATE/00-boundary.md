@@ -11,7 +11,7 @@
   "Owner-approved direction"; packet and execution "No packet"; next step
   "Commission Mission Intake after Mission 1 completes". Page fetched
   2026-08-20.
-- **Observed `main` SHA:** `2072ecded1d2b6cc28701fd634a28112b9e16a50`
+- **Observed `main` SHA:** `c894f1de000e1b6f20427dec41a3c86a79b3973e`
 
 ## Primary coverage
 
@@ -126,12 +126,12 @@ another mission.
 ## Baseline drift — 2026-08-20
 
 The baseline moved from `bc6770b1c6a616dde041324ef99329b231becfc3` to
-`2072ecded1d2b6cc28701fd634a28112b9e16a50` during intake, and the ledger branch
+`c894f1de000e1b6f20427dec41a3c86a79b3973e` during intake, and the ledger branch
 was rebased onto it so that the packet pins a real `main`.
 
 **Assessment: tolerated, no re-intake.** The two commits are
 `ea9a2fb` (Administration holders, dates and limits — Mission 1's work) and
-`2072ecd` (Playwright added as a development dependency). Neither changes
+`c894f1d` (Playwright added as a development dependency). Neither changes
 meaning, feasibility, invariants, interfaces or acceptance evidence for this
 mission:
 
@@ -141,3 +141,25 @@ mission:
   `todayInClubZone`, which the calendar uses, is unchanged.
 
 Every code reading recorded in this ledger was re-verified against the new SHA.
+
+## Baseline drift — 2026-08-21
+
+The baseline moved again during Stage 3, from
+`2072ecded1d2b6cc28701fd634a28112b9e16a50` to
+`c894f1de000e1b6f20427dec41a3c86a79b3973e`, and the ledger branch was rebased
+onto it.
+
+**Assessment: tolerated, no re-intake.** The two commits are `efb9700`
+(Playwright merged to `main`) and `c894f1d` (LAN-141 — administration disclosure
+branches, presentation rules and the database target). Neither changes meaning,
+feasibility, invariants, interfaces or acceptance evidence for this mission:
+
+- No file under `src/app/operate/events/`, `supabase/migrations/`,
+  `src/lib/services/calendar.ts`, `src/lib/services/events.ts` or
+  `src/app/api/` was touched.
+- The changes are Administration surfaces, their tests, and local database
+  tooling — Mission 1's territory.
+
+Every screenshot in `mockups/current/` was captured at the previous SHA. Because
+no Events surface changed between the two commits, they remain accurate at this
+baseline.
