@@ -1,0 +1,211 @@
+{
+  "mission_id": "M-EVENTS-CALENDAR-TARGET-STATE",
+  "stage": "merged",
+  "baseline": {
+    "branch": "main",
+    "commit": "c894f1de000e1b6f20427dec41a3c86a79b3973e"
+  },
+  "approvals": {
+    "boundary": {
+      "words": "I approve the name. Keep the approved split. Mission 2 should just be on those things. Delivery belongs to the other one.",
+      "date": "2026-08-20"
+    },
+    "overview": {
+      "words": "okay, that's fair. Fine by me. I'll deal with the consequences of that.",
+      "date": "2026-08-20"
+    },
+    "inventory": {
+      "words": "freeze it. Let's continue",
+      "date": "2026-08-20"
+    },
+    "inventory_amendment_1": {
+      "words": "okay, that's fine",
+      "date": "2026-08-20"
+    }
+  },
+  "workflows": [
+    {
+      "id": "W1",
+      "name": "Find and read events",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Approved.",
+          "date": "2026-08-20"
+        },
+        "mock": {
+          "words": "Other than that, looks great. I think this is approved.",
+          "date": "2026-08-21"
+        }
+      }
+    },
+    {
+      "id": "W2",
+      "name": "Subscribe to the club calendar",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Yep, that works, and yeah, it's so simple. I don't think we need much more, so I approve.",
+          "date": "2026-08-21"
+        },
+        "mock": {
+          "words": "Yep, that works, and yeah, it's so simple. I don't think we need much more, so I approve.",
+          "date": "2026-08-21"
+        }
+      }
+    },
+    {
+      "id": "W3",
+      "name": "Load and correct a term's events by import",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Other than that, I think this looks good. This is approved.",
+          "date": "2026-08-21"
+        },
+        "mock": {
+          "words": "Other than that, I think this looks good. This is approved.",
+          "date": "2026-08-21"
+        }
+      }
+    },
+    {
+      "id": "W4",
+      "name": "Draft an event and approve it with its audience",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Everything else looks great.",
+          "date": "2026-08-21"
+        },
+        "mock": {
+          "words": "Everything else looks great.",
+          "date": "2026-08-21"
+        }
+      },
+      "carried_questions": [
+        "Amendment 1 (2026-08-20): W4 also owns deleting a draft (D29).",
+        "Conflict carried from W3 (2026-08-21): D35 says mass delete must exist; Brian doubts it will be supported. W3 settles only that no deletion happens through import. Whether bulk delete exists anywhere is open, and W4 already owns deleting a draft."
+      ],
+      "amendments": [
+        {
+          "id": "W4-A1",
+          "status": "approved",
+          "reason": "Per-event questions were never specified in any workflow. D66-D68 fix the answer types, the per-question mandatory toggle and the two reading surfaces; D42 gives templates their default questions. No workflow said who authors a question, sees it before approving the event, or removes one a template brought.",
+          "words": "let's reopen 4 just so we can see what the questions look like, how to create them, and give a vague idea of how it works",
+          "date": "2026-08-21",
+          "scope": "Additive only. Everything approved on 2026-08-21 stands unchanged; question authoring is added to the event form and to the approval review.",
+          "note": "Recorded as an amendment rather than a reopen because the intake validator refuses to move W4 backwards while W5 is approved - the serial rule exists to stop exactly this. Both approvals stay real; the amendment carries its own.",
+          "approval": {
+            "words": "The issue is approved, and let's move on to the next workflow.",
+            "date": "2026-08-21"
+          }
+        }
+      ]
+    },
+    {
+      "id": "W5",
+      "name": "Amend or reschedule an approved event",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Other than that, looks great. I think this works.",
+          "date": "2026-08-21"
+        },
+        "mock": {
+          "words": "Other than that, looks great. I think this works.",
+          "date": "2026-08-21"
+        }
+      }
+    },
+    {
+      "id": "W6",
+      "name": "Cancel an event",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "this looks pretty great",
+          "date": "2026-08-21"
+        },
+        "mock": {
+          "words": "this looks pretty great",
+          "date": "2026-08-21"
+        }
+      }
+    },
+    {
+      "id": "W7",
+      "name": "See who is coming, and who turned up",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Sure, I think that looks fine.",
+          "date": "2026-08-21"
+        },
+        "mock": {
+          "words": "Sure, I think that looks fine.",
+          "date": "2026-08-21"
+        }
+      }
+    },
+    {
+      "id": "W8",
+      "name": "Administer event-type templates",
+      "state": "done",
+      "stale": false,
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "All right, looks good.",
+          "date": "2026-08-21"
+        },
+        "mock": {
+          "words": "All right, looks good.",
+          "date": "2026-08-21"
+        }
+      }
+    }
+  ],
+  "next_action": "Intake complete. Brian commissions the Mission Lead with /run-mission M-EVENTS-CALENDAR-TARGET-STATE",
+  "open_items": [],
+  "coherence_review": {
+    "date": "2026-08-21",
+    "requested_by": "Brian",
+    "findings": 8,
+    "resolved": [
+      "W4's stale return-to-draft references",
+      "W3's stale bulk-delete conflict row",
+      "W1's stale club-link deferral",
+      "W5's undocumented second reversal of LAN-77",
+      "terminology standardised on register",
+      "the `other`-type reassignment assigned to the migration work package",
+      "blank CSV cells defined as no-change",
+      "one open season, no switching"
+    ],
+    "outstanding": []
+  },
+  "merge": {
+    "pr": 62,
+    "url": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/pull/62",
+    "merged_at": "2026-08-21T19:18:58Z",
+    "merged_by": "Bschuster3434",
+    "merge_commit": "5256d1f02615f9d0ed866659d26a75ae384b91fe",
+    "packet_version": 1,
+    "packet_status": "approved",
+    "baseline": "c894f1de000e1b6f20427dec41a3c86a79b3973e"
+  }
+}
