@@ -124,7 +124,7 @@ jobs:
             --memory=512Mi
             --timeout=60s
             --port=8080
-            --set-env-vars=DATABASE_POOL_MAX=5,VENUE_SEARCH_PROVIDER=photon,APP_BASE_URL=https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app
+            --set-env-vars=DATABASE_POOL_MAX=5,VENUE_SEARCH_PROVIDER=photon,APP_BASE_URL=https://app.oxfordlancers.com
           # Three non-secret runtime settings, in one `--set-env-vars` because the
           # flag REPLACES the revision's environment rather than adding to it —
           # declaring them separately, or mixing this flag with the action's

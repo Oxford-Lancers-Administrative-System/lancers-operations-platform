@@ -1,8 +1,12 @@
 # Deployment and rollback
 
-The trivial page is deployed to **Cloud Run** on the **Cloud Run default URL**.
-The custom domain (`app.oxfordlancers.com`) is blocked on a GoDaddy transfer and
-is deliberately not part of this path.
+The application is deployed to **Cloud Run** in `europe-west2`, and is reached
+by the public on **`https://app.oxfordlancers.com`**, which Firebase Hosting
+serves by rewriting to that service — see
+[The public hostname](#the-public-hostname--firebase-hosting-in-front-of-cloud-run)
+below and [ADR 0031](adr/0031-firebase-hosting-front-door.md). Cloud Run's own
+`run.app` hostname still answers and is useful for telling whether a fault is in
+Hosting or in the container.
 
 ## Shape of the pipeline
 
@@ -303,10 +307,10 @@ repository as well as in it**. The application half ships with the code; the
 Supabase project half is set in the hosted dashboard, by Brian, and this section
 is the exact list.
 
-The deployed service answers on its Cloud Run default hostname:
+The deployed service answers on the permanent club hostname:
 
 ```
-https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app
+https://app.oxfordlancers.com
 ```
 
 That value appears in exactly two places and they must agree: `APP_BASE_URL` in
@@ -315,11 +319,11 @@ That value appears in exactly two places and they must agree: `APP_BASE_URL` in
 
 **1. Authentication → URL Configuration.**
 
-| Field                | Value                                                                         |
-| -------------------- | ----------------------------------------------------------------------------- |
-| Site URL             | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app`                 |
-| Redirect URL (exact) | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app/auth/recovery`   |
-| Redirect URL (exact) | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app/auth/invitation` |
+| Field                | Value                                           |
+| -------------------- | ----------------------------------------------- |
+| Site URL             | `https://app.oxfordlancers.com`                 |
+| Redirect URL (exact) | `https://app.oxfordlancers.com/auth/recovery`   |
+| Redirect URL (exact) | `https://app.oxfordlancers.com/auth/invitation` |
 
 Two exact URLs, not a wildcard — the second is LAN-131's first-access
 invitation. The application asks for those destinations and no others; anything
