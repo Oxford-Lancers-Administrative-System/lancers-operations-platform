@@ -311,6 +311,189 @@ describe("the role catalogue", () => {
   });
 
   /**
+   * The **third** surface, and the one the agreement above never reached — from
+   * the independent review of PR #58.
+   *
+   * The test above pins `readRoleCatalogue()` against `readRoleHolders()`, and
+   * `readRoleHolders()` is called by no page in this application: it is the
+   * singular reader `WP-assignment` built, and Administration draws its two
+   * index screens and role detail without it. So the agreement it proves is
+   * between a reader two pages use and a reader nobody uses.
+   *
+   * `readOperatorDirectory()` — the Operators index — was pinned to neither,
+   * and it is the surface that printed the third answer in LAN-141 finding 4.
+   * The finding's own words: the Roles index read "No season under way", role
+   * detail named the live holder, "and the Operators index printed a third
+   * answer". Two of those three readers were subsequently bound to each other;
+   * the third was left free.
+   *
+   * That matters because the two readers ask their question differently on
+   * purpose. The catalogue is seat-first and splits holders from scheduled
+   * arrivals; the directory is person-first and returns every assignment that
+   * has not ended, flagging the ones that have not begun. Those are two
+   * derivations of one fact, which is exactly the shape the original agreement
+   * test exists to protect — applied to the pair a reader can actually see side
+   * by side, because both are on screen.
+   *
+   * The staged data is the same three awkward cases, on people who **hold
+   * operator accounts**, since the Operators index lists accounts rather than
+   * people.
+   */
+  it("agrees with the Operators index, which is a reader a page actually calls", async () => {
+    // A current holder with a login: the ordinary case, and the control.
+    const current = await insertPerson("directory-current");
+    await giveOperatorAccount(current);
+    await giveRole(current, "kit_manager");
+
+    // A successor who has not started. The catalogue files them under
+    // `scheduled`; the directory returns them flagged `scheduled`. Neither may
+    // call them a holder, and neither may drop them.
+    const arriving = await insertPerson("directory-arriving");
+    await giveOperatorAccount(arriving);
+    await giveRole(arriving, "gameday_secretary", { from: offset(9) });
+
+    // An assignment that ended before today. Both readers must omit it.
+    const departed = await insertPerson("directory-departed");
+    await giveOperatorAccount(departed);
+    const endedAssignment = await giveRole(departed, "social_secretary", {
+      from: offset(-40),
+      to: offset(-3),
+    });
+
+    // A holder whose access is deactivated is still the holder, on both.
+    const deactivated = await insertPerson("directory-deactivated");
+    await giveOperatorAccount(deactivated, { active: false });
+    await giveRole(deactivated, "media_secretary");
+
+    // A holder with a departure already dated. Both surfaces render that date —
+    // the Roles index as "ends 27 Aug 2026", the Operators index in the same
+    // words — so the two must agree about it and not merely about who holds
+    // what. Without this fixture every comparable assignment below has a null
+    // end date, and the agreement is vacuous in exactly the direction Brian's
+    // 20 August ruling cares about: he does not want to find out somebody has
+    // left after they have gone.
+    const leaving = await insertPerson("directory-leaving");
+    await giveOperatorAccount(leaving);
+    const datedDeparture = await giveRole(leaving, "social_secretary", {
+      from: offset(-10),
+      to: offset(10),
+    });
+
+    const [catalogue, directory] = await Promise.all([
+      readRoleCatalogue(administrator()),
+      readOperatorDirectory(administrator()),
+    ]);
+
+    /**
+     * Every assignment the catalogue knows about, by assignment id.
+     *
+     * Season-scoped seats are only comparable when a season exists, for the
+     * reason the test above gives, so they are excluded from the index rather
+     * than silently skipped at compare time.
+     */
+    const fromCatalogue = new Map<
+      string,
+      { roleId: string; scheduled: boolean; effectiveTo: string | null }
+    >();
+    const comparableRoles = new Set<string>();
+
+    for (const group of catalogue.groups) {
+      for (const role of group.roles) {
+        if (role.scope === "season" && catalogue.season === null) continue;
+        comparableRoles.add(role.id);
+
+        for (const entry of role.holders) {
+          fromCatalogue.set(entry.roleAssignmentId, {
+            roleId: role.id,
+            scheduled: false,
+            effectiveTo: entry.effectiveTo,
+          });
+        }
+        for (const entry of role.scheduled) {
+          fromCatalogue.set(entry.roleAssignmentId, {
+            roleId: role.id,
+            scheduled: true,
+            effectiveTo: entry.effectiveTo,
+          });
+        }
+      }
+    }
+
+    const staged = new Set([current, arriving, departed, deactivated, leaving]);
+    let checked = 0;
+
+    // The dated departure is comparable and really does carry its date on both
+    // sides, so the end-date assertion in the loop below is reached rather than
+    // being satisfied by a pair of nulls.
+    expect(fromCatalogue.get(datedDeparture)?.effectiveTo, "the staged departure date").toBe(
+      offset(10),
+    );
+
+    // Direction 1: everything the Operators index shows, the Roles index shows
+    // the same way. A directory that invented a seat, put a successor among the
+    // holders, or kept an assignment that has ended fails here.
+    for (const operator of directory.operators) {
+      for (const role of operator.roles) {
+        if (!comparableRoles.has(role.roleId)) continue;
+        checked += 1;
+
+        const counterpart = fromCatalogue.get(role.roleAssignmentId);
+        expect(
+          counterpart,
+          `the Operators index shows ${operator.displayName} in ${role.code}, ` +
+            "and the Roles index does not know that assignment",
+        ).toBeDefined();
+        expect(counterpart!.roleId, `the seat of ${role.roleAssignmentId}`).toBe(role.roleId);
+        // The distinction the whole of Brian's 20 August ruling rests on: a
+        // scheduled arrival is never a current holder, on either surface.
+        expect(counterpart!.scheduled, `whether ${role.roleAssignmentId} has begun`).toBe(
+          role.scheduled,
+        );
+        expect(counterpart!.effectiveTo, `the end date of ${role.roleAssignmentId}`).toBe(
+          role.effectiveTo,
+        );
+      }
+    }
+
+    // Direction 2: everything the Roles index attributes to somebody with a
+    // login, the Operators index shows against that person. A catalogue that
+    // kept an ended assignment fails here even though direction 1 passed.
+    const byPerson = new Map(directory.operators.map((row) => [row.personId, row]));
+    for (const group of catalogue.groups) {
+      for (const role of group.roles) {
+        if (!comparableRoles.has(role.id)) continue;
+
+        for (const entry of [...role.holders, ...role.scheduled]) {
+          if (entry.operatorAccountId === null) continue;
+          const operator = byPerson.get(entry.personId);
+          expect(
+            operator,
+            `${entry.displayName} holds ${role.code} and is absent from the Operators index`,
+          ).toBeDefined();
+          expect(
+            operator!.roles.map((held) => held.roleAssignmentId),
+            `${entry.displayName}'s seats on the Operators index`,
+          ).toContain(entry.roleAssignmentId);
+        }
+      }
+    }
+
+    // The assignment that ended appears on neither, which is the one case both
+    // directions above would pass by simply omitting it everywhere.
+    expect(fromCatalogue.has(endedAssignment)).toBe(false);
+    const departedRow = byPerson.get(departed);
+    expect(departedRow, "an operator with no current seat is still an operator").toBeDefined();
+    expect(departedRow!.roles.map((held) => held.roleAssignmentId)).not.toContain(endedAssignment);
+
+    // The four people staged above are all present as operators, so an empty
+    // directory cannot pass the loops by having nothing to compare.
+    for (const personId of staged) {
+      expect(byPerson.has(personId), "a staged operator is missing from the directory").toBe(true);
+    }
+    expect(checked).toBeGreaterThanOrEqual(3);
+  });
+
+  /**
    * The three currency cases, from Brian's review of `WP-surfaces`.
    *
    * They are one defect wearing three faces: the catalogue asked whether an

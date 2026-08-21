@@ -20,6 +20,8 @@ Authority order:
 
 When sources conflict or a required behavior is absent, stop and request/reconcile an owner decision. Do not resolve product policy in application code. Brian approved this workflow direction on 12 August 2026 in the linked Linear comment and Notion record; implementation must still re-read its current live issue and comments before work begins.
 
+**Read [`standards.md`](standards.md) alongside this contract.** This document is the approved workflow direction for _this slice_ — which routes exist, what each is for, and what is out of scope. `standards.md` is the separate, slice-independent set of rules that bind **new and changed** user-facing code: one action's result at a time, current state before scheduled state, no raw ISO dates, a disabled control that says what would enable it, a failed search that offers a way forward, refusals as messages rather than stack traces, and one answer per fact across every surface that shows it. Each of those was earned from a defect found on screen, and each is carried by a named test. It records where it already holds and where it does not — today, the Administration surfaces conform and the roster surface has two recorded gaps — so read its **Where this holds today** section before assuming an existing screen already obeys it. It sits at the same level as this contract in the authority order above and supersedes nothing.
+
 ## 2. MVP boundary
 
 The MVP operational loop is:
@@ -156,6 +158,8 @@ register and the running application.
 | Weekly artifact      | **Monday exception and action report**                              |
 
 Delivered never means responded. Attending is intent; Present is observed attendance. A walk-up is not automatically a roster member.
+
+The table above fixes the club's words. How those words are arranged when a value is missing, stale, refused or already on the page is [`standards.md`](standards.md) — in particular rule 2 (current state is the headline, scheduled information is context), rule 3 (`27 Aug 2026`, never a raw ISO date) and rule 7 (one answer per fact, across every surface that shows it).
 
 ## 7. Responsive behavior
 

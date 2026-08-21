@@ -53,7 +53,7 @@ import {
   type AdministrationTargetAction,
   type AdministrationTargetRequest,
 } from "./administration-authority";
-import { CAPABILITY_KEYS, capabilityRoleCodes } from "./capabilities";
+import { CAPABILITY_KEYS, capabilityRoleCodes, describeLeadershipLimits } from "./capabilities";
 import { capabilityRule, OPERATOR_REQUIRED_MESSAGE, OPERATOR_REQUIRED_RULE } from "./guards";
 import { resolveOperatorAccess, type OperatorAccess, type ResolvedOperator } from "./operator";
 
@@ -1357,5 +1357,136 @@ describe("LAN129-R2-A7 — inherited keys do not reach the authority lookup", ()
     expect(protectedTierOf([GM])).toBe("standing_continuity");
     expect(protectedTierOf([PRESIDENT])).toBe("presiding");
     expect(protectedTierOf([IT])).toBeNull();
+  });
+});
+
+/**
+ * The copy that tells a seat what it may **not** do, checked against the table
+ * that actually refuses it — the independent review of PR #58.
+ *
+ * `describeLeadershipLimits()` lives in `capabilities.ts` and is rendered by the
+ * Permissions panel, but the rule it describes lives here: a seat absent from a
+ * tier's `management` list is refused every action classified
+ * `kind: "management"`, because the leadership rule branches on the kind rather
+ * than on the action. So the sentence's completeness is a property of *this*
+ * table, and this is where it is bound.
+ *
+ * It was incomplete. Seven actions are management; the copy named four —
+ * "assign, replace, end or deactivate". Restore, resend and correct-invitation
+ * were enforced and unmentioned, on the one panel whose entire job is saying
+ * what a seat may not do, where an omission reads as permission.
+ *
+ * `correct_invitation` is the one that matters. It redirects a
+ * credential-establishing link to an address the administrator chooses, so a
+ * President who read this panel and concluded they could re-issue the General
+ * Manager's invitation would have been reasoning from the copy to the least safe
+ * of the three missing verbs. The grant was never open to them; only the
+ * sentence suggested it was.
+ */
+describe("the limits copy accounts for every management action", () => {
+  /**
+   * The stem each management action must be recognisable by.
+   *
+   * Stems rather than whole words, so an ordinary rewording — "assign" to
+   * "assigning", "restore" to "restoring" — does not fail a sentence that is
+   * still complete. Dropping a concept altogether does fail it, which is the
+   * defect this exists for.
+   *
+   * ## Why `end_role`'s stem is a phrase and the others are words
+   *
+   * The first version of this map used `"end"`, and that made the whole check
+   * decorative: the sentence also contains **"resend"**, which contains `end`,
+   * so deleting "or end the role of " from the copy left every one of these
+   * assertions satisfied and the full suite green. The concept an administrator
+   * most needs to see — that they may not end a protected seat's role — was the
+   * one concept nothing held.
+   *
+   * A stem that is a substring of another stem cannot bind its own action, so
+   * that is now an asserted invariant rather than a thing to remember.
+   */
+  const STEM: Readonly<Record<string, string>> = {
+    assign_role: "assign",
+    replace_role_holder: "replac",
+    end_role: "end the role",
+    deactivate_account: "deactivat",
+    restore_account: "restor",
+    resend_invitation: "resend",
+    correct_invitation: "correct",
+  };
+
+  const management = ADMINISTRATION_TARGET_ACTIONS.filter(
+    (action) => ADMINISTRATION_TARGET_RULES[action].kind === "management",
+  );
+
+  it("has a word for each of the seven, and knows when there is an eighth", () => {
+    // A management action added later lands here first: the map above must be
+    // revisited deliberately rather than a new action passing unmentioned.
+    expect(management.length).toBe(7);
+    expect(Object.keys(STEM).sort()).toEqual([...management].sort());
+  });
+
+  /**
+   * The invariant that makes the loop below mean anything.
+   *
+   * If one stem contains another, the contained stem is satisfied by its
+   * container and stops testing its own action. `"end"` inside `"resend"` is
+   * exactly that, and it is how a deleted verb passed a green suite.
+   */
+  it("gives each action a stem no other stem can satisfy", () => {
+    for (const [action, stem] of Object.entries(STEM)) {
+      for (const [other, otherStem] of Object.entries(STEM)) {
+        if (action === other) continue;
+        expect(
+          otherStem.includes(stem),
+          `${action}'s stem "${stem}" is contained in ${other}'s "${otherStem}", ` +
+            `so it would be satisfied by ${other} and could not bind ${action}`,
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("names every one of them in the sentence a real seat is shown", () => {
+    // The IT Officer may not manage the President —
+    // `PROTECTED_LEADERSHIP_AUTHORITY` leaves them off that tier's management
+    // list — so their limits carry the full management sentence about that seat.
+    const limits = describeLeadershipLimits("it_officer");
+    const line = limits.join("; ").toLowerCase();
+
+    expect(limits.length).toBeGreaterThan(0);
+    for (const action of management) {
+      expect(line, `the limits sentence must account for ${action}`).toContain(STEM[action]);
+    }
+  });
+
+  /**
+   * The whole clause, verbatim, as a second and independent hold.
+   *
+   * The derived check above answers "is every enforced action mentioned?" and is
+   * the one that catches an eighth action being added. This answers "is the
+   * sentence still the sentence?", which is what actually failed: a derived
+   * check can only ever be as strong as its own encoding, and this one is not
+   * derived from anything. Both are cheap and they fail for different reasons.
+   *
+   * `main` carried three assertions of this shape and this package replaced them
+   * with substrings the line always contains. That is what let a verb be deleted
+   * with the suite green, so the literal is back — here, where the rule it
+   * describes lives.
+   */
+  it("still reads as the whole management sentence, word for word", () => {
+    expect(describeLeadershipLimits("it_officer").join("; ")).toContain(
+      "assign, replace or end the role of, deactivate or restore access for, " +
+        "or resend or correct an invitation for the President",
+    );
+  });
+
+  /**
+   * The asymmetry, restated from the copy's side. Recovery is deliberately
+   * permitted where management is not (`DEC-no-self-removal`: "IT Officer may
+   * perform technical email recovery for President or GM without management
+   * authority"), so a sentence that swept recovery into the management verbs
+   * would be describing a refusal that does not happen.
+   */
+  it("does not claim a recovery the IT Officer is actually permitted", () => {
+    expect(describeLeadershipLimits("it_officer").join("; ")).not.toContain("recover email access");
   });
 });

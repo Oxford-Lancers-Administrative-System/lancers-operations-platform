@@ -250,6 +250,35 @@ describe("holders", () => {
     ).toBe(NO_CYCLE.committee_year);
   });
 
+  /**
+   * The words themselves, and not just which constant was chosen — the
+   * independent review of PR #58.
+   *
+   * Every assertion above compares `describeHolders(...)` against
+   * `NO_CYCLE.committee_year` or `NO_CYCLE.season`, which pins the *selection*
+   * and leaves the *strings* free. Swapping the two values — giving the
+   * committee-year seat the sentence "No season under way" — therefore passed
+   * all 3769 unit tests while reproducing LAN-141 finding 8 word for word: the
+   * Treasurer's row answering a question about the season.
+   *
+   * The constant is the right home for the copy, and a test that compares a
+   * function's output against the constant it returns is the right test for the
+   * selection. What was missing is the one below, which reads the constant.
+   */
+  it("uses each cycle's own word, and never the other one's", () => {
+    expect(NO_CYCLE.committee_year).toBe("No committee year recorded");
+    expect(NO_CYCLE.season).toBe("No season under way");
+
+    // The property the exact strings above exist to protect, stated
+    // independently of them: neither sentence may mention the other cycle.
+    // A rewording that kept both sentences honest would fail the two lines
+    // above and pass these; a rewording that swapped them fails both.
+    expect(NO_CYCLE.committee_year).toMatch(/committee year/i);
+    expect(NO_CYCLE.committee_year).not.toMatch(/season/i);
+    expect(NO_CYCLE.season).toMatch(/season/i);
+    expect(NO_CYCLE.season).not.toMatch(/committee year/i);
+  });
+
   it("dates a seat that has not begun instead of naming it flatly", () => {
     const seats = describeSeats([
       {
@@ -536,13 +565,21 @@ describe("permissions", () => {
   it("says what each administering seat may not do, from the enforced table", () => {
     // Nobody may manage the General Manager: `PROTECTED_LEADERSHIP_AUTHORITY`
     // gives that tier an empty management list on purpose.
-    expect(limitsLine("general_manager")).toContain(
-      "assign, replace, end or deactivate the General Manager",
-    );
-    expect(limitsLine("president")).toContain(
-      "assign, replace, end or deactivate the General Manager",
-    );
-    expect(limitsLine("it_officer")).toContain("assign, replace, end or deactivate the President");
+    //
+    // Asserted as the whole clause rather than as "the General Manager", which
+    // the line always contains and which therefore tests nothing. An earlier
+    // version of this package weakened all three of these to that substring
+    // when the copy was corrected, and moved the burden onto a derived check
+    // that could not carry it — after which a verb could be deleted from the
+    // sentence with the whole suite green. The wording changed; the strength of
+    // the assertion should not have.
+    const MANAGEMENT_CLAUSE =
+      "assign, replace or end the role of, deactivate or restore access for, " +
+      "or resend or correct an invitation for";
+
+    expect(limitsLine("general_manager")).toContain(`${MANAGEMENT_CLAUSE} the General Manager`);
+    expect(limitsLine("president")).toContain(`${MANAGEMENT_CLAUSE} the General Manager`);
+    expect(limitsLine("it_officer")).toContain(`${MANAGEMENT_CLAUSE} the President`);
 
     // The asymmetry that is easiest to get wrong: recovery is permitted where
     // management is not, so the IT Officer's limits name neither recovery.

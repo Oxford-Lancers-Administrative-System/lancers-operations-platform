@@ -37,8 +37,19 @@
  */
 
 /**
- * The Supabase CLI's local database, on its documented default port. Matches
- * `DEFAULT_URL` in `scripts/lib/local-db.mjs` exactly.
+ * The Supabase CLI's local database, on its documented default port.
+ *
+ * `scripts/lib/local-db.mjs` used to carry an identical constant and this note
+ * used to say the two matched. It no longer has one: every script reading that
+ * guard is destructive — the seed truncates and reloads, the link scripts
+ * rewrite the review logins — and on a developer machine this port is the
+ * coordinator's `primary` slot, so guessing it meant rewriting whichever stack
+ * somebody happened to be holding.
+ *
+ * This one remains, and the asymmetry is deliberate rather than an oversight:
+ * it serves the running application, which is configured by `.env.local`. But
+ * see {@link resolveDatabaseUrl} — the fallback is **not** harmless here
+ * either, and what it costs is written down there rather than implied.
  */
 const DEFAULT_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
 
@@ -116,9 +127,26 @@ export function assertLocalDatabaseUrl(value: string): string {
  * Resolves the connection string from the environment, falling back to the
  * documented local default, and refuses anything that is not local.
  *
- * The fallback is not a convenience: it is what makes the local stack work
- * with no configuration at all, exactly as `scripts/lib/local-db.mjs` does for
- * the seed and schema tests, and it is what CI relies on.
+ * The fallback is what makes the local stack work with no configuration at all,
+ * and it is what CI's test step relies on.
+ *
+ * ## What it costs, stated rather than implied
+ *
+ * `scripts/lib/local-db.mjs` no longer does the same thing, so the parallel this
+ * note used to draw is gone. That guard now refuses an unnamed target outright,
+ * because every caller of it is destructive and this port is the coordinator's
+ * `primary` slot on a developer machine.
+ *
+ * This fallback is not free either. `npm run dev` in a worktree with no
+ * `.env.local` resolves to that same slot, and every Administration mutation the
+ * running application performs is then written to whichever stack somebody else
+ * is holding. The difference from the scripts is one of blast radius and
+ * intent — an application write is a considered action by a person looking at a
+ * screen, where a seed run truncates and reloads without being asked — not that
+ * this path is harmless.
+ *
+ * Closing it is a separate change with its own consequences for
+ * `dev`, `start` and the container, and it is deliberately not made here.
  */
 export function resolveDatabaseUrl(env: Record<string, string | undefined> = process.env): string {
   const configured = DATABASE_URL_VARIABLES.map((name) => env[name]?.trim()).find(

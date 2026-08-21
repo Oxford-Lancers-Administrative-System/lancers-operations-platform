@@ -1087,6 +1087,185 @@ describe("one role's record", () => {
   });
 
   /**
+   * `assignable`, on the page that actually offers the actions — LAN-141
+   * finding F1's neighbours, from the independent review of PR #58.
+   *
+   * The Roles **index** was bound for this: "does not offer Assign for a seat
+   * whose operating year cannot take one" above. Role detail was not, and it is
+   * the surface with the form on it. Deleting `assignable &&` from either
+   * `offered.assign` or `offered.replace` in `role-actions.tsx` passed all 3769
+   * unit tests, which is to say the index's rule was proved and the detail
+   * page's identical rule was assumed.
+   *
+   * What it costs is the defect LAN-141 finding 2 names in its other half: a
+   * form the service is certain to refuse. `assignable` is false between
+   * committee years and false for a season in `closing` — current to read,
+   * closed to write — so the administrator would fill in a person, a date and a
+   * reason, press Assign, and be told no by a guard, having been offered the
+   * button by the page.
+   */
+  describe("a seat whose operating year cannot take a new assignment", () => {
+    /** The one seat on the page, with a live holder and a closed cycle. */
+    function withClosedCycle(overrides: Partial<CatalogueRole> = {}) {
+      vi.mocked(readRoleCatalogue).mockResolvedValue(
+        catalogue({
+          season: null,
+          seasonWritable: false,
+          groups: [
+            {
+              code: "coaching_staff",
+              label: "Coaching Staff",
+              roles: [
+                catalogueRole({
+                  id: "role-head-coach",
+                  code: "head_coach",
+                  label: "Head Coach",
+                  scope: "season",
+                  cycleMissing: true,
+                  assignable: false,
+                  ...overrides,
+                }),
+              ],
+            },
+          ],
+        }),
+      );
+    }
+
+    it("does not offer Assign role, however permitted the administrator is", async () => {
+      // Every action permitted, and a seat that admits several holders, so
+      // nothing but `assignable` can be withholding the button.
+      withClosedCycle({ admitsMultipleHolders: true });
+
+      render(await RoleRecordPage(pageProps({ roleId: "role-head-coach" })));
+
+      expect(screen.queryByRole("button", { name: "Assign role" })).toBeNull();
+    });
+
+    it("does not offer Replace role, and still offers End role", async () => {
+      // One holder, so `holders.length === 1` is satisfied and `assignable` is
+      // the only thing that can refuse Replace. End needs no cycle — it dates
+      // an assignment that already hangs off one — so it must survive, or this
+      // test would pass for the wrong reason.
+      withClosedCycle({ holders: [holder({ displayName: "Zenas Yaxlington" })] });
+
+      render(await RoleRecordPage(pageProps({ roleId: "role-head-coach" })));
+
+      expect(screen.queryByRole("button", { name: "Replace role" })).toBeNull();
+      expect(screen.getByRole("button", { name: "End role" })).toBeVisible();
+    });
+
+    /**
+     * The sentence that replaces the buttons, and why it is not the other one.
+     *
+     * With no cycle and no holder there is nothing to offer, and the panel
+     * falls through to its message. Two messages are possible and they say
+     * opposite things: "there is nothing you can change" is about the
+     * administrator's authority, and is wrong here — their authority is
+     * complete, and the club has no operating year. Nothing asserted which of
+     * the two appeared, so collapsing the ternary to the authority sentence
+     * passed the whole suite.
+     */
+    it("explains that no operating year is running, not that nothing can be changed", async () => {
+      withClosedCycle();
+
+      render(await RoleRecordPage(pageProps({ roleId: "role-head-coach" })));
+
+      const message = screen.getByTestId("no-role-actions");
+      expect(message).toHaveTextContent(/no operating year running for this role/i);
+      expect(message).toHaveTextContent(/Opening the year is not done here/i);
+      expect(message).not.toHaveTextContent(/nothing you can change/i);
+    });
+
+    /**
+     * The other side of the same ternary. With a cycle in force and no
+     * permission, the authority sentence is the right one — so a fix that
+     * simply hard-coded the operating-year sentence would be caught here as
+     * well as by the case above.
+     */
+    it("still blames authority, not the calendar, when the year is running", async () => {
+      vi.mocked(permittedRoleActions).mockResolvedValue({
+        assign: false,
+        replace: false,
+        end: false,
+      });
+
+      render(await RoleRecordPage(pageProps({ roleId: "role-1" })));
+
+      const message = screen.getByTestId("no-role-actions");
+      expect(message).toHaveTextContent(/nothing you can change/i);
+      expect(message).not.toHaveTextContent(/no operating year running/i);
+    });
+  });
+
+  /**
+   * The scope-aware "no holder" sentence — LAN-141 finding 8, on role detail.
+   *
+   * `presentation.test.ts` binds the *index's* two sentences. This page writes
+   * its own pair inline, and nothing read them: making both branches say "no
+   * season under way" passed all 3769 unit tests. The ten committee seats hang
+   * off the committee year and have nothing to do with the season, so a
+   * Treasurer's page answering a question about the season is the finding's
+   * exact complaint, reached on a second surface.
+   */
+  describe("a seat with no operating year and no holder", () => {
+    function withMissingCycle(role: Partial<CatalogueRole>) {
+      vi.mocked(readRoleCatalogue).mockResolvedValue(
+        catalogue({
+          committeeYear: null,
+          season: null,
+          seasonWritable: false,
+          groups: [
+            {
+              code: "club_committee",
+              label: "Club Committee",
+              roles: [
+                catalogueRole({
+                  holders: [],
+                  scheduled: [],
+                  cycleMissing: true,
+                  assignable: false,
+                  ...role,
+                }),
+              ],
+            },
+          ],
+        }),
+      );
+    }
+
+    it("tells a committee seat about the committee year, not the season", async () => {
+      withMissingCycle({
+        id: "role-treasurer",
+        code: "treasurer",
+        label: "Treasurer",
+        scope: "committee_year",
+      });
+
+      render(await RoleRecordPage(pageProps({ roleId: "role-treasurer" })));
+
+      const panel = screen.getByTestId("current-holder");
+      expect(panel).toHaveTextContent(/no committee year is recorded as running/i);
+      expect(panel).not.toHaveTextContent(/season/i);
+    });
+
+    it("tells a coaching seat about the season, not the committee year", async () => {
+      withMissingCycle({
+        id: "role-head-coach",
+        code: "head_coach",
+        label: "Head Coach",
+        scope: "season",
+      });
+
+      render(await RoleRecordPage(pageProps({ roleId: "role-head-coach" })));
+
+      const panel = screen.getByTestId("current-holder");
+      expect(panel).toHaveTextContent(/there is no season under way/i);
+      expect(panel).not.toHaveTextContent(/committee year/i);
+    });
+  });
+
+  /**
    * LAN-141 finding 10, on the page.
    *
    * `permissionsLine` is identical for the two strongest seats in the club,
@@ -1215,6 +1394,131 @@ describe("one role's record", () => {
 
     expect(await screen.findByTestId("admin-notice")).toHaveTextContent("has been assigned");
     expect(screen.queryByTestId("admin-error")).toBeNull();
+  });
+
+  /**
+   * The two rules that turn a correct refusal back into a step —
+   * `docs/ux/standards.md` rules 4 and 5, and LAN133-BRIAN-8 before it.
+   *
+   * Both were implemented and neither was asserted anywhere: the `no-candidates`
+   * alert and the `choose-somebody-first` caption could both be deleted whole
+   * and all 3769 unit tests still passed. (The one `no-candidates` assertion in
+   * the repository belongs to the events audience builder, which is a different
+   * component with a different alert.)
+   *
+   * What they are worth is the difference between a rule and a broken page. The
+   * constraint is real — a seat goes to somebody the club already holds a record
+   * for — but stating it on a screen with no route to create that record, above
+   * a submit button that can never enable, reads as a fault rather than as a
+   * rule.
+   */
+  describe("a search that finds nobody", () => {
+    /** Opens the assign panel with search terms typed, and runs the search. */
+    async function searchFor(terms: { first?: string; last?: string; email?: string }) {
+      vi.mocked(searchCandidatesAction).mockResolvedValue({
+        ...EMPTY_ADMIN_ACTION_STATE,
+        candidates: [],
+      });
+
+      render(await RoleRecordPage(pageProps({ roleId: "role-kit-manager" })));
+      fireEvent.click(screen.getByRole("button", { name: "Assign role" }));
+
+      const panel = screen.getByTestId("assign-panel");
+      if (terms.first !== undefined) {
+        fireEvent.change(screen.getByLabelText("First name"), { target: { value: terms.first } });
+      }
+      if (terms.last !== undefined) {
+        fireEvent.change(screen.getByLabelText("Last name"), { target: { value: terms.last } });
+      }
+      if (terms.email !== undefined) {
+        fireEvent.change(screen.getByLabelText("Email"), { target: { value: terms.email } });
+      }
+
+      fireEvent.submit(panel.querySelectorAll("form")[0]);
+      return panel;
+    }
+
+    it("names what was searched for, so the reader can see what it looked for", async () => {
+      await searchFor({ first: "Marigold", last: "Ashgrovemoor" });
+
+      const alert = await screen.findByTestId("no-candidates");
+      expect(alert).toHaveTextContent("Marigold Ashgrovemoor");
+      // The reason a near miss found nothing is the matching rule itself, and
+      // saying it is what stops the reader retrying the same near miss.
+      expect(alert).toHaveTextContent(/whole names and whole addresses/i);
+    });
+
+    it("keeps the typed terms on screen instead of blanking the form", async () => {
+      // React resets a form after its action runs, which is right for a form
+      // that submits something and wrong for one that asks something —
+      // LAN133-BRIAN-7. Controlled inputs are what survive it, and without this
+      // the result appeared under three blank fields.
+      await searchFor({ first: "Marigold", last: "Ashgrovemoor" });
+      await screen.findByTestId("no-candidates");
+
+      expect(screen.getByLabelText("First name")).toHaveValue("Marigold");
+      expect(screen.getByLabelText("Last name")).toHaveValue("Ashgrovemoor");
+    });
+
+    it("says 'those details' rather than nothing when the search was empty", async () => {
+      await searchFor({});
+
+      expect(await screen.findByTestId("no-candidates")).toHaveTextContent("those details");
+    });
+
+    it("offers the route that creates the missing record", async () => {
+      await searchFor({ email: "marigold@lan141.example" });
+      await screen.findByTestId("no-candidates");
+
+      // The way out, not just the rule. Without it the screen states a
+      // constraint and stops.
+      const invite = screen.getByRole("link", { name: /invite them as an operator/i });
+      expect(invite).toHaveAttribute("href", "/operate/admin/operators/new");
+    });
+
+    it("tells the disabled submit button what would enable it", async () => {
+      const panel = await searchFor({ first: "Marigold" });
+      await screen.findByTestId("no-candidates");
+
+      expect(within(panel).getByRole("button", { name: "Assign role" })).toBeDisabled();
+      expect(screen.getByTestId("choose-somebody-first")).toHaveTextContent(
+        /find the person above and choose them/i,
+      );
+    });
+
+    /**
+     * The caption changes with the state, which is the half that makes it an
+     * instruction rather than a slogan: once there are candidates the step is
+     * choosing one, not searching again.
+     */
+    it("changes the sentence once there is somebody to choose", async () => {
+      vi.mocked(searchCandidatesAction).mockResolvedValue({
+        ...EMPTY_ADMIN_ACTION_STATE,
+        candidates: [
+          {
+            personId: "cccccccc-1111-4111-8111-111111111111",
+            name: "Marigold Ashgrovemoor",
+            email: "marigold@lan141.example",
+            phone: null,
+            matchedOn: ["email"],
+            operatorState: null,
+            operatorAccountId: null,
+          },
+        ],
+      });
+
+      render(await RoleRecordPage(pageProps({ roleId: "role-kit-manager" })));
+      fireEvent.click(screen.getByRole("button", { name: "Assign role" }));
+      const panel = screen.getByTestId("assign-panel");
+      fireEvent.submit(panel.querySelectorAll("form")[0]);
+
+      expect(await screen.findByTestId("candidate-choice")).toBeVisible();
+      expect(screen.queryByTestId("no-candidates")).toBeNull();
+      expect(screen.getByTestId("choose-somebody-first")).toHaveTextContent(
+        /choose the person above to enable this/i,
+      );
+      expect(screen.getByTestId("choose-somebody-first")).not.toHaveTextContent(/find the person/i);
+    });
   });
 });
 

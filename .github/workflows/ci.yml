@@ -45,12 +45,22 @@ jobs:
               `NEXT_PUBLIC_SUPABASE_URL=${s.API_URL}`,
               `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${s.PUBLISHABLE_KEY ?? s.ANON_KEY}`,
               `SUPABASE_SECRET_KEY=${s.SECRET_KEY ?? s.SERVICE_ROLE_KEY}`,
+              `SUPABASE_DB_URL=${s.DB_URL}`,
             ];
             require("fs").appendFileSync(process.env.GITHUB_ENV, out.join("\n") + "\n");
           '
           rm -f /tmp/supabase-status.json
         # These are ephemeral, locally generated credentials for a throwaway
         # container. They are not project secrets and never leave the runner.
+        #
+        # SUPABASE_DB_URL is read from the running stack rather than written
+        # down, because scripts/lib/local-db.mjs no longer defaults to port
+        # 54322. On a developer machine that port is the coordinator primary
+        # slot, and every caller of that guard truncates or rewrites whatever
+        # database it is handed, so guessing it meant rewriting whichever stack
+        # somebody happened to be holding. A CI runner has no slots and no
+        # leases, so the honest answer here is simply whichever database the
+        # "Start local Supabase" step above actually created.
 
       - name: Verify migrations apply cleanly from empty
         run: npx supabase db reset --no-seed

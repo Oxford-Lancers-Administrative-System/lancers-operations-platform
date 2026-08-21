@@ -639,7 +639,19 @@ add("committee_years", committeeCurrent);
 //
 // Opening the connection here rather than at the foot of the file is what lets
 // the rest of this script build role assignments against the real identifiers.
-const url = resolveLocalDatabaseUrl();
+// Resolved before anything is opened, and reported as a message rather than a
+// stack trace — the same shape `link-test-operator.mjs` already used. This
+// script truncates and reloads the whole synthetic dataset, so "which database?"
+// is the first question it has to answer out loud, and since the loopback
+// default was removed from the guard the honest answer can be "you did not say".
+let url;
+try {
+  url = resolveLocalDatabaseUrl();
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
+
 const client = await connectLocal(url);
 
 const roles = Object.fromEntries(
