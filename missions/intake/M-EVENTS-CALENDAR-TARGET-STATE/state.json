@@ -63,7 +63,40 @@
       "name": "Load and correct a term's events by import",
       "state": "mock_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W3-01",
+          "text": "Cut the flavour text. 'Most seasons start by importing the term card' and the rest is useless. Say 'No events in this season yet', then Import CSV, Download the template, Copy the prompt. Nothing else."
+        },
+        {
+          "screen_id": "W3-01",
+          "text": "Remove the 'Or add them one at a time' block at the bottom. There is already a Create event button at the top; the callout is redundant."
+        },
+        {
+          "screen_id": "W3-02",
+          "text": "Keep the New / Updated / Unchanged / Refused classification - that part is right."
+        },
+        {
+          "screen_id": "W3-02",
+          "text": "Show real columns. Rows and records with the event name, its details, and what changed versus what did not - not everything stacked into one cell. The current view is not good."
+        },
+        {
+          "screen_id": "W3-02",
+          "text": "Importing on a phone is not something anyone should be doing, but the condensed view can stay."
+        },
+        {
+          "screen_id": "W3-03",
+          "text": "Ungrounded. It reads as an invented import-events screen rather than the /operate/events page that already exists, and Add to your calendar is missing from it entirely."
+        },
+        {
+          "screen_id": "W3-03",
+          "text": "This is not a new surface. It is the existing Events page, and the current side must show the real one."
+        },
+        {
+          "screen_id": "W3-03",
+          "text": "Decide where bulk import and export belong in the information architecture. Bulk import is a way of creating events, so it may belong with Create event."
+        }
+      ],
       "approvals": {}
     },
     {
@@ -115,5 +148,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - present the W3 specification and mockup for Brian's approvals"
+  "next_action": "Stage 3 - rebuild W3-01, W3-02 and W3-03 against Brian's 2026-08-21 feedback"
 }
