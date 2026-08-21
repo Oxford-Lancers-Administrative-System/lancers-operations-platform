@@ -78,7 +78,7 @@
     {
       "id": "W4",
       "name": "Draft an event and approve it with its audience",
-      "state": "not_started",
+      "state": "mock_draft",
       "stale": false,
       "feedback": [],
       "approvals": {},
@@ -124,5 +124,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - draft the W4 specification (Draft an event and approve it with its audience)"
+  "next_action": "Stage 3 - present the W4 specification and mockup; one open decision (bulk delete / D35) is with Brian"
 }
