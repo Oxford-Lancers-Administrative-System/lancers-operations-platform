@@ -1372,6 +1372,40 @@
         font-weight: 700;
         text-align: right;
       }
+      .qcard {
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
+        background: var(--paper);
+      }
+      .qcard .qtop {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .qgrip {
+        color: var(--text-disabled);
+        cursor: grab;
+        font-size: 15px;
+        letter-spacing: -2px;
+      }
+      .qopt {
+        display: inline-block;
+        border: 1px solid var(--outline);
+        border-radius: 999px;
+        padding: 3px 10px;
+        font-size: 12px;
+        margin: 4px 6px 0 0;
+      }
+      .qask {
+        border-left: 3px solid var(--primary);
+        padding: 10px 12px;
+        background: var(--primary-tint);
+        border-radius: 0 6px 6px 0;
+        margin-bottom: 8px;
+      }
     </style>
   </head>
   <body>
@@ -1699,6 +1733,113 @@
           </div>
         </div>`);
 
+      /* ------------------- W4-A1: per-event questions -------------------- */
+
+      const qcard = (q) => `
+        <div class="qcard">
+          <div class="qtop">
+            <div style="min-width:0">
+              <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+                <span class="qgrip">⋮⋮</span>
+                <span class="body2 bold">${q.text}</span>
+                <span class="chip">${q.type}</span>
+                <span class="chip" style="${q.required ? "background:#e3f2fd;border-color:#0b3d91;color:#0b3d91" : ""}">${q.required ? "Required" : "Optional"}</span>
+                ${q.fromTemplate ? `<span class="chip chip-outline">from the Game template</span>` : ""}
+              </div>
+              ${q.options ? `<div style="margin-top:2px">${q.options.map((o) => `<span class="qopt">${o}</span>`).join("")}</div>` : ""}
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-text btn-sm">Edit</button>
+              <button class="btn btn-text btn-sm" style="color:#c62828">Remove</button>
+            </div>
+          </div>
+        </div>`;
+
+      const QUESTIONS = [
+        {
+          text: "Can you get yourself to the ground?",
+          type: "Yes / no",
+          required: true,
+          fromTemplate: true,
+        },
+        {
+          text: "Which shirt size do you need?",
+          type: "Pick from a list",
+          required: false,
+          fromTemplate: true,
+          options: ["S", "M", "L", "XL"],
+        },
+        { text: "Anything we should know before kick-off?", type: "Free text", required: false },
+      ];
+
+      const W4A1 = opShell(`
+        <div><h1 class="h6">vs Coldharbour Corsairs</h1><p class="body2 sec">Draft · Sunday, 22 November 2026 · 14:00–16:30</p></div>
+        <div class="paper">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
+            <div>
+              <p class="over" style="margin:0">Questions <span class="chip chip-proposed">new</span></p>
+              <p class="body2 sec" style="margin:3px 0 0">
+                Asked on the RSVP page after somebody answers yes or no. Two came with the Game
+                template — remove either if this fixture does not need it.
+              </p>
+            </div>
+            <button class="btn btn-outlined btn-sm">Add a question</button>
+          </div>
+          <div style="margin-top:12px">${QUESTIONS.map(qcard).join("")}</div>
+        </div>
+        <div class="paper">
+          <p class="over">Adding one</p>
+          <div style="margin-top:8px">
+            ${field("Question", "Do you need a lift?")}
+            <div class="row" style="gap:10px">
+              <div style="flex:1">${field("Answer type", "Yes / no ▾")}</div>
+              <div style="flex:1">${field("Required?", "Optional ▾", { help: "A required question must be answered before the RSVP counts as complete." })}</div>
+            </div>
+          </div>
+          <div class="row" style="gap:10px;justify-content:flex-end">
+            <button class="btn btn-text">Cancel</button>
+            <button class="btn btn-contained btn-sm">Add question</button>
+          </div>
+        </div>`);
+
+      const W4A2 = opShell(`
+        <div><h1 class="h6">Approve vs Coldharbour Corsairs</h1><p class="body2 sec">Read the whole thing once. Approval is the completeness gate.</p></div>
+        <div class="paper">
+          <p class="over">The event</p>
+          <div class="grid2" style="margin-top:8px">
+            <div class="fact"><p class="over">Type</p><p class="body1 bold">Game</p></div>
+            <div class="fact"><p class="over">When</p><p class="body1 bold">Sun 22 Nov 2026, 14:00–16:30</p><p class="body2 sec">Europe/London</p></div>
+            <div class="fact"><p class="over">Where</p><p class="body1 bold">Away</p></div>
+            <div class="fact"><p class="over">Attendance</p><p class="body1 bold">Mandatory</p></div>
+          </div>
+        </div>
+        <div class="paper">
+          <p class="over">Who will be asked — 37 people</p>
+          <p class="body2 sec" style="margin:2px 0 0">All active players and all coaches, from the Game template's default.</p>
+        </div>
+        <div class="paper">
+          <p class="over">What they will be asked <span class="chip chip-proposed">new</span></p>
+          <p class="body2 sec" style="margin:3px 0 10px">Exactly as it will appear on their RSVP page.</p>
+          <div class="qask">
+            <div class="body2 bold">Are you coming?</div>
+            <div class="body2 sec">Yes · No — a reason is asked on No</div>
+          </div>
+          ${QUESTIONS.map(
+            (q) => `
+            <div class="qask">
+              <div class="body2 bold">${q.text} ${q.required ? `<span class="chip" style="background:#e3f2fd;border-color:#0b3d91;color:#0b3d91">Required</span>` : `<span class="chip">Optional</span>`}</div>
+              <div class="body2 sec">${q.options ? q.options.join(" · ") : q.type}</div>
+            </div>`,
+          ).join("")}
+          <p class="body2 sec" style="margin-top:8px">
+            A yes with a required question unanswered is not a finished response.
+          </p>
+        </div>
+        <div class="row" style="gap:10px;justify-content:flex-end">
+          <button class="btn btn-text">Back to event</button>
+          <button class="btn btn-contained">Approve event</button>
+        </div>`);
+
       const SCREENS = [
         {
           id: "W4-01",
@@ -1810,6 +1951,48 @@
           nowNone:
             "New surface, nothing to compare — an event cannot currently be removed by any means.",
           proposed: W405,
+        },
+        {
+          id: "W4-A1",
+          disposition: "new",
+          title: "Questions — writing them on the event",
+          deltas: [
+            "A Questions section on the draft, below the event's own facts",
+            "Three answer types: free text, yes/no, pick from a list",
+            "Each question independently required or optional",
+            "Questions the template supplied are marked, and can be removed",
+            "Order is the order a player is asked",
+          ],
+          blurb:
+            "Added after W4 was approved, because nothing anywhere said who writes a question. The brief settles their shape — three answer types, a per-question mandatory toggle, and templates that carry defaults which may be removed per event — but a default that may be removed per event implies a per-event editor, and there was none.",
+          clockTag: "Now: Monday, 16 November 2026, 12:02",
+          url: "localhost:3000/operate/events/{id}",
+          now: null,
+          nowNone:
+            "New surface, nothing to compare — there is no question authoring anywhere on main.",
+          proposed: W4A1,
+        },
+        {
+          id: "W4-A2",
+          disposition: "modified",
+          title: "Questions — seeing them before you approve",
+          deltas: [
+            "The approval review gains the questions, as a player will be asked them",
+            "The RSVP question itself is shown first, for context",
+            "Required questions are marked, because they decide whether a yes is finished",
+          ],
+          blurb:
+            "Approving an event means approving what 37 people are about to be asked. A question you discover afterwards is a question you approved without reading, so the review shows them in the order and wording a player meets them in.",
+          clockTag: "Now: Monday, 16 November 2026, 12:06",
+          url: "localhost:3000/operate/events/{id}?step=review",
+          now: null,
+          nowNone: "",
+          currentShots: [
+            "current/approval-review-desktop.png",
+            "current/approval-review-phone.png",
+          ],
+          currentCap: "The review step on main today — no questions, because none can be written.",
+          proposed: W4A2,
         },
         {
           id: "W4-06",

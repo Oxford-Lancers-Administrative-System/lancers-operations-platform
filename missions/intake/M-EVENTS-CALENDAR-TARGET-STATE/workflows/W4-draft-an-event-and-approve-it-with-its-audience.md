@@ -235,6 +235,76 @@ Every surface here exists on `main` at `2072ecd` and is modified, not new:
 | Per-event or per-user timezones                                                                                                                     | `nonblocking unknown`       | Brian, 2026-08-21: "We can add it in later if we want to do time zones, but for now, that's fine." **Handling rule:** not built, not designed for, and not a constraint on this mission. Storing the zone explicitly rather than assuming it keeps the door open without opening it                                                                                                                                                          | Deferred — later release |
 | Whether duplicate opens a prefilled form or creates a draft immediately                                                                             | `delegated to Mission Lead` | D39 calls it a minor convenience                                                                                                                                                                                                                                                                                                                                                                                                             | Delegated                |
 
+## Amendment W4-A1 — per-event questions
+
+**Added 2026-08-21, after approval.** Brian: _"we never talked about optional
+questions … we should be able to, when we create the event and send out the
+invitation … create questions, see the questions, and approve them
+beforehand."_
+
+He was right that nothing covered it. The brief decides the _shape_ of questions
+and no workflow said who writes one. This amendment is additive: everything
+approved on 2026-08-21 stands unchanged.
+
+### What the brief already settled
+
+- **Three answer types**: free text · yes/no · pick from a list (D66).
+- **Each question carries its own mandatory toggle** (D67).
+- **Templates carry default questions**, chosen when the template is set up.
+  They arrive with any event created from that template and **may be removed per
+  event** (D42).
+- **Answers are read in two places**: a collapsed Questions section on the event
+  page showing counts, and the full participation view behind the club link, one
+  row per person and one column per question (D68).
+
+### What this amendment adds
+
+**Authoring.** On the event, below the event's own facts:
+
+- Add a question, choose its answer type, and mark it required or optional.
+- For a _pick from a list_, write the options.
+- Reorder them. The order is the order a player is asked.
+- Remove one — including one the template supplied, which is exactly what D42
+  says may happen.
+- Questions the template supplied are marked as such, so an operator can see
+  which came with the type and which they wrote.
+
+**Seeing them before approving.** The approval review already shows the event
+and the named audience. It gains **the questions, exactly as a player will be
+asked them** — because "approve this event" means approving what 37 people are
+about to be asked, and a question is not a detail you should discover afterwards.
+
+**A drafting rule, not a product one:** questions are part of the event, so they
+follow the event's rules. They are editable while it is a draft, they arrive from
+the template until approval freezes it (D41), and changing them after approval is
+`W5`'s amendment path like any other change.
+
+### Where questions are _not_
+
+- **Not in the CSV.** `W3` carries the event record only; a question is
+  structured, ordered and typed, and a spreadsheet column is the wrong shape for
+  it. An imported draft gets its type's default questions like any other draft.
+- **Not read here.** Answers belong to `W7`.
+- **Not defined here.** The per-type defaults belong to `W8`.
+
+### Decisions
+
+| Decision                                                                                      | Classification              | Governing evidence                                                                                                     | Status    |
+| --------------------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------- |
+| Questions are authored on the event, below its facts, while it is a draft                     | `locked`                    | D42's "may be removed per event" requires per-event authoring to exist                                                 | Settled   |
+| Three answer types — free text, yes/no, pick from a list                                      | `locked`                    | D66                                                                                                                    | Settled   |
+| Each question is independently required or optional                                           | `locked`                    | D67                                                                                                                    | Settled   |
+| Template questions arrive with the event, are marked as template-supplied, and may be removed | `locked`                    | D42                                                                                                                    | Settled   |
+| The approval review shows the questions as a player will be asked them                        | `locked`                    | Added 2026-08-21. Approval is the completeness gate (D16), and what people are asked is part of what is being approved | Settled   |
+| Questions are not carried by import                                                           | `locked`                    | Decided at `W3`; a typed, ordered, optioned question is the wrong shape for a CSV column                               | Settled   |
+| Question order is the order asked, and is set by the operator                                 | `delegated to Mission Lead` | Ordinary engineering                                                                                                   | Delegated |
+| Whether a question may be edited on an approved event without the full amendment path         | `delegated to Mission Lead` | Recommended default: no. A question is part of the event, and `W5` already covers changing an approved event           | Delegated |
+
+### Amendment approval
+
+- Exact words:
+- Date:
+
 ## Brian approval
 
 - **Exact words:** "Everything else looks great." (2026-08-21, on the six

@@ -94,7 +94,16 @@
       "carried_questions": [
         "Amendment 1 (2026-08-20): W4 also owns deleting a draft (D29).",
         "Conflict carried from W3 (2026-08-21): D35 says mass delete must exist; Brian doubts it will be supported. W3 settles only that no deletion happens through import. Whether bulk delete exists anywhere is open, and W4 already owns deleting a draft."
-      ]
+      ],
+      "pending_amendment": {
+        "id": "W4-A1",
+        "status": "drafting",
+        "reason": "Per-event questions were never specified in any workflow. D66-D68 fix the answer types, the per-question mandatory toggle and the two reading surfaces; D42 gives templates their default questions. No workflow said who authors a question, sees it before approving the event, or removes one a template brought.",
+        "words": "let's reopen 4 just so we can see what the questions look like, how to create them, and give a vague idea of how it works",
+        "date": "2026-08-21",
+        "scope": "Additive only. Everything approved on 2026-08-21 stands unchanged; question authoring is added to the event form and to the approval review.",
+        "note": "Recorded as an amendment rather than a reopen because the intake validator refuses to move W4 backwards while W5 is approved - the serial rule exists to stop exactly this. Both approvals stay real; the amendment carries its own."
+      }
     },
     {
       "id": "W5",
@@ -148,11 +157,6 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - reopen W4 to add per-event questions, then continue to W6",
-  "open_items": [
-    {
-      "id": "OPEN-questions",
-      "text": "Per-event questions were never specified. D66-D68 define answer types, a per-question mandatory toggle and two reading surfaces; D42 gives templates default questions. W4 is the natural home for authoring and approving them and is already done, so adding them requires reopening an approved workflow. Raised with Brian 2026-08-21."
-    }
-  ]
+  "next_action": "Stage 3 - draft amendment W4-A1 (per-event questions) and present it for its own approval",
+  "open_items": []
 }
