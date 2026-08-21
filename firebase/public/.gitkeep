@@ -1,0 +1,10 @@
+Deliberately empty.
+
+Firebase Hosting requires a static directory, and this one exists so that it
+finds nothing: every request falls through to the rewrite in firebase.json and
+is served by Cloud Run.
+
+It is NOT Next.js's public/ directory. Pointing Firebase at that one would
+publish those assets to the edge, where they would be served by Hosting instead
+of the application and would not change when the container is redeployed. Do not
+repoint this at public/.
