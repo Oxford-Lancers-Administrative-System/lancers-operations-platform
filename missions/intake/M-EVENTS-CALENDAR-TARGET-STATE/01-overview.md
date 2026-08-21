@@ -239,7 +239,9 @@ decision.
 - **Existing attendance records and saved sheets are preserved unchanged** by
   the `occurred` → `approved` remap.
 - **`other`-typed rows have no default** and are listed for one-time operator
-  reassignment during migration verification.
+  reassignment during migration verification. **That reassignment belongs to the
+  migration work package**, not to any workflow — it has no actor journey and
+  happens once. Recorded explicitly so it is not lost between the two.
 - The showcase dataset may be remapped in place or regenerated after migration;
   the approved semantics govern either path.
 

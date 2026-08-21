@@ -117,7 +117,7 @@ Given to this workflow by inventory amendment 1.
 - `(nothing) → draft` — created, duplicated, or imported.
 - `draft → draft` — edited, freely, any number of times.
 - `draft → approved` — one transaction, gated on completeness and a non-empty
-  audience.
+  audience. There is no reverse: `W5` amends an approved event in place.
 - `draft → (gone)` — deleted, permanently, confirmed first.
 - Nothing else. `approved → draft` is `W5`. `→ cancelled` is `W6`.
 
@@ -136,7 +136,7 @@ Given to this workflow by inventory amendment 1.
 | ------------------------------------------ | -------------------------------------------------------------------- |
 | Approving with an empty audience           | Refused above the database, naming the rule; the event stays a draft |
 | Approving with required fields missing     | Refused, naming which                                                |
-| Editing an approved event directly         | Refused; it must be returned to draft, which is `W5`                 |
+| Editing an approved event directly         | Not done here. An approved event is amended in place, which is `W5`  |
 | A non-operator attempting any change       | Refused in the service layer, not by hiding the control              |
 | A draft with no date                       | Saveable and visible; approval requires the date                     |
 | Deleting a draft                           | Confirmed first, then permanent                                      |
@@ -204,7 +204,8 @@ Every surface here exists on `main` at `2072ecd` and is modified, not new:
   event.
 - Approval writes the event, its audience and its consequences in one
   transaction.
-- An approved event cannot be edited without being returned to draft.
+- An approved event is not editable through this workflow; amending one is
+  `W5`, which edits it in place and never returns it to draft.
 - A draft can be deleted after a confirmation naming it; an approved or
   cancelled event cannot be deleted at all.
 - Times save and display in Europe/London with the zone visible, in five-minute

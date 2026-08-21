@@ -207,6 +207,24 @@ Recorded as a proposed correction to the Task 02 brief in
 - **Nothing here reaches a person directly.** The obligation to notify is
   recorded; Mission 4 acts on it.
 
+## A second reversal of LAN-77
+
+`W4` records that D47 reverses LAN-77's "audience selection begins empty".
+**This workflow reverses a second criterion of the same issue**, and it is
+recorded here for the same reason: so that nobody reads the shipped behaviour as
+authority.
+
+LAN-77 shipped with the audience _assembled and frozen at approval, with no
+post-approval edit path_ — and the approved event page still says so today:
+"Confirmed at approval and fixed for this event. Adding or removing someone
+afterwards is deliberately not possible in this workflow."
+
+D49 and D50 override that: an approved event can be changed, and its audience
+changes with it. Under this workflow's in-place amendment, the audience is
+editable during an amendment; people removed keep no obligation, and people
+added become new invitations when it is saved. The brief records the reversal in
+its own §6.
+
 ## Repository reconciliation
 
 **There is no amendment path on `main` at `2072ecd`.** The README's own

@@ -97,7 +97,7 @@ cease to exist. `not_held` is one of the four statuses D28 removes.
 
 **What replaces it** (D71–D74):
 
-- **The attendance sheet opens on a buffer before the event**, approximately six
+- **The register opens on a buffer before the event**, approximately six
   hours. The realistic moment is standing at the pitch as people arrive.
 - **It never closes.** A forgotten session is filled in days later; a mistake is
   corrected at any time.
@@ -121,7 +121,7 @@ is when it opens, and that nobody asserts anything first.
 
 ## State transitions
 
-**None.** Reading changes nothing. Saving an attendance sheet is Task 04's
+**None.** Reading changes nothing. Saving a register is Task 04's
 write, on Task 04's surface.
 
 ## Exceptions and recovery
@@ -188,7 +188,7 @@ this workflow's.
 - An anonymous request for the event returns no person, no answer, no attendance
   and no question response, in the page or in any payload behind it.
 - A private decline reason is absent from the coach attendance surface.
-- The attendance sheet is unavailable before the buffer, available after it, and
+- The register is unavailable before the buffer, available after it, and
   never closes.
 - Nothing asserts occurrence anywhere; no surface offers _Mark occurred_ or
   _Mark not held_.
@@ -198,23 +198,23 @@ this workflow's.
 
 ## Core decisions
 
-| Decision                                                                                                        | Classification              | Governing evidence                                                                                                                            | Status                       |
-| --------------------------------------------------------------------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| Three headline numbers — invited, said yes, attended                                                            | `locked`                    | D62                                                                                                                                           | Settled                      |
-| `Showed / Invited` reads "—" until a sheet is saved                                                             | `locked`                    | D73, D74                                                                                                                                      | Settled                      |
-| One row per person, with capacity, invitation, answer, reason, attendance and one column per question           | `locked`                    | D68, §4.3; Brian, 2026-08-21                                                                                                                  | Settled                      |
-| Every column sorts                                                                                              | `locked`                    | §4.5                                                                                                                                          | Settled                      |
-| A discrepancy marker where RSVP and attendance disagree                                                         | `locked`                    | D64. Exact shape is Q4, still open with Brian and non-blocking                                                                                | Settled                      |
-| **The club-link tier survives as D2 approved it** — the link carries the table; delivery stays operator-only    | `locked`                    | Brian, 2026-08-21: a shared link should open the list of everyone. Closes the question deferred from `W1`                                     | Settled                      |
-| Issuing and sharing the club link belongs to this workflow                                                      | `locked`                    | Inventory amendment 1, §4.15                                                                                                                  | Settled                      |
-| The club link is not privacy-blocking, but is still a signed link                                               | `locked`                    | D81                                                                                                                                           | Settled                      |
-| **"Confirm what happened", Mark occurred and Mark not held are removed**                                        | `locked`                    | D30, D28; the brief retires UX-70 and UX-75                                                                                                   | Settled                      |
-| The attendance sheet opens on a buffer before the event, never closes, and saved-versus-untouched is the record | `locked`                    | D71–D74                                                                                                                                       | Settled                      |
-| Attendance capture stays Task 04's; the existing board is retained                                              | `locked`                    | Brief §1's scope boundary                                                                                                                     | Settled                      |
-| The exact buffer length                                                                                         | `delegated to Mission Lead` | D71 calls it a tuning value, "approximately six hours", not a policy                                                                          | Delegated                    |
-| Q2 — club-link expiry, rotation and revocation                                                                  | `nonblocking unknown`       | The owner chose to settle it by testing. **Handling rule:** the link ships without revocation; adding it later is additive and breaks nothing | Deferred — Brian, by testing |
-| Q4 — whether the discrepancy is a column, a flag, or derived                                                    | `nonblocking unknown`       | Open with Brian since 2026-08-14. **Handling rule:** any of the three satisfies D64; the Mission Lead picks one and it can change             | Deferred — Brian             |
-| Q5 — players and coaches as separate sublists on the participation view                                         | `nonblocking unknown`       | Owned by the club, not by Brian. **Handling rule:** one list, with capacity as a sortable column, until the club asks otherwise               | Deferred — the club          |
+| Decision                                                                                                     | Classification              | Governing evidence                                                                                                                            | Status                       |
+| ------------------------------------------------------------------------------------------------------------ | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Three headline numbers — invited, said yes, attended                                                         | `locked`                    | D62                                                                                                                                           | Settled                      |
+| `Showed / Invited` reads "—" until a sheet is saved                                                          | `locked`                    | D73, D74                                                                                                                                      | Settled                      |
+| One row per person, with capacity, invitation, answer, reason, attendance and one column per question        | `locked`                    | D68, §4.3; Brian, 2026-08-21                                                                                                                  | Settled                      |
+| Every column sorts                                                                                           | `locked`                    | §4.5                                                                                                                                          | Settled                      |
+| A discrepancy marker where RSVP and attendance disagree                                                      | `locked`                    | D64. Exact shape is Q4, still open with Brian and non-blocking                                                                                | Settled                      |
+| **The club-link tier survives as D2 approved it** — the link carries the table; delivery stays operator-only | `locked`                    | Brian, 2026-08-21: a shared link should open the list of everyone. Closes the question deferred from `W1`                                     | Settled                      |
+| Issuing and sharing the club link belongs to this workflow                                                   | `locked`                    | Inventory amendment 1, §4.15                                                                                                                  | Settled                      |
+| The club link is not privacy-blocking, but is still a signed link                                            | `locked`                    | D81                                                                                                                                           | Settled                      |
+| **"Confirm what happened", Mark occurred and Mark not held are removed**                                     | `locked`                    | D30, D28; the brief retires UX-70 and UX-75                                                                                                   | Settled                      |
+| The register opens on a buffer before the event, never closes, and saved-versus-untouched is the record      | `locked`                    | D71–D74                                                                                                                                       | Settled                      |
+| Attendance capture stays Task 04's; the existing board is retained                                           | `locked`                    | Brief §1's scope boundary                                                                                                                     | Settled                      |
+| The exact buffer length                                                                                      | `delegated to Mission Lead` | D71 calls it a tuning value, "approximately six hours", not a policy                                                                          | Delegated                    |
+| Q2 — club-link expiry, rotation and revocation                                                               | `nonblocking unknown`       | The owner chose to settle it by testing. **Handling rule:** the link ships without revocation; adding it later is additive and breaks nothing | Deferred — Brian, by testing |
+| Q4 — whether the discrepancy is a column, a flag, or derived                                                 | `nonblocking unknown`       | Open with Brian since 2026-08-14. **Handling rule:** any of the three satisfies D64; the Mission Lead picks one and it can change             | Deferred — Brian             |
+| Q5 — players and coaches as separate sublists on the participation view                                      | `nonblocking unknown`       | Owned by the club, not by Brian. **Handling rule:** one list, with capacity as a sortable column, until the club asks otherwise               | Deferred — the club          |
 
 ## Brian approval
 

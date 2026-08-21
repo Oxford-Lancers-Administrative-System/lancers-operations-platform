@@ -180,6 +180,22 @@
       }
     }
   ],
-  "next_action": "Coherence review across all eight workflows, at Brian's request, before Stage 4 packet assembly",
-  "open_items": []
+  "next_action": "Stage 4 - packet assembly, once Brian approves the coherence pass",
+  "open_items": [],
+  "coherence_review": {
+    "date": "2026-08-21",
+    "requested_by": "Brian",
+    "findings": 8,
+    "resolved": [
+      "W4's stale return-to-draft references",
+      "W3's stale bulk-delete conflict row",
+      "W1's stale club-link deferral",
+      "W5's undocumented second reversal of LAN-77",
+      "terminology standardised on register",
+      "the `other`-type reassignment assigned to the migration work package",
+      "blank CSV cells defined as no-change",
+      "one open season, no switching"
+    ],
+    "outstanding": []
+  }
 }
