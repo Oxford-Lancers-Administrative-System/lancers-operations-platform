@@ -1,0 +1,1981 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W3 · Load and correct a term's events by import — mockup</title>
+    <style>
+      /* ------------------------------------------------------------------ *
+       * Tokens taken from the real application: src/theme.ts (primary
+       * #0b3d91, radius 8, MUI light palette) plus MUI v9 defaults for
+       * Paper/Button/Chip/Alert/TextField. Nothing here is a redesign.
+       * ------------------------------------------------------------------ */
+      :root {
+        --primary: #0b3d91;
+        --primary-hover: #082c69;
+        --primary-outline: rgba(11, 61, 145, 0.5);
+        --primary-tint: rgba(11, 61, 145, 0.04);
+        --text-primary: rgba(0, 0, 0, 0.87);
+        --text-secondary: rgba(0, 0, 0, 0.6);
+        --text-disabled: rgba(0, 0, 0, 0.38);
+        --divider: rgba(0, 0, 0, 0.12);
+        --outline: rgba(0, 0, 0, 0.23);
+        --paper: #ffffff;
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --grey200: #eeeeee;
+        --grey400: #bdbdbd;
+        --grey800: #424242;
+        --grey900: #212121;
+        --info-bg: #e5f6fd;
+        --info-text: #014361;
+        --info-icon: #0288d1;
+        --warn-bg: #fff4e5;
+        --warn-text: #663c00;
+        --warn-icon: #ed6c02;
+        --radius: 8px;
+        --shadow-1:
+          0 3px 1px -2px rgba(0, 0, 0, 0.2), 0 2px 2px 0 rgba(0, 0, 0, 0.14),
+          0 1px 5px 0 rgba(0, 0, 0, 0.12);
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Geist Sans", system-ui, "Helvetica Neue",
+          Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: #e7e9ee;
+        font-family: var(--font);
+        color: var(--text-primary);
+      }
+
+      /* ---------------------------- page frame --------------------------- */
+
+      .page {
+        max-width: 1560px;
+        margin: 0 auto;
+        padding: 40px 32px 96px;
+      }
+
+      .page-head {
+        margin-bottom: 40px;
+        max-width: 900px;
+      }
+
+      .page-head h1 {
+        font-size: 1.75rem;
+        line-height: 1.3;
+        font-weight: 800;
+        margin: 0 0 8px;
+      }
+
+      .page-head p {
+        margin: 0 0 8px;
+        font-size: 0.9375rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(0, 0, 0, 0.14);
+      }
+
+      .legend span {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* ------------------------------ screens ---------------------------- */
+
+      .screen {
+        margin-top: 64px;
+      }
+
+      .screen-head {
+        position: relative;
+        border-top: 2px solid var(--grey900);
+        padding-top: 26px;
+        margin-bottom: 20px;
+        max-width: 1180px;
+      }
+
+      /* the corner tab */
+      .screen-head .tab {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform: translateY(-100%);
+        background: var(--grey900);
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        padding: 6px 14px;
+        border-radius: 6px 6px 0 0;
+      }
+
+      .screen-head h2 {
+        font-size: 1.125rem;
+        font-weight: 700;
+        margin: 0 0 6px;
+      }
+
+      .screen-head p {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+        max-width: 82ch;
+      }
+
+      .screen-head .clock {
+        display: inline-block;
+        margin-top: 10px;
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        padding: 4px 12px;
+      }
+
+      .pair {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 32px;
+      }
+
+      .frame {
+        background: var(--paper);
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 12px 32px rgba(16, 24, 40, 0.12);
+      }
+
+      .frame.desktop {
+        width: 922px;
+        max-width: 100%;
+      }
+
+      .frame.phone {
+        width: 377px;
+        border-radius: 20px;
+      }
+
+      .chrome {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 34px;
+        padding: 0 12px;
+        background: var(--grey100);
+        border-bottom: 1px solid var(--divider);
+      }
+
+      .dots {
+        display: flex;
+        gap: 5px;
+      }
+
+      .dots i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--grey400);
+        display: block;
+      }
+
+      .url {
+        flex: 1;
+        min-width: 0;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        color: var(--text-secondary);
+        padding: 3px 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .frame-badge {
+        font-size: 0.625rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+
+      .viewport {
+        overflow: hidden;
+      }
+
+      .viewport.desktop-vp {
+        width: 1280px;
+        zoom: 0.72;
+      }
+
+      .viewport.phone-vp {
+        width: 375px;
+      }
+
+      /* --------------------------- the app shell ------------------------- */
+
+      .app {
+        display: flex;
+        align-items: stretch;
+        min-height: 760px;
+        background: #fff;
+        font-size: 16px;
+      }
+
+      .phone .app {
+        flex-direction: column;
+        min-height: 700px;
+      }
+
+      nav.shell {
+        background: var(--grey900);
+        color: #fff;
+        flex-shrink: 0;
+        width: 226px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .phone nav.shell {
+        width: 100%;
+        order: 2;
+        position: sticky;
+        bottom: 0;
+      }
+
+      .nav-head {
+        padding: 24px 24px 16px;
+      }
+
+      .phone .nav-head {
+        display: none;
+      }
+
+      .nav-head .over {
+        font-size: 0.75rem;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        line-height: 1.4;
+        color: var(--grey400);
+      }
+
+      .nav-head .sec {
+        font-size: 1.25rem;
+        font-weight: 700;
+        line-height: 1.6;
+      }
+
+      ul.nav-list {
+        list-style: none;
+        margin: 0;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 100%;
+      }
+
+      .phone ul.nav-list {
+        flex-direction: row;
+        padding: 0;
+        gap: 0;
+      }
+
+      ul.nav-list li {
+        display: flex;
+      }
+
+      ul.nav-list a {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 48px;
+        width: 100%;
+        padding: 6px 16px;
+        border-radius: 8px;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .phone ul.nav-list li {
+        flex: 1;
+      }
+
+      .phone ul.nav-list a {
+        align-items: center;
+        border-radius: 0;
+        padding: 6px 8px;
+      }
+
+      ul.nav-list a.sel {
+        background: var(--grey800);
+      }
+
+      .nav-label {
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      .nav-detail {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        color: var(--grey400);
+      }
+
+      .phone .nav-detail {
+        display: none;
+      }
+
+      main.shell {
+        flex-grow: 1;
+        min-width: 0;
+        padding: 32px 32px 32px;
+      }
+
+      .phone main.shell {
+        order: 1;
+        padding: 24px 16px 24px;
+      }
+
+      .shell-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .phone .shell-head {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .shell-head .brand {
+        font-size: 1.5rem;
+        line-height: 1.334;
+        font-weight: 800;
+      }
+
+      .content {
+        max-width: 900px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      /* --------------------------- MUI primitives ------------------------ */
+
+      .h5 {
+        font-size: 1.5rem;
+        line-height: 1.334;
+        font-weight: 700;
+        margin: 0;
+      }
+
+      .h6 {
+        font-size: 1.25rem;
+        line-height: 1.6;
+        font-weight: 500;
+        margin: 0;
+      }
+
+      .body1 {
+        font-size: 1rem;
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      .body2 {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        margin: 0;
+      }
+
+      .sec {
+        color: var(--text-secondary);
+      }
+
+      .bold {
+        font-weight: 600;
+      }
+
+      .over {
+        font-size: 0.75rem;
+        line-height: 2.66;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        margin: 0;
+      }
+
+      .paper {
+        background: var(--paper);
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 24px;
+      }
+
+      .phone .paper {
+        padding: 16px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .g1 {
+        gap: 8px;
+      }
+      .g2 {
+        gap: 16px;
+      }
+      .g3 {
+        gap: 24px;
+      }
+
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .grid2 {
+        display: grid;
+        gap: 24px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid2tight {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid3 {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .phone .grid2,
+      .phone .grid2tight,
+      .phone .grid3 {
+        grid-template-columns: 1fr;
+      }
+
+      .metrics {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 160px));
+      }
+
+      .phone .metrics {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .divider {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 0;
+        width: 100%;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-family: inherit;
+        font-size: 0.875rem;
+        font-weight: 500;
+        letter-spacing: 0.02857em;
+        text-transform: uppercase;
+        line-height: 1.75;
+        padding: 6px 16px;
+        min-height: 44px;
+        border-radius: var(--radius);
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .btn-contained {
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        box-shadow: var(--shadow-1);
+      }
+
+      .btn-outlined {
+        background: transparent;
+        color: var(--primary);
+        border: 1px solid var(--primary-outline);
+      }
+
+      .btn-text {
+        background: transparent;
+        color: var(--primary);
+        border: none;
+        padding: 6px 8px;
+      }
+
+      .btn-text.danger {
+        color: #d32f2f;
+      }
+
+      .btn-sm {
+        min-height: 36px;
+      }
+
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 420px;
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .phone .btn-row {
+        flex-direction: column;
+      }
+
+      .phone .btn-row .btn {
+        width: 100%;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        height: 24px;
+        padding: 0 10px;
+        border-radius: 16px;
+        background: rgba(0, 0, 0, 0.08);
+        font-size: 0.8125rem;
+        line-height: 1;
+        color: var(--text-primary);
+        white-space: nowrap;
+      }
+
+      .chip-outline {
+        background: transparent;
+        border: 1px solid var(--outline);
+      }
+
+      .chip-warn {
+        background: transparent;
+        border: 1px solid rgba(237, 108, 2, 0.6);
+        color: var(--warn-text);
+      }
+
+      .chip-info {
+        background: transparent;
+        border: 1px solid rgba(2, 136, 209, 0.5);
+        color: var(--info-text);
+      }
+
+      .chip-proposed {
+        background: transparent;
+        border: 1px dashed var(--outline);
+        color: var(--text-secondary);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 0.6875rem;
+        font-weight: 600;
+      }
+
+      .alert {
+        display: flex;
+        gap: 12px;
+        padding: 8px 16px;
+        border-radius: var(--radius);
+        font-size: 0.875rem;
+        line-height: 1.43;
+      }
+
+      .alert svg {
+        flex-shrink: 0;
+        margin-top: 7px;
+      }
+
+      .alert-info {
+        background: var(--info-bg);
+        color: var(--info-text);
+      }
+
+      .alert-info svg {
+        fill: var(--info-icon);
+      }
+
+      .alert-warn {
+        background: var(--warn-bg);
+        color: var(--warn-text);
+      }
+
+      .alert-warn svg {
+        fill: var(--warn-icon);
+      }
+
+      /* text field / select / switch, as MUI outlined controls */
+
+      .field {
+        position: relative;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        padding: 14px;
+        font-size: 1rem;
+        line-height: 1.4375;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 56px;
+      }
+
+      .field .lab {
+        position: absolute;
+        top: -9px;
+        left: 9px;
+        background: #fff;
+        padding: 0 6px;
+        font-size: 0.75rem;
+        line-height: 1;
+        color: var(--text-secondary);
+      }
+
+      .field.focused {
+        border: 2px solid var(--primary);
+        padding: 13px;
+      }
+
+      .field.focused .lab {
+        color: var(--primary);
+      }
+
+      .field.disabled {
+        background: var(--grey50);
+        border-color: var(--divider);
+        color: var(--text-secondary);
+      }
+
+      .field .caret {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+      }
+
+      .radio {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        cursor: default;
+      }
+
+      .radio .dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 2px solid var(--text-secondary);
+        flex-shrink: 0;
+        margin-top: 1px;
+        position: relative;
+      }
+
+      .radio.on .dot {
+        border-color: var(--primary);
+      }
+
+      .radio.on .dot::after {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        border-radius: 50%;
+        background: var(--primary);
+      }
+
+      .switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .track {
+        width: 34px;
+        height: 14px;
+        border-radius: 7px;
+        background: rgba(0, 0, 0, 0.38);
+        position: relative;
+        flex-shrink: 0;
+      }
+
+      .thumb {
+        position: absolute;
+        top: -3px;
+        left: -1px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #fafafa;
+        box-shadow: var(--shadow-1);
+      }
+
+      .switch.on .track {
+        background: rgba(11, 61, 145, 0.5);
+      }
+
+      .switch.on .thumb {
+        left: 15px;
+        background: var(--primary);
+      }
+
+      /* --------------------------- plan timeline ------------------------- */
+
+      .plan {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .plan-row {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr) auto;
+        gap: 0 16px;
+        padding: 0 0 20px;
+        position: relative;
+      }
+
+      .phone .plan-row {
+        grid-template-columns: 24px minmax(0, 1fr);
+      }
+
+      .plan-row:last-child {
+        padding-bottom: 0;
+      }
+
+      .rail {
+        position: relative;
+        display: flex;
+        justify-content: center;
+      }
+
+      .rail .node {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid var(--primary);
+        background: #fff;
+        margin-top: 6px;
+        z-index: 1;
+      }
+
+      .rail .node.hollow {
+        border-color: var(--outline);
+      }
+
+      .rail .node.removed {
+        border-color: var(--warn-icon);
+        background: var(--warn-bg);
+      }
+
+      .plan-row:not(:last-child) .rail::after {
+        content: "";
+        position: absolute;
+        top: 18px;
+        bottom: -6px;
+        width: 2px;
+        background: var(--divider);
+      }
+
+      .plan-body {
+        min-width: 0;
+      }
+
+      .plan-when {
+        font-size: 0.75rem;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        line-height: 1.8;
+      }
+
+      .plan-title {
+        font-size: 1rem;
+        line-height: 1.5;
+        font-weight: 600;
+      }
+
+      .plan-note {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        color: var(--text-secondary);
+        margin-top: 2px;
+      }
+
+      .plan-side {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding-top: 4px;
+      }
+
+      .phone .plan-side {
+        grid-column: 2;
+        padding-top: 8px;
+      }
+
+      .struck {
+        text-decoration: line-through;
+        color: var(--text-disabled);
+      }
+
+      .plan-control {
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-width: 460px;
+      }
+
+      /* next-send emphasis strip */
+      .next-send {
+        border: 1px solid var(--divider);
+        border-left: 4px solid var(--primary);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        background: var(--grey50);
+      }
+
+      /* audience list */
+      ul.aud {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      ul.aud li {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--divider);
+      }
+
+      ul.aud li .who {
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+
+      ul.aud li .tags {
+        display: flex;
+        gap: 8px;
+      }
+
+      .more {
+        padding-top: 8px;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+      }
+
+      .qbox {
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 16px;
+        background: var(--grey50);
+      }
+
+      .truncation {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+        font-style: italic;
+      }
+
+      .truncation::before,
+      .truncation::after {
+        content: "";
+        flex: 1;
+        border-top: 1px dashed var(--outline);
+      }
+      /* --- W1 additions: tables and the continuous term card. Built from the
+             same tokens above; no new colour is introduced. --- */
+      .viewport {
+        container-type: inline-size;
+      }
+      .scroll-x {
+        overflow-x: auto;
+      }
+      .narrow-only {
+        display: none;
+      }
+      @container (max-width: 760px) {
+        .wide-only {
+          display: none;
+        }
+        .narrow-only {
+          display: block;
+        }
+      }
+      .ecard {
+        display: block;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--divider);
+        text-decoration: none;
+        color: inherit;
+      }
+      .ecard:last-child {
+        border-bottom: 0;
+      }
+      .ecard-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: baseline;
+      }
+      .ecard-top .en {
+        font-weight: 700;
+        color: var(--primary);
+      }
+      .ecard-mid {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+      .ecard-nums {
+        margin-top: 4px;
+        font-variant-numeric: tabular-nums;
+      }
+      .period-select {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+      }
+      a.en-link {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 700;
+      }
+      a.en-link:hover {
+        text-decoration: underline;
+      }
+      .sortmark {
+        color: var(--text-disabled);
+        font-weight: 400;
+      }
+      .sortmark.on {
+        color: var(--primary);
+      }
+      .wk {
+        border-bottom: 1px solid var(--divider);
+        padding: 10px 12px;
+      }
+      .wk:last-child {
+        border-bottom: 0;
+      }
+      .wk.vac {
+        background: #fffdf5;
+      }
+      .wk-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: baseline;
+      }
+      .tbl {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .tbl th,
+      .tbl td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--divider);
+        vertical-align: top;
+      }
+      .tbl thead th {
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .tbl tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      .tbl .num,
+      .tbl th.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .cal {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      .cal caption {
+        caption-side: top;
+        text-align: left;
+        padding: 12px 16px;
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .cal th,
+      .cal td {
+        border: 1px solid var(--divider);
+        padding: 6px;
+        vertical-align: top;
+        font-size: 12px;
+      }
+      .cal thead th {
+        background: var(--grey50);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-secondary);
+      }
+      .cal tbody th[scope="row"] {
+        width: 132px;
+        background: var(--grey50);
+        text-align: left;
+      }
+      .cal tr.vac th[scope="row"] {
+        background: #fff8e1;
+      }
+      .cal tr.vac td {
+        background: #fffdf5;
+      }
+      .cal tr.skip th {
+        background: var(--grey100);
+        text-align: center;
+        padding: 6px;
+      }
+      .tile {
+        border-radius: 4px;
+        padding: 5px 7px;
+        margin-bottom: 4px;
+      }
+      .field-inline {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 12px;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        font-size: 13px;
+        color: var(--text-secondary);
+        background: var(--paper);
+      }
+      .fact {
+        min-width: 0;
+      }
+      .current-shot {
+        margin-top: 10px;
+      }
+      .current-shot img {
+        width: 100%;
+        display: block;
+        border: 1px solid var(--divider);
+        border-radius: 4px;
+      }
+      .shot-pair {
+        display: grid;
+        grid-template-columns: minmax(0, 1280fr) minmax(0, 375fr);
+        gap: 14px;
+        align-items: start;
+      }
+      @media (max-width: 900px) {
+        .shot-pair {
+          grid-template-columns: 1fr;
+        }
+      }
+      .shot-cap {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin: 0 0 6px;
+      }
+      /* --- W2 additions: the disposition banding required by
+             mockup-conventions.md § 1. Current and proposed are labelled
+             identically on every screen and banded in their own colour. --- */
+      .side {
+        border-radius: 8px;
+        padding: 10px 10px 12px;
+      }
+      .side.current {
+        background: #eceff1;
+        border: 1px solid #90a4ae;
+      }
+      .side.proposed {
+        background: #e8f0fe;
+        border: 1px solid var(--primary-outline);
+      }
+      .side-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: 999px;
+        margin-bottom: 8px;
+      }
+      .side.current .side-label {
+        background: #90a4ae;
+        color: #fff;
+      }
+      .side.proposed .side-label {
+        background: var(--primary);
+        color: #fff;
+      }
+      .side .none {
+        border: 1px dashed #90a4ae;
+        border-radius: 6px;
+        padding: 22px 14px;
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 13px;
+        background: #fff;
+      }
+      .disposition {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 3px 9px;
+        border-radius: 4px;
+        border: 1px solid var(--outline);
+        color: var(--text-secondary);
+        margin-left: 8px;
+      }
+      .disposition.new {
+        background: #e8f0fe;
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+      .disposition.modified {
+        background: #fff4e5;
+        border-color: #ed6c02;
+        color: #663c00;
+      }
+      .deltas {
+        margin: 10px 0 0;
+        padding-left: 18px;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+      .deltas li {
+        margin: 3px 0;
+      }
+      .subpanel {
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        padding: 14px;
+        background: #fff;
+      }
+      .provider {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        border: 1px solid var(--outline);
+        border-radius: 8px;
+        padding: 11px 13px;
+        margin-bottom: 8px;
+        text-decoration: none;
+        color: inherit;
+      }
+      .provider .pname {
+        font-weight: 700;
+      }
+      .urlbox {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        background: var(--grey100);
+        border: 1px solid var(--divider);
+        border-radius: 6px;
+        padding: 9px 11px;
+        word-break: break-all;
+      }
+      .ics {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11.5px;
+        line-height: 1.5;
+        background: #212121;
+        color: #e0e0e0;
+        border-radius: 6px;
+        padding: 12px 14px;
+        overflow-x: auto;
+        white-space: pre;
+      }
+      .ics .k {
+        color: #90caf9;
+      }
+      .ics .c {
+        color: #ffab91;
+      }
+      .scrim {
+        position: relative;
+        background: rgba(0, 0, 0, 0.45);
+        padding: 26px 14px;
+        min-height: 100%;
+      }
+      .dialog {
+        max-width: 420px;
+        margin: 0 auto;
+        background: var(--paper);
+        border-radius: var(--radius);
+        box-shadow:
+          0 11px 15px -7px rgba(0, 0, 0, 0.2),
+          0 24px 38px 3px rgba(0, 0, 0, 0.14);
+        padding: 20px;
+      }
+      .dialog h3 {
+        font-size: 18px;
+        font-weight: 700;
+        margin: 0 0 4px;
+      }
+      .dialog .close {
+        float: right;
+        border: 0;
+        background: none;
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+        color: var(--text-secondary);
+      }
+      .tick {
+        width: 46px;
+        height: 46px;
+        border-radius: 50%;
+        background: #e8f5e9;
+        color: #2e7d32;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+        margin: 0 auto 10px;
+      }
+      .shot-pair {
+        display: grid;
+        grid-template-columns: minmax(0, 1280fr) minmax(0, 375fr);
+        gap: 14px;
+        align-items: start;
+      }
+      .shot-pair img {
+        width: 100%;
+        display: block;
+        border: 1px solid var(--divider);
+        border-radius: 4px;
+      }
+      .shot-cap {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin: 0 0 6px;
+      }
+      .chg-cell {
+        background: #fff8e1;
+        box-shadow: inset 0 0 0 1px #f0c36d;
+        font-weight: 700;
+      }
+      .was {
+        display: block;
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--text-secondary);
+        text-decoration: line-through;
+      }
+      tr.refused td {
+        background: #fdf3f2;
+      }
+      tr.newrow td {
+        background: #f4faf5;
+      }
+      .icard {
+        padding: 0;
+        border-bottom: 0;
+      }
+      .mcard {
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin: 0 12px 10px;
+        background: var(--paper);
+      }
+      .mcard.refused {
+        border-color: #e6b4b0;
+        background: #fdf3f2;
+      }
+      .mcard.newrow {
+        border-color: #bfe0c4;
+        background: #f4faf5;
+      }
+      .mcard-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+      .mfield {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 4px 0;
+        border-top: 1px dashed var(--divider);
+        font-size: 13px;
+      }
+      .mfield .lbl {
+        color: var(--text-secondary);
+      }
+      .mfield .val {
+        font-weight: 700;
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <h1>W3 · Load and correct a term's events by import</h1>
+        <p>
+          One action puts the season's events into the reader's own calendar app, and later changes
+          arrive there on their own. The shell, typography and controls are the running
+          application's, captured from <code>main</code> at <code>2072ecd</code>. Nothing here is a
+          redesign.
+        </p>
+        <p>
+          <strong>Reading this review.</strong> Every screen shows two sides, always labelled the
+          same way and always banded the same way:
+          <span class="side-label" style="background: #90a4ae; color: #fff"
+            >Current — on main today</span
+          >
+          and
+          <span class="side-label" style="background: var(--primary); color: #fff"
+            >Proposed — this mission</span
+          >. Each screen head also states whether the surface is
+          <span class="disposition new">New</span> or
+          <span class="disposition modified">Modified</span>, and lists exactly what changes.
+        </p>
+        <div class="legend">
+          <span
+            >There is no feed, no <code>.ics</code> code and no calendar library on
+            <code>main</code>, so most of this is New with nothing to compare</span
+          >
+          <span>Times are Europe/London. All names and venues are the synthetic local dataset</span>
+        </div>
+      </header>
+      <div id="screens"></div>
+    </div>
+
+    <script>
+      const proposedTag = `<span class="chip chip-proposed">Proposed</span>`;
+      const INFO_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>`;
+      const WARN_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.99 19.53 19H4.47L12 5.99M12 2 1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"/></svg>`;
+      const alert = (severity, html) =>
+        `<div class="alert alert-${severity}">${severity === "warn" ? WARN_ICON : INFO_ICON}<div>${html}</div></div>`;
+
+      const publicShell = (content, action) => `
+        <div class="app">
+          <main class="shell" style="width:100%">
+            <div class="shell-head">
+              <div style="min-width:0">
+                <p class="brand">Oxford Lancers</p>
+                <p class="body2 sec">Club calendar · 2026-27</p>
+              </div>
+              <div>${action ?? `<button class="btn btn-outlined btn-sm">Add to your calendar</button>`}</div>
+            </div>
+            <div class="content">${content}</div>
+          </main>
+        </div>`;
+
+      const operatorShell = (content) => `
+        <div class="app">
+          <nav class="shell" aria-label="Operator">
+            <div class="nav-head">
+              <div class="over" style="color:var(--grey400)">Lancers</div>
+              <div class="sec">Operations</div>
+            </div>
+            <ul class="nav-list">
+              <li><a href="#"><span class="nav-label">Roster</span><span class="nav-detail">People and memberships</span></a></li>
+              <li><a href="#" class="sel" aria-current="page"><span class="nav-label">Events</span><span class="nav-detail">Calendar and approval</span></a></li>
+              <li><a href="#"><span class="nav-label">Report</span><span class="nav-detail">Monday snapshot</span></a></li>
+            </ul>
+          </nav>
+          <main class="shell">
+            <div class="shell-head">
+              <div style="min-width:0">
+                <p class="brand">Lancers Operations</p>
+                <p class="body2 sec">Signed in as Caspian Hallowfield</p>
+              </div>
+              <div><button class="btn btn-outlined btn-sm">Sign out</button></div>
+            </div>
+            <div class="content">${content}</div>
+          </main>
+        </div>`;
+
+      const subscribePanel = `
+        <div class="subpanel">
+          <p class="h6" style="margin:0 0 2px">Add the 2026-27 season to your calendar</p>
+          <p class="body2 sec" style="margin:0 0 12px">
+            Every club event for this season, kept up to date. You add next season's calendar when it opens.
+          </p>
+          <a class="provider" href="#"><span class="pname">Google Calendar</span><span class="body2 sec">Opens Google →</span></a>
+          <a class="provider" href="#"><span class="pname">Outlook / Microsoft 365</span><span class="body2 sec">Opens Outlook →</span></a>
+          <a class="provider" href="#"><span class="pname">Apple Calendar</span><span class="body2 sec">Opens Calendar →</span></a>
+          <p class="over" style="margin-top:14px">Or copy the address</p>
+          <div class="urlbox">https://oxfordlancers.example/calendar/2026-27.ics</div>
+          <p class="body2 sec" style="margin-top:10px">
+            Your calendar app decides how often it checks for changes — usually a few times a day.
+            Cancellations are also messaged to you directly; do not rely on your calendar to hear about them.
+          </p>
+        </div>`;
+
+      /* ------------------------------ bodies ---------------------------- */
+
+      const opShell = operatorShell;
+
+      const IMPORT_PROMPT = `Convert our club calendar into the Oxford Lancers import format.
+
+Return ONLY a CSV file with this exact header row and no other text:
+
+id,name,type,date,start,end,online,venue,description,required_equipment,mandatory
+
+Rules
+- id: leave EMPTY for every event. The system assigns identifiers.
+- type: exactly one of Practice, S&C, Chalk, Game, Social, Recruitment, Meeting.
+- date: YYYY-MM-DD.
+- start / end: HH:MM, 24-hour, in five-minute steps. All times are UK local time.
+- online: yes or no. Use yes for anything on Teams, Zoom or similar.
+- venue: the street address when in person; the meeting destination when online.
+- description: anything that does not fit another column.
+- required_equipment: kit players must bring. Leave empty if none.
+- mandatory: yes if attendance is expected, otherwise no.
+- The opponent goes in the name, e.g. "vs Brackenridge Bulls". There is no opponent column.
+
+Example
+id,name,type,date,start,end,online,venue,description,required_equipment,mandatory
+,Practice — michaelmas week 1,Practice,2026-10-14,20:00,22:00,no,Iffley Road Astro,Full contact.,Gumshield,yes
+,Chalk — michaelmas week 1,Chalk,2026-10-13,18:00,19:00,yes,Microsoft Teams,Install review.,,no
+
+Now here is our calendar:`;
+
+      const howItWorks = (first) => `
+        <ol class="deltas" style="color:var(--text-primary);font-size:14px">
+          <li><strong>${first}</strong></li>
+          <li><strong>Copy the prompt.</strong> Paste it into ChatGPT, Claude or whatever you use, along with the term card, and it will hand you back a file in the right shape.</li>
+          <li><strong>Check the file.</strong> It is a spreadsheet — open it and read it like one.</li>
+          <li><strong>Import it here.</strong> You will see exactly what is about to change, and nothing happens until you say so.</li>
+        </ol>`;
+
+      const promptBlock = `
+        <div class="ics" style="margin-top:14px;max-height:220px;overflow:auto">${IMPORT_PROMPT.replace(
+          /&/g,
+          "&amp;",
+        ).replace(/</g, "&lt;")}</div>`;
+
+      /* ---------------------- W3-01: empty season ------------------------ */
+
+      const W301 = opShell(`
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
+          <div><h1 class="h6">Bulk import</h1><p class="body2 sec">Season 2027-28</p></div>
+        </div>
+        <div class="paper">
+          <p class="h6" style="margin:0 0 6px">No events in this season yet</p>
+          <p class="body2 sec" style="margin:0 0 10px">
+            The club's term card looks different every year, so this does not try to read it. Convert
+            it to a spreadsheet in the shape below — your own AI tool will do this in one go — and
+            bring the file back here.
+          </p>
+          ${howItWorks("Download the template. It is an empty spreadsheet with the right column headings.")}
+          <div class="btn-row" style="margin-top:12px">
+            <button class="btn btn-contained btn-sm">Import CSV</button>
+            <button class="btn btn-outlined btn-sm">Download the template</button>
+            <button class="btn btn-outlined btn-sm">Copy the prompt</button>
+          </div>
+          ${promptBlock}
+        </div>`);
+
+      /* ------------------- W3-02: season with events --------------------- */
+
+      const W302 = opShell(`
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
+          <div><h1 class="h6">Bulk import</h1><p class="body2 sec">Season 2026-27</p></div>
+        </div>
+        <div class="paper">
+          <p class="h6" style="margin:0 0 6px">This season has 55 events</p>
+          <div class="row" style="gap:22px;flex-wrap:wrap;margin:10px 0 4px">
+            <div><p class="h5" style="font-weight:700;margin:0">12</p><p class="body2 sec">Drafts — an import can change these</p></div>
+            <div><p class="h5" style="font-weight:700;margin:0">41</p><p class="body2 sec">Approved — edit these one at a time</p></div>
+            <div><p class="h5" style="font-weight:700;margin:0">2</p><p class="body2 sec">Cancelled</p></div>
+          </div>
+          <p class="body2 sec" style="margin:8px 0 10px">
+            Start from what is already here rather than from an empty file: the export carries each
+            event's identifier, which is how the system knows you are changing an event rather than
+            adding a second one.
+          </p>
+          ${howItWorks("Download the current season's events. That file is your starting point — edit the rows you want to change.")}
+          <div class="btn-row" style="margin-top:12px">
+            <button class="btn btn-contained btn-sm">Import CSV</button>
+            <button class="btn btn-outlined btn-sm">Download the current season's events</button>
+            <button class="btn btn-outlined btn-sm">Copy the prompt</button>
+          </div>
+          <hr class="divider" style="margin:14px 0" />
+          <p class="over">Keep the id to change an event · clear the id to add one · leave a row out and nothing happens to it</p>
+        </div>`);
+
+      /* --------------------- W3-03: the confirmation --------------------- */
+
+      const outcome = (kind) => {
+        const map = {
+          New: 'style="background:#e8f5e9;border-color:#2e7d32;color:#1b5e20"',
+          Updated: 'style="background:#e3f2fd;border-color:#0b3d91;color:#0b3d91"',
+          Unchanged: 'style="background:var(--grey100)"',
+          Refused: 'style="background:#fdecea;border-color:#c62828;color:#b71c1c"',
+        };
+        return `<span class="chip" ${map[kind]}>${kind}</span>`;
+      };
+
+      const R = [
+        {
+          o: "Updated",
+          name: "Practice — michaelmas week 3",
+          type: "Practice",
+          date: "2026-10-28",
+          start: { v: "19:30", was: "20:00" },
+          end: "21:30",
+          online: "no",
+          venue: { v: "University Parks", was: "Iffley Road Astro" },
+          desc: "",
+          equip: "Gumshield",
+          mand: "yes",
+          status: "Draft",
+        },
+        {
+          o: "Updated",
+          name: "S&C — michaelmas week 3",
+          type: "S&C",
+          date: "2026-10-27",
+          start: "19:00",
+          end: "20:00",
+          online: "no",
+          venue: "Iffley Road Gym",
+          desc: { v: "Bring a towel.", was: "(empty)" },
+          equip: { v: "Trainers, water", was: "(empty)" },
+          mand: "no",
+          status: "Draft",
+        },
+        {
+          o: "New",
+          name: "Alumni touch game",
+          type: "Social",
+          date: "2026-12-12",
+          start: "13:00",
+          end: "15:00",
+          online: "no",
+          venue: "Iffley Road Astro",
+          desc: "Old boys vs current squad.",
+          equip: "",
+          mand: "no",
+          status: "—",
+        },
+        {
+          o: "New",
+          name: "vs Coldharbour Corsairs",
+          type: "Game",
+          date: "2026-11-22",
+          start: "14:00",
+          end: "16:30",
+          online: "no",
+          venue: "Away",
+          desc: "",
+          equip: "Full kit",
+          mand: "yes",
+          status: "—",
+        },
+        {
+          o: "Refused",
+          name: "Practice — michaelmas week 1",
+          type: "Practice",
+          date: "2026-10-14",
+          start: "20:00",
+          end: "22:00",
+          online: "no",
+          venue: "Iffley Road Astro",
+          desc: "",
+          equip: "Gumshield",
+          mand: "yes",
+          status: "Approved",
+          reason:
+            "This event is approved. An import only changes drafts — amend it on its own page.",
+        },
+        {
+          o: "Refused",
+          name: "Sunday session — hilary week 2",
+          type: "Practice",
+          date: "2027-01-17",
+          start: "14:00",
+          end: "16:00",
+          online: "no",
+          venue: "Iffley Road Astro",
+          desc: "",
+          equip: "",
+          mand: "yes",
+          status: "—",
+          reason: "No event in this season has id 9c14e0… Clear the id to add it as a new event.",
+        },
+        {
+          o: "Unchanged",
+          name: "Chalk — michaelmas week 4",
+          type: "Chalk",
+          date: "2026-11-03",
+          start: "18:00",
+          end: "19:00",
+          online: "yes",
+          venue: "Microsoft Teams",
+          desc: "Install review.",
+          equip: "",
+          mand: "no",
+          status: "Draft",
+        },
+      ];
+
+      const cell = (f) => {
+        if (f === "" || f === undefined) return `<td class="body2 sec">—</td>`;
+        if (typeof f === "string") return `<td class="body2">${f}</td>`;
+        return `<td class="body2 chg-cell">${f.v}<span class="was">${f.was}</span></td>`;
+      };
+
+      const changedFields = (r) =>
+        ["date", "start", "end", "online", "venue", "desc", "equip", "mand", "name", "type"].filter(
+          (k) => r[k] && typeof r[k] === "object",
+        );
+
+      const summary = (r) => {
+        if (r.reason) return `<span class="body2" style="color:#b71c1c">${r.reason}</span>`;
+        if (r.o === "New") return `<span class="body2 sec">Will be created as a draft</span>`;
+        const c = changedFields(r);
+        if (!c.length) return `<span class="body2 sec">Nothing differs</span>`;
+        return `<span class="body2">${c.length} field${c.length > 1 ? "s" : ""} changed: ${c
+          .map(
+            (k) =>
+              ({ desc: "description", equip: "required_equipment", mand: "mandatory" })[k] ?? k,
+          )
+          .join(", ")}</span>`;
+      };
+
+      const trow = (r) => `
+        <tr class="${r.o === "Refused" ? "refused" : r.o === "New" ? "newrow" : ""}">
+          <td>${outcome(r.o)}</td>
+          <td class="body2 bold">${r.name}</td>
+          <td class="body2">${r.type}</td>
+          ${cell(r.date)}${cell(r.start)}${cell(r.end)}${cell(r.online)}${cell(r.venue)}
+          ${cell(r.desc)}${cell(r.equip)}${cell(r.mand)}
+          <td class="body2">${r.status}</td>
+          <td style="min-width:230px">${summary(r)}</td>
+        </tr>`;
+
+      const mfield = (lbl, f) =>
+        typeof f === "object"
+          ? `<div class="mfield"><span class="lbl">${lbl}</span><span class="val">${f.v}<span class="was">${f.was}</span></span></div>`
+          : "";
+
+      const mcard = (r) => `
+        <div class="mcard ${r.o === "Refused" ? "refused" : r.o === "New" ? "newrow" : ""}">
+          <div class="mcard-head">${outcome(r.o)}<span class="body2 sec">${r.status}</span></div>
+          <div class="body2 bold">${r.name}</div>
+          <div class="body2 sec" style="margin-bottom:6px">${r.type} · ${r.date} · ${typeof r.venue === "object" ? r.venue.v : r.venue}</div>
+          ${r.reason ? `<div class="body2" style="color:#b71c1c">${r.reason}</div>` : ""}
+          ${r.o === "New" ? `<div class="body2 sec">Will be created as a draft</div>` : ""}
+          ${mfield("date", r.date)}${mfield("start", r.start)}${mfield("end", r.end)}
+          ${mfield("venue", r.venue)}${mfield("description", r.desc)}${mfield("required_equipment", r.equip)}
+          ${r.o === "Unchanged" ? `<div class="body2 sec">Nothing differs</div>` : ""}
+        </div>`;
+
+      const W303 = opShell(`
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
+          <div><h1 class="h6">Import — michaelmas-2026.csv</h1><p class="body2 sec">Season 2026-27 · 47 rows read · nothing has been changed yet</p></div>
+        </div>
+        <div class="paper">
+          <div class="row" style="gap:22px;flex-wrap:wrap">
+            <div><p class="h5" style="font-weight:700;margin:0">6</p><p class="body2 sec">New</p></div>
+            <div><p class="h5" style="font-weight:700;margin:0">3</p><p class="body2 sec">Updated</p></div>
+            <div><p class="h5" style="font-weight:700;margin:0">36</p><p class="body2 sec">Unchanged</p></div>
+            <div><p class="h5" style="font-weight:700;margin:0">2</p><p class="body2 sec">Refused</p></div>
+          </div>
+        </div>
+        <div class="paper" style="padding:0;overflow:hidden">
+          <div class="narrow-only" style="padding-top:12px">${R.map(mcard).join("")}</div>
+          <div class="scroll-x wide-only"><table class="tbl" style="min-width:1460px">
+            <thead><tr>
+              <th>Outcome</th><th>Event</th><th>Type</th><th>Date</th><th>Start</th><th>End</th>
+              <th>Online</th><th>Venue</th><th>Description</th><th>Equipment</th><th>Mandatory</th>
+              <th>Status</th><th>What changes</th>
+            </tr></thead>
+            <tbody>${R.map(trow).join("")}</tbody>
+          </table></div>
+        </div>
+        <div class="row" style="gap:10px;justify-content:flex-end">
+          <button class="btn btn-text">Cancel</button>
+          <button class="btn btn-contained">Apply 9 changes</button>
+        </div>`);
+
+      /* ------------------- W3-04: where it lives ------------------------- */
+
+      const LIST_ROWS = [
+        ["S&C — michaelmas week 2", "Tue 20 Oct · 19:00 · Iffley Road Gym"],
+        ["Practice — michaelmas week 2", "Wed 21 Oct · 20:00 · Iffley Road Astro"],
+        ["Club social — michaelmas week 2", "Thu 22 Oct · 19:30 · The Lamb and Flag"],
+        ["Sunday session — michaelmas week 3", "Sun 25 Oct · 14:00 · Iffley Road Astro"],
+      ];
+
+      const CREATE_MENU = `
+        <div style="position:absolute;top:38px;right:0;z-index:5;min-width:270px;background:var(--paper);border-radius:var(--radius);box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14);padding:6px 0">
+          <div style="padding:10px 16px">
+            <div class="body2 bold">Add a single event</div>
+            <div class="body2 sec">One fixture, practice or social</div>
+          </div>
+          <div style="padding:10px 16px;background:var(--primary-tint)">
+            <div class="body2 bold">Bulk import</div>
+            <div class="body2 sec">A term's worth at once</div>
+          </div>
+        </div>`;
+
+      const W304 = opShell(`
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
+          <div><h1 class="h6">Events</h1><p class="body2 sec">Season 2026-27</p></div>
+          <div class="btn-row" style="position:relative">
+            <button class="btn btn-outlined btn-sm">Add to your calendar</button>
+            <button class="btn btn-contained btn-sm">Create event ▾</button>
+            ${CREATE_MENU}
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-contained btn-sm">List</button>
+          <button class="btn btn-outlined btn-sm">Calendar</button>
+        </div>
+        <div>
+          <div class="btn-row wide-only">
+            <button class="btn btn-outlined btn-sm">This week</button>
+            <button class="btn btn-contained btn-sm">This month</button>
+            <button class="btn btn-outlined btn-sm">This term</button>
+            <button class="btn btn-outlined btn-sm">All upcoming</button>
+            <button class="btn btn-outlined btn-sm">All events</button>
+          </div>
+          <div class="narrow-only">
+            <span class="field-inline period-select"><span>This month</span><span>▾</span></span>
+          </div>
+        </div>
+        <div class="paper" style="padding:0;overflow:hidden">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--divider)"><p class="over">This week and next · 4 events</p></div>
+          ${LIST_ROWS.map(
+            ([n, w]) => `
+            <div style="padding:10px 14px;border-bottom:1px solid var(--divider)">
+              <div class="body2 bold" style="color:var(--primary)">${n}</div>
+              <div class="body2 sec">${w}</div>
+            </div>`,
+          ).join("")}
+        </div>`);
+
+      /* ------------------------ W3-05: refusals -------------------------- */
+
+      const W305 = opShell(`
+        <div class="stack g2">
+          ${alert("warn", "<strong>Nothing was changed.</strong> The file has no header row this importer recognises. Download the template and compare the first line.")}
+          ${alert("warn", "<strong>One row was refused.</strong> <code>type</code> reads “Training”. It must be one of Practice, S&amp;C, Chalk, Game, Social, Recruitment, Meeting.")}
+          ${alert("warn", "<strong>Two rows were refused.</strong> Both carry the same id. The file asks for two different changes to one event, and the system will not choose between them.")}
+          ${alert("warn", "<strong>One row was refused.</strong> <code>date</code> reads “14/10/2026”. Dates are YYYY-MM-DD.")}
+          ${alert("info", "<strong>All 47 rows are unchanged.</strong> This file matches what is already in the season, so there is nothing to apply.")}
+          <div class="paper">
+            <p class="over">What an import can never do</p>
+            <ul class="deltas" style="color:var(--text-primary)">
+              <li><strong>Delete anything.</strong> Events are upsert only. An event missing from the file is left exactly as it was.</li>
+              <li><strong>Change an approved event.</strong> Those rows are refused by name; amend the event on its own page.</li>
+              <li><strong>Approve, cancel, or send.</strong> An import produces drafts, and nothing leaves the building.</li>
+            </ul>
+          </div>
+        </div>`);
+
+      const SCREENS = [
+        {
+          id: "W3-01",
+          disposition: "new",
+          title: "Bulk import — a season with nothing in it",
+          deltas: [
+            "Four numbered steps, in plain words, above the buttons",
+            "Import CSV · Download the template · Copy the prompt",
+            "The prompt itself, in full, ready to copy",
+          ],
+          blurb:
+            "How a season starts. The club's term card is a different shape every year, so nothing here tries to read it — the conversion happens in the club's own AI tool and this screen hands over everything needed to do it. The prompt is fixed and versioned, and its worked example is asserted by test to import cleanly.",
+          clockTag: "Now: Monday, 7 September 2027, 10:05",
+          url: "localhost:3000/operate/events/import",
+          now: null,
+          nowNone:
+            "New surface, nothing to compare — there is no import, no export and no CSV handling anywhere on main.",
+          proposed: W301,
+        },
+        {
+          id: "W3-02",
+          disposition: "new",
+          title: "Bulk import — a season that already has events",
+          deltas: [
+            "Download the current season's events replaces Download the template",
+            "A three-number summary: drafts an import can change, approved it cannot, cancelled",
+            "The identifier rule stated in one line where it matters",
+          ],
+          blurb:
+            "The same screen once the season is populated. It shows a count rather than a list — the Events page is one click away and does that job better — but it does state how many events an import can actually touch, which is the thing that would otherwise surprise an operator halfway through.",
+          clockTag: "Now: Monday, 19 October 2026, 09:18",
+          url: "localhost:3000/operate/events/import",
+          now: null,
+          nowNone: "New surface, nothing to compare",
+          proposed: W302,
+        },
+        {
+          id: "W3-03",
+          disposition: "new",
+          title: "What will change, before anything changes",
+          deltas: [
+            "Every importable column is a column, so nothing is hidden",
+            "A changed cell is highlighted in place, with the old value beneath it",
+            "The right-hand column names which fields changed, derived not written",
+            "Row numbers are gone",
+            "Nothing is written until Apply; abandoning writes nothing",
+          ],
+          blurb:
+            "The heart of the workflow. An import is a proposal until the operator accepts it. The table is wide and scrolls right on purpose — the point is to see the record, not a summary of it. New rows are tinted green, refused rows red, and the two refusals shown are the two that matter: a row that would change an approved event, and a row whose identifier matches nothing.",
+          clockTag: "Now: Monday, 19 October 2026, 09:30",
+          url: "localhost:3000/operate/events/import",
+          now: null,
+          nowNone: "New surface, nothing to compare",
+          proposed: W303,
+        },
+        {
+          id: "W3-04",
+          disposition: "modified",
+          title: "Where bulk import lives",
+          deltas: [
+            "Create event becomes a menu of two: Add a single event · Bulk import",
+            "Export is not here — it belongs on the bulk import screen, beside the file it produces",
+            "Nothing else in the header changes",
+          ],
+          blurb:
+            "Importing is a way of creating events, so it sits under Create event rather than as another button competing in the header. Exporting is not a way of creating anything, so it lives on the bulk import screen next to the file it makes. The rest of the page is the Events list exactly as W1 approved it.",
+          clockTag: "Now: Monday, 19 October 2026, 09:20",
+          url: "localhost:3000/operate/events",
+          now: null,
+          nowNone: "",
+          currentShots: ["current/list-desktop.png", "current/list-phone.png"],
+          currentCap:
+            "The Events page on main today — Create event is a single button, and there is no import, no export and no subscribe.",
+          proposed: W304,
+        },
+        {
+          id: "W3-05",
+          disposition: "new",
+          title: "Refusals, and the three things an import cannot do",
+          deltas: [
+            "A malformed file is refused whole, before any row is read",
+            "Bad rows are refused individually, with the rule they broke",
+            "A duplicated identifier refuses both rows rather than picking one",
+            "The upsert-only boundary stated where an operator will read it",
+          ],
+          blurb:
+            "The states that make this safe to hand to a Secretary with a spreadsheet. The last block is the one worth reading twice: an import can create and update drafts, and it can do nothing else.",
+          clockTag: "Now: Monday, 19 October 2026, 09:34",
+          url: "localhost:3000/operate/events/import",
+          now: null,
+          nowNone: "New surface, nothing to compare",
+          proposed: W305,
+        },
+      ];
+
+      const frame = (screen, html, kind) => `
+        <div class="frame ${kind}">
+          <div class="chrome">
+            ${kind === "desktop" ? `<span class="dots"><i></i><i></i><i></i></span>` : ""}
+            <span class="url">${screen.url}</span>
+            <span class="frame-badge">${screen.id} · ${kind === "desktop" ? "DESKTOP 1280" : "375"}</span>
+          </div>
+          <div class="viewport ${kind}-vp ${kind}">${html}</div>
+        </div>`;
+
+      const sideBlock = (screen, which) => {
+        const isCurrent = which === "current";
+        const html = isCurrent ? screen.now : screen.proposed;
+        const label = isCurrent ? "Current — on main today" : "Proposed — this mission";
+        const inner = html
+          ? `<div class="pair">${frame(screen, html, "desktop")}${frame(screen, html, "phone")}</div>`
+          : isCurrent && screen.currentShots
+            ? `<p class="shot-cap">${screen.currentCap}</p>
+               <div class="shot-pair">
+                 <img src="${screen.currentShots[0]}" alt="Current build at desktop width" />
+                 <img src="${screen.currentShots[1]}" alt="Current build at 375px" />
+               </div>`
+            : `<div class="none">${screen.nowNone}</div>`;
+        return `
+          <div class="side ${which}">
+            <span class="side-label">${label}</span>
+            ${inner}
+          </div>`;
+      };
+
+      document.getElementById("screens").innerHTML = SCREENS.map(
+        (screen) => `
+        <section class="screen">
+          <div class="screen-head">
+            <span class="tab">${screen.id}</span>
+            <h2>${screen.id} · ${screen.title}<span class="disposition ${screen.disposition}">${screen.disposition}</span></h2>
+            <p>${screen.blurb}</p>
+            <ul class="deltas">${screen.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>
+            ${screen.clockTag ? `<span class="clock">${screen.clockTag}</span>` : ""}
+          </div>
+          ${sideBlock(screen, "current")}
+          <div style="height:12px"></div>
+          ${sideBlock(screen, "proposed")}
+        </section>`,
+      ).join("");
+    </script>
+  </body>
+</html>
