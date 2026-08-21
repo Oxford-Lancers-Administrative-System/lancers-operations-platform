@@ -29,7 +29,52 @@
       "name": "Find and read events",
       "state": "mock_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W1-01",
+          "text": "Add an All events option beside the period buttons - not only upcoming - so an operator can see everything. Every sort and every filter must work there."
+        },
+        {
+          "screen_id": "W1-01",
+          "text": "Remove the explanatory callout at the bottom. It is a mockup annotation and would not exist in the real UI."
+        },
+        {
+          "screen_id": "W1-01",
+          "text": "The event name must be a hyperlink to the event page."
+        },
+        {
+          "screen_id": "W1-01",
+          "text": "At 375 the period buttons take too much of the top of the screen; events should appear much sooner. Condense the period control and the rows themselves."
+        },
+        {
+          "screen_id": "W1-02",
+          "text": "Remove the explanatory callout. Keep the split between what has occurred and what has not - that part is right."
+        },
+        {
+          "screen_id": "W1-03",
+          "text": "Drop the 'no link shown' chip. Showing 'Online' is enough; the absence of a link needs no label."
+        },
+        {
+          "screen_id": "W1-03",
+          "text": "Remove the explanatory callout. The public data set itself is right."
+        },
+        {
+          "screen_id": "W1-04",
+          "text": "Add a subscribe / add-to-calendar action beside Create event. An operator subscribes to the calendar too."
+        },
+        {
+          "screen_id": "W1-04",
+          "text": "Remove the season selector from the calendar entirely. The page header already says which season this is, so the control tells the reader nothing they do not have."
+        },
+        {
+          "screen_id": "W1-04",
+          "text": "Remove the two callouts at the bottom. The Oxford calendar itself looks right."
+        },
+        {
+          "screen_id": "W1-05",
+          "text": "Remove the 'Keep up with the club' block at the bottom. The Add to your calendar action in the top right is enough."
+        }
+      ],
       "approvals": {
         "spec": {
           "words": "Approved.",
@@ -99,5 +144,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - W1 mockup is drafted (6 screens); obtain Brian's mock approval, then write acceptance/W1.md"
+  "next_action": "Stage 3 - revise the W1 mockup against Brian's 2026-08-21 screen feedback, then re-present"
 }

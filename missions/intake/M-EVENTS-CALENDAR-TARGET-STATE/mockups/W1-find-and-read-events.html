@@ -940,16 +940,68 @@
       .scroll-x {
         overflow-x: auto;
       }
-      .cal-stack {
+      .narrow-only {
         display: none;
       }
       @container (max-width: 760px) {
-        .cal-table {
+        .wide-only {
           display: none;
         }
-        .cal-stack {
+        .narrow-only {
           display: block;
         }
+      }
+      .ecard {
+        display: block;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--divider);
+        text-decoration: none;
+        color: inherit;
+      }
+      .ecard:last-child {
+        border-bottom: 0;
+      }
+      .ecard-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: baseline;
+      }
+      .ecard-top .en {
+        font-weight: 700;
+        color: var(--primary);
+      }
+      .ecard-mid {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+      .ecard-nums {
+        margin-top: 4px;
+        font-variant-numeric: tabular-nums;
+      }
+      .period-select {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+      }
+      a.en-link {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 700;
+      }
+      a.en-link:hover {
+        text-decoration: underline;
+      }
+      .sortmark {
+        color: var(--text-disabled);
+        font-weight: 400;
+      }
+      .sortmark.on {
+        color: var(--primary);
       }
       .wk {
         border-bottom: 1px solid var(--divider);
@@ -1201,15 +1253,19 @@
           }
         </div>`;
 
+      const PERIODS = ["This week", "This month", "This term", "All upcoming", "All events"];
       const periodSwitch = (active) => `
-        <div class="btn-row">
-          ${["This week", "This month", "This term", "All upcoming"]
-            .map(
+        <div>
+          <div class="btn-row wide-only">
+            ${PERIODS.map(
               (l) =>
                 `<button class="btn ${l === active ? "btn-contained" : "btn-outlined"} btn-sm">${l}</button>`,
-            )
-            .join("")}
-          ${proposedTag}
+            ).join("")}
+            ${proposedTag}
+          </div>
+          <div class="narrow-only">
+            <span class="field-inline period-select"><span>${active}</span><span>▾</span></span>
+          </div>
         </div>`;
 
       const typeLegend = `
@@ -1361,7 +1417,7 @@
       const opRow = (e) => `
         <tr>
           <td>
-            <div class="body2 bold">${e.n}</div>
+            <a class="en-link body2" href="#">${e.n}</a>
             <div class="body2 sec">${e.t} · ${e.v}</div>
           </td>
           <td>${chipType(e.ty)}</td>
@@ -1376,21 +1432,49 @@
       const pubRow = (e) => `
         <tr>
           <td>
-            <div class="body2 bold">${e.n}</div>
+            <a class="en-link body2" href="#">${e.n}</a>
             <div class="body2 sec">${e.t}</div>
           </td>
           <td>${chipType(e.ty)}</td>
           <td class="body2">${e.d}<div class="body2 sec">${e.tw}</div></td>
-          <td class="body2">${e.v === "Online" ? `Online <span class="chip chip-outline">no link shown</span>` : e.v}</td>
+          <td class="body2">${e.v}</td>
         </tr>`;
+
+      const opCards = (rows) => `
+        <div class="narrow-only">
+          ${rows
+            .map(
+              (e) => `
+            <a class="ecard" href="#">
+              <div class="ecard-top"><span class="en">${e.n}</span><span class="body2 sec">${e.d} · ${e.t}</span></div>
+              <div class="ecard-mid">${chipType(e.ty)}${statusChip(e.st)}<span class="body2 sec">${e.v} · ${e.tw}</span></div>
+              <div class="ecard-nums body2 sec">Invited ${e.inv === null ? "—" : e.inv} · Yes ${e.yes === null ? "—" : e.yes} · Showed ${e.att === null ? "—" : e.att + " / " + e.inv}</div>
+            </a>`,
+            )
+            .join("")}
+        </div>`;
+
+      const pubCards = (rows) => `
+        <div class="narrow-only">
+          ${rows
+            .map(
+              (e) => `
+            <a class="ecard" href="#">
+              <div class="ecard-top"><span class="en">${e.n}</span><span class="body2 sec">${e.d} · ${e.t}</span></div>
+              <div class="ecard-mid">${chipType(e.ty)}<span class="body2 sec">${e.v} · ${e.tw}</span></div>
+            </a>`,
+            )
+            .join("")}
+        </div>`;
 
       const opTable = (rows, caption) => `
         <div class="paper" style="padding:0;overflow:hidden">
           ${caption ? `<div style="padding:12px 16px;border-bottom:1px solid var(--divider)"><p class="over">${caption}</p></div>` : ""}
-          <div class="scroll-x"><table class="tbl" style="min-width:640px">
+          ${opCards(rows)}
+          <div class="scroll-x wide-only"><table class="tbl" style="min-width:640px">
             <thead><tr>
-              <th>Event</th><th>Type</th><th>Date · Term/week</th><th>Status</th>
-              <th class="num">Invited</th><th class="num">Said&nbsp;yes</th><th class="num">Showed&nbsp;/&nbsp;Invited</th>
+              <th>Event <span class="sortmark">↕</span></th><th>Type <span class="sortmark">↕</span></th><th>Date · Term/week <span class="sortmark on">↑</span></th><th>Status <span class="sortmark">↕</span></th>
+              <th class="num">Invited <span class="sortmark">↕</span></th><th class="num">Said&nbsp;yes <span class="sortmark">↕</span></th><th class="num">Showed&nbsp;/&nbsp;Invited <span class="sortmark">↕</span></th>
             </tr></thead>
             <tbody>${rows.map(opRow).join("")}</tbody>
           </table></div>
@@ -1399,8 +1483,9 @@
       const pubTable = (rows, caption) => `
         <div class="paper" style="padding:0;overflow:hidden">
           ${caption ? `<div style="padding:12px 16px;border-bottom:1px solid var(--divider)"><p class="over">${caption}</p></div>` : ""}
-          <div class="scroll-x"><table class="tbl" style="min-width:520px">
-            <thead><tr><th>Event</th><th>Type</th><th>Date · Term/week</th><th>Where</th></tr></thead>
+          ${pubCards(rows)}
+          <div class="scroll-x wide-only"><table class="tbl" style="min-width:520px">
+            <thead><tr><th>Event <span class="sortmark">↕</span></th><th>Type <span class="sortmark">↕</span></th><th>Date · Term/week <span class="sortmark on">↑</span></th><th>Where <span class="sortmark">↕</span></th></tr></thead>
             <tbody>${rows.map(pubRow).join("")}</tbody>
           </table></div>
         </div>`;
@@ -1418,14 +1503,17 @@
       const W101 = `
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
           <div><h1 class="h6">Events</h1><p class="body2 sec">Season 2026-27</p></div>
-          <button class="btn btn-contained btn-sm">Create event</button>
+          <div class="btn-row">
+            <button class="btn btn-outlined btn-sm">Add to your calendar</button>
+            <button class="btn btn-contained btn-sm">Create event</button>
+          </div>
         </div>
         ${viewSwitch("List")}
         ${periodSwitch("This month")}
         ${filters}
         ${opTable(UPCOMING.slice(0, 4), "This week and next · 4 events")}
         ${opTable(UPCOMING.slice(4), "Later this month · 4 events")}
-        ${alert("info", "<strong>Showed / Invited</strong> reads “—” until an attendance sheet has been saved. A sheet saved with everyone absent reads <strong>0 / 47</strong> — a real zero, and a different fact.")}
+        
         <div class="paper">
           <p class="over">Earlier this season</p>
           <p class="body2 sec">Past events are history, reachable from here, and never the default view.</p>
@@ -1437,14 +1525,17 @@
       const W102 = `
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
           <div><h1 class="h6">Events</h1><p class="body2 sec">Season 2026-27</p></div>
-          <button class="btn btn-contained btn-sm">Create event</button>
+          <div class="btn-row">
+            <button class="btn btn-outlined btn-sm">Add to your calendar</button>
+            <button class="btn btn-contained btn-sm">Create event</button>
+          </div>
         </div>
         ${viewSwitch("List")}
-        ${periodSwitch("This term")}
+        ${periodSwitch("All events")}
         ${filters}
-        ${opTable(UPCOMING, "Michaelmas 2026-27 · 8 upcoming")}
-        ${opTable(RECENT, "Michaelmas 2026-27 · already happened")}
-        ${alert("info", "The longest bucket is the <strong>term</strong>, not a calendar quarter — the club runs on terms and a quarter cuts Michaelmas in half.")}`;
+        ${opTable(UPCOMING, "Upcoming · 8 events")}
+        ${opTable(RECENT, "Already happened · 2 of 47 this season")}
+        `;
 
       /* =============================== W1-03 ============================= */
 
@@ -1460,7 +1551,7 @@
         </div>
         ${pubTable(UPCOMING.slice(0, 4), "This week and next")}
         ${pubTable(UPCOMING.slice(4), "Later this month")}
-        ${alert("info", "Four columns, not seven. No status, no invited count, no said-yes, no attendance — and a cancelled event is simply absent from what's on. <strong>An online event never shows its joining link.</strong>")}`;
+        `;
 
       /* =============================== W1-04 ============================= */
 
@@ -1575,7 +1666,7 @@
       ];
 
       const calStack = `
-        <div class="cal-stack">
+        <div class="narrow-only">
           ${SEGMENTS.map((sg) =>
             sg.skip
               ? `<div class="wk" style="background:var(--grey100);text-align:center"><span class="body2 sec">${sg.skip}</span></div>`
@@ -1629,11 +1720,13 @@
       const W104 = `
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
           <div><h1 class="h6">Events</h1><p class="body2 sec">Season 2026-27</p></div>
-          <button class="btn btn-contained btn-sm">Create event</button>
+          <div class="btn-row">
+            <button class="btn btn-outlined btn-sm">Add to your calendar</button>
+            <button class="btn btn-contained btn-sm">Create event</button>
+          </div>
         </div>
         ${viewSwitch("Oxford")}
         <div class="row" style="gap:12px;flex-wrap:wrap;align-items:center">
-          <span class="field-inline">Season 2026-27 ▾</span>
           <span class="field-inline">Jump to: Michaelmas ▾</span>
           ${proposedTag}
           <span class="body2 sec">One continuous column — jump, don't switch calendars</span>
@@ -1641,7 +1734,7 @@
         ${typeLegend}
         <div class="paper" style="padding:0;overflow:hidden">
           ${calStack}
-          <div class="cal-table"><table class="cal">
+          <div class="wide-only"><table class="cal">
             <caption>Academic year 2026-27 — continuous</caption>
             <thead><tr><th>Week</th><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
             <tbody>
@@ -1660,8 +1753,8 @@
             </tbody>
           </table></div>
         </div>
-        ${alert("info", "Michaelmas runs into <strong>Christmas Vacation</strong>, into Hilary, into <strong>Easter Vacation</strong>, into Trinity, into the <strong>Long Vacation</strong> — one scroll, with a jump control at the top. Vacation weeks are numbered forward from 1 and meet the next term at its −1st week. A vacation belongs to neither adjacent term.")}
-        ${alert("warn", "Every season carries its own Long Vacation at each end, so two consecutive seasons render the same calendar weeks. Each shows only the events it owns — there is no event overlap between seasons.")}`;
+        
+        `;
 
       /* =============================== W1-05 ============================= */
 
@@ -1681,18 +1774,6 @@
               <div class="fact"><p class="over">Description</p><p class="body1 bold">Install review for the Brackenridge fixture. Bring questions.</p></div>
             </div>
           </div>
-          ${alert("info", "This is the whole public event page. There is no audience, no RSVP, no attendance, no delivery — and <strong>no joining link</strong>. A reader with the club link sees who is coming; that is <code>W7</code>.")}
-          <div class="paper">
-            <div class="row" style="justify-content:space-between;gap:12px;flex-wrap:wrap">
-              <div><p class="over">Keep up with the club</p><p class="body2 sec">Add the whole season to your own calendar — it stays up to date.</p></div>
-              <div class="btn-row">
-                <button class="btn btn-outlined btn-sm">Google</button>
-                <button class="btn btn-outlined btn-sm">Microsoft</button>
-                <button class="btn btn-outlined btn-sm">Apple</button>
-                ${proposedTag}
-              </div>
-            </div>
-          </div>
         </div>`;
 
       /* =============================== W1-06 ============================= */
@@ -1700,7 +1781,10 @@
       const W106 = `
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
           <div><h1 class="h6">Events</h1><p class="body2 sec">Season 2026-27</p></div>
-          <button class="btn btn-contained btn-sm">Create event</button>
+          <div class="btn-row">
+            <button class="btn btn-outlined btn-sm">Add to your calendar</button>
+            <button class="btn btn-contained btn-sm">Create event</button>
+          </div>
         </div>
         ${viewSwitch("List")}
         ${periodSwitch("This week")}
@@ -1721,7 +1805,7 @@
           id: "W1-01",
           title: "Operator list — opens on upcoming, grouped by period",
           blurb:
-            "The list an operator lives in. Today it renders all 110 events of the season in one flat run, newest first, with a meaningless Response column and a dead-weight Audience column. Proposed: it opens on what is upcoming, groups into discrete tables by period, and carries the columns that answer an operator's actual question — type, term and week, status, invited, said yes, and showed against invited.",
+            "The list an operator lives in. Today it renders all 110 events of the season in one flat run, newest first, with a meaningless Response column and a dead-weight Audience column. Proposed: it opens on what is upcoming, groups into discrete tables by period, and carries the columns that answer an operator's actual question. Event names are links to the event. Showed / Invited reads “—” until an attendance sheet has been saved; a sheet saved with everyone absent reads 0 / 47, which is a real zero and a different fact. At 375 the period control collapses to one line and each event becomes a single condensed card, so events start within a screen of the top.",
           clockTag: "Now: Monday, 19 October 2026, 09:10",
           url: "localhost:3000/operate/events",
           body: W101,
@@ -1732,11 +1816,11 @@
         },
         {
           id: "W1-02",
-          title: "Operator list — the term bucket",
+          title: "Operator list — All events, with every sort and filter live",
           blurb:
-            "The same list with the longest bucket selected. The term is the longest period, not a calendar quarter: the club runs on terms, the list already carries a Term and week column, and a quarter cuts Michaelmas in half. Past events of the same term sit below the upcoming ones rather than mixed into them.",
+            "The whole season, not just what is coming. All events is the widest bucket; This term is the longest of the period buckets, because the club runs on terms and a calendar quarter cuts Michaelmas in half. Every column sorts — Term and week sorts identically to Date — and search, status and type all apply here as they do everywhere else. What has already happened stays separated from what has not, rather than mixed into one run.",
           clockTag: "Now: Monday, 19 October 2026, 09:11",
-          url: "localhost:3000/operate/events?period=term",
+          url: "localhost:3000/operate/events?period=all",
           body: W102,
           shell: operatorShell,
         },
@@ -1744,7 +1828,7 @@
           id: "W1-03",
           title: "Public list — four columns, and no joining link",
           blurb:
-            "The same query at the public tier, on a top-level shareable route. Four columns instead of seven: no status, no invited count, no said-yes, no attendance. An online event says it is online and does not say how to join. Nothing on this page requires an account, and reading it creates no record of any kind.",
+            "The same query at the public tier, on a top-level shareable route. Four columns instead of seven: no status, no invited count, no said-yes, no attendance. An online event says Online and stops there — the absence of a joining link needs no label. Cancelled events are simply absent from what is on. Nothing on this page requires an account, and reading it creates no record of any kind.",
           clockTag: "Now: Monday, 19 October 2026, 09:12",
           url: "oxfordlancers.example/calendar",
           body: W103,
@@ -1755,7 +1839,7 @@
           id: "W1-04",
           title: "Oxford View — one continuous academic year",
           blurb:
-            "The centrepiece. Today this is three separate term calendars behind an Academic year selector and an Oxford term selector — the exact thing Stewart asked to replace. Proposed: one continuous column running Long Vacation into Michaelmas into Christmas Vacation into Hilary into Easter Vacation into Trinity into the next Long Vacation, with a jump control instead of a calendar switch. Vacation weeks are numbered forward from 1 and meet the following term at its −1st week; a vacation belongs to neither adjacent term.",
+            "The centrepiece. Today this is three separate term calendars behind an Academic year selector and an Oxford term selector — the exact thing Stewart asked to replace. Proposed: one continuous column running Long Vacation into Michaelmas into Christmas Vacation into Hilary into Easter Vacation into Trinity into the next Long Vacation, with a jump control instead of a calendar switch. Vacation weeks are numbered forward from 1 and meet the following term at its −1st week; a vacation belongs to neither adjacent term. The season selector is gone — the page header already says which season this is. Operators get Add to your calendar beside Create event. At 375 the grid becomes stacked week cards, which is what the term card already does below its md breakpoint.",
           clockTag: "Now: Monday, 19 October 2026, 09:15",
           url: "localhost:3000/operate/events/calendar?mode=oxford",
           body: W104,
@@ -1768,7 +1852,7 @@
           id: "W1-05",
           title: "Public event page — the whole record, and nothing about people",
           blurb:
-            "What a stranger sees when they open an event. The complete event record — type, when, where, term and week, mandatory or optional, required equipment, description — and no audience, no RSVP, no attendance, no delivery. The event is online, so it says so and stops there. The subscribe controls are W2's, shown here because this is where a reader meets them.",
+            "What a stranger sees when they open an event. The complete event record — type, when, where, term and week, mandatory or optional, required equipment, description — and no audience, no RSVP, no attendance, no delivery. The event is online, so it says so and stops there; joining details reach the people invited by a route this mission does not build. Subscribing is the Add to your calendar action in the header, and nothing else on the page competes with it.",
           clockTag: "Now: Monday, 19 October 2026, 09:16",
           url: "oxfordlancers.example/calendar/chalk-michaelmas-week-4",
           body: W105,
