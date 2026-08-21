@@ -1,7 +1,8 @@
 # UX standards — the rules that bind every user-facing change
 
 Status: **derived from defects already found on screen**, LAN-141
-Applies to: every screen in this repository, in every slice, now and later
+Applies to: **new and changed** user-facing code, in every slice, from now on
+Conformance today: **Administration surfaces only** — see [Where this holds today](#where-this-holds-today)
 
 [`slice-ux.md`](slice-ux.md) is the approved **workflow direction** for the first
 operational vertical slice: which routes exist, what each one is for, what the
@@ -33,6 +34,37 @@ does when something is missing, stale, refused, or already on the page.
 Each rule below carries **what it cost**, which is the part worth reading. A
 rule with no story behind it is a style preference, and this file is not for
 those.
+
+## Where this holds today
+
+These are standards for what gets written next. They are **not** a statement
+that the existing codebase already conforms, and the difference matters: a page
+claiming conformance the repository does not have is worse than no page, because
+it stops people looking.
+
+An earlier version of this document said it applied to "every screen in this
+repository, in every slice". That was not true when it was written. Independent
+review found the counter-example immediately, in the rule with the sharpest
+story attached:
+
+- **Rule 3, `src/app/operate/roster/presentation.ts:145`.** `formatDay()`
+  returns its input **raw** when the value will not parse — precisely what rule
+  3's own story calls the wrong first repair.
+- **Rules 3 and 6, `formatWhen()` at the same file, `:134-140`.** No `NaN`
+  guard, so an invalid `Date` throws `RangeError` out of `Intl.DateTimeFormat`
+  and takes the server-rendered page down. That is the exact crash shape both
+  rules exist to prevent.
+
+Neither is reachable in practice today, because both values arrive from `date`
+and `timestamptz` columns that cannot hold an unparseable value. They are
+recorded here rather than fixed because fixing them is a change to the roster
+surface, which is not this package's, and because an honest gap is more useful
+than a quiet one.
+
+The Administration surfaces conform, and every row of the table at the foot of
+this page was verified by deliberately breaking the rule and watching a named
+test fail. Bringing another surface under these rules means doing the same for
+it — not extending this sentence.
 
 ---
 
