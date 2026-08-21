@@ -131,13 +131,19 @@
     {
       "id": "W6",
       "name": "Cancel an event",
-      "state": "mock_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {},
-      "carried_questions": [
-        "Brian, 2026-08-21: is 'cancelled' the right word, or would 'paused' be better? Note that cancelled is a stored status in the approved model (D27) and D60 makes it terminal, so introducing a paused state would change the approved domain model and needs Brian's decision as scope, not as wording."
-      ]
+      "approvals": {
+        "spec": {
+          "words": "this looks pretty great",
+          "date": "2026-08-21"
+        },
+        "mock": {
+          "words": "this looks pretty great",
+          "date": "2026-08-21"
+        }
+      }
     },
     {
       "id": "W7",
@@ -163,6 +169,6 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - present W6; one open decision (cancelled versus a paused state) is with Brian",
+  "next_action": "Stage 3 - draft the W7 specification (See who is coming, and who turned up)",
   "open_items": []
 }
