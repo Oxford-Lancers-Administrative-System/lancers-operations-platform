@@ -365,6 +365,20 @@ describe("the role catalogue", () => {
     await giveOperatorAccount(deactivated, { active: false });
     await giveRole(deactivated, "media_secretary");
 
+    // A holder with a departure already dated. Both surfaces render that date —
+    // the Roles index as "ends 27 Aug 2026", the Operators index in the same
+    // words — so the two must agree about it and not merely about who holds
+    // what. Without this fixture every comparable assignment below has a null
+    // end date, and the agreement is vacuous in exactly the direction Brian's
+    // 20 August ruling cares about: he does not want to find out somebody has
+    // left after they have gone.
+    const leaving = await insertPerson("directory-leaving");
+    await giveOperatorAccount(leaving);
+    const datedDeparture = await giveRole(leaving, "social_secretary", {
+      from: offset(-10),
+      to: offset(10),
+    });
+
     const [catalogue, directory] = await Promise.all([
       readRoleCatalogue(administrator()),
       readOperatorDirectory(administrator()),
@@ -405,8 +419,15 @@ describe("the role catalogue", () => {
       }
     }
 
-    const staged = new Set([current, arriving, departed, deactivated]);
+    const staged = new Set([current, arriving, departed, deactivated, leaving]);
     let checked = 0;
+
+    // The dated departure is comparable and really does carry its date on both
+    // sides, so the end-date assertion in the loop below is reached rather than
+    // being satisfied by a pair of nulls.
+    expect(fromCatalogue.get(datedDeparture)?.effectiveTo, "the staged departure date").toBe(
+      offset(10),
+    );
 
     // Direction 1: everything the Operators index shows, the Roles index shows
     // the same way. A directory that invented a seat, put a successor among the
