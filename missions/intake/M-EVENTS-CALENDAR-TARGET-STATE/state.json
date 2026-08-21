@@ -131,7 +131,7 @@
     {
       "id": "W6",
       "name": "Cancel an event",
-      "state": "not_started",
+      "state": "mock_draft",
       "stale": false,
       "feedback": [],
       "approvals": {},
@@ -163,6 +163,6 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - draft the W6 specification (Cancel an event)",
+  "next_action": "Stage 3 - present W6; one open decision (cancelled versus a paused state) is with Brian",
   "open_items": []
 }
