@@ -78,27 +78,19 @@
     {
       "id": "W4",
       "name": "Draft an event and approve it with its audience",
-      "state": "mock_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W4-01",
-          "text": "Date should be on its own row with start and end paired beside each other; the mobile layout looked bad."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Everything else looks great.",
+          "date": "2026-08-21"
         },
-        {
-          "screen_id": "W4-03",
-          "text": "Remove the 'What approving does' block. We already know what approving does - it is over-explaining."
-        },
-        {
-          "screen_id": "W4-04",
-          "text": "Where does the Delete button actually live? There should be a Delete Event button on the event itself, once it is saved."
-        },
-        {
-          "screen_id": "W4-05",
-          "text": "Remove the callout about only drafts being deletable. That warning belongs where someone tries to delete an approved event."
+        "mock": {
+          "words": "Everything else looks great.",
+          "date": "2026-08-21"
         }
-      ],
-      "approvals": {},
+      },
       "carried_questions": [
         "Amendment 1 (2026-08-20): W4 also owns deleting a draft (D29).",
         "Conflict carried from W3 (2026-08-21): D35 says mass delete must exist; Brian doubts it will be supported. W3 settles only that no deletion happens through import. Whether bulk delete exists anywhere is open, and W4 already owns deleting a draft."
@@ -141,5 +133,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - W4 revised to six screens; awaiting Brian's approvals and the D35 bulk-delete decision"
+  "next_action": "Stage 3 - draft the W5 specification (Amend or reschedule an approved event)"
 }

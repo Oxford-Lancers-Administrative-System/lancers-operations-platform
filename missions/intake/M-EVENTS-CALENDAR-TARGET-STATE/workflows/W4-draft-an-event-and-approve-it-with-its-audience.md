@@ -237,5 +237,13 @@ Every surface here exists on `main` at `2072ecd` and is modified, not new:
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- **Exact words:** "Everything else looks great." (2026-08-21, on the six
+  screens with four items outstanding) and, after those four were applied,
+  "Continue." / "go" (2026-08-21).
+- **Date:** 2026-08-21
+- **Standing of the second word:** it was an instruction to proceed rather than
+  a fresh content review. The revision it followed was scoped strictly to the
+  four items Brian raised — Delete moved onto the draft's event page, the delete
+  dialog's callout removed, "what approving does" removed, and date given its own
+  row — and introduced nothing else. Recorded plainly so that a later reader can
+  judge the approval for what it is.
