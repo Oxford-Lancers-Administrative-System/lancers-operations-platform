@@ -1,0 +1,1832 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W1 · Find and read events — mockup</title>
+    <style>
+      /* ------------------------------------------------------------------ *
+       * Tokens taken from the real application: src/theme.ts (primary
+       * #0b3d91, radius 8, MUI light palette) plus MUI v9 defaults for
+       * Paper/Button/Chip/Alert/TextField. Nothing here is a redesign.
+       * ------------------------------------------------------------------ */
+      :root {
+        --primary: #0b3d91;
+        --primary-hover: #082c69;
+        --primary-outline: rgba(11, 61, 145, 0.5);
+        --primary-tint: rgba(11, 61, 145, 0.04);
+        --text-primary: rgba(0, 0, 0, 0.87);
+        --text-secondary: rgba(0, 0, 0, 0.6);
+        --text-disabled: rgba(0, 0, 0, 0.38);
+        --divider: rgba(0, 0, 0, 0.12);
+        --outline: rgba(0, 0, 0, 0.23);
+        --paper: #ffffff;
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --grey200: #eeeeee;
+        --grey400: #bdbdbd;
+        --grey800: #424242;
+        --grey900: #212121;
+        --info-bg: #e5f6fd;
+        --info-text: #014361;
+        --info-icon: #0288d1;
+        --warn-bg: #fff4e5;
+        --warn-text: #663c00;
+        --warn-icon: #ed6c02;
+        --radius: 8px;
+        --shadow-1:
+          0 3px 1px -2px rgba(0, 0, 0, 0.2), 0 2px 2px 0 rgba(0, 0, 0, 0.14),
+          0 1px 5px 0 rgba(0, 0, 0, 0.12);
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Geist Sans", system-ui, "Helvetica Neue",
+          Arial, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: #e7e9ee;
+        font-family: var(--font);
+        color: var(--text-primary);
+      }
+
+      /* ---------------------------- page frame --------------------------- */
+
+      .page {
+        max-width: 1560px;
+        margin: 0 auto;
+        padding: 40px 32px 96px;
+      }
+
+      .page-head {
+        margin-bottom: 40px;
+        max-width: 900px;
+      }
+
+      .page-head h1 {
+        font-size: 1.75rem;
+        line-height: 1.3;
+        font-weight: 800;
+        margin: 0 0 8px;
+      }
+
+      .page-head p {
+        margin: 0 0 8px;
+        font-size: 0.9375rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(0, 0, 0, 0.14);
+      }
+
+      .legend span {
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* ------------------------------ screens ---------------------------- */
+
+      .screen {
+        margin-top: 64px;
+      }
+
+      .screen-head {
+        position: relative;
+        border-top: 2px solid var(--grey900);
+        padding-top: 26px;
+        margin-bottom: 20px;
+        max-width: 1180px;
+      }
+
+      /* the corner tab */
+      .screen-head .tab {
+        position: absolute;
+        top: 0;
+        left: 0;
+        transform: translateY(-100%);
+        background: var(--grey900);
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        padding: 6px 14px;
+        border-radius: 6px 6px 0 0;
+      }
+
+      .screen-head h2 {
+        font-size: 1.125rem;
+        font-weight: 700;
+        margin: 0 0 6px;
+      }
+
+      .screen-head p {
+        margin: 0;
+        font-size: 0.875rem;
+        line-height: 1.55;
+        color: var(--text-secondary);
+        max-width: 82ch;
+      }
+
+      .screen-head .clock {
+        display: inline-block;
+        margin-top: 10px;
+        font-size: 0.75rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        padding: 4px 12px;
+      }
+
+      .pair {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 32px;
+      }
+
+      .frame {
+        background: var(--paper);
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 12px 32px rgba(16, 24, 40, 0.12);
+      }
+
+      .frame.desktop {
+        width: 922px;
+        max-width: 100%;
+      }
+
+      .frame.phone {
+        width: 377px;
+        border-radius: 20px;
+      }
+
+      .chrome {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        height: 34px;
+        padding: 0 12px;
+        background: var(--grey100);
+        border-bottom: 1px solid var(--divider);
+      }
+
+      .dots {
+        display: flex;
+        gap: 5px;
+      }
+
+      .dots i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--grey400);
+        display: block;
+      }
+
+      .url {
+        flex: 1;
+        min-width: 0;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 999px;
+        font-size: 0.6875rem;
+        color: var(--text-secondary);
+        padding: 3px 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .frame-badge {
+        font-size: 0.625rem;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+
+      .viewport {
+        overflow: hidden;
+      }
+
+      .viewport.desktop-vp {
+        width: 1280px;
+        zoom: 0.72;
+      }
+
+      .viewport.phone-vp {
+        width: 375px;
+      }
+
+      /* --------------------------- the app shell ------------------------- */
+
+      .app {
+        display: flex;
+        align-items: stretch;
+        min-height: 760px;
+        background: #fff;
+        font-size: 16px;
+      }
+
+      .phone .app {
+        flex-direction: column;
+        min-height: 700px;
+      }
+
+      nav.shell {
+        background: var(--grey900);
+        color: #fff;
+        flex-shrink: 0;
+        width: 226px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .phone nav.shell {
+        width: 100%;
+        order: 2;
+        position: sticky;
+        bottom: 0;
+      }
+
+      .nav-head {
+        padding: 24px 24px 16px;
+      }
+
+      .phone .nav-head {
+        display: none;
+      }
+
+      .nav-head .over {
+        font-size: 0.75rem;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        line-height: 1.4;
+        color: var(--grey400);
+      }
+
+      .nav-head .sec {
+        font-size: 1.25rem;
+        font-weight: 700;
+        line-height: 1.6;
+      }
+
+      ul.nav-list {
+        list-style: none;
+        margin: 0;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 100%;
+      }
+
+      .phone ul.nav-list {
+        flex-direction: row;
+        padding: 0;
+        gap: 0;
+      }
+
+      ul.nav-list li {
+        display: flex;
+      }
+
+      ul.nav-list a {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 48px;
+        width: 100%;
+        padding: 6px 16px;
+        border-radius: 8px;
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .phone ul.nav-list li {
+        flex: 1;
+      }
+
+      .phone ul.nav-list a {
+        align-items: center;
+        border-radius: 0;
+        padding: 6px 8px;
+      }
+
+      ul.nav-list a.sel {
+        background: var(--grey800);
+      }
+
+      .nav-label {
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      .nav-detail {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        color: var(--grey400);
+      }
+
+      .phone .nav-detail {
+        display: none;
+      }
+
+      main.shell {
+        flex-grow: 1;
+        min-width: 0;
+        padding: 32px 32px 32px;
+      }
+
+      .phone main.shell {
+        order: 1;
+        padding: 24px 16px 24px;
+      }
+
+      .shell-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .phone .shell-head {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .shell-head .brand {
+        font-size: 1.5rem;
+        line-height: 1.334;
+        font-weight: 800;
+      }
+
+      .content {
+        max-width: 900px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      /* --------------------------- MUI primitives ------------------------ */
+
+      .h5 {
+        font-size: 1.5rem;
+        line-height: 1.334;
+        font-weight: 700;
+        margin: 0;
+      }
+
+      .h6 {
+        font-size: 1.25rem;
+        line-height: 1.6;
+        font-weight: 500;
+        margin: 0;
+      }
+
+      .body1 {
+        font-size: 1rem;
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      .body2 {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        margin: 0;
+      }
+
+      .sec {
+        color: var(--text-secondary);
+      }
+
+      .bold {
+        font-weight: 600;
+      }
+
+      .over {
+        font-size: 0.75rem;
+        line-height: 2.66;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        margin: 0;
+      }
+
+      .paper {
+        background: var(--paper);
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 24px;
+      }
+
+      .phone .paper {
+        padding: 16px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .g1 {
+        gap: 8px;
+      }
+      .g2 {
+        gap: 16px;
+      }
+      .g3 {
+        gap: 24px;
+      }
+
+      .row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .grid2 {
+        display: grid;
+        gap: 24px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid2tight {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid3 {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .phone .grid2,
+      .phone .grid2tight,
+      .phone .grid3 {
+        grid-template-columns: 1fr;
+      }
+
+      .metrics {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(2, minmax(0, 160px));
+      }
+
+      .phone .metrics {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .divider {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        margin: 0;
+        width: 100%;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        font-family: inherit;
+        font-size: 0.875rem;
+        font-weight: 500;
+        letter-spacing: 0.02857em;
+        text-transform: uppercase;
+        line-height: 1.75;
+        padding: 6px 16px;
+        min-height: 44px;
+        border-radius: var(--radius);
+        cursor: pointer;
+        text-decoration: none;
+      }
+
+      .btn-contained {
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        box-shadow: var(--shadow-1);
+      }
+
+      .btn-outlined {
+        background: transparent;
+        color: var(--primary);
+        border: 1px solid var(--primary-outline);
+      }
+
+      .btn-text {
+        background: transparent;
+        color: var(--primary);
+        border: none;
+        padding: 6px 8px;
+      }
+
+      .btn-text.danger {
+        color: #d32f2f;
+      }
+
+      .btn-sm {
+        min-height: 36px;
+      }
+
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 420px;
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .phone .btn-row {
+        flex-direction: column;
+      }
+
+      .phone .btn-row .btn {
+        width: 100%;
+      }
+
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        height: 24px;
+        padding: 0 10px;
+        border-radius: 16px;
+        background: rgba(0, 0, 0, 0.08);
+        font-size: 0.8125rem;
+        line-height: 1;
+        color: var(--text-primary);
+        white-space: nowrap;
+      }
+
+      .chip-outline {
+        background: transparent;
+        border: 1px solid var(--outline);
+      }
+
+      .chip-warn {
+        background: transparent;
+        border: 1px solid rgba(237, 108, 2, 0.6);
+        color: var(--warn-text);
+      }
+
+      .chip-info {
+        background: transparent;
+        border: 1px solid rgba(2, 136, 209, 0.5);
+        color: var(--info-text);
+      }
+
+      .chip-proposed {
+        background: transparent;
+        border: 1px dashed var(--outline);
+        color: var(--text-secondary);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-size: 0.6875rem;
+        font-weight: 600;
+      }
+
+      .alert {
+        display: flex;
+        gap: 12px;
+        padding: 8px 16px;
+        border-radius: var(--radius);
+        font-size: 0.875rem;
+        line-height: 1.43;
+      }
+
+      .alert svg {
+        flex-shrink: 0;
+        margin-top: 7px;
+      }
+
+      .alert-info {
+        background: var(--info-bg);
+        color: var(--info-text);
+      }
+
+      .alert-info svg {
+        fill: var(--info-icon);
+      }
+
+      .alert-warn {
+        background: var(--warn-bg);
+        color: var(--warn-text);
+      }
+
+      .alert-warn svg {
+        fill: var(--warn-icon);
+      }
+
+      /* text field / select / switch, as MUI outlined controls */
+
+      .field {
+        position: relative;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        padding: 14px;
+        font-size: 1rem;
+        line-height: 1.4375;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 56px;
+      }
+
+      .field .lab {
+        position: absolute;
+        top: -9px;
+        left: 9px;
+        background: #fff;
+        padding: 0 6px;
+        font-size: 0.75rem;
+        line-height: 1;
+        color: var(--text-secondary);
+      }
+
+      .field.focused {
+        border: 2px solid var(--primary);
+        padding: 13px;
+      }
+
+      .field.focused .lab {
+        color: var(--primary);
+      }
+
+      .field.disabled {
+        background: var(--grey50);
+        border-color: var(--divider);
+        color: var(--text-secondary);
+      }
+
+      .field .caret {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+      }
+
+      .radio {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        cursor: default;
+      }
+
+      .radio .dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 2px solid var(--text-secondary);
+        flex-shrink: 0;
+        margin-top: 1px;
+        position: relative;
+      }
+
+      .radio.on .dot {
+        border-color: var(--primary);
+      }
+
+      .radio.on .dot::after {
+        content: "";
+        position: absolute;
+        inset: 3px;
+        border-radius: 50%;
+        background: var(--primary);
+      }
+
+      .switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .track {
+        width: 34px;
+        height: 14px;
+        border-radius: 7px;
+        background: rgba(0, 0, 0, 0.38);
+        position: relative;
+        flex-shrink: 0;
+      }
+
+      .thumb {
+        position: absolute;
+        top: -3px;
+        left: -1px;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: #fafafa;
+        box-shadow: var(--shadow-1);
+      }
+
+      .switch.on .track {
+        background: rgba(11, 61, 145, 0.5);
+      }
+
+      .switch.on .thumb {
+        left: 15px;
+        background: var(--primary);
+      }
+
+      /* --------------------------- plan timeline ------------------------- */
+
+      .plan {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .plan-row {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr) auto;
+        gap: 0 16px;
+        padding: 0 0 20px;
+        position: relative;
+      }
+
+      .phone .plan-row {
+        grid-template-columns: 24px minmax(0, 1fr);
+      }
+
+      .plan-row:last-child {
+        padding-bottom: 0;
+      }
+
+      .rail {
+        position: relative;
+        display: flex;
+        justify-content: center;
+      }
+
+      .rail .node {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid var(--primary);
+        background: #fff;
+        margin-top: 6px;
+        z-index: 1;
+      }
+
+      .rail .node.hollow {
+        border-color: var(--outline);
+      }
+
+      .rail .node.removed {
+        border-color: var(--warn-icon);
+        background: var(--warn-bg);
+      }
+
+      .plan-row:not(:last-child) .rail::after {
+        content: "";
+        position: absolute;
+        top: 18px;
+        bottom: -6px;
+        width: 2px;
+        background: var(--divider);
+      }
+
+      .plan-body {
+        min-width: 0;
+      }
+
+      .plan-when {
+        font-size: 0.75rem;
+        letter-spacing: 0.08333em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        line-height: 1.8;
+      }
+
+      .plan-title {
+        font-size: 1rem;
+        line-height: 1.5;
+        font-weight: 600;
+      }
+
+      .plan-note {
+        font-size: 0.875rem;
+        line-height: 1.43;
+        color: var(--text-secondary);
+        margin-top: 2px;
+      }
+
+      .plan-side {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        padding-top: 4px;
+      }
+
+      .phone .plan-side {
+        grid-column: 2;
+        padding-top: 8px;
+      }
+
+      .struck {
+        text-decoration: line-through;
+        color: var(--text-disabled);
+      }
+
+      .plan-control {
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-width: 460px;
+      }
+
+      /* next-send emphasis strip */
+      .next-send {
+        border: 1px solid var(--divider);
+        border-left: 4px solid var(--primary);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        background: var(--grey50);
+      }
+
+      /* audience list */
+      ul.aud {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      ul.aud li {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--divider);
+      }
+
+      ul.aud li .who {
+        font-size: 0.875rem;
+        font-weight: 600;
+      }
+
+      ul.aud li .tags {
+        display: flex;
+        gap: 8px;
+      }
+
+      .more {
+        padding-top: 8px;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+      }
+
+      .qbox {
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        padding: 16px;
+        background: var(--grey50);
+      }
+
+      .truncation {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+        font-style: italic;
+      }
+
+      .truncation::before,
+      .truncation::after {
+        content: "";
+        flex: 1;
+        border-top: 1px dashed var(--outline);
+      }
+      /* --- W1 additions: tables and the continuous term card. Built from the
+             same tokens above; no new colour is introduced. --- */
+      .viewport {
+        container-type: inline-size;
+      }
+      .scroll-x {
+        overflow-x: auto;
+      }
+      .cal-stack {
+        display: none;
+      }
+      @container (max-width: 760px) {
+        .cal-table {
+          display: none;
+        }
+        .cal-stack {
+          display: block;
+        }
+      }
+      .wk {
+        border-bottom: 1px solid var(--divider);
+        padding: 10px 12px;
+      }
+      .wk:last-child {
+        border-bottom: 0;
+      }
+      .wk.vac {
+        background: #fffdf5;
+      }
+      .wk-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: baseline;
+      }
+      .tbl {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .tbl th,
+      .tbl td {
+        text-align: left;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--divider);
+        vertical-align: top;
+      }
+      .tbl thead th {
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .tbl tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      .tbl .num,
+      .tbl th.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .cal {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      .cal caption {
+        caption-side: top;
+        text-align: left;
+        padding: 12px 16px;
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .cal th,
+      .cal td {
+        border: 1px solid var(--divider);
+        padding: 6px;
+        vertical-align: top;
+        font-size: 12px;
+      }
+      .cal thead th {
+        background: var(--grey50);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-secondary);
+      }
+      .cal tbody th[scope="row"] {
+        width: 132px;
+        background: var(--grey50);
+        text-align: left;
+      }
+      .cal tr.vac th[scope="row"] {
+        background: #fff8e1;
+      }
+      .cal tr.vac td {
+        background: #fffdf5;
+      }
+      .cal tr.skip th {
+        background: var(--grey100);
+        text-align: center;
+        padding: 6px;
+      }
+      .tile {
+        border-radius: 4px;
+        padding: 5px 7px;
+        margin-bottom: 4px;
+      }
+      .field-inline {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 12px;
+        border: 1px solid var(--outline);
+        border-radius: var(--radius);
+        font-size: 13px;
+        color: var(--text-secondary);
+        background: var(--paper);
+      }
+      .fact {
+        min-width: 0;
+      }
+      .current-shot {
+        margin-top: 10px;
+      }
+      .current-shot img {
+        width: 100%;
+        display: block;
+        border: 1px solid var(--divider);
+        border-radius: 4px;
+      }
+      .shot-pair {
+        display: grid;
+        grid-template-columns: minmax(0, 1280fr) minmax(0, 375fr);
+        gap: 14px;
+        align-items: start;
+      }
+      @media (max-width: 900px) {
+        .shot-pair {
+          grid-template-columns: 1fr;
+        }
+      }
+      .shot-cap {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin: 0 0 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <h1>W1 · Find and read events</h1>
+        <p>
+          The reading surface of the Events mission: one query in three arrangements — the list,
+          Calendar View and Oxford View — at the public tier and the operator tier. The shell,
+          typography, controls and colour are the running application's
+          (<code>src/app/operate/layout.tsx</code>, <code>src/app/operate/events/</code>,
+          <code>src/theme.ts</code>), captured from <code>main</code> at <code>2072ecd</code>.
+          Nothing here is a redesign.
+        </p>
+        <p>
+          Each screen shows the <strong>current build</strong> beside the
+          <strong>proposal</strong> where a current equivalent exists. All names, venues and numbers
+          are the synthetic local dataset.
+        </p>
+        <div class="legend">
+          <span
+            ><span class="chip chip-proposed">Proposed</span> does not exist in the build
+            today</span
+          >
+          <span><span class="chip">Practice</span> existing component vocabulary, unchanged</span>
+          <span
+            ><span class="chip chip-outline">Central rule</span> governed elsewhere, shown
+            locked</span
+          >
+          <span>Times are Europe/London. Counts are raw pairs, never percentages.</span>
+        </div>
+      </header>
+      <div id="screens"></div>
+    </div>
+
+    <script>
+      /* ===================================================================
+       * W1 — Find and read events.
+       *
+       * One season throughout: 2026-27. One cast of synthetic events drawn
+       * from the local seed. Clock is pinned per screen.
+       * =================================================================== */
+
+      const TYPES = {
+        practice: { label: "Practice", bar: "#2e7d32", tint: "#e8f5e9" },
+        sc: { label: "Strength and conditioning", bar: "#00838f", tint: "#e0f7fa" },
+        chalk: { label: "Chalk", bar: "#6a1b9a", tint: "#f3e5f5" },
+        game: { label: "Game", bar: "#c62828", tint: "#ffebee" },
+        social: { label: "Social", bar: "#ef6c00", tint: "#fff3e0" },
+        recruitment: { label: "Recruitment", bar: "#1565c0", tint: "#e3f2fd" },
+        meeting: { label: "Meeting", bar: "#455a64", tint: "#eceff1" },
+      };
+
+      const chipType = (t) =>
+        `<span class="chip" style="background:${TYPES[t].tint};border-color:${TYPES[t].bar}33;color:#000">${TYPES[t].label}</span>`;
+
+      const proposedTag = `<span class="chip chip-proposed">Proposed</span>`;
+      const INFO_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>`;
+      const WARN_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.99 19.53 19H4.47L12 5.99M12 2 1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"/></svg>`;
+      const alert = (severity, html) =>
+        `<div class="alert alert-${severity}">${severity === "warn" ? WARN_ICON : INFO_ICON}<div>${html}</div></div>`;
+
+      /* ------------------------------ shells ---------------------------- */
+
+      const operatorShell = (content) => `
+        <div class="app">
+          <nav class="shell" aria-label="Operator">
+            <div class="nav-head">
+              <div class="over" style="color:var(--grey400)">Lancers</div>
+              <div class="sec">Operations</div>
+            </div>
+            <ul class="nav-list">
+              <li><a href="#"><span class="nav-label">Roster</span><span class="nav-detail">People and memberships</span></a></li>
+              <li><a href="#" class="sel" aria-current="page"><span class="nav-label">Events</span><span class="nav-detail">Calendar and approval</span></a></li>
+              <li><a href="#"><span class="nav-label">Report</span><span class="nav-detail">Monday snapshot</span></a></li>
+            </ul>
+          </nav>
+          <main class="shell">
+            <div class="shell-head">
+              <div style="min-width:0">
+                <p class="brand">Lancers Operations</p>
+                <p class="body2 sec">Signed in as Caspian Hallowfield</p>
+              </div>
+              <div><button class="btn btn-outlined btn-sm">Sign out</button></div>
+            </div>
+            <div class="content">${content}</div>
+          </main>
+        </div>`;
+
+      const publicShell = (content) => `
+        <div class="app">
+          <main class="shell" style="width:100%">
+            <div class="shell-head">
+              <div style="min-width:0">
+                <p class="brand">Oxford Lancers</p>
+                <p class="body2 sec">Club calendar</p>
+              </div>
+              <div><button class="btn btn-outlined btn-sm">Add to your calendar</button></div>
+            </div>
+            <div class="content">${content}</div>
+          </main>
+        </div>`;
+
+      /* --------------------------- shared parts -------------------------- */
+
+      const viewSwitch = (active) => `
+        <div class="stack g1">
+          <div class="btn-row">
+            ${["List", "Calendar"].map((l) => `<button class="btn ${l === active || ((active === "Gregorian" || active === "Oxford") && l === "Calendar") ? "btn-contained" : "btn-outlined"} btn-sm">${l}</button>`).join("")}
+          </div>
+          ${
+            active === "Gregorian" || active === "Oxford"
+              ? `
+          <div class="btn-row">
+            <button class="btn ${active === "Gregorian" ? "btn-contained" : "btn-outlined"} btn-sm">Gregorian</button>
+            <button class="btn ${active === "Oxford" ? "btn-contained" : "btn-outlined"} btn-sm">Oxford</button>
+          </div>`
+              : ""
+          }
+        </div>`;
+
+      const periodSwitch = (active) => `
+        <div class="btn-row">
+          ${["This week", "This month", "This term", "All upcoming"]
+            .map(
+              (l) =>
+                `<button class="btn ${l === active ? "btn-contained" : "btn-outlined"} btn-sm">${l}</button>`,
+            )
+            .join("")}
+          ${proposedTag}
+        </div>`;
+
+      const typeLegend = `
+        <div class="row" style="gap:14px;flex-wrap:wrap">
+          ${Object.entries(TYPES)
+            .map(
+              ([k, v]) =>
+                `<span class="row" style="gap:6px"><span style="width:10px;height:10px;border-radius:2px;background:${v.bar};display:inline-block"></span><span class="body2 sec">${v.label}</span></span>`,
+            )
+            .join("")}
+        </div>`;
+
+      /* ============================ data ================================ */
+
+      const UPCOMING = [
+        {
+          d: "Tue 20 Oct",
+          t: "19:00",
+          n: "S&C — michaelmas week 2",
+          ty: "sc",
+          v: "Iffley Road Gym",
+          tw: "MT 2nd",
+          st: "Approved",
+          inv: 47,
+          yes: 31,
+          att: null,
+        },
+        {
+          d: "Wed 21 Oct",
+          t: "20:00",
+          n: "Practice — michaelmas week 2",
+          ty: "practice",
+          v: "Iffley Road Astro",
+          tw: "MT 2nd",
+          st: "Approved",
+          inv: 47,
+          yes: 38,
+          att: null,
+        },
+        {
+          d: "Thu 22 Oct",
+          t: "19:30",
+          n: "Club social — michaelmas week 2",
+          ty: "social",
+          v: "The Lamb and Flag",
+          tw: "MT 2nd",
+          st: "Approved",
+          inv: 47,
+          yes: 19,
+          att: null,
+        },
+        {
+          d: "Sun 25 Oct",
+          t: "14:00",
+          n: "Sunday session — michaelmas week 3",
+          ty: "practice",
+          v: "Iffley Road Astro",
+          tw: "MT 3rd",
+          st: "Approved",
+          inv: 47,
+          yes: 12,
+          att: null,
+        },
+        {
+          d: "Tue 27 Oct",
+          t: "19:00",
+          n: "S&C — michaelmas week 3",
+          ty: "sc",
+          v: "Iffley Road Gym",
+          tw: "MT 3rd",
+          st: "Draft",
+          inv: null,
+          yes: null,
+          att: null,
+        },
+        {
+          d: "Wed 28 Oct",
+          t: "20:00",
+          n: "Practice — michaelmas week 3",
+          ty: "practice",
+          v: "Iffley Road Astro",
+          tw: "MT 3rd",
+          st: "Cancelled",
+          inv: 47,
+          yes: 22,
+          att: null,
+        },
+        {
+          d: "Tue  3 Nov",
+          t: "18:00",
+          n: "Chalk — michaelmas week 4",
+          ty: "chalk",
+          v: "Online",
+          tw: "MT 4th",
+          st: "Approved",
+          inv: 47,
+          yes: 9,
+          att: null,
+        },
+        {
+          d: "Sun  8 Nov",
+          t: "14:00",
+          n: "vs Brackenridge Bulls",
+          ty: "game",
+          v: "Iffley Road Astro",
+          tw: "MT 5th",
+          st: "Approved",
+          inv: 47,
+          yes: 41,
+          att: null,
+        },
+      ];
+
+      const RECENT = [
+        {
+          d: "Wed 14 Oct",
+          t: "20:00",
+          n: "Practice — michaelmas week 1",
+          ty: "practice",
+          v: "Iffley Road Astro",
+          tw: "MT 1st",
+          st: "Occurred",
+          inv: 47,
+          yes: 38,
+          att: 34,
+        },
+        {
+          d: "Tue 13 Oct",
+          t: "19:00",
+          n: "S&C — michaelmas week 1",
+          ty: "sc",
+          v: "Iffley Road Gym",
+          tw: "MT 1st",
+          st: "Occurred",
+          inv: 47,
+          yes: 22,
+          att: null,
+        },
+      ];
+
+      const statusChip = (st) => {
+        const tone = st === "Cancelled" ? "chip-warn" : st === "Draft" ? "chip-outline" : "";
+        return `<span class="chip ${tone}">${st}</span>`;
+      };
+
+      const pair = (a, b) => (a === null ? "—" : `${a} / ${b}`);
+
+      /* operator row: full column set */
+      const opRow = (e) => `
+        <tr>
+          <td>
+            <div class="body2 bold">${e.n}</div>
+            <div class="body2 sec">${e.t} · ${e.v}</div>
+          </td>
+          <td>${chipType(e.ty)}</td>
+          <td class="body2">${e.d}<div class="body2 sec">${e.tw}</div></td>
+          <td>${statusChip(e.st)}</td>
+          <td class="num">${e.inv === null ? "—" : e.inv}</td>
+          <td class="num">${e.yes === null ? "—" : e.yes}</td>
+          <td class="num">${e.att === null ? "—" : pair(e.att, e.inv)}</td>
+        </tr>`;
+
+      /* public row: reduced column set, no status, no counts, no joining URL */
+      const pubRow = (e) => `
+        <tr>
+          <td>
+            <div class="body2 bold">${e.n}</div>
+            <div class="body2 sec">${e.t}</div>
+          </td>
+          <td>${chipType(e.ty)}</td>
+          <td class="body2">${e.d}<div class="body2 sec">${e.tw}</div></td>
+          <td class="body2">${e.v === "Online" ? `Online <span class="chip chip-outline">no link shown</span>` : e.v}</td>
+        </tr>`;
+
+      const opTable = (rows, caption) => `
+        <div class="paper" style="padding:0;overflow:hidden">
+          ${caption ? `<div style="padding:12px 16px;border-bottom:1px solid var(--divider)"><p class="over">${caption}</p></div>` : ""}
+          <div class="scroll-x"><table class="tbl" style="min-width:640px">
+            <thead><tr>
+              <th>Event</th><th>Type</th><th>Date · Term/week</th><th>Status</th>
+              <th class="num">Invited</th><th class="num">Said&nbsp;yes</th><th class="num">Showed&nbsp;/&nbsp;Invited</th>
+            </tr></thead>
+            <tbody>${rows.map(opRow).join("")}</tbody>
+          </table></div>
+        </div>`;
+
+      const pubTable = (rows, caption) => `
+        <div class="paper" style="padding:0;overflow:hidden">
+          ${caption ? `<div style="padding:12px 16px;border-bottom:1px solid var(--divider)"><p class="over">${caption}</p></div>` : ""}
+          <div class="scroll-x"><table class="tbl" style="min-width:520px">
+            <thead><tr><th>Event</th><th>Type</th><th>Date · Term/week</th><th>Where</th></tr></thead>
+            <tbody>${rows.map(pubRow).join("")}</tbody>
+          </table></div>
+        </div>`;
+
+      const filters = `
+        <div class="row" style="gap:12px;flex-wrap:wrap">
+          <span class="field-inline">Search events</span>
+          <span class="field-inline">Status ▾</span>
+          <span class="field-inline">Type ▾</span>
+          <span class="body2 sec">Applied as you type — no Apply button</span>
+        </div>`;
+
+      /* =============================== W1-01 ============================= */
+
+      const W101 = `
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
+          <div><h1 class="h6">Events</h1><p class="body2 sec">Season 2026-27</p></div>
+          <button class="btn btn-contained btn-sm">Create event</button>
+        </div>
+        ${viewSwitch("List")}
+        ${periodSwitch("This month")}
+        ${filters}
+        ${opTable(UPCOMING.slice(0, 4), "This week and next · 4 events")}
+        ${opTable(UPCOMING.slice(4), "Later this month · 4 events")}
+        ${alert("info", "<strong>Showed / Invited</strong> reads “—” until an attendance sheet has been saved. A sheet saved with everyone absent reads <strong>0 / 47</strong> — a real zero, and a different fact.")}
+        <div class="paper">
+          <p class="over">Earlier this season</p>
+          <p class="body2 sec">Past events are history, reachable from here, and never the default view.</p>
+          <button class="btn btn-text btn-sm">Show past events</button>
+        </div>`;
+
+      /* =============================== W1-02 ============================= */
+
+      const W102 = `
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
+          <div><h1 class="h6">Events</h1><p class="body2 sec">Season 2026-27</p></div>
+          <button class="btn btn-contained btn-sm">Create event</button>
+        </div>
+        ${viewSwitch("List")}
+        ${periodSwitch("This term")}
+        ${filters}
+        ${opTable(UPCOMING, "Michaelmas 2026-27 · 8 upcoming")}
+        ${opTable(RECENT, "Michaelmas 2026-27 · already happened")}
+        ${alert("info", "The longest bucket is the <strong>term</strong>, not a calendar quarter — the club runs on terms and a quarter cuts Michaelmas in half.")}`;
+
+      /* =============================== W1-03 ============================= */
+
+      const W103 = `
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
+          <div><h1 class="h6">Oxford Lancers — what's on</h1><p class="body2 sec">Season 2026-27 · anyone can read this page</p></div>
+        </div>
+        ${viewSwitch("List")}
+        ${periodSwitch("This month")}
+        <div class="row" style="gap:12px;flex-wrap:wrap">
+          <span class="field-inline">Search events</span>
+          <span class="field-inline">Type ▾</span>
+        </div>
+        ${pubTable(UPCOMING.slice(0, 4), "This week and next")}
+        ${pubTable(UPCOMING.slice(4), "Later this month")}
+        ${alert("info", "Four columns, not seven. No status, no invited count, no said-yes, no attendance — and a cancelled event is simply absent from what's on. <strong>An online event never shows its joining link.</strong>")}`;
+
+      /* =============================== W1-04 ============================= */
+
+      const SEGMENTS = [
+        { label: "Long Vacation 12", dates: "13 – 19 Sep 2026", vac: true, items: [] },
+        {
+          label: "Long Vacation 13",
+          dates: "20 – 26 Sep 2026",
+          vac: true,
+          items: [
+            { d: "Tue 22", t: "19:00", n: "AGM and handover", ty: "meeting", v: "College room" },
+          ],
+        },
+        {
+          label: "−1st week",
+          dates: "27 Sep – 3 Oct 2026",
+          items: [
+            {
+              d: "Thu 1",
+              t: "17:00",
+              n: "Freshers' Fair — stand",
+              ty: "recruitment",
+              v: "Iffley Road Astro",
+            },
+            {
+              d: "Sat 3",
+              t: "10:00",
+              n: "Pre-season camp",
+              ty: "practice",
+              v: "Iffley Road Astro",
+            },
+          ],
+        },
+        {
+          label: "0th week",
+          dates: "4 – 10 Oct 2026",
+          items: [
+            { d: "Tue 6", t: "19:00", n: "S&C — week 0", ty: "sc", v: "Iffley Road Gym" },
+            {
+              d: "Wed 7",
+              t: "20:00",
+              n: "Practice — week 0",
+              ty: "practice",
+              v: "Iffley Road Astro",
+            },
+            {
+              d: "Thu 8",
+              t: "17:00",
+              n: "Taster session 2",
+              ty: "recruitment",
+              v: "Iffley Road Astro",
+            },
+          ],
+        },
+        {
+          label: "1st week",
+          dates: "11 – 17 Oct 2026",
+          items: [
+            {
+              d: "Sun 11",
+              t: "14:00",
+              n: "Sunday session",
+              ty: "practice",
+              v: "Iffley Road Astro",
+            },
+            { d: "Tue 13", t: "19:00", n: "S&C — week 1", ty: "sc", v: "Iffley Road Gym" },
+            {
+              d: "Wed 14",
+              t: "20:00",
+              n: "Practice — week 1",
+              ty: "practice",
+              v: "Iffley Road Astro",
+            },
+          ],
+        },
+        { skip: "2nd – 7th week — the rest of Michaelmas" },
+        {
+          label: "8th week",
+          dates: "29 Nov – 5 Dec 2026",
+          items: [
+            { d: "Sun 29", t: "14:00", n: "vs Dunsfold Dragoons", ty: "game", v: "Away" },
+            { d: "Tue 1", t: "18:00", n: "Chalk — week 8", ty: "chalk", v: "Online" },
+            {
+              d: "Wed 2",
+              t: "20:00",
+              n: "Practice — week 8",
+              ty: "practice",
+              v: "Iffley Road Astro",
+            },
+          ],
+        },
+        { label: "Christmas Vacation 1", dates: "6 – 12 Dec 2026", vac: true, items: [] },
+        {
+          label: "Christmas Vacation 2",
+          dates: "13 – 19 Dec 2026",
+          vac: true,
+          items: [
+            {
+              d: "Thu 17",
+              t: "19:30",
+              n: "Christmas social",
+              ty: "social",
+              v: "The Lamb and Flag",
+            },
+          ],
+        },
+        { skip: "Christmas Vacation 3 – 4" },
+        { label: "−1st week", dates: "3 – 9 Jan 2027", items: [] },
+        {
+          skip: "Hilary 0th – 8th week · Easter Vacation 1 – 5 · Trinity −1st – 8th week · Long Vacation 1 – 16",
+        },
+      ];
+
+      const calStack = `
+        <div class="cal-stack">
+          ${SEGMENTS.map((sg) =>
+            sg.skip
+              ? `<div class="wk" style="background:var(--grey100);text-align:center"><span class="body2 sec">${sg.skip}</span></div>`
+              : `<div class="wk ${sg.vac ? "vac" : ""}">
+                 <div class="wk-head">
+                   <span class="body2 bold">${sg.label}</span>
+                   <span class="body2 sec">${sg.dates}</span>
+                 </div>
+                 ${
+                   sg.items.length === 0
+                     ? `<p class="body2 sec" style="margin:6px 0 0">Nothing this week</p>`
+                     : sg.items
+                         .map(
+                           (i) => `
+                     <div class="tile" style="margin-top:6px;border-left:3px solid ${TYPES[i.ty].bar};background:${TYPES[i.ty].tint}">
+                       <div class="body2 bold">${i.d} · ${i.t} ${i.n}</div>
+                       <div class="body2 sec">${TYPES[i.ty].label} · ${i.v}</div>
+                     </div>`,
+                         )
+                         .join("")
+                 }
+               </div>`,
+          ).join("")}
+        </div>`;
+
+      const segRow = (label, dates, cells, kind) => `
+        <tr class="${kind === "vac" ? "vac" : ""}">
+          <th scope="row">
+            <div class="body2 bold">${label}</div>
+            <div class="body2 sec">${dates}</div>
+          </th>
+          ${cells}
+        </tr>`;
+
+      const cell = (day, items) => `
+        <td>
+          <div class="body2 sec" style="margin-bottom:4px">${day}</div>
+          ${items
+            .map(
+              (i) => `
+            <div class="tile" style="border-left:3px solid ${TYPES[i.ty].bar};background:${TYPES[i.ty].tint}">
+              <div class="body2 bold">${i.t} ${i.n}</div>
+              <div class="body2 sec">${TYPES[i.ty].label} · ${i.v}</div>
+            </div>`,
+            )
+            .join("")}
+        </td>`;
+
+      const empty = (day) => `<td><div class="body2 sec">${day}</div></td>`;
+
+      const W104 = `
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
+          <div><h1 class="h6">Events</h1><p class="body2 sec">Season 2026-27</p></div>
+          <button class="btn btn-contained btn-sm">Create event</button>
+        </div>
+        ${viewSwitch("Oxford")}
+        <div class="row" style="gap:12px;flex-wrap:wrap;align-items:center">
+          <span class="field-inline">Season 2026-27 ▾</span>
+          <span class="field-inline">Jump to: Michaelmas ▾</span>
+          ${proposedTag}
+          <span class="body2 sec">One continuous column — jump, don't switch calendars</span>
+        </div>
+        ${typeLegend}
+        <div class="paper" style="padding:0;overflow:hidden">
+          ${calStack}
+          <div class="cal-table"><table class="cal">
+            <caption>Academic year 2026-27 — continuous</caption>
+            <thead><tr><th>Week</th><th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th></tr></thead>
+            <tbody>
+              ${segRow("Long Vacation 12", "13 – 19 Sep 2026", empty("13") + empty("14") + empty("15") + empty("16") + empty("17") + empty("18") + empty("19"), "vac")}
+              ${segRow("Long Vacation 13", "20 – 26 Sep 2026", empty("20") + empty("21") + cell("22", [{ t: "19:00", n: "AGM and handover", ty: "meeting", v: "College room" }]) + empty("23") + empty("24") + empty("25") + empty("26"), "vac")}
+              ${segRow("−1st week", "27 Sep – 3 Oct 2026", empty("27") + empty("28") + empty("29") + empty("30") + cell("1", [{ t: "17:00", n: "Freshers' Fair — stand", ty: "recruitment", v: "Iffley Road Astro" }]) + empty("2") + cell("3", [{ t: "10:00", n: "Pre-season camp", ty: "practice", v: "Iffley Road Astro" }]))}
+              ${segRow("0th week", "4 – 10 Oct 2026", empty("4") + empty("5") + cell("6", [{ t: "19:00", n: "S&C — week 0", ty: "sc", v: "Iffley Road Gym" }]) + cell("7", [{ t: "20:00", n: "Practice — week 0", ty: "practice", v: "Iffley Road Astro" }]) + cell("8", [{ t: "17:00", n: "Taster session 2", ty: "recruitment", v: "Iffley Road Astro" }]) + empty("9") + empty("10"))}
+              ${segRow("1st week", "11 – 17 Oct 2026", cell("11", [{ t: "14:00", n: "Sunday session", ty: "practice", v: "Iffley Road Astro" }]) + empty("12") + cell("13", [{ t: "19:00", n: "S&C — week 1", ty: "sc", v: "Iffley Road Gym" }]) + cell("14", [{ t: "20:00", n: "Practice — week 1", ty: "practice", v: "Iffley Road Astro" }]) + empty("15") + empty("16") + empty("17"))}
+              <tr class="skip"><th scope="row" colspan="8"><span class="body2 sec">2nd – 7th week — the rest of Michaelmas</span></th></tr>
+              ${segRow("8th week", "29 Nov – 5 Dec 2026", cell("29", [{ t: "14:00", n: "vs Dunsfold Dragoons", ty: "game", v: "Away" }]) + empty("30") + cell("1", [{ t: "18:00", n: "Chalk — week 8", ty: "chalk", v: "Online" }]) + cell("2", [{ t: "20:00", n: "Practice — week 8", ty: "practice", v: "Iffley Road Astro" }]) + empty("3") + empty("4") + empty("5"))}
+              ${segRow("Christmas Vacation 1", "6 – 12 Dec 2026", empty("6") + empty("7") + empty("8") + empty("9") + empty("10") + empty("11") + empty("12"), "vac")}
+              ${segRow("Christmas Vacation 2", "13 – 19 Dec 2026", empty("13") + empty("14") + empty("15") + empty("16") + cell("17", [{ t: "19:30", n: "Christmas social", ty: "social", v: "The Lamb and Flag" }]) + empty("18") + empty("19"), "vac")}
+              <tr class="skip"><th scope="row" colspan="8"><span class="body2 sec">Christmas Vacation 3 – 4</span></th></tr>
+              ${segRow("−1st week", "3 – 9 Jan 2027", empty("3") + empty("4") + empty("5") + empty("6") + empty("7") + empty("8") + empty("9"))}
+              <tr class="skip"><th scope="row" colspan="8"><span class="body2 sec">Hilary 0th – 8th week · Easter Vacation 1 – 5 · Trinity −1st – 8th week · Long Vacation 1 – 16</span></th></tr>
+            </tbody>
+          </table></div>
+        </div>
+        ${alert("info", "Michaelmas runs into <strong>Christmas Vacation</strong>, into Hilary, into <strong>Easter Vacation</strong>, into Trinity, into the <strong>Long Vacation</strong> — one scroll, with a jump control at the top. Vacation weeks are numbered forward from 1 and meet the next term at its −1st week. A vacation belongs to neither adjacent term.")}
+        ${alert("warn", "Every season carries its own Long Vacation at each end, so two consecutive seasons render the same calendar weeks. Each shows only the events it owns — there is no event overlap between seasons.")}`;
+
+      /* =============================== W1-05 ============================= */
+
+      const W105 = `
+        <div class="stack g2">
+          <div>
+            <h1 class="h5">Chalk — michaelmas week 4</h1>
+            <p class="body2 sec">Tuesday, 3 November 2026 · 18:00 – 19:00 · Europe/London</p>
+          </div>
+          <div class="paper">
+            <div class="grid2">
+              <div class="fact"><p class="over">Type</p><p class="body1 bold">Chalk</p></div>
+              <div class="fact"><p class="over">Where</p><p class="body1 bold">Online</p><p class="body2 sec">Joining details are sent to the people invited.</p></div>
+              <div class="fact"><p class="over">Term / week</p><p class="body1 bold">Michaelmas 2026-27 · 4th week</p></div>
+              <div class="fact"><p class="over">Attendance</p><p class="body1 bold">Optional</p></div>
+              <div class="fact"><p class="over">Required equipment</p><p class="body1 bold">Notebook, playbook</p></div>
+              <div class="fact"><p class="over">Description</p><p class="body1 bold">Install review for the Brackenridge fixture. Bring questions.</p></div>
+            </div>
+          </div>
+          ${alert("info", "This is the whole public event page. There is no audience, no RSVP, no attendance, no delivery — and <strong>no joining link</strong>. A reader with the club link sees who is coming; that is <code>W7</code>.")}
+          <div class="paper">
+            <div class="row" style="justify-content:space-between;gap:12px;flex-wrap:wrap">
+              <div><p class="over">Keep up with the club</p><p class="body2 sec">Add the whole season to your own calendar — it stays up to date.</p></div>
+              <div class="btn-row">
+                <button class="btn btn-outlined btn-sm">Google</button>
+                <button class="btn btn-outlined btn-sm">Microsoft</button>
+                <button class="btn btn-outlined btn-sm">Apple</button>
+                ${proposedTag}
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+      /* =============================== W1-06 ============================= */
+
+      const W106 = `
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
+          <div><h1 class="h6">Events</h1><p class="body2 sec">Season 2026-27</p></div>
+          <button class="btn btn-contained btn-sm">Create event</button>
+        </div>
+        ${viewSwitch("List")}
+        ${periodSwitch("This week")}
+        ${filters}
+        ${alert("info", "<strong>Nothing this week.</strong> There are 47 more events in Michaelmas — try <em>This term</em>.")}
+        <hr class="divider" />
+        <p class="over">The other empty states, which must not read alike</p>
+        ${alert("info", "<strong>Nothing matches “astro” with status Cancelled.</strong> Clear the filters to see all 55 events this season.")}
+        ${alert("info", "<strong>No events in this season yet.</strong> Import a term card to get started, or create one event.")}
+        ${alert("warn", "<strong>No Oxford terms are configured for 2026-27.</strong> The Oxford view needs term dates before it can place anything. The list and Calendar View still work.")}
+        ${alert("warn", "<strong>Two events have no date.</strong> They cannot be placed on a calendar and are listed here so they are not lost.")}
+        ${alert("info", "<code>?month=banana</code> — an unreadable month opens where the calendar would have opened anyway, rather than erroring.")}`;
+
+      /* ============================ screens ============================== */
+
+      const SCREENS = [
+        {
+          id: "W1-01",
+          title: "Operator list — opens on upcoming, grouped by period",
+          blurb:
+            "The list an operator lives in. Today it renders all 110 events of the season in one flat run, newest first, with a meaningless Response column and a dead-weight Audience column. Proposed: it opens on what is upcoming, groups into discrete tables by period, and carries the columns that answer an operator's actual question — type, term and week, status, invited, said yes, and showed against invited.",
+          clockTag: "Now: Monday, 19 October 2026, 09:10",
+          url: "localhost:3000/operate/events",
+          body: W101,
+          shell: operatorShell,
+          current: ["current/list-desktop.png", "current/list-phone.png"],
+          currentCap:
+            "Current build — one flat run of the whole season, Response and Audience columns, no counts, no grouping.",
+        },
+        {
+          id: "W1-02",
+          title: "Operator list — the term bucket",
+          blurb:
+            "The same list with the longest bucket selected. The term is the longest period, not a calendar quarter: the club runs on terms, the list already carries a Term and week column, and a quarter cuts Michaelmas in half. Past events of the same term sit below the upcoming ones rather than mixed into them.",
+          clockTag: "Now: Monday, 19 October 2026, 09:11",
+          url: "localhost:3000/operate/events?period=term",
+          body: W102,
+          shell: operatorShell,
+        },
+        {
+          id: "W1-03",
+          title: "Public list — four columns, and no joining link",
+          blurb:
+            "The same query at the public tier, on a top-level shareable route. Four columns instead of seven: no status, no invited count, no said-yes, no attendance. An online event says it is online and does not say how to join. Nothing on this page requires an account, and reading it creates no record of any kind.",
+          clockTag: "Now: Monday, 19 October 2026, 09:12",
+          url: "oxfordlancers.example/calendar",
+          body: W103,
+          shell: publicShell,
+          proposed: true,
+        },
+        {
+          id: "W1-04",
+          title: "Oxford View — one continuous academic year",
+          blurb:
+            "The centrepiece. Today this is three separate term calendars behind an Academic year selector and an Oxford term selector — the exact thing Stewart asked to replace. Proposed: one continuous column running Long Vacation into Michaelmas into Christmas Vacation into Hilary into Easter Vacation into Trinity into the next Long Vacation, with a jump control instead of a calendar switch. Vacation weeks are numbered forward from 1 and meet the following term at its −1st week; a vacation belongs to neither adjacent term.",
+          clockTag: "Now: Monday, 19 October 2026, 09:15",
+          url: "localhost:3000/operate/events/calendar?mode=oxford",
+          body: W104,
+          shell: operatorShell,
+          current: ["current/oxford-desktop.png", "current/oxford-phone.png"],
+          currentCap:
+            "Current build — Michaelmas only, weeks −1st to 8th, two selectors, and a footnote telling you the other terms are elsewhere.",
+        },
+        {
+          id: "W1-05",
+          title: "Public event page — the whole record, and nothing about people",
+          blurb:
+            "What a stranger sees when they open an event. The complete event record — type, when, where, term and week, mandatory or optional, required equipment, description — and no audience, no RSVP, no attendance, no delivery. The event is online, so it says so and stops there. The subscribe controls are W2's, shown here because this is where a reader meets them.",
+          clockTag: "Now: Monday, 19 October 2026, 09:16",
+          url: "oxfordlancers.example/calendar/chalk-michaelmas-week-4",
+          body: W105,
+          shell: publicShell,
+          proposed: true,
+        },
+        {
+          id: "W1-06",
+          title: "Empty and exception states, which must not read alike",
+          blurb:
+            "Six situations that all render as “nothing here” if nobody separates them. Nothing this week is not nothing this season, which is not nothing matching your filter, which is not a season with no terms configured. Undated events are listed rather than dropped, and an unreadable URL parameter opens where the calendar would have opened anyway.",
+          clockTag: "Now: Monday, 21 December 2026, 09:00",
+          url: "localhost:3000/operate/events?period=week",
+          body: W106,
+          shell: operatorShell,
+        },
+      ];
+
+      document.getElementById("screens").innerHTML = SCREENS.map(
+        (screen) => `
+        <section class="screen">
+          <div class="screen-head">
+            <span class="tab">${screen.id}</span>
+            <h2>${screen.id} · ${screen.title} ${screen.proposed ? proposedTag : ""}</h2>
+            <p>${screen.blurb}</p>
+            ${screen.clockTag ? `<span class="clock">${screen.clockTag}</span>` : ""}
+          </div>
+          ${
+            screen.current
+              ? `
+          <div class="current-shot">
+            <p class="shot-cap">${screen.currentCap}</p>
+            <div class="shot-pair">
+              <img src="${screen.current[0]}" alt="Current build at desktop width" />
+              <img src="${screen.current[1]}" alt="Current build at 375px" />
+            </div>
+          </div>`
+              : ""
+          }
+          <div class="pair">
+            <div class="frame desktop">
+              <div class="chrome">
+                <span class="dots"><i></i><i></i><i></i></span>
+                <span class="url">${screen.url}</span>
+                <span class="frame-badge">${screen.id} · DESKTOP 1280</span>
+              </div>
+              <div class="viewport desktop-vp desktop">${screen.shell(screen.body)}</div>
+            </div>
+            <div class="frame phone">
+              <div class="chrome">
+                <span class="url">${screen.url}</span>
+                <span class="frame-badge">${screen.id} · 375</span>
+              </div>
+              <div class="viewport phone-vp phone">${screen.shell(screen.body)}</div>
+            </div>
+          </div>
+        </section>`,
+      ).join("");
+    </script>
+  </body>
+</html>

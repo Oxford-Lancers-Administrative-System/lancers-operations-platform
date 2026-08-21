@@ -27,7 +27,7 @@
     {
       "id": "W1",
       "name": "Find and read events",
-      "state": "spec_approved",
+      "state": "mock_draft",
       "stale": false,
       "feedback": [],
       "approvals": {
@@ -99,5 +99,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - build mockups/W1-find-and-read-events.html and the mockup hub, then obtain Brian's mock approval"
+  "next_action": "Stage 3 - W1 mockup is drafted (6 screens); obtain Brian's mock approval, then write acceptance/W1.md"
 }
