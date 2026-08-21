@@ -80,7 +80,24 @@
       "name": "Draft an event and approve it with its audience",
       "state": "mock_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W4-01",
+          "text": "Date should be on its own row with start and end paired beside each other; the mobile layout looked bad."
+        },
+        {
+          "screen_id": "W4-03",
+          "text": "Remove the 'What approving does' block. We already know what approving does - it is over-explaining."
+        },
+        {
+          "screen_id": "W4-04",
+          "text": "Where does the Delete button actually live? There should be a Delete Event button on the event itself, once it is saved."
+        },
+        {
+          "screen_id": "W4-05",
+          "text": "Remove the callout about only drafts being deletable. That warning belongs where someone tries to delete an approved event."
+        }
+      ],
       "approvals": {},
       "carried_questions": [
         "Amendment 1 (2026-08-20): W4 also owns deleting a draft (D29).",
@@ -124,5 +141,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - present the W4 specification and mockup; one open decision (bulk delete / D35) is with Brian"
+  "next_action": "Stage 3 - W4 revised to six screens; awaiting Brian's approvals and the D35 bulk-delete decision"
 }

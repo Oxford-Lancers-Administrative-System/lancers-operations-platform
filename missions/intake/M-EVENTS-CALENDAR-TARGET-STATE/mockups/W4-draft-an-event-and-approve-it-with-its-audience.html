@@ -1508,8 +1508,8 @@
         <div class="paper">
           ${field("Name", "Practice — michaelmas week 9", { help: "The opponent goes in the name. There is no opponent field." })}
           ${field("Type", "Practice ▾")}
+          ${field("Date", "2026-12-02", { help: "A draft may have no date yet. Approval will require one." })}
           <div class="row" style="gap:10px;align-items:flex-start">
-            <div style="flex:1">${field("Date", "2026-12-02", { help: "A draft may have no date yet. Approval will require one." })}</div>
             <div style="flex:1">${field("Start", "20:00 ▾", { newField: true, help: "Five-minute steps · Europe/London" })}</div>
             <div style="flex:1">${field("End", "22:00 ▾", { newField: true, help: "Follows the start; adjust it." })}</div>
           </div>
@@ -1521,7 +1521,6 @@
           ${radioRow("Attendance", ["Mandatory", "Optional"], "Mandatory")}
         </div>
         <div class="row" style="gap:10px;justify-content:flex-end">
-          <button class="btn btn-text">Delete draft</button>
           <button class="btn btn-outlined">Save draft</button>
           <button class="btn btn-contained">Save and choose audience</button>
         </div>`);
@@ -1607,44 +1606,62 @@
           </div>
           <p class="body2 sec" style="margin-top:10px">27 more, all named on the real screen.</p>
         </div>
-        <div class="paper">
-          <p class="over">What approving does</p>
-          <ul class="deltas" style="color:var(--text-primary)">
-            <li>Creates 32 invitations against this event.</li>
-            <li>Freezes the Practice template on it — later template changes will not reach it.</li>
-            <li>Makes the event uneditable until it is returned to draft.</li>
-            <li><strong>Sends nothing.</strong> When invitations go out is decided elsewhere.</li>
-          </ul>
-        </div>
         <div class="row" style="gap:10px;justify-content:flex-end">
           <button class="btn btn-text">Back to event</button>
           <button class="btn btn-contained">Approve event</button>
         </div>`);
 
-      /* -------------------------- W4-04 delete --------------------------- */
+      /* ------------- W4-04 the draft event page, with Delete ------------- */
 
-      const W404 = opShell(`
-        <div class="app-inline"></div>
-        <div style="position:relative">
-          <div style="opacity:.35">
-            <div><h1 class="h6">Alumni touch game (proposed)</h1><p class="body2 sec">Draft · Saturday, 5 June 2027 · 13:00–16:00</p></div>
-            <div class="paper">
-              <div class="grid2">
-                <div class="fact"><p class="over">Type</p><p class="body1 bold">Social</p></div>
-                <div class="fact"><p class="over">Where</p><p class="body1 bold">Iffley Road Astro</p></div>
-              </div>
-            </div>
+      const draftPage = (extra) => `
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
+          <div>
+            <h1 class="h6">Alumni touch game (proposed)</h1>
+            <p class="body2 sec">Draft · Saturday, 5 June 2027 · 13:00–16:00</p>
           </div>
+          <div class="btn-row">
+            <button class="btn btn-outlined btn-sm">Edit</button>
+            <button class="btn btn-contained btn-sm">Choose audience</button>
+          </div>
+        </div>
+        ${alert("info", "A draft has no invitations, no responses and no attendance, and cannot have any. It is on the calendar; nothing has been sent.")}
+        <div class="paper">
+          <div class="grid2">
+            <div class="fact"><p class="over">Type</p><p class="body1 bold">Social</p></div>
+            <div class="fact"><p class="over">Where</p><p class="body1 bold">Iffley Road Astro</p><p class="body2 sec">In person</p></div>
+            <div class="fact"><p class="over">Term / week</p><p class="body1 bold">Trinity 2026-27 · 8th week</p></div>
+            <div class="fact"><p class="over">Attendance</p><p class="body1 bold">Optional</p></div>
+            <div class="fact"><p class="over">Audience</p><p class="body1 bold">Not chosen yet</p></div>
+            <div class="fact"><p class="over">Description</p><p class="body1 bold">Old boys against the current squad.</p></div>
+          </div>
+        </div>
+        <div class="paper">
+          <div class="row" style="justify-content:space-between;align-items:center;gap:12px">
+            <div>
+              <p class="over" style="margin:0">Delete this draft <span class="chip chip-proposed">new</span></p>
+              <p class="body2 sec" style="margin:2px 0 0">It disappears from the calendar and cannot be brought back.</p>
+            </div>
+            <button class="btn btn-outlined btn-sm" style="border-color:#c62828;color:#c62828">Delete draft</button>
+          </div>
+        </div>
+        ${extra ?? ""}`;
+
+      const W404 = opShell(draftPage());
+
+      /* ------------------- W4-05 the delete confirmation ----------------- */
+
+      const W405 = opShell(`
+        <div style="position:relative">
+          <div style="opacity:.35">${draftPage()}</div>
           <div class="scrim" style="position:absolute;inset:0">
             <div class="dialog">
               <h3>Delete this draft?</h3>
-              <p class="body2 sec" style="margin:0 0 6px"><strong>Alumni touch game (proposed)</strong> · Sat 5 June 2027</p>
-              <p class="body2" style="margin:0 0 14px">
+              <p class="body2 sec" style="margin:0 0 8px"><strong>Alumni touch game (proposed)</strong> · Sat 5 June 2027</p>
+              <p class="body2" style="margin:0 0 16px">
                 It disappears from the calendar and cannot be brought back. Nobody has been told about
                 it, so nobody will be told it is gone.
               </p>
-              ${alert("info", "Only a draft can be deleted. An event people have been invited to is <strong>cancelled</strong> instead, and stays visible with its history.")}
-              <div class="row" style="gap:10px;justify-content:flex-end;margin-top:14px">
+              <div class="row" style="gap:10px;justify-content:flex-end">
                 <button class="btn btn-text">Keep it</button>
                 <button class="btn btn-contained" style="background:#c62828">Delete draft</button>
               </div>
@@ -1652,9 +1669,9 @@
           </div>
         </div>`);
 
-      /* ------------------------- W4-05 refusals -------------------------- */
+      /* ------------------------- W4-06 refusals -------------------------- */
 
-      const W405 = opShell(`
+      const W406 = opShell(`
         <div class="stack g2">
           <div class="paper">
             <p class="h6" style="margin:0 0 4px">This event cannot be approved</p>
@@ -1755,40 +1772,63 @@
         },
         {
           id: "W4-04",
-          disposition: "new",
-          title: "Deleting a draft",
+          disposition: "modified",
+          title: "The draft event page — where Delete lives",
           deltas: [
-            "A draft can be deleted, permanently, after a confirmation naming it",
-            "Only a draft — an approved event is cancelled instead",
-            "There is no delete path of any kind on main today",
+            "A Delete draft action on the draft's own page, low emphasis and destructive",
+            "Not on the create form: there is nothing to delete until the event is saved",
+            "Description shown, because the event now has one",
           ],
           blurb:
-            "An abandoned draft is deleted rather than kept in some withdrawn limbo. Nobody has been told about a draft, so nothing needs to be told it is gone — which is exactly what separates this from cancelling, and why the dialog says so.",
+            "Delete belongs on the event, not buried in a form. Once a draft is saved it has a page, and that page is where an operator goes to edit it, choose its audience, or decide it should never have existed. There is no delete path of any kind on main today.",
+          clockTag: "Now: Monday, 16 November 2026, 11:38",
+          url: "localhost:3000/operate/events/{id}",
+          now: null,
+          nowNone: "",
+          currentShots: [
+            "current/event-detail-draft-desktop.png",
+            "current/event-detail-draft-phone.png",
+          ],
+          currentCap:
+            "A draft event page on main today — edit and audience are here; there is no way to delete it, or anything else.",
+          proposed: W404,
+        },
+        {
+          id: "W4-05",
+          disposition: "new",
+          title: "Confirming the deletion",
+          deltas: [
+            "Names the event being deleted",
+            "Says it cannot be brought back",
+            "Says nobody will be told, because nobody was told in the first place",
+          ],
+          blurb:
+            "One dialog, no lecture. The reason a draft can be deleted at all is in the last line: nothing was ever sent about it. The rule that an approved event cannot be deleted is not explained here — it is enforced where somebody would actually run into it, on W4-06.",
           clockTag: "Now: Monday, 16 November 2026, 11:40",
           url: "localhost:3000/operate/events/{id}",
           now: null,
           nowNone:
             "New surface, nothing to compare — an event cannot currently be removed by any means.",
-          proposed: W404,
+          proposed: W405,
         },
         {
-          id: "W4-05",
+          id: "W4-06",
           disposition: "modified",
           title: "Refusals, and what a draft actually is",
           deltas: [
             "Empty audience — already built, retained exactly",
             "Missing required fields, named",
             "Editing an approved event, refused with the route out",
-            "The four facts about a draft, in one place",
+            "Deleting an event people were invited to, refused and pointed at cancellation",
           ],
           blurb:
-            "The refusals that make approval mean something. The first one already exists and already refuses on the server whether or not the screen is reached; the others follow the same rule, which is that a refusal names what is wrong rather than disabling a button and leaving the operator to guess.",
+            "The refusals that make approval mean something, and the one that protects the record. A refusal names what is wrong rather than disabling a button and leaving the operator to guess — and the rule about deleting an approved event appears here, where somebody has actually tried it, rather than as a warning on a screen where it does not apply.",
           clockTag: "Now: Monday, 16 November 2026, 11:44",
           url: "localhost:3000/operate/events/{id}?step=review",
           now: null,
           nowNone:
-            "New surface, nothing to compare for the second and third; the first is captured on W4-03.",
-          proposed: W405,
+            "New surface, nothing to compare for the last three; the first is captured on W4-03.",
+          proposed: W406,
         },
       ];
 
