@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
+  emailLinkRedirectDestination,
   isPlausibleRecoveryTokenHash,
   RECOVERY_LINK_TYPE,
   RESET_PASSWORD_PATH,
@@ -7,7 +8,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * The one-time exchange the recovery email lands on — LAN-125.
+ * The one-time exchange the recovery email lands on — LAN-125, LAN-141.
  *
  * ## Why this route exists at all
  *
@@ -54,8 +55,27 @@ export async function GET(request: NextRequest) {
     await supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash });
   }
 
-  const destination = new URL(RESET_PASSWORD_PATH, request.nextUrl.origin);
-  const response = NextResponse.redirect(destination, { status: 303 });
+  // LAN-141. Not `request.nextUrl.origin`: behind a proxy that is the
+  // container's own listen address — `http://0.0.0.0:8080` on Cloud Run — so
+  // this line is why recovery has never worked in production, which
+  // `docs/deployment.md` had recorded as untested rather than as broken. The
+  // origin rule that already governs the outbound email link governs the return
+  // hop too.
+  //
+  // `NextResponse.redirect` demands an absolute URL and this may legitimately
+  // be a relative path, so the 303 is built directly. It carries nothing but a
+  // status and a `Location`, which is all `NextResponse.redirect` sets; the
+  // session cookies `verifyOtp` wrote went to the request's cookie store, not
+  // to this object.
+  const destination = emailLinkRedirectDestination({
+    path: RESET_PASSWORD_PATH,
+    appBaseUrl: process.env.APP_BASE_URL,
+    requestOrigin: request.nextUrl.origin,
+  });
+  const response = new NextResponse(null, {
+    status: 303,
+    headers: { location: destination },
+  });
 
   // The redirect itself must not be cached or attributed. `src/proxy.ts` sets
   // the same three on every recovery path; a Route Handler's own response is

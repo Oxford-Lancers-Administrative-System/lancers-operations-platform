@@ -46,7 +46,7 @@
  * `PUBLIC_RECOVERY_CONFIRMATION` and nothing else.
  */
 
-import { safeRelativeDestination } from "./destination";
+import { DEFAULT_DESTINATION, safeRelativeDestination } from "./destination";
 
 /** The public product route that asks for an address. */
 export const FORGOT_PASSWORD_PATH = "/forgot-password";
@@ -235,6 +235,70 @@ function isLoopbackOrigin(origin: string): boolean {
     host === "[::1]" ||
     host.endsWith(".localhost")
   );
+}
+
+/**
+ * Where an email-link exchange sends the browser once the token is spent.
+ *
+ * LAN-141. `resolveRecoveryOrigin` was applied to the **outbound** link and
+ * never to the redirect that follows the exchange, which used
+ * `request.nextUrl.origin`. Behind Cloud Run that origin is the container's own
+ * listen address, so a real operator's working invitation ended at
+ * `http://0.0.0.0:8080/reset-password` and `ERR_CONNECTION_REFUSED`. Password
+ * recovery carried the identical line and had therefore never worked in
+ * production either. One rule, one function, both call sites.
+ *
+ * The precedence is `resolveRecoveryOrigin`'s, unchanged: `APP_BASE_URL`,
+ * otherwise the request's own origin **only if it is loopback**, otherwise no
+ * trusted origin. A `Host` header is still not evidence.
+ *
+ * ## Why "no trusted origin" is a relative `Location` and not a refusal
+ *
+ * For the outbound link `null` is a refusal, and it costs nothing: no email is
+ * sent and the operator can ask again. Here the exchange has already happened
+ * and the session cookies are already on this response, so refusing to redirect
+ * strands a person holding a usable session on a blank response with no way to
+ * reach the screen that would use it.
+ *
+ * A relative `Location` is the safe floor, and it is *less* trusting than the
+ * defect it replaces, not more: this function emits a path and no authority at
+ * all, so nothing is read from the request and nothing is asserted about the
+ * host. The browser resolves it against the URL it actually requested — which
+ * is by definition the host the operator is looking at and the host the session
+ * cookies were just set on. It cannot be steered off-origin, it leaks nothing
+ * into a URL, and an unconfigured deployment degrades to "works" rather than to
+ * "silently broken".
+ *
+ * `APP_BASE_URL` still wins wherever it is set, which on the Cloud Run revision
+ * it is (`.github/workflows/deploy.yml`), and that is the value that fixes the
+ * observed defect.
+ *
+ * The returned string is either an absolute URL on a trusted origin or a
+ * same-origin relative path. `NextResponse.redirect` refuses the second form —
+ * it demands an absolute URL — so callers build the 303 themselves.
+ */
+export function emailLinkRedirectDestination(input: {
+  path: string;
+  appBaseUrl?: string | null;
+  requestOrigin?: string | null;
+}): string {
+  // The destination path is held to the same rule a caller-supplied
+  // `redirectTo` is. Both call sites pass a module constant today, so this can
+  // only fire for a future one — but `new URL("//evil.example", origin)`
+  // resolves to a foreign host, and that is exactly the mistake this repository
+  // has already made once (`./destination.ts`).
+  const path = safeRelativeDestination(input.path, DEFAULT_DESTINATION);
+
+  const origin = resolveRecoveryOrigin(input);
+  if (origin === null) return path;
+
+  const absolute = new URL(path, origin);
+
+  // Belt and braces. A relative path can only leave `origin` by having been an
+  // authority in disguise, which the line above already refused; if some future
+  // form gets past it, the relative path is still safe and the absolute one is
+  // not, so this returns the safe one rather than trusting the check upstream.
+  return absolute.origin === origin ? absolute.toString() : path;
 }
 
 /** The absolute URL handed to `resetPasswordForEmail`, or `null` if unconfigured. */
