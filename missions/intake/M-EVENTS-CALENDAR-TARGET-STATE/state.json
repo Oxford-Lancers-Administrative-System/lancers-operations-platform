@@ -165,12 +165,12 @@
     {
       "id": "W8",
       "name": "Administer event-type templates",
-      "state": "not_started",
+      "state": "mock_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - draft the W8 specification (Administer event-type templates), the last workflow",
+  "next_action": "Stage 3 - present W8, the last workflow; then Stage 4 packet assembly",
   "open_items": []
 }
