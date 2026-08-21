@@ -218,5 +218,14 @@ this workflow's.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- **Exact words:** "Sure, I think that looks fine." and "let's close this out and
+  do the next one." (2026-08-21)
+- **Date:** 2026-08-21
+- **What it approved:** this specification and the five-screen mockup, after one
+  round of six corrections — the event's own details brought onto the page, the
+  register moved under the numbers, filters added, side-by-side actions at 375,
+  send-to-WhatsApp removed, and the washout explanation replaced by `NA / 47`
+  against `0 / 47`.
+- **Confirmed with the approval:** the headline reads `NA / 47` rather than a
+  bare `NA`, keeping the invited count visible; and the club-link tier gets the
+  same filters as the operator tier, minus delivery.
