@@ -71,6 +71,26 @@ plan, attached to the billing account the project already used.
 Firebase's terms rather than the Google Cloud Terms of Service. Anyone debugging
 a request that reaches the application must know there is a hop in front of it.
 
+**Firebase forwards exactly one cookie, and the application is named for it.**
+This is the constraint that nearly disqualified this decision, and it is not
+optional. Firebase strips cookies from the requests it forwards so its CDN can
+cache safely, permitting only the exact name `__session`. Supabase's default
+`sb-<project-ref>-auth-token` is therefore deleted on every request: sign-in
+appears to succeed and the next page bounces to `/login`, and password recovery
+fails identically because `/auth/recovery` writes a session `/reset-password`
+never receives. Both symptoms are silent. Every cookie-backed Supabase client
+in this application consequently sets `cookieOptions` from
+`src/lib/supabase/cookies.ts`, and `src/lib/supabase/cookies.test.ts` fails if
+one stops.
+
+The cost is a ceiling. `@supabase/ssr` splits a session larger than roughly
+3180 bytes into `__session.0`, `__session.1`, … and Firebase strips those too,
+with the same silent symptom. A real signed-in session measured 2653 bytes on
+2026-08-21 — it fits, with about 500 bytes of headroom, and custom JWT claims
+are the obvious way to spend it. `assertSessionCookieFitsOneCookie` logs a named
+error the moment a session is split, so that day produces a log line rather than
+another evening of mysterious sign-outs.
+
 **Blaze egress has no ceiling**, unlike Cloud Run, which is bounded by
 `max-instances: 3`. The hard billing cap and multi-recipient spend alerting in
 LAN-143 exist because of this.

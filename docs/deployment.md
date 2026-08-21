@@ -521,6 +521,24 @@ If the front door itself is broken, the Cloud Run hostname still serves the
 application directly and can be used to confirm whether a fault is in Hosting or
 in the container.
 
+### The session cookie must be named `__session`
+
+Firebase forwards **only** the cookie named exactly `__session` and strips every
+other one, so its CDN can cache safely. Supabase's default cookie name does not
+survive the front door, and the failure is silent in both directions: sign-in
+looks like it worked and the next page redirects to `/login`, and a password
+reset link lands on `/reset-password` with no session and reports that the link
+cannot be used.
+
+`src/lib/supabase/cookies.ts` holds the name and every cookie-backed Supabase
+client uses it. Do not remove `cookieOptions` from any of them;
+`src/lib/supabase/cookies.test.ts` fails if you do.
+
+The session must also stay under roughly 3180 bytes, or `@supabase/ssr` splits
+it into `__session.0`, `__session.1`, … which Firebase also strips. It was 2653
+bytes on 2026-08-21. If the application ever adds custom JWT claims, re-measure.
+A split session logs a named `[auth]` error rather than failing quietly.
+
 ### Edge caching
 
 Firebase caches responses according to the `Cache-Control` the application sends.
