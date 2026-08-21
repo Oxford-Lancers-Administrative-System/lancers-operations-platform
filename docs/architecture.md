@@ -11,15 +11,16 @@ How a schema change reaches production is in
 
 ## Stack
 
-| Layer           | Choice                                               | Notes                                                                             |
-| --------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------- |
-| Framework       | Next.js 16 (App Router), React 19, TypeScript strict | Turbopack is the default builder in 16.                                           |
-| UI              | Material UI v9 + `src/theme.ts`                      | Tailwind is also installed but unused — [ADR 0004](adr/0004-styling-baseline.md). |
-| Database & auth | Supabase (PostgreSQL, London / EU West 2)            | One production project; local stack for everything else.                          |
-| Hosting         | Google Cloud Run (`europe-west2`)                    | Container from `Dockerfile`, standalone Next.js output.                           |
-| Registry        | Artifact Registry                                    | Images tagged with the commit SHA.                                                |
-| Secrets         | GCP Secret Manager                                   | Injected at runtime, never baked into the image.                                  |
-| CI/CD           | GitHub Actions                                       | OIDC + Workload Identity Federation, no stored GCP key.                           |
+| Layer           | Choice                                               | Notes                                                                                                                         |
+| --------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Framework       | Next.js 16 (App Router), React 19, TypeScript strict | Turbopack is the default builder in 16.                                                                                       |
+| UI              | Material UI v9 + `src/theme.ts`                      | Tailwind is also installed but unused — [ADR 0004](adr/0004-styling-baseline.md).                                             |
+| Database & auth | Supabase (PostgreSQL, London / EU West 2)            | One production project; local stack for everything else.                                                                      |
+| Hosting         | Google Cloud Run (`europe-west2`)                    | Container from `Dockerfile`, standalone Next.js output.                                                                       |
+| Public hostname | Firebase Hosting → Cloud Run rewrite                 | `app.oxfordlancers.com`. Domain mappings are refused in `europe-west2` — [ADR 0031](adr/0031-firebase-hosting-front-door.md). |
+| Registry        | Artifact Registry                                    | Images tagged with the commit SHA.                                                                                            |
+| Secrets         | GCP Secret Manager                                   | Injected at runtime, never baked into the image.                                                                              |
+| CI/CD           | GitHub Actions                                       | OIDC + Workload Identity Federation, no stored GCP key.                                                                       |
 
 Approved 2026-08-07. GitHub is the technical ownership boundary.
 

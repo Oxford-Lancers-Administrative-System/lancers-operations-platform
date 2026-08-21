@@ -50,3 +50,6 @@ next-env.d.ts
 
 # Generated local Supabase slot configuration, fencing tokens, and session state.
 .lancers-runtime/
+
+# Firebase CLI deploy cache
+.firebase/

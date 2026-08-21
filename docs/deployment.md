@@ -1,8 +1,12 @@
 # Deployment and rollback
 
-The trivial page is deployed to **Cloud Run** on the **Cloud Run default URL**.
-The custom domain (`app.oxfordlancers.com`) is blocked on a GoDaddy transfer and
-is deliberately not part of this path.
+The application is deployed to **Cloud Run** in `europe-west2`, and is reached
+by the public on **`https://app.oxfordlancers.com`**, which Firebase Hosting
+serves by rewriting to that service — see
+[The public hostname](#the-public-hostname--firebase-hosting-in-front-of-cloud-run)
+below and [ADR 0031](adr/0031-firebase-hosting-front-door.md). Cloud Run's own
+`run.app` hostname still answers and is useful for telling whether a fault is in
+Hosting or in the container.
 
 ## Shape of the pipeline
 
@@ -314,10 +318,10 @@ repository as well as in it**. The application half ships with the code; the
 Supabase project half is set in the hosted dashboard, by Brian, and this section
 is the exact list.
 
-The deployed service answers on its Cloud Run default hostname:
+The deployed service answers on the permanent club hostname:
 
 ```
-https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app
+https://app.oxfordlancers.com
 ```
 
 That value appears in exactly two places and they must agree: `APP_BASE_URL` in
@@ -326,11 +330,11 @@ That value appears in exactly two places and they must agree: `APP_BASE_URL` in
 
 **1. Authentication → URL Configuration.**
 
-| Field                | Value                                                                         |
-| -------------------- | ----------------------------------------------------------------------------- |
-| Site URL             | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app`                 |
-| Redirect URL (exact) | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app/auth/recovery`   |
-| Redirect URL (exact) | `https://lancers-operations-platform-7p2bnetl6q-nw.a.run.app/auth/invitation` |
+| Field                | Value                                           |
+| -------------------- | ----------------------------------------------- |
+| Site URL             | `https://app.oxfordlancers.com`                 |
+| Redirect URL (exact) | `https://app.oxfordlancers.com/auth/recovery`   |
+| Redirect URL (exact) | `https://app.oxfordlancers.com/auth/invitation` |
 
 Two exact URLs, not a wildcard — the second is LAN-131's first-access
 invitation. The application asks for those destinations and no others; anything
@@ -462,6 +466,69 @@ limits.
 ```bash
 gcloud run services logs read lancers-operations-platform --region europe-west2 --limit 100
 ```
+
+## The public hostname — Firebase Hosting in front of Cloud Run
+
+`https://app.oxfordlancers.com` is **not** served by Cloud Run directly. Firebase
+Hosting terminates TLS at Google's edge and forwards every request to the Cloud
+Run service through a catch-all rewrite. Cloud Run never learns it has a custom
+domain.
+
+This exists because Cloud Run's own free custom-domain feature — domain
+mappings — is refused in `europe-west2`:
+
+```
+ERROR: 501 UNIMPLEMENTED: Creating domain mappings is not allowed in europe-west2.
+```
+
+The service is in London deliberately, next to hosted Supabase. Google's
+documented alternative is a global external Application Load Balancer at roughly
+£15–20/month before a single request. Firebase Hosting does the same job for £0.
+The reasoning and the rejected alternatives are in
+[`adr/0031-firebase-hosting-front-door.md`](adr/0031-firebase-hosting-front-door.md).
+
+**Do not replace this with a load balancer**, and note that
+`gcloud run integrations create --type=custom-domains` silently provisions one.
+
+### The configuration
+
+`firebase.json` at the repository root. `firebase/public/` is deliberately empty
+so that nothing matches statically and every request falls through to the
+rewrite. It is **not** Next.js's `public/` directory, and must not be repointed
+at it — that would publish those assets to the edge, where they would be served
+by Hosting and would not change when the container is redeployed.
+
+### Redeploying the front door
+
+Only needed when `firebase.json` itself changes. Application deploys do not touch
+it.
+
+```bash
+npx firebase deploy --only hosting
+```
+
+`.firebaserc` pins the project, so no `--project` flag is needed. The Blaze plan
+is required and is attached to the project's existing billing account.
+
+### Rolling back the front door
+
+Hosting keeps every release. Roll back in the Firebase console under
+**Hosting → Release history**, or redeploy a corrected `firebase.json`. Rolling
+back Hosting does **not** roll back the application — for that, see
+[Rolling back](#rolling-back) below.
+
+If the front door itself is broken, the Cloud Run hostname still serves the
+application directly and can be used to confirm whether a fault is in Hosting or
+in the container.
+
+### Edge caching
+
+Firebase caches responses according to the `Cache-Control` the application sends.
+Dynamically rendered routes send `private, no-cache, no-store` and are never
+cached. Statically prerendered routes send `s-maxage=31536000`, and **a Cloud Run
+deploy does not purge Firebase's edge cache** — a changed static route can serve
+stale for a long time. Today only `/` is affected, and it is a placeholder. When
+that changes, add a `headers` override to `firebase.json`.
 
 ## Deploying
 
