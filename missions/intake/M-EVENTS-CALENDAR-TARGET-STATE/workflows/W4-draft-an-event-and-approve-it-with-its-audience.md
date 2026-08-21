@@ -259,7 +259,13 @@ approved on 2026-08-21 stands unchanged.
 
 ### What this amendment adds
 
-**Authoring.** On the event, below the event's own facts:
+**Nothing that is its own screen.** Brian, 2026-08-21: _"This is part of the
+create event workflow. It's not a separate screen that needs its own thing …
+it's ingrained in the process, so you separated that inappropriately."_ Writing
+an event and deciding what to ask the people invited to it are one act, so
+questions live inside the screens that already exist.
+
+**Authoring — in the create and edit form**, below the event's own facts:
 
 - Add a question, choose its answer type, and mark it required or optional.
 - For a _pick from a list_, write the options.
@@ -269,9 +275,9 @@ approved on 2026-08-21 stands unchanged.
 - Questions the template supplied are marked as such, so an operator can see
   which came with the type and which they wrote.
 
-**Seeing them before approving.** The approval review already shows the event
-and the named audience. It gains **the questions, exactly as a player will be
-asked them** — because "approve this event" means approving what 37 people are
+**Seeing them before approving — in the approval review**, which already shows
+the event and the named audience. It gains **the questions, exactly as a player
+will be asked them** — because "approve this event" means approving what 37 people are
 about to be asked, and a question is not a detail you should discover afterwards.
 
 **A drafting rule, not a product one:** questions are part of the event, so they
