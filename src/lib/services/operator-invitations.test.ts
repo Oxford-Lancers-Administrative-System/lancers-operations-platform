@@ -1869,6 +1869,116 @@ describe("the duplicate check the flow starts with", () => {
       });
       expect(found).toEqual([]);
     });
+
+    /**
+     * The clause that decides which rows are eligible **at all** — LAN-141,
+     * from the independent review of PR #61.
+     *
+     * The eleven predicates above decide *which* people a search term reaches.
+     * `p.merged_into_person_id is null` decides which people the search may
+     * return under any term whatsoever, and it sat in the same `where` clause
+     * with nothing holding it: replacing it with `(true or …)` passed all
+     * seventy tests in this file. It is as privacy-bearing as the eleven, and
+     * it was the one nobody had asked about.
+     *
+     * Invariant I6 is why a merged row is still there to leak. "A merge is an
+     * audited operation that preserves both source identities. The losing row
+     * is never deleted; it points at the survivor so every imported row keeps
+     * its provenance." So the superseded Person keeps its name, its address and
+     * its phone number for ever, and the only thing standing between those and
+     * the duplicate-check projection is this clause.
+     *
+     * Two harms, and the second is worse than disclosure. The administrator is
+     * shown two identical-looking candidates with no way to tell which is
+     * current — and `assign_role` and the invitation flow take a `personId`, so
+     * choosing the wrong one attaches a login and a committee seat to a record
+     * the club has already declared superseded.
+     *
+     * The seed already contains one (`Alwyn Cholmondley`, with an address and a
+     * phone). This stages its own so the test does not depend on the generator
+     * continuing to produce one.
+     */
+    it("never returns a Person the club has merged away", async () => {
+      const survivor = await insertNamedPerson("Perrivale", "Thornbarrow", {
+        knownAs: "Perri",
+        email: "perrivale@lan141.example",
+        phone: "07700 900771",
+      });
+
+      // The superseded record is a *duplicate* of the survivor, which is what
+      // makes it dangerous: every term that finds one finds the other, so the
+      // exactness rules above cannot separate them and only eligibility can.
+      const merged = await insertNamedPerson("Perrivale", "Thornbarrow", {
+        knownAs: "Perri",
+        email: "perrivale@lan141.example",
+        phone: "07700 900771",
+      });
+      await observer.query(
+        `update public.people
+            set merged_into_person_id = $2,
+                merged_at             = now(),
+                merged_by_person_id   = $3,
+                merge_reason          = 'LAN-141 fixture: duplicate record from an import'
+          where id = $1`,
+        [merged, survivor, actorPersonId],
+      );
+
+      // Every field the projection would disclose, one search each. A clause
+      // that survived on the name terms but not on the address would be a
+      // partial fix that reads as a whole one.
+      for (const [what, query] of [
+        ["the given name", { givenName: "Perrivale" }],
+        ["the family name", { familyName: "Thornbarrow" }],
+        ["the known-as name", { knownAs: "Perri" }],
+        ["the address", { email: "perrivale@lan141.example" }],
+        ["the phone number", { phone: "07700 900771" }],
+      ] as const) {
+        const ids = (await findOperatorCandidates(administrator(), query)).map(
+          (candidate) => candidate.personId,
+        );
+
+        expect(ids, `${what} must still find the surviving Person`).toContain(survivor);
+        expect(ids, `${what} must not disclose the record merged away`).not.toContain(merged);
+      }
+    });
+
+    /**
+     * And the seeded one, because a fixture this suite creates proves the rule
+     * holds for rows this suite understands. The synthetic dataset carries a
+     * merged-away Person with a full contact record, which is the shape a real
+     * import produces, and it must be just as unreachable.
+     */
+    it("never returns the merged-away Person the synthetic dataset carries", async () => {
+      const seeded = await observer.query<{
+        id: string;
+        given_name: string;
+        family_name: string | null;
+      }>(
+        `select id, given_name, family_name
+           from public.people
+          where merged_into_person_id is not null
+          order by id
+          limit 1`,
+      );
+
+      // Not an assumption about the generator: if the seed stops carrying one,
+      // this says so rather than passing on an empty search.
+      expect(
+        seeded.rows.length,
+        "the synthetic dataset should carry a merged-away Person; if it no longer does, " +
+          "this case needs restaging rather than deleting",
+      ).toBe(1);
+
+      const { id, given_name, family_name } = seeded.rows[0];
+      const ids = (
+        await findOperatorCandidates(administrator(), {
+          givenName: given_name,
+          familyName: family_name ?? undefined,
+        })
+      ).map((candidate) => candidate.personId);
+
+      expect(ids, "a merged-away Person from the seed must not be disclosed").not.toContain(id);
+    });
   });
 
   it("reports an operator pending email verification as pending, not Active", async () => {
