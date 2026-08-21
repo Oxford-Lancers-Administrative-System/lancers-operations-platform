@@ -22,12 +22,20 @@ again. No account, no login, and the same public content `W1` shows.
 
 ## Required actions
 
-1. **Press Add to your calendar** from any reading surface.
-2. **Choose their calendar** — Google, Microsoft or Apple — or copy the feed
-   address to use somewhere else.
-3. **Confirm in their own calendar app**, which is that app's dialog and not
-   ours.
-4. **Nothing else, ever, until the next season.**
+The whole workflow is one dialog. Brian, 2026-08-21: “When I click Add to
+Calendar, there should be a pop-up that shows up … it’s just the three buttons.
+I have 1 through 3, I click it, and then it says Done. I can close that screen,
+and that’s it. That’s the whole workflow.”
+
+1. **Press Add to your calendar.** A dialog opens.
+2. **Pick a destination** — Google, Apple or Outlook — or copy the address.
+3. **Their own calendar app opens and asks them to confirm.** That confirmation
+   belongs to that app, not to this one: Apple opens the iPhone’s Subscribe to
+   Calendar sheet, Google its Add calendar prompt. This workflow gets them there
+   in one tap and stops.
+4. **The dialog says Done. They close it.**
+
+Nothing else on the page changes, and there is no second surface.
 
 ## What the subscriber gets
 
@@ -169,5 +177,9 @@ the Mission Lead may decide alone.
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- **Exact words:** “Yep, that works, and yeah, it’s so simple. I don’t think we
+  need much more, so I approve.” (2026-08-21)
+- **Date:** 2026-08-21
+- **What it approved:** this specification and the two-screen mockup, after the
+  first draft was cut back — Brian: “you’re overcomplicating this … These extra
+  screens aren’t really necessary.”
