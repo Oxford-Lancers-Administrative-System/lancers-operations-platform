@@ -210,4 +210,47 @@ describe("the scripts do not put the default back at the call site", () => {
       ).toContain(relative);
     }
   });
+
+  /**
+   * The one caller that does name an address, and why it is allowed to.
+   *
+   * CI found this: `npm run db:seed:ci` goes through
+   * `scripts/ci-local-command.mjs`, the workflow exports no `SUPABASE_DB_URL`,
+   * and the seed had been relying on the removed default. It is the case the
+   * brief anticipated — a legitimate caller depending on the default — and the
+   * answer is to make the target explicit at the call site rather than to put
+   * the default back in a shared guard where every other caller inherits it.
+   *
+   * What makes it safe there and nowhere else is the fence. On a GitHub Actions
+   * runner the workflow starts one stack on the standard unsuffixed ports; there
+   * are no coordinator slots, no leases, and no other stack to collide with. On
+   * a developer machine that same address is the `primary` slot. So the address
+   * may only be named behind a check that the caller really is CI, and that is
+   * what these assertions hold together — the literal and the fence, in one
+   * file, neither valid without the other.
+   */
+  it("names the CI stack only behind the GitHub Actions fence", () => {
+    const source = read("scripts/ci-local-command.mjs");
+
+    // It does name an address …
+    expect(source).toMatch(/postgresql:\/\/postgres:postgres@127\.0\.0\.1:54322\/postgres/);
+    // … and it may only do so because this refuses to run anywhere but CI.
+    expect(source).toMatch(/assertCiLocalExecution\(\)/);
+    expect(source).toContain('from "./lib/ci-local-execution.mjs"');
+
+    // The fence itself still demands all three markers. Weakening it would make
+    // the literal above reachable on a developer machine.
+    const fence = read("scripts/lib/ci-local-execution.mjs");
+    expect(fence).toMatch(/env\.CI !== "true" \|\| env\.GITHUB_ACTIONS !== "true"/);
+    expect(fence).toMatch(/GITHUB_WORKSPACE/);
+  });
+
+  it("lets an explicitly exported target win over the CI address", () => {
+    const source = read("scripts/ci-local-command.mjs");
+
+    // `process.env.SUPABASE_DB_URL || CI_STACK_URL`, not the other way round: if
+    // the workflow ever names a database itself, that is the more specific
+    // answer and this must not overwrite it.
+    expect(source).toMatch(/SUPABASE_DB_URL:\s*process\.env\.SUPABASE_DB_URL\s*\|\|/);
+  });
 });
