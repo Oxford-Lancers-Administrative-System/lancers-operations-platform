@@ -145,15 +145,11 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - two decisions with Brian: whether to reopen W4 for per-event questions, and the edit-versus-return-to-draft framing",
+  "next_action": "Stage 3 - W5 rebuilt on edit-in-place; present for approval, then reopen W4 for per-event questions",
   "open_items": [
     {
       "id": "OPEN-questions",
       "text": "Per-event questions were never specified. D66-D68 define answer types, a per-question mandatory toggle and two reading surfaces; D42 gives templates default questions. W4 is the natural home for authoring and approving them and is already done, so adding them requires reopening an approved workflow. Raised with Brian 2026-08-21."
-    },
-    {
-      "id": "OPEN-edit-framing",
-      "text": "Whether editing an approved event publicly returns it to draft (D49 as written) or is held as a pending amendment that only lands on re-approval. Raised with Brian 2026-08-21."
     }
   ]
 }

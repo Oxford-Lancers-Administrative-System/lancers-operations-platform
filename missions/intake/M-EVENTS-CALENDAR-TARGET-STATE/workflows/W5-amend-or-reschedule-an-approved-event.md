@@ -22,14 +22,40 @@ wrong.
 
 ## The shape of it
 
-1. **Return the event to draft.** `approved → draft` is a real transition, not a
-   trick (D49).
+**The event is edited in place and never leaves approved.**
+
+1. **Press Edit event.** The event stays approved, and stays approved on the
+   public calendar, throughout.
 2. **Everything survives** — details, invitations, and every RSVP already
-   collected. Nothing is cleared (D50).
-3. **Change what is wrong**, in the ordinary draft editor from `W4`.
-4. **Re-approve**, and decide whether this change notifies.
-5. **If it went out silently by mistake, re-notify.** The notification is
-   recoverable rather than lost (D54).
+   collected. Nothing is cleared.
+3. **Change what is wrong**, in the ordinary editor from `W4`. Changes are held
+   as a pending amendment and are not live.
+4. **Save**, and decide whether this change notifies. Saving is the moment the
+   change lands.
+5. **Or abandon it**, and nothing whatever has happened.
+6. **If it went out silently by mistake, re-notify** (D54).
+
+### Why not "return to draft"
+
+D49 makes `approved → draft` a real transition, and an earlier draft of this
+workflow took that literally: the operator pressed _Return to draft_, edited, and
+re-approved.
+
+That is wrong in practice for a reason the decision could not have anticipated,
+because D4 was decided separately: **drafts are visible on the public calendar.**
+An approved event with 37 invitations already sent would therefore appear
+publicly as a draft for as long as somebody was editing it — and if they were
+interrupted, indefinitely. A club event that silently becomes a draft after
+people have been invited to it is a worse outcome than any amendment it was
+meant to enable.
+
+**D49 is therefore superseded for the amendment path**, by Brian on 2026-08-21.
+The event is amended in place; the operator never meets the word "draft"; and
+the public never sees the event flicker. `approved → draft` remains a real
+transition in the model and remains unused by this workflow.
+
+_Recorded as a proposed correction to the Events brief in
+`notion-corrections.md`._
 
 ## Who is told, and when
 
@@ -82,15 +108,25 @@ schedule.
 Mission 4 formats it, picks the moment, delivers it and retries.
 
 One consequence of the seam is worth stating because it is already decided on
-the other side of it: **on return to draft, undelivered notification jobs are
-cancelled and nothing already sent is recalled; on re-approval, invitations
-never attempted dispatch fresh.** That is Task 02's D5, and this workflow
-inherits it rather than restating it as its own.
+the other side of it. Task 02's D5 says: **undelivered notification jobs are
+cancelled on return to draft, nothing already sent is recalled, and on
+re-approval invitations never attempted dispatch fresh.**
+
+That rule survives intact, but **its trigger moves**: there is no return to
+draft any more, so the moment at which undelivered jobs are cancelled and
+replaced is **when an amendment is saved**. The substance is unchanged — nothing
+sent is recalled, nothing unsent goes out describing the old event — but Mission
+4 must be told, because D5 names a transition this workflow no longer performs.
+Recorded as a proposed correction to the Task 02 brief in
+`notion-corrections.md`.
 
 ## State transitions
 
-- `approved → draft` — returning to draft. Preserves invitations and RSVPs.
-- `draft → approved` — re-approval, carrying the notify decision.
+- **None on the event's status.** It is approved before, during and after.
+- A **pending amendment** exists between Edit and Save, and is not visible to
+  anyone but the operator editing.
+- **Saving applies the change** and records the notify decision.
+- **Abandoning discards it** and leaves no trace on the event.
 - The event's identity, its audience and its collected responses are unchanged
   throughout.
 - Change history is retained and queryable, with the actor, the change and the
@@ -108,14 +144,14 @@ inherits it rather than restating it as its own.
 
 ## Exceptions and recovery
 
-| Situation                                                  | Behaviour                                                                                                                                               |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A change was re-approved with notify turned off by mistake | **Re-notify** sends the change notification to the same audience, without altering the event or its responses (D54, acceptance example F)               |
-| The audience is edited while the event is back in draft    | Allowed — it is a draft. People removed keep no obligation; people added are new invitations on re-approval                                             |
-| Re-approval with a now-missing required field              | Refused, exactly as `W4` refuses. The event stays a draft                                                                                               |
-| Re-approval with an empty audience                         | Refused. The event stays a draft                                                                                                                        |
-| The event has already passed                               | It can still be amended — a correction to the record is legitimate. Whether it notifies is the operator's call, and the default for a past event is off |
-| A second operator is editing the same event                | Ordinary concurrency; the Mission Lead's problem, not a product decision                                                                                |
+| Situation                                               | Behaviour                                                                                                                                               |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A change was saved with notify turned off by mistake    | **Re-notify** sends the change notification to the same audience, without altering the event or its responses (D54, acceptance example F)               |
+| The audience is edited while the event is back in draft | Allowed — it is a draft. People removed keep no obligation; people added are new invitations on re-approval                                             |
+| Re-approval with a now-missing required field           | Refused, exactly as `W4` refuses. The event stays a draft                                                                                               |
+| Re-approval with an empty audience                      | Refused. The event stays a draft                                                                                                                        |
+| The event has already passed                            | It can still be amended — a correction to the record is legitimate. Whether it notifies is the operator's call, and the default for a past event is off |
+| A second operator is editing the same event             | Ordinary concurrency; the Mission Lead's problem, not a product decision                                                                                |
 
 ## Safety, privacy, consent, and authority boundaries
 
@@ -152,9 +188,12 @@ neither of which belongs to this workflow:
 
 ## Acceptance evidence
 
-- An approved event can be returned to draft, and every invitation and every
-  RSVP survives the round trip — asserted by count and by identity, not by
-  inspection.
+- An approved event can be amended and **never leaves the approved status**,
+  including on the public calendar, at any point during the edit.
+- Every invitation and every RSVP survives an amendment — asserted by count and
+  by identity, not by inspection.
+- Abandoning an amendment leaves the event byte-for-byte as it was, and writes
+  no history entry.
 - A yes-responder is told the event changed and is not asked to answer again;
   their answer is unchanged afterwards.
 - When a change notifies, the notification obligation is recorded against every
@@ -164,8 +203,8 @@ neither of which belongs to this workflow:
 - Re-notify sends the change notification to the same audience and alters
   neither the event nor its responses.
 - Moving the date recomputes the chase threshold against the new date.
-- Re-approval is refused when a required field is missing or the audience is
-  empty, and the event stays a draft.
+- Saving is refused when a required field is missing or the audience would be
+  empty, and the event stays approved and unchanged.
 - The change history records actor, change and notify choice, and is queryable.
 - No amendment creates, alters or destroys an attendance record.
 

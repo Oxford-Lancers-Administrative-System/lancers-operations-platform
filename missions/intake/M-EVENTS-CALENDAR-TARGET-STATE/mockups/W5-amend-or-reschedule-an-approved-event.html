@@ -1475,6 +1475,13 @@
 
       const opShell = operatorShell;
 
+      const field = (label, value, opts = {}) => `
+        <div style="border:1px solid ${opts.focus ? "var(--primary)" : "var(--outline)"};border-radius:var(--radius);padding:9px 12px;margin-bottom:10px;background:var(--paper)">
+          <div class="body2 sec" style="font-size:11px">${label}</div>
+          <div class="body2 ${value ? "bold" : "sec"}">${value || ""}</div>
+          ${opts.help ? `<div class="body2 sec" style="font-size:11px;margin-top:2px">${opts.help}</div>` : ""}
+        </div>`;
+
       const EVENT_HEAD = (status, when) => `
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
           <div>
@@ -1482,7 +1489,7 @@
             <p class="body2 sec">${status} · ${when}</p>
           </div>
           <div class="btn-row">
-            <button class="btn btn-outlined btn-sm">Return to draft</button>
+            <button class="btn btn-outlined btn-sm">Edit event</button>
             <button class="btn btn-outlined btn-sm" style="border-color:#c62828;color:#c62828">Cancel event</button>
           </div>
         </div>`;
@@ -1519,31 +1526,41 @@
       /* --------------------------- W5-02 --------------------------------- */
 
       const W502 = opShell(`
-        <div style="position:relative">
-          <div style="opacity:.35">
-            ${EVENT_HEAD("Approved", "Wednesday, 11 November 2026 · 20:00–22:00")}
-            ${RESPONSES}
+        <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px">
+          <div>
+            <h1 class="h6">Editing Practice — michaelmas week 5</h1>
+            <p class="body2 sec">Approved · Wednesday, 11 November 2026 · 20:00–22:00</p>
           </div>
-          <div class="scrim" style="position:absolute;inset:0">
-            <div class="dialog">
-              <h3>Return this event to draft?</h3>
-              <p class="body2 sec" style="margin:0 0 12px"><strong>Practice — michaelmas week 5</strong> · Wed 11 Nov 2026</p>
-              <div class="paper" style="box-shadow:none;border:1px solid var(--divider);padding:12px;margin-bottom:12px">
-                <p class="over" style="margin:0 0 6px">Nothing is lost</p>
-                <div class="body2">37 invitations — <strong>kept</strong></div>
-                <div class="body2">25 yes, 4 no — <strong>kept</strong></div>
-                <div class="body2">Anything already sent — <strong>not recalled</strong></div>
-                <div class="body2 sec" style="margin-top:6px">Messages queued but not yet sent are cancelled, and go again when you re-approve.</div>
-              </div>
-              <p class="body2" style="margin:0 0 14px">
-                While it is a draft the event stays on the calendar and nothing further is sent.
-              </p>
-              <div class="row" style="gap:10px;justify-content:flex-end">
-                <button class="btn btn-text">Leave it approved</button>
-                <button class="btn btn-contained">Return to draft</button>
-              </div>
-            </div>
+          <span class="chip" style="background:#fff8e1;border-color:#f0c36d">Unsaved changes</span>
+        </div>
+        ${alert("info", "<strong>This event stays approved while you edit.</strong> Nothing here is live until you save, and nothing is sent. If you close this without saving, nothing at all happens.")}
+        <div class="paper">
+          <p class="over">Already sent about this event</p>
+          <div class="row" style="gap:26px;flex-wrap:wrap;margin-top:8px">
+            <div><p class="h5" style="font-weight:700;margin:0">37</p><p class="body2 sec">Invited — kept</p></div>
+            <div><p class="h5" style="font-weight:700;margin:0">25</p><p class="body2 sec">Said yes — kept</p></div>
+            <div><p class="h5" style="font-weight:700;margin:0">4</p><p class="body2 sec">Said no — kept</p></div>
           </div>
+          <p class="body2 sec" style="margin-top:10px">
+            Editing never discards an answer. Anything already sent stays sent — it cannot be recalled.
+          </p>
+        </div>
+        <div class="paper">
+          ${field("Name", "Practice — michaelmas week 5")}
+          ${field("Date", "2026-11-11")}
+          <div class="row" style="gap:10px">
+            <div style="flex:1">${field("Start", "20:00 ▾")}</div>
+            <div style="flex:1">${field("End", "22:00 ▾")}</div>
+          </div>
+          <div style="background:#fff8e1;border:1px solid #f0c36d;border-radius:var(--radius);padding:2px 8px 0;margin-bottom:10px">
+            ${field("Venue", "University Parks", { focus: true, help: "Was Iffley Road Astro" })}
+          </div>
+          ${field("Description", "Full contact.")}
+          ${field("Required equipment", "Gumshield, boots")}
+        </div>
+        <div class="row" style="gap:10px;justify-content:flex-end">
+          <button class="btn btn-text">Discard changes</button>
+          <button class="btn btn-contained">Save changes…</button>
         </div>`);
 
       /* --------------------------- W5-03 --------------------------------- */
@@ -1559,7 +1576,7 @@
         </div>`;
 
       const W503 = opShell(`
-        <div><h1 class="h6">Re-approve Practice — michaelmas week 5</h1><p class="body2 sec">Two changes. Decide who hears about them.</p></div>
+        <div><h1 class="h6">Save changes to Practice — michaelmas week 5</h1><p class="body2 sec">Two changes. Decide who hears about them. Nothing has been applied yet.</p></div>
         <div class="paper">
           <p class="over">What changed</p>
           <div style="margin-top:6px">
@@ -1587,7 +1604,7 @@
         </div>
         <div class="row" style="gap:10px;justify-content:flex-end">
           <button class="btn btn-text">Back</button>
-          <button class="btn btn-contained">Re-approve and notify 37</button>
+          <button class="btn btn-contained">Save and notify 37</button>
         </div>`);
 
       /* --------------------------- W5-04 --------------------------------- */
@@ -1626,15 +1643,15 @@
               <tbody>
                 ${histRow("10 Nov, 08:12", "Rowan Ashfield", "Re-notified the audience", true)}
                 ${histRow("9 Nov, 19:40", "Rowan Ashfield", "Venue: Iffley Road Astro → University Parks", false)}
-                ${histRow("9 Nov, 19:38", "Rowan Ashfield", "Returned to draft", null)}
+                
                 ${histRow("2 Nov, 11:02", "Fen Marchbanks", "Approved · 37 invited", null)}
               </tbody>
             </table></div>
           </div>
           <div class="paper">
-            <p class="h6" style="margin:0 0 4px">This event cannot be re-approved</p>
+            <p class="h6" style="margin:0 0 4px">These changes cannot be saved</p>
             ${alert("warn", "<strong>Venue</strong> is now empty. It was required when this event was approved and it is still required.")}
-            <p class="body2" style="margin:8px 0 0">The event stays a draft. Nothing was sent.</p>
+            <p class="body2" style="margin:8px 0 0">The event stays approved and unchanged. Your edit is still here to fix.</p>
           </div>
           <div class="paper">
             <p class="over">Moving the date does one more thing</p>
@@ -1652,7 +1669,7 @@
           disposition: "modified",
           title: "An approved event gains two ways out",
           deltas: [
-            "Return to draft and Cancel event appear on an approved event",
+            "Edit event and Cancel event appear on an approved event",
             "Neither exists on main — an approved event is currently terminal",
             "The Confirm what happened panel is gone; that removal belongs to W7",
             "Response solicited is gone; W4 removes it",
@@ -1674,14 +1691,15 @@
         {
           id: "W5-02",
           disposition: "new",
-          title: "Returning to draft — and what survives it",
+          title: "Editing in place — the event never leaves approved",
           deltas: [
-            "States what is kept before the operator commits: invitations, answers, anything already sent",
-            "States what is cancelled: queued messages not yet sent",
-            "The event stays on the calendar while it is a draft",
+            "The event stays approved throughout, including on the public calendar",
+            "Changes are held and are not live until Save",
+            "Discarding leaves no trace",
+            "What was already sent, and every answer, is stated before anything is touched",
           ],
           blurb:
-            "The fear this dialog exists to answer is that editing an approved event throws away 25 people's answers. It does not, and saying so before the click is worth more than saying so afterwards. What is queued and unsent is cancelled and goes again on re-approval — that half belongs to Mission 4 and is stated here because the operator experiences it here.",
+            "An earlier draft of this workflow returned the event to draft to edit it, taking D49 literally. That is wrong here for a reason D49 could not have anticipated: D4 makes drafts publicly visible, so an event with 37 invitations would appear on the public calendar as a draft for the length of an edit, and indefinitely if the operator were interrupted. The event is amended in place instead, and the operator never meets the word draft.",
           clockTag: "Now: Monday, 9 November 2026, 19:38",
           url: "localhost:3000/operate/events/{id}",
           now: null,
@@ -1692,7 +1710,7 @@
         {
           id: "W5-03",
           disposition: "new",
-          title: "Re-approving — who hears about it",
+          title: "Saving — who hears about it",
           deltas: [
             "Each changed field carries its own notify default, and says why",
             "Venue, date and time notify; description, equipment and name are silent",
