@@ -44,10 +44,19 @@
     {
       "id": "W2",
       "name": "Subscribe to the club calendar",
-      "state": "mock_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "Yep, that works, and yeah, it's so simple. I don't think we need much more, so I approve.",
+          "date": "2026-08-21"
+        },
+        "mock": {
+          "words": "Yep, that works, and yeah, it's so simple. I don't think we need much more, so I approve.",
+          "date": "2026-08-21"
+        }
+      }
     },
     {
       "id": "W3",
@@ -103,5 +112,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - present W2 specification and mockup for Brian's approvals"
+  "next_action": "Stage 3 - draft the W3 specification (Load and correct a term's events by import)"
 }
