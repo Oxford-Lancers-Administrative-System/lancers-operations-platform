@@ -25,35 +25,87 @@ seven types, and each has exactly one template.
 
 ## What a template carries
 
-| Default                   | Notes                                                                                                                                                                                      |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Audience**              | The groups a new event of this type starts with — a Practice invites all active players (D47)                                                                                              |
-| **Questions**             | Chosen when the template is set up; they arrive with any event created from it and may be removed per event (D42)                                                                          |
-| **Required equipment**    | Practices need a gumshield; meetings need nothing                                                                                                                                          |
-| **Description**           | A starting point, not a rule                                                                                                                                                               |
-| **Mandatory or optional** | Whether attendance is expected                                                                                                                                                             |
-| **Online or in person**   | Chalk is on Teams; practices are not                                                                                                                                                       |
-| **Start and end time**    | The usual slot for this type                                                                                                                                                               |
-| **Chase threshold**       | Days before the event at which an unanswered invitation becomes worth pursuing — **2 days** for Practice, S&C, Chalk, Recruitment and Meeting; **7** for Game; **5** for Social (D75, D77) |
+Every field is **optional**. A template may leave anything undecided, and a
+field left undecided simply arrives empty on a new event. Brian, 2026-08-21:
+_"the template does not mean that everything needs to be changed … You can have
+some details not decided."_
 
-The chase threshold is **configuration, deliberately**. D75 requires it to be
-documented as such because the owner expects the values to change after the
-pilot. Storing them and never surfacing them would satisfy the letter and miss
-the point.
+| Default                                        | Why it belongs to a type                                                                                            |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Audience**                                   | A practice invites all active players; a meeting invites the committee (D47)                                        |
+| **Questions**                                  | Chosen when the template is set up, arriving with any event created from it and removable per event (D42)           |
+| **Where — in person or online, and the venue** | Chalk is on Teams. Practices are at Iffley Road, week after week                                                    |
+| **Default length**                             | Not a start time — a **duration**. 90 minutes, two hours. Entering a start on the event fills the end from it (D78) |
+| **Required equipment**                         | Practices need a gumshield; meetings need nothing                                                                   |
+| **Description**                                | A starting point for the operator to keep or replace                                                                |
+| **Mandatory or optional**                      | Whether attendance is expected                                                                                      |
+| **Chase threshold**                            | See below                                                                                                           |
+
+**There is no default name and no default date or time.** Brian, 2026-08-21:
+_"the name is always going to be unique … Usual time doesn't make any sense to
+me. That is not a field you would have."_ A type recurs; a particular Wednesday
+does not. What a type can usefully say about time is **how long it runs**, and
+that is what the template holds.
+
+## The chase threshold, precisely
+
+The template holds **one value**: _how many days before the event an unanswered
+invitation becomes worth chasing._ Practice, S&C, Chalk, Recruitment and Meeting
+are **2 days**; Game is **7**; Social is **5** (D75, D77).
+
+What that value does **not** do, stated because it would otherwise be assumed:
+
+- **It does not block a late response.** A player may answer up to the hour
+  before, and a late answer creates no new state (D24).
+- **It does not decide when the invitation is sent.** Sending, scheduling and
+  the messages themselves are Mission 4's. This mission stores the value and
+  recomputes it when an event is rescheduled (`W5`); Mission 4 acts on it.
+- **It is not a deadline shown to players as a rule.** It may be displayed as
+  guidance and it drives chasing only (D24).
+
+It is surfaced and editable rather than held in code because D75 requires it to
+be documented as configuration — the owner expects the values to change after
+the pilot.
 
 ## The rule that makes templates safe
 
-**Template values keep flowing into a draft while it remains a draft. Approval
-freezes it** (D41).
+**Template values flow into a draft field by field, and only into fields nobody
+has touched. Approval freezes everything** (D41, refined by Brian on
+2026-08-21).
 
-- Update the Practice template and **every unapproved practice draft updates
-  with it.**
+> _"If I create an event and write a custom description, and then I update the
+> template, it would not update the description. But if I didn't change the kit
+> — it's just the default and it's the same — then it updates that."_
+
+So each field on a draft is in one of two states:
+
+| The field is                                    | A template change                |
+| ----------------------------------------------- | -------------------------------- |
+| Untouched — still whatever the template gave it | **Updates it**                   |
+| Edited by an operator                           | **Leaves it alone, permanently** |
+
+And regardless of either:
+
 - **No approved event ever changes.** People have been told what it is.
 - **No past event ever changes.**
 
-That single rule is why a template can be edited mid-season without anybody
-being surprised: the blast radius is exactly the set of events nobody has been
-told about yet, and the operator is shown that set before saving.
+### Why the refinement matters
+
+D41 says template values keep flowing into a draft until approval. Taken
+literally and applied to the whole record, editing the Practice template in
+March would overwrite a description somebody wrote by hand on next Wednesday's
+session. That is the same class of failure as an amendment discarding people's
+answers: the system quietly destroying work somebody did deliberately.
+
+Per-field inheritance keeps what D41 was for — a template correction reaching
+the drafts that still want it — without the destruction. It is recorded as a
+proposed clarification to D41 in `notion-corrections.md`.
+
+### The consequence for the confirmation
+
+Because inheritance is per field, the operator is told not only which drafts
+take a change but **which will not, and why** — "3 drafts will take this; 1 will
+not, because its description was edited."
 
 ## Editing a template
 
@@ -128,10 +180,16 @@ Two adjacent facts:
 - Exactly seven templates exist, one per type, and none can be created or
   deleted.
 - A new event of a type arrives carrying that type's audience, questions,
-  equipment, description, mandatory flag, location mode and times.
+  equipment, description, mandatory flag, location mode and default length, and
+  no name, date or start time.
 - An imported draft arrives carrying them too.
-- Editing a template updates every unapproved draft of that type in one
-  transaction, and the operator is shown the count and the names first.
+- Editing a template updates, in one transaction, exactly those fields on
+  unapproved drafts that nobody has edited — and leaves every operator-edited
+  field untouched.
+- The confirmation names the drafts that will take the change **and the drafts
+  that will not, with the reason.**
+- A template field left undecided arrives empty on a new event and overwrites
+  nothing.
 - Editing a template changes no approved event and no past event — asserted by
   test, not by inspection.
 - Removing a default question removes it from unapproved drafts and leaves

@@ -1565,7 +1565,7 @@
 
       const W802 = opShell(`
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
-          <div style="min-width:0"><h1 class="h6">Practice</h1><p class="body2 sec">What a new practice starts as</p></div>
+          <div style="min-width:0"><h1 class="h6">Practice</h1><p class="body2 sec">What a new practice starts as. Leave anything undecided.</p></div>
           <div class="btn-row inline" style="flex-wrap:nowrap">
             <button class="btn btn-text btn-sm">Discard</button>
             <button class="btn btn-contained btn-sm">Save…</button>
@@ -1582,15 +1582,27 @@
           <p class="body2 sec">Groups, never people. Who that actually is gets resolved when an event is approved.</p>
         </div>
         <div class="paper">
-          ${field("Usual time", "20:00 – 22:00")}
-          ${field("Where", "In person")}
-          ${field("Required equipment", "Gumshield, boots", { dirty: true, was: "Gumshield" })}
-          ${field("Description", "Full contact.")}
-          ${field("Attendance", "Mandatory")}
+          <p class="over">The event itself</p>
+          <div style="margin-top:8px">
+            <div class="row" style="gap:10px">
+              <div style="flex:1">${field("Where", "In person ▾")}</div>
+              <div style="flex:1">${field("Venue", "Iffley Road Astro")}</div>
+            </div>
+            ${field("Default length", "2 hours ▾", { help: "Enter a start on the event and the end fills in from this. There is no default start time — a practice recurs, a particular Wednesday does not." })}
+            ${field("Required equipment", "Gumshield, boots", { dirty: true, was: "Gumshield" })}
+            ${field("Description", "Full contact.", { help: "A starting point. An operator can replace it on any event." })}
+            ${field("Attendance", "Mandatory ▾")}
+            ${field("Name", "", { placeholder: "No default — every event is named individually", help: "Not a template field." })}
+          </div>
         </div>
         <div class="paper">
-          <p class="over">Chase people who have not answered after</p>
-          ${field("Days before the event", "2 days", { help: "Practice, S&C, Chalk, Recruitment and Meeting are 2 days. Game is 7. Social is 5. These are expected to change after the pilot." })}
+          <p class="over">Chasing people who have not answered</p>
+          ${field("Becomes worth chasing", "2 days before the event ▾", { help: "Game is 7 days, Social is 5, the rest are 2. Expected to change after the pilot, which is why it is here and not in the code." })}
+          <ul class="deltas" style="color:var(--text-primary)">
+            <li>It does <strong>not</strong> stop anyone answering late — a player can answer up to the hour before.</li>
+            <li>It does <strong>not</strong> decide when the invitation goes out. That is the messaging side, not this one.</li>
+            <li>Move an event's date and this recalculates against the new one.</li>
+          </ul>
         </div>
         <div class="paper">
           <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px">
@@ -1621,11 +1633,15 @@
                 → <strong>Gumshield, boots</strong>
               </p>
               <div class="paper" style="box-shadow:none;border:1px solid var(--divider);padding:12px;margin-bottom:12px">
-                <p class="over" style="margin:0 0 6px">4 drafts will take this change</p>
+                <p class="over" style="margin:0 0 6px">3 drafts will take this change</p>
                 <div class="body2">Practice — hilary week 6 · Wed 24 Feb</div>
                 <div class="body2">Practice — hilary week 7 · Wed 3 Mar</div>
-                <div class="body2">Sunday session — hilary week 7 · Sun 7 Mar</div>
                 <div class="body2">Practice — hilary week 8 · Wed 10 Mar</div>
+              </div>
+              <div class="paper" style="box-shadow:none;border:1px solid #f0c36d;background:#fff8e1;padding:12px;margin-bottom:12px">
+                <p class="over" style="margin:0 0 6px">1 draft will not</p>
+                <div class="body2">Sunday session — hilary week 7 · Sun 7 Mar</div>
+                <div class="body2 sec" style="margin-top:2px">Its equipment was edited by hand. What somebody wrote is never overwritten.</div>
               </div>
               <div class="paper" style="box-shadow:none;border:1px solid var(--divider);padding:12px;margin-bottom:14px">
                 <p class="over" style="margin:0 0 6px">Nothing else changes</p>
@@ -1634,7 +1650,7 @@
               </div>
               <div class="row" style="gap:10px;justify-content:flex-end">
                 <button class="btn btn-text">Back</button>
-                <button class="btn btn-contained">Save and update 4 drafts</button>
+                <button class="btn btn-contained">Save and update 3 drafts</button>
               </div>
             </div>
           </div>
@@ -1683,12 +1699,13 @@
           title: "One template — what a practice starts as",
           deltas: [
             "Default audience as groups, never as people",
-            "Times, venue mode, equipment, description, mandatory",
-            "The chase threshold as an editable value, not a constant in code",
+            "Where, venue, equipment, description, mandatory — each one optional",
+            "A default length, not a default start time; no default name or date",
+            "The chase threshold as an editable value, with what it does not do stated",
             "Default questions, which arrive on every new practice",
           ],
           blurb:
-            "Everything a new practice inherits, in one place. The chase threshold is here deliberately: the brief requires it to be documented as configuration because the values are expected to change after the pilot, and it currently lives in code keyed to an event-type list this mission is narrowing.",
+            "Everything a new practice inherits, in one place, and every field optional — a template may leave a detail undecided. There is no default start time or name, because a type recurs and a particular Wednesday does not; what a type can usefully say about time is how long it runs. The chase threshold states what it does not do as plainly as what it does, because both would otherwise be assumed.",
           clockTag: "Now: Monday, 15 February 2027, 10:04",
           url: "localhost:3000/operate/events/templates/practice",
           now: null,
@@ -1701,11 +1718,12 @@
           title: "What this change will touch, before it touches it",
           deltas: [
             "Names the drafts that will take the change",
+            "Names the draft that will not, and why — its field was edited by hand",
             "States what will not move: approved events, past events",
             "The button says what it will do",
           ],
           blurb:
-            "This is the screen that makes templates safe to edit mid-season. One edit can change many events, so the blast radius is stated in names rather than in a count, and the things that will not move are stated too — because an operator's real fear is that changing a template rewrites an event people were already told about.",
+            "This is the screen that makes templates safe to edit mid-season. Inheritance is per field, so a template change reaches only fields nobody has touched — the draft whose equipment somebody wrote by hand keeps it, and the screen says so by name. The blast radius is in names rather than a count, and what will not move is stated beside what will.",
           clockTag: "Now: Monday, 15 February 2027, 10:06",
           url: "localhost:3000/operate/events/templates/practice",
           now: null,
