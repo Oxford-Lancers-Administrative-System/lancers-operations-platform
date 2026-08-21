@@ -1,6 +1,6 @@
 {
   "mission_id": "M-EVENTS-CALENDAR-TARGET-STATE",
-  "stage": "assembly",
+  "stage": "merged",
   "baseline": {
     "branch": "main",
     "commit": "c894f1de000e1b6f20427dec41a3c86a79b3973e"
@@ -180,7 +180,7 @@
       }
     }
   ],
-  "next_action": "Stage 5 - open the packet-only pull request",
+  "next_action": "Intake complete. Brian commissions the Mission Lead with /run-mission M-EVENTS-CALENDAR-TARGET-STATE",
   "open_items": [],
   "coherence_review": {
     "date": "2026-08-21",
@@ -197,5 +197,15 @@
       "one open season, no switching"
     ],
     "outstanding": []
+  },
+  "merge": {
+    "pr": 62,
+    "url": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/pull/62",
+    "merged_at": "2026-08-21T19:18:58Z",
+    "merged_by": "Bschuster3434",
+    "merge_commit": "5256d1f02615f9d0ed866659d26a75ae384b91fe",
+    "packet_version": 1,
+    "packet_status": "approved",
+    "baseline": "c894f1de000e1b6f20427dec41a3c86a79b3973e"
   }
 }
