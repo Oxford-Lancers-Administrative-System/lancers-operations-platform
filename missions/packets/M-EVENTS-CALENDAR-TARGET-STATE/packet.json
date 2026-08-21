@@ -1,0 +1,478 @@
+{
+  "packet_version": 1,
+  "mission_id": "M-EVENTS-CALENDAR-TARGET-STATE",
+  "status": "approved",
+  "title": "Events & Calendar Target State",
+  "objective": "Make the club's calendar the thing the club runs on. A term's events enter by CSV import rather than one form at a time; the event record gains the approved seven-type model with its description, equipment, online venue and per-event questions; the calendar becomes readable by anyone with no account, in a Gregorian month and one continuous Oxford academic year, and subscribable into Google, Microsoft and Apple; an approved event can be amended in place or cancelled without losing a single response; and one participation table answers who was asked, what they said and who turned up. Occurrence assertion is retired and the stored status model narrows to three.",
+  "why_now": "The stored model is wrong and everything else sits on it: main still carries eight event statuses, a ten-value type enum, an events_outcome_is_asserted constraint and an alternative-group index the approved brief retired, which is why the portfolio names the migration as the first work package. Import is how the club's events actually arrive (D32, D82), and without it a Secretary hand-enters a term card. And an approved event cannot currently be changed at all - a rescheduled practice means telling people in WhatsApp and leaving the record wrong. OD-1 closed C4's last three open constituents on 2026-08-18, so the work is definition-complete.",
+  "non_goals": [
+    "No per-event RSVP delivery: scheduling, sending, retries, diagnostics, reminders, chase thresholds and the escalation ladder are Mission 4's",
+    "No RSVP page, no reminder configuration UI (LAN-106) and no operator-recorded verbal RSVP",
+    "No attendance capture beyond D71-D74's availability rules; the register itself remains Task 04's",
+    "No Monday report changes; that is Mission 9's",
+    "No consent, retention or real-data cutover work; that is Mission 7's",
+    "No bulk delete anywhere - D35 is retired",
+    "No paused state, no eighth event type, and no reinterpretation of the three stored statuses",
+    "No saved or custom audience groups, no unit or kit groups, no venue directory or map, no private events, no opponent field, no cost field, no per-event deadline override, no blocking RSVP cutoff, no bulk-edit screen, no recurrence engine, no alternative-group machinery, no multi-type events",
+    "No per-user or per-event timezone; Europe/London is fixed",
+    "No season switching, and no season lifecycle work",
+    "No Mission Lead DAG or work-package plan - this packet defines what must be true, not how the work is organised"
+  ],
+  "sources": [
+    {
+      "id": "SRC-events-brief",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bc488886d5781138de8c03209ed6bcf",
+      "version": "Owner-approved 2026-08-14 rev 2; OD-1 Q6/Q7/Q9 and amendments D83-D86 added 2026-08-18; owner decisions of 2026-08-21 appended by this intake"
+    },
+    {
+      "id": "SRC-portfolio",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+      "version": "Release One Mission Portfolio, approved by Brian Schuster 2026-08-19; row 2 read 2026-08-20"
+    },
+    {
+      "id": "SRC-authority-manifest",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bf488886d57818aa53ec09f4fc5f757",
+      "version": "Published 2026-08-17; OD-1 to OD-4 resolved 2026-08-18"
+    },
+    {
+      "id": "SRC-task-02-brief",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bc488886d5781a3aba8c46c7a11d611",
+      "version": "Approved 2026-08-14; amended 2026-08-15 and 2026-08-17"
+    },
+    {
+      "id": "SRC-task-04-brief",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bc488886d5781aca18af031c939bf5c",
+      "version": "Approved 2026-08-14"
+    },
+    {
+      "id": "SRC-capability-register",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3ba488886d578188971ef40297ad7490",
+      "version": "Read 2026-08-21; C3, C4 and C7 reconciled by this intake"
+    },
+    {
+      "id": "SRC-proof-of-life",
+      "kind": "document",
+      "ref": "https://docs.google.com/document/d/1Lnw4BTLbMR0RH9r4fJo-VuMBhSnm4mIfglHjDUv1GTs",
+      "version": "Proof of Life meeting, 2026-08-17 — provenance for the club's own Oxford vacation vocabulary"
+    },
+    {
+      "id": "SRC-main",
+      "kind": "github",
+      "ref": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/tree/c894f1de000e1b6f20427dec41a3c86a79b3973e",
+      "version": "c894f1de000e1b6f20427dec41a3c86a79b3973e"
+    },
+    {
+      "id": "SRC-events-schema",
+      "kind": "github",
+      "ref": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/tree/c894f1de000e1b6f20427dec41a3c86a79b3973e/supabase/migrations",
+      "version": "c894f1de000e1b6f20427dec41a3c86a79b3973e"
+    },
+    {
+      "id": "SRC-events-routes",
+      "kind": "github",
+      "ref": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/tree/c894f1de000e1b6f20427dec41a3c86a79b3973e/src/app/operate/events",
+      "version": "c894f1de000e1b6f20427dec41a3c86a79b3973e"
+    },
+    {
+      "id": "SRC-ledger",
+      "kind": "github",
+      "ref": "missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/",
+      "version": "Intake ledger, branch intake/M-EVENTS-CALENDAR-TARGET-STATE; every claim in this packet cites a file here"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-one-open-season",
+      "text": "One season is open and the mission knows no other. Every surface reads it; no surface offers a way to reach a different season, and nothing qualifies itself by season. Changing which season is open belongs to a season-lifecycle mission that does not exist. Ledger: workflows/W1.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-three-arrangements",
+      "text": "The list, Calendar View and Oxford View are three arrangements of one query and cannot disagree about which events exist or when they are. Every tile and row leads to the same event page. Ledger: workflows/W1.",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-public-calendar",
+      "text": "The calendar is readable by anyone with no account (D1). There are no private or hidden events (D5). Reading is free of side effects for traffic carrying no session, and a public event page renders without touching participation data at all.",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-three-tiers",
+      "text": "Three access tiers: public sees the event record; the signed club link adds audience, RSVP, attendance and the participation view; operator adds delivery. Delivery is the only operator-locked element (D2, D3, D65). Authorisation is enforced in the service layer, never by route visibility.",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-no-joining-url",
+      "text": "An online event's joining URL is never public and never appears in a feed, in a page or in any payload behind one. How an invited person receives it is deliberately unsolved here. Ledger: workflows/W1.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-oxford-continuous",
+      "text": "Oxford View is one continuous academic-year column - Long Vacation, Michaelmas, Christmas Vacation, Hilary, Easter Vacation, Trinity, Long Vacation - with a jump control and no season selector. Vacation weeks carry the club's own names and are numbered forward from 1, meeting the next term at its -1st week; a vacation belongs to neither adjacent term (D85; Stewart Humble, 2026-08-17).",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-list-shape",
+      "text": "The operator list opens on upcoming, groups by period into discrete tables, and offers All events. Every column sorts, Term and week sorting identically to Date. The public list carries name, type, date, term and week, and where - and no status, counts or attendance. Ledger: workflows/W1.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-subscription",
+      "text": "The club calendar is offered as a live subscription for Google, Microsoft and Apple from one dialog, one feed for the open season, carrying the public tier's content and no person. It is not a notification channel: refresh belongs to the subscriber's provider, cannot be pushed, and may be hours late. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-feed-cancelled",
+      "text": "A cancelled event stays in the feed marked cancelled, and stays on the public and operator lists marked cancelled. It is never removed - an event that silently disappears reads as a sync failure (D57; Brian, 2026-08-21). Ledger: workflows/W2, W6.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-csv-only",
+      "text": "Events enter and are corrected by CSV import and export. There is no term-card parser and no AI inside the system; conversion happens outside it, guided by a copyable prompt the application supplies whose worked example is asserted to import cleanly. Ledger: workflows/W3.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-upsert-only",
+      "text": "An import is upsert only. An id updates, a blank id creates, an unmatched id refuses the row. An event absent from the file is untouched, and no deletion of any kind reaches the system through a CSV. Ledger: workflows/W3.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-import-drafts-only",
+      "text": "An import may not change an approved or cancelled event; such rows are refused by name. An unchanged row is a no-op whatever the status, so a clean export and re-import does nothing. A blank or whitespace-only cell changes nothing; only non-whitespace content changes a value. Ledger: workflows/W3.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-import-confirmation",
+      "text": "An import is a proposal until accepted. Every row is classified New, Updated, Unchanged or Refused; changed values are shown in place with the previous value; refusals name the rule broken; and nothing is written until the operator confirms. Applying is one transaction. Ledger: workflows/W3.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-event-record",
+      "text": "The event record is name, one of seven types, date, start, end, in person or online, venue or destination, description, required equipment, mandatory or optional, and its questions. Response requested is removed (D23). There is no opponent field (D14). Five-minute time entry with the end following the start, in Europe/London with the zone shown (D78, D86).",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-template-default-audience",
+      "text": "A type's template supplies a default audience, arriving with the event, visible and editable, so the approver checks rather than builds (D47). This reverses LAN-77's shipped 'audience begins empty' criterion, which the brief records in its section 6.",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-approval-gate",
+      "text": "Approval is the completeness gate. It is refused above the database when a required field is missing or the audience is empty, naming the rule, and the event stays a draft; the refusal holds when the screen is bypassed. Approval writes the event, its audience and its consequences in one transaction and sends nothing.",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-questions",
+      "text": "Questions are authored inside the create and edit form, never on a surface of their own: three answer types, each independently required or optional, template-supplied ones marked and removable per event (D42, D66, D67). The approval review shows them as a player will meet them. Answers are read on the event page and in the participation view (D68). Ledger: workflows/W4.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-delete-draft",
+      "text": "An abandoned draft is deleted permanently from its own event page after a confirmation naming it (D29). Only a draft may be deleted; an event people were invited to is cancelled instead. No delete path exists on main today.",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-amend-in-place",
+      "text": "An approved event is amended in place and never leaves approved, including on the public calendar. Changes are held until saved and discarding leaves no trace. D49's return to draft is superseded for this path, because D4 makes drafts publicly visible. Details, invitations and every RSVP survive (D50). Ledger: workflows/W5.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-amend-notify",
+      "text": "One notify decision per amendment, not one per changed field. It starts on when the date, time or venue moved and off otherwise (D55), and silencing one that moved them requires a confirmation naming how many people were told and what they were told. When it notifies, the whole invited audience is notified, decliners included (OD-1/Q9); a yes stands and nobody is asked twice (D52). No reason field - the required description carries any explanation (OD-1/Q7).",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-amend-hold",
+      "text": "Saving an amendment holds the event's unsent messages until the change has been taken into account, so no queued message is delivered describing a superseded value. This mission places the hold; Mission 4 decides what resumes. Ledger: workflows/W5.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-renotify",
+      "text": "Re-notify sends a change notification to the same audience, altering neither the event nor its responses, so a silently-sent change is recoverable rather than permanent (D54).",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-cancel",
+      "text": "Cancellation is its own action with no approval gate - any one of the four roles, alone (D56, D61). The event stays visible with its history and its responses (D57). Everyone invited is told by default (D58) and sees no reason (D59); a reason is captured internally (D76). It is terminal (D60). Notifying defaults on for a future event and off for a past one, and silencing a future cancellation asks first. Ledger: workflows/W6.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-participation-table",
+      "text": "One row per person carrying name, capacity, when the invitation went, delivery at the operator tier, answer, the reason behind a no, attendance, and one column per question. Sortable on every column and filterable by name, capacity, answer, attendance and delivery. A discrepancy between RSVP and attendance is marked and never auto-reconciled (D64, D68). Ledger: workflows/W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-headline-numbers",
+      "text": "Invited, said yes, and showed against invited appear on the event page. Showed reads NA until a register has been saved and a real pair afterwards, including 0, which means the register was taken and nobody came. The application explains neither value in words (D62, D73, D74).",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-occurrence-retired",
+      "text": "Nothing asserts that an event occurred. Confirm what happened, Mark occurred, Mark not held and Correct this to not held are removed; occurrence derives from the date passing without cancellation (D30). The register opens on a buffer of about six hours before the event, never closes, and its saved-versus-untouched state is the record of whether the session was assessed (D71-D74).",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-club-link",
+      "text": "An operator issues and shares the club link, which carries the participation table without the delivery column. It is not privacy-blocking (D81) but is signed rather than guessable. Sharing offers the link alone. Coaches hold no operator account, which is why this tier exists. Ledger: workflows/W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-templates",
+      "text": "One template per type, seven types, none created or deleted. Every field is optional. A template carries a default audience, questions, where, a default length rather than a start time, equipment, description and mandatory - and no name, date or RSVP timing (D40, D42, D47). Ledger: workflows/W8.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-template-inheritance",
+      "text": "Template values flow into a draft field by field and only into fields nobody has edited; an operator's edit is never overwritten, and approval freezes everything. No approved or past event ever changes. Before saving, the operator is shown which drafts will take the change, which will not and why, and what will not move (D41, refined 2026-08-21). Ledger: workflows/W8.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-migration",
+      "text": "The status and occurrence migration is the first work package: three stored statuses, occurrence derived, event_type narrowed to seven, the events_outcome_is_asserted constraint removed, invariant E3 and its alternative-group index retired, week_number's -1..8 constraint reconciled with named vacation segments, and the owner-approved legacy mapping applied. Rows typed other are listed for one-time operator reassignment during migration verification, which belongs to this work package.",
+      "source_id": "SRC-events-brief"
+    },
+    {
+      "id": "REQ-no-delivery",
+      "text": "This mission decides that a message is owed and to whom; Mission 4 decides when it is sent, sends it, retries and chases. Chase thresholds, reminder scheduling and escalation are Mission 4's entirely, including recomputation when an event moves. Ledger: 01-overview.md.",
+      "source_id": "SRC-ledger"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-boundary",
+      "text": "Boundary approved 2026-08-20, keeping the portfolio's split: per-event RSVP delivery stays Mission 4's. Brian: 'Keep the approved split. Mission 2 should just be on those things. Delivery belongs to the other one.' Ledger: 00-boundary.md."
+    },
+    {
+      "id": "DEC-inventory",
+      "text": "Eight workflows frozen 2026-08-20 - 'freeze it' - with one amendment on 2026-08-21 that widened W1, W4 and W7 to close three coverage gaps without changing the count. Ledger: 02-workflows.md, coverage.md."
+    },
+    {
+      "id": "DEC-calendar-feeds",
+      "text": "Calendar distribution scoped into Release One 2026-08-20, closing D11 and Q3: Google, Microsoft and Apple feeds from a button on the public site, live rather than a copy."
+    },
+    {
+      "id": "DEC-csv",
+      "text": "Import is a CSV, 2026-08-21, superseding the 2026-08-18 amendment that made the club's term-card spreadsheet the baseline and Stewart's confirmation a prerequisite. No term-card parser will be built."
+    },
+    {
+      "id": "DEC-upsert",
+      "text": "Events are upsert only, 2026-08-21. No deletion reaches the system through an import."
+    },
+    {
+      "id": "DEC-d35",
+      "text": "D35 retired 2026-08-21 - 'yeah, retire it.' Bulk delete is not built; the mission carries no bulk destructive action."
+    },
+    {
+      "id": "DEC-edit-in-place",
+      "text": "Amendment edits in place, 2026-08-21 - 'Take B' - superseding D49 for that path because D4 makes drafts publicly visible."
+    },
+    {
+      "id": "DEC-one-tick",
+      "text": "One notify decision per amendment, 2026-08-21 - 'It's one tick' - with D55's per-field defaults deciding where it starts."
+    },
+    {
+      "id": "DEC-cancelled-only",
+      "text": "Cancelled is the only terminal state and there is no paused state, 2026-08-21. A known new date is a reschedule; an unknown future is a cancellation plus a later new event; an unconfirmed event is a draft."
+    },
+    {
+      "id": "DEC-per-field",
+      "text": "Template inheritance is per field, 2026-08-21, clarifying D41 so that an operator's edit is never overwritten."
+    },
+    {
+      "id": "DEC-chase-is-m4",
+      "text": "The chase threshold is Mission 4's, 2026-08-21 - 'That should be answered by 4.' An earlier draft of W8 carried it in error; the Events brief hands D75 to Task 03 in its section 7 and excludes reminder scheduling in its section 8."
+    },
+    {
+      "id": "DEC-one-season",
+      "text": "One season is open and there is no way to switch, 2026-08-21. The mission stops qualifying itself by season; season changeover belongs to a season-lifecycle mission."
+    },
+    {
+      "id": "DEC-tier",
+      "text": "The club-link tier survives as D2 approved it, closed at W7 on 2026-08-21. Coaches hold no operator account, so without it a coach cannot see who is coming to their own session."
+    },
+    {
+      "id": "DEC-timezone",
+      "text": "All event times are Europe/London and this is not configurable. Per-user timezones are a later release."
+    }
+  ],
+  "baseline": {
+    "branch": "main",
+    "commit": "c894f1de000e1b6f20427dec41a3c86a79b3973e"
+  },
+  "gates": {
+    "owner": [
+      "Brian merges this packet-only pull request; nothing may execute before that merge",
+      "Brian applies the migration to hosted Supabase by hand - no agent does, and the pipeline never does",
+      "Brian decides the seven remaining Notion corrections held in notion-corrections.md, including the Task 02 D5 trigger change that belongs to Mission 4's brief",
+      "Brian approves the public hostname question with LAN-126 before any subscription feed URL is published, or guarantees a permanent redirect from the URL it ships on"
+    ],
+    "external": [
+      "LAN-126 fixes the club's domain and application hostname. A subscription URL cannot move: it lives in a phone for a season and re-fetches from wherever it first pointed, and a stale calendar is indistinguishable from a calendar with nothing new in it"
+    ]
+  },
+  "merge_envelope": {
+    "auto_merge_classes": ["standard-application"],
+    "owner_gated": [
+      "schema-migration",
+      "rls-auth-security",
+      "secrets-credentials",
+      "deployment-production-data",
+      "whatsapp-external-configuration",
+      "highest-risk",
+      "visual-without-approval"
+    ]
+  },
+  "completion_evidence": [
+    "A request carrying no cookie, session or token renders the public calendar, the public list and a public event page, and creates no audience, invitation, RSVP, attendance or notification record - asserted by test",
+    "No anonymous or club-link response carries an online event's joining URL, a person, an answer or an attendance record, in the page or in any payload behind it - asserted on the payload",
+    "One event has the same identity, date and time in the list, Calendar View and Oxford View, and the Oxford View renders one continuous academic year naming Christmas, Easter and Long Vacation with weeks numbered forward",
+    "Subscribing succeeds from Google, Microsoft and Apple against one published feed; the document validates as iCalendar; an amended event updates the subscriber's existing entry rather than duplicating it; a cancelled event remains marked cancelled",
+    "A CSV exported from the season and imported back unchanged produces zero writes; a blank or whitespace-only cell changes nothing; a row that would change an approved event is refused by name while every other row applies; an event absent from the file is untouched",
+    "Approval is refused, above the database and when the screen is bypassed, for a missing required field and for an empty audience, and the event stays a draft with nothing created",
+    "A new event of a type arrives with that type's default audience and questions; editing a template updates only untouched fields on unapproved drafts and changes no approved or past event - asserted by test",
+    "An approved event is amended without leaving the approved status at any point, every invitation and RSVP surviving by count and identity; abandoning an amendment writes nothing and leaves no history entry",
+    "Silencing an amendment or a cancellation that moved a future event's date, time or venue cannot be done without passing a confirmation that names the affected headcount",
+    "A cancelled event stays visible with its responses, cannot be returned to any other status by any route including a direct service call, and its internal reason appears in no recipient-facing payload",
+    "Showed against invited reads NA before any register is saved and 0 against the invited count after one is saved with everyone absent; the mismatch count cannot be non-zero while nothing is recorded",
+    "No surface offers Mark occurred or Mark not held; the register is unavailable before its buffer and never closes",
+    "The migration applies cleanly from empty, generated types are committed with it, every new table in an exposed schema enables RLS, and rows typed other are listed for one-time reassignment",
+    "npm run verify passes at the final implementation SHA"
+  ],
+  "workflow_matrix": [
+    {
+      "id": "W1",
+      "name": "Find and read events",
+      "surfaces": "Operator list, public list, Calendar View, Oxford View, public event page",
+      "disposition": "Modified - the list and both calendars exist; the public tier does not",
+      "acceptance": "acceptance/W1.md",
+      "mockup": "mockups/W1-find-and-read-events.html"
+    },
+    {
+      "id": "W2",
+      "name": "Subscribe to the club calendar",
+      "surfaces": "Subscribe dialog on the public and operator surfaces; one feed route",
+      "disposition": "New - no feed, no .ics code and no calendar library exist",
+      "acceptance": "acceptance/W2.md",
+      "mockup": "mockups/W2-subscribe-to-the-club-calendar.html"
+    },
+    {
+      "id": "W3",
+      "name": "Load and correct a term's events by import",
+      "surfaces": "Bulk import screen in two states, the confirmation, export",
+      "disposition": "New, reached from the existing Events page whose Create event becomes a menu",
+      "acceptance": "acceptance/W3.md",
+      "mockup": "mockups/W3-load-and-correct-a-terms-events-by-import.html"
+    },
+    {
+      "id": "W4",
+      "name": "Draft an event and approve it with its audience",
+      "surfaces": "Create and edit form, audience builder, approval review, draft event page, delete confirmation",
+      "disposition": "Modified - all exist; questions authoring and deleting a draft do not",
+      "acceptance": "acceptance/W4.md",
+      "mockup": "mockups/W4-draft-an-event-and-approve-it-with-its-audience.html"
+    },
+    {
+      "id": "W5",
+      "name": "Amend or reschedule an approved event",
+      "surfaces": "Approved event page, in-place editing, the save and notify decision, re-notify, change history",
+      "disposition": "New - there is no amendment path of any kind on main",
+      "acceptance": "acceptance/W5.md",
+      "mockup": "mockups/W5-amend-or-reschedule-an-approved-event.html"
+    },
+    {
+      "id": "W6",
+      "name": "Cancel an event",
+      "surfaces": "Cancellation confirmation, the cancelled event, the silent path",
+      "disposition": "New - nothing on main can reach the cancelled status",
+      "acceptance": "acceptance/W6.md",
+      "mockup": "mockups/W6-cancel-an-event.html"
+    },
+    {
+      "id": "W7",
+      "name": "See who is coming, and who turned up",
+      "surfaces": "Event page with the participation table, the shared club-link view, issuing the link",
+      "disposition": "Modified - the event page and attendance board exist; the table, the tiers and the link do not",
+      "acceptance": "acceptance/W7.md",
+      "mockup": "mockups/W7-see-who-is-coming-and-who-turned-up.html"
+    },
+    {
+      "id": "W8",
+      "name": "Administer event-type templates",
+      "surfaces": "Template list, one template, the save confirmation",
+      "disposition": "New - no template, no per-type default and no admin surface exist",
+      "acceptance": "acceptance/W8.md",
+      "mockup": "mockups/W8-administer-event-type-templates.html"
+    }
+  ],
+  "delegated_to_mission_lead": [
+    "Issue decomposition, dependency ordering and the work-package DAG, with the status and occurrence migration first",
+    "Whether vacation coordinates are stored or derived, and whether week_number's check constraint widens",
+    "Whether an iCalendar library is added or the document is emitted directly, and the feed's route and URL shape - which must be stable and season-scoped",
+    "Event identity across amendments in the feed: a stable per-event identifier and a revision counter, so an edit updates rather than duplicates",
+    "CSV dialect, encoding, delimiter and size limits; how long an uploaded file is held",
+    "Caching, CDN and crawler policy for the public surfaces, provided reads stay side-effect-free",
+    "Where the delete action sits and its confirmation wording; whether duplicate opens a prefilled form or creates a draft",
+    "How the notify choice is presented, and concurrency when two operators edit one event",
+    "The exact attendance buffer length - D71 calls approximately six hours a tuning value",
+    "Where the templates admin sits and whether it is one page or seven",
+    "Remapping response-deadline.ts to the seven-type enum so it keeps working - without taking ownership of it"
+  ],
+  "nonblocking_unknowns": [
+    {
+      "unknown": "How an invited person receives an online event's joining URL",
+      "handling": "This mission stores it and shows it to operators; it neither publishes nor delivers it. The likely home is Mission 4's message content. Nothing here is blocked, but a Chalk invitation without the link is useless to a player, so it must not be forgotten"
+    },
+    {
+      "unknown": "Q2 - club-link expiry, rotation and revocation",
+      "handling": "The owner chose to settle this by testing rather than on paper (D81, Q2). The link ships without revocation; adding it later is additive and breaks nothing"
+    },
+    {
+      "unknown": "Q4 - whether the RSVP-versus-attendance discrepancy is a column, a flag, or derived from the two columns",
+      "handling": "Any of the three satisfies D64. The Mission Lead picks one and it can change"
+    },
+    {
+      "unknown": "Q5 - players and coaches as separate sublists on the participation view",
+      "handling": "Owned by the club, not by Brian. One list with capacity as a sortable column until the club asks otherwise"
+    },
+    {
+      "unknown": "Per-event or per-user timezones",
+      "handling": "Not built, not designed for, not a constraint. Storing the zone explicitly keeps the door open without opening it"
+    },
+    {
+      "unknown": "The current attendance board reports zero recorded and thirty mismatches simultaneously",
+      "handling": "A mismatch against nothing recorded is the class of error D74 exists to prevent. Whether it is a display or a counting fault is the Mission Lead's to determine; the completion evidence forbids it surviving"
+    }
+  ],
+  "escalation_rules": {
+    "permitted_clarifications": [
+      "Any decision this packet marks delegated to the Mission Lead",
+      "Defects discovered in existing Events code that block a listed requirement, provided the fix does not widen the approved behaviour",
+      "Restating a provisional value inside an implementing issue for confirmation",
+      "Ordinary engineering choices: package structure, validation bounds, test strategy, concurrency handling"
+    ],
+    "requires_packet_revision": [
+      "Any change to the frozen workflow inventory: adding, removing, renaming, splitting or merging a workflow",
+      "Reinterpreting a locked decision, widening a closed vocabulary, or relaxing an invariant",
+      "Adding an event type, a stored status, or any club concept the frozen model excludes - including a paused state",
+      "Taking on any part of Mission 4's delivery, chasing or escalation, or Task 04's attendance capture",
+      "Publishing a subscription feed URL that is not final and not permanently redirected",
+      "Any change to the security posture beyond the anonymous read surfaces this packet approves"
+    ]
+  },
+  "repository_drift": {
+    "startup_rule": "Compare main at execution against baseline.commit c894f1de000e1b6f20427dec41a3c86a79b3973e. Drift that does not change meaning, feasibility, invariants, interfaces or acceptance evidence may be recorded and tolerated - the intake itself tolerated two such moves, both Mission 1's Administration work. The current-state screenshots in mockups/current were captured at 2072ecd and remain accurate because no Events surface changed between that commit and this baseline.",
+    "stop_rule": "Stop and require a new packet version if main has changed the event schema, the events routes, the audience or approval services, the attendance model, or the security posture of any route this packet opens - or if Mission 1's Administration work has altered the capability model these surfaces depend on. Never silently reinterpret this packet around current code."
+  },
+  "blockers": [],
+  "approval": {
+    "approved_by": "Brian Schuster",
+    "date": "2026-08-21",
+    "evidence": "Approved by Brian Schuster during the mission intake of 2026-08-20 and 2026-08-21. Each of the eight frozen workflows carries his dated approval in his own words in the intake ledger at missions/intake/M-EVENTS-CALENDAR-TARGET-STATE/ - in the workflow file, in acceptance/Wn.md and in state.json: W1 'Approved.' and 'Other than that, looks great. I think this is approved.'; W2 'Yep, that works, and yeah, it's so simple ... so I approve.'; W3 'Other than that, I think this looks good. This is approved.'; W4 'Everything else looks great.'; W5 'Other than that, looks great. I think this works.'; W6 'this looks pretty great' and 'canceled for now. That's it.'; W7 'Sure, I think that looks fine.'; W8 'All right, looks good.' The boundary was approved on 2026-08-20 and the workflow inventory frozen the same day. Brian then requested a coherence review across all eight workflows, which closed eight findings, and approved this packet for merge on 2026-08-21: 'I approve it.' His merge of the packet-only pull request remains the binding approval."
+  }
+}
