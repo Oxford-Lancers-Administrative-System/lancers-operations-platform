@@ -165,12 +165,21 @@
     {
       "id": "W8",
       "name": "Administer event-type templates",
-      "state": "mock_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "All right, looks good.",
+          "date": "2026-08-21"
+        },
+        "mock": {
+          "words": "All right, looks good.",
+          "date": "2026-08-21"
+        }
+      }
     }
   ],
-  "next_action": "Stage 3 - present W8, the last workflow; then Stage 4 packet assembly",
+  "next_action": "Coherence review across all eight workflows, at Brian's request, before Stage 4 packet assembly",
   "open_items": []
 }

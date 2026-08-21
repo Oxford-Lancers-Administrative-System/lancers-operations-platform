@@ -220,5 +220,9 @@ Two adjacent facts:
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- **Exact words:** "All right, looks good." (2026-08-21)
+- **Date:** 2026-08-21
+- **What it approved:** this specification and the four-screen mockup, after two
+  rounds — per-field inheritance replacing wholesale overwriting, a default
+  length replacing a default start time, every field made optional, and the
+  chase threshold removed as Mission 4's.
