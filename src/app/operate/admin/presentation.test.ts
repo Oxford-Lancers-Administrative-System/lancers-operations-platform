@@ -565,9 +565,21 @@ describe("permissions", () => {
   it("says what each administering seat may not do, from the enforced table", () => {
     // Nobody may manage the General Manager: `PROTECTED_LEADERSHIP_AUTHORITY`
     // gives that tier an empty management list on purpose.
-    expect(limitsLine("general_manager")).toContain("the General Manager");
-    expect(limitsLine("president")).toContain("the General Manager");
-    expect(limitsLine("it_officer")).toContain("the President");
+    //
+    // Asserted as the whole clause rather than as "the General Manager", which
+    // the line always contains and which therefore tests nothing. An earlier
+    // version of this package weakened all three of these to that substring
+    // when the copy was corrected, and moved the burden onto a derived check
+    // that could not carry it — after which a verb could be deleted from the
+    // sentence with the whole suite green. The wording changed; the strength of
+    // the assertion should not have.
+    const MANAGEMENT_CLAUSE =
+      "assign, replace or end the role of, deactivate or restore access for, " +
+      "or resend or correct an invitation for";
+
+    expect(limitsLine("general_manager")).toContain(`${MANAGEMENT_CLAUSE} the General Manager`);
+    expect(limitsLine("president")).toContain(`${MANAGEMENT_CLAUSE} the General Manager`);
+    expect(limitsLine("it_officer")).toContain(`${MANAGEMENT_CLAUSE} the President`);
 
     // The asymmetry that is easiest to get wrong: recovery is permitted where
     // management is not, so the IT Officer's limits name neither recovery.

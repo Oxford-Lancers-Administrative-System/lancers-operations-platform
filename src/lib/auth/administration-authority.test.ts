@@ -1391,11 +1391,23 @@ describe("the limits copy accounts for every management action", () => {
    * "assigning", "restore" to "restoring" — does not fail a sentence that is
    * still complete. Dropping a concept altogether does fail it, which is the
    * defect this exists for.
+   *
+   * ## Why `end_role`'s stem is a phrase and the others are words
+   *
+   * The first version of this map used `"end"`, and that made the whole check
+   * decorative: the sentence also contains **"resend"**, which contains `end`,
+   * so deleting "or end the role of " from the copy left every one of these
+   * assertions satisfied and the full suite green. The concept an administrator
+   * most needs to see — that they may not end a protected seat's role — was the
+   * one concept nothing held.
+   *
+   * A stem that is a substring of another stem cannot bind its own action, so
+   * that is now an asserted invariant rather than a thing to remember.
    */
   const STEM: Readonly<Record<string, string>> = {
     assign_role: "assign",
     replace_role_holder: "replac",
-    end_role: "end",
+    end_role: "end the role",
     deactivate_account: "deactivat",
     restore_account: "restor",
     resend_invitation: "resend",
@@ -1413,6 +1425,26 @@ describe("the limits copy accounts for every management action", () => {
     expect(Object.keys(STEM).sort()).toEqual([...management].sort());
   });
 
+  /**
+   * The invariant that makes the loop below mean anything.
+   *
+   * If one stem contains another, the contained stem is satisfied by its
+   * container and stops testing its own action. `"end"` inside `"resend"` is
+   * exactly that, and it is how a deleted verb passed a green suite.
+   */
+  it("gives each action a stem no other stem can satisfy", () => {
+    for (const [action, stem] of Object.entries(STEM)) {
+      for (const [other, otherStem] of Object.entries(STEM)) {
+        if (action === other) continue;
+        expect(
+          otherStem.includes(stem),
+          `${action}'s stem "${stem}" is contained in ${other}'s "${otherStem}", ` +
+            `so it would be satisfied by ${other} and could not bind ${action}`,
+        ).toBe(false);
+      }
+    }
+  });
+
   it("names every one of them in the sentence a real seat is shown", () => {
     // The IT Officer may not manage the President —
     // `PROTECTED_LEADERSHIP_AUTHORITY` leaves them off that tier's management
@@ -1424,6 +1456,27 @@ describe("the limits copy accounts for every management action", () => {
     for (const action of management) {
       expect(line, `the limits sentence must account for ${action}`).toContain(STEM[action]);
     }
+  });
+
+  /**
+   * The whole clause, verbatim, as a second and independent hold.
+   *
+   * The derived check above answers "is every enforced action mentioned?" and is
+   * the one that catches an eighth action being added. This answers "is the
+   * sentence still the sentence?", which is what actually failed: a derived
+   * check can only ever be as strong as its own encoding, and this one is not
+   * derived from anything. Both are cheap and they fail for different reasons.
+   *
+   * `main` carried three assertions of this shape and this package replaced them
+   * with substrings the line always contains. That is what let a verb be deleted
+   * with the suite green, so the literal is back — here, where the rule it
+   * describes lives.
+   */
+  it("still reads as the whole management sentence, word for word", () => {
+    expect(describeLeadershipLimits("it_officer").join("; ")).toContain(
+      "assign, replace or end the role of, deactivate or restore access for, " +
+        "or resend or correct an invitation for the President",
+    );
   });
 
   /**
