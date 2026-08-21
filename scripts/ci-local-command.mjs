@@ -10,32 +10,37 @@ const scripts = {
 };
 
 /**
- * The database these scripts run against on a GitHub Actions runner.
+ * This wrapper names no database, deliberately.
  *
- * `scripts/lib/local-db.mjs` no longer defaults to this address, because on a
- * developer machine port 54322 is the coordinator's `primary` slot — somebody's
- * working stack — and a destructive script that guesses which database it means
- * is how a review-ready stack was re-seeded out from under its owner.
+ * An earlier version of this file carried the runner's address as a constant
+ * and injected it when `SUPABASE_DB_URL` was unset, on the reasoning that
+ * `assertCiLocalExecution()` had "already refused to run anywhere that is not
+ * GitHub Actions". That reasoning was wrong, and it is worth stating plainly
+ * because the mistake is easy to repeat: the fence checks four environment
+ * variables, and an environment variable is a **claim**, not an identity. Any
+ * developer shell that exports `CI`, `GITHUB_ACTIONS`, `GITHUB_WORKSPACE` and
+ * `RUNNER_TEMP` satisfies it — and the fence's own error messages name the four
+ * it wants. So the constant turned this wrapper into a documented way to reach
+ * port 54322 with the ordinary route closed, which is the coordinator's
+ * `primary` slot and therefore somebody's working stack.
  *
- * CI is the one place where guessing is not what this is. The workflow starts
- * `supabase start` on the standard unsuffixed ports and there are no slots, no
- * leases and no other stack on the runner; `assertCiLocalExecution()` above has
- * already refused to run anywhere that is not GitHub Actions with a matching
- * `GITHUB_WORKSPACE`. So the address is named **here**, at the call site, by the
- * one caller that can prove which database it means — rather than being left as
- * a default in a shared guard where every other caller inherits it.
+ * The address belongs to whoever starts the stack. In CI that is the workflow,
+ * which already reads the real `DB_URL` out of `supabase status` when it
+ * captures the other credentials, and which can export it the same way. Then
+ * nothing guesses: the seed runs against the database CI actually started, and
+ * `resolveLocalDatabaseUrl()` refuses here exactly as it refuses everywhere
+ * else if nobody has said which database is meant.
  *
- * Deliberately not overriding an explicit value: if the workflow ever exports
- * `SUPABASE_DB_URL` itself, that is the more specific answer and it wins.
+ * `assertCiLocalExecution()` stays. It is a useful barrier against running an
+ * unfenced command by accident on a developer machine, and it is not load
+ * bearing for the choice of database any more — which is the only thing it was
+ * never able to establish.
  */
-const CI_STACK_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
-
 try {
   assertCiLocalExecution();
   if (!scripts[operation]) throw new Error("Unknown CI local-stack operation.");
   const args = operation === "test" ? [scripts[operation], "run"] : [scripts[operation]];
-  const env = { ...process.env, SUPABASE_DB_URL: process.env.SUPABASE_DB_URL || CI_STACK_URL };
-  const result = spawnSync(process.execPath, args, { stdio: "inherit", env });
+  const result = spawnSync(process.execPath, args, { stdio: "inherit", env: process.env });
   process.exitCode = result.status ?? 1;
 } catch (error) {
   console.error(error.message);

@@ -33,9 +33,18 @@
  * narrowing: no URL those files refuse became reachable, so their assertions are
  * unchanged and still authoritative. ADR 0001 and ADR 0014 are untouched.
  *
- * `src/lib/db/url.ts` keeps its own default deliberately and is out of scope
- * here: it serves the running application, which is configured by `.env.local`
- * rather than by a person typing a command, and it opens no destructive path.
+ * `src/lib/db/url.ts` keeps its own default and is out of scope here, but not
+ * because it is harmless — an earlier version of this note claimed it "opens no
+ * destructive path", and that was simply false. `resolveDatabaseUrl()` falls
+ * back to the same port, so `npm run dev` in a worktree with no `.env.local`
+ * runs the application against whoever holds `primary`, and every Administration
+ * mutation is written there.
+ *
+ * What differs is blast radius and intent, not safety: an application write is a
+ * considered action by a person looking at a screen, where the seed truncates
+ * and reloads the whole dataset without being asked. Closing that fallback is a
+ * separate change affecting `dev`, `start` and the container, and it is
+ * deliberately not made here — recorded rather than glossed.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -212,45 +221,50 @@ describe("the scripts do not put the default back at the call site", () => {
   });
 
   /**
-   * The one caller that does name an address, and why it is allowed to.
+   * The caller CI found, and why it now names nothing either.
    *
-   * CI found this: `npm run db:seed:ci` goes through
-   * `scripts/ci-local-command.mjs`, the workflow exports no `SUPABASE_DB_URL`,
-   * and the seed had been relying on the removed default. It is the case the
-   * brief anticipated — a legitimate caller depending on the default — and the
-   * answer is to make the target explicit at the call site rather than to put
-   * the default back in a shared guard where every other caller inherits it.
+   * `npm run db:seed:ci` goes through `scripts/ci-local-command.mjs`, the
+   * workflow exports no `SUPABASE_DB_URL`, and the seed had been relying on the
+   * removed default. The first repair carried the runner's address as a
+   * constant in that wrapper and injected it, justified by
+   * `assertCiLocalExecution()` having "already refused to run anywhere that is
+   * not GitHub Actions".
    *
-   * What makes it safe there and nowhere else is the fence. On a GitHub Actions
-   * runner the workflow starts one stack on the standard unsuffixed ports; there
-   * are no coordinator slots, no leases, and no other stack to collide with. On
-   * a developer machine that same address is the `primary` slot. So the address
-   * may only be named behind a check that the caller really is CI, and that is
-   * what these assertions hold together — the literal and the fence, in one
-   * file, neither valid without the other.
+   * That justification does not hold, and this is the assertion that says so.
+   * The fence reads four environment variables, and an environment variable is
+   * a **claim**, not an identity: any shell exporting `CI`, `GITHUB_ACTIONS`,
+   * `GITHUB_WORKSPACE` and `RUNNER_TEMP` satisfies it, and the fence's own
+   * error messages name all four. The constant therefore turned this wrapper
+   * into a documented route to port 54322 — the coordinator's `primary` slot —
+   * at exactly the moment the ordinary route to it was closed.
+   *
+   * The previous version of this test pinned the fence's **source text** and
+   * called that "what makes it safe there and nowhere else". Source text is
+   * spelling; the claim was strength. So the address is gone from the
+   * repository's scripts entirely, and belongs to whoever starts the stack.
    */
-  it("names the CI stack only behind the GitHub Actions fence", () => {
-    const source = read("scripts/ci-local-command.mjs");
+  it("names no database anywhere in the CI wrapper either", () => {
+    const code = read("scripts/ci-local-command.mjs")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ");
 
-    // It does name an address …
-    expect(source).toMatch(/postgresql:\/\/postgres:postgres@127\.0\.0\.1:54322\/postgres/);
-    // … and it may only do so because this refuses to run anywhere but CI.
-    expect(source).toMatch(/assertCiLocalExecution\(\)/);
-    expect(source).toContain('from "./lib/ci-local-execution.mjs"');
+    expect(code).not.toMatch(/postgresql:\/\//);
+    expect(code).not.toMatch(/\b54322\b/);
+    // And it no longer writes the variable at all, so there is nothing to
+    // inject and nothing left to reason about.
+    expect(code).not.toMatch(/SUPABASE_DB_URL/);
+  });
 
-    // The fence itself still demands all three markers. Weakening it would make
-    // the literal above reachable on a developer machine.
+  /**
+   * The fence stays, because running an unfenced command by accident on a
+   * developer machine is a real mistake worth stopping. What must not come back
+   * is anything being *granted* on the strength of passing it.
+   */
+  it("keeps the CI fence as a barrier, not as a licence", () => {
+    expect(read("scripts/ci-local-command.mjs")).toMatch(/assertCiLocalExecution\(\)/);
+
     const fence = read("scripts/lib/ci-local-execution.mjs");
     expect(fence).toMatch(/env\.CI !== "true" \|\| env\.GITHUB_ACTIONS !== "true"/);
     expect(fence).toMatch(/GITHUB_WORKSPACE/);
-  });
-
-  it("lets an explicitly exported target win over the CI address", () => {
-    const source = read("scripts/ci-local-command.mjs");
-
-    // `process.env.SUPABASE_DB_URL || CI_STACK_URL`, not the other way round: if
-    // the workflow ever names a database itself, that is the more specific
-    // answer and this must not overwrite it.
-    expect(source).toMatch(/SUPABASE_DB_URL:\s*process\.env\.SUPABASE_DB_URL\s*\|\|/);
   });
 });
