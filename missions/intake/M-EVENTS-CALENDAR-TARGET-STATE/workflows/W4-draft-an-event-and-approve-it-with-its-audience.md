@@ -86,7 +86,11 @@ What does not change:
   audit of a success. This is implemented today and is retained exactly
   (acceptance example D, invariant E1b, ADR 0012).
 - **The approver sees the whole consequence first** — the event as it will read,
-  the resolved audience by name, and what approval will cause.
+  the resolved audience by name, and the questions people will be asked.
+- **The audience is named by its groups first, then by its people.** The review
+  leads with the groups chosen — "All active players, all coaches" — and the
+  headcount, before the individual names. An approver checks a shape faster than
+  they check a list of thirty-five. (Brian, 2026-08-21.)
 - **Approval freezes the template.** Template values flow into a draft while it
   remains a draft; approval stops that (D41).
 - **Approval is one transaction** covering the event, its audience and whatever
@@ -308,8 +312,13 @@ the template until approval freezes it (D41), and changing them after approval i
 
 ### Amendment approval
 
-- Exact words:
-- Date:
+- **Exact words:** "The issue is approved, and let's move on to the next
+  workflow." (2026-08-21)
+- **Date:** 2026-08-21
+- **Applied with the approval, no further review requested:** the approval
+  review names the audience by its groups before its people — Brian: "it should
+  say at the very top what groups it would be … You don't have to show me how
+  it's done."
 
 ## Brian approval
 
