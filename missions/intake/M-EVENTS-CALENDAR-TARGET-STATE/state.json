@@ -27,7 +27,7 @@
     {
       "id": "W1",
       "name": "Find and read events",
-      "state": "mock_draft",
+      "state": "mock_approved",
       "stale": false,
       "feedback": [
         {
@@ -79,6 +79,10 @@
         "spec": {
           "words": "Approved.",
           "date": "2026-08-20"
+        },
+        "mock": {
+          "words": "Other than that, looks great. I think this is approved.",
+          "date": "2026-08-21"
         }
       }
     },
@@ -144,5 +148,5 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - revise the W1 mockup against Brian's 2026-08-21 screen feedback, then re-present"
+  "next_action": "Stage 3 - write acceptance/W1.md and complete W1, then begin W2"
 }
