@@ -99,15 +99,19 @@
     {
       "id": "W5",
       "name": "Amend or reschedule an approved event",
-      "state": "mock_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W5-03",
-          "text": "There was no way to turn notification off anywhere in the mockup - the Notifies and Silent chips were read-only labels, which is why the silent-venue-change hole was invisible."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Other than that, looks great. I think this works.",
+          "date": "2026-08-21"
+        },
+        "mock": {
+          "words": "Other than that, looks great. I think this works.",
+          "date": "2026-08-21"
         }
-      ],
-      "approvals": {}
+      }
     },
     {
       "id": "W6",
@@ -144,7 +148,7 @@
       "approvals": {}
     }
   ],
-  "next_action": "Stage 3 - W5 rebuilt on edit-in-place; present for approval, then reopen W4 for per-event questions",
+  "next_action": "Stage 3 - reopen W4 to add per-event questions, then continue to W6",
   "open_items": [
     {
       "id": "OPEN-questions",

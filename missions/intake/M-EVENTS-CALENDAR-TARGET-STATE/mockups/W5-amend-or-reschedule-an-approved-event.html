@@ -1585,23 +1585,40 @@
         </div>`;
 
       const W503 = opShell(`
-        <div><h1 class="h6">Save changes to Practice — michaelmas week 5</h1><p class="body2 sec">Two changes. Decide who hears about them. Nothing has been applied yet.</p></div>
+        <div><h1 class="h6">Save changes to Practice — michaelmas week 5</h1><p class="body2 sec">Two changes. Nothing has been applied yet.</p></div>
         <div class="paper">
           <p class="over">What changed</p>
-          <div style="margin-top:6px">
-            ${notifyRow("Venue", "Iffley Road Astro", "University Parks", true, "Date, time and venue notify by default. Turning this off asks you to confirm first.", true)}
-            ${notifyRow("Required equipment", "Gumshield", "Gumshield, boots", false, "Description, equipment and name are silent by default. Switch it on if it matters.", false)}
+          <div style="margin-top:8px">
+            <div style="padding:9px 0;border-bottom:1px solid var(--divider)">
+              <div class="body2 bold">Venue</div>
+              <div class="body2"><span style="text-decoration:line-through;color:var(--text-secondary)">Iffley Road Astro</span> → <strong>University Parks</strong></div>
+            </div>
+            <div style="padding:9px 0">
+              <div class="body2 bold">Required equipment</div>
+              <div class="body2"><span style="text-decoration:line-through;color:var(--text-secondary)">Gumshield</span> → <strong>Gumshield, boots</strong></div>
+            </div>
           </div>
         </div>
         <div class="paper">
-          <p class="over">Who will be told</p>
-          <p class="body2" style="margin:6px 0 8px">
-            All <strong>37 invited people</strong> — including the 4 who said no, because a venue change might
-            change their answer.
-          </p>
+          <div class="row" style="justify-content:space-between;gap:16px;align-items:flex-start">
+            <div style="min-width:0">
+              <p class="over" style="margin:0">Tell people about this change</p>
+              <p class="body2" style="margin:4px 0 0">
+                One message to all <strong>37 invited people</strong> — including the 4 who said no,
+                because a venue change might change their answer.
+              </p>
+              <p class="body2 sec" style="margin:4px 0 0">
+                On by default because the venue moved. Turning it off will ask you to confirm.
+              </p>
+            </div>
+            ${toggle(true, true)}
+          </div>
+        </div>
+        <div class="paper">
           <ul class="deltas" style="color:var(--text-primary)">
             <li>The 25 who said yes are told to re-read the details. <strong>Their yes stands</strong> — they are not asked again.</li>
             <li>The 8 who have not answered get this as an ordinary reminder to answer.</li>
+            <li>Nobody receives two messages because two fields moved.</li>
           </ul>
         </div>
         <div class="paper">
@@ -1755,7 +1772,8 @@
           disposition: "new",
           title: "Saving — who hears about it",
           deltas: [
-            "Each changed field carries its own notify default, as a real switch",
+            "One notify decision for the whole amendment, not one per field",
+            "It starts on because the venue moved; turning it off asks first",
             "Queued messages are held until the change is taken into account",
             "Venue, date and time notify; description, equipment and name are silent",
             "The whole invited audience is told, decliners included",
@@ -1763,7 +1781,7 @@
             "No reason field; the description carries any explanation",
           ],
           blurb:
-            "The decision the operator is actually making. The defaults are chosen so the changes that would strand somebody at the wrong place speak up by themselves, and the operator can override either way. One rule decides recipients: everyone invited, which is simpler than the three-way split it replaced.",
+            "The decision the operator is actually making, and there is exactly one of it. Nobody gets three messages because three fields moved — they get one saying the event changed and to re-read it, or they get nothing. The defaults decide where that single tick starts: on if the date, time or venue moved, off otherwise.",
           clockTag: "Now: Monday, 9 November 2026, 19:41",
           url: "localhost:3000/operate/events/{id}?step=review",
           now: null,

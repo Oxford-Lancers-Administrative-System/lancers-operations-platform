@@ -72,36 +72,41 @@ non-responders alike. One rule for all recipients.
 
 ## Whether it notifies
 
-**The operator decides, and the decision has a default per field** (D54, D55) —
-but the defaults are not all equally soft.
+**One decision for the whole amendment, not one per field.** Brian, 2026-08-21:
+_"You don't notify per thing. You just resend the whole invitation, or you
+renotify that something was changed or not. It's one tick."_
 
-| Field changed      | Notify | Can it be turned off?                 |
-| ------------------ | ------ | ------------------------------------- |
-| Date               | **On** | Only through an explicit confirmation |
-| Time               | **On** | Only through an explicit confirmation |
-| Venue              | **On** | Only through an explicit confirmation |
-| Description        | Off    | Freely                                |
-| Required equipment | Off    | Freely                                |
-| Name               | Off    | Freely                                |
+A person does not receive three messages because three fields moved. They
+receive one message saying the event changed and to re-read it, or they receive
+nothing.
 
-### Silence on date, time or venue is deliberate, or it does not happen
+### Where the tick starts
 
-D54 as written lets an operator turn notification off on any field with one
-tick. On description or equipment that is fine. On **venue** it means 37 people
-believe the practice is at Iffley Road when it is at University Parks, and
-nothing in the system will ever tell them.
+D55's per-field defaults survive, but as the thing that decides **the starting
+position of the single tick** rather than as six separate switches:
 
-**Tightened by Brian on 2026-08-21.** Date, time and venue may still be changed
-silently — a corrected spelling should not message the squad — but not by
-accident. Turning notification off on one of those three requires a confirmation
-that names the consequence in people, not in fields:
+| If the amendment changed            | The tick starts |
+| ----------------------------------- | --------------- |
+| Date, time or venue — any of them   | **On**          |
+| Only description, equipment or name | **Off**         |
+
+The operator moves it either way. The defaults exist so that the changes which
+strand somebody at the wrong place at the wrong time speak up by themselves.
+
+### Silence is deliberate, or it does not happen
+
+Turning the tick **off** when the date, time or venue changed requires a
+confirmation that names the consequence in people, not in fields:
 
 > _37 people were told this is at **Iffley Road Astro**. If you save without
 > notifying, nobody will be told it has moved._
 
-An absolute prohibition was considered and rejected: it would make a typo
-unfixable without messaging the whole squad, which is its own bad outcome. The
-requirement is that silence is chosen, not defaulted into.
+Turning it off when only the description, equipment or name changed asks
+nothing — that is the ordinary case and the default already.
+
+An absolute prohibition was considered and rejected: it would make a corrected
+spelling impossible to fix without messaging the whole squad, which is its own
+bad outcome. The requirement is that silence is chosen, not defaulted into.
 
 _This tightens D55, which is an approved decision. Recorded as a proposed
 correction in `notion-corrections.md`._
@@ -267,5 +272,10 @@ neither of which belongs to this workflow:
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- **Exact words:** "Other than that, looks great. I think this works."
+  (2026-08-21)
+- **Date:** 2026-08-21
+- **What it approved:** this specification and the six-screen mockup, after
+  three rounds — the amendment reframed as editing in place, silence made a
+  deliberate act with a screen to make it on, and the notify decision collapsed
+  from one switch per changed field to one for the whole amendment.
