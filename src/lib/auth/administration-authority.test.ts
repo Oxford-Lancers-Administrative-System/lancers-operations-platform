@@ -53,7 +53,7 @@ import {
   type AdministrationTargetAction,
   type AdministrationTargetRequest,
 } from "./administration-authority";
-import { CAPABILITY_KEYS, capabilityRoleCodes } from "./capabilities";
+import { CAPABILITY_KEYS, capabilityRoleCodes, describeLeadershipLimits } from "./capabilities";
 import { capabilityRule, OPERATOR_REQUIRED_MESSAGE, OPERATOR_REQUIRED_RULE } from "./guards";
 import { resolveOperatorAccess, type OperatorAccess, type ResolvedOperator } from "./operator";
 
@@ -1357,5 +1357,83 @@ describe("LAN129-R2-A7 — inherited keys do not reach the authority lookup", ()
     expect(protectedTierOf([GM])).toBe("standing_continuity");
     expect(protectedTierOf([PRESIDENT])).toBe("presiding");
     expect(protectedTierOf([IT])).toBeNull();
+  });
+});
+
+/**
+ * The copy that tells a seat what it may **not** do, checked against the table
+ * that actually refuses it — the independent review of PR #58.
+ *
+ * `describeLeadershipLimits()` lives in `capabilities.ts` and is rendered by the
+ * Permissions panel, but the rule it describes lives here: a seat absent from a
+ * tier's `management` list is refused every action classified
+ * `kind: "management"`, because the leadership rule branches on the kind rather
+ * than on the action. So the sentence's completeness is a property of *this*
+ * table, and this is where it is bound.
+ *
+ * It was incomplete. Seven actions are management; the copy named four —
+ * "assign, replace, end or deactivate". Restore, resend and correct-invitation
+ * were enforced and unmentioned, on the one panel whose entire job is saying
+ * what a seat may not do, where an omission reads as permission.
+ *
+ * `correct_invitation` is the one that matters. It redirects a
+ * credential-establishing link to an address the administrator chooses, so a
+ * President who read this panel and concluded they could re-issue the General
+ * Manager's invitation would have been reasoning from the copy to the least safe
+ * of the three missing verbs. The grant was never open to them; only the
+ * sentence suggested it was.
+ */
+describe("the limits copy accounts for every management action", () => {
+  /**
+   * The stem each management action must be recognisable by.
+   *
+   * Stems rather than whole words, so an ordinary rewording — "assign" to
+   * "assigning", "restore" to "restoring" — does not fail a sentence that is
+   * still complete. Dropping a concept altogether does fail it, which is the
+   * defect this exists for.
+   */
+  const STEM: Readonly<Record<string, string>> = {
+    assign_role: "assign",
+    replace_role_holder: "replac",
+    end_role: "end",
+    deactivate_account: "deactivat",
+    restore_account: "restor",
+    resend_invitation: "resend",
+    correct_invitation: "correct",
+  };
+
+  const management = ADMINISTRATION_TARGET_ACTIONS.filter(
+    (action) => ADMINISTRATION_TARGET_RULES[action].kind === "management",
+  );
+
+  it("has a word for each of the seven, and knows when there is an eighth", () => {
+    // A management action added later lands here first: the map above must be
+    // revisited deliberately rather than a new action passing unmentioned.
+    expect(management.length).toBe(7);
+    expect(Object.keys(STEM).sort()).toEqual([...management].sort());
+  });
+
+  it("names every one of them in the sentence a real seat is shown", () => {
+    // The IT Officer may not manage the President —
+    // `PROTECTED_LEADERSHIP_AUTHORITY` leaves them off that tier's management
+    // list — so their limits carry the full management sentence about that seat.
+    const limits = describeLeadershipLimits("it_officer");
+    const line = limits.join("; ").toLowerCase();
+
+    expect(limits.length).toBeGreaterThan(0);
+    for (const action of management) {
+      expect(line, `the limits sentence must account for ${action}`).toContain(STEM[action]);
+    }
+  });
+
+  /**
+   * The asymmetry, restated from the copy's side. Recovery is deliberately
+   * permitted where management is not (`DEC-no-self-removal`: "IT Officer may
+   * perform technical email recovery for President or GM without management
+   * authority"), so a sentence that swept recovery into the management verbs
+   * would be describing a refusal that does not happen.
+   */
+  it("does not claim a recovery the IT Officer is actually permitted", () => {
+    expect(describeLeadershipLimits("it_officer").join("; ")).not.toContain("recover email access");
   });
 });

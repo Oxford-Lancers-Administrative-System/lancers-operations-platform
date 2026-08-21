@@ -1069,6 +1069,33 @@ const SELF_ACTION_LIMIT =
  * Phrases are verb phrases with no subject, matching `action` above, so a
  * surface can put one sentence in front of the list.
  */
+/**
+ * What "management" of a protected seat covers, in the club's words.
+ *
+ * Every verb here is an action `ADMINISTRATION_TARGET_RULES` classifies
+ * `kind: "management"`, and the leadership rule refuses **all** of them to a
+ * seat absent from that tier's management list — it branches on the kind, not
+ * on the action.
+ *
+ * The copy used to name four of the seven: "assign, replace, end or deactivate".
+ * Restore, resend and correct-invitation were enforced and unmentioned, and the
+ * omission read as permission on the panel that exists to say what a seat may
+ * not do. A President reading their own page could reasonably infer that
+ * re-issuing the General Manager's invitation was open to them — an invitation
+ * carries a credential-establishing link, and `correct_invitation` redirects it
+ * to an address the administrator chooses, so it is the least safe of the three
+ * to be quietly missing.
+ *
+ * Nothing about who may do what changed with this sentence; the grants, the
+ * role lists and `PROTECTED_LEADERSHIP_AUTHORITY` are untouched. This is the
+ * enforced table said out loud, and `administration-authority.test.ts` derives
+ * the check from that table so a management action added later cannot slip past
+ * the copy.
+ */
+const MANAGEMENT_LIMIT_VERBS =
+  "assign, replace or end the role of, deactivate or restore access for, or " +
+  "resend or correct an invitation for";
+
 export function describeLeadershipLimits(code: string): readonly string[] {
   if (!CAPABILITIES.role_management.roleCodes.includes(code)) return [];
 
@@ -1078,7 +1105,7 @@ export function describeLeadershipLimits(code: string): readonly string[] {
     const seat = roleLabel(LEADERSHIP_TIER_SEATS[tier]);
     const authority = PROTECTED_LEADERSHIP_AUTHORITY[tier];
     if (!authority.management.includes(code)) {
-      limits.push(`assign, replace, end or deactivate the ${seat}`);
+      limits.push(`${MANAGEMENT_LIMIT_VERBS} the ${seat}`);
     }
     if (!authority.recovery.includes(code)) {
       limits.push(`recover email access for the ${seat}`);
