@@ -12,6 +12,7 @@ import {
   assertConfigApplied,
   attachMissionLease,
   cleanupStale,
+  detachMissionLease,
   coordinatorStatus,
   findOwningSessionPid,
   markConfigApplied,
@@ -601,6 +602,7 @@ describe("mission-owned local Supabase stacks", () => {
       repoPath: repo,
       baseCommit: "c".repeat(40),
       migrationHead: 20260819000000,
+      pid: 4242,
       env,
       portProbe: async () => false,
     });
@@ -617,6 +619,7 @@ describe("mission-owned local Supabase stacks", () => {
       repoPath: repo,
       baseCommit: "d".repeat(40),
       migrationHead: 20260820000000,
+      pid: 4242,
       env,
       portProbe: async () => false,
     });
@@ -640,6 +643,7 @@ describe("mission-owned local Supabase stacks", () => {
         repoPath: repo,
         baseCommit: "e".repeat(40),
         migrationHead: 20260819000000,
+        pid: 4242,
         env,
         portProbe: async () => true,
       }),
@@ -658,6 +662,7 @@ describe("mission-owned local Supabase stacks", () => {
       repoPath: repo,
       baseCommit: "f".repeat(40),
       migrationHead: 20260819000000,
+      pid: 4242,
       env,
       portProbe: slowProbe,
     });
@@ -670,6 +675,89 @@ describe("mission-owned local Supabase stacks", () => {
     expect(waited).toBeLessThan(150);
   });
 
+  /**
+   * A mission stack is shared: several workers attach to it and finish at
+   * different times. Retiring it under a sibling is the mission-scale version
+   * of the slot leak, so the caller is told whether it was the last one out
+   * rather than left to infer it.
+   */
+  it("reports who is left when a worker detaches, and who may retire the stack", async () => {
+    const { repo, env } = fixture();
+    const lease = await acquireMissionLease({
+      missionId: "M-DETACH",
+      repoPath: repo,
+      baseCommit: "a".repeat(40),
+      migrationHead: 20260819000000,
+      pid: 4242,
+      env,
+      portProbe: async () => false,
+    });
+    const worker = path.join(path.dirname(repo), "detach-worker");
+    fs.cpSync(repo, worker, { recursive: true });
+    await attachMissionLease({
+      missionId: "M-DETACH",
+      repoPath: worker,
+      token: lease.token,
+      env,
+    });
+
+    const first = await detachMissionLease({ missionId: "M-DETACH", repoPath: worker, env });
+    expect(first.detached).toBe(true);
+    expect(first.lastAttachment).toBe(false);
+    expect(first.ownsStack).toBe(false);
+    expect(first.remaining).toEqual([fs.realpathSync(repo)]);
+
+    const last = await detachMissionLease({ missionId: "M-DETACH", repoPath: repo, env });
+    expect(last.lastAttachment).toBe(true);
+    expect(last.ownsStack).toBe(true);
+    expect(last.remaining).toEqual([]);
+  });
+
+  it("is idempotent, and refuses a mission it has no stack for", async () => {
+    const { repo, env } = fixture();
+    await acquireMissionLease({
+      missionId: "M-IDEMPOTENT",
+      repoPath: repo,
+      baseCommit: "b".repeat(40),
+      migrationHead: 20260819000000,
+      pid: 4242,
+      env,
+      portProbe: async () => false,
+    });
+    await detachMissionLease({ missionId: "M-IDEMPOTENT", repoPath: repo, env });
+    const again = await detachMissionLease({ missionId: "M-IDEMPOTENT", repoPath: repo, env });
+    expect(again.detached).toBe(false);
+    expect(again.lastAttachment).toBe(true);
+
+    await expect(
+      detachMissionLease({ missionId: "M-NOT-A-MISSION", repoPath: repo, env }),
+    ).rejects.toThrow(/No mission stack is recorded/);
+  });
+
+  /**
+   * The finding the independent reviewer reached before it was stopped.
+   * The reclaim rule takes a conclusively dead owner at once, without the
+   * heartbeat window — right when the pid is the Claude session's, and
+   * catastrophic when it is the CLI process that took the lease, because that
+   * exits immediately.
+   */
+  it("refuses to default the owning session pid", async () => {
+    const { repo, env } = fixture();
+    await expect(
+      acquireLeaseRaw({ issueId: "LAN-1", repoPath: repo, env, portProbe: async () => false }),
+    ).rejects.toThrow(/requires an explicit owning session pid/);
+    await expect(
+      acquireMissionLease({
+        missionId: "M-NO-PID",
+        repoPath: repo,
+        baseCommit: "c".repeat(40),
+        migrationHead: 20260819000000,
+        env,
+        portProbe: async () => false,
+      }),
+    ).rejects.toThrow(/requires an explicit owning session pid/);
+  });
+
   it("attaches a worker worktree to its mission and rejects another mission", async () => {
     const { repo, env } = fixture();
     const lease = await acquireMissionLease({
@@ -677,6 +765,7 @@ describe("mission-owned local Supabase stacks", () => {
       repoPath: repo,
       baseCommit: "b".repeat(40),
       migrationHead: 20260819000000,
+      pid: 4242,
       env,
       portProbe: async () => false,
     });

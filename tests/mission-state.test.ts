@@ -1371,9 +1371,12 @@ describe("guarded merge recording", () => {
     expect(replayed.packages["WP-events-filter"].status).toBe("merged");
     // The evidence is kept even though the lifecycle does not move.
     expect(replayed.packages["WP-events-filter"].receipts).toHaveLength(1);
-    expect(nextActions(replayed).some((action) => action.package_id === "WP-events-filter")).toBe(
-      false,
-    );
+    // LAN-148: merged work still owes its worktree back, and nothing else.
+    expect(
+      nextActions(replayed)
+        .filter((action) => action.package_id === "WP-events-filter")
+        .map((action) => action.action),
+    ).toEqual(["reclaim"]);
   });
 
   it("fences the mission from initialization, before any heartbeat", async () => {
@@ -1449,8 +1452,10 @@ describe("guarded merge recording", () => {
     ]);
     expect(replayed.packages["WP-events-filter"].status).toBe("merged");
     expect(
-      nextActions(replayed).filter((action) => action.package_id === "WP-events-filter"),
-    ).toEqual([]);
+      nextActions(replayed)
+        .filter((action) => action.package_id === "WP-events-filter")
+        .map((action) => action.action),
+    ).toEqual(["reclaim"]);
   });
 
   /**
@@ -2102,6 +2107,136 @@ describe("user-facing work says what contract it was built against", () => {
     for (const name of contracts) {
       expect(name).toMatch(/^LAN-\d+-[a-z0-9-]+\.md$/);
     }
+  });
+});
+
+describe("giving back what the mission took out", () => {
+  /**
+   * /run-mission deliberately stops short of this, for the reason /start-issue
+   * does: work in flight is not debris. But the first live mission left both
+   * database slots held and its worktrees on disk, because nothing reclaimed
+   * them once packages merged. Reclamation is per package and does not wait for
+   * the mission to end.
+   */
+  async function merged(m: ReturnType<typeof fixture>, packageId = "WP-events-filter") {
+    await readyMission(m);
+    await reviewedClear(m, packageId);
+    await walked(m);
+    await m.append({
+      type: "visual-approval",
+      package_id: packageId,
+      approved_by: "Brian",
+      evidence: "live review",
+    });
+    return m.append({
+      type: "merge-recorded",
+      package_id: packageId,
+      sha: SHA,
+      route: "guarded-auto",
+    });
+  }
+
+  it("refuses to reclaim a package that has not reached a terminal state", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await expect(
+      m.append({ type: "package-reclaimed", package_id: "WP-events-filter", merge_sha: SHA }),
+    ).rejects.toThrow(/never on the strength of a receipt/);
+  });
+
+  it("refuses to reclaim under a worker that is still running", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/wp-events",
+      branch: "feat/wp-events",
+    });
+    await expect(
+      m.append({
+        type: "package-reclaimed",
+        package_id: "WP-events-filter",
+        abandoned: true,
+        reason: "stopping",
+      }),
+    ).rejects.toThrow(/still has an active worker; its worktree is not debris yet/);
+  });
+
+  it("requires the merge commit it was proved against", async () => {
+    const m = fixture();
+    await merged(m);
+    await expect(
+      m.append({ type: "package-reclaimed", package_id: "WP-events-filter" }),
+    ).rejects.toThrow(/records the merge commit it was proved against, read from the repository/);
+  });
+
+  it("reclaims a merged package and stops offering it", async () => {
+    const m = fixture();
+    await merged(m);
+    const state = await m.append({
+      type: "package-reclaimed",
+      package_id: "WP-events-filter",
+      merge_sha: SHA,
+    });
+    expect(state.reclaimed).toContain("WP-events-filter");
+    expect(state.packages["WP-events-filter"].reclaimed.merge_sha).toBe(SHA);
+    expect(nextActions(state).some((action) => action.package_id === "WP-events-filter")).toBe(
+      false,
+    );
+  });
+
+  it("will not finalize a mission whose evidence was never written", async () => {
+    const m = fixture();
+    await merged(m);
+    await m.append({ type: "package-reclaimed", package_id: "WP-events-filter", merge_sha: SHA });
+    await expect(
+      m.append({ type: "mission-finalized", stack_disposition: "retired" }),
+    ).rejects.toThrow(/reclaiming resources is not the same act/);
+  });
+
+  it("will not finalize while a package is unmerged or unreclaimed", async () => {
+    const m = fixture();
+    await merged(m);
+    await m.append({
+      type: "integrated-review",
+      mode: "cross-surface",
+      head_sha: SHA,
+      result: "clear",
+    });
+    await m.append({
+      type: "mission-closeout",
+      outcome: "delivered",
+      notion_record: "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+      shipped: [{ linear_issue_id: "LAN-900", pr_number: 42, sha: SHA }],
+      owner_actions: "None.",
+      next_action: "None.",
+    });
+    await expect(
+      m.append({ type: "mission-finalized", stack_disposition: "retired" }),
+    ).rejects.toThrow(/has not merged/);
+  });
+
+  /**
+   * A resumed Lead has to be able to tell a finished mission from one that was
+   * walked away from. The terminal event is what says so.
+   */
+  it("records abandonment with what was deliberately preserved", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await expect(
+      m.append({ type: "mission-abandoned", reason: "usage exhausted" }),
+    ).rejects.toThrow(/records what was deliberately preserved/);
+    const state = await m.append({
+      type: "mission-abandoned",
+      reason: "The packet was superseded before the second package started.",
+      preserved: "Both branches are pushed, PR #42 is open, and the journal is intact.",
+    });
+    expect(state.terminal.state).toBe("abandoned");
+    expect(nextActions(state)).toEqual([
+      { action: "none", detail: "The mission is abandoned. Nothing further is owed." },
+    ]);
   });
 });
 

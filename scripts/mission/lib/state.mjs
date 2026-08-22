@@ -53,7 +53,10 @@ export const EVENT_TYPES = [
   "checkpoint",
   "scope-drift",
   "packet-revised",
+  "package-reclaimed",
   "mission-closeout",
+  "mission-finalized",
+  "mission-abandoned",
   "mission-stopped",
   "mission-resumed",
 ];
@@ -968,6 +971,83 @@ export function validateEvent(event, state) {
       break;
     }
 
+    case "package-reclaimed": {
+      const pkg = state.packages[event.package_id];
+      if (!pkg) {
+        errors.push(`No planned package ${event.package_id}.`);
+        break;
+      }
+      // Reclaiming is not a judgement call. It follows a terminal state that
+      // the repository can be asked about — the mission-merge lane merges
+      // without a human, so "Brian merged it" is not a state anyone can infer.
+      if (!["merged", "removed"].includes(pkg.status) && !event.abandoned) {
+        errors.push(
+          `${event.package_id} is ${pkg.status}. A package's worktree and branch are reclaimed after it merges, is removed from the plan, or is explicitly abandoned — never on the strength of a receipt.`,
+        );
+      }
+      if (pkg.status === "merged" && !/^[0-9a-f]{40}$/.test(event.merge_sha ?? "")) {
+        errors.push(
+          "Reclaiming a merged package records the merge commit it was proved against, read from the repository.",
+        );
+      }
+      if (event.abandoned && !isNonEmptyString(event.reason)) {
+        errors.push("Abandoning a package's worktree records why, and that its branch is pushed.");
+      }
+      if (activeWorkerFor(state, event.package_id)) {
+        errors.push(
+          `${event.package_id} still has an active worker; its worktree is not debris yet.`,
+        );
+      }
+      break;
+    }
+
+    case "mission-finalized": {
+      // Everything the mission took out has been given back, and the evidence
+      // exists somewhere Brian will find it.
+      if (!state.closeout) {
+        errors.push(
+          "The mission has no recorded closeout. Write the evidence into the Notion mission record before declaring the mission finished; reclaiming resources is not the same act.",
+        );
+      }
+      const live = Object.values(state.packages).filter((pkg) => pkg.status !== "removed");
+      const unfinished = live.filter((pkg) => pkg.status !== "merged");
+      if (unfinished.length > 0) {
+        errors.push(
+          `${unfinished.map((pkg) => pkg.id).join(", ")} has not merged. A mission is finalized only when every live package has; anything else is abandonment and is recorded as that.`,
+        );
+      }
+      const unreclaimed = live.filter((pkg) => !state.reclaimed.includes(pkg.id));
+      if (unreclaimed.length > 0) {
+        errors.push(
+          `${unreclaimed.map((pkg) => pkg.id).join(", ")} still holds a worktree or branch.`,
+        );
+      }
+      if (state.activeWorkers.length > 0) {
+        errors.push("Workers are still running.");
+      }
+      if (!isNonEmptyString(event.stack_disposition)) {
+        errors.push(
+          "Finalizing records what happened to the mission-owned stack — retired, or left because another attachment still needs it.",
+        );
+      }
+      break;
+    }
+
+    case "mission-abandoned": {
+      if (!isNonEmptyString(event.reason)) {
+        errors.push("Abandoning a mission records why it is being reclaimed unfinished.");
+      }
+      if (!isNonEmptyString(event.preserved)) {
+        errors.push(
+          "Abandonment records what was deliberately preserved — pushed branches, open pull requests, the journal itself — so a later reader can tell debris from evidence.",
+        );
+      }
+      if (state.activeWorkers.length > 0) {
+        errors.push("Workers are still running; stop or abandon them before the mission.");
+      }
+      break;
+    }
+
     case "mission-closeout": {
       if (!["delivered", "delivered-with-residue", "stopped-incomplete"].includes(event.outcome)) {
         errors.push(
@@ -1070,6 +1150,8 @@ export function validateEvent(event, state) {
  *   laneBypasses: Array<Record<string, any>>,
  *   integratedReviews: Array<Record<string, any>>,
  *   closeout: Record<string, any> | null,
+ *   reclaimed: string[],
+ *   terminal: { at: string, state: "finalized" | "abandoned" } | null,
  *   eventCount: number,
  * }} MissionState
  * @typedef {{ action: string, detail: string, package_id?: string, question_id?: string }} MissionAction
@@ -1095,6 +1177,8 @@ function emptyState() {
     laneBypasses: [],
     integratedReviews: [],
     closeout: null,
+    reclaimed: [],
+    terminal: null,
     eventCount: 0,
   };
 }
@@ -1273,6 +1357,32 @@ export function reduce(events) {
           jobs_completed: event.jobs_completed ?? null,
           findings: event.findings ?? [],
         });
+        break;
+      case "package-reclaimed": {
+        const pkg = state.packages[event.package_id];
+        state.reclaimed.push(event.package_id);
+        pkg.reclaimed = {
+          at: event.at,
+          merge_sha: event.merge_sha ?? null,
+          abandoned: Boolean(event.abandoned),
+          reason: event.reason ?? null,
+        };
+        break;
+      }
+      case "mission-finalized":
+        state.terminal = {
+          at: event.at,
+          state: "finalized",
+          stack_disposition: event.stack_disposition,
+        };
+        break;
+      case "mission-abandoned":
+        state.terminal = {
+          at: event.at,
+          state: "abandoned",
+          reason: event.reason,
+          preserved: event.preserved,
+        };
         break;
       case "mission-closeout":
         state.closeout = {
@@ -1554,6 +1664,38 @@ export function nextActions(state) {
           "Write the closeout into the existing Notion mission record: outcome, shipped issues, pull requests and exact SHAs, acceptance and injection evidence, unresolved findings and their dispositions, owner and external actions, elapsed time and cost, and the next action.",
       });
     }
+  }
+  // A resumed Lead must be able to tell a finished mission from an abandoned
+  // one, and neither from a mission still running. The terminal event is what
+  // says so; until it exists there is debris to reclaim.
+  if (state.terminal) {
+    return [
+      {
+        action: "none",
+        detail: `The mission is ${state.terminal.state}. Nothing further is owed.`,
+      },
+    ];
+  }
+  for (const pkg of live) {
+    if (pkg.status === "merged" && !state.reclaimed.includes(pkg.id)) {
+      actions.push({
+        action: "reclaim",
+        package_id: pkg.id,
+        detail:
+          "Merged. `npm run mission:finish` proves the merge from the repository, then releases its worktree, branch and attachment to the mission stack. Reclamation does not wait for the mission to end.",
+      });
+    }
+  }
+  if (
+    state.closeout &&
+    live.length > 0 &&
+    live.every((pkg) => pkg.status === "merged" && state.reclaimed.includes(pkg.id))
+  ) {
+    actions.push({
+      action: "finalize",
+      detail:
+        "Every package has merged and been reclaimed and the closeout is written. `npm run mission:finish` retires the mission stack if this is its last attachment and records the mission finalized.",
+    });
   }
   return actions;
 }

@@ -187,6 +187,24 @@ export function ownerAlive(pid, probe = process.kill) {
   }
 }
 
+/**
+ * Refuse to default the owning pid.
+ *
+ * `reclaimable` reclaims a conclusively dead owner at once, without waiting out
+ * the heartbeat window. That is right when the pid is the Claude session's —
+ * and catastrophic when it is the pid of the short-lived CLI process that took
+ * the lease, because that process exits immediately and the very next acquire
+ * would steal a lease seconds old. Both callers pass
+ * `findOwningSessionPid()`; defaulting to `process.pid` left that a trap for
+ * the next one, so there is no default.
+ */
+/** @param {string} caller @returns {number} */
+function requiredSessionPid(caller) {
+  throw new Error(
+    `${caller} requires an explicit owning session pid — pass findOwningSessionPid(). Defaulting to this process would make the lease reclaimable the moment the command exits.`,
+  );
+}
+
 /** A lease is demonstrably in use when its heartbeat is inside the window. */
 export function leaseLive(record, now) {
   const beat = Date.parse(record?.lastHeartbeat ?? "");
@@ -351,7 +369,7 @@ export function renderedConfigFingerprint(repoPath, slot) {
 export async function acquireLease({
   issueId,
   repoPath,
-  pid = process.pid,
+  pid = requiredSessionPid("acquireLease"),
   now = Date.now(),
   env = process.env,
   probe = process.kill,
@@ -448,7 +466,7 @@ export async function acquireMissionLease({
   repoPath,
   baseCommit,
   migrationHead,
-  pid = process.pid,
+  pid = requiredSessionPid("acquireMissionLease"),
   now = Date.now(),
   env = process.env,
   portProbe = portIsOccupied,
@@ -595,6 +613,40 @@ export async function attachMissionLease({ missionId, repoPath, token, env = pro
     writeRegistry(paths.registry, registry);
     writeSession(resolvedRepo, record);
     return record;
+  });
+}
+
+/**
+ * Detach one worktree from a mission stack, and say whether it was the last.
+ *
+ * A mission stack is shared: several workers attach to it, and it may only be
+ * torn down when the last attached package has finished with it. Tearing it
+ * down under a sibling worker is the mission-scale version of the leak LAN-148
+ * fixed at the slot scale, so the caller is told rather than left to guess.
+ */
+export async function detachMissionLease({ missionId, repoPath, env = process.env }) {
+  const resolvedRepo = fs.realpathSync(repoPath);
+  const paths = coordinatorPaths(resolvedRepo, env);
+  return withAllocatorLock(paths, () => {
+    const registry = readRegistry(paths.registry);
+    const record = Object.values(registry.slots).find(
+      (candidate) => candidate.missionId === missionId,
+    );
+    if (!record) throw new Error(`No mission stack is recorded for ${missionId}.`);
+    const attached = record.attachedRepoPaths ?? [];
+    const remaining = attached.filter((entry) => entry !== resolvedRepo);
+    record.attachedRepoPaths = remaining;
+    writeRegistry(paths.registry, registry);
+    return {
+      slot: record.slot,
+      missionId,
+      detached: attached.length !== remaining.length,
+      remaining,
+      // Only the acquiring worktree may retire the stack, and only once every
+      // attached worker has let go of it.
+      lastAttachment: remaining.length === 0,
+      ownsStack: record.repoPath === resolvedRepo,
+    };
   });
 }
 

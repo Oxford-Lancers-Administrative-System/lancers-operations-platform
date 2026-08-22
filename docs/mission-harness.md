@@ -28,6 +28,35 @@ An invalid, `not_ready`, or unapproved packet is refused outright. To
 is enough — the Lead replays durable state and continues; no chat history is
 needed or used.
 
+## Finishing a mission
+
+`/run-mission` stops short of closeout, for the reason `/start-issue` does:
+while work is in flight a worktree is not debris, and an agent must never delete
+a dirty or unmerged one. Reclamation is its own invocation —
+`/finish-mission M-<id>`, or `npm run mission:finish -- M-<id>` — because the
+case that matters most is the one where the Lead is gone and has nothing left to
+run an exit step.
+
+It reclaims **per package**: a package's worktree, branch and attachment to the
+mission stack are released the moment its pull request merges, proved from the
+repository (`gh pr view` plus the head being an ancestor of `origin/main`) and
+never from the pull-request body or the Linear state — the `mission-merge` lane
+merges without a human, so nobody may infer that Brian did.
+
+The mission-owned stack is shared by several workers, so **whoever detaches last
+retires it**. A mission whose acquiring worktree is already gone can still be
+tidied up, and no sibling mission's stack or the standing slot is ever touched.
+
+A mission ends as `mission-finalized` — every live package merged and reclaimed,
+no workers running, and the closeout evidence already written into the Notion
+mission record — or as `mission-abandoned`, which records why it is unfinished
+and what was deliberately preserved. A resumed Lead reads that distinction from
+the journal; it is how it tells a finished mission from one that was walked away
+from. Reclaiming resources and finishing a mission are different acts, and the
+second requires the first.
+
+It refuses while another Lead's fence is live, and there is no override.
+
 ## The mission packet
 
 The packet is the pinned execution contract for one approved mission. The
