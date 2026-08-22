@@ -3,6 +3,7 @@ import process from "node:process";
 import {
   acquireLease,
   acquireMissionLease,
+  assertConfigApplied,
   attachMissionLease,
   cleanupStale,
   coordinatorStatus,
@@ -68,12 +69,15 @@ try {
   } else if (operation === "review-ready") {
     const session = readSession(repoPath);
     const current = await updateLease({ repoPath, token: session.token });
+    // LAN-148: the containers must be running this holder's rendered Auth
+    // configuration before anyone is told the environment is ready.
+    assertConfigApplied(repoPath, current);
     requireVisualReviewReadiness(repoPath, current.applicationPort);
     const lease = await updateLease({ repoPath, token: session.token, state: "review-ready" });
     console.log(`${lease.slot} is protected as review-ready.`);
   } else if (operation === "release") {
     const session = readSession(repoPath);
-    const lease = await releaseLease({ repoPath, token: session.token });
+    const lease = await releaseLease({ repoPath, token: session.token, slot: session.slot });
     console.log(`Released ${lease.slot}.`);
   } else if (operation === "cleanup-stale") {
     console.log(`Marked stale: ${(await cleanupStale({ repoPath })).join(", ") || "none"}.`);

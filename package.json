@@ -40,7 +40,13 @@
     "intake": "node scripts/intake/cli.mjs",
     "types:generate": "node scripts/local-supabase-command.mjs types-generate",
     "types:check": "node scripts/generate-types.mjs --check",
-    "check:rls": "node scripts/check-rls-migrations.mjs"
+    "check:rls": "node scripts/check-rls-migrations.mjs",
+    "visual:preflight": "node scripts/visual-preflight.mjs",
+    "visual:start": "node scripts/visual-environment.mjs start",
+    "visual:status": "node scripts/visual-environment.mjs status",
+    "visual:disposition": "node scripts/visual-environment.mjs disposition",
+    "visual:release": "node scripts/visual-environment.mjs release",
+    "mission:finish": "node scripts/mission/finish-mission.mjs"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",

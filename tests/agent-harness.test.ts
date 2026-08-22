@@ -76,9 +76,13 @@ const contradictoryPolicyPatterns = {
 const settings = JSON.parse(readFileSync(path.join(root, ".claude", "settings.json"), "utf8"));
 
 describe("single-issue Claude workflow", () => {
-  it("has exactly the four user-invoked workflows and no obsolete batch artifacts", () => {
+  it("has exactly the five user-invoked workflows and no obsolete batch artifacts", () => {
+    // Two closeout companions now: LAN-150's for a single issue, LAN-148's for
+    // a mission. Reclamation is a separate invocation in both cases because the
+    // one that matters most is work whose owning session is already gone.
     expect([...readdirSync(skills)].sort()).toEqual([
       "finish-issue",
+      "finish-mission",
       "mission-intake",
       "run-mission",
       "start-issue",
@@ -87,6 +91,27 @@ describe("single-issue Claude workflow", () => {
     expect(skill.fields["disable-model-invocation"]).toBe("true");
     expect(skill.fields["argument-hint"]).toBe("LAN-###");
     expect(existsSync(path.join(skills, "supervise-batch"))).toBe(false);
+  });
+
+  it("keeps mission reclamation user-invoked, fenced, and after a proved merge", () => {
+    const finish = readFileSync(path.join(skills, "finish-mission", "SKILL.md"), "utf8");
+    expect(/^name: finish-mission$/m.test(finish)).toBe(true);
+    expect(/^disable-model-invocation: true$/m.test(finish)).toBe(true);
+    // Never inferred from the pull-request body or Linear: the mission-merge
+    // lane merges without a human.
+    expect(finish).toMatch(/The proof is the \*\*merge commit\*\*, not the branch head/);
+    expect(finish).toMatch(/squash/i);
+    expect(finish).toMatch(/never from the pull-request body/i);
+    // A live Lead owns its own mission.
+    expect(finish).toMatch(/Only a dead or expired fence/i);
+    expect(finish).toMatch(/There is no override/i);
+    // The shared stack is retired once, by whoever is last out.
+    expect(finish).toMatch(/whoever detaches last retires it/i);
+    expect(finish).toMatch(/never the standing primary or overflow slot/i);
+    // It takes none of the actions the harness forbids.
+    expect(finish.replace(/\s+/g, " ")).toMatch(
+      /never merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to production/i,
+    );
   });
 
   it("keeps mission intake explicitly invoked and restricted to one portfolio number", () => {
@@ -427,7 +452,7 @@ describe("issue closeout workflow", () => {
   it("is announced by /start-issue and by the working agreement, and leaves missions alone", () => {
     expect(flat(skill.body)).toMatch(/Closeout is a separate, later invocation/i);
     expect(flat(skill.body)).toMatch(/`\/finish-issue LAN-###`/i);
-    expect(flat(agreement)).toMatch(/four user-invoked workflows and two subagents are approved/i);
+    expect(flat(agreement)).toMatch(/five user-invoked workflows and two subagents are approved/i);
     expect(flat(agreement)).toMatch(/Under `\/finish-issue`, the top-level session finalizes/i);
     expect(flat(agreement)).toMatch(
       /Linear recordkeeping is limited to In Progress at start, the draft PR link, one final evidence\/handoff comment, and — after the merge, from `\/finish-issue` alone — the Done transition and its single closing comment/i,
@@ -710,11 +735,22 @@ describe("zero-command visual acceptance", () => {
   });
 
   it("requires browser-proven URL, login, seeded states, viewports, and protected lease", () => {
-    expect(body).toMatch(/use a browser to open the supplied URL, sign in/i);
+    // LAN-148 §B: the viewport is measured through a real browser, not asserted.
+    // The claim this replaces could not be produced honestly on this machine,
+    // which is why it was satisfied on paper and refused in practice.
+    expect(body).toMatch(/npm run visual:preflight/i);
+    expect(body).toMatch(/measures each viewport by asking the browser context how wide/i);
+    expect(body).toMatch(/A self-reported 375px claim is refused/i);
     expect(body).toMatch(/working URL, real login, seeded states, desktop and 375px evidence/i);
     expect(body).toMatch(/mark the slot `review-ready`/i);
     expect(body).toMatch(/Do not claim readiness from scripts or HTTP probes alone/i);
     expect(body).toMatch(/db:review-ready.*validates that record and fails closed/i);
+  });
+
+  it("gives a pending visual environment an owner that outlives the session", () => {
+    expect(body).toMatch(/npm run visual:start/i);
+    expect(body).toMatch(/outlives this session/i);
+    expect(body).toMatch(/once the branch moves past the head it serves/i);
   });
 
   it("gives Brian no commands or setup actions", () => {
@@ -893,14 +929,33 @@ describe("mission harness v1", () => {
     expect(gateSource).not.toMatch(/merge\s*=\s*true/);
   });
 
-  it("keeps Highest-risk, migration, and unapproved visual work with Brian", () => {
-    expect(missionBody).toMatch(
-      /Highest risk retains the strongest current rules and never merges autonomously/i,
-    );
-    expect(stateSource).toContain("Highest-risk work cannot autonomous-merge in v1");
+  it("keeps migration and unapproved visual work with Brian, and gates highest risk on his checkpoint", () => {
+    // LAN-148 §F separated review grade from merge route. Highest risk is no
+    // longer refused for its grade; it is refused unless an answered owner
+    // checkpoint names the package, so Brian still hears about it first. What
+    // is unconditionally his is decided from the diff by the prohibited list.
+    expect(stateSource).toContain("only when an answered owner checkpoint names it");
     expect(stateSource).toContain("owner-merged, never autonomous");
+    expect(gateSource).toContain("only when it cites the answered owner question");
+    expect(gateSource).toContain("no answered owner question names it");
     expect(missionBody).toMatch(/ADR 0020 stands/);
-    expect(gateSource).toContain("highest risk is owner-merged in v1");
+    // The review found the skill's operative merge procedure (§10) still
+    // forbidding what its own §9 and the gate permit. Pin both, in the files
+    // that carry them, so they cannot drift apart again.
+    expect(missionBody).toMatch(
+      /Highest risk only when an answered owner checkpoint names the package/i,
+    );
+    expect(missionBody).toMatch(
+      /decided from the diff by the prohibited-path scan, not from a risk label/i,
+    );
+    expect(missionBody).not.toMatch(/external configuration, Highest-risk work,/i);
+
+    const runbook = flat(readFileSync(path.join(root, "docs", "mission-harness.md"), "utf8"));
+    expect(runbook).toMatch(/Highest risk is not on that list any more/);
+    expect(runbook).toMatch(/only when an answered owner checkpoint names the package/);
+    // B-3: the runbook described a proof the code no longer uses.
+    expect(runbook).toMatch(/squash/i);
+    expect(runbook).not.toMatch(/plus the head being an ancestor of/i);
   });
 });
 

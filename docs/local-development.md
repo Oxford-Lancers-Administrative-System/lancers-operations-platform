@@ -162,7 +162,12 @@ own pitches, which no geocoder indexes, are typed rather than searched.
 | `npm run db:heartbeat`                                                       | Refresh the current slot lease                    |
 | `npm run db:review-ready`                                                    | Validate browser evidence and protect review      |
 | `npm run db:release`                                                         | Release the current slot after stopping it        |
-| `npm run db:cleanup-stale`                                                   | Mark dead, expired active leases stale            |
+| `npm run db:cleanup-stale`                                                   | Mark abandoned active leases stale                |
+| `npm run visual:start`                                                       | Supervise a pending visual environment            |
+| `npm run visual:preflight -- /route …`                                       | Measure both viewports and capture the artifacts  |
+| `npm run visual:status`                                                      | Report whether it is still genuinely ready        |
+| `npm run visual:disposition -- --set <state>`                                | Record approved/rejected/obsolete/abandoned       |
+| `npm run visual:release`                                                     | Stop the supervisor and hand the slot back        |
 
 ### Closing out a finished issue
 
@@ -215,16 +220,52 @@ ignored. Every lifecycle or mutating database command validates that token.
 Primary keeps the familiar ports; overflow receives a distinct project ID,
 complete service-port set, and application port automatically. Do not edit the
 tracked `supabase/config.toml` to make a second stack.
-If a released slot's own containers are still running, the next claim rotates
-the fencing token and adopts that slot; its mandatory reset removes the prior
-worktree's schema and data. Occupied ports on a never-allocated or stale slot
-still fail closed as ambiguous.
+If a slot this coordinator has already allocated still has its own containers
+running — a released stack kept warm, or an abandoned one whose owner died
+without stopping it — the next claim rotates the fencing token and adopts that
+slot. Only a slot with no record at all fails closed on occupied ports, because
+only there is it genuinely unknown whose process is listening. The next holder's
+`db:start` restarts the stack under its own rendered configuration before it is
+usable: `supabase start` against running containers is a no-op, so a re-fenced
+stack would otherwise keep serving the previous holder's Auth site URL and
+redirect allow-list, which fails invisibly rather than loudly.
 
-For UI work, the issue agent records its completed browser preflight in ignored
-`.lancers-runtime/visual-review.json`. `db:review-ready` refuses to protect the
-slot unless the assigned loopback URL, real login, seeded states, review routes,
-desktop layout, and 375px layout are all recorded as verified. This record
-contains no password.
+**When a slot becomes available again.** A lease is held while its heartbeat is
+fresh — every guarded database command refreshes it — and for four hours after
+the last one. Two facts decide recovery, and neither is the owning process on
+its own: a conclusively dead owner is reclaimed at once, and an owner that
+cannot be told apart from a live one waits out that window. The process alone
+cannot decide because every agent in one Claude session shares that session's
+pid, so a live pid says nothing about whether the agent that took the lease
+still exists. A `review-ready` slot is never reclaimed on a timer at all; it is
+protected until its owner releases it. `npm run db:cleanup-stale` is the
+deliberate route for a slot known to be finished, and it never touches a live or
+`review-ready` one.
+
+For UI work the environment has an owner of its own. `npm run visual:start`
+spawns a detached supervisor that holds the application and refreshes the
+database lease on a timer; the agent that started it can then exit, and the
+environment stays reachable, authenticated and seeded until it is approved,
+rejected, obsoleted or explicitly abandoned. `npm run visual:status` says
+whether it is genuinely still ready, and refuses it once its supervisor is gone,
+once it has stopped proving itself live, or — the failure that looks fine —
+once the branch has moved past the head it serves, because Brian would then be
+approving something that is not what would merge.
+
+`npm run visual:preflight -- /route …` drives a real browser through the real
+login and **measures** each viewport by asking the browser context how wide it
+actually is, capturing a screenshot per route. This replaces a self-reported
+`phone375Verified` boolean, which this machine could not honestly produce —
+Chrome's window resizing is clamped well above 375px here — so the claim was
+satisfied on paper and refused in practice. A browser context is exactly the
+width it is told to be.
+
+The result lands in ignored `.lancers-runtime/visual-review.json`, with the
+screenshots beside it. `db:review-ready` refuses to protect the slot unless the
+assigned loopback URL, real login, seeded states, review routes, exact head SHA,
+and both measured viewports with the artifacts they name are all present, and
+unless the running stack holds this holder's rendered configuration. Neither
+record contains a password.
 
 Run `npm run verify` before opening a pull request. It is what CI runs.
 

@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   appendEvent,
+  dependencyUsable,
   leadLeaseAvailable,
   missionPaths,
   nextActions,
@@ -176,9 +177,11 @@ async function main() {
       if (packet.mission_id !== missionId) {
         fail(`The packet is for ${packet.mission_id}, not ${missionId}.`);
       }
-      await append(missionId, { type: "mission-init", packet });
-      await appendEvent(repoPath, missionId, {
-        type: "lead-heartbeat",
+      // The fence is part of initialization; no separate heartbeat is needed
+      // to establish it (LAN-148).
+      await append(missionId, {
+        type: "mission-init",
+        packet,
         lead_id: leadId,
         pid: process.pid,
       });
@@ -214,9 +217,43 @@ async function main() {
 
     case "plan": {
       if (!missionId || !flags.packages) fail("Usage: mission plan <mission-id> --packages <file>");
-      const { packages } = readJson(flags.packages);
-      const state = await append(missionId, { type: "plan-recorded", packages });
-      console.log(`Plan recorded: ${Object.keys(state.packages).length} package(s).`);
+      const { packages, decomposition, removals } = readJson(flags.packages);
+      const state = await append(missionId, {
+        type: "plan-recorded",
+        packages,
+        decomposition,
+        ...(removals ? { removals } : {}),
+      });
+      const live = Object.values(state.packages).filter((pkg) => pkg.status !== "removed");
+      console.log(
+        `Plan recorded: ${live.length} package(s). Nothing durable is created until the decomposition is approved — \`mission approve-plan ${missionId} --by <who> --evidence <where>\`.`,
+      );
+      break;
+    }
+
+    case "approve-plan": {
+      if (!missionId || !flags.by || !flags.evidence) {
+        fail("Usage: mission approve-plan <mission-id> --by <who> --evidence <where presented>");
+      }
+      await append(missionId, {
+        type: "plan-approved",
+        approved_by: flags.by,
+        evidence: flags.evidence,
+      });
+      console.log("Plan approved; Linear synchronization may proceed.");
+      break;
+    }
+
+    case "defer-dispatch": {
+      if (!missionId || !positional[1] || !flags.reason) {
+        fail("Usage: mission defer-dispatch <mission-id> <package-id> --reason <why>");
+      }
+      await append(missionId, {
+        type: "dispatch-deferred",
+        package_id: positional[1],
+        reason: flags.reason,
+      });
+      console.log(`Recorded why ${positional[1]} waits for a merge the evidence does not require.`);
       break;
     }
 
@@ -263,14 +300,35 @@ async function main() {
           "Usage: mission dispatch <mission-id> <package-id> --worker <id> --worktree <path> --branch <name>",
         );
       }
+      // A dependency that is reviewed clean at exactly its recorded head is a
+      // usable base — the whole point of LAN-148 §F. The state machine asks the
+      // dispatch to record that basis, pinned to the commit it relies on, and
+      // without this the Lead's only interface could never satisfy it and every
+      // such dispatch waited on Brian's merge after all. Derived from state by
+      // default; --dependency-basis <file> overrides for an unusual case.
+      const current = replayState(repoPath, missionId);
+      const pkg = current.packages[packageId];
+      const basis = flags["dependency-basis"]
+        ? readJson(flags["dependency-basis"])
+        : (pkg?.depends_on ?? [])
+            .map((dep) => ({ dep, verdict: dependencyUsable(current, dep) }))
+            .filter(({ verdict }) => verdict.usable && verdict.basis === "reviewed-at-head")
+            .map(({ dep, verdict }) => ({ package_id: dep, head_sha: verdict.head_sha }));
+
       await append(missionId, {
         type: "worker-dispatched",
         package_id: packageId,
         worker_id: flags.worker,
         worktree: flags.worktree,
         branch: flags.branch,
+        ...(basis.length > 0 ? { dependency_basis: basis } : {}),
       });
-      console.log(`Worker ${flags.worker} dispatched on ${packageId}.`);
+      const standing = basis.map((entry) => `${entry.package_id} at ${entry.head_sha}`).join(", ");
+      console.log(
+        standing
+          ? `Worker ${flags.worker} dispatched on ${packageId}, standing on reviewed ${standing}.`
+          : `Worker ${flags.worker} dispatched on ${packageId}.`,
+      );
       break;
     }
 
@@ -454,6 +512,38 @@ async function main() {
       break;
     }
 
+    case "integrated-review": {
+      if (!missionId || !flags.mode || !flags.head || !flags.result) {
+        fail(
+          "Usage: mission integrated-review <mission-id> --mode workflow-walker|cross-surface --head <sha> --result clear|blocked [--jobs <what was completed>] [--findings <file>]",
+        );
+      }
+      await append(missionId, {
+        type: "integrated-review",
+        mode: flags.mode,
+        head_sha: flags.head,
+        result: flags.result,
+        ...(flags.jobs ? { jobs_completed: flags.jobs } : {}),
+        ...(flags.findings ? { findings: readJson(flags.findings) } : {}),
+      });
+      console.log(`Integrated ${flags.mode} review recorded at ${flags.head}: ${flags.result}.`);
+      break;
+    }
+
+    case "closeout": {
+      if (!missionId || !flags.payload) {
+        fail("Usage: mission closeout <mission-id> --payload <file>");
+      }
+      const payload = readJson(flags.payload);
+      // Spread first: a payload carrying its own `type` or `at` must not
+      // decide what event this is.
+      const state = await append(missionId, { ...payload, type: "mission-closeout" });
+      console.log(
+        `Mission ${missionId} closed as ${state.closeout.outcome}. Write this into ${state.closeout.notion_record} — it extends that record; it never creates a Linear planning document or a deferred-findings issue.`,
+      );
+      break;
+    }
+
     case "checkpoint": {
       if (!missionId)
         fail(
@@ -572,7 +662,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: validate, init, plan, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
       );
   }
 }

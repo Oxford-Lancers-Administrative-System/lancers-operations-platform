@@ -82,6 +82,22 @@ in the same worktree and branch, add the targeted regression evidence, rerun
 verification, push, and return an updated receipt. Do not rewrite unaffected
 work, and do not treat the resumption as a fresh implementation.
 
+## Name the contract you built against
+
+User-facing work records its UX sources in the receipt: `docs/ux/slice-ux.md`,
+`docs/ux/standards.md`, the applicable `docs/ux/tickets/` contract, and the
+desktop and 375px wireframes. The contract must be the durable one under
+`docs/ux/tickets/`; if the packet was the only contract you were given, write
+the implemented one there as part of delivery.
+
+## Prove a correction is bound to a test
+
+When you are resumed to correct review findings, each finding you fix returns
+with bounded injection evidence: reintroduce the defect, run the named
+regression test and observe it fail, restore the fix, run it again and observe
+it pass. Record the test, the command, the failing assertion, the restored
+pass, and the exact SHA. Leave no mutation behind.
+
 ## The structured receipt
 
 Return exactly one receipt to the Mission Lead:

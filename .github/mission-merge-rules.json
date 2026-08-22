@@ -149,7 +149,7 @@
       "reason": "WhatsApp provider, configuration, and the recipient allowlist. Same checkpoint-approval rule: Brian hears about it at the hourly checkpoint before it can merge. Revisit this tier once the allowlist becomes database records (Brian, 2026-08-18)."
     }
   ],
-  "_ownerApprovalSurfacesNote": "The middle tier (Brian, 2026-08-18): these surfaces may auto-merge ONLY when the receipt carries an owner_decision citing an answered owner question for the package. Detection is evidence-derived from the real diff; the ask cannot be skipped, only affirmatively falsified — a durable, auditable lie in mission state.",
+  "_ownerApprovalSurfacesNote": "The middle tier (Brian, 2026-08-18; widened by LAN-148 §F): these surfaces may auto-merge ONLY when the receipt carries an owner_decision citing an answered owner question for the package. Detection is evidence-derived from the real diff; the ask cannot be skipped, only affirmatively falsified — a durable, auditable lie in mission state. LAN-148 applies the same requirement to any package graded highest risk, whatever it touches: review grade decides how rigorously a change is reviewed, and this citation decides whether Brian has heard about it. What stays owner-merged regardless is decided by the prohibited list below, from the diff, and no receipt can talk its way past it.",
   "visualSurfaces": [
     "src/app/**/*.tsx",
     "src/app/**/*.ts",

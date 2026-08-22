@@ -84,8 +84,17 @@ function fixtureLinearDriver() {
 }
 
 async function planned(m: ReturnType<typeof mission>) {
-  await m.append({ type: "mission-init", packet });
-  await m.append({ type: "plan-recorded", packages: plan.packages });
+  await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
+  await m.append({
+    type: "plan-recorded",
+    packages: plan.packages,
+    decomposition: plan.decomposition,
+  });
+  await m.append({
+    type: "plan-approved",
+    approved_by: "Brian",
+    evidence: "decomposition and owner cost presented at checkpoint 1",
+  });
 }
 
 async function synced(m: ReturnType<typeof mission>) {
@@ -101,6 +110,14 @@ async function synced(m: ReturnType<typeof mission>) {
   return driver;
 }
 
+/** The UX sources LAN-148 §E requires of user-facing work. */
+const uxSources = {
+  slice_ux: "docs/ux/slice-ux.md",
+  standards: "docs/ux/standards.md",
+  ticket_contract: "docs/ux/tickets/LAN-900-events-filter.md",
+  wireframes: "docs/ux/wireframes/events-filter-desktop.png, events-filter-375.png",
+};
+
 const workerReceipt = (result = "completed") => ({
   branch: "feat/wp-events-filter",
   worktree: ".claude/worktrees/wp-events-filter",
@@ -111,6 +128,7 @@ const workerReceipt = (result = "completed") => ({
   visual_state: "preflight-complete-awaiting-brian",
   migration_implications: "none",
   limitations: "none",
+  ux_sources: uxSources,
   result,
 });
 
@@ -134,7 +152,12 @@ async function implemented(m: ReturnType<typeof mission>, packageId = "WP-events
 describe("Rehearsal 1 — a valid approved packet initializes; invalid or unapproved fail closed", () => {
   it("initializes the synthetic mission and refuses the failure shapes", async () => {
     const m = mission();
-    const state = await m.append({ type: "mission-init", packet });
+    const state = await m.append({
+      type: "mission-init",
+      packet,
+      lead_id: "lead-fixture",
+      pid: 4242,
+    });
     expect(state.initialized).toBe(true);
     for (const broken of [
       { ...packet, approval: undefined },
@@ -150,15 +173,20 @@ describe("Rehearsal 1 — a valid approved packet initializes; invalid or unappr
     ]) {
       expect(validatePacket(broken).length).toBeGreaterThan(0);
       const fresh = mission();
-      await expect(fresh.append({ type: "mission-init", packet: broken })).rejects.toThrow(
-        /Invalid packet/,
-      );
+      await expect(
+        fresh.append({ type: "mission-init", packet: broken, lead_id: "lead-fixture", pid: 4242 }),
+      ).rejects.toThrow(/Invalid packet/);
       expect(readJournal(missionPaths(fresh.repo, MISSION, fresh.env).journal)).toEqual([]);
     }
     // A not_ready packet is a valid document and still cannot execute.
     const notReady = mission();
     await expect(
-      notReady.append({ type: "mission-init", packet: { ...packet, status: "not_ready" } }),
+      notReady.append({
+        type: "mission-init",
+        packet: { ...packet, status: "not_ready" },
+        lead_id: "lead-fixture",
+        pid: 4242,
+      }),
     ).rejects.toThrow(/cannot initialize execution/);
   });
 });
@@ -263,7 +291,17 @@ describe("Rehearsal 5 — concurrency is two; a second safe package runs and a c
       ...plan.packages,
       { ...plan.packages[0], id: "WP-events-sibling", title: "Synthetic sibling" },
     ];
-    await m.append({ type: "plan-recorded", packages: withSibling });
+    await m.append({
+      type: "plan-recorded",
+      packages: withSibling,
+      decomposition: { ...plan.decomposition, critical_path: ["WP-attendance-export"] },
+    });
+    // The revision withdrew the approval it no longer describes (LAN-148 §A).
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "revised decomposition presented at checkpoint 2",
+    });
     await m.append({ type: "linear-sync-intent", package_id: "WP-events-sibling" });
     await m.append({
       type: "linear-sync-result",
@@ -484,6 +522,14 @@ describe("Rehearsal 9 — guarded merge permits the qualifying case and refuses 
       },
     });
     await m.append({
+      type: "integrated-review",
+      mode: "workflow-walker",
+      head_sha: HEAD,
+      result: "clear",
+      jobs_completed:
+        "Signed in, drafted a practice, confirmed its audience and took the register.",
+    });
+    await m.append({
       type: "visual-approval",
       package_id: "WP-events-filter",
       approved_by: "Brian",
@@ -559,7 +605,9 @@ describe("Rehearsal 9 — guarded merge permits the qualifying case and refuses 
       rules,
     });
     expect(prohibitedRisk.merge).toBe(false);
-    expect(prohibitedRisk.reasons.join("\n")).toMatch(/owner-merged in v1/);
+    expect(prohibitedRisk.reasons.join("\n")).toMatch(
+      /may travel this lane only when it cites the answered owner question/,
+    );
 
     const migrationDiff = evaluateMissionGate({
       pullRequest: pullRequest(),

@@ -103,6 +103,25 @@ export function extractReceipt(body, rules) {
 
 const isNonEmptyString = (value) => typeof value === "string" && value.trim() !== "";
 
+/** An answered owner question naming this package: the durable record that
+ * Brian heard about it at the hour. */
+export function answeredQuestionNames(state, packageId) {
+  return Object.values(state?.questions ?? {}).some(
+    (question) => question.status === "answered" && question.affected_packages.includes(packageId),
+  );
+}
+
+/** An owner_decision block that actually names an answered checkpoint question. */
+export function ownerDecisionCited(receipt) {
+  const decision = receipt?.owner_decision;
+  return Boolean(
+    decision &&
+    /^Q-[A-Za-z0-9-]+$/.test(decision.question_id ?? "") &&
+    isNonEmptyString(decision.answered_by) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(decision.date ?? ""),
+  );
+}
+
 /** The receipt fields the workflow requires before it trusts anything else. */
 export function receiptDefects(receipt) {
   const defects = [];
@@ -111,9 +130,18 @@ export function receiptDefects(receipt) {
   if (!isNonEmptyString(receipt.package_id)) defects.push("Receipt is missing package_id.");
   if (!isNonEmptyString(receipt.linear_issue_id))
     defects.push("Receipt is missing linear_issue_id.");
-  if (!["low", "normal"].includes(receipt.risk_class)) {
+  if (!["low", "normal", "highest"].includes(receipt.risk_class)) {
+    defects.push(`Receipt risk_class is "${receipt.risk_class ?? "absent"}".`);
+  }
+  // LAN-148 §F. Review grade says how rigorously a change was reviewed; it does
+  // not by itself decide the route. Highest-risk work may travel the lane, but
+  // only when it cites the answered owner checkpoint that named it — the same
+  // evidence the checkpoint-approval surfaces require, for the same reason.
+  // What stays Brian's is decided from the diff by the prohibited-path scan,
+  // which no receipt can talk its way past.
+  if (receipt.risk_class === "highest" && !ownerDecisionCited(receipt)) {
     defects.push(
-      `Receipt risk_class is "${receipt.risk_class ?? "absent"}". Only low and normal risk may travel this lane; highest risk is owner-merged in v1.`,
+      "Receipt risk_class is highest. It may travel this lane only when it cites the answered owner question (owner_decision: question_id, answered_by, date) recorded at Brian's checkpoint.",
     );
   }
   if (receipt.review_mode !== "full" && receipt.review_mode !== "correction") {
@@ -195,13 +223,7 @@ export function evaluateMissionGate({ pullRequest: pr, checkRuns, files, rules }
     // ask happens at Brian's hourly checkpoint; it cannot be skipped, only
     // affirmatively falsified — a durable, auditable lie in mission state.
     if (touchesOwnerApprovalSurface(files, rules)) {
-      const decision = receipt.owner_decision;
-      if (
-        !decision ||
-        !/^Q-[A-Za-z0-9-]+$/.test(decision.question_id ?? "") ||
-        !isNonEmptyString(decision.answered_by) ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(decision.date ?? "")
-      ) {
+      if (!ownerDecisionCited(receipt)) {
         reasons.push(
           "The diff touches a checkpoint-approval surface (auth or delivery). The receipt must cite the answered owner question (owner_decision: question_id, answered_by, date) recorded at Brian's checkpoint before this can merge.",
         );
@@ -228,11 +250,7 @@ export function journalConjuncts(state, packageId, headSha, options = {}) {
   // a checkpoint-approval surface requires an ANSWERED owner question naming
   // this package — the durable record that Brian heard about it at the hour.
   if (options.files && options.rules && touchesOwnerApprovalSurface(options.files, options.rules)) {
-    const answered = Object.values(state.questions ?? {}).some(
-      (question) =>
-        question.status === "answered" && question.affected_packages.includes(packageId),
-    );
-    if (!answered) {
+    if (!answeredQuestionNames(state, packageId)) {
       reasons.push(
         `${packageId} touches a checkpoint-approval surface (auth or delivery) and no answered owner question names it. Queue the question for Brian's checkpoint; the answer is persisted before this merges.`,
       );
@@ -242,8 +260,10 @@ export function journalConjuncts(state, packageId, headSha, options = {}) {
   if (state.stopped) {
     reasons.push(`The mission is stopped (${state.stopped.reason}); nothing merges.`);
   }
-  if (pkg.risk_class === "highest") {
-    reasons.push("Highest-risk work cannot autonomous-merge in v1.");
+  if (pkg.risk_class === "highest" && !answeredQuestionNames(state, packageId)) {
+    reasons.push(
+      `${packageId} is highest risk and no answered owner question names it. Queue the question for Brian's checkpoint; highest-risk work travels this lane only once he has heard about it.`,
+    );
   }
   if (pkg.migration_owner) {
     reasons.push("A migration-owning package is owner-merged, never autonomous.");

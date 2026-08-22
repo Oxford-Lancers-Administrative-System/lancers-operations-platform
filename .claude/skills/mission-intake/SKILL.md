@@ -230,6 +230,17 @@ earlier decision invalidates any downstream draft, mark it `stale: true` in the
 same commit; regenerate and clear staleness before presenting it. Never present or
 approve a stale draft or touch a workflow outside the frozen inventory.
 
+## The durable mission record
+
+The packet names the existing Notion mission record among its sources. That
+record is where the mission's closeout is written when it ends — outcome,
+shipped issues, pull requests and exact merged SHAs, acceptance and injection
+evidence, unresolved findings and their dispositions, owner and external
+actions, elapsed time and cost, and the next action. Intake's job is to pin it,
+so the Lead does not have to guess where Brian looks. Closeout extends that
+record; it never creates a Linear planning document or an automatic
+deferred-findings issue.
+
 ## Scripted edits and generated artifacts
 
 A scripted replacement that matched nothing, and continued as though it had

@@ -14,10 +14,11 @@ If this page and those files disagree, the checked-in rules and tests win.
 ```
 
 Brian may start concurrent Mission Leads, each for a different approved mission.
-Exactly one fenced Lead controls a given mission at a time.
+Exactly one fenced Lead controls a given mission at a time, and that fence
+exists from the moment `mission init` records the packet — not from the first
+heartbeat afterwards.
 Everything else — planning, Linear issues, workers, reviews, corrections,
-qualifying merges, checkpoints — is the Mission Lead's job. One mission runs
-at a time.
+qualifying merges, checkpoints — is the Mission Lead's job.
 
 To start a **new** mission, the approved packet must already be on `main` at
 `missions/packets/M-<id>/packet.json`; the Lead runs
@@ -26,6 +27,43 @@ An invalid, `not_ready`, or unapproved packet is refused outright. To
 **resume** after any interruption, the same `/run-mission M-<id>` invocation
 is enough — the Lead replays durable state and continues; no chat history is
 needed or used.
+
+## Finishing a mission
+
+`/run-mission` stops short of closeout, for the reason `/start-issue` does:
+while work is in flight a worktree is not debris, and an agent must never delete
+a dirty or unmerged one. Reclamation is its own invocation —
+`/finish-mission M-<id>`, or `npm run mission:finish -- M-<id>` — because the
+case that matters most is the one where the Lead is gone and has nothing left to
+run an exit step.
+
+It reclaims **per package**: a package's worktree, branch and attachment to the
+mission stack are released the moment its pull request merges, proved from the
+repository and never from the pull-request body or the Linear state — the
+`mission-merge` lane merges without a human, so nobody may infer that Brian did.
+
+The proof is the **merge commit**, not the branch head. This repository squash-
+merges, and a squash produces a new commit, so the head is never an ancestor of
+`main` afterwards; proving by ancestry alone would report every merged package
+as unmerged and reclaim nothing. `gh pr view` must report `MERGED` and its merge
+commit must be on `origin/main` (fetched first, so a stale local view cannot
+condemn finished work). A true merge commit leaves the head reachable, and that
+is accepted as an independent proof. `--delete-branch` having removed the remote
+branch is evidence the work landed, not unpushed work.
+
+The mission-owned stack is shared by several workers, so **whoever detaches last
+retires it**. A mission whose acquiring worktree is already gone can still be
+tidied up, and no sibling mission's stack or the standing slot is ever touched.
+
+A mission ends as `mission-finalized` — every live package merged and reclaimed,
+no workers running, and the closeout evidence already written into the Notion
+mission record — or as `mission-abandoned`, which records why it is unfinished
+and what was deliberately preserved. A resumed Lead reads that distinction from
+the journal; it is how it tells a finished mission from one that was walked away
+from. Reclaiming resources and finishing a mission are different acts, and the
+second requires the first.
+
+It refuses while another Lead's fence is live, and there is no override.
 
 ## The mission packet
 
@@ -128,6 +166,11 @@ and fails closed; a refusal is posted on the pull request. A review-blocked
 correction or any new head clears a previously recorded visual approval —
 Brian approved what he saw, not whatever came later.
 
+Merging is where a package's lifecycle ends. A worker or review receipt that
+arrives after the merge is refused, and a journal that somehow contains one
+still replays to `merged`: the receipt is kept as evidence, but a finished
+package never walks backwards into review or re-dispatch.
+
 **Merges by itself only after Brian heard about it** — the
 checkpoint-approval surfaces (`src/lib/auth/**`, `src/lib/delivery/**`).
 Workers may change them freely, but the diff-derived scan detects them and
@@ -143,9 +186,16 @@ records.
 **Always Brian's, never autonomous:** schema and migrations; RLS and the
 authentication routes; the public RSVP token surfaces (`src/lib/rsvp/**`);
 mission packets (`missions/**` — the packet PR _is_ the approval); secrets
-and credentials; deployment and production data; Highest-risk work; and
-visual work without recorded approval. These arrive as ordinary draft PRs
-for Brian to merge.
+and credentials; deployment and production data; and visual work without
+recorded approval. These arrive as ordinary draft PRs for Brian to merge, and
+each is decided from the diff by the prohibited-path scan rather than from a
+risk label.
+
+Highest risk is **not** on that list any more. A grade says how rigorously a
+change is reviewed; it does not decide the route. Highest-risk work may use the
+lane only when an answered owner checkpoint names the package, so Brian hears
+about it before it merges — see
+[ADR 0033](adr/0033-harness-after-the-first-live-mission.md) §4.
 
 **A mission merge does not deploy** — decided deliberately. `main` moves
 ahead of production until Brian ships it:
@@ -171,7 +221,8 @@ every read.
   session, `/run-mission M-<id>`. The new Lead validates the Lead lease
   (a still-live prior Lead is refused; a dead one is reclaimed after its
   heartbeat expires), replays the journal, and reports the reconstructed
-  state and next actions before doing anything.
+  state and next actions before doing anything. Because the fence is written
+  by `mission init`, this holds from the mission's first event.
 - **Claude usage ran out:** the Lead checkpointed and stopped durably
   (`mission stop --reason usage-exhausted`). When capacity returns, a fresh
   session resumes exactly as above. There is no automatic wake-up in v1.

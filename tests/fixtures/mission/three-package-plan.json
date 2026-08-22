@@ -8,7 +8,12 @@
       "migration_owner": false,
       "risk_class": "normal",
       "visual": "ui",
-      "depends_on": []
+      "depends_on": [],
+      "separation": {
+        "reason": "independent-visual-gate",
+        "evidence": "The events list is the only user-visible surface here; it is approved on its own screen and shares no file with the export or the report footer.",
+        "owner_cost": "One visual approval and one merge Brian would not otherwise have."
+      }
     },
     {
       "id": "WP-attendance-export",
@@ -18,7 +23,12 @@
       "migration_owner": false,
       "risk_class": "normal",
       "visual": "nonvisual",
-      "depends_on": []
+      "depends_on": [],
+      "separation": {
+        "reason": "file-conflict",
+        "evidence": "src/lib/services/attendance.ts is rewritten here and read by the report footer; running both at once would conflict on it.",
+        "owner_cost": "One extra merge; no extra visual approval, because it is nonvisual."
+      }
     },
     {
       "id": "WP-report-footer",
@@ -28,7 +38,19 @@
       "migration_owner": false,
       "risk_class": "low",
       "visual": "ui",
-      "depends_on": ["WP-attendance-export"]
+      "depends_on": ["WP-attendance-export"],
+      "separation": {
+        "reason": "sequencing-verification",
+        "evidence": "The footer renders totals the export produces, so it can only be verified after the export lands and is proved.",
+        "owner_cost": "One extra merge and one visual approval, taken after the export's."
+      }
     }
-  ]
+  ],
+  "decomposition": {
+    "combinations_considered": "The export and the report footer were considered as one package and kept apart only because the footer cannot be verified until the export exists; the events filter shares nothing with either.",
+    "achievable_concurrency": 2,
+    "critical_path": ["WP-attendance-export", "WP-report-footer"],
+    "expected_owner_merges": 3,
+    "expected_visual_approvals": 2
+  }
 }

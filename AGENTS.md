@@ -499,16 +499,17 @@ steps, dependencies, theme contents — proceed and explain in the pull request.
 
 ## Agent tooling
 
-Exactly four user-invoked workflows and two subagents are approved:
+Exactly five user-invoked workflows and two subagents are approved:
 
-| Role                                                          | File                                      | What it does                                                                                                                                                    |
-| ------------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Issue workflow (`/start-issue LAN-###`)                       | `.claude/skills/start-issue/`             | The top-level session implements one explicit issue in its dedicated worktree through draft PR and handoff. Preserved for deliberate manual use.                |
-| Issue closeout (`/finish-issue LAN-###`)                      | `.claude/skills/finish-issue/`            | Finalizes one already-merged, canceled, or abandoned issue: releases its lease, stops its services, removes its worktree and branch, closes the ticket.         |
-| Mission Intake (`/mission-intake <portfolio mission number>`) | `.claude/skills/mission-intake/`          | Prepares one mission packet through the durable ledger process and never executes a mission.                                                                    |
-| Mission Lead (`/run-mission M-<id>`)                          | `.claude/skills/run-mission/`             | Executes one Brian-approved mission packet: plans the work-package DAG, syncs Linear, dispatches workers, orchestrates review, and runs the guarded merge lane. |
-| Implementation worker                                         | `.claude/agents/implementation-worker.md` | Implements exactly one Mission-Lead-assigned work package under the proven issue execution contract; returns a structured receipt; spawns nothing.              |
-| Code reviewer                                                 | `.claude/agents/code-reviewer.md`         | Fresh-context, independently isolated review; reports findings and never repairs them.                                                                          |
+| Role                                                          | File                                      | What it does                                                                                                                                                                                                    |
+| ------------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Issue workflow (`/start-issue LAN-###`)                       | `.claude/skills/start-issue/`             | The top-level session implements one explicit issue in its dedicated worktree through draft PR and handoff. Preserved for deliberate manual use.                                                                |
+| Issue closeout (`/finish-issue LAN-###`)                      | `.claude/skills/finish-issue/`            | Finalizes one already-merged, canceled, or abandoned issue: releases its lease, stops its services, removes its worktree and branch, closes the ticket.                                                         |
+| Mission Intake (`/mission-intake <portfolio mission number>`) | `.claude/skills/mission-intake/`          | Prepares one mission packet through the durable ledger process and never executes a mission.                                                                                                                    |
+| Mission Lead (`/run-mission M-<id>`)                          | `.claude/skills/run-mission/`             | Executes one Brian-approved mission packet: plans the work-package DAG, syncs Linear, dispatches workers, orchestrates review, and runs the guarded merge lane.                                                 |
+| Finish mission (`/finish-mission M-<id>`)                     | `.claude/skills/finish-mission/`          | Reclaims a finished or abandoned mission's worktrees, branches and database stack after merges it proves from the repository, and records how the mission ended. Never merges, deploys or writes to production. |
+| Implementation worker                                         | `.claude/agents/implementation-worker.md` | Implements exactly one Mission-Lead-assigned work package under the proven issue execution contract; returns a structured receipt; spawns nothing.                                                              |
+| Code reviewer                                                 | `.claude/agents/code-reviewer.md`         | Fresh-context, independently isolated review; reports findings and never repairs them.                                                                                                                          |
 
 Under `/start-issue`, the top-level session reads the complete issue, confirms
 dependencies and human gates, enters or safely resumes one issue-specific
@@ -599,10 +600,21 @@ is generated from durable state. See
   owns the open provider, recipient, prerequisites, and failure decisions.
 - **Local database coordination has two fenced slots.** Primary is first;
   overflow is created only when primary is genuinely occupied. A stable
-  machine-local registry, short allocator lock, liveness plus heartbeat,
-  randomized fencing tokens, complete non-conflicting port sets, and protected
-  `review-ready` state prevent one worktree from resetting another's stack.
-  Every destructive or mutating database command validates the current token.
+  machine-local registry, short allocator lock, randomized fencing tokens,
+  complete non-conflicting port sets, and protected `review-ready` state
+  prevent one worktree from resetting another's stack. Every destructive or
+  mutating database command validates the current token. **Liveness is the
+  heartbeat, not the process** — every agent in one Claude session shares that
+  session's pid, so a live pid proves nothing; a dead owner is reclaimed at
+  once, and one the pid cannot distinguish waits out the heartbeat window.
+  [docs/local-development.md](docs/local-development.md) has the mechanics.
+- **A pending visual environment has its own supervisor**, so it outlives the
+  agent that built it. It is refused as ready once that supervisor is gone,
+  once it stops proving itself live, or once the branch moves past the head it
+  serves — Brian would otherwise approve something that is not what would
+  merge. Viewport evidence is measured from the browser context, never
+  self-reported. See [ADR 0020](docs/adr/0020-zero-command-visual-review.md) as
+  amended by [ADR 0033](docs/adr/0033-harness-after-the-first-live-mission.md).
 
 Linear recordkeeping is limited to In Progress at start, the draft PR link, one
 final evidence/handoff comment, and — after the merge, from `/finish-issue`
@@ -615,9 +627,14 @@ merges it — or, for qualifying standard application work in an approved
 mission, the checked-in `mission-merge` workflow does, after re-deriving its
 fail-closed gate from evidence (`.github/mission-merge-rules.json`,
 `docs/adr/0027-mission-harness.md`). Migrations, RLS/auth/security, secrets,
-deployment, WhatsApp and external configuration, Highest-risk work, and
-visual work without recorded approval always stay with Brian, and a mission
-merge performed with `GITHUB_TOKEN` deliberately does not deploy. **No agent
+deployment, WhatsApp and external configuration, and visual work without
+recorded approval always stay with Brian, decided from the diff rather than
+from any label a receipt carries. **Review grade and merge route are separate
+questions**: a grade says how rigorously a change is reviewed, and Highest-risk
+work may use the guarded lane only when an answered owner checkpoint names the
+package, so Brian hears about it before it merges
+([ADR 0033](docs/adr/0033-harness-after-the-first-live-mission.md) §4). A
+mission merge performed with `GITHUB_TOKEN` deliberately does not deploy. **No agent
 merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to
 production.**
 
