@@ -551,7 +551,8 @@ describe("what a calendar tile states", () => {
   });
 
   it("explains the colours it is using, and only those", async () => {
-    // The season holds a fixture and a camp too, but they are in other months.
+    // The season holds a game and a chalk session too, but they are in other
+    // months.
     // Independent review found the legend being fed the whole season, so it
     // named colours for types nowhere on the screen; the out-of-month events
     // here are what makes this test able to tell the difference.
@@ -593,13 +594,13 @@ describe("what a calendar tile states", () => {
   });
 
   it("shows the same legend on the term card", async () => {
-    givenEvents([listEntry({ eventType: "camp", scheduledOn: "2026-10-14" })]);
+    givenEvents([listEntry({ eventType: "chalk", scheduledOn: "2026-10-14" })]);
     const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
 
     const items = within(within(container).getByTestId("type-legend")).getAllByTestId(
       "type-legend-item",
     );
-    expect(items.map((item) => item.getAttribute("data-event-type"))).toEqual(["camp"]);
+    expect(items.map((item) => item.getAttribute("data-event-type"))).toEqual(["chalk"]);
   });
 
   it("still gives a screen reader the status it does not print", async () => {

@@ -194,7 +194,7 @@ const NEXT_WEEK: UpcomingEvent[] = [
   {
     id: "event-next-draft",
     name: "Varsity warm-up",
-    eventType: "fixture",
+    eventType: "game",
     status: "draft",
     on: "2026-10-24",
     isMandatory: false,

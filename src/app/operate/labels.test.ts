@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { labelFor } from "./labels";
 import { MEMBERSHIP_STATUS_LABELS } from "./roster/presentation";
-import { STATUS_LABELS } from "./events/presentation";
+import { STATUS_LABELS, TYPE_LABELS } from "./events/presentation";
 import { EVENT_STATUS_LABELS } from "./report/presentation";
+import { EVENT_STATUSES, EVENT_TYPES } from "@/lib/services/event-input";
 
 /**
  * The lookup three screens share — and, mostly, the fallback.
@@ -66,5 +67,25 @@ describe("the event status vocabulary", () => {
     for (const status of Object.keys(STATUS_LABELS)) {
       expect(labelFor(EVENT_STATUS_LABELS, status)).toBe(labelFor(STATUS_LABELS, status));
     }
+  });
+
+  /**
+   * The link the two tests above stop one short of — LAN-151, finding VG-002.
+   *
+   * Both of them pin the maps to a list written out by hand, which proves the
+   * maps agree with each other and with what somebody typed. It does not prove
+   * they agree with the **vocabulary the service layer will hand them**, and
+   * that is the join a screen breaks at: a status or a type the model has and
+   * the map does not falls through `labelFor` and reaches an operator as a raw
+   * enum value, and one the map has and the model does not becomes a filter
+   * that can never match a row.
+   *
+   * `src/lib/services/events.test.ts` ties these constants to the enums the
+   * database really holds, so with this in place the chain runs from the column
+   * to the word on the screen.
+   */
+  it("labels exactly the vocabulary the service layer defines", () => {
+    expect(Object.keys(STATUS_LABELS)).toEqual([...EVENT_STATUSES]);
+    expect(Object.keys(TYPE_LABELS)).toEqual([...EVENT_TYPES]);
   });
 });

@@ -56,6 +56,8 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
 import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
+  EVENT_STATUSES,
+  EVENT_TYPES,
   listCurrentSeasonEvents,
   readEvent,
   type EventDetail,
@@ -68,6 +70,7 @@ import {
   type AudienceMember,
 } from "@/lib/services/event-approval";
 import type { AudienceCandidate } from "@/lib/services/audience-selection";
+import { labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
 import EventsPage from "./page";
 import NewEventPage from "./new/page";
 import EventDetailPage from "./[id]/page";
@@ -289,7 +292,7 @@ describe("UX-30 — the current season's events", () => {
     expect(screen.getByTestId("season-label").textContent).toBe("Season 2026-27");
   });
 
-  it("shows date, type, status and whether a response is solicited", async () => {
+  it("shows date, type, status and where the event is", async () => {
     givenList([listEntry()]);
 
     const { container } = render(await EventsPage(listProps()));
@@ -401,6 +404,45 @@ describe("UX-30 — the current season's events", () => {
       const listbox = screen.getByRole("listbox");
       fireEvent.click(within(listbox).getByRole("option", { name: option }));
     }
+
+    /** Opens a MUI select and reads back what it offers, in order. */
+    function optionsOf(label: string): string[] {
+      fireEvent.mouseDown(screen.getByRole("combobox", { name: label }));
+      return within(screen.getByRole("listbox"))
+        .getAllByRole("option")
+        .map((option) => option.textContent ?? "");
+    }
+
+    /**
+     * LAN-151 changed both vocabularies underneath these two controls, and a
+     * filter list frozen against the old one would offer a value the database
+     * can no longer return — a filter that always finds nothing, which reads as
+     * a broken control rather than as an empty result.
+     *
+     * So the expectation is derived from the vocabulary rather than typed out:
+     * the ninth event type or the fourth status has to appear here, or fail.
+     * `src/lib/services/events.test.ts` is what ties those constants to the
+     * enums the database actually holds.
+     */
+    it("offers exactly the statuses the model has, and nothing retired", async () => {
+      givenList([listEntry()]);
+      render(await EventsPage(listProps()));
+
+      expect(optionsOf("Status")).toEqual([
+        "All statuses",
+        ...EVENT_STATUSES.map((status) => labelFor(STATUS_LABELS, status)),
+      ]);
+    });
+
+    it("offers exactly the event types the model has, and nothing retired", async () => {
+      givenList([listEntry()]);
+      render(await EventsPage(listProps()));
+
+      expect(optionsOf("Type")).toEqual([
+        "All types",
+        ...EVENT_TYPES.map((type) => labelFor(TYPE_LABELS, type)),
+      ]);
+    });
 
     it("navigates with the value that was chosen, not the one before it", async () => {
       givenList([listEntry()]);

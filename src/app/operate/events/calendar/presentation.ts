@@ -133,7 +133,7 @@ export function formatCellDate(day: string): string {
  * The club's own term cards colour their cells by what the event *is*, and
  * Brian's review on 14 August 2026 asked for the same: "I really like the type
  * colour coding here… every event is grey versus by type." Scanning a term card
- * is looking for the shape of a week — two practices, a chalk, a fixture,
+ * is looking for the shape of a week — two practices, a chalk, a game,
  * something social — and type is what carries that. Status answers a different
  * question and is carried in words on the tile.
  *
