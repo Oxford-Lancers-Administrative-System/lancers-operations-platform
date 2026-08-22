@@ -40,10 +40,19 @@ another worktree's stack. Only a dead or expired fence releases the mission
 Per package, and not waiting for the mission — a package's worktree is debris
 the moment its pull request merges.
 
-**Prove the merge from the repository**: `gh pr view` reports `MERGED`, and the
-recorded head is an ancestor of `origin/main`. Never from the pull-request body
-and never from the Linear state. The `mission-merge` lane merges without a
-human, so "Brian merged it" is not a state anyone may infer.
+**Prove the merge from the repository**, never from the pull-request body and
+never from the Linear state: the `mission-merge` lane merges without a human, so
+"Brian merged it" is not a state anyone may infer.
+
+The proof is the **merge commit**, not the branch head. This repository
+squash-merges, and a squash produces a new commit, so the head is never an
+ancestor of `main` afterwards — proving by ancestry alone would report every
+merged package as unmerged and reclaim nothing, which is the leak this exists to
+close. `gh pr view` must report `MERGED` and its merge commit must be on
+`origin/main`, fetched first so a stale local view cannot condemn finished work.
+A true merge commit leaves the head reachable, and that counts as an independent
+proof. A remote branch already removed by `--delete-branch` is evidence the work
+landed, not unpushed work.
 
 Then, only when the tree is clean, nothing is unpushed, no stash entries remain
 and no worker is still active:

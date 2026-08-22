@@ -91,7 +91,8 @@ describe("single-issue Claude workflow", () => {
     expect(/^disable-model-invocation: true$/m.test(finish)).toBe(true);
     // Never inferred from the pull-request body or Linear: the mission-merge
     // lane merges without a human.
-    expect(finish).toMatch(/ancestor of `origin\/main`/);
+    expect(finish).toMatch(/The proof is the \*\*merge commit\*\*, not the branch head/);
+    expect(finish).toMatch(/squash/i);
     expect(finish).toMatch(/never from the pull-request body/i);
     // A live Lead owns its own mission.
     expect(finish).toMatch(/Only a dead or expired fence/i);
