@@ -307,19 +307,25 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
     const today = filters.today ?? todayInClubZone();
 
     /*
-      Q-6, and the one filter value that is not a column.
+      Q-6. The Status filter selects the rows whose Status column reads the word
+      that was chosen — which is not the same as comparing `e.status`.
 
-      `occurred` is derived and never stored (D30), so it cannot be compared
-      against `e.status` — it is the same three-part rule `derivedEventState`
-      applies in TypeScript and `public.rsvp_attendance_mismatches` applies in
-      SQL, written here a third time only because a `where` clause cannot call
-      either. Today is a parameter rather than `current_date` so that the club's
-      zone decides which day it is, exactly as it does on every screen: at 00:30
-      in Oxford in June, `current_date` at UTC is still yesterday.
+      `occurred` is derived and never stored (D30): an approved event whose date
+      has passed. The list shows that word in the column, so the filter has to
+      mean the same thing, or choosing **Approved** returns rows visibly
+      labelled *Occurred* and choosing **Occurred** misses none of them but
+      overlaps the other — two controls answering one question two ways, which
+      is what `docs/ux/standards.md` rule 7 exists to stop. Brian asked to
+      "easily be able to tell which ones happened versus not", and two filter
+      values that both match the same evening do not.
 
-      The stored branch is unchanged, and a value that is neither is compared
-      against the enum and matches nothing — which is what an unknown filter
-      should do.
+      So the expression below is `statusLabel` in `src/app/operate/events/page.tsx`,
+      in SQL, and the four values partition the season. Today is a parameter
+      rather than `current_date` so the club's zone decides which day it is: at
+      00:30 in Oxford in June, `current_date` at UTC is still yesterday.
+
+      A value that is none of the four matches nothing, which is what an unknown
+      filter should do.
     */
     const result = await tx.query<EventRow>(
       `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
@@ -331,8 +337,10 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
           and ($2::text is null or e.name ilike '%' || $2 || '%'
                                 or coalesce(e.venue, '') ilike '%' || $2 || '%')
           and ($3::text is null
-                or ($3 = $5 and e.status = 'approved' and e.scheduled_on < $6::date)
-                or ($3 <> $5 and e.status::text = $3))
+                or case
+                     when e.status = 'approved' and e.scheduled_on < $6::date then $5
+                     else e.status::text
+                   end = $3)
           and ($4::text is null or e.event_type::text = $4)
         order by ${orderBy(optional(filters.sort), optional(filters.direction))}`,
       [season.id, search, status, eventType, OCCURRED_FILTER, today],

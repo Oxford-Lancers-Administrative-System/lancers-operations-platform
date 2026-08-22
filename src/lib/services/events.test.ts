@@ -1023,6 +1023,38 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
       expect(after.events.map((row) => row.id)).toContain(event);
     });
 
+    it("keeps Approved and Occurred apart, so the four values partition the season", async () => {
+      // Found in the browser: filtering by Approved returned rows whose Status
+      // column read "Occurred". Two controls answering one question two ways is
+      // what `docs/ux/standards.md` rule 7 stops, and Brian asked to "easily be
+      // able to tell which ones happened versus not" — which two overlapping
+      // filter values do not give him.
+      const occurred = await plant("approved", BEFORE, "Approved and past");
+      const stillToCome = await plant("approved", AFTER, "Approved and ahead");
+
+      const approved = await listCurrentSeasonEvents({
+        search: NAME_MARKER,
+        status: "approved",
+        today: TODAY,
+      });
+      const happened = await listCurrentSeasonEvents({
+        search: NAME_MARKER,
+        status: "occurred",
+        today: TODAY,
+      });
+
+      expect(approved.events.map((row) => row.id)).toContain(stillToCome);
+      expect(approved.events.map((row) => row.id)).not.toContain(occurred);
+      expect(happened.events.map((row) => row.id)).toContain(occurred);
+      expect(happened.events.map((row) => row.id)).not.toContain(stillToCome);
+
+      // Every row under Approved really is still to come, by the same rule the
+      // column applies.
+      for (const row of approved.events) {
+        expect(derivedEventState(row, TODAY), `event ${row.id}`).not.toBe("occurred");
+      }
+    });
+
     it("does not widen the stored vocabulary to hold it", async () => {
       // The filter offers four values; the enum still holds three. Asked of the
       // database rather than of a constant, because that is where widening it
