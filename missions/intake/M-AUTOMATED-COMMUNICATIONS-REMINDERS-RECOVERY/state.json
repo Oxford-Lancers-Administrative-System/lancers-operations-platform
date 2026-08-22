@@ -1,30 +1,771 @@
 {
   "mission_id": "M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY",
   "ledger_version": 2,
-  "stage": "inventory",
+  "stage": "workflows",
   "baseline": {
     "branch": "main",
     "commit": "c59bff174d6d17b5fa9dec4396eb3397d67e0c63"
   },
   "approvals": {
-    "boundary": { "words": "The boundary is correct.", "date": "2026-08-22" },
+    "boundary": {
+      "words": "The boundary is correct.",
+      "date": "2026-08-22"
+    },
     "overview": {
       "words": "This seems like what we talked about based on what we have talked about before. This seems correct. I guess as we go through the workflows, we will figure out if this is right. Approved",
       "date": "2026-08-22"
+    },
+    "inventory": {
+      "words": "Approve the eight workflows and freeze them",
+      "date": "2026-08-22"
     }
   },
-  "workflows": [],
+  "workflows": [
+    {
+      "id": "W1",
+      "name": "Approve an event knowing what it will send",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W2",
+      "name": "Answer an invitation",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W3",
+      "name": "Record an answer somebody gave you in person",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W4",
+      "name": "See who is coming, and who has not answered",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W5",
+      "name": "Chase the people who have not answered",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W6",
+      "name": "Repair a delivery that failed",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W7",
+      "name": "Find out what the club's messaging rules are, and change them",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    },
+    {
+      "id": "W8",
+      "name": "Keep queued messages honest when an event changes",
+      "state": "not_started",
+      "stale": false,
+      "feedback": [],
+      "approvals": {}
+    }
+  ],
   "mockup_hub": "generated",
   "decision_coverage": {
     "sources": [
       {
-        "id": "SRC-REPLACE-ME",
-        "ref": "https://replace-me.invalid/controlling-brief",
-        "version": "REPLACE-ME",
-        "decision_ids": []
+        "id": "SRC-task-02-brief",
+        "ref": "https://app.notion.com/p/3bc488886d5781a3aba8c46c7a11d611",
+        "version": "Owner-approved 2026-08-14 rev 2; amended 2026-08-15 and 2026-08-17; fetched 2026-08-22",
+        "decision_ids": [
+          "D1",
+          "D2",
+          "D3",
+          "D4",
+          "D5",
+          "D6",
+          "D7",
+          "D8",
+          "D9",
+          "D10",
+          "F1",
+          "F2",
+          "F3",
+          "F4",
+          "F5",
+          "F6",
+          "F7",
+          "Q1",
+          "Q2",
+          "Q3",
+          "Q4"
+        ]
+      },
+      {
+        "id": "SRC-task-03-brief",
+        "ref": "https://app.notion.com/p/3bc488886d5781d8ac17fc233a3c9ec2",
+        "version": "Owner-approved 2026-08-14; fetched 2026-08-22. Numbers none of its own decisions, so T03- ids are assigned by this intake and anchored to its sections",
+        "decision_ids": [
+          "T03-binary-rsvp",
+          "T03-named-list-privacy",
+          "T03-deadline-values",
+          "T03-server-rendered",
+          "T03-lan79-verified",
+          "T03-gap-operator-correction",
+          "T03-gap-inbound-reply",
+          "T03-gap-peer-visibility",
+          "T03-e2-adequate",
+          "T03-reminders",
+          "T03-arriving-rsvp-cancels",
+          "T03-nonresponse-queue",
+          "T03-escalation-hours",
+          "T03-escalation-office",
+          "T03-flag-surfaces",
+          "T03-no-personal-data",
+          "T03-quiet-hours",
+          "T03-flag-lifecycle",
+          "T03-config-model",
+          "T03-config-location",
+          "T03-lan106-committed",
+          "T03-stale-deadline",
+          "T03-prereq-consent",
+          "T03-prereq-templates",
+          "T03-prereq-amendment",
+          "T03-prereq-lan106",
+          "T03-template-budget"
+        ]
+      },
+      {
+        "id": "SRC-register",
+        "ref": "https://app.notion.com/p/3ba488886d578188971ef40297ad7490",
+        "version": "Areas D and E, fetched 2026-08-22; supersession section 2026-08-17",
+        "decision_ids": ["D1", "D2", "D3", "D4", "D5", "D6", "D7", "E1", "E2"]
+      },
+      {
+        "id": "SRC-requirements",
+        "ref": "https://app.notion.com/p/3b7488886d578131905bc9ac24910584",
+        "version": "Approved 2026-08-07; clarifications through 2026-08-18; fetched 2026-08-22",
+        "decision_ids": ["R5", "R6", "R12", "R15"]
+      },
+      {
+        "id": "SRC-manifest",
+        "ref": "https://app.notion.com/p/3bf488886d57818aa53ec09f4fc5f757",
+        "version": "Published 2026-08-17; OD-1..OD-4 resolved 2026-08-18; fetched 2026-08-22",
+        "decision_ids": ["OD1", "OD4", "PILOT-verbal-rsvp", "PILOT-message-flag"]
+      },
+      {
+        "id": "SRC-m2-packet",
+        "ref": "missions/packets/M-EVENTS-CALENDAR-TARGET-STATE/packet.json",
+        "version": "packet_version 1, approved, merged via PR #62 at 5256d1f02615f9d0ed866659d26a75ae384b91fe",
+        "decision_ids": ["REQ-amend-hold", "REQ-amend-in-place", "D54", "D58", "D60", "D76"]
+      },
+      {
+        "id": "SRC-owner-2026-08-22",
+        "ref": "missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/00-boundary.md",
+        "version": "Recorded at Stage 0, approved by Brian 2026-08-22",
+        "decision_ids": [
+          "OWN-allowlist",
+          "OWN-international",
+          "OWN-comms-plan",
+          "OWN-response-surface",
+          "OWN-schedule-model"
+        ]
       }
     ],
-    "decisions": []
+    "decisions": [
+      {
+        "id": "D1",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "LAN-78's shipped delivery surface stands as delivered; it is the surface an operator repairs from."
+      },
+      {
+        "id": "D2",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "superseded",
+        "superseded_by": "SRC-task-02-brief:D3",
+        "reason": "The escalation-only, no-email direction was overtaken by the Resend amendment. R12 stands as written and Shape B is operative; the escalation-only shape is history.",
+        "approval": {
+          "words": "Resend is part of the selected Lancers stack for transactional email. Shape B is the operative Release-One direction.",
+          "date": "2026-08-17"
+        }
+      },
+      {
+        "id": "D3",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "Resend is the provider for the automated email path an operator routes somebody to."
+      },
+      {
+        "id": "D4",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "R15's operator queue is the per-event delivery view, which is where repair happens."
+      },
+      {
+        "id": "D5",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "Undelivered jobs on amendment or cancellation. Its trigger is corrected: an amendment holds rather than cancels, and neither return-to-draft nor re-approval occurs."
+      },
+      {
+        "id": "D6",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "Automated retries at Stage 4. The loop has no actor; its outcome is what an operator sees when triaging.",
+        "also_referenced_by": ["W2", "W5"]
+      },
+      {
+        "id": "D7",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY",
+          "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+          "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"
+        ],
+        "reason": "The per-season WhatsApp acceptance circuit. Its content and cadence belong to consent and onboarding; the job pipeline it rides is this mission's, and its acceptance record is what replaces the allowlist.",
+        "evidence": "Task 02 D7 states the circuit's content, cadence and escalation surfacing are defined in Task 07 and bounded by Task 11's caps, and that it rides this brief's job pipeline."
+      },
+      {
+        "id": "D8",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "The 'Not dispatched \u2014 no channel' backstop: counted and visible rather than silently absent."
+      },
+      {
+        "id": "D9",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "The Release-One reply path is the link and the signed page; in-chat buttons are deferred and revisited after Stuart's review."
+      },
+      {
+        "id": "D10",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Token expiry never lands before event start, because a late RSVP is permitted up to the hour before."
+      },
+      {
+        "id": "F1",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "The automated retry loop. No actor of its own; the mission carries it as a cross-cutting requirement and its result is visible here.",
+        "also_referenced_by": ["W2", "W5"]
+      },
+      {
+        "id": "F2",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "The delivery-side half of the amendment and cancellation behaviour."
+      },
+      {
+        "id": "F3",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "The R15 recovery procedure, whose documented journey is exactly this workflow."
+      },
+      {
+        "id": "F4",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "Undeliverable recipients join the chase list: one list, two streams."
+      },
+      {
+        "id": "F5",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "The email and calendar fallback implementation, reached by an operator routing somebody to it."
+      },
+      {
+        "id": "F6",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "superseded",
+        "superseded_by": "SRC-requirements:R12",
+        "reason": "The R12 requirement-change record is dead. R12 stands as written, no change is pending with Clint or Stewart, and carrying F6 would reopen a closed question and invent an external gate.",
+        "approval": {
+          "words": "Resend is part of the selected Lancers stack for transactional email. Shape B is the operative Release-One direction.",
+          "date": "2026-08-17"
+        }
+      },
+      {
+        "id": "F7",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "The template inventory. Production is template-only, so it gates every message; the invitation template is what a player actually receives.",
+        "also_referenced_by": ["W5", "W8"]
+      },
+      {
+        "id": "Q1",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "superseded",
+        "superseded_by": "SRC-requirements:R12",
+        "reason": "The R12 sign-off question died with F6 when the Resend amendment closed it.",
+        "approval": {
+          "words": "Resend is part of the selected Lancers stack for transactional email. Shape B is the operative Release-One direction.",
+          "date": "2026-08-17"
+        }
+      },
+      {
+        "id": "Q2",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "excluded",
+        "reason": "Stuart's real-experience review is a named external gate on production acceptance, not build scope for this mission.",
+        "evidence": "Task 02 \u00a77 step 4 and the Authority Manifest \u00a76 gate table record it against Scope 2 as an external-human gate owned by Stuart."
+      },
+      {
+        "id": "Q3",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "delegated_to_mission_lead",
+        "reason": "ICS attachment versus the Google Calendar API is an implementation choice that changes no approved product intent; the brief recommends ICS and gives its reasoning.",
+        "evidence": "Task 02 \u00a76 Shape B recommends ICS over the Google Calendar API \u2014 no Google-identity dependency \u2014 and \u00a712 Q3 assigns the final call to ticketing."
+      },
+      {
+        "id": "Q4",
+        "source_id": "SRC-task-02-brief",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "The chase-list surfacing shape, which Task 02 hands into Task 03's escalation semantics."
+      },
+      {
+        "id": "T03-binary-rsvp",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "RSVP is strictly binary; a third state is new scope requiring a fresh owner decision."
+      },
+      {
+        "id": "T03-named-list-privacy",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "other_mission",
+        "other_mission": "M-EVENTS-CALENDAR-TARGET-STATE",
+        "reason": "The named-list privacy configuration applies to the signed live-attendance surface, which Mission 2's participation view owns. It is explicitly not the RSVP page.",
+        "evidence": "Task 03 \u00a71 states the player RSVP page remains zero-peer-visibility and that the named list applies to the separate signed live attendance surface only."
+      },
+      {
+        "id": "T03-deadline-values",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "reason": "Per-type response deadlines with no per-event override are policy values, and this is where policy is read and changed."
+      },
+      {
+        "id": "T03-server-rendered",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "The server-rendered, server-submitted RSVP page with no browser grant and no RLS policy, ratified as final."
+      },
+      {
+        "id": "T03-lan79-verified",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "LAN-79 verified against the 15-point standard, with its three gaps enumerated."
+      },
+      {
+        "id": "T03-gap-operator-correction",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The deferred post-start operator correction path is the workflow that records a response given in person."
+      },
+      {
+        "id": "T03-gap-inbound-reply",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "The inbound channel reply path is a further entry point into the player's journey, gated on Stuart's review."
+      },
+      {
+        "id": "T03-gap-peer-visibility",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "excluded",
+        "reason": "Peer visibility is locked out of the slice and is additive later at no rework cost.",
+        "evidence": "Task 03 \u00a72 enumerates it as deferred scope, and the Authority Manifest \u00a78 lists live group RSVP visibility (Q3) among the explicit Release One exclusions."
+      },
+      {
+        "id": "T03-e2-adequate",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "The E2 monitoring views are adequate as they stand and are extended here with reminder and escalation state."
+      },
+      {
+        "id": "T03-reminders",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Reminders at configured offsets before the deadline are further attempts to complete the player's journey."
+      },
+      {
+        "id": "T03-arriving-rsvp-cancels",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "An arriving RSVP cancels that person's pending reminders and clears any un-actioned flag.",
+        "also_referenced_by": ["W3", "W5"]
+      },
+      {
+        "id": "T03-nonresponse-queue",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "Nonresponse surfaces without anyone compiling a list, which is the chaser's entry point."
+      },
+      {
+        "id": "T03-escalation-hours",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "Escalation is the deadline plus N hours, N configurable per event type, N = 0 permitted."
+      },
+      {
+        "id": "T03-escalation-office",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "The escalation target is an office resolving to its current holder, so committee turnover changes the recipient with no configuration change."
+      },
+      {
+        "id": "T03-flag-surfaces",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "Three surfaces for a flag: the proactive message, the in-app queue, and the Monday report.",
+        "also_referenced_by": ["W4"]
+      },
+      {
+        "id": "T03-no-personal-data",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "No player personal data in an escalation message body; names stay behind the operator login."
+      },
+      {
+        "id": "T03-quiet-hours",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "reason": "The quiet-hours send window and the clamped-deadline grace are policy values.",
+        "also_referenced_by": ["W2", "W5"]
+      },
+      {
+        "id": "T03-flag-lifecycle",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "One flag per invitation per threshold, idempotent under reruns. Approved provisionally and explicitly owed a restatement here."
+      },
+      {
+        "id": "T03-config-model",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "reason": "Central repository configuration on the ADR 0021 pattern, with no admin UI in Release One."
+      },
+      {
+        "id": "T03-config-location",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "reason": "One sibling policy file plus the operator-readable pointer answering where a change is requested."
+      },
+      {
+        "id": "T03-lan106-committed",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "excluded",
+        "reason": "The committee-facing configuration surface is committed post-release-one and is not built here; Release One must be built so that surface is a UI over it rather than a rework.",
+        "evidence": "Task 03 \u00a74.2 records it as committed post-release-one scope landing in LAN-106, and the Authority Manifest \u00a78 lists the LAN-106 admin surface among the Release One deferrals."
+      },
+      {
+        "id": "T03-stale-deadline",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "The amendment workflow was recorded as unowned and owed the reminder-job decision. Mission 2 has now placed it and hands the held jobs here."
+      },
+      {
+        "id": "T03-prereq-consent",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY",
+          "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"
+        ],
+        "reason": "Consent and contact onboarding gates every real recipient. Mission 7 defines the lawful basis and the record; this mission refuses to dispatch without it, and that record is what replaces the allowlist.",
+        "evidence": "Task 03 \u00a74.3 records D6 as a hard dependency defined in the consent and intake workflows, not in this brief."
+      },
+      {
+        "id": "T03-prereq-templates",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Approved Meta templates must exist before anything can send; production is template-only.",
+        "also_referenced_by": ["W5", "W8"]
+      },
+      {
+        "id": "T03-prereq-amendment",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "Amendment-workflow placement, now resolved by Mission 2's approved packet."
+      },
+      {
+        "id": "T03-prereq-lan106",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "excluded",
+        "reason": "Naming reminder and escalation configuration in LAN-106's description is a Linear reconciliation task, not build scope.",
+        "evidence": "Task 03 \u00a74.3 item 4 flags it for a future Linear reconciliation pass and states the task makes no Linear changes."
+      },
+      {
+        "id": "T03-template-budget",
+        "source_id": "SRC-task-03-brief",
+        "disposition": "excluded",
+        "reason": "Paid template conversations at reminder volume are confirmed within the approved budget. An owner cost decision already taken, with no build consequence.",
+        "evidence": "Task 03 \u00a74.3 item 2 records the owner's 2026-08-14 confirmation that the cost is accepted."
+      },
+      {
+        "id": "D1",
+        "source_id": "SRC-register",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Automated WhatsApp 1:1 delivery of every invitation's signed link is what starts the player's journey.",
+        "also_referenced_by": ["W1"]
+      },
+      {
+        "id": "D2",
+        "source_id": "SRC-register",
+        "disposition": "excluded",
+        "reason": "WhatsApp production enablement is human and operational account work, not build scope.",
+        "evidence": "The Authority Manifest \u00a76 records it as an external gate owned by Stewart and Brian against LAN-101, and the portfolio places it in Track A."
+      },
+      {
+        "id": "D3",
+        "source_id": "SRC-register",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "The automated email and calendar fallback, reached when WhatsApp fails for somebody."
+      },
+      {
+        "id": "D4",
+        "source_id": "SRC-register",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "Delivery visibility, retry and operator recovery: this workflow exactly."
+      },
+      {
+        "id": "D5",
+        "source_id": "SRC-register",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "Reminders and configurable nonresponse escalation \u2014 Clint's core pain, and the largest approved-but-untracked capability.",
+        "also_referenced_by": ["W2"]
+      },
+      {
+        "id": "D6",
+        "source_id": "SRC-register",
+        "disposition": "shared_cross_mission",
+        "shared_owners": [
+          "M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY",
+          "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"
+        ],
+        "reason": "Consent and contact-preference onboarding. Mission 7 defines it; this mission enforces it at dispatch.",
+        "evidence": "The register records D6 as approved-by-assumption and undefined as a workflow, with its next record an owner confirmation of consent language \u2014 which is Mission 7's."
+      },
+      {
+        "id": "D7",
+        "source_id": "SRC-register",
+        "disposition": "excluded",
+        "reason": "Live RSVP visibility back to the WhatsApp community is deferred for Release One by owner decision, and the register records that the request is closed and does not resurface as an implicit commitment.",
+        "evidence": "Capability Register D7: deferred for release one, owner decision 2026-08-12 (Q3)."
+      },
+      {
+        "id": "E1",
+        "source_id": "SRC-register",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "The no-login player RSVP page."
+      },
+      {
+        "id": "E2",
+        "source_id": "SRC-register",
+        "disposition": "workflow",
+        "workflow": "W4",
+        "reason": "Operator RSVP monitoring."
+      },
+      {
+        "id": "R5",
+        "source_id": "SRC-requirements",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Binary RSVP with a reason required on No. Satisfied by LAN-79 and retained for traceability rather than rebuilt."
+      },
+      {
+        "id": "R6",
+        "source_id": "SRC-requirements",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "Reminders and a configurable nonresponse escalation queue.",
+        "also_referenced_by": ["W2", "W7"]
+      },
+      {
+        "id": "R12",
+        "source_id": "SRC-requirements",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "WhatsApp primary, automated fallback, never the system of record.",
+        "also_referenced_by": ["W2"]
+      },
+      {
+        "id": "R15",
+        "source_id": "SRC-requirements",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "Visible automation failures and a documented automated recovery procedure."
+      },
+      {
+        "id": "OD1",
+        "source_id": "SRC-manifest",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "OD-1/Q6 \u2014 rescheduling recomputes the chase threshold and the app says a reschedule is happening. Q7 and Q9 are Mission 2's event-side rules.",
+        "also_referenced_by": ["W5"]
+      },
+      {
+        "id": "OD4",
+        "source_id": "SRC-manifest",
+        "disposition": "excluded",
+        "reason": "R16's acceptance is Clint's dated sign-off at delivery. A release-acceptance decision that blocks no build scope.",
+        "evidence": "The Authority Manifest \u00a75 records OD-4 as closed and routes R16 to Track B, and states it gates Scope 11's measurement branch only."
+      },
+      {
+        "id": "PILOT-verbal-rsvp",
+        "source_id": "SRC-manifest",
+        "disposition": "workflow",
+        "workflow": "W3",
+        "reason": "The operator-recorded verbal RSVP, routed to the reminders and chase mission by name because otherwise the escalation stream produces false positives."
+      },
+      {
+        "id": "PILOT-message-flag",
+        "source_id": "SRC-manifest",
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The operator message-and-flag direction is recorded, deliberately not promoted, and has Mission 6 as its candidate home. It rides this transport, so the pipeline must not preclude it.",
+        "evidence": "The Authority Manifest \u00a75 records it as awaiting definition, not yet scope, with a candidate home extending Task 11, and the portfolio names Mission 6 as the candidate home without promoting it."
+      },
+      {
+        "id": "REQ-amend-hold",
+        "source_id": "SRC-m2-packet",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "Saving an amendment holds the event's unsent messages. Mission 2 places the hold and this mission decides what resumes."
+      },
+      {
+        "id": "REQ-amend-in-place",
+        "source_id": "SRC-m2-packet",
+        "disposition": "other_mission",
+        "other_mission": "M-EVENTS-CALENDAR-TARGET-STATE",
+        "reason": "An approved event is amended in place and never leaves approved. Mission 2's rule, and the reason this mission's D5 trigger changed.",
+        "evidence": "Mission 2's packet v1, merged 2026-08-21 at 5256d1f, states the amendment path supersedes D49 because D4 makes drafts publicly visible."
+      },
+      {
+        "id": "D54",
+        "source_id": "SRC-m2-packet",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "A re-notify is a Mission 2 action that produces an obligation this mission discharges."
+      },
+      {
+        "id": "D58",
+        "source_id": "SRC-m2-packet",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "Cancellation notices follow the notify choice Mission 2 records."
+      },
+      {
+        "id": "D60",
+        "source_id": "SRC-m2-packet",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "Cancellation is terminal, so its undelivered jobs are cancelled rather than held."
+      },
+      {
+        "id": "D76",
+        "source_id": "SRC-m2-packet",
+        "disposition": "workflow",
+        "workflow": "W8",
+        "reason": "The internal cancellation reason must never reach a recipient-facing payload."
+      },
+      {
+        "id": "OWN-allowlist",
+        "source_id": "SRC-owner-2026-08-22",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "The hard-coded recipient allowlist is replaced by the WhatsApp acceptance record, in that order: the record real and enforced first, the allowlist removed second.",
+        "also_referenced_by": ["W6"]
+      },
+      {
+        "id": "OWN-international",
+        "source_id": "SRC-owner-2026-08-22",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "Telephone numbers are international rather than UK-only, while still refusing to guess rather than sending a working RSVP link to a stranger.",
+        "also_referenced_by": ["W6"]
+      },
+      {
+        "id": "OWN-comms-plan",
+        "source_id": "SRC-owner-2026-08-22",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "An approver sees the messaging plan before the irreversible action that sets it off."
+      },
+      {
+        "id": "OWN-response-surface",
+        "source_id": "SRC-owner-2026-08-22",
+        "disposition": "workflow",
+        "workflow": "W2",
+        "reason": "The response surface belongs to this mission whether or not it is already built, because no other mission touches responses.",
+        "also_referenced_by": ["W3", "W4"]
+      },
+      {
+        "id": "OWN-schedule-model",
+        "source_id": "SRC-owner-2026-08-22",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "reason": "Anchors, the ladder and compression when the runway is short. W7 owns the values; W1 owns the plan an approver reads.",
+        "also_referenced_by": ["W1", "W2", "W5"]
+      }
+    ]
   },
-  "next_action": "Inventory the controlling decisions (Stage 2a), then freeze 02-workflows.md"
+  "next_action": "Draft, walk and approve W1 (Stage 3)"
 }

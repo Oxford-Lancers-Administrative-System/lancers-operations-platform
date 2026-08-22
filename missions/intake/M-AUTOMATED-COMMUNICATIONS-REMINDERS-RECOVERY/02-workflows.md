@@ -1,16 +1,27 @@
 # Workflow inventory — M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY
 
-**Status: proposed, not frozen.** Freezing requires Brian's explicit approval of
-the numbered list below. Once frozen, no agent re-derives, splits, merges, adds,
-removes or renumbers it; a discovered gap becomes a proposed amendment approved
-the same way.
+**Status: FROZEN.** Approved by Brian Schuster on 2026-08-22 — "Approve the eight
+workflows and freeze them." No agent re-derives, splits, merges, adds, removes or
+renumbers this list; a discovered gap becomes a proposed amendment, approved the
+same way and applied atomically to this file and `state.json` together.
+
+## The frozen list
+
+1. `W1` — Approve an event knowing what it will send
+2. `W2` — Answer an invitation
+3. `W3` — Record an answer somebody gave you in person
+4. `W4` — See who is coming, and who has not answered
+5. `W5` — Chase the people who have not answered
+6. `W6` — Repair a delivery that failed
+7. `W7` — Find out what the club's messaging rules are, and change them
+8. `W8` — Keep queued messages honest when an event changes
 
 A workflow here is **one primary actor's end-to-end journey, from a trigger and
 an entry point to one user-visible result.** An item with no actor, or no visible
 result, is a stage or a cross-cutting invariant and is recorded as such rather
 than promoted.
 
-## The proposed inventory
+## The inventory in detail
 
 | ID     | Workflow                                                      | Primary actor                                 | Trigger                                 | Visible result                                                           |
 | ------ | ------------------------------------------------------------- | --------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------ |
@@ -215,7 +226,32 @@ is anchored to the brief's own section. They are stable from here on.
 | `OWN-response-surface` | The response surface is this mission's, built or not          | `W2`, `W3`, `W4`                                 |
 | `OWN-schedule-model`   | Anchors, the ladder, and compression when runway is short     | `W1` owns the visible plan; `W7` owns the values |
 
+## A note on provisional mission ids
+
+Four missions referenced in the map have no approved packet and therefore no
+approved id. Where the coverage has to name one, it uses the portfolio row name
+transliterated the way `M-EVENTS-CALENDAR-TARGET-STATE` was — `M5` as
+`M-PEOPLE-ROSTER-AND-RECRUITMENT-INTAKE`, `M6` as
+`M-ONBOARDING-AND-INFORMATION-COMPLETION`, `M7` as
+`M-CONSENT-PRIVACY-AND-DATA-RIGHTS`, `M9` as
+`M-LEADERSHIP-REPORTING-AND-EXPORTS`. These are provisional and are reconciled
+when each of those intakes runs and names itself. Mission 2's id is real.
+
+## The walk-up welcome, and every other mission's messages
+
+Mission 5 owns the walk-up welcome flow — the portfolio names it in row 5's
+primary coverage, and Task 04's residual welcome-flow slice is routed there. The
+Capability Register's note that its "Linear placement is an open classification"
+predates the 2026-08-19 portfolio and is stale.
+
+The split is the one used everywhere else in this boundary: **the mission that
+owns the relationship owns what is said and when; this mission owns the pipe, the
+template contract, the delivery evidence and the retry.** That holds for Mission
+5's welcome and verification links, Mission 6's onboarding chase, Mission 7's
+acceptance circuit, and Mission 9's report exceptions. The packet must say so, so
+that none of those missions discovers it late.
+
 ## Brian approval of the frozen inventory
 
-- **Exact words:**
-- **Date:**
+- **Exact words:** "Approve the eight workflows and freeze them"
+- **Date:** 2026-08-22
