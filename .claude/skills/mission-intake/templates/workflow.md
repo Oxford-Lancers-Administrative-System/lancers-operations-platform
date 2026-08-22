@@ -1,5 +1,6 @@
 # Wn — <workflow name>
 
+- Purpose/intended outcome:
 - Primary actor:
 - Trigger:
 - Entry point:
@@ -12,6 +13,8 @@
 ## State transitions
 
 ## Handoffs
+
+## Dependencies and mission boundaries
 
 ## Exceptions and recovery
 

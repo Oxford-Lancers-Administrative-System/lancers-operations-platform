@@ -1,6 +1,6 @@
 ---
 name: mission-intake
-description: Prepare exactly one Release One mission packet through a durable ledger, workflow-by-workflow specification and mockup review, mechanical packet assembly, and a packet-only pull request. Never executes the mission.
+description: Prepare exactly one Release One mission packet through a durable ledger, workflow-by-workflow specification and mockup review, mechanical packet assembly, and an intake-artifacts-only pull request. Never executes the mission.
 disable-model-invocation: true
 argument-hint: <portfolio mission number>
 ---
@@ -31,12 +31,12 @@ it before continuing. Never decide silently.
 **First intake only:** when no worktree or ledger exists, create the dedicated
 worktree and `intake/<mission-id>` branch from current `main`. As one bootstrap
 commit, copy the templates into `missions/intake/<mission-id>/`, create
-`workflows/`, `acceptance/`, `mockups/`, and `evidence/`, seed the mockup hub, fill
-the real mission id and baseline SHA into `state.json`, and set the next action to
-Stage 0. Immediately run `npm run intake -- status <mission-id>`, print the banner,
-and obtain Brian's confirmation before any substantive research or drafting. This
-bootstrap is the only exception to status being the first mutation because status
-cannot exist until its state file does.
+`workflows/`, `acceptance/`, `mockups/`, and `evidence/`, fill the real mission id
+and baseline SHA into `state.json`, keep its `ledger_version`, and set the next
+action to Stage 0. Immediately run `npm run intake -- status <mission-id>`, print
+the banner, and obtain Brian's confirmation before any substantive research or
+drafting. This bootstrap is the only exception to status being the first mutation
+because status cannot exist until its state file does.
 
 The ledger is memory; conversation is only the interface. Read files, not a prior
 session summary. A state transition and the ledger evidence that justifies it are
@@ -46,8 +46,9 @@ one atomic commit. Quote Brian's approval words in the commit message. Keep
 
 ## Authority and operating boundary
 
-Approval is Brian's merge of the packet-only PR. No status field, chat approval,
-Notion property, or agent conclusion substitutes for that merge. Authority order:
+Approval is Brian's merge of the intake-artifacts-only PR. No status field, chat
+approval, Notion property, or agent conclusion substitutes for that merge.
+Authority order:
 
 1. commissioned outcome and Brian's recorded decisions;
 2. Notion product records and controlling briefs;
@@ -79,6 +80,18 @@ executed, and accepted without inventing shared scope. Any added, moved, fused, 
 split portfolio coverage requires Brian's explicit one-line decision before work
 continues.
 
+### When to decide, and when to ask Brian
+
+- **Decide, and record the assumption in the ledger**, for a reversible
+  implementation detail that follows already-approved intent and changes no
+  authority, no scope, no risk and no user-visible meaning.
+- **Ask Brian** when the answer changes product intent, a workflow, mission
+  ownership, authority, destructive behaviour, privacy, security or production
+  risk, or anything already recorded as an owner decision.
+- Never let informal wording in conversation silently supersede a recorded
+  decision. A recorded decision changes only through an explicit, approved
+  amendment or supersession, written into the ledger with Brian's exact words.
+
 ## Stage 0 — boundary
 
 Write `00-boundary.md` from its template. Confirm the commissioned boundary against
@@ -93,7 +106,54 @@ state vocabulary, audit posture, and other cross-cutting invariants. Brian corre
 the file, not chat memory. On explicit approval, commit it with `state.json`
 recording `approvals.overview` and advancing to `inventory`.
 
-## Stage 2 — frozen workflow inventory
+## Stage 2 — controlling decisions, then the frozen workflow inventory
+
+### 2a — inventory the controlling decisions first
+
+Before the workflow inventory is frozen, inventory every controlling decision in
+every controlling source, and read that source's own exclusions, handoffs,
+delegations and shared dependencies. Appearance in a brief is not evidence that
+this mission owns the behaviour, and a decision that no workflow mentions is the
+one most likely to be lost — `D42`, `D66`, `D67` and `D68` survived the first
+intake's surface-and-action sweep and were only found when Brian reopened `W4`.
+
+Record the result in `state.json.decision_coverage` as the canonical truth:
+`sources[]` naming each source's id, durable `ref`, pinned `version` and the
+`decision_ids` it declares, and `decisions[]` giving every one of those ids exactly
+one disposition:
+
+| Disposition                 | Also required                                                              |
+| --------------------------- | -------------------------------------------------------------------------- |
+| `workflow`                  | one owning `workflow: "Wn"` in the frozen inventory                        |
+| `excluded`                  | `evidence` citing the source's own exclusion                               |
+| `delegated_to_mission_lead` | `evidence` that the source leaves the mechanism unspecified                |
+| `other_mission`             | `other_mission: "M-<slug>"` and `evidence` for the seam                    |
+| `shared_cross_mission`      | `shared_owners` naming this and at least one other mission, and `evidence` |
+| `superseded`                | `superseded_by`, and `approval` with Brian's exact words and date          |
+
+Every disposition carries a `reason`. A `workflow` disposition names exactly one
+owning `Wn`; other workflows may cite the decision in `also_referenced_by` without
+becoming additional owners. Where two sources each declare the same bare id, every
+mapping and every cross-reference is qualified as `<source-id>:<decision-id>`.
+
+Ask, of each decision, the boundary seam question:
+
+> Would the product decision remain the same if the transport, provider or
+> implementation mechanism changed tomorrow?
+
+It is a diagnostic aid for spotting a decision that belongs to another mission's
+seam. It never replaces reading the source's own handoffs and exclusions.
+
+`npm run intake -- coverage --write` renders `decision-coverage.md` from that
+state. Never maintain a second, hand-written truth: `npm run intake -- status`
+fails when the generated file and the ledger disagree. The validator refuses an
+unmapped decision, duplicate authoritative homes, an unknown workflow, a
+source-less ambiguous decision id, an unsupported exclusion, delegation,
+other-mission or shared classification, a supersession without approval evidence,
+and a superseded decision still treated as current authority — so the intake
+cannot reach the workflow stage while coverage is missing or conflicting.
+
+### 2b — freeze the inventory
 
 Write `02-workflows.md`. A workflow is one primary actor's end-to-end journey from
 trigger and entry point to one user-visible result. An actorless or resultless item
@@ -104,23 +164,55 @@ No agent re-derives, splits, merges, adds, removes, or renumbers it. A discovere
 gap becomes a proposed inventory amendment and requires a Brian-approved atomic
 change to both files.
 
+Advancing to `workflows` also requires `mockup_hub`: `"generated"` for a mission
+that draws surfaces, or `{"not_applicable": "<reason>"}` for one that genuinely
+draws none. Silence is never the not-applicable answer.
+
 ## Stage 3 — workflow loop and design pass
 
 For every frozen Wn, create `workflows/Wn-<slug>.md` from the template. Capture
-actor, trigger, entry, route/placement, actions, transitions, handoffs, exceptions,
-visible result, controlling source, acceptance evidence, and core decisions.
-Classify every decision exactly:
+purpose and intended outcome, actor, trigger, entry, route/placement, actions,
+transitions, handoffs, exceptions, visible result, dependencies and mission
+boundaries, controlling source, acceptance evidence, and core decisions. Classify
+every decision exactly:
 
 - `locked`: already controlled by authority; cite it.
 - `proposed for owner approval`: consequential and unsettled; recommend a coherent default.
 - `delegated to Mission Lead`: an implementation choice that cannot change approved product intent.
 
+### Walk Brian through it before showing him the file
+
+Never ask for specification approval by presenting the file first. Before Brian is
+shown `workflows/Wn-<slug>.md` or asked to approve it, explain the workflow to him
+conversationally, in his own terms, covering:
+
+1. purpose and intended outcome;
+2. the actor;
+3. the trigger and entry conditions;
+4. the normal sequence, end to end;
+5. the important actions and state transitions;
+6. the handoffs into and out of this workflow;
+7. the meaningful exceptions and failure states;
+8. the dependencies and mission boundaries; and
+9. the genuine owner decisions, each with a recommendation.
+
+Keep it short enough to hold in one reading. Then show the file, then ask for
+approval. Approval given before that walkthrough has not been informed, and the
+walkthrough is what turns a specification review into a product decision.
+
 For user-facing work, build `mockups/Wn-<slug>.html` from
-`assets/mockup-exemplar.html` and `docs/ux/mockup-standards.md`, plus a self-contained
-`mockups/index.html`. Ground proposals in current real screens using Playwright
-screenshots. If the app cannot run, use code-only grounding, set
-`grounding: code-only` in acceptance, and report screenshot restoration as open;
-never claim screenshots ran. Auto-open every new or revised mock in Brian's browser.
+`assets/mockup-exemplar.html` and `docs/ux/mockup-standards.md`, whose
+current-versus-proposed banding, dispositions, named deltas, new-surface wording,
+commentary placement, 375px condensation and surface-reuse rules are binding.
+Ground proposals in current real screens using Playwright screenshots. If the app
+cannot run, use code-only grounding, set `grounding: code-only` in acceptance, and
+report screenshot restoration as open; never claim screenshots ran.
+
+`mockups/index.html` is generated, not written: run `npm run intake -- hub --write`
+after any change to state, artifacts, amendments or feedback, and commit the result
+with that change. `npm run intake -- status` fails when the committed hub differs
+from what the ledger generates. Auto-open every new or revised mock in Brian's
+browser.
 
 Feedback uses screen IDs. Track open items in `state.json`. Each approval advances
 separately and atomically:
@@ -137,6 +229,22 @@ Draft specs and mocks may pipeline ahead in `spec_draft` or `mock_draft`. If an
 earlier decision invalidates any downstream draft, mark it `stale: true` in the
 same commit; regenerate and clear staleness before presenting it. Never present or
 approve a stale draft or touch a workflow outside the frozen inventory.
+
+## Scripted edits and generated artifacts
+
+A scripted replacement that matched nothing, and continued as though it had
+applied, corrupted work during the first intake. Every intake-owned scripted edit
+and every generated artifact therefore goes through
+`npm run intake -- edit --file <path> --find <text> --replace <text> --expect <n>`,
+or the helpers in `scripts/intake/lib/edit.mjs`, which:
+
+- assert the expected match count and fail on an unexpected zero or multiple match;
+- report the identity — line and column — of every target changed;
+- reload the artifact from disk after formatting it; and
+- run the relevant intake, hub, coverage or packet validation against the reloaded
+  bytes, rolling the edit back if the reloaded ledger no longer validates.
+
+Never hand-edit `mockups/index.html` or `decision-coverage.md`; regenerate them.
 
 ## Stage 4 — mechanical packet assembly
 
@@ -157,7 +265,7 @@ intake-produced packet; never validate it without the separately approved ledger
 file.
 
 Approved packets on `main` are immutable. Material change means a higher
-`packet_version` in a new packet-only PR.
+`packet_version` in a new intake-artifacts-only PR.
 
 ## Owner actions and authoritative corrections
 
@@ -175,12 +283,19 @@ the result and timestamp. Packet approval is not blanket correction approval.
 Unrelated reconciliation, reorganization, and reusable cross-mission rules are out
 of scope.
 
-## Stage 5 — packet-only PR and receipt
+## Stage 5 — the intake-artifacts-only PR and receipt
 
-Ensure the PR diff contains only `missions/packets/<mission-id>/**`; skill or
-validator changes use their own normal PR. On Brian's word, push once and open a
-draft packet-only PR from `PR.md`. Wait for every required check to pass on the
-exact final head SHA. Never merge or un-draft. Hand Brian one action: merge.
+The final pull request carries this mission's completed ledger and its packet, and
+nothing else: exactly `missions/intake/<mission-id>/**` and
+`missions/packets/<mission-id>/**`. Both land in the one owner-approved merge,
+because the ledger is the packet's provenance and a packet-only merge leaves it
+dangling off `main`. Skill, validator and application changes use their own normal
+PR. Prove the diff with `npm run intake -- pr-paths <mission-id> --diff main` and
+`npm run intake -- check <mission-id>` before pushing.
+
+On Brian's word, push once and open a draft intake-artifacts-only PR from `PR.md`.
+Wait for every required check to pass on the exact final head SHA. Never merge or
+un-draft. Hand Brian one action: merge.
 
 After merge, emit the Project Manager receipt: primary and shared portfolio
 coverage, dependencies, superseded boundary, remaining unassigned Release One

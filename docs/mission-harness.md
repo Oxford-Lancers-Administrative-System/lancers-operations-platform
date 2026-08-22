@@ -39,6 +39,15 @@ automatic merge lane. A draft that cannot honestly be completed ships with
 draft with `npm run mission -- validate --packet <file>` (pure; writes no
 state).
 
+Since LAN-149 that pull request is **intake-artifacts-only** rather than
+packet-only: it carries exactly `missions/intake/<mission-id>/**` and
+`missions/packets/<mission-id>/**`, and nothing else. The completed ledger is
+the packet's provenance, so the one owner-approved merge lands both together —
+`M-EVENTS-CALENDAR-TARGET-STATE` needed a second pull request to put its ledger
+on `main` after its packet was already there. Skill, validator and application
+changes still travel their own normal pull requests. Check the diff with
+`npm run intake -- pr-paths <mission-id> --diff main`.
+
 The mechanical schema is `scripts/mission/lib/packet.mjs`; the synthetic
 example is `tests/fixtures/mission/approved-packet.json`. A packet records:
 `packet_version`, `mission_id`, `status` (`approved` | `not_ready`),

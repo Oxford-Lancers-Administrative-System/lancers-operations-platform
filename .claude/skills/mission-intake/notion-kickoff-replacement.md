@@ -14,7 +14,8 @@ resumes a dedicated intake worktree, and prints its ledger-backed resume banner.
 The conversation is only the review interface; `missions/intake/<mission-id>/`
 is the working memory. Brian approves boundary, overview, frozen workflow
 inventory, each workflow specification and mockup, and finally the packet by
-merging its packet-only PR.
+merging its intake-artifacts-only PR — the mission's completed ledger and its
+packet, landing together.
 
 The authoritative intake rules remain on this Notion page and in the linked
 portfolio and product records. The execution procedure is

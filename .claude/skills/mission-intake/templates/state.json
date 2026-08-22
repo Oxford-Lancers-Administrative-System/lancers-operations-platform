@@ -1,5 +1,6 @@
 {
   "mission_id": "M-REPLACE-ME",
+  "ledger_version": 2,
   "stage": "boundary",
   "baseline": {
     "branch": "main",
@@ -7,5 +8,17 @@
   },
   "approvals": {},
   "workflows": [],
+  "mockup_hub": "generated",
+  "decision_coverage": {
+    "sources": [
+      {
+        "id": "SRC-REPLACE-ME",
+        "ref": "https://replace-me.invalid/controlling-brief",
+        "version": "REPLACE-ME",
+        "decision_ids": []
+      }
+    ],
+    "decisions": []
+  },
   "next_action": "Complete and approve 00-boundary.md"
 }
