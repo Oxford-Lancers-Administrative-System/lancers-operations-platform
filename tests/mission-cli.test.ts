@@ -196,7 +196,13 @@ describe("checkpoint rendering", () => {
     const packet = JSON.parse(fs.readFileSync(PACKET, "utf8"));
     const plan = JSON.parse(fs.readFileSync(PLAN, "utf8"));
     const events = [
-      { type: "mission-init", at: "2026-08-18T10:00:00.000Z", packet },
+      {
+        type: "mission-init",
+        at: "2026-08-18T10:00:00.000Z",
+        packet,
+        lead_id: "lead-fixture",
+        pid: 4242,
+      },
       { type: "plan-recorded", at: "2026-08-18T10:01:00.000Z", packages: plan.packages },
       {
         type: "owner-question",

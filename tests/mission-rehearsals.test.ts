@@ -84,7 +84,7 @@ function fixtureLinearDriver() {
 }
 
 async function planned(m: ReturnType<typeof mission>) {
-  await m.append({ type: "mission-init", packet });
+  await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
   await m.append({ type: "plan-recorded", packages: plan.packages });
 }
 
@@ -134,7 +134,12 @@ async function implemented(m: ReturnType<typeof mission>, packageId = "WP-events
 describe("Rehearsal 1 — a valid approved packet initializes; invalid or unapproved fail closed", () => {
   it("initializes the synthetic mission and refuses the failure shapes", async () => {
     const m = mission();
-    const state = await m.append({ type: "mission-init", packet });
+    const state = await m.append({
+      type: "mission-init",
+      packet,
+      lead_id: "lead-fixture",
+      pid: 4242,
+    });
     expect(state.initialized).toBe(true);
     for (const broken of [
       { ...packet, approval: undefined },
@@ -150,15 +155,20 @@ describe("Rehearsal 1 — a valid approved packet initializes; invalid or unappr
     ]) {
       expect(validatePacket(broken).length).toBeGreaterThan(0);
       const fresh = mission();
-      await expect(fresh.append({ type: "mission-init", packet: broken })).rejects.toThrow(
-        /Invalid packet/,
-      );
+      await expect(
+        fresh.append({ type: "mission-init", packet: broken, lead_id: "lead-fixture", pid: 4242 }),
+      ).rejects.toThrow(/Invalid packet/);
       expect(readJournal(missionPaths(fresh.repo, MISSION, fresh.env).journal)).toEqual([]);
     }
     // A not_ready packet is a valid document and still cannot execute.
     const notReady = mission();
     await expect(
-      notReady.append({ type: "mission-init", packet: { ...packet, status: "not_ready" } }),
+      notReady.append({
+        type: "mission-init",
+        packet: { ...packet, status: "not_ready" },
+        lead_id: "lead-fixture",
+        pid: 4242,
+      }),
     ).rejects.toThrow(/cannot initialize execution/);
   });
 });

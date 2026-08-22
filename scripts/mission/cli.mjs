@@ -176,9 +176,11 @@ async function main() {
       if (packet.mission_id !== missionId) {
         fail(`The packet is for ${packet.mission_id}, not ${missionId}.`);
       }
-      await append(missionId, { type: "mission-init", packet });
-      await appendEvent(repoPath, missionId, {
-        type: "lead-heartbeat",
+      // The fence is part of initialization; no separate heartbeat is needed
+      // to establish it (LAN-148).
+      await append(missionId, {
+        type: "mission-init",
+        packet,
         lead_id: leadId,
         pid: process.pid,
       });

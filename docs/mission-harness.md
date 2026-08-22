@@ -14,10 +14,11 @@ If this page and those files disagree, the checked-in rules and tests win.
 ```
 
 Brian may start concurrent Mission Leads, each for a different approved mission.
-Exactly one fenced Lead controls a given mission at a time.
+Exactly one fenced Lead controls a given mission at a time, and that fence
+exists from the moment `mission init` records the packet — not from the first
+heartbeat afterwards.
 Everything else — planning, Linear issues, workers, reviews, corrections,
-qualifying merges, checkpoints — is the Mission Lead's job. One mission runs
-at a time.
+qualifying merges, checkpoints — is the Mission Lead's job.
 
 To start a **new** mission, the approved packet must already be on `main` at
 `missions/packets/M-<id>/packet.json`; the Lead runs
@@ -119,6 +120,11 @@ and fails closed; a refusal is posted on the pull request. A review-blocked
 correction or any new head clears a previously recorded visual approval —
 Brian approved what he saw, not whatever came later.
 
+Merging is where a package's lifecycle ends. A worker or review receipt that
+arrives after the merge is refused, and a journal that somehow contains one
+still replays to `merged`: the receipt is kept as evidence, but a finished
+package never walks backwards into review or re-dispatch.
+
 **Merges by itself only after Brian heard about it** — the
 checkpoint-approval surfaces (`src/lib/auth/**`, `src/lib/delivery/**`).
 Workers may change them freely, but the diff-derived scan detects them and
@@ -162,7 +168,8 @@ every read.
   session, `/run-mission M-<id>`. The new Lead validates the Lead lease
   (a still-live prior Lead is refused; a dead one is reclaimed after its
   heartbeat expires), replays the journal, and reports the reconstructed
-  state and next actions before doing anything.
+  state and next actions before doing anything. Because the fence is written
+  by `mission init`, this holds from the mission's first event.
 - **Claude usage ran out:** the Lead checkpointed and stopped durably
   (`mission stop --reason usage-exhausted`). When capacity returns, a fresh
   session resumes exactly as above. There is no automatic wake-up in v1.

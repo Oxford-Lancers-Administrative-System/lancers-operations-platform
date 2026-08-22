@@ -241,6 +241,16 @@ export function validateEvent(event, state) {
   switch (event.type) {
     case "mission-init": {
       if (state.initialized) errors.push("The mission is already initialized.");
+      // LAN-148: the fence exists from the first event. The first live mission
+      // advertised a fenced Lead but held none until a manual heartbeat
+      // happened to be recorded, so a second Lead could have initialized over
+      // it during that window.
+      if (!Number.isInteger(event.pid) || event.pid <= 0) {
+        errors.push("Initialization records the Lead session's live pid.");
+      }
+      if (!isNonEmptyString(event.lead_id)) {
+        errors.push("Initialization records the stable Lead identity that fences the mission.");
+      }
       const packetErrors = validatePacket(event.packet);
       errors.push(...packetErrors.map((error) => `Invalid packet: ${error}`));
       if (packetErrors.length === 0 && event.packet.status !== "approved") {
@@ -399,6 +409,14 @@ export function validateEvent(event, state) {
       if (!worker) {
         errors.push(`No active worker for ${event.package_id}.`);
         break;
+      }
+      // LAN-148, matching the rule review receipts already carry: a worker that
+      // returns after its package merged must not drag the package back to
+      // "implemented" and re-open a merged lifecycle.
+      if (state.packages[event.package_id]?.status === "merged") {
+        errors.push(
+          `${event.package_id} is already merged; a late worker receipt is refused rather than regressing merged work.`,
+        );
       }
       if (event.worker_id !== worker.worker_id) {
         errors.push(
@@ -702,6 +720,8 @@ export function reduce(events) {
       case "mission-init":
         state.initialized = true;
         state.packet = event.packet;
+        // The fence exists from here, not from the first heartbeat.
+        if (event.lead_id) state.lead = { lead_id: event.lead_id, pid: event.pid, at: event.at };
         break;
       case "lead-heartbeat":
         state.lead = { lead_id: event.lead_id, pid: event.pid, at: event.at };
@@ -771,13 +791,18 @@ export function reduce(events) {
         state.activeWorkers = state.activeWorkers.filter(
           (worker) => worker.package_id !== event.package_id,
         );
-        pkg.status =
-          {
-            completed: "implemented",
-            blocked: "blocked",
-            "owner-decision-required": "owner-decision",
-            "failed-recoverably": "synced",
-          }[event.receipt.result] ?? pkg.status;
+        // Guarded on the current status, like the review-receipt branch: a
+        // receipt that arrives after the merge keeps its place in the evidence
+        // above, but never regresses the package's lifecycle.
+        if (pkg.status !== "merged") {
+          pkg.status =
+            {
+              completed: "implemented",
+              blocked: "blocked",
+              "owner-decision-required": "owner-decision",
+              "failed-recoverably": "synced",
+            }[event.receipt.result] ?? pkg.status;
+        }
         break;
       }
       case "worker-abandoned": {

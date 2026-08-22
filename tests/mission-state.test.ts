@@ -15,7 +15,9 @@ import {
 } from "../scripts/mission/lib/state.mjs";
 import {
   AUTO_MERGE_CLASSES,
+  COLLISION_DOMAINS,
   OWNER_GATED_CLASSES,
+  validatePackage,
   validatePacket,
   validateWorkflowInventory,
 } from "../scripts/mission/lib/packet.mjs";
@@ -71,7 +73,7 @@ const reviewReceipt = (result: string, sha = SHA) => ({
 
 /** Initialize, plan, preflight, and synchronize every package. */
 async function readyMission(m: ReturnType<typeof fixture>) {
-  await m.append({ type: "mission-init", packet });
+  await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
   await m.append({ type: "plan-recorded", packages: plan.packages });
   await m.append({
     type: "linear-preflight",
@@ -91,6 +93,20 @@ async function readyMission(m: ReturnType<typeof fixture>) {
 describe("mission packet validation", () => {
   it("accepts the synthetic approved packet", () => {
     expect(validatePacket(packet)).toEqual([]);
+  });
+
+  /**
+   * LAN-148. The first live mission advertised a fenced Lead but held none
+   * until a heartbeat happened to be recorded, so a second Lead could have
+   * taken the mission during that window. Initialization is the fence.
+   */
+  it("accepts presentation and operational-script collision domains", () => {
+    for (const domain of ["ui-presentation", "operational-scripts"]) {
+      expect(COLLISION_DOMAINS).toContain(domain);
+      expect(validatePackage({ ...plan.packages[0], collision_domain: domain }, packet)).toEqual(
+        [],
+      );
+    }
   });
 
   it("fails closed on a missing or incomplete approval", () => {
@@ -185,9 +201,14 @@ describe("mission packet validation", () => {
     expect(validatePacket({ ...packet, status: "not_ready" })).toEqual([]);
     const m = fixture();
     await expect(
-      m.append({ type: "mission-init", packet: { ...packet, status: "not_ready" } }),
+      m.append({
+        type: "mission-init",
+        packet: { ...packet, status: "not_ready" },
+        lead_id: "lead-fixture",
+        pid: 4242,
+      }),
     ).rejects.toThrow(/cannot initialize execution/);
-    await m.append({ type: "mission-init", packet });
+    await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     await expect(
       m.append({
         type: "packet-revised",
@@ -207,15 +228,27 @@ describe("mission packet validation", () => {
 describe("mission initialization", () => {
   it("initializes from a valid approved packet and refuses a second init", async () => {
     const m = fixture();
-    const state = await m.append({ type: "mission-init", packet });
+    const state = await m.append({
+      type: "mission-init",
+      packet,
+      lead_id: "lead-fixture",
+      pid: 4242,
+    });
     expect(state.initialized).toBe(true);
-    await expect(m.append({ type: "mission-init", packet })).rejects.toThrow(/already initialized/);
+    await expect(
+      m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 }),
+    ).rejects.toThrow(/already initialized/);
   });
 
   it("refuses an invalid packet and appends nothing", async () => {
     const m = fixture();
     await expect(
-      m.append({ type: "mission-init", packet: { ...packet, approval: null } }),
+      m.append({
+        type: "mission-init",
+        packet: { ...packet, approval: null },
+        lead_id: "lead-fixture",
+        pid: 4242,
+      }),
     ).rejects.toThrow(/Invalid packet/);
     expect(readJournal(missionPaths(m.repo, MISSION, m.env).journal)).toEqual([]);
   });
@@ -229,7 +262,7 @@ describe("mission initialization", () => {
 
   it("refuses an unknown event type outright", async () => {
     const m = fixture();
-    await m.append({ type: "mission-init", packet });
+    await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     await expect(m.append({ type: "grant-merge-authority" })).rejects.toThrow(/Unknown event type/);
   });
 });
@@ -237,7 +270,7 @@ describe("mission initialization", () => {
 describe("planning", () => {
   it("records the synthetic three-package DAG with collision domains and stable ids", async () => {
     const m = fixture();
-    await m.append({ type: "mission-init", packet });
+    await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     const state = await m.append({ type: "plan-recorded", packages: plan.packages });
     expect(Object.keys(state.packages).sort()).toEqual([
       "WP-attendance-export",
@@ -249,7 +282,7 @@ describe("planning", () => {
 
   it("refuses a cycle, an unplanned dependency, and an undeclared collision domain", async () => {
     const m = fixture();
-    await m.append({ type: "mission-init", packet });
+    await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     const base = plan.packages[0];
     await expect(
       m.append({
@@ -276,7 +309,7 @@ describe("planning", () => {
 
   it("allows replanning that preserves package ids and refuses one that drops a package", async () => {
     const m = fixture();
-    await m.append({ type: "mission-init", packet });
+    await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     await m.append({ type: "plan-recorded", packages: plan.packages });
     await expect(
       m.append({ type: "plan-recorded", packages: plan.packages.slice(0, 2) }),
@@ -300,7 +333,7 @@ describe("planning", () => {
 describe("idempotent Linear synchronization", () => {
   it("requires intent before result, and refuses duplicates in both directions", async () => {
     const m = fixture();
-    await m.append({ type: "mission-init", packet });
+    await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     await m.append({ type: "plan-recorded", packages: plan.packages });
     await expect(
       m.append({ type: "linear-sync-result", package_id: "WP-events-filter", issue_id: "LAN-901" }),
@@ -326,7 +359,7 @@ describe("idempotent Linear synchronization", () => {
 describe("worker dispatch", () => {
   it("refuses dispatch before the connectivity preflight and before Linear synchronization", async () => {
     const m = fixture();
-    await m.append({ type: "mission-init", packet });
+    await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     await m.append({ type: "plan-recorded", packages: plan.packages });
     await expect(
       m.append({
@@ -370,7 +403,7 @@ describe("worker dispatch", () => {
 
   it("serializes colliding collision domains and a second migration owner", async () => {
     const m = fixture();
-    await m.append({ type: "mission-init", packet });
+    await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     const colliding = [
       { ...plan.packages[0], id: "WP-events-a", migration_owner: true },
       { ...plan.packages[0], id: "WP-events-b", title: "Synthetic sibling" },
@@ -578,7 +611,7 @@ describe("worker receipts and correction lineage", () => {
 
   it("holds a correction resumption to the same scheduling conjuncts as a fresh dispatch", async () => {
     const m = fixture();
-    await m.append({ type: "mission-init", packet });
+    await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     const colliding = [
       { ...plan.packages[0], id: "WP-events-a" },
       { ...plan.packages[0], id: "WP-events-b", title: "Synthetic sibling" },
@@ -956,6 +989,84 @@ describe("guarded merge recording", () => {
     expect(repeated.packages["WP-events-filter"].visual_approved).toBe(true);
   });
 
+  /**
+   * LAN-148. The rule review receipts already carried, now carried by worker
+   * receipts too. In the first live run a worker returned after its package
+   * had been merged, and the package walked backwards from "merged" to
+   * "implemented" — re-opening a finished lifecycle and offering review and
+   * merge-gate actions for work that had already shipped.
+   */
+  it("refuses a late worker receipt on merged work, and replay never regresses it", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/wp-events",
+      branch: "feat/wp-events",
+    });
+    await m.append({
+      type: "merge-recorded",
+      package_id: "WP-events-filter",
+      sha: SHA,
+      route: "owner",
+    });
+
+    await expect(
+      m.append({
+        type: "worker-receipt",
+        package_id: "WP-events-filter",
+        worker_id: "worker-1",
+        receipt: workerReceipt("completed"),
+      }),
+    ).rejects.toThrow(/already merged; a late worker receipt is refused/);
+
+    const events = readJournal(missionPaths(m.repo, MISSION, m.env).journal);
+    const replayed = reduce([
+      ...events,
+      {
+        type: "worker-receipt",
+        at: "later",
+        package_id: "WP-events-filter",
+        worker_id: "worker-1",
+        receipt: workerReceipt("completed"),
+      },
+    ]);
+    expect(replayed.packages["WP-events-filter"].status).toBe("merged");
+    // The evidence is kept even though the lifecycle does not move.
+    expect(replayed.packages["WP-events-filter"].receipts).toHaveLength(1);
+    expect(nextActions(replayed).some((action) => action.package_id === "WP-events-filter")).toBe(
+      false,
+    );
+  });
+
+  it("fences the mission from initialization, before any heartbeat", async () => {
+    const m = fixture();
+    const state = await m.append({
+      type: "mission-init",
+      packet,
+      lead_id: "lead-one",
+      pid: 4242,
+    });
+    expect(state.lead).toMatchObject({ lead_id: "lead-one", pid: 4242 });
+    expect(
+      leadLeaseAvailable(state, {
+        leadId: "lead-two",
+        now: Date.parse(state.lead.at),
+        probe: () => true,
+      }),
+    ).toBe(false);
+    expect(leadLeaseAvailable(state, { leadId: "lead-one" })).toBe(true);
+  });
+
+  it("refuses an initialization that carries no fence", async () => {
+    const m = fixture();
+    await expect(m.append({ type: "mission-init", packet })).rejects.toThrow(
+      /stable Lead identity/,
+    );
+  });
+
   it("refuses late review receipts and corrections on merged work, and replay never regresses it", async () => {
     const m = fixture();
     await readyMission(m);
@@ -1008,7 +1119,7 @@ describe("guarded merge recording", () => {
 
   it("never guarded-merges highest-risk or migration-owning work; the owner route remains", async () => {
     const m = fixture();
-    await m.append({ type: "mission-init", packet });
+    await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     const risky = [
       { ...plan.packages[1], id: "WP-risky", risk_class: "highest" },
       {
@@ -1167,7 +1278,13 @@ describe("durable reconstruction", () => {
 
   it("holds the Lead lease for a live pid and frees it only when expired and dead", () => {
     const state = reduce([
-      { type: "mission-init", at: "2026-08-18T10:00:00.000Z", packet },
+      {
+        type: "mission-init",
+        at: "2026-08-18T10:00:00.000Z",
+        packet,
+        lead_id: "lead-fixture",
+        pid: 4242,
+      },
       {
         type: "lead-heartbeat",
         at: "2026-08-18T10:00:00.000Z",

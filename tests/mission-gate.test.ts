@@ -245,7 +245,7 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
 
   const base = (extra: object[] = []) =>
     reduce([
-      { type: "mission-init", at: "t", packet },
+      { type: "mission-init", at: "t", packet, lead_id: "lead-fixture", pid: 4242 },
       { type: "plan-recorded", at: "t", packages: plan.packages },
       { type: "linear-preflight", at: "t", result: "reachable", detail: "fixture" },
       { type: "linear-sync-intent", at: "t", package_id: "WP-events-filter" },

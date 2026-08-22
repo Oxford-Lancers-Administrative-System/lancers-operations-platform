@@ -2,7 +2,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { prepareRuntime, readSession, updateLease } from "./lib/local-supabase-coordinator.mjs";
+import {
+  markConfigApplied,
+  prepareRuntime,
+  readSession,
+  renderedConfigFingerprint,
+  updateLease,
+} from "./lib/local-supabase-coordinator.mjs";
 import { ensureLocalReviewAccount, readLocalReviewAccount } from "./lib/local-review-account.mjs";
 
 const repoPath = process.cwd();
@@ -19,6 +25,16 @@ function run(command, args, env = process.env, echo = true) {
   if (result.stderr) process.stderr.write(result.stderr);
   if (result.status !== 0) process.exit(result.status ?? 1);
   return result.stdout;
+}
+
+/** Stopping a stack that is not running is not a failure worth aborting on. */
+function runTolerant(command, args, env = process.env) {
+  spawnSync(command, args, {
+    cwd: repoPath,
+    env,
+    encoding: "utf8",
+    stdio: ["inherit", "pipe", "pipe"],
+  });
 }
 
 function localEnvironment(lease, account) {
@@ -68,9 +84,31 @@ try {
     prepareRuntime(repoPath, lease);
   }
 
+  // LAN-148. `supabase start` against containers that are already up is a
+  // no-op, and `db reset` rebuilds the database without restarting Auth. A
+  // re-fenced stack would therefore keep serving the previous holder's
+  // `site_url` and redirect allow-list while every rendered file said
+  // otherwise — invisible from the filesystem, and fatal to a recovery link.
+  // Restart when the applied configuration no longer matches the rendered one,
+  // and record what was actually applied.
+  const applyRenderedConfig = async () => {
+    const fingerprint = renderedConfigFingerprint(repoPath, lease);
+    // A null `appliedConfig` is not "nothing is running" — it is "this holder
+    // has never applied anything", which is exactly the re-fenced case where
+    // the containers still serve the previous holder's site URL and redirect
+    // allow-list. Unproven is treated as drifted.
+    if (lease.appliedConfig !== fingerprint) {
+      console.log(`Applying this holder's configuration to ${lease.slot}; restarting the stack.`);
+      runTolerant(cli, cliArgs("stop", ["--no-backup"]), cliEnv);
+    }
+    return fingerprint;
+  };
+
   if (operation === "start") {
     const reviewAccount = ensureLocalReviewAccount(repoPath);
+    const fingerprint = await applyRenderedConfig();
     run(cli, cliArgs("start"), cliEnv, false);
+    await markConfigApplied({ repoPath, token: session.token, fingerprint });
     const raw = run(cli, cliArgs("status", ["-o", "json"]), cliEnv, false);
     const status = JSON.parse(raw);
     const envFile = [
@@ -90,6 +128,11 @@ try {
   } else if (operation === "stop") run(cli, cliArgs("stop", ["--no-backup"]), cliEnv);
   else if (operation === "reset") {
     const reviewAccount = ensureLocalReviewAccount(repoPath);
+    const fingerprint = await applyRenderedConfig();
+    if (lease.appliedConfig !== fingerprint) {
+      run(cli, cliArgs("start"), cliEnv, false);
+      await markConfigApplied({ repoPath, token: session.token, fingerprint });
+    }
     run(cli, cliArgs("db", ["reset", "--local", "--yes"]), cliEnv);
     provisionReviewState(lease, reviewAccount);
   } else if (operation === "status") {

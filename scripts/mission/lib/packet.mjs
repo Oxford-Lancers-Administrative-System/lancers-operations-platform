@@ -26,6 +26,11 @@ export const COLLISION_DOMAINS = [
   "messaging",
   "attendance",
   "reporting",
+  // LAN-148. The first live mission had to describe presentation work and
+  // operational-script work as something else, because neither had a domain.
+  // Two packages editing the same surfaces then read as non-colliding.
+  "ui-presentation",
+  "operational-scripts",
   "agent-infrastructure",
 ];
 

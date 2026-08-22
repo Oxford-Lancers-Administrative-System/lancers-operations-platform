@@ -162,7 +162,7 @@ own pitches, which no geocoder indexes, are typed rather than searched.
 | `npm run db:heartbeat`                                                       | Refresh the current slot lease                    |
 | `npm run db:review-ready`                                                    | Validate browser evidence and protect review      |
 | `npm run db:release`                                                         | Release the current slot after stopping it        |
-| `npm run db:cleanup-stale`                                                   | Mark dead, expired active leases stale            |
+| `npm run db:cleanup-stale`                                                   | Mark abandoned active leases stale                |
 
 The authoritative lease registry lives in machine-local state, keyed by the
 repository remote so clones and worktrees coordinate. `.lancers-runtime/` in
@@ -171,16 +171,34 @@ ignored. Every lifecycle or mutating database command validates that token.
 Primary keeps the familiar ports; overflow receives a distinct project ID,
 complete service-port set, and application port automatically. Do not edit the
 tracked `supabase/config.toml` to make a second stack.
-If a released slot's own containers are still running, the next claim rotates
-the fencing token and adopts that slot; its mandatory reset removes the prior
-worktree's schema and data. Occupied ports on a never-allocated or stale slot
-still fail closed as ambiguous.
+If a slot this coordinator has already allocated still has its own containers
+running — a released stack kept warm, or an abandoned one whose owner died
+without stopping it — the next claim rotates the fencing token and adopts that
+slot. Only a slot with no record at all fails closed on occupied ports, because
+only there is it genuinely unknown whose process is listening. The next holder's
+`db:start` restarts the stack under its own rendered configuration before it is
+usable: `supabase start` against running containers is a no-op, so a re-fenced
+stack would otherwise keep serving the previous holder's Auth site URL and
+redirect allow-list, which fails invisibly rather than loudly.
+
+**When a slot becomes available again.** A lease is held while its heartbeat is
+fresh — every guarded database command refreshes it — and for four hours after
+the last one. Two facts decide recovery, and neither is the owning process on
+its own: a conclusively dead owner is reclaimed at once, and an owner that
+cannot be told apart from a live one waits out that window. The process alone
+cannot decide because every agent in one Claude session shares that session's
+pid, so a live pid says nothing about whether the agent that took the lease
+still exists. A `review-ready` slot is never reclaimed on a timer at all; it is
+protected until its owner releases it. `npm run db:cleanup-stale` is the
+deliberate route for a slot known to be finished, and it never touches a live or
+`review-ready` one.
 
 For UI work, the issue agent records its completed browser preflight in ignored
 `.lancers-runtime/visual-review.json`. `db:review-ready` refuses to protect the
 slot unless the assigned loopback URL, real login, seeded states, review routes,
-desktop layout, and 375px layout are all recorded as verified. This record
-contains no password.
+desktop layout, and 375px layout are all recorded as verified, and unless the
+running stack holds this holder's rendered configuration. This record contains no
+password.
 
 Run `npm run verify` before opening a pull request. It is what CI runs.
 
