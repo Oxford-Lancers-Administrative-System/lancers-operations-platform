@@ -216,9 +216,43 @@ async function main() {
 
     case "plan": {
       if (!missionId || !flags.packages) fail("Usage: mission plan <mission-id> --packages <file>");
-      const { packages } = readJson(flags.packages);
-      const state = await append(missionId, { type: "plan-recorded", packages });
-      console.log(`Plan recorded: ${Object.keys(state.packages).length} package(s).`);
+      const { packages, decomposition, removals } = readJson(flags.packages);
+      const state = await append(missionId, {
+        type: "plan-recorded",
+        packages,
+        decomposition,
+        ...(removals ? { removals } : {}),
+      });
+      const live = Object.values(state.packages).filter((pkg) => pkg.status !== "removed");
+      console.log(
+        `Plan recorded: ${live.length} package(s). Nothing durable is created until the decomposition is approved — \`mission approve-plan ${missionId} --by <who> --evidence <where>\`.`,
+      );
+      break;
+    }
+
+    case "approve-plan": {
+      if (!missionId || !flags.by || !flags.evidence) {
+        fail("Usage: mission approve-plan <mission-id> --by <who> --evidence <where presented>");
+      }
+      await append(missionId, {
+        type: "plan-approved",
+        approved_by: flags.by,
+        evidence: flags.evidence,
+      });
+      console.log("Plan approved; Linear synchronization may proceed.");
+      break;
+    }
+
+    case "defer-dispatch": {
+      if (!missionId || !positional[1] || !flags.reason) {
+        fail("Usage: mission defer-dispatch <mission-id> <package-id> --reason <why>");
+      }
+      await append(missionId, {
+        type: "dispatch-deferred",
+        package_id: positional[1],
+        reason: flags.reason,
+      });
+      console.log(`Recorded why ${positional[1]} waits for a merge the evidence does not require.`);
       break;
     }
 
@@ -574,7 +608,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: validate, init, plan, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
       );
   }
 }

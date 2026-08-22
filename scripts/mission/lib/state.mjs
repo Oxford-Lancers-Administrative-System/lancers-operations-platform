@@ -24,7 +24,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 
-import { validatePacket, validatePackage } from "./packet.mjs";
+import { validateDecomposition, validatePacket, validatePackage } from "./packet.mjs";
 
 export const MAX_ACTIVE_WORKERS = 2;
 export const LEAD_TTL_MS = 120_000;
@@ -33,7 +33,9 @@ export const EVENT_TYPES = [
   "mission-init",
   "lead-heartbeat",
   "plan-recorded",
+  "plan-approved",
   "linear-preflight",
+  "dispatch-deferred",
   "linear-sync-intent",
   "linear-sync-result",
   "worker-dispatched",
@@ -171,6 +173,42 @@ function activeWorkerFor(state, packageId) {
 }
 
 /**
+ * Whether downstream work may be built on this dependency yet (LAN-148 §F).
+ *
+ * Merged is the obvious answer. The one the first live run needed and did not
+ * have is the other: a dependency that has been independently reviewed clean at
+ * exactly the head its pull request carries, and — if it is visual — approved at
+ * that same head, is a deterministic, verified base. Waiting for Brian to click
+ * merge adds no safety, and in the first mission it idled downstream packages
+ * for hours at a time. His merge authority is untouched; only the *scheduling*
+ * dependency on his timing is removed.
+ */
+export function dependencyUsable(state, packageId) {
+  const pkg = state.packages[packageId];
+  if (!pkg) return { usable: false, basis: null, why: `${packageId} is not planned.` };
+  if (pkg.status === "merged") return { usable: true, basis: "merged" };
+  const review = pkg.review;
+  if (!review || review.result !== "clear") {
+    return { usable: false, basis: null, why: `${packageId} has no clear independent review.` };
+  }
+  if (!pkg.head_sha || review.reviewed_head_sha !== pkg.head_sha) {
+    return {
+      usable: false,
+      basis: null,
+      why: `${packageId} was reviewed at ${review.reviewed_head_sha ?? "no recorded head"}, but its pull request now carries ${pkg.head_sha ?? "no recorded head"}.`,
+    };
+  }
+  if (pkg.visual !== "nonvisual" && !pkg.visual_approved) {
+    return {
+      usable: false,
+      basis: null,
+      why: `${packageId} is visual and has no recorded approval at its current head.`,
+    };
+  }
+  return { usable: true, basis: "reviewed-at-head", head_sha: pkg.head_sha };
+}
+
+/**
  * The scheduling conjuncts every worker start shares — a fresh dispatch and a
  * correction resumption alike. A correction runs the same worker on the same
  * package, but it still occupies a slot, still collides on its domain, still
@@ -208,6 +246,59 @@ function schedulingRefusals(state, pkg, packageId) {
     );
   }
   return errors;
+}
+
+/**
+ * Why this package may not travel the guarded lane, from mission state alone.
+ *
+ * LAN-148 §F separates three things the harness used to conflate. Review grade
+ * says how rigorously a change is reviewed. Merge route is decided by the
+ * protected surface the diff actually touches plus the evidence — which the
+ * workflow re-derives from the real diff, and which no receipt can talk its way
+ * past. Dispatch state is a third thing again.
+ *
+ * The blanket "highest risk never auto-merges" made the checkpoint-approval
+ * tier unreachable for exactly the work it was designed for: authorization
+ * rules are graded Highest, so the tier Brian approved on 2026-08-18 could
+ * never fire. Highest-risk work now travels the lane only when an answered
+ * owner checkpoint names the package — he still hears about it before it
+ * merges — while migrations, and every path in the prohibited list, stay his.
+ */
+export function guardedLaneRefusals(state, packageId, sha) {
+  const pkg = state.packages[packageId];
+  if (!pkg) return [`No planned package ${packageId}.`];
+  const refusals = [];
+  if (pkg.migration_owner) {
+    refusals.push("A migration-owning package is owner-merged, never autonomous.");
+  }
+  if (pkg.risk_class === "highest" && !answeredQuestionNaming(state, packageId)) {
+    refusals.push(
+      `${packageId} is highest risk. It may use the guarded lane only when an answered owner checkpoint names it, so that Brian has heard about it before it merges.`,
+    );
+  }
+  const review = pkg.review;
+  if (!review || review.result !== "clear" || review.reviewed_head_sha !== sha) {
+    refusals.push(
+      `A guarded merge requires a clear review receipt at exactly ${sha ?? "the merged SHA"}.`,
+    );
+  }
+  if (pkg.visual !== "nonvisual" && !pkg.visual_approved) {
+    refusals.push("Visual work merges only after Brian's recorded visual approval.");
+  }
+  for (const question of openQuestionsAffecting(state, packageId)) {
+    refusals.push(`Unresolved owner question ${question.id} affects ${packageId}.`);
+  }
+  if (state.stopped) {
+    refusals.push(`The mission is stopped (${state.stopped.reason}); nothing merges.`);
+  }
+  return refusals;
+}
+
+/** An answered owner question that names this package — the checkpoint tier. */
+function answeredQuestionNaming(state, packageId) {
+  return Object.values(state.questions).some(
+    (question) => question.status === "answered" && question.affected_packages.includes(packageId),
+  );
 }
 
 /**
@@ -273,16 +364,47 @@ export function validateEvent(event, state) {
         break;
       }
       const seen = new Set();
+      // LAN-148 §A: one coherent issue defaults to one implementation package,
+      // so a plan proposing more than one must say what boundary each split
+      // buys and what it costs Brian.
+      const requireSeparation = event.packages.length > 1;
       for (const pkg of event.packages) {
-        errors.push(...validatePackage(pkg, state.packet));
+        errors.push(...validatePackage(pkg, state.packet, { requireSeparation }));
         if (pkg.id && seen.has(pkg.id)) errors.push(`Package id ${pkg.id} is duplicated.`);
         if (pkg.id) seen.add(pkg.id);
       }
-      // Stable IDs across replans: every already-planned package must survive.
-      for (const existing of Object.keys(state.packages)) {
-        if (!seen.has(existing)) {
+      errors.push(...validateDecomposition(event.decomposition, event.packages));
+
+      // Stable IDs across replans — but a plan that has not been synchronized
+      // or dispatched is still a proposal. Before LAN-148 an over-split plan
+      // could never be combined, because the first recording of it was final;
+      // the reversibility the issue asks for is exactly this branch.
+      const removals = new Map(
+        (Array.isArray(event.removals) ? event.removals : []).map((entry) => [
+          entry?.package_id,
+          entry,
+        ]),
+      );
+      for (const [existingId, existing] of Object.entries(state.packages)) {
+        if (seen.has(existingId) || existing.status === "removed") continue;
+        const removal = removals.get(existingId);
+        if (!removal) {
           errors.push(
-            `Replanning removed ${existing}. Work-package ids are stable; a package may be revised but never silently dropped.`,
+            `Replanning dropped ${existingId} without recording it. A package may be combined or removed before it is synchronized, but never silently.`,
+          );
+          continue;
+        }
+        if (!isNonEmptyString(removal.reason)) {
+          errors.push(`Removing ${existingId} records why it was combined or dropped.`);
+        }
+        const durable =
+          existing.linear_issue_id ||
+          existing.worker_id ||
+          existing.pr_number ||
+          existing.status !== "planned";
+        if (durable) {
+          errors.push(
+            `${existingId} has already become durable (${existing.linear_issue_id ?? existing.status}); its identity and lineage are protected once execution begins.`,
           );
         }
       }
@@ -323,6 +445,36 @@ export function validateEvent(event, state) {
       break;
     }
 
+    case "plan-approved": {
+      if (Object.keys(state.packages).length === 0) {
+        errors.push("There is no recorded plan to approve.");
+      }
+      if (state.planApproved) {
+        errors.push("This plan is already approved; record a revised plan before approving again.");
+      }
+      if (!isNonEmptyString(event.approved_by)) {
+        errors.push("A plan approval records who approved the decomposition.");
+      }
+      if (!isNonEmptyString(event.evidence)) {
+        errors.push(
+          "A plan approval records where the decomposition and its owner cost were presented.",
+        );
+      }
+      break;
+    }
+
+    case "dispatch-deferred": {
+      if (!state.packages[event.package_id]) {
+        errors.push(`No planned package ${event.package_id}.`);
+      }
+      if (!isNonEmptyString(event.reason)) {
+        errors.push(
+          "Waiting for a merge that the evidence does not require is a choice; it records the concrete safety or integration reason.",
+        );
+      }
+      break;
+    }
+
     case "linear-preflight": {
       if (event.result !== "reachable") {
         errors.push(
@@ -340,6 +492,16 @@ export function validateEvent(event, state) {
       if (!pkg) {
         errors.push(`No planned package ${event.package_id}.`);
         break;
+      }
+      // Nothing durable — no Linear issue, no branch, no work package — is
+      // created before the decomposition has been presented and approved.
+      if (!state.planApproved) {
+        errors.push(
+          "The plan is not approved. Present the decomposition, its collision evidence, its achievable concurrency and its owner cost, and record the approval before creating anything durable.",
+        );
+      }
+      if (pkg.status === "removed") {
+        errors.push(`${event.package_id} was removed from the plan.`);
       }
       if (pkg.linear_issue_id) {
         errors.push(
@@ -396,9 +558,31 @@ export function validateEvent(event, state) {
       }
       if (pkg.status === "merged") errors.push(`${event.package_id} is already merged.`);
       errors.push(...schedulingRefusals(state, pkg, event.package_id));
+      const declaredBasis = new Map(
+        (Array.isArray(event.dependency_basis) ? event.dependency_basis : []).map((entry) => [
+          entry?.package_id,
+          entry,
+        ]),
+      );
       for (const dep of pkg.depends_on) {
-        if (state.packages[dep]?.status !== "merged") {
-          errors.push(`${event.package_id} depends on ${dep}, which is not merged yet.`);
+        const verdict = dependencyUsable(state, dep);
+        if (!verdict.usable) {
+          errors.push(`${event.package_id} cannot start on ${dep}: ${verdict.why}`);
+          continue;
+        }
+        if (verdict.basis === "merged") continue;
+        // Building on an unmerged dependency is allowed, but it is a decision
+        // the journal has to be able to show, pinned to the exact commit it
+        // was taken against.
+        const declared = declaredBasis.get(dep);
+        if (!declared) {
+          errors.push(
+            `${event.package_id} builds on unmerged ${dep}; the dispatch records that basis and the exact head it relies on.`,
+          );
+        } else if (declared.head_sha !== verdict.head_sha) {
+          errors.push(
+            `${event.package_id} records ${dep} at ${declared.head_sha ?? "no head"}, but the reviewed head is ${verdict.head_sha}.`,
+          );
         }
       }
       break;
@@ -585,23 +769,17 @@ export function validateEvent(event, state) {
         errors.push("A merge records the exact merged head SHA.");
       }
       if (event.route === "guarded-auto") {
-        if (pkg.risk_class === "highest") {
-          errors.push("Highest-risk work cannot autonomous-merge in v1.");
-        }
-        if (pkg.migration_owner) {
-          errors.push("A migration-owning package is owner-merged, never autonomous.");
-        }
-        const review = pkg.review;
-        if (!review || review.result !== "clear" || review.reviewed_head_sha !== event.sha) {
+        errors.push(...guardedLaneRefusals(state, event.package_id, event.sha));
+      }
+      // LAN-148 §F: sending work to Brian that the lane could have taken is a
+      // harness defect, not a neutral choice — it is what turned the first live
+      // mission's merges into a queue. It is allowed, and it is recorded.
+      if (event.route === "owner") {
+        const qualified = guardedLaneRefusals(state, event.package_id, event.sha).length === 0;
+        if (qualified && !isNonEmptyString(event.owner_route_reason)) {
           errors.push(
-            `A guarded merge requires a clear review receipt at exactly ${event.sha ?? "the merged SHA"}.`,
+            `${event.package_id} qualified for the guarded lane; routing it to Brian anyway records why, and is counted as a harness defect.`,
           );
-        }
-        if (pkg.visual !== "nonvisual" && !pkg.visual_approved) {
-          errors.push("Visual work merges only after Brian's recorded visual approval.");
-        }
-        for (const question of openQuestionsAffecting(state, event.package_id)) {
-          errors.push(`Unresolved owner question ${question.id} affects ${event.package_id}.`);
         }
       }
       break;
@@ -685,6 +863,10 @@ export function validateEvent(event, state) {
  *   stopped: { at: string, reason: string, detail: string } | null,
  *   lead: { lead_id: string, pid: number, at: string } | null,
  *   rulesApplied: Array<Record<string, any>>,
+ *   planApproved: { at: string, by: string, evidence: string } | null,
+ *   decomposition: Record<string, any> | null,
+ *   dispatchDeferrals: Array<Record<string, any>>,
+ *   laneBypasses: Array<Record<string, any>>,
  *   eventCount: number,
  * }} MissionState
  * @typedef {{ action: string, detail: string, package_id?: string, question_id?: string }} MissionAction
@@ -704,6 +886,10 @@ function emptyState() {
     stopped: null,
     lead: null,
     rulesApplied: [],
+    planApproved: null,
+    decomposition: null,
+    dispatchDeferrals: [],
+    laneBypasses: [],
     eventCount: 0,
   };
 }
@@ -726,7 +912,22 @@ export function reduce(events) {
       case "lead-heartbeat":
         state.lead = { lead_id: event.lead_id, pid: event.pid, at: event.at };
         break;
-      case "plan-recorded":
+      case "plan-recorded": {
+        const proposed = new Set(event.packages.map((pkg) => pkg.id));
+        for (const [id, existing] of Object.entries(state.packages)) {
+          if (proposed.has(id) || existing.status === "removed") continue;
+          // Kept, not deleted: the lineage of a combined-away package stays
+          // readable, and the journal above records why.
+          existing.status = "removed";
+          existing.removed = {
+            at: event.at,
+            reason: (event.removals ?? []).find((entry) => entry.package_id === id)?.reason ?? null,
+          };
+        }
+        // A revised plan is a different plan; whatever was approved no longer
+        // describes it. Same pinning as a visual approval against a new head.
+        state.planApproved = null;
+        state.decomposition = event.decomposition ?? null;
         for (const pkg of event.packages) {
           const existing = state.packages[pkg.id];
           state.packages[pkg.id] = {
@@ -742,6 +943,21 @@ export function reduce(events) {
             driftStopped: existing?.driftStopped ?? false,
           };
         }
+        break;
+      }
+      case "plan-approved":
+        state.planApproved = {
+          at: event.at,
+          by: event.approved_by,
+          evidence: event.evidence,
+        };
+        break;
+      case "dispatch-deferred":
+        state.dispatchDeferrals.push({
+          at: event.at,
+          package_id: event.package_id,
+          reason: event.reason,
+        });
         break;
       case "linear-preflight":
         state.preflight = { at: event.at, detail: event.detail };
@@ -886,6 +1102,13 @@ export function reduce(events) {
         const pkg = state.packages[event.package_id];
         pkg.status = "merged";
         pkg.merged = { at: event.at, sha: event.sha, route: event.route };
+        if (event.route === "owner" && event.owner_route_reason) {
+          state.laneBypasses.push({
+            at: event.at,
+            package_id: event.package_id,
+            reason: event.owner_route_reason,
+          });
+        }
         break;
       }
       case "checkpoint":
@@ -983,6 +1206,13 @@ export function nextActions(state) {
   if (packages.length === 0) {
     return [{ action: "plan", detail: "Derive the work-package DAG from the packet." }];
   }
+  if (!state.planApproved) {
+    actions.push({
+      action: "plan-approval",
+      detail:
+        "Present the decomposition — packages, split boundaries and their evidence, achievable concurrency, critical path, expected owner merges and visual approvals, and what was considered for combination — and record the approval. Nothing durable is created first.",
+    });
+  }
   if (!state.preflight) {
     actions.push({
       action: "linear-preflight",
@@ -999,27 +1229,35 @@ export function nextActions(state) {
     }
   }
   for (const pkg of packages) {
-    if (pkg.driftStopped) continue;
+    if (pkg.driftStopped || pkg.status === "removed") continue;
     const questionBlocked = Object.values(state.questions).some(
       (question) => question.status === "open" && question.affected_packages.includes(pkg.id),
     );
     if (questionBlocked) continue;
-    if (pkg.status === "planned" && state.preflight && !pkg.linear_issue_id) {
+    if (pkg.status === "planned" && state.preflight && state.planApproved && !pkg.linear_issue_id) {
       actions.push({
         action: "sync",
         package_id: pkg.id,
         detail: "Create or reconcile the Linear issue.",
       });
     }
-    if (
-      pkg.status === "synced" &&
-      pkg.depends_on.every((dep) => state.packages[dep]?.status === "merged")
-    ) {
-      actions.push({
-        action: "dispatch",
-        package_id: pkg.id,
-        detail: "Dispatch when a worker slot and collision domain are free.",
-      });
+    if (pkg.status === "synced") {
+      const verdicts = pkg.depends_on.map((dep) => [dep, dependencyUsable(state, dep)]);
+      const blocked = verdicts.filter(([, verdict]) => !verdict.usable);
+      if (blocked.length === 0) {
+        const unmerged = verdicts.filter(([, verdict]) => verdict.basis === "reviewed-at-head");
+        actions.push({
+          action: "dispatch",
+          package_id: pkg.id,
+          detail: unmerged.length
+            ? `Dispatch when a worker slot and collision domain are free, recording the reviewed head of ${unmerged
+                .map(([dep]) => dep)
+                .join(
+                  ", ",
+                )} as its basis. Waiting for the merge instead is a choice that records its reason.`
+            : "Dispatch when a worker slot and collision domain are free.",
+        });
+      }
     }
     if (pkg.status === "implemented" && pkg.risk_class !== "low") {
       actions.push({

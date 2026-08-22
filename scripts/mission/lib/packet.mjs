@@ -35,6 +35,36 @@ export const COLLISION_DOMAINS = [
 ];
 
 export const RISK_CLASSES = ["low", "normal", "highest"];
+
+/**
+ * The only boundaries that justify making a second package out of what would
+ * otherwise be one coherent issue (LAN-148 §A).
+ *
+ * The first live mission produced eight packages, eight Linear issues and eight
+ * pull requests for one workflow, and every split cost Brian another merge and
+ * another review round. A split has to buy something concrete.
+ */
+export const SEPARATION_REASONS = [
+  // Two packages would edit the same files, so they cannot run concurrently.
+  "file-conflict",
+  // Their user-visible surfaces are gated separately and can be approved apart.
+  "independent-visual-gate",
+  // They cross materially different safety boundaries — one owner-merged, one not.
+  "safety-boundary",
+  // One must be verified, or must land, before the other can be built on it.
+  "sequencing-verification",
+];
+
+/**
+ * Reasons that describe the work rather than a boundary. Each one was offered
+ * during the first live run and each produced a split that bought nothing.
+ */
+export const REJECTED_SEPARATION_REASONS = {
+  risk: "risk grade describes how carefully a change is reviewed, not whether it can be one package",
+  directory: "directory membership describes where files sit, not whether two changes conflict",
+  tidiness: "tidiness is a preference, and it costs Brian a merge and a review round",
+  "agent-time": "estimated agent time is not a boundary; a longer package is still one package",
+};
 export const VISUAL_CLASSES = ["ui", "nonvisual", "mixed"];
 export const SOURCE_KINDS = ["notion", "linear", "github", "document"];
 
@@ -304,7 +334,7 @@ export function validateWorkflowInventory(packet, inventoryIds) {
  * Dependency-graph rules (existence, acyclicity) live in the plan validator
  * in state.mjs, which sees the whole plan; this checks the package itself.
  */
-export function validatePackage(pkg, packet) {
+export function validatePackage(pkg, packet, options = {}) {
   const errors = [];
   if (pkg === null || typeof pkg !== "object" || Array.isArray(pkg)) {
     return ["The work package is not an object."];
@@ -339,6 +369,79 @@ export function validatePackage(pkg, packet) {
   }
   if (!Array.isArray(pkg.depends_on) || !pkg.depends_on.every(isNonEmptyString)) {
     errors.push(`${pkg.id ?? "package"}: depends_on must be an array of package ids.`);
+  }
+  if (options.requireSeparation) errors.push(...validateSeparation(pkg));
+  return errors;
+}
+
+/**
+ * Why this is its own package, what that boundary actually is, and what the
+ * split costs. Required of every package once a plan proposes more than one:
+ * one coherent issue defaults to one implementation package.
+ */
+export function validateSeparation(pkg) {
+  const label = pkg?.id ?? "package";
+  const separation = pkg?.separation;
+  if (separation === null || typeof separation !== "object" || Array.isArray(separation)) {
+    return [
+      `${label}: a plan with more than one package records \`separation\` on each — one coherent issue defaults to one package.`,
+    ];
+  }
+  const errors = [];
+  const rejected = REJECTED_SEPARATION_REASONS[separation.reason];
+  if (rejected) {
+    errors.push(`${label}: "${separation.reason}" is not a boundary — ${rejected}.`);
+  } else if (!SEPARATION_REASONS.includes(separation.reason)) {
+    errors.push(`${label}: separation.reason must be one of ${SEPARATION_REASONS.join(", ")}.`);
+  }
+  if (!isNonEmptyString(separation.evidence)) {
+    errors.push(
+      `${label}: separation.evidence must name the concrete overlap, gate or boundary — the actual files, migration or approval, not a restatement of the reason.`,
+    );
+  }
+  if (!isNonEmptyString(separation.owner_cost)) {
+    errors.push(
+      `${label}: separation.owner_cost must state what this split costs Brian — the extra merges, reviews and visual approvals it adds.`,
+    );
+  }
+  return errors;
+}
+
+/**
+ * The decomposition a Lead must be able to defend before anything durable is
+ * created: what it considered combining, what concurrency the split actually
+ * buys, what the critical path is, and what Brian pays for it.
+ */
+export function validateDecomposition(decomposition, packages) {
+  if (decomposition === null || typeof decomposition !== "object" || Array.isArray(decomposition)) {
+    return ["A plan records its `decomposition`: what it considered, what it costs, and why."];
+  }
+  const errors = [];
+  if (!isNonEmptyString(decomposition.combinations_considered)) {
+    errors.push(
+      "decomposition.combinations_considered must record which packages were considered as one and why they were not combined.",
+    );
+  }
+  const concurrency = decomposition.achievable_concurrency;
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    errors.push(
+      "decomposition.achievable_concurrency must be the number of packages that can genuinely run at once, given collision domains and dependencies.",
+    );
+  }
+  const ids = new Set((packages ?? []).map((pkg) => pkg?.id));
+  if (
+    !Array.isArray(decomposition.critical_path) ||
+    decomposition.critical_path.length === 0 ||
+    !decomposition.critical_path.every((id) => ids.has(id))
+  ) {
+    errors.push(
+      "decomposition.critical_path must name planned package ids, longest dependency chain first.",
+    );
+  }
+  for (const field of ["expected_owner_merges", "expected_visual_approvals"]) {
+    if (!Number.isInteger(decomposition[field]) || decomposition[field] < 0) {
+      errors.push(`decomposition.${field} must be a count of what this plan will ask of Brian.`);
+    }
   }
   return errors;
 }

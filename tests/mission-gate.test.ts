@@ -145,11 +145,25 @@ describe("the guarded mission merge gate", () => {
     expect(verdict.reasons.join("\n")).toMatch(/head moved after review/);
   });
 
-  it("refuses a blocked review, a highest-risk claim, and unresolved owner questions", () => {
+  it("refuses a blocked review, an uncheckpointed highest-risk claim, and open owner questions", () => {
     expect(receiptDefects(receipt({ review_result: "blocked" })).join("\n")).toMatch(/not "clear"/);
+    // LAN-148 §F: highest risk is not refused for being highest risk. It is
+    // refused for not citing the checkpoint at which Brian heard about it.
     expect(receiptDefects(receipt({ risk_class: "highest" })).join("\n")).toMatch(
-      /owner-merged in v1/,
+      /may travel this lane only when it cites the answered owner question/,
     );
+    expect(
+      receiptDefects(
+        receipt({
+          risk_class: "highest",
+          owner_decision: {
+            question_id: "Q-authorization-rule",
+            answered_by: "Brian",
+            date: "2026-08-22",
+          },
+        }),
+      ).join("\n"),
+    ).not.toMatch(/risk_class/);
     expect(receiptDefects(receipt({ open_owner_questions: 1 })).join("\n")).toMatch(
       /open_owner_questions: 0/,
     );
@@ -246,7 +260,13 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
   const base = (extra: object[] = []) =>
     reduce([
       { type: "mission-init", at: "t", packet, lead_id: "lead-fixture", pid: 4242 },
-      { type: "plan-recorded", at: "t", packages: plan.packages },
+      {
+        type: "plan-recorded",
+        at: "t",
+        packages: plan.packages,
+        decomposition: plan.decomposition,
+      },
+      { type: "plan-approved", at: "t", approved_by: "Brian", evidence: "checkpoint 1" },
       { type: "linear-preflight", at: "t", result: "reachable", detail: "fixture" },
       { type: "linear-sync-intent", at: "t", package_id: "WP-events-filter" },
       { type: "linear-sync-result", at: "t", package_id: "WP-events-filter", issue_id: "LAN-901" },
@@ -356,12 +376,23 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
     ).toEqual([]);
   });
 
-  it("never lets highest-risk or migration-owning packages through, and requires visual approval for UI work", () => {
+  it("gates highest risk on the checkpoint, never lets a migration owner through, and requires visual approval", () => {
     const state = base();
     state.packages["WP-events-filter"].risk_class = "highest";
     expect(journalConjuncts(state, "WP-events-filter", HEAD).join("\n")).toMatch(
-      /Highest-risk work cannot autonomous-merge/,
+      /is highest risk and no answered owner question names it/,
     );
+    // With the checkpoint answered, the grade alone no longer decides the route.
+    const checkpointed = base();
+    checkpointed.packages["WP-events-filter"].risk_class = "highest";
+    checkpointed.questions = {
+      "Q-authorization-rule": {
+        id: "Q-authorization-rule",
+        status: "answered",
+        affected_packages: ["WP-events-filter"],
+      },
+    };
+    expect(journalConjuncts(checkpointed, "WP-events-filter", HEAD)).toEqual([]);
     const migration = base();
     migration.packages["WP-events-filter"].risk_class = "normal";
     migration.packages["WP-events-filter"].migration_owner = true;

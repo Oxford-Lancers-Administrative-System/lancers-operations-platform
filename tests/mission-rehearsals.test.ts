@@ -85,7 +85,16 @@ function fixtureLinearDriver() {
 
 async function planned(m: ReturnType<typeof mission>) {
   await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
-  await m.append({ type: "plan-recorded", packages: plan.packages });
+  await m.append({
+    type: "plan-recorded",
+    packages: plan.packages,
+    decomposition: plan.decomposition,
+  });
+  await m.append({
+    type: "plan-approved",
+    approved_by: "Brian",
+    evidence: "decomposition and owner cost presented at checkpoint 1",
+  });
 }
 
 async function synced(m: ReturnType<typeof mission>) {
@@ -273,7 +282,17 @@ describe("Rehearsal 5 — concurrency is two; a second safe package runs and a c
       ...plan.packages,
       { ...plan.packages[0], id: "WP-events-sibling", title: "Synthetic sibling" },
     ];
-    await m.append({ type: "plan-recorded", packages: withSibling });
+    await m.append({
+      type: "plan-recorded",
+      packages: withSibling,
+      decomposition: { ...plan.decomposition, critical_path: ["WP-attendance-export"] },
+    });
+    // The revision withdrew the approval it no longer describes (LAN-148 §A).
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "revised decomposition presented at checkpoint 2",
+    });
     await m.append({ type: "linear-sync-intent", package_id: "WP-events-sibling" });
     await m.append({
       type: "linear-sync-result",
@@ -569,7 +588,9 @@ describe("Rehearsal 9 — guarded merge permits the qualifying case and refuses 
       rules,
     });
     expect(prohibitedRisk.merge).toBe(false);
-    expect(prohibitedRisk.reasons.join("\n")).toMatch(/owner-merged in v1/);
+    expect(prohibitedRisk.reasons.join("\n")).toMatch(
+      /may travel this lane only when it cites the answered owner question/,
+    );
 
     const migrationDiff = evaluateMissionGate({
       pullRequest: pullRequest(),

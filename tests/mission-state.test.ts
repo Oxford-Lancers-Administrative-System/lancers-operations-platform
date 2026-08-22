@@ -49,6 +49,27 @@ function fixture() {
   return { repo, env, append };
 }
 
+/**
+ * A plan event with a valid decomposition and separations, so a test that is
+ * about cycles, domains or dependencies asserts that and not LAN-148 §A's
+ * bookkeeping. Tests that are about the bookkeeping build their own.
+ */
+type PlanPackage = Record<string, unknown> & { separation?: Record<string, string> };
+
+const planEvent = (packages: PlanPackage[], extra: object = {}) => ({
+  type: "plan-recorded",
+  packages: packages.map((pkg) =>
+    packages.length > 1 && !pkg.separation
+      ? { ...pkg, separation: plan.packages[0].separation }
+      : pkg,
+  ),
+  decomposition: {
+    ...plan.decomposition,
+    critical_path: packages.length ? [packages[0].id] : [],
+  },
+  ...extra,
+});
+
 const workerReceipt = (result: string) => ({
   branch: "feat/synthetic",
   worktree: ".claude/worktrees/synthetic",
@@ -74,7 +95,16 @@ const reviewReceipt = (result: string, sha = SHA) => ({
 /** Initialize, plan, preflight, and synchronize every package. */
 async function readyMission(m: ReturnType<typeof fixture>) {
   await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
-  await m.append({ type: "plan-recorded", packages: plan.packages });
+  await m.append({
+    type: "plan-recorded",
+    packages: plan.packages,
+    decomposition: plan.decomposition,
+  });
+  await m.append({
+    type: "plan-approved",
+    approved_by: "Brian",
+    evidence: "decomposition and owner cost presented at checkpoint 1",
+  });
   await m.append({
     type: "linear-preflight",
     result: "reachable",
@@ -271,7 +301,16 @@ describe("planning", () => {
   it("records the synthetic three-package DAG with collision domains and stable ids", async () => {
     const m = fixture();
     await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
-    const state = await m.append({ type: "plan-recorded", packages: plan.packages });
+    const state = await m.append({
+      type: "plan-recorded",
+      packages: plan.packages,
+      decomposition: plan.decomposition,
+    });
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "decomposition and owner cost presented at checkpoint 1",
+    });
     expect(Object.keys(state.packages).sort()).toEqual([
       "WP-attendance-export",
       "WP-events-filter",
@@ -285,38 +324,60 @@ describe("planning", () => {
     await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     const base = plan.packages[0];
     await expect(
-      m.append({
-        type: "plan-recorded",
-        packages: [
+      m.append(
+        planEvent([
           { ...base, id: "WP-a", depends_on: ["WP-b"] },
           { ...plan.packages[1], id: "WP-b", depends_on: ["WP-a"] },
-        ],
-      }),
+        ]),
+      ),
     ).rejects.toThrow(/cycle/);
-    await expect(
-      m.append({
-        type: "plan-recorded",
-        packages: [{ ...base, depends_on: ["WP-ghost"] }],
-      }),
-    ).rejects.toThrow(/not planned/);
-    await expect(
-      m.append({
-        type: "plan-recorded",
-        packages: [{ ...base, collision_domain: "kitchen" }],
-      }),
-    ).rejects.toThrow(/collision_domain/);
+    await expect(m.append(planEvent([{ ...base, depends_on: ["WP-ghost"] }]))).rejects.toThrow(
+      /not planned/,
+    );
+    await expect(m.append(planEvent([{ ...base, collision_domain: "kitchen" }]))).rejects.toThrow(
+      /collision_domain/,
+    );
   });
 
   it("allows replanning that preserves package ids and refuses one that drops a package", async () => {
     const m = fixture();
     await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
-    await m.append({ type: "plan-recorded", packages: plan.packages });
-    await expect(
-      m.append({ type: "plan-recorded", packages: plan.packages.slice(0, 2) }),
-    ).rejects.toThrow(/never silently dropped/);
-    const extended = await m.append({
+    await m.append({
       type: "plan-recorded",
-      packages: [
+      packages: plan.packages,
+      decomposition: plan.decomposition,
+    });
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "decomposition and owner cost presented at checkpoint 1",
+    });
+    // Silently dropping is still refused.
+    await expect(m.append(planEvent(plan.packages.slice(0, 2)))).rejects.toThrow(
+      /dropped WP-report-footer without recording it/,
+    );
+
+    // Combining it away before anything durable exists is the point of §A.
+    const combined = await m.append(
+      planEvent(plan.packages.slice(0, 2), {
+        removals: [
+          {
+            package_id: "WP-report-footer",
+            reason:
+              "Combined into WP-attendance-export: the footer is three lines of the same report and needed no second review round or merge.",
+          },
+        ],
+      }),
+    );
+    expect(combined.packages["WP-report-footer"].status).toBe("removed");
+    expect(combined.packages["WP-report-footer"].removed.reason).toMatch(/Combined into/);
+    // Lineage survives; the frontier does not offer it.
+    expect(nextActions(combined).some((a) => a.package_id === "WP-report-footer")).toBe(false);
+    // And the revision withdrew the approval it no longer describes.
+    expect(combined.planApproved).toBeNull();
+
+    const extended = await m.append(
+      planEvent([
         ...plan.packages,
         {
           ...plan.packages[1],
@@ -324,9 +385,77 @@ describe("planning", () => {
           title: "Synthetic addition",
           collision_domain: "roster",
         },
-      ],
-    });
+      ]),
+    );
     expect(Object.keys(extended.packages)).toHaveLength(4);
+  });
+
+  it("protects a package's identity once it has become durable", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await expect(
+      m.append(
+        planEvent(plan.packages.slice(0, 2), {
+          removals: [{ package_id: "WP-report-footer", reason: "second thoughts" }],
+        }),
+      ),
+    ).rejects.toThrow(/has already become durable .*identity and lineage are protected/);
+  });
+
+  it("refuses a split that is only a preference, and names what it costs", async () => {
+    const m = fixture();
+    await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
+    for (const reason of ["risk", "directory", "tidiness", "agent-time"]) {
+      await expect(
+        m.append({
+          type: "plan-recorded",
+          decomposition: plan.decomposition,
+          packages: plan.packages.map((pkg: PlanPackage) => ({
+            ...pkg,
+            separation: { ...pkg.separation, reason },
+          })),
+        }),
+      ).rejects.toThrow(new RegExp(`"${reason}" is not a boundary`));
+    }
+    // And a real boundary still has to say what it costs Brian.
+    await expect(
+      m.append({
+        type: "plan-recorded",
+        decomposition: plan.decomposition,
+        packages: plan.packages.map((pkg: PlanPackage) => ({
+          ...pkg,
+          separation: { ...pkg.separation, owner_cost: "" },
+        })),
+      }),
+    ).rejects.toThrow(/owner_cost must state what this split costs Brian/);
+  });
+
+  it("creates nothing durable until the decomposition is approved", async () => {
+    const m = fixture();
+    await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
+    await m.append(planEvent(plan.packages));
+    await m.append({
+      type: "linear-preflight",
+      result: "reachable",
+      detail: "synthetic fixture driver answered a read-only teams query",
+    });
+    await expect(
+      m.append({ type: "linear-sync-intent", package_id: "WP-events-filter" }),
+    ).rejects.toThrow(/plan is not approved/);
+    expect(
+      nextActions(await m.append({ type: "lead-heartbeat", lead_id: "l", pid: 1 })).some(
+        (a) => a.action === "plan-approval",
+      ),
+    ).toBe(true);
+
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "decomposition and owner cost presented at checkpoint 1",
+    });
+    await expect(
+      m.append({ type: "linear-sync-intent", package_id: "WP-events-filter" }),
+    ).resolves.toBeTruthy();
   });
 });
 
@@ -334,7 +463,16 @@ describe("idempotent Linear synchronization", () => {
   it("requires intent before result, and refuses duplicates in both directions", async () => {
     const m = fixture();
     await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
-    await m.append({ type: "plan-recorded", packages: plan.packages });
+    await m.append({
+      type: "plan-recorded",
+      packages: plan.packages,
+      decomposition: plan.decomposition,
+    });
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "decomposition and owner cost presented at checkpoint 1",
+    });
     await expect(
       m.append({ type: "linear-sync-result", package_id: "WP-events-filter", issue_id: "LAN-901" }),
     ).rejects.toThrow(/Record the intent before the result/);
@@ -360,7 +498,16 @@ describe("worker dispatch", () => {
   it("refuses dispatch before the connectivity preflight and before Linear synchronization", async () => {
     const m = fixture();
     await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
-    await m.append({ type: "plan-recorded", packages: plan.packages });
+    await m.append({
+      type: "plan-recorded",
+      packages: plan.packages,
+      decomposition: plan.decomposition,
+    });
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "decomposition and owner cost presented at checkpoint 1",
+    });
     await expect(
       m.append({
         type: "worker-dispatched",
@@ -415,7 +562,12 @@ describe("worker dispatch", () => {
         migration_owner: true,
       },
     ];
-    await m.append({ type: "plan-recorded", packages: colliding });
+    await m.append(planEvent(colliding));
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "checkpoint 1",
+    });
     await m.append({
       type: "linear-preflight",
       result: "reachable",
@@ -456,6 +608,143 @@ describe("worker dispatch", () => {
     ).rejects.toThrow(/only one migration-owning package runs at a time/);
   });
 
+  /**
+   * LAN-148 §F. In the first live run a downstream package sat idle for hours
+   * because its dependency's pull request was reviewed, green and correct but
+   * unmerged — Brian's merge timing had become a scheduling dependency. A
+   * dependency reviewed clean at exactly the head its pull request carries is a
+   * deterministic base; his merge authority is untouched.
+   */
+  it("dispatches on a dependency reviewed clean at its exact head, without waiting for the merge", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-attendance-export",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/wp-attendance",
+      branch: "feat/wp-attendance",
+    });
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-attendance-export",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-attendance-export",
+      pr_number: 41,
+      head_sha: SHA,
+    });
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-attendance-export",
+      receipt: reviewReceipt("clear"),
+    });
+
+    // The frontier now offers the downstream package, and says what it is
+    // standing on.
+    const reviewed = replayState(m.repo, MISSION, m.env);
+    const offer = nextActions(reviewed).find(
+      (action) => action.action === "dispatch" && action.package_id === "WP-report-footer",
+    );
+    expect(offer?.detail).toMatch(/recording the reviewed head of WP-attendance-export/);
+
+    // Building on it without recording that basis is refused.
+    await expect(
+      m.append({
+        type: "worker-dispatched",
+        package_id: "WP-report-footer",
+        worker_id: "worker-2",
+        worktree: ".claude/worktrees/wp-report",
+        branch: "feat/wp-report",
+      }),
+    ).rejects.toThrow(/builds on unmerged WP-attendance-export; the dispatch records that basis/);
+
+    // A basis pinned to the wrong commit is refused too.
+    await expect(
+      m.append({
+        type: "worker-dispatched",
+        package_id: "WP-report-footer",
+        worker_id: "worker-2",
+        worktree: ".claude/worktrees/wp-report",
+        branch: "feat/wp-report",
+        dependency_basis: [{ package_id: "WP-attendance-export", head_sha: "b".repeat(40) }],
+      }),
+    ).rejects.toThrow(/but the reviewed head is/);
+
+    const dispatched = await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-report-footer",
+      worker_id: "worker-2",
+      worktree: ".claude/worktrees/wp-report",
+      branch: "feat/wp-report",
+      dependency_basis: [{ package_id: "WP-attendance-export", head_sha: SHA }],
+    });
+    expect(dispatched.packages["WP-report-footer"].status).toBe("active");
+  });
+
+  it("refuses a dependency whose head moved after its review, and records a deliberate wait", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-attendance-export",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/wp-attendance",
+      branch: "feat/wp-attendance",
+    });
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-attendance-export",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-attendance-export",
+      pr_number: 41,
+      head_sha: SHA,
+    });
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-attendance-export",
+      receipt: reviewReceipt("clear"),
+    });
+    // A new commit lands after the review; the base is no longer the reviewed one.
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-attendance-export",
+      pr_number: 41,
+      head_sha: "c".repeat(40),
+    });
+
+    await expect(
+      m.append({
+        type: "worker-dispatched",
+        package_id: "WP-report-footer",
+        worker_id: "worker-2",
+        worktree: ".claude/worktrees/wp-report",
+        branch: "feat/wp-report",
+        dependency_basis: [{ package_id: "WP-attendance-export", head_sha: SHA }],
+      }),
+    ).rejects.toThrow(/but its pull request now carries/);
+
+    // Choosing to wait for a merge the evidence does not require is a decision
+    // the journal has to be able to show.
+    const deferred = await m.append({
+      type: "dispatch-deferred",
+      package_id: "WP-report-footer",
+      reason:
+        "The export's migration has to be applied to the shared local stack before the footer can be verified against it.",
+    });
+    expect(deferred.dispatchDeferrals).toHaveLength(1);
+    await expect(
+      m.append({ type: "dispatch-deferred", package_id: "WP-report-footer" }),
+    ).rejects.toThrow(/records the concrete safety or integration reason/);
+  });
+
   it("refuses dispatch of a package whose dependency is unmerged or whose owner question is open", async () => {
     const m = fixture();
     await readyMission(m);
@@ -467,7 +756,9 @@ describe("worker dispatch", () => {
         worktree: ".claude/worktrees/wp-report",
         branch: "feat/wp-report",
       }),
-    ).rejects.toThrow(/depends on WP-attendance-export, which is not merged/);
+    ).rejects.toThrow(
+      /cannot start on WP-attendance-export: WP-attendance-export has no clear independent review/,
+    );
     await m.append({
       type: "owner-question",
       id: "Q-filter-default",
@@ -616,7 +907,12 @@ describe("worker receipts and correction lineage", () => {
       { ...plan.packages[0], id: "WP-events-a" },
       { ...plan.packages[0], id: "WP-events-b", title: "Synthetic sibling" },
     ];
-    await m.append({ type: "plan-recorded", packages: colliding });
+    await m.append(planEvent(colliding));
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "checkpoint 1",
+    });
     await m.append({
       type: "linear-preflight",
       result: "reachable",
@@ -1117,7 +1413,15 @@ describe("guarded merge recording", () => {
     ).toEqual([]);
   });
 
-  it("never guarded-merges highest-risk or migration-owning work; the owner route remains", async () => {
+  /**
+   * LAN-148 §F. The blanket refusal made the checkpoint-approval tier Brian
+   * approved on 2026-08-18 unreachable for the work it was designed for:
+   * authorization rules are graded Highest, so the tier could never fire and
+   * every reviewed authorization change queued behind his merge click.
+   * Highest-risk work now travels the lane only once an answered checkpoint
+   * names it. Migrations, and every path in the prohibited list, stay his.
+   */
+  it("lets a checkpoint-approved highest-risk package merge, and never a migration owner", async () => {
     const m = fixture();
     await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     const risky = [
@@ -1129,7 +1433,12 @@ describe("guarded merge recording", () => {
         migration_owner: true,
       },
     ];
-    await m.append({ type: "plan-recorded", packages: risky });
+    await m.append(planEvent(risky));
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "checkpoint 1",
+    });
     await m.append({
       type: "linear-preflight",
       result: "reachable",
@@ -1151,7 +1460,7 @@ describe("guarded merge recording", () => {
         sha: SHA,
         route: "guarded-auto",
       }),
-    ).rejects.toThrow(/Highest-risk work cannot autonomous-merge in v1/);
+    ).rejects.toThrow(/only when an answered owner checkpoint names it/);
     await expect(
       m.append({
         type: "merge-recorded",
@@ -1169,6 +1478,91 @@ describe("guarded merge recording", () => {
       route: "owner",
     });
     expect(state.packages["WP-migration"].merged.route).toBe("owner");
+
+    // Now give the highest-risk package what the tier actually asks for: an
+    // answered checkpoint question naming it, a clear review at the exact head,
+    // and — it is nonvisual — nothing else.
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-risky",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/wp-risky",
+      branch: "feat/wp-risky",
+    });
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-risky",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({ type: "pr-opened", package_id: "WP-risky", pr_number: 43, head_sha: SHA });
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-risky",
+      receipt: reviewReceipt("clear"),
+    });
+    await m.append({
+      type: "owner-question",
+      id: "Q-authorization-rule",
+      classification: "hourly",
+      text: "Synthetic: this widens who may end a role. Confirm before it merges.",
+      source: "the authorization rule this package changes",
+      affected_packages: ["WP-risky"],
+    });
+
+    // Unanswered, it is still refused — the ask cannot be skipped.
+    await expect(
+      m.append({
+        type: "merge-recorded",
+        package_id: "WP-risky",
+        pr_number: 43,
+        sha: SHA,
+        route: "guarded-auto",
+      }),
+    ).rejects.toThrow(/Unresolved owner question Q-authorization-rule/);
+
+    await m.append({
+      type: "owner-answer",
+      question_id: "Q-authorization-rule",
+      answer: "Confirmed; that is the intended rule.",
+      answered_by: "Brian",
+      reusable: false,
+    });
+    const merged = await m.append({
+      type: "merge-recorded",
+      package_id: "WP-risky",
+      pr_number: 43,
+      sha: SHA,
+      route: "guarded-auto",
+    });
+    expect(merged.packages["WP-risky"].merged.route).toBe("guarded-auto");
+  });
+
+  it("counts routing a lane-qualified package to Brian as a recorded harness defect", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await reviewedClear(m, "WP-attendance-export");
+
+    // It qualifies: normal risk, nonvisual, clear review at the exact head.
+    await expect(
+      m.append({
+        type: "merge-recorded",
+        package_id: "WP-attendance-export",
+        sha: SHA,
+        route: "owner",
+      }),
+    ).rejects.toThrow(/qualified for the guarded lane; routing it to Brian anyway records why/);
+
+    const state = await m.append({
+      type: "merge-recorded",
+      package_id: "WP-attendance-export",
+      sha: SHA,
+      route: "owner",
+      owner_route_reason:
+        "The mission-merge workflow was disabled during the incident, so the lane was unavailable.",
+    });
+    expect(state.laneBypasses).toHaveLength(1);
+    expect(state.laneBypasses[0].package_id).toBe("WP-attendance-export");
   });
 });
 

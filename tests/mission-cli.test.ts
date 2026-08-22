@@ -35,6 +35,9 @@ function fixture() {
 function readyMission(m: ReturnType<typeof fixture>) {
   expect(m.run("init", MISSION, "--packet", PACKET).status).toBe(0);
   expect(m.run("plan", MISSION, "--packages", PLAN).status).toBe(0);
+  expect(m.run("approve-plan", MISSION, "--by", "Brian", "--evidence", "checkpoint 1").status).toBe(
+    0,
+  );
   expect(m.run("preflight", MISSION, "--detail", "fixture driver answered").status).toBe(0);
   for (const [index, id] of [
     "WP-events-filter",
@@ -203,7 +206,18 @@ describe("checkpoint rendering", () => {
         lead_id: "lead-fixture",
         pid: 4242,
       },
-      { type: "plan-recorded", at: "2026-08-18T10:01:00.000Z", packages: plan.packages },
+      {
+        type: "plan-recorded",
+        at: "2026-08-18T10:01:00.000Z",
+        packages: plan.packages,
+        decomposition: plan.decomposition,
+      },
+      {
+        type: "plan-approved",
+        at: "2026-08-18T10:01:30.000Z",
+        approved_by: "Brian",
+        evidence: "checkpoint 1",
+      },
       {
         type: "owner-question",
         at: "2026-08-18T10:02:00.000Z",

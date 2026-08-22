@@ -601,14 +601,16 @@ describe("mission harness v1", () => {
     expect(gateSource).not.toMatch(/merge\s*=\s*true/);
   });
 
-  it("keeps Highest-risk, migration, and unapproved visual work with Brian", () => {
-    expect(missionBody).toMatch(
-      /Highest risk retains the strongest current rules and never merges autonomously/i,
-    );
-    expect(stateSource).toContain("Highest-risk work cannot autonomous-merge in v1");
+  it("keeps migration and unapproved visual work with Brian, and gates highest risk on his checkpoint", () => {
+    // LAN-148 §F separated review grade from merge route. Highest risk is no
+    // longer refused for its grade; it is refused unless an answered owner
+    // checkpoint names the package, so Brian still hears about it first. What
+    // is unconditionally his is decided from the diff by the prohibited list.
+    expect(stateSource).toContain("only when an answered owner checkpoint names it");
     expect(stateSource).toContain("owner-merged, never autonomous");
+    expect(gateSource).toContain("only when it cites the answered owner question");
+    expect(gateSource).toContain("no answered owner question names it");
     expect(missionBody).toMatch(/ADR 0020 stands/);
-    expect(gateSource).toContain("highest risk is owner-merged in v1");
   });
 });
 
