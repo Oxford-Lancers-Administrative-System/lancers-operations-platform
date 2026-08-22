@@ -9,15 +9,20 @@ Nothing from it is repeated here, so that the two cannot drift apart.
 
 Only genuinely Claude-specific notes belong in this file.
 
-- **Two workflows and two subagents.** Brian invokes `/start-issue LAN-###`
-  to implement exactly one issue in the top-level session, or
-  `/run-mission M-<id>` to execute one approved mission packet as the Mission
+- **Four workflows and two subagents.** Brian invokes `/start-issue LAN-###`
+  to implement exactly one issue in the top-level session,
+  `/finish-issue LAN-###` to finalize one whose work has already reached a
+  terminal state, `/mission-intake <n>` to prepare a mission packet, or
+  `/run-mission M-<id>` to execute one approved packet as the Mission
   Lead. `code-reviewer` performs graded independent review;
   `implementation-worker` implements one Mission-Lead-assigned work package
-  and spawns nothing. See `docs/adr/0027-mission-harness.md` and, for the
-  preserved single-issue model, `docs/adr/0018-single-issue-agent-development.md`.
-- **Both workflows are user-invoked.** Neither is model-invocable. `/start-issue`
+  and spawns nothing. See `docs/adr/0027-mission-harness.md`, the preserved
+  single-issue model in `docs/adr/0018-single-issue-agent-development.md`, and
+  closeout in `docs/adr/0032-explicit-issue-closeout.md`.
+- **Every workflow is user-invoked.** None is model-invocable. `/start-issue`
   never selects a second issue and never delegates implementation;
+  `/finish-issue` implements nothing, launches nothing, and acts only on an
+  issue it has proved is merged, canceled, or explicitly abandoned;
   `/run-mission` never implements in its own session, keeps delegation flat,
   and records every material transition in durable mission state
   (`npm run mission`).
