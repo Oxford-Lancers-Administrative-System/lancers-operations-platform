@@ -156,10 +156,17 @@ after initialization, remove it from the process environment and use the shared
 mode-0600 state. A missing private value is agent setup to restore, not a command
 for Brian.
 
-Before contacting Brian, use a browser to open the supplied URL, sign in through
-the real application login, visit every review route and state, confirm seeded
-data, check desktop and 375px layouts, and fix ordinary setup, runtime, and visual
-defects. Record evidence that URL response, authentication, required states, both
+Before contacting Brian, run `npm run visual:preflight -- <routes>`: it drives a
+real browser through the real login, visits every review route, and **measures**
+each viewport by asking the browser context how wide it actually is, capturing
+the screenshots. A self-reported 375px claim is refused — this machine's window
+resizing is clamped well above it, so the claim could never be honest. Confirm
+seeded data and fix ordinary setup, runtime, and visual defects.
+
+Start the environment under its own supervisor with `npm run visual:start` so it
+outlives this session, and check it with `npm run visual:status`, which refuses
+it once the supervisor is gone, once it stops proving itself live, or once the
+branch moves past the head it serves. Record evidence that URL response, authentication, required states, both
 viewports, and the protected coordinator lease were personally verified. Do not
 claim readiness from scripts or HTTP probes alone. After completing those checks,
 write their non-secret result to the ignored

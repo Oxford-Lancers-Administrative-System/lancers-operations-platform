@@ -90,17 +90,38 @@ answer expresses a general convention, propose it as a reusable rule; promote
 it with `promote-rule` only after Brian explicitly approves reuse — an answer
 to one case is not a rule until he promotes it.
 
-## 4. Plan the work-package DAG
+## 4. Plan the work-package DAG, and have it approved before it is durable
 
 Derive work packages from the packet: stable `WP-` identifiers, one primary
 collision domain each from the closed vocabulary in
 `scripts/mission/lib/packet.mjs`, explicit `migration_owner`, risk class,
-visual class, and dependency edges. Record with
-`npm run mission -- plan $ARGUMENTS --packages <file>`. Replan freely when a
-merge, failure, discovery, or owner decision changes reality — identifiers
-are stable, planned packages are never silently dropped, and a package with
-an active worker keeps its collision domain and migration ownership.
-Speculative alternatives stay in mission state, not in Linear.
+visual class, and dependency edges.
+
+**One coherent issue defaults to one implementation package.** A plan of more
+than one records, per package, the boundary that makes it separate —
+`file-conflict`, `independent-visual-gate`, `safety-boundary` or
+`sequencing-verification` — the concrete evidence for it (the actual
+overlapping files, the actual independently gated surface), and what the split
+costs Brian in merges, reviews and visual approvals. Risk grade, directory,
+tidiness and estimated agent time are refused by name: they describe the work,
+not a boundary. The plan as a whole records what it considered combining, the
+concurrency the split genuinely buys, the critical path, and the owner merges
+and visual approvals it will ask for.
+
+Record with `npm run mission -- plan $ARGUMENTS --packages <file>`, then present
+that decomposition to Brian and record his approval with
+`npm run mission -- approve-plan $ARGUMENTS --by <who> --evidence <where>`.
+**Nothing durable — no Linear issue, no branch, no work package — is created
+before that approval**, and a revised plan withdraws the approval it no longer
+describes. While a package is still a proposal it may be combined away or
+removed, recorded with its reason in `removals`; it stays in mission state as
+`removed` so its lineage remains readable. Once it has a Linear issue or a
+worker its identity is protected, and a package with an active worker keeps its
+collision domain and migration ownership. Speculative alternatives stay in
+mission state, not in Linear.
+
+Route a late blocking finding to the current open package for its issue, or to
+the next existing open one, rather than creating another package for it.
 
 ## 5. Synchronize Linear before any dispatch
 
@@ -160,15 +181,29 @@ normal owner question and is never reported as an owner action.
 
 Spawn at most two `implementation-worker` agents for this mission, and only for genuinely
 independent packages: the CLI refuses a third active worker, a colliding
-collision domain, a second migration owner, an unmerged dependency, a
+collision domain, a second migration owner, an unusable dependency, a
 drift-stopped package, and a package affected by an unanswered owner
-question. Workers share the mission-owned stack by default. Serialize only
+question.
+
+A dependency is usable when it is merged, **or** when it has been independently
+reviewed clean at exactly the head its pull request carries and — if it is
+visual — approved at that same head. Building on that basis is allowed and
+records it, pinned to the exact commit; it is refused the moment the
+dependency's head moves past the reviewed one. Waiting for a merge the evidence
+does not require is a choice, and records its concrete safety or integration
+reason with `npm run mission -- defer-dispatch`. Brian's merge timing is not a
+scheduling dependency. Workers share the mission-owned stack by default. Serialize only
 commands that mutate that shared stack; use a temporary worker stack only when
 two workers demonstrate incompatible database states.
 
 Record `dispatch` before the worker starts. The worker brief names one work
 package, its Linear issue, its requirement excerpts and acceptance criteria,
-its worktree name and branch, and its collision domain. Delegation is flat:
+its worktree name and branch, and its collision domain. **A user-facing brief
+also names `docs/ux/slice-ux.md`, `docs/ux/standards.md`, the applicable
+`docs/ux/tickets/` contract, and the desktop and 375px wireframes.** Where the
+packet is the only contract, delivery writes the implemented one to
+`docs/ux/tickets/<LINEAR-ID>-<slug>.md` so the next mission reads a contract
+rather than re-deriving one from a superseded packet. Delegation is flat:
 workers and reviewers are spawned only by the Mission Lead, workers never
 spawn agents of any kind, and every transition returns to the Lead as a
 structured receipt, recorded with `receipt`.
@@ -211,8 +246,34 @@ conditions, circuit breaker, and the budget of at most one initial full
 review, two correction reviews, and three total reviewer invocations per
 package. Low risk may accept the Lead's deterministic verification of the
 worker's evidence without a fresh reviewer; Normal risk receives one
-fresh-context review; Highest risk retains the strongest current rules and
-never merges autonomously.
+fresh-context review; Highest risk receives the strongest review rules.
+
+**A review grade decides review rigour, not the merge route.** Route is decided
+by the protected surface the diff actually touches plus the evidence, which the
+`mission-merge` workflow re-derives from the real diff. Highest-risk work may
+use the guarded lane only when an answered owner checkpoint names the package,
+so Brian hears about it before it merges; migrations, grants and RLS,
+authentication and session boundaries, production scripts, secrets, hosted
+data, deployment and every prohibited path stay owner-merged
+(`docs/adr/0032-harness-after-the-first-live-mission.md` §4). Routing a
+lane-qualified package to Brian anyway is recorded as a harness defect and
+states why.
+
+**Two reviews belong to the mission rather than to any package.** Before a UI
+mission's visual gate, run a workflow walker against the integrated head that
+completes the mission's actual user jobs end to end — the jobs, not the screens
+— and record it with `npm run mission -- integrated-review ... --mode
+workflow-walker`. A visual approval is refused without a clear walker at
+exactly the head Brian will be shown. After every package has integrated, run
+one cross-surface pass comparing the repeated facts, states, dates, permissions
+and copy across the surfaces they add up to; a mission cannot close as
+delivered without it.
+
+**Every substantive fix comes back bound to a test.** A correction's receipt
+carries, for each finding it was dispatched to fix, the named regression test,
+the command, the failing assertion observed after the defect was reintroduced,
+the restored pass, and the exact SHA. This is four recorded facts about one
+fix, not a mutation-testing framework.
 
 The reviewer's receipt returns to the Mission Lead, which records it with
 `review` and decides the next transition. When review blocks ordinary

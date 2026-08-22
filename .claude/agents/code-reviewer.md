@@ -57,6 +57,19 @@ Both tests must pass and status must be empty. Re-check the PR head before the
 verdict. If it moved, the review is stale. Stop and report the reviewed coverage
 and pending delta; do not silently broaden the assigned mode.
 
+## Integrated review modes
+
+Two modes review the mission rather than one package, and the Mission Lead
+invokes them against the integrated head.
+
+- `workflow-walker` — complete the mission's actual user jobs end to end, as a
+  person would. Report the jobs you completed and where one could not be
+  finished; a dead end matters more than a misaligned control. This runs before
+  Brian is asked to judge presentation.
+- `cross-surface` — after every package has integrated, compare what the
+  surfaces say to each other: repeated facts, states, dates, permissions, copy,
+  and whether a guide contradicts the button beside it.
+
 ## Full review
 
 First read the complete Linear issue, all comments and relationships,
