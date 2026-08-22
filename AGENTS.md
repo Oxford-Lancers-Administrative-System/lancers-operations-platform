@@ -523,9 +523,9 @@ happens after Brian merges.
 
 Under `/finish-issue`, the top-level session finalizes exactly one issue whose
 work has already reached a terminal state. It proves that state from the
-repository — the pull request merged and the branch an ancestor of current
-`main`, the Linear issue canceled, or Brian's explicit `--abandoned` over a
-fully pushed branch — never from a pull-request body, a handoff summary, or the
+repository — the pull request `MERGED` and its **merge commit** an ancestor of a
+freshly fetched `origin/main`, the Linear issue canceled, or Brian's explicit
+`--abandoned` over a fully pushed branch — never from a pull-request body, a handoff summary, or the
 Linear state alone. It then stops the services, releases the lease, removes the
 worktree and local branch, and closes the ticket with one comment, in that
 order. It implements nothing, launches no subagent, and fails closed: an
@@ -600,8 +600,9 @@ is generated from durable state. See
   `review-ready` state prevent one worktree from resetting another's stack.
   Every destructive or mutating database command validates the current token.
 
-Linear recordkeeping is limited to In Progress at start, the draft PR link, and
-one final evidence/handoff comment. Use In Review only for genuine human or
+Linear recordkeeping is limited to In Progress at start, the draft PR link, one
+final evidence/handoff comment, and — after the merge, from `/finish-issue`
+alone — the Done transition and its single closing comment. Use In Review only for genuine human or
 visual acceptance. See
 [`docs/adr/0020-zero-command-visual-review.md`](docs/adr/0020-zero-command-visual-review.md).
 

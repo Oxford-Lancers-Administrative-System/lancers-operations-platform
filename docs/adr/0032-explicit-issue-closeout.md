@@ -33,10 +33,19 @@ Closeout is a separate, explicitly invoked workflow: `/finish-issue LAN-###`,
 `--abandoned` as the single permitted extra word and never an inference.
 
 It acts only on a terminal state it has **proved from the repository**: the
-pull request reported `MERGED` by `gh` _and_ the branch an ancestor of a freshly
-fetched `origin/main`; or the Linear issue canceled; or Brian's explicit
-`--abandoned` over a fully pushed branch. A pull-request body, a handoff
-summary, or a Linear state is never the evidence.
+pull request reported `MERGED` by `gh` _and_ that pull request's `mergeCommit`
+an ancestor of a freshly fetched `origin/main`; or the Linear issue canceled; or
+Brian's explicit `--abandoned` over a fully pushed branch. A pull-request body, a
+handoff summary, or a Linear state is never the evidence.
+
+The proof tests the merge commit, not the branch head, because this repository
+squash-merges: a merged branch's own head is never an ancestor of `main`, so the
+obvious-looking `git merge-base --is-ancestor <branch> origin/main` would refuse
+every genuinely merged issue and the workflow would never do anything. For the
+same reason `git branch -d` is not treated as the safety check — under a squash
+merge it decides from the upstream remote-tracking ref rather than from `main`.
+The proved terminal state is the guard; the local branch is deleted only in the
+merged case, and a refusal from `-d` is reported rather than forced.
 
 It fails closed. An open or unmerged pull request, a dirty worktree, unpushed
 commits, a stash entry, an unresolved `correct-before-handoff` finding, a
@@ -49,7 +58,11 @@ decision:
 
 1. **Stop the services**, including `npm run db:stop` from inside the worktree.
 2. **Release the lease** with `npm run db:release`, also from inside the
-   worktree.
+   worktree. The evidence that decides all of this comes from the read-only
+   `npm run db:coordinator status`, which reports every slot's issue, worktree,
+   state and application port with tokens stripped; `db:status` is a different
+   command that validates this worktree's own token and writes a heartbeat, so
+   it cannot be used while the run is still deciding whether it may act.
 3. **Remove the worktree and the local branch** from the primary checkout,
    with `git branch -d`, never `-D`.
 4. **Close the ticket**: Done, plus exactly one closing comment.

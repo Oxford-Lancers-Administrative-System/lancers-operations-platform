@@ -188,6 +188,22 @@ that the work merged, and closes the Linear issue with one comment. It fails
 closed on an unmerged pull request, a dirty or unpushed worktree, or a lease
 that now belongs to another session.
 
+Two details bite if you do it by hand. The merge proof has to test the pull
+request's **merge commit**, because this repository squash-merges and a merged
+branch's own head is never an ancestor of `main`:
+
+```bash
+git fetch origin
+MERGE=$(gh pr view <n> --json mergeCommit -q .mergeCommit.oid)
+git merge-base --is-ancestor "$MERGE" origin/main && echo merged
+```
+
+And to read the lease registry, use `npm run db:coordinator status`, which is
+read-only and prints every slot's issue, worktree, state and application port
+with tokens stripped. `npm run db:status` is a different thing: it validates
+_this_ worktree's token, writes a heartbeat, and fails when there is no lease or
+the stack is already stopped.
+
 The authoritative lease registry lives in machine-local state, keyed by the
 repository remote so clones and worktrees coordinate. `.lancers-runtime/` in
 the claiming worktree holds generated config and its fencing token and is

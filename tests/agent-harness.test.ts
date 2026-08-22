@@ -51,9 +51,14 @@ const pullRequestTemplate = readFileSync(
   "utf8",
 );
 const dispositionPolicy = flat(
-  [skill.body, reviewer.body, missionSkill.body, worker.body, findingDispositionTranscript].join(
-    "\n",
-  ),
+  [
+    skill.body,
+    finishSkill.body,
+    reviewer.body,
+    missionSkill.body,
+    worker.body,
+    findingDispositionTranscript,
+  ].join("\n"),
 );
 const contradictoryPolicyPatterns = {
   correctionTrigger:
@@ -248,12 +253,49 @@ describe("issue closeout workflow", () => {
   });
 
   it("proves the terminal state from the repository, never from the story told about it", () => {
-    expect(body).toMatch(/reports the pull request `MERGED`/i);
-    expect(body).toMatch(/git merge-base --is-ancestor <branch> origin\/main/i);
+    expect(body).toMatch(/reports `state` `MERGED`/i);
+    expect(body).toMatch(/git merge-base --is-ancestor "\$MERGE" origin\/main/i);
     expect(body).toMatch(/Both, not either/i);
     expect(body).toMatch(/is never evidence that the work merged/i);
     expect(body).toMatch(/Brian passed `--abandoned`/i);
     expect(body).toMatch(/it is Brian's explicit statement and is never inferred/i);
+  });
+
+  it("tests the merge commit, not the branch head, because this repository squash-merges", () => {
+    expect(body).toMatch(/MERGE=\$\(gh pr view <n> --json mergeCommit -q \.mergeCommit\.oid\)/);
+    expect(body).toMatch(/Test the merge commit, never the branch head/i);
+    expect(body).toMatch(
+      /this repository squash-merges, so a merged branch's own head is never an ancestor of `main`/i,
+    );
+    // The defect this replaced: testing the branch head refuses every merged issue.
+    expect(body).not.toMatch(/--is-ancestor <branch> origin\/main/);
+    expect(flat(agreement)).toMatch(
+      /merge commit.{0,60}ancestor of a freshly fetched `origin\/main`/i,
+    );
+  });
+
+  it("gathers its evidence with read-only commands that can answer the ownership gate", () => {
+    expect(body).toMatch(/Every command here is read-only/i);
+    // Named in the evidence block and in the prose, and no mutating command is
+    // permitted in the phase that is declared to change nothing.
+    expect(body.match(/npm run db:coordinator status/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+    expect(body).not.toMatch(/npm run db:(reset|start|seed|heartbeat|review-ready)/);
+    expect(body).toMatch(
+      /Use `npm run db:coordinator status`, not `npm run db:status`|not `npm run db:status`/i,
+    );
+    expect(body).toMatch(/validates this worktree's own token, writes a heartbeat/i);
+    expect(body).toMatch(/`issueId`, `missionId`, `repoPath`, `attachedRepoPaths`, `state`/);
+    expect(body).toMatch(/lsof -ti tcp:<applicationPort>/);
+    expect(body).toMatch(/git fetch origin/);
+  });
+
+  it("names the directory each destructive command runs from", () => {
+    expect(body).toMatch(/From inside the issue worktree: ```bash npm run db:release/i);
+    expect(body).toMatch(/Then stop the stack from inside the issue worktree/i);
+    expect(body).toMatch(
+      /From the primary checkout, never from inside the worktree being removed/i,
+    );
+    expect(body).toMatch(/the branch is pushed with no unpushed commits, so nothing is lost/i);
   });
 
   it("fails closed on anything unfinished, unclean, or no longer owned", () => {
@@ -283,7 +325,12 @@ describe("issue closeout workflow", () => {
 
   it("never destroys work, another owner's slot, or the primary checkout", () => {
     expect(body).toMatch(/Never remove a dirty, interrupted, unmerged, or review-ready worktree/i);
-    expect(body).toMatch(/`git branch -d`, which refuses an unmerged branch, and never `-D`/i);
+    expect(body).toMatch(/Use `-d` and never `-D`, but do not lean on `-d` as the safety check/i);
+    expect(body).toMatch(/Delete the local branch .{0,20}only in the merged case/i);
+    expect(body).toMatch(/it will delete a branch that was merely pushed/i);
+    expect(body).toMatch(/If `-d` refuses, leave the branch alone and report it/i);
+    // The defect this replaced: `-d` credited with a safety property git does not give it here.
+    expect(body).not.toMatch(/which refuses an unmerged branch/);
     expect(body).toMatch(
       /Never touch another issue's worktree, a locked agent worktree, or a mission worker's worktree/i,
     );

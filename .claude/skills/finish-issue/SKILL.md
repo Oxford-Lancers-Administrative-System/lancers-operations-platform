@@ -29,17 +29,29 @@ explicit statement and is never inferred.
 
 ## 2. Establish the facts before touching anything
 
-Gather, and write down, before changing a single thing:
+Gather, and write down, before changing a single thing. Every command here is
+read-only; none of them writes to the registry or to a stack.
+
+```bash
+git fetch origin                                  # from the primary checkout
+gh pr view <n> --json state,mergeCommit,headRefOid,headRefName
+git worktree list --porcelain
+git -C <worktree> status --short --branch         # and: git -C <worktree> stash list
+npm run db:coordinator status                     # the lease registry, tokens stripped
+```
 
 - the Linear issue, its current state, and its comments;
-- the issue's pull request and its merge state, read with `gh pr view` and
-  `gh pr list --search`, plus the merge commit if there is one;
-- `git worktree list --porcelain`, to find the one worktree belonging to this
-  issue, and its branch;
-- `git status --short --branch`, `git stash list`, and the branch's tracking
-  state inside that worktree;
-- `npm run db:status`, to find whether a lease names this issue, which slot it
-  holds, its state, and its application port.
+- the issue's pull request, found by branch with `gh pr list --search`, and its
+  `state`, `mergeCommit` and `headRefOid`;
+- the one worktree belonging to this issue, and its branch;
+- that worktree's working tree, stash list, and tracking state;
+- the lease registry. Use `npm run db:coordinator status`, not `npm run
+db:status`: the coordinator prints every slot's `issueId`, `missionId`,
+  `repoPath`, `attachedRepoPaths`, `state` and `applicationPort` with tokens
+  stripped, and reads nothing else. `db:status` answers a different question —
+  it validates this worktree's own token, writes a heartbeat, and fails when
+  there is no lease or the stack is already stopped, none of which is wanted
+  while the run is still deciding whether it may act at all.
 
 Read the repository, not the story told about it. A pull request body, a
 `Ready for merge` handoff, a Linear state, or an earlier session's summary is
@@ -52,9 +64,19 @@ nothing.
 
 Finalize only when exactly one of these is proved:
 
-- **Merged.** `gh pr view` reports the pull request `MERGED`, and
-  `git merge-base --is-ancestor <branch> origin/main` succeeds against a freshly
-  fetched `origin/main`. Both, not either.
+- **Merged.** `gh pr view` reports `state` `MERGED`, and that pull request's
+  **`mergeCommit`** is an ancestor of a freshly fetched `origin/main`:
+
+  ```bash
+  git fetch origin
+  MERGE=$(gh pr view <n> --json mergeCommit -q .mergeCommit.oid)
+  git merge-base --is-ancestor "$MERGE" origin/main
+  ```
+
+  Both, not either. Test the merge commit, never the branch head: this
+  repository squash-merges, so a merged branch's own head is never an ancestor
+  of `main` and testing it would refuse every genuinely merged issue.
+
 - **Canceled.** The Linear issue is in a canceled state.
 - **Abandoned.** Brian passed `--abandoned`, and the branch is pushed with no
   unpushed commits, so nothing is lost by removing the worktree.
@@ -84,10 +106,16 @@ The order matters and is not interchangeable.
 ### 4.1 Stop the services first
 
 Stop the application process before releasing anything. Find it from the lease
-record's `applicationPort`, confirm the listening process's working directory is
-this issue's worktree, and stop only that process. A process on that port whose
-working directory is a different worktree belongs to somebody else: leave it and
-say so.
+record's `applicationPort` and confirm its working directory before killing it:
+
+```bash
+lsof -ti tcp:<applicationPort>                    # the listening process, if any
+lsof -a -p <pid> -d cwd -Fn                       # its working directory
+```
+
+Stop only a process whose working directory is this issue's worktree. A process
+on that port whose working directory is a different worktree belongs to somebody
+else: leave it and say so.
 
 Then stop the stack from inside the issue worktree:
 
@@ -133,11 +161,20 @@ From the primary checkout, never from inside the worktree being removed:
 ```bash
 git worktree remove <path>
 git worktree prune
-git branch -d <branch>
+git branch -d <branch>          # merged issues only
 ```
 
-Use `git branch -d`, which refuses an unmerged branch, and never `-D`. For an
-abandoned issue, keep the branch and remove only the worktree.
+Delete the local branch **only in the merged case**, where §3 has already proved
+the work is on `main`. For a canceled or abandoned issue, remove the worktree and
+keep the branch.
+
+Use `-d` and never `-D`, but do not lean on `-d` as the safety check. Under a
+squash merge `-d` decides from the upstream remote-tracking ref, not from
+`main`: it will delete a branch that was merely pushed while `origin/<branch>`
+still exists, and it will refuse a genuinely merged branch once the remote
+branch is gone and the ref pruned. The proof in §3 is the guard; `-d` is only
+the safer spelling. If `-d` refuses, leave the branch alone and report it — the
+work is on `main` and on `origin`, so nothing is lost by keeping it.
 
 Never remove a dirty, interrupted, unmerged, or review-ready worktree. Never
 touch another issue's worktree, a locked agent worktree, or a mission worker's
