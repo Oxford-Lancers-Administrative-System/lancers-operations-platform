@@ -141,3 +141,24 @@ export function isRegisterOpen(event: ScheduledEvent, now: Date = new Date()): b
   const opens = registerOpensAt(event);
   return opens !== null && now.getTime() >= opens.getTime();
 }
+
+/**
+ * The whole availability answer: the buffer, plus D72's promise kept.
+ *
+ * **A register with anything recorded against it has already been opened**, so
+ * the buffer cannot take it back. Without that disjunct "never closes" is only
+ * nearly true, and the case where it is false is the worst one — a coach
+ * halfway through a sheet, told to come back later.
+ *
+ * It is one function rather than two expressions because two surfaces ask the
+ * question: the register itself, and the event page's way in to it. A page
+ * offering **Attendance** beside a register that then refuses is the shape
+ * `docs/ux/standards.md` rule 7 exists to stop.
+ */
+export function isRegisterAvailable(
+  event: ScheduledEvent,
+  registerSaved: boolean,
+  now: Date = new Date(),
+): boolean {
+  return registerSaved || isRegisterOpen(event, now);
+}

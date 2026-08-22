@@ -69,6 +69,7 @@ import {
 } from "@/lib/services/attendance";
 import { readEvent, type EventDetail } from "@/lib/services/events";
 import { readEventAudience } from "@/lib/services/event-approval";
+import { REGISTER_NOT_YET_HEADLINE } from "./presentation";
 import AttendancePage, { filterParticipants } from "./page";
 import { AttendanceRow } from "./attendance-row";
 import EventDetailPage from "../page";
@@ -268,12 +269,57 @@ describe("UX-75 — Event marked not held", () => {
   });
 
   it("routes an occurred event through to the board", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "occurred" }));
+    // Dated in the past, so the register's buffer has lifted. LAN-152 gave the
+    // register a window of its own, and this panel's way in has to agree with
+    // it — see the two tests below.
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ status: "occurred", scheduledOn: "2026-06-10" }),
+    );
 
     render(await EventDetailPage(detailProps()));
 
     const link = screen.getByTestId("open-attendance");
     expect(link.getAttribute("href")).toBe(`/operate/events/${EVENT_ID}/attendance`);
+  });
+
+  /**
+   * `docs/ux/standards.md` rule 7 — this panel and the register answer one
+   * question, and it has to be the same answer. LAN-152.
+   *
+   * The browser preflight found the version where it was not: the panel said
+   * "Attendance is open" and offered the button, and the register the button
+   * led to said "The register is not open yet". Both were reading the same
+   * database at the same moment.
+   */
+  it("does not offer the board before the register's buffer lifts", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ status: "occurred", scheduledOn: "2099-01-01", startsAt: "20:00" }),
+    );
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(summariseAttendance([]));
+
+    const { container } = render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("open-attendance")).toBeNull();
+    expect(container.textContent).toContain(REGISTER_NOT_YET_HEADLINE);
+    expect(container.textContent).toContain("It opens on 1 Jan 2099, 14:00.");
+    expect(container.textContent).not.toContain("Attendance is open");
+  });
+
+  it("offers the board for a register that already has something in it", async () => {
+    // D72: it never closes. The synthetic season records sessions as having
+    // happened whose dates are still ahead of today, and refusing a coach the
+    // sheet they have already written names on is what this prevents.
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ status: "occurred", scheduledOn: "2099-01-01", startsAt: "20:00" }),
+    );
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(
+      summariseAttendance([participant({ presence: "present" })]),
+    );
+
+    const { container } = render(await EventDetailPage(detailProps()));
+
+    expect(screen.getByTestId("open-attendance")).toBeVisible();
+    expect(container.textContent).toContain("Attendance is open");
   });
 });
 

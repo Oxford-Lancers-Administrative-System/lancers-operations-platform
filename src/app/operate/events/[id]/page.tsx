@@ -10,7 +10,12 @@ import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import { readEvent, type EventDetail } from "@/lib/services/events";
-import { readEventAttendanceSummary, type AttendanceSummary } from "@/lib/services/attendance";
+import {
+  isRegisterAvailable,
+  readEventAttendanceSummary,
+  registerOpensAt,
+  type AttendanceSummary,
+} from "@/lib/services/attendance";
 import {
   readApprovalPreview,
   readEventAudience,
@@ -59,6 +64,7 @@ import {
 import {
   ATTENDANCE_OPENS_AFTER,
   ATTENDANCE_UNAVAILABLE,
+  describeRegisterOpensAt,
   formatShowedAgainstInvited,
   HEADLINE_INVITED_LABEL,
   HEADLINE_SAID_YES_LABEL,
@@ -66,6 +72,8 @@ import {
   NOT_HELD_DETAIL,
   NOT_HELD_HEADLINE,
   OCCURRENCE_DETAIL,
+  REGISTER_BUFFER_RULE,
+  REGISTER_NOT_YET_HEADLINE,
   OCCURRENCE_HEADLINE,
   OCCURRENCE_NEVER_INFERRED,
   OCCURRENCE_NOT_ASSERTED,
@@ -596,25 +604,44 @@ function OccurrencePanel({
 function OutcomePanel({
   event,
   mayAssertOccurrence,
+  summary,
 }: {
   event: EventDetail;
   mayAssertOccurrence: boolean;
+  summary: AttendanceSummary | null;
 }) {
   const notHeld = event.status === "not_held";
+  /*
+    The same availability answer the register itself gives — LAN-152.
+
+    Not a second derivation of it: `isRegisterAvailable` is the one function
+    both call, with `registerSaved` off the headline numbers this page has
+    already read. `docs/ux/standards.md` rule 7 is the reason it has to be
+    the same one — this panel offering **Attendance** beside a register that
+    then says "not open yet" is two screens answering one question two ways,
+    and it is what the browser preflight found.
+  */
+  const registerAvailable = isRegisterAvailable(event, summary?.registerSaved ?? false);
 
   return (
     <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="outcome-panel">
       <Stack spacing={2}>
         <Typography variant="h6" component="h2">
-          {notHeld ? NOT_HELD_HEADLINE : "Attendance is open"}
+          {notHeld
+            ? NOT_HELD_HEADLINE
+            : registerAvailable
+              ? "Attendance is open"
+              : REGISTER_NOT_YET_HEADLINE}
         </Typography>
         <Typography variant="body2" color="text.secondary">
           {notHeld
             ? NOT_HELD_DETAIL
-            : "This event is recorded as having happened, so attendance can be recorded against it."}
+            : registerAvailable
+              ? "This event is recorded as having happened, so attendance can be recorded against it."
+              : `${describeRegisterOpensAt(registerOpensAt(event)?.toISOString() ?? null)} ${REGISTER_BUFFER_RULE}`}
         </Typography>
 
-        {notHeld ? null : (
+        {notHeld || !registerAvailable ? null : (
           <Box>
             <Button
               variant="contained"
@@ -696,7 +723,9 @@ function EventDetailView({
         <OccurrencePanel event={event} mayAssertOccurrence={mayAssertOccurrence} />
       ) : null}
 
-      {asserted ? <OutcomePanel event={event} mayAssertOccurrence={mayAssertOccurrence} /> : null}
+      {asserted ? (
+        <OutcomePanel event={event} mayAssertOccurrence={mayAssertOccurrence} summary={summary} />
+      ) : null}
 
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
         <Box

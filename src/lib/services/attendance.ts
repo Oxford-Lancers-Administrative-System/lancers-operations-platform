@@ -18,7 +18,7 @@ import {
   type AttendanceSummary,
   type WalkUpInput,
 } from "./attendance-vocabulary";
-import { isRegisterOpen, registerOpensAt } from "./attendance-window";
+import { isRegisterAvailable, isRegisterOpen, registerOpensAt } from "./attendance-window";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
 import { personDisplayNameSql as displayName } from "./sql-text";
 
@@ -105,6 +105,7 @@ export {
   ATTENDANCE_REGISTER_BUFFER_HOURS,
   ATTENDANCE_REGISTER_BUFFER_MS,
   eventStartInstant,
+  isRegisterAvailable,
   isRegisterOpen,
   registerOpensAt,
 } from "./attendance-window";
@@ -292,7 +293,7 @@ async function closedReasonFor(
     "select exists (select 1 from public.attendance_records where event_id = $1) as saved",
     [event.id],
   );
-  return saved.rows[0].saved ? null : "before_buffer";
+  return isRegisterAvailable(event, saved.rows[0].saved, now) ? null : "before_buffer";
 }
 
 /**
