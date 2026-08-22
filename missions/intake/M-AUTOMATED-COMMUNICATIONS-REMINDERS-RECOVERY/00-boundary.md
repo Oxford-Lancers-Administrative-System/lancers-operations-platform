@@ -78,7 +78,32 @@ goes out is this mission's to do.
 
 ### 2. When each one goes out
 
-- Invitations dispatch on approval, as today.
+**The coherent schedule model is this mission's central design work, and it does
+not exist today.** Three parts of it are genuinely absent rather than merely
+unbuilt:
+
+- **Sending ahead of the event.** Today approval _is_ the send — the invitation
+  dispatches inside the same request. There is no "approve four weeks out, invite
+  at two weeks." Introducing an anchor changes what approval means, because R4
+  currently has approval atomically starting the invitations.
+- **The ladder.** Today it is reminders before the deadline (0–3), then _one_
+  escalation flag. Brian's 2026-08-22 sketch is longer: invite at an anchor,
+  follow-up a day later, another two days after that, then escalation, then the
+  President receives the list of who has not answered.
+- **Compression, when there is not enough runway.** Today the only rule is that
+  the _deadline_ clamps to approval time, and Task 03 §4.1 then says
+  clamped-deadline events **skip reminders entirely**. So the current answer to
+  "the practice is tomorrow" is that nobody is ever chased — and that is the
+  commonest case, not the edge. Rules are owed for a fortnight, a few days,
+  tomorrow, and approval after the deadline has already passed.
+
+This reaches the event types. Mission 2 owns the type templates and deliberately
+**removed** the chase threshold from them as this mission's; the values are here
+either way. Whether an operator setting up a type sees that type's notification
+schedule is a Stage 3 question, and the recommendation will be that they do.
+
+- Invitations dispatch on approval, as today, until the schedule model replaces
+  that rule.
 - Reminders to unanswered invitations at configured offsets **before** the
   response deadline.
 - A quiet-hours send window (proposed 08:00–21:00 Europe/London); anything
@@ -102,6 +127,33 @@ goes out is this mission's to do.
 - **F3** — the R15 recovery procedure (§5 verbatim) into the operating runbook.
 - The delivery-confirmation webhook, which today is unconfigured and leaves every
   accepted message stalled at **Attempted**.
+
+### 3b. Who a message may be sent to, and whether it can be addressed
+
+The substrate that decides whether a person is reachable at all. All of it is
+this mission's, and none of it was in the first inventory.
+
+- **The recipient allowlist** (`src/lib/delivery/allowlist.ts`) — today the
+  single control between an operator pressing Approve and forty real students
+  receiving a message. Fail-closed, environment-driven. **It is replaced in this
+  mission**; see the owner decisions below.
+- **Telephone-number conversion** (`src/lib/delivery/phone.ts`) — the one place a
+  recorded contact becomes a sendable number, and the "no usable number" refusal
+  that feeds D8. **Widened to any country in this mission**; see below.
+- **`contact_points`** — the deliberately unvalidated store this mission reads
+  numbers and addresses from. The data is Mission 5's; every consequence of it
+  being wrong is this mission's.
+- **`club-time.ts`** — Europe/London. Quiet hours, the 18:00 deadline anchor and
+  every "N days before" offset resolve through it, and British Summer Time is a
+  real edge on a schedule built from offsets.
+- **Audit coverage** of delivery and response actions — retry, revoke-and-reissue
+  and an operator-recorded response are all a person acting, and are recorded as
+  such.
+- **Two outbound email paths.** Supabase Auth already sends password resets and
+  operator invitations over custom SMTP on `mail.oxfordlancers.com`. Adding
+  Resend gives the club a second sender with a second reputation. Whether those
+  are reconciled, and by whom, is an open question this mission raises rather
+  than assumes.
 
 ### 4. The response surface, end to end
 
@@ -177,6 +229,56 @@ This mission owns how an answer is given and recorded, by every route.
 | Any manual copy, send, post or "mark as sent" path, in any state                                                       | R12/R15 as clarified; enforced by `channel <> 'manual'` and `tests/no-manual-delivery.test.ts`     |
 | Production activation itself — club number, Meta verification, template approval, Stuart's review                      | Track A: LAN-101, LAN-126. Gates acceptance, not build                                             |
 
+## Owner decisions recorded at this boundary (Brian Schuster, 2026-08-22)
+
+Given in conversation during Stage 0 and recorded here as authority for the work.
+
+### The hard-coded allowlist is removed, and acceptance becomes the gate
+
+> The allow list: when we're going to production, I don't know if the allow list
+> should be there anymore. Honestly, it should be switched to anyone who's gone
+> through the WhatsApp approval after this point should be able to get sent
+> messages. I think that hard-coded allow list doesn't make any sense here, so
+> part of that is going to be removing that.
+
+**One sequencing condition, which is a safety condition and not a preference.**
+The allowlist is today the only thing standing between Approve and the real
+squad, and its own recorded reasoning is that a control depending on the right
+rows being present is a control one careless edit removes. So it is replaced by
+the acceptance record, in that order — the record real and enforced at dispatch
+first, the allowlist removed second. This makes Mission 7's consent seam
+load-bearing: if that record is absent or unenforced, this mission has no gate at
+all.
+
+### Telephone numbers are international, and still refuse rather than guess
+
+> The phone numbers need to be not just 44 area codes, but any area code should
+> be sendable, right? That's part of the thing here, and validation and all that
+> jazz. … it's wrong because people might come from outside of it.
+
+This reverses a recorded engineering decision. `phone.ts` deliberately carries no
+`libphonenumber`, on the stated grounds that "the club has one country, one
+number format that matters." For a university club that is wrong, and the people
+it silently fails are international students, who would never receive anything
+and never appear as a failure anyone chases.
+
+**What survives the change is the principle underneath it:** an unconvertible
+number fails loudly and says the roster needs fixing, because a wrong guess sends
+a club invitation containing a working RSVP link to a stranger. Widening the
+countries must not soften that. Adding the dependency is never fast-lane and is
+explained in its pull request.
+
+## Seams named at the boundary
+
+Recorded so they are not discovered late. None is a blocker.
+
+| Seam                                                                                                                                                                   | Other owner | Why it touches this mission                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------- |
+| **The RSVP link-domain migration** at the LAN-126 cutover — issued links are revoked-and-reissued or preserved by redirect, decided before cutover                     | Track A     | Those are this mission's tokens, and reissue is destructive: every previously issued link dies                    |
+| **Scheduler heartbeat and job-backlog alerts**                                                                                                                         | Mission 11  | It monitors this mission's scheduler, and the mission that builds it is the one that knows what "backed up" means |
+| **Rate limiting on the webhook and public surfaces**                                                                                                                   | Mission 11  | The WhatsApp webhook and the signed RSVP page are this mission's endpoints                                        |
+| **The operator message-and-flag direction** (2026-08-18) — an operator opens a member and messages them; recorded, deliberately not promoted, candidate home Mission 6 | Mission 6   | It rides this transport, so the pipeline must not preclude it                                                     |
+
 ## Determinations recorded, not escalated
 
 Each of these is reversible, follows already-approved intent, and changes no
@@ -240,6 +342,11 @@ each belongs to the workflow that owns it, after that workflow has been walked.
 - **The quiet-hours window** — proposed 08:00–21:00, accepted but never fixed.
 - **The inbound reply path**, which was deferred pending Stuart's review and is
   entangled with the deferred in-chat buttons (D9).
+- **The whole schedule model** — the anchor a schedule hangs from, the ladder per
+  event type, and the compression rules when the runway is short. Brought as one
+  concrete proposed rule set with a recommendation per rung, not as a list of
+  questions.
+- **Whether the two outbound email paths are reconciled**, and by whom.
 
 ## Split decision
 
