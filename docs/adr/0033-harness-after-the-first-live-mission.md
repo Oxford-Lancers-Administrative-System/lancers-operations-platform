@@ -1,4 +1,4 @@
-# 0032 — What the first live mission changed about the harness
+# 0033 — What the first live mission changed about the harness
 
 **Status:** Accepted · **Date:** 2026-08-22 · **Amends:**
 [0020](0020-zero-command-visual-review.md), [0027](0027-mission-harness.md),

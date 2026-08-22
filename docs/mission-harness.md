@@ -195,7 +195,7 @@ Highest risk is **not** on that list any more. A grade says how rigorously a
 change is reviewed; it does not decide the route. Highest-risk work may use the
 lane only when an answered owner checkpoint names the package, so Brian hears
 about it before it merges — see
-[ADR 0032](adr/0032-harness-after-the-first-live-mission.md) §4.
+[ADR 0033](adr/0033-harness-after-the-first-live-mission.md) §4.
 
 **A mission merge does not deploy** — decided deliberately. `main` moves
 ahead of production until Brian ships it:

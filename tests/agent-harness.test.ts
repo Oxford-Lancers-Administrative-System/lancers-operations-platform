@@ -23,11 +23,13 @@ function frontMatter(file: string) {
 const flat = (value: string) => value.replace(/\*\*/g, "").replace(/\s+/g, " ");
 const skillPath = path.join(skills, "start-issue", "SKILL.md");
 const reviewerPath = path.join(agents, "code-reviewer.md");
+const finishSkillPath = path.join(skills, "finish-issue", "SKILL.md");
 const missionSkillPath = path.join(skills, "run-mission", "SKILL.md");
 const intakeSkillPath = path.join(skills, "mission-intake", "SKILL.md");
 const workerPath = path.join(agents, "implementation-worker.md");
 const skill = frontMatter(skillPath);
 const reviewer = frontMatter(reviewerPath);
+const finishSkill = frontMatter(finishSkillPath);
 const missionSkill = frontMatter(missionSkillPath);
 const intakeSkill = frontMatter(intakeSkillPath);
 const worker = frontMatter(workerPath);
@@ -49,9 +51,14 @@ const pullRequestTemplate = readFileSync(
   "utf8",
 );
 const dispositionPolicy = flat(
-  [skill.body, reviewer.body, missionSkill.body, worker.body, findingDispositionTranscript].join(
-    "\n",
-  ),
+  [
+    skill.body,
+    finishSkill.body,
+    reviewer.body,
+    missionSkill.body,
+    worker.body,
+    findingDispositionTranscript,
+  ].join("\n"),
 );
 const contradictoryPolicyPatterns = {
   correctionTrigger:
@@ -69,11 +76,12 @@ const contradictoryPolicyPatterns = {
 const settings = JSON.parse(readFileSync(path.join(root, ".claude", "settings.json"), "utf8"));
 
 describe("single-issue Claude workflow", () => {
-  it("has exactly the four user-invoked workflows and no obsolete batch artifacts", () => {
-    // LAN-148 adds the fourth: reclamation is a separate invocation because the
-    // case that matters most is a mission whose Lead is gone and has nothing
-    // left to run an exit step.
+  it("has exactly the five user-invoked workflows and no obsolete batch artifacts", () => {
+    // Two closeout companions now: LAN-150's for a single issue, LAN-148's for
+    // a mission. Reclamation is a separate invocation in both cases because the
+    // one that matters most is work whose owning session is already gone.
     expect([...readdirSync(skills)].sort()).toEqual([
+      "finish-issue",
       "finish-mission",
       "mission-intake",
       "run-mission",
@@ -251,6 +259,205 @@ describe("single-issue Claude workflow", () => {
     expect(body).toMatch(
       /Routine engineering choices, test failures, local-environment faults, and recoverable tooling problems belong to this session/i,
     );
+  });
+});
+
+describe("issue closeout workflow", () => {
+  const body = flat(finishSkill.body);
+
+  it("is user-invoked, takes one Linear identifier, and delegates nothing", () => {
+    expect(finishSkill.fields.name).toBe("finish-issue");
+    expect(finishSkill.fields["disable-model-invocation"]).toBe("true");
+    expect(finishSkill.fields["argument-hint"]).toBe("LAN-###");
+    expect(body).toMatch(/match exactly `\^LAN-\[0-9\]\+\$`/i);
+    expect(body).toMatch(
+      /Refuse a missing argument, extra words, comma-separated identifiers, or more than one identifier/i,
+    );
+    expect(body).toMatch(/Never select another issue or begin a batch/i);
+    expect(body).toMatch(/It launches no subagent of any kind/i);
+  });
+
+  it("proves the terminal state from the repository, never from the story told about it", () => {
+    expect(body).toMatch(/state == MERGED/);
+    expect(body).toMatch(/All of these, not any one of them/i);
+    expect(body).toMatch(/git merge-base --is-ancestor "<mergeCommit>" origin\/main/i);
+    expect(body).toMatch(/is never evidence that the work merged/i);
+    expect(body).toMatch(/Brian passed `--abandoned`/i);
+    expect(body).toMatch(/it is Brian's explicit statement and is never inferred/i);
+  });
+
+  it("tests the merge commit, not the branch head, because this repository squash-merges", () => {
+    expect(body).toMatch(/# require: state == MERGED, headRefName == <branch>,/);
+    expect(body).toMatch(/Test the merge commit, never the branch head/i);
+    expect(body).toMatch(
+      /this repository squash-merges, so a merged branch's own head is never an ancestor of `main`/i,
+    );
+    // The defect this replaced: testing the branch head refuses every merged issue.
+    expect(body).not.toMatch(/--is-ancestor <branch> origin\/main/);
+    expect(flat(agreement)).toMatch(
+      /merge commit.{0,60}ancestor of a freshly fetched `origin\/main`/i,
+    );
+  });
+
+  it("gathers its evidence with read-only commands that can answer the ownership gate", () => {
+    expect(body).toMatch(/Every command here is read-only/i);
+    // The fenced block is the phase declared to change nothing, so read it and
+    // require every command in it to be one that cannot write. A blacklist of
+    // known-mutating names is not enough: `db:status` itself validates this
+    // worktree's token and writes a heartbeat, which is exactly the defect the
+    // sentence above is there to prevent.
+    // Select §2's own block by its heading — not the first fence in the file,
+    // which a `bash` example added anywhere above would silently substitute.
+    const section2 =
+      /## 2\. Establish the facts[\s\S]*?(?=\n## )/.exec(finishSkill.body)?.[0] ?? "";
+    expect(section2, "§2 must exist and be findable by heading").not.toBe("");
+    const evidenceBlock = /```bash\n([\s\S]*?)```/.exec(section2)?.[1] ?? "";
+    expect(evidenceBlock, "§2 must carry the evidence command block").not.toBe("");
+    // Anchored end to end: a prefix match would pass
+    // `npm run db:coordinator status && npm run db:reset`.
+    const readOnly = [
+      /^git fetch origin$/,
+      /^git worktree list --porcelain$/,
+      /^gh pr list --head <branch> --state all --json [\w,]+$/,
+      /^git -C <worktree> status --short --branch$/,
+      /^git -C <worktree> rev-parse HEAD$/,
+      /^npm run db:coordinator status$/,
+    ];
+    for (const line of evidenceBlock
+      .split("\n")
+      .map((l) => l.replace(/\s+#.*$/, "").trim())
+      .filter(Boolean))
+      expect(
+        readOnly.some((allowed) => allowed.test(line)),
+        `the evidence phase must change nothing, but it runs: ${line}`,
+      ).toBe(true);
+
+    expect(body).toMatch(
+      /Use `npm run db:coordinator status`, not `npm run db:status`|not `npm run db:status`/i,
+    );
+    expect(body).toMatch(/validates this worktree's own token, writes a heartbeat/i);
+    expect(body).toMatch(/`issueId` on an issue slot/);
+    expect(body).toMatch(/an issue record carries no `missionId`/i);
+    expect(body).toMatch(/lsof -ti tcp:<applicationPort>/);
+  });
+
+  it("finds the pull request from the branch, and binds the proof to it", () => {
+    expect(body).toMatch(/gh pr list --head <branch> --state all/);
+    expect(body).toMatch(
+      /Not `gh pr list --search "<branch>"`, which does not match a head-branch name/i,
+    );
+    expect(body).toMatch(/defaults to `--state open`/i);
+    expect(body).toMatch(/its `headRefName` is exactly that branch/i);
+    expect(body).toMatch(
+      /while the local branch still exists, its `headRefOid` equals that branch's tip/i,
+    );
+    expect(body).toMatch(
+      /required exactly while there is a local branch to compare and is not required once §4.3 has removed it/i,
+    );
+    expect(body).toMatch(
+      /the pull request's `headRefName` is not this issue's branch — the pull request is not this branch's/i,
+    );
+    expect(body).toMatch(
+      /the local branch still exists and its tip is not the pull request's `headRefOid`/i,
+    );
+    expect(body).toMatch(/commits pushed to the branch _after_ the merge/i);
+    // The defect this replaced: a search that finds no merged pull request.
+    expect(body).not.toMatch(/found by branch with `gh pr list --search`/);
+  });
+
+  it("names the directory each destructive command runs from", () => {
+    expect(body).toMatch(/From inside the issue worktree: ```bash npm run db:release/i);
+    expect(body).toMatch(/Then stop the stack from inside the issue worktree/i);
+    expect(body).toMatch(
+      /From the primary checkout, never from inside the worktree being removed/i,
+    );
+    expect(body).toMatch(/the branch is pushed with no unpushed commits, so nothing is lost/i);
+  });
+
+  it("fails closed on anything unfinished, unclean, or no longer owned", () => {
+    expect(body).toMatch(
+      /Release nothing, delete nothing, stop nothing, and change no Linear state/i,
+    );
+    expect(body).toMatch(/Absence of evidence is never permission/i);
+    for (const blocker of [
+      /pull request is open, draft, or closed unmerged/i,
+      /uncommitted changes, untracked files .{0,40}unpushed commits, or stash entries/i,
+      /`correct-before-handoff` finding is recorded as unresolved/i,
+      /human or visual acceptance is genuinely still pending/i,
+      /fencing token no longer matches — another session owns that slot now/i,
+    ])
+      expect(body).toMatch(blocker);
+  });
+
+  it("stops before releasing, and releases before removing, with the reason for each", () => {
+    expect(body).toMatch(/Stop the services first/i);
+    expect(body).toMatch(/refuses any lease that is not `active` or `review-ready`/i);
+    expect(body).toMatch(/Stop, then release/i);
+    expect(body).toMatch(/This must run before the worktree is removed/i);
+    expect(body).toMatch(/`db:cleanup-stale` never reclaims a `review-ready` record/i);
+    // indexOf returns -1 for an absent string, so require presence before order:
+    // deleting a step entirely must fail, not pass vacuously.
+    const at = (needle: string) => {
+      const index = body.indexOf(needle);
+      expect(index, `${needle} is missing from the closeout`).toBeGreaterThan(-1);
+      return index;
+    };
+    expect(at("npm run db:stop")).toBeLessThan(at("npm run db:release"));
+    expect(at("npm run db:release")).toBeLessThan(at("git worktree remove"));
+  });
+
+  it("never destroys work, another owner's slot, or the primary checkout", () => {
+    expect(body).toMatch(/Never remove a dirty, interrupted, unmerged, or review-ready worktree/i);
+    expect(body).toMatch(/Use `-d` and never `-D`, but do not lean on `-d` as the safety check/i);
+    // The prose said `-d`; pin the command block too, or the block can say `-D`.
+    const removalBlock =
+      /### 4\.3 Remove the worktree[\s\S]*?```bash\n([\s\S]*?)```/.exec(finishSkill.body)?.[1] ??
+      "";
+    expect(removalBlock).toMatch(/^git branch -d <branch>/m);
+    expect(removalBlock).not.toMatch(/git branch -D/);
+    expect(body).toMatch(/Delete the local branch .{0,20}only in the merged case/i);
+    expect(body).toMatch(/it will delete a branch that was merely pushed/i);
+    expect(body).toMatch(/If `-d` refuses, leave the branch alone and report it/i);
+    // The defect this replaced: `-d` credited with a safety property git does not give it here.
+    expect(body).not.toMatch(/which refuses an unmerged branch/);
+    expect(body).toMatch(
+      /Never touch another issue's worktree, a locked agent worktree, or a mission worker's worktree/i,
+    );
+    expect(body).toMatch(/primary checkout must be clean and on its original branch/i);
+    expect(body).toMatch(/never stop a mission-owned stack/i);
+  });
+
+  it("closes the ticket once, and never over a pending human gate", () => {
+    expect(body).toMatch(/Set the Linear issue to Done if it is not already/i);
+    expect(body).toMatch(/add exactly one closing comment/i);
+    expect(body).toMatch(
+      /only Linear writes this workflow makes|That comment and the state change are the only Linear writes/i,
+    );
+    expect(body).toMatch(
+      /Never move an issue to Done while human or visual acceptance is genuinely pending/i,
+    );
+    expect(body).toMatch(/reports `already finalized` without acting or failing/i);
+    // The short-circuit is what makes that reachable: §4.3 destroys the branch
+    // tip the merged proof compares against, so a strict re-proof would refuse
+    // every issue the workflow had already finished.
+    expect(body).toMatch(/First, the already-finalized case/i);
+    expect(body).toMatch(
+      /If this issue has no worktree, no local branch and no lease, there is nothing left to reclaim/i,
+    );
+    expect(body).toMatch(/Do not evaluate the rest of §3/i);
+    expect(body).toMatch(/its absence is the proof that closeout already happened, not a blocker/i);
+    expect(body).toMatch(/A run that stopped between §4.3 and §4.4/i);
+  });
+
+  it("is announced by /start-issue and by the working agreement, and leaves missions alone", () => {
+    expect(flat(skill.body)).toMatch(/Closeout is a separate, later invocation/i);
+    expect(flat(skill.body)).toMatch(/`\/finish-issue LAN-###`/i);
+    expect(flat(agreement)).toMatch(/five user-invoked workflows and two subagents are approved/i);
+    expect(flat(agreement)).toMatch(/Under `\/finish-issue`, the top-level session finalizes/i);
+    expect(flat(agreement)).toMatch(
+      /Linear recordkeeping is limited to In Progress at start, the draft PR link, one final evidence\/handoff comment, and — after the merge, from `\/finish-issue` alone — the Done transition and its single closing comment/i,
+    );
+    expect(body).toMatch(/Mission closeout .{0,120}is out of scope/i);
   });
 });
 
@@ -756,6 +963,7 @@ describe("production and security boundaries", () => {
   it("preserves draft-only, human-merge, no-deploy, and local-only Supabase rules", () => {
     for (const text of [
       flat(skill.body),
+      flat(finishSkill.body),
       flat(missionSkill.body),
       flat(worker.body),
       flat(agreement),

@@ -1,7 +1,7 @@
 # 0030 — Missions are independently fenced and own disposable local databases
 
 **Status:** Accepted; lease reclaim amended by
-[0032](0032-harness-after-the-first-live-mission.md) · **Date:** 2026-08-19
+[0033](0033-harness-after-the-first-live-mission.md) · **Date:** 2026-08-19
 
 ## Context
 

@@ -389,3 +389,9 @@ been personally verified in a browser.
 Return the same concise evidence to Brian. Do not set In Review unless human or
 visual acceptance is genuinely pending. Leave the draft PR, worktree, branch,
 and any review-ready environment recoverable. No agent merges.
+
+Closeout is a separate, later invocation and never part of this one. After
+Brian merges, `/finish-issue LAN-###` proves the terminal state, stops the
+services, releases the lease, removes the worktree and local branch, and closes
+the ticket. This session never releases its own lease as a finishing move,
+never removes its own worktree, and never sets the issue Done.

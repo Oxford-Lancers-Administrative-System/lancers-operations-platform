@@ -255,7 +255,7 @@ use the guarded lane only when an answered owner checkpoint names the package,
 so Brian hears about it before it merges; migrations, grants and RLS,
 authentication and session boundaries, production scripts, secrets, hosted
 data, deployment and every prohibited path stay owner-merged
-(`docs/adr/0032-harness-after-the-first-live-mission.md` §4). Routing a
+(`docs/adr/0033-harness-after-the-first-live-mission.md` §4). Routing a
 lane-qualified package to Brian anyway is recorded as a harness defect and
 states why.
 

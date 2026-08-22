@@ -169,6 +169,50 @@ own pitches, which no geocoder indexes, are typed rather than searched.
 | `npm run visual:disposition -- --set <state>`                                | Record approved/rejected/obsolete/abandoned       |
 | `npm run visual:release`                                                     | Stop the supervisor and hand the slot back        |
 
+### Closing out a finished issue
+
+When an issue's pull request has merged, the slot it held is still held, its
+worktree is still on disk, and its stack may still be running. Reclaim them in
+this order — from **inside** the issue worktree for the first two commands:
+
+```bash
+npm run db:stop      # inside the worktree; needs the still-valid fencing token
+npm run db:release   # inside the worktree; the token lives in .lancers-runtime/
+git worktree remove <path> && git worktree prune && git branch -d <branch>
+```
+
+The order is not interchangeable. `db:stop` validates the lease and refuses one
+that is already released, so releasing first leaves the containers running with
+no guarded way to stop them. And the fencing token lives in the worktree's
+ignored `.lancers-runtime/lease.json`, so removing the worktree before releasing
+destroys the only proof of ownership — `db:cleanup-stale` will not rescue you,
+because it never reclaims a `review-ready` record.
+
+`/finish-issue LAN-###` does exactly this, after proving from the repository
+that the work merged, and closes the Linear issue with one comment. It fails
+closed on an unmerged pull request, a dirty or unpushed worktree, or a lease
+that now belongs to another session.
+
+Two details bite if you do it by hand. The merge proof has to test the pull
+request's **merge commit**, because this repository squash-merges and a merged
+branch's own head is never an ancestor of `main`:
+
+```bash
+git fetch origin
+gh pr list --head <branch> --state all --json number,state,mergeCommit,headRefOid
+git merge-base --is-ancestor "<mergeCommit>" origin/main && echo merged
+```
+
+Find the pull request with `--head <branch> --state all`: a bare-text `--search`
+does not match a head-branch name, and `gh pr list` shows only open pull
+requests by default, so neither finds a merged one.
+
+And to read the lease registry, use `npm run db:coordinator status`, which is
+read-only and prints every slot's issue, worktree, state and application port
+with tokens stripped. `npm run db:status` is a different thing: it validates
+_this_ worktree's token, writes a heartbeat, and fails when there is no lease or
+the stack is already stopped.
+
 The authoritative lease registry lives in machine-local state, keyed by the
 repository remote so clones and worktrees coordinate. `.lancers-runtime/` in
 the claiming worktree holds generated config and its fencing token and is

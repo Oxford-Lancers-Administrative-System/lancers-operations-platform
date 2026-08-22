@@ -88,6 +88,7 @@ directly on components — use `sx`.
 | What is in hosted that is not schema                  | `docs/pilot-data-manifest.md`               |
 | Cloud Run deploy, secrets, cost controls, rollback    | `docs/deployment.md`                        |
 | How one issue is implemented and reviewed             | `.claude/skills/start-issue/SKILL.md`       |
+| How a finished issue is closed out                    | `.claude/skills/finish-issue/SKILL.md`      |
 | How an approved mission runs autonomously             | `docs/mission-harness.md`                   |
 | How low-risk work is batched and merged automatically | `docs/fast-lane.md`                         |
 | Why a decision was made                               | `docs/adr/` (index in `docs/adr/README.md`) |
@@ -498,11 +499,12 @@ steps, dependencies, theme contents — proceed and explain in the pull request.
 
 ## Agent tooling
 
-Exactly four user-invoked workflows and two subagents are approved:
+Exactly five user-invoked workflows and two subagents are approved:
 
 | Role                                                          | File                                      | What it does                                                                                                                                                                                                    |
 | ------------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Issue workflow (`/start-issue LAN-###`)                       | `.claude/skills/start-issue/`             | The top-level session implements one explicit issue in its dedicated worktree through draft PR and handoff. Preserved for deliberate manual use.                                                                |
+| Issue closeout (`/finish-issue LAN-###`)                      | `.claude/skills/finish-issue/`            | Finalizes one already-merged, canceled, or abandoned issue: releases its lease, stops its services, removes its worktree and branch, closes the ticket.                                                         |
 | Mission Intake (`/mission-intake <portfolio mission number>`) | `.claude/skills/mission-intake/`          | Prepares one mission packet through the durable ledger process and never executes a mission.                                                                                                                    |
 | Mission Lead (`/run-mission M-<id>`)                          | `.claude/skills/run-mission/`             | Executes one Brian-approved mission packet: plans the work-package DAG, syncs Linear, dispatches workers, orchestrates review, and runs the guarded merge lane.                                                 |
 | Finish mission (`/finish-mission M-<id>`)                     | `.claude/skills/finish-mission/`          | Reclaims a finished or abandoned mission's worktrees, branches and database stack after merges it proves from the repository, and records how the mission ended. Never merges, deploys or writes to production. |
@@ -516,7 +518,27 @@ implements directly, and classifies the issue as UI-affecting, nonvisual, or
 mixed. It never launches an
 implementation subagent, selects
 a second issue, starts a wave, uses the fast lane, merges, un-drafts, deploys,
-migrates hosted Supabase, or writes to production.
+migrates hosted Supabase, or writes to production. It also never closes the
+issue and never removes its own worktree or lease — that is closeout, and it
+happens after Brian merges.
+
+Under `/finish-issue`, the top-level session finalizes exactly one issue whose
+work has already reached a terminal state. It proves that state from the
+repository — the pull request found from this issue's branch, `MERGED`, still
+pointing at that branch, its **merge commit** an ancestor of a freshly fetched
+`origin/main`, and its head commit equal to the local branch tip while that
+branch still exists; the Linear issue canceled; or Brian's explicit
+`--abandoned` over a fully pushed branch — never from a pull-request body, a handoff summary, or the
+Linear state alone. It then stops the services, releases the lease, removes the
+worktree and local branch, and closes the ticket with one comment, in that
+order. It implements nothing, launches no subagent, and fails closed: an
+unmerged pull request, a dirty or unpushed worktree, a stash entry, an
+unresolved `correct-before-handoff` finding, a pending visual gate, or a lease
+that now belongs to somebody else all mean it releases nothing, deletes
+nothing, changes no Linear state, and reports the blocker instead. An issue with
+no worktree, no branch and no lease is the one case it does not re-prove: that
+is closeout that already happened, so it says so and finishes any Linear write
+still outstanding. Mission closeout is not its job.
 
 Under `/run-mission`, the top-level session is the Mission Lead. Mission memory
 is an append-only journal owned by `scripts/mission/cli.mjs` — every plan,
@@ -592,10 +614,11 @@ is generated from durable state. See
   serves — Brian would otherwise approve something that is not what would
   merge. Viewport evidence is measured from the browser context, never
   self-reported. See [ADR 0020](docs/adr/0020-zero-command-visual-review.md) as
-  amended by [ADR 0032](docs/adr/0032-harness-after-the-first-live-mission.md).
+  amended by [ADR 0033](docs/adr/0033-harness-after-the-first-live-mission.md).
 
-Linear recordkeeping is limited to In Progress at start, the draft PR link, and
-one final evidence/handoff comment. Use In Review only for genuine human or
+Linear recordkeeping is limited to In Progress at start, the draft PR link, one
+final evidence/handoff comment, and — after the merge, from `/finish-issue`
+alone — the Done transition and its single closing comment. Use In Review only for genuine human or
 visual acceptance. See
 [`docs/adr/0020-zero-command-visual-review.md`](docs/adr/0020-zero-command-visual-review.md).
 
@@ -610,7 +633,7 @@ from any label a receipt carries. **Review grade and merge route are separate
 questions**: a grade says how rigorously a change is reviewed, and Highest-risk
 work may use the guarded lane only when an answered owner checkpoint names the
 package, so Brian hears about it before it merges
-([ADR 0032](docs/adr/0032-harness-after-the-first-live-mission.md) §4). A
+([ADR 0033](docs/adr/0033-harness-after-the-first-live-mission.md) §4). A
 mission merge performed with `GITHUB_TOKEN` deliberately does not deploy. **No agent
 merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to
 production.**
