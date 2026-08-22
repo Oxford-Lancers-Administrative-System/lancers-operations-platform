@@ -69,8 +69,12 @@ const contradictoryPolicyPatterns = {
 const settings = JSON.parse(readFileSync(path.join(root, ".claude", "settings.json"), "utf8"));
 
 describe("single-issue Claude workflow", () => {
-  it("has exactly the three user-invoked workflows and no obsolete batch artifacts", () => {
+  it("has exactly the four user-invoked workflows and no obsolete batch artifacts", () => {
+    // LAN-148 adds the fourth: reclamation is a separate invocation because the
+    // case that matters most is a mission whose Lead is gone and has nothing
+    // left to run an exit step.
     expect([...readdirSync(skills)].sort()).toEqual([
+      "finish-mission",
       "mission-intake",
       "run-mission",
       "start-issue",
@@ -79,6 +83,26 @@ describe("single-issue Claude workflow", () => {
     expect(skill.fields["disable-model-invocation"]).toBe("true");
     expect(skill.fields["argument-hint"]).toBe("LAN-###");
     expect(existsSync(path.join(skills, "supervise-batch"))).toBe(false);
+  });
+
+  it("keeps mission reclamation user-invoked, fenced, and after a proved merge", () => {
+    const finish = readFileSync(path.join(skills, "finish-mission", "SKILL.md"), "utf8");
+    expect(/^name: finish-mission$/m.test(finish)).toBe(true);
+    expect(/^disable-model-invocation: true$/m.test(finish)).toBe(true);
+    // Never inferred from the pull-request body or Linear: the mission-merge
+    // lane merges without a human.
+    expect(finish).toMatch(/ancestor of `origin\/main`/);
+    expect(finish).toMatch(/never from the pull-request body/i);
+    // A live Lead owns its own mission.
+    expect(finish).toMatch(/Only a dead or expired fence/i);
+    expect(finish).toMatch(/There is no override/i);
+    // The shared stack is retired once, by whoever is last out.
+    expect(finish).toMatch(/whoever detaches last retires it/i);
+    expect(finish).toMatch(/never the standing primary or overflow slot/i);
+    // It takes none of the actions the harness forbids.
+    expect(finish.replace(/\s+/g, " ")).toMatch(
+      /never merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to production/i,
+    );
   });
 
   it("keeps mission intake explicitly invoked and restricted to one portfolio number", () => {
