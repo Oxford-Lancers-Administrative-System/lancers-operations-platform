@@ -1,12 +1,18 @@
 {
   "mission_id": "M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY",
   "ledger_version": 2,
-  "stage": "overview",
+  "stage": "inventory",
   "baseline": {
     "branch": "main",
     "commit": "c59bff174d6d17b5fa9dec4396eb3397d67e0c63"
   },
-  "approvals": { "boundary": { "words": "The boundary is correct.", "date": "2026-08-22" } },
+  "approvals": {
+    "boundary": { "words": "The boundary is correct.", "date": "2026-08-22" },
+    "overview": {
+      "words": "This seems like what we talked about based on what we have talked about before. This seems correct. I guess as we go through the workflows, we will figure out if this is right. Approved",
+      "date": "2026-08-22"
+    }
+  },
   "workflows": [],
   "mockup_hub": "generated",
   "decision_coverage": {
@@ -20,5 +26,5 @@
     ],
     "decisions": []
   },
-  "next_action": "Write and approve 01-overview.md"
+  "next_action": "Inventory the controlling decisions (Stage 2a), then freeze 02-workflows.md"
 }

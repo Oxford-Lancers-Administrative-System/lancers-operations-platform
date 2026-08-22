@@ -193,5 +193,5 @@ Requirements, and the repository at `c59bff1` — specifically
 
 ## Brian approval
 
-- **Exact words:**
-- **Date:**
+- **Exact words:** "This seems like what we talked about based on what we've talked about before. This seems correct. I guess as we go through the workflows, we'll figure out if this is right. Approved"
+- **Date:** 2026-08-22
