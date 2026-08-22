@@ -253,16 +253,16 @@ describe("issue closeout workflow", () => {
   });
 
   it("proves the terminal state from the repository, never from the story told about it", () => {
-    expect(body).toMatch(/reports `state` `MERGED`/i);
-    expect(body).toMatch(/git merge-base --is-ancestor "\$MERGE" origin\/main/i);
-    expect(body).toMatch(/Both, not either/i);
+    expect(body).toMatch(/state == MERGED/);
+    expect(body).toMatch(/All four of these, not any one of them/i);
+    expect(body).toMatch(/git merge-base --is-ancestor "<mergeCommit>" origin\/main/i);
     expect(body).toMatch(/is never evidence that the work merged/i);
     expect(body).toMatch(/Brian passed `--abandoned`/i);
     expect(body).toMatch(/it is Brian's explicit statement and is never inferred/i);
   });
 
   it("tests the merge commit, not the branch head, because this repository squash-merges", () => {
-    expect(body).toMatch(/MERGE=\$\(gh pr view <n> --json mergeCommit -q \.mergeCommit\.oid\)/);
+    expect(body).toMatch(/# require: state == MERGED, headRefName == <branch>,/);
     expect(body).toMatch(/Test the merge commit, never the branch head/i);
     expect(body).toMatch(
       /this repository squash-merges, so a merged branch's own head is never an ancestor of `main`/i,
@@ -276,17 +276,53 @@ describe("issue closeout workflow", () => {
 
   it("gathers its evidence with read-only commands that can answer the ownership gate", () => {
     expect(body).toMatch(/Every command here is read-only/i);
-    // Named in the evidence block and in the prose, and no mutating command is
-    // permitted in the phase that is declared to change nothing.
-    expect(body.match(/npm run db:coordinator status/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
-    expect(body).not.toMatch(/npm run db:(reset|start|seed|heartbeat|review-ready)/);
+    // The fenced block is the phase declared to change nothing, so read it and
+    // require every command in it to be one that cannot write. A blacklist of
+    // known-mutating names is not enough: `db:status` itself validates this
+    // worktree's token and writes a heartbeat, which is exactly the defect the
+    // sentence above is there to prevent.
+    const evidenceBlock = /```bash\n([\s\S]*?)```/.exec(finishSkill.body)?.[1] ?? "";
+    expect(evidenceBlock).not.toBe("");
+    const readOnly = [
+      /^git fetch origin\b/,
+      /^git worktree list --porcelain\b/,
+      /^gh pr list --head <branch> --state all\b/,
+      /^git -C <worktree> status --short --branch\b/,
+      /^git -C <worktree> rev-parse HEAD\b/,
+      /^npm run db:coordinator status\b/,
+    ];
+    for (const line of evidenceBlock
+      .split("\n")
+      .map((l) => l.replace(/\s+#.*$/, "").trim())
+      .filter(Boolean))
+      expect(
+        readOnly.some((allowed) => allowed.test(line)),
+        `the evidence phase must change nothing, but it runs: ${line}`,
+      ).toBe(true);
+
     expect(body).toMatch(
       /Use `npm run db:coordinator status`, not `npm run db:status`|not `npm run db:status`/i,
     );
     expect(body).toMatch(/validates this worktree's own token, writes a heartbeat/i);
-    expect(body).toMatch(/`issueId`, `missionId`, `repoPath`, `attachedRepoPaths`, `state`/);
+    expect(body).toMatch(/`issueId` on an issue slot/);
+    expect(body).toMatch(/an issue record carries no `missionId`/i);
     expect(body).toMatch(/lsof -ti tcp:<applicationPort>/);
-    expect(body).toMatch(/git fetch origin/);
+  });
+
+  it("finds the pull request from the branch, and binds the proof to it", () => {
+    expect(body).toMatch(/gh pr list --head <branch> --state all/);
+    expect(body).toMatch(
+      /Not `gh pr list --search "<branch>"`, which does not match a head-branch name/i,
+    );
+    expect(body).toMatch(/defaults to `--state open`/i);
+    expect(body).toMatch(/its `headRefName` is exactly that branch/i);
+    expect(body).toMatch(/its `headRefOid` equals the local branch tip/i);
+    expect(body).toMatch(
+      /the pull request's `headRefName` is not this issue's branch, or its `headRefOid` is not the local branch tip/i,
+    );
+    expect(body).toMatch(/commits pushed to the branch _after_ the merge/i);
+    // The defect this replaced: a search that finds no merged pull request.
+    expect(body).not.toMatch(/found by branch with `gh pr list --search`/);
   });
 
   it("names the directory each destructive command runs from", () => {
@@ -319,8 +355,15 @@ describe("issue closeout workflow", () => {
     expect(body).toMatch(/Stop, then release/i);
     expect(body).toMatch(/This must run before the worktree is removed/i);
     expect(body).toMatch(/`db:cleanup-stale` never reclaims a `review-ready` record/i);
-    expect(body.indexOf("npm run db:stop")).toBeLessThan(body.indexOf("npm run db:release"));
-    expect(body.indexOf("npm run db:release")).toBeLessThan(body.indexOf("git worktree remove"));
+    // indexOf returns -1 for an absent string, so require presence before order:
+    // deleting a step entirely must fail, not pass vacuously.
+    const at = (needle: string) => {
+      const index = body.indexOf(needle);
+      expect(index, `${needle} is missing from the closeout`).toBeGreaterThan(-1);
+      return index;
+    };
+    expect(at("npm run db:stop")).toBeLessThan(at("npm run db:release"));
+    expect(at("npm run db:release")).toBeLessThan(at("git worktree remove"));
   });
 
   it("never destroys work, another owner's slot, or the primary checkout", () => {
@@ -355,6 +398,9 @@ describe("issue closeout workflow", () => {
     expect(flat(skill.body)).toMatch(/`\/finish-issue LAN-###`/i);
     expect(flat(agreement)).toMatch(/four user-invoked workflows and two subagents are approved/i);
     expect(flat(agreement)).toMatch(/Under `\/finish-issue`, the top-level session finalizes/i);
+    expect(flat(agreement)).toMatch(
+      /Linear recordkeeping is limited to In Progress at start, the draft PR link, one final evidence\/handoff comment, and — after the merge, from `\/finish-issue` alone — the Done transition and its single closing comment/i,
+    );
     expect(body).toMatch(/Mission closeout .{0,120}is out of scope/i);
   });
 });

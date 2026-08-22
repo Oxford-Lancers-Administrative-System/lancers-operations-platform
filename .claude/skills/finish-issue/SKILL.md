@@ -34,21 +34,32 @@ read-only; none of them writes to the registry or to a stack.
 
 ```bash
 git fetch origin                                  # from the primary checkout
-gh pr view <n> --json state,mergeCommit,headRefOid,headRefName
-git worktree list --porcelain
+git worktree list --porcelain                     # find this issue's worktree and branch
+gh pr list --head <branch> --state all --json number,state,mergeCommit,headRefOid,headRefName
 git -C <worktree> status --short --branch         # and: git -C <worktree> stash list
+git -C <worktree> rev-parse HEAD                  # the local branch tip
 npm run db:coordinator status                     # the lease registry, tokens stripped
 ```
 
+Find the pull request **from the branch**, with `gh pr list --head <branch>
+--state all`. Not `gh pr list --search "<branch>"`, which does not match a
+head-branch name, and not a bare `gh pr list`, which defaults to `--state open`
+and so excludes every merged pull request — either would find nothing for a
+merged issue and refuse the one case this workflow exists for. A pull-request
+number taken from a Linear comment or a handoff message is a starting point,
+never the binding.
+
 - the Linear issue, its current state, and its comments;
-- the issue's pull request, found by branch with `gh pr list --search`, and its
-  `state`, `mergeCommit` and `headRefOid`;
+- the issue's pull request, found by branch, and its `number`, `state`,
+  `mergeCommit`, `headRefName` and `headRefOid`;
 - the one worktree belonging to this issue, and its branch;
 - that worktree's working tree, stash list, and tracking state;
 - the lease registry. Use `npm run db:coordinator status`, not `npm run
-db:status`: the coordinator prints every slot's `issueId`, `missionId`,
-  `repoPath`, `attachedRepoPaths`, `state` and `applicationPort` with tokens
-  stripped, and reads nothing else. `db:status` answers a different question —
+db:status`: the coordinator prints every slot with tokens stripped — `state`,
+  `repoPath` and `applicationPort` for all of them, `issueId` on an issue slot,
+  and `missionId` and `attachedRepoPaths` on a mission slot — and reads nothing
+  else. Absence is what identifies the kind: an issue record carries no
+  `missionId`, a mission record carries no `issueId`. `db:status` answers a different question —
   it validates this worktree's own token, writes a heartbeat, and fails when
   there is no lease or the stack is already stopped, none of which is wanted
   while the run is still deciding whether it may act at all.
@@ -64,18 +75,30 @@ nothing.
 
 Finalize only when exactly one of these is proved:
 
-- **Merged.** `gh pr view` reports `state` `MERGED`, and that pull request's
-  **`mergeCommit`** is an ancestor of a freshly fetched `origin/main`:
+- **Merged.** All four of these, not any one of them: the pull request was found
+  from this issue's branch; its `headRefName` is exactly that branch; its
+  `headRefOid` equals the local branch tip; and its **`mergeCommit`** is an
+  ancestor of a freshly fetched `origin/main`.
 
   ```bash
   git fetch origin
-  MERGE=$(gh pr view <n> --json mergeCommit -q .mergeCommit.oid)
-  git merge-base --is-ancestor "$MERGE" origin/main
+  gh pr list --head <branch> --state all --json number,state,mergeCommit,headRefOid,headRefName
+  # require: state == MERGED, headRefName == <branch>,
+  #          headRefOid == git -C <worktree> rev-parse HEAD
+  git merge-base --is-ancestor "<mergeCommit>" origin/main
   ```
 
-  Both, not either. Test the merge commit, never the branch head: this
-  repository squash-merges, so a merged branch's own head is never an ancestor
-  of `main` and testing it would refuse every genuinely merged issue.
+  Test the merge commit, never the branch head: this repository squash-merges,
+  so a merged branch's own head is never an ancestor of `main` and testing it
+  would refuse every genuinely merged issue.
+
+  The three identity checks are not ceremony. Without them a pull-request number
+  lifted from a comment proves somebody else's merge, and commits pushed to the
+  branch _after_ the merge still satisfy `MERGED` plus an ancestor merge commit
+  while `main` does not contain them — the branch would then be deleted with
+  work on it that never landed. `headRefOid` equal to the local tip is what
+  excludes that. An empty `mergeCommit`, which every unmerged pull request has,
+  fails this step rather than being handed to `git`.
 
 - **Canceled.** The Linear issue is in a canceled state.
 - **Abandoned.** Brian passed `--abandoned`, and the branch is pushed with no
@@ -86,7 +109,10 @@ change no Linear state when any of the following is true; instead report exactly
 what is blocking and end:
 
 - the pull request is open, draft, or closed unmerged, or there is no pull
-  request at all;
+  request at all for this branch;
+- the pull request's `headRefName` is not this issue's branch, or its
+  `headRefOid` is not the local branch tip — the branch has moved since the
+  merge, or the pull request is not this branch's;
 - the worktree has uncommitted changes, untracked files that are not ignored,
   unpushed commits, or stash entries;
 - a `correct-before-handoff` finding is recorded as unresolved;

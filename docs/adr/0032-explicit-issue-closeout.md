@@ -38,7 +38,16 @@ an ancestor of a freshly fetched `origin/main`; or the Linear issue canceled; or
 Brian's explicit `--abandoned` over a fully pushed branch. A pull-request body, a
 handoff summary, or a Linear state is never the evidence.
 
-The proof tests the merge commit, not the branch head, because this repository
+The proof binds to the branch and then tests the merge commit. The pull request
+is found from the branch — `gh pr list --head <branch> --state all`, because a
+bare-text `--search` does not match a head-branch name and `gh pr list` defaults
+to open pull requests, so either would find nothing for exactly the merged case
+the workflow exists to serve. Its `headRefName` must still be that branch and
+its `headRefOid` the local tip, so that a pull-request number lifted from a
+comment cannot stand in for this issue's merge and commits pushed after the
+merge cannot pass as merged.
+
+It tests the merge commit, not the branch head, because this repository
 squash-merges: a merged branch's own head is never an ancestor of `main`, so the
 obvious-looking `git merge-base --is-ancestor <branch> origin/main` would refuse
 every genuinely merged issue and the workflow would never do anything. For the

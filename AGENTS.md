@@ -523,9 +523,10 @@ happens after Brian merges.
 
 Under `/finish-issue`, the top-level session finalizes exactly one issue whose
 work has already reached a terminal state. It proves that state from the
-repository — the pull request `MERGED` and its **merge commit** an ancestor of a
-freshly fetched `origin/main`, the Linear issue canceled, or Brian's explicit
-`--abandoned` over a fully pushed branch — never from a pull-request body, a handoff summary, or the
+repository — the pull request found from this issue's branch, `MERGED`, still
+pointing at that branch at its current tip, and its **merge commit** an ancestor
+of a freshly fetched `origin/main`; the Linear issue canceled; or Brian's
+explicit `--abandoned` over a fully pushed branch — never from a pull-request body, a handoff summary, or the
 Linear state alone. It then stops the services, releases the lease, removes the
 worktree and local branch, and closes the ticket with one comment, in that
 order. It implements nothing, launches no subagent, and fails closed: an

@@ -194,9 +194,13 @@ branch's own head is never an ancestor of `main`:
 
 ```bash
 git fetch origin
-MERGE=$(gh pr view <n> --json mergeCommit -q .mergeCommit.oid)
-git merge-base --is-ancestor "$MERGE" origin/main && echo merged
+gh pr list --head <branch> --state all --json number,state,mergeCommit,headRefOid
+git merge-base --is-ancestor "<mergeCommit>" origin/main && echo merged
 ```
+
+Find the pull request with `--head <branch> --state all`: a bare-text `--search`
+does not match a head-branch name, and `gh pr list` shows only open pull
+requests by default, so neither finds a merged one.
 
 And to read the lease registry, use `npm run db:coordinator status`, which is
 read-only and prints every slot's issue, worktree, state and application port
