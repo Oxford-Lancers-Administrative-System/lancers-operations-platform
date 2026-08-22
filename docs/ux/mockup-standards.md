@@ -20,6 +20,38 @@ data-driven single-file rendering approach, shell, tokens, and frame markup.
   behavior and raise the conflict to Brian explicitly; never silently harmonize
   either direction.
 
+## Current versus proposed
+
+These rules were agreed during the first ledger-driven intake, proved on
+`M-EVENTS-CALENDAR-TARGET-STATE` from `W2` onward, and are binding on every
+mission-intake mockup. They live here, not in `docs/ux/standards.md`, which is
+the single general UX standard and says nothing about intake review artifacts.
+
+- Label both sides explicitly and identically on every screen — the visible
+  labels are **CURRENT — on `main` today** and **PROPOSED — this mission**.
+  Position and a caption are not enough to say which is which.
+- Give each side a visible band or rule in its own colour, applied consistently
+  across every screen and every workflow, and explain the two labels once in the
+  page legend.
+- State the surface's disposition on the screen head as **Existing**,
+  **Modified** or **New**, in those words.
+- On a modified surface, name the specific deltas in the screen head as a short
+  list. The reader is told what to look for rather than asked to diff two images.
+- A surface with no current equivalent says **New surface, nothing to compare**,
+  and the screen head says which workflow justifies introducing it. Never omit
+  the current side silently.
+- Explanatory review material goes outside the application frame, in the screen
+  head. An alert inside the frame reads as product. The exception is a screen
+  whose subject _is_ the application's own empty, refusal or error alerts.
+- The 375px frame shows the workflow's useful content within roughly one screen
+  of the top. Stacked full-width controls that push content below the fold are a
+  defect, not a rendering artefact: collapse them into one compact control and
+  render rows as condensed cards, matching the breakpoint behaviour the
+  application already uses.
+- Reuse an already-approved surface rather than redrawing it. A second,
+  divergent copy of an approved screen is a contradiction in the ledger, not a
+  convenience; link to the approved workflow's screen instead.
+
 ## Review vocabulary and frames
 
 - Mark every surface absent from the current build with a dashed `Proposed` chip
@@ -52,8 +84,17 @@ data-driven single-file rendering approach, shell, tokens, and frame markup.
 
 - Each `mockups/Wn-<slug>.html` is self-contained and renders its screens from data
   through one shared shell/component layer.
-- `mockups/index.html` has one row per frozen workflow: ID, name, screen count,
-  workflow state, and link.
+- `mockups/index.html` is **generated**, never hand-maintained:
+  `npm run intake -- hub --write` renders it from `state.json` and the
+  specification, mockup and acceptance files actually present. It carries one
+  row per frozen workflow — ID, name and link, specification and acceptance
+  links, screen count, current-versus-proposed disposition, workflow state and
+  staleness, and any amendments or open feedback — plus overall progress.
+  `npm run intake -- status` fails when the committed hub differs from what the
+  ledger generates, so a hand edit is drift, not an update. A mission that
+  genuinely draws no surfaces records
+  `"mockup_hub": {"not_applicable": "<reason>"}` instead; silence is never the
+  not-applicable answer.
 - Every workflow page links to the hub and previous/next workflows.
 - After creating or revising a mockup, mission intake opens the file in Brian's
   browser. For an already-open file it reopens it or says which workflow to

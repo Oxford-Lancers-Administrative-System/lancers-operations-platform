@@ -1,5 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
+import { renderDecisionCoverage, validateDecisionCoverage } from "./decisions.mjs";
+import { formatAs } from "./format.mjs";
+import { HUB_FILE, renderMockupHub } from "./hub.mjs";
+
+// Ledger schema version. Version 2 adds the gates LAN-149 proved necessary:
+// source-scoped controlling-decision coverage, and a generated mockup hub that
+// cannot drift. A version 1 ledger predates them and is accepted only as the
+// closed historical record of an already-merged intake — no live intake can
+// avoid the gates by omitting the field, because `merged` is the one stage a
+// version 1 ledger may sit at.
+export const LEDGER_VERSION = 2;
+
+export const DECISION_COVERAGE_FILE = "decision-coverage.md";
 
 export const INTAKE_STAGES = [
   "boundary",
@@ -30,6 +43,16 @@ const approved = (value) =>
 const stateAtOrAfter = (state, threshold) =>
   WORKFLOW_STATES.indexOf(state) >= WORKFLOW_STATES.indexOf(threshold);
 
+const stageAtOrAfter = (stage, threshold) =>
+  INTAKE_STAGES.indexOf(stage) >= INTAKE_STAGES.indexOf(threshold);
+
+/** The ledger's schema version; an unversioned ledger predates LAN-149. */
+export const ledgerVersion = (state) => state?.ledger_version ?? 1;
+
+/** Whether this ledger must satisfy the LAN-149 gates. */
+export const gatesApply = (state) =>
+  ledgerVersion(state) >= 2 && stageAtOrAfter(state?.stage, "workflows");
+
 export function validateIntakeState(state) {
   const errors = [];
   if (!state || typeof state !== "object" || Array.isArray(state)) {
@@ -46,6 +69,14 @@ export function validateIntakeState(state) {
   }
   if (!nonEmpty(state.next_action)) errors.push("next_action is required.");
   if (!Array.isArray(state.workflows)) errors.push("workflows must be an array.");
+  if (state.ledger_version !== undefined && ![1, LEDGER_VERSION].includes(state.ledger_version)) {
+    errors.push(`ledger_version must be 1 or ${LEDGER_VERSION}.`);
+  }
+  if (ledgerVersion(state) === 1 && state.stage !== "merged") {
+    errors.push(
+      `a version 1 ledger is a closed historical record; a live intake must set ledger_version ${LEDGER_VERSION} and carry decision coverage and a generated mockup hub.`,
+    );
+  }
   if (INTAKE_STAGES.indexOf(state.stage) >= INTAKE_STAGES.indexOf("overview")) {
     if (!approved(state.approvals?.boundary)) {
       errors.push("approvals.boundary must retain Brian's words and approval date.");
@@ -119,13 +150,58 @@ export function validateIntakeState(state) {
     priorWorkflowDone = priorWorkflowDone && workflow.state === "done";
   }
 
+  if (gatesApply(state)) {
+    if (state.decision_coverage === undefined) {
+      errors.push(
+        "decision_coverage is required before the workflow stage: inventory the source's controlling decisions and give each one exactly one disposition.",
+      );
+    } else {
+      errors.push(
+        ...validateDecisionCoverage(state.decision_coverage, {
+          workflowIds: (state.workflows ?? []).map((workflow) => workflow.id),
+          missionId: state.mission_id,
+        }),
+      );
+    }
+    errors.push(...validateMockupHubDeclaration(state));
+  }
+
   return errors;
+}
+
+/**
+ * A mission that produces mockups must publish the generated hub. A mission
+ * that genuinely produces none says so explicitly, with a reason; silence is
+ * never the not-applicable answer.
+ */
+function validateMockupHubDeclaration(state) {
+  const declaration = state.mockup_hub;
+  const producesMockups = (state.workflows ?? []).some((workflow) =>
+    stateAtOrAfter(workflow?.state, "mock_draft"),
+  );
+  if (declaration === "generated") return [];
+  if (
+    declaration !== null &&
+    typeof declaration === "object" &&
+    !Array.isArray(declaration) &&
+    Object.keys(declaration).length === 1 &&
+    nonEmpty(declaration.not_applicable)
+  ) {
+    return producesMockups
+      ? [
+          "mockup_hub is not_applicable but workflows have mockups; a mission that produces mockups publishes the generated hub.",
+        ]
+      : [];
+  }
+  return [
+    'mockup_hub must be "generated", or {"not_applicable": "<reason>"} for a mission that produces no mockups.',
+  ];
 }
 
 const oneMatch = (directory, expression) =>
   fs.existsSync(directory) ? fs.readdirSync(directory).filter((name) => expression.test(name)) : [];
 
-export function validateIntakeLedger(state, ledgerRoot) {
+export function validateIntakeLedger(state, ledgerRoot, { requireGenerated = true } = {}) {
   const errors = [];
   const requiredByStage = [
     ["overview", "00-boundary.md"],
@@ -181,6 +257,53 @@ export function validateIntakeLedger(state, ledgerRoot) {
       errors.push(`${workflow.id} cannot retain an approved state while stale.`);
     }
   }
+
+  if (requireGenerated && gatesApply(state)) {
+    for (const file of requiredGeneratedFiles(state)) {
+      if (!fs.existsSync(path.join(ledgerRoot, file))) {
+        errors.push(
+          `${file} is required and is generated by npm run intake -- ${generatorFor(file)}.`,
+        );
+      }
+    }
+  }
+  return errors;
+}
+
+/** The generated artifacts this ledger must publish at its current stage. */
+export function requiredGeneratedFiles(state) {
+  const files = [DECISION_COVERAGE_FILE];
+  if (state.mockup_hub === "generated") files.push(HUB_FILE);
+  return files;
+}
+
+const generatorFor = (file) => (file === HUB_FILE ? "hub --write" : "coverage --write");
+
+/**
+ * Compare every generated ledger artifact with what the ledger would generate
+ * now. A hand-edited or stale hub is drift, and drift fails.
+ */
+export async function validateGeneratedArtifacts(state, ledgerRoot) {
+  const errors = [];
+  if (!gatesApply(state)) return errors;
+  const expected = new Map([[DECISION_COVERAGE_FILE, renderDecisionCoverage(state)]]);
+  if (state.mockup_hub === "generated") {
+    expected.set(HUB_FILE, renderMockupHub(state, ledgerRoot));
+  }
+  for (const [file, content] of expected) {
+    const target = path.join(ledgerRoot, file);
+    if (!fs.existsSync(target)) {
+      errors.push(
+        `${file} is missing; regenerate it with npm run intake -- ${generatorFor(file)}.`,
+      );
+      continue;
+    }
+    if (fs.readFileSync(target, "utf8") !== (await formatAs(content, file))) {
+      errors.push(
+        `${file} differs from the ledger it is generated from; regenerate it with npm run intake -- ${generatorFor(file)} rather than editing it.`,
+      );
+    }
+  }
   return errors;
 }
 
@@ -201,7 +324,7 @@ export function findStateFile(repoRoot, missionId) {
   return matches[0];
 }
 
-export function readIntakeState(file) {
+export function readIntakeState(file, { requireGenerated = true } = {}) {
   if (!fs.existsSync(file)) throw new Error(`Missing intake state: ${file}`);
   let state;
   try {
@@ -210,7 +333,7 @@ export function readIntakeState(file) {
     throw new Error(`Invalid JSON in ${file}: ${error.message}`);
   }
   const errors = validateIntakeState(state);
-  errors.push(...validateIntakeLedger(state, path.dirname(file)));
+  errors.push(...validateIntakeLedger(state, path.dirname(file), { requireGenerated }));
   if (errors.length) throw new Error(`Inconsistent intake state:\n- ${errors.join("\n- ")}`);
   return state;
 }

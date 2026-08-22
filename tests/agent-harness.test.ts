@@ -93,6 +93,91 @@ describe("single-issue Claude workflow", () => {
     expect(body).toMatch(/never executes a mission/i);
   });
 
+  it("gates the workflow stage on controlling-decision coverage", () => {
+    const body = flat(intakeSkill.body);
+    expect(body).toMatch(/Before the workflow inventory is frozen, inventory every controlling/i);
+    for (const disposition of [
+      "`workflow`",
+      "`excluded`",
+      "`delegated_to_mission_lead`",
+      "`other_mission`",
+      "`shared_cross_mission`",
+      "`superseded`",
+    ]) {
+      expect(body, `the skill must name ${disposition}`).toContain(disposition);
+    }
+    expect(body).toMatch(/one owning `Wn`/i);
+    expect(body).toMatch(/without becoming additional owners/i);
+    expect(body).toMatch(/source-less ambiguous decision id/i);
+    expect(body).toMatch(/supersession without approval evidence/i);
+    // The seam question is a blockquote, so `flat` leaves its wrapped `>` behind.
+    expect(body.replace(/>\s*/g, "")).toMatch(
+      /Would the product decision remain the same if the transport, provider or implementation mechanism changed tomorrow\?/i,
+    );
+    expect(body).toMatch(/never replaces reading the source's own handoffs and exclusions/i);
+    expect(body).toMatch(
+      /cannot reach the workflow stage while coverage is missing or conflicting/i,
+    );
+  });
+
+  it("requires the conversational walkthrough before a specification is approved", () => {
+    const body = flat(intakeSkill.body);
+    expect(body).toMatch(/Never ask for specification approval by presenting the file first/i);
+    expect(body).toMatch(/before Brian is shown `workflows\/Wn-<slug>.md` or asked to approve it/i);
+    for (const element of [
+      "purpose and intended outcome",
+      "the actor",
+      "the trigger and entry conditions",
+      "the normal sequence",
+      "state transitions",
+      "handoffs",
+      "exceptions and failure states",
+      "dependencies and mission boundaries",
+      "owner decisions, each with a recommendation",
+    ]) {
+      expect(body.toLowerCase(), `the walkthrough must cover ${element}`).toContain(element);
+    }
+    const template = readFileSync(
+      path.join(skills, "mission-intake", "templates", "workflow.md"),
+      "utf8",
+    );
+    expect(template).toContain("- Purpose/intended outcome:");
+    expect(template).toContain("## Dependencies and mission boundaries");
+    // Only those two are added; the rest of the template is retained.
+    expect(template).toContain("## Core decisions");
+    expect(template).toContain("## Exceptions and recovery");
+  });
+
+  it("generates the workflow overview and refuses hand-edited or silent hubs", () => {
+    const body = flat(intakeSkill.body);
+    expect(body).toMatch(/`mockups\/index.html` is generated, not written/i);
+    expect(body).toMatch(/npm run intake -- hub --write/);
+    expect(body).toMatch(/fails when the committed hub differs from what the ledger generates/i);
+    expect(body).toMatch(/\{"not_applicable": "<reason>"\}/);
+    expect(body).toMatch(/Silence is never the not-applicable answer/i);
+  });
+
+  it("keeps scripted intake edits provable and the final PR intake-artifacts-only", () => {
+    const body = flat(intakeSkill.body);
+    expect(body).toMatch(
+      /assert the expected match count and fail on an unexpected zero or multiple match/i,
+    );
+    expect(body).toMatch(/report the identity — line and column — of every target changed/i);
+    expect(body).toMatch(/reload the artifact from disk after formatting it/i);
+    expect(body).toMatch(/rolling the edit back/i);
+    expect(body).toMatch(/npm run intake -- edit --file/);
+
+    // `flat` strips `**`, so the two globs read as bare directory prefixes here.
+    expect(body).toMatch(
+      /exactly `missions\/intake\/<mission-id>\/` and `missions\/packets\/<mission-id>\/`/i,
+    );
+    expect(intakeSkill.body).toContain("`missions/intake/<mission-id>/**`");
+    expect(intakeSkill.body).toContain("`missions/packets/<mission-id>/**`");
+    expect(body).toMatch(/Both land in the one owner-approved merge/i);
+    expect(body).toMatch(/npm run intake -- pr-paths <mission-id> --diff main/);
+    expect(body).toMatch(/Never merge or un-draft/i);
+  });
+
   it("requires exactly one explicit Linear identifier and never selects more work", () => {
     const body = flat(skill.body);
     expect(body).toMatch(/match exactly `\^LAN-\[0-9\]\+\$`/i);

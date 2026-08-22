@@ -12,7 +12,7 @@ do not loosen these rules.
 - Brian is the final packet approver even when the Project Manager commissioned
   the intake.
 - Completeness, validation, or opening a PR does not approve a packet. Brian's
-  merge of the dedicated packet-only PR approves the exact version and commit.
+  merge of the dedicated intake-artifacts-only PR approves the exact version and commit.
 - No Mission Lead or implementation worker begins before that merge.
 
 ## Implementation boundary
@@ -122,7 +122,7 @@ validator and exact required PR checks. After every packet change, wait for gree
 checks on the exact final head SHA. If checks cannot run locally, remain
 `not_ready` and let GitHub Actions provide the gate. Only then hand Brian the
 single merge action. Approved packets on `main` are immutable; material revision
-uses a new `packet_version` and packet-only PR.
+uses a new `packet_version` and intake-artifacts-only PR.
 
 ## Project Manager receipt and final report
 

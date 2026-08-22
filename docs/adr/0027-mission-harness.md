@@ -144,6 +144,17 @@ without writing state, and `mission init` refuses anything but an approved
 packet. A material revision is a new version in a new packet PR; the
 approved original is never mutated.
 
+_Amended 2026-08-22 (LAN-149), without reversing the decision above._ The
+approving merge is still one pull request that only Brian merges, but its diff
+is **intake-artifacts-only**: exactly `missions/intake/<mission-id>/**` and
+`missions/packets/<mission-id>/**`. Restricting it to the packet alone left
+`M-EVENTS-CALENDAR-TARGET-STATE`'s completed ledger — the packet's own
+provenance — off `main` until a second pull request put it there. Landing both
+in the approving merge removes that dangling ledger without adding a second
+owner action. Skill, validator and application changes still take their own
+normal pull requests, and `missions/**` remains prohibited from every automatic
+merge lane.
+
 **5. A mission merge does not deploy.** Decided by Brian: `GITHUB_TOKEN`
 suppression is the feature, matching the v1 exclusion of autonomous
 production deployment. `main` moves ahead of production until Brian runs
