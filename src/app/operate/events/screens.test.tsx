@@ -42,6 +42,10 @@ vi.mock("@/lib/services/seasons", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/seasons")>();
   return { ...actual, listTerms: vi.fn(), listTermWindows: vi.fn(), readCurrentSeason: vi.fn() };
 });
+vi.mock("@/lib/services/attendance", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/attendance")>();
+  return { ...actual, readEventAttendanceSummary: vi.fn() };
+});
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-approval")>();
   return {
@@ -68,6 +72,11 @@ import {
   type AudienceMember,
 } from "@/lib/services/event-approval";
 import type { AudienceCandidate } from "@/lib/services/audience-selection";
+import {
+  readEventAttendanceSummary,
+  summariseAttendance,
+  type AttendanceSummary,
+} from "@/lib/services/attendance";
 import EventsPage from "./page";
 import NewEventPage from "./new/page";
 import EventDetailPage from "./[id]/page";
@@ -155,10 +164,23 @@ function flatten(text: string | null): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
 }
 
+/**
+ * The headline numbers the detail page reads — LAN-152.
+ *
+ * Built through `summariseAttendance` rather than as an object literal, so a
+ * fixture cannot claim a combination the real derivation never produces —
+ * `registerSaved: false` beside a non-zero `showed`, for instance, which is the
+ * exact state D74 says must be unreachable.
+ */
+function summary(overrides: Partial<AttendanceSummary> = {}): AttendanceSummary {
+  return { ...summariseAttendance([]), invited: 37, saidYes: 21, ...overrides };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   routerPush.mockClear();
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: operator() });
+  vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
   vi.mocked(listTermWindows).mockResolvedValue([
     {
       id: "55555555-5555-4555-8555-555555555555",
@@ -570,6 +592,78 @@ describe("UX-31 — creating an event", () => {
     expect(flatten(screen.getByTestId("audience-comes-later").textContent)).toContain(
       "chosen and confirmed during the approval step",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The three headline numbers — REQ-headline-numbers, D62, D73, D74. LAN-152.
+// ---------------------------------------------------------------------------
+
+describe("the event's headline numbers", () => {
+  function invited() {
+    return detail({ status: "approved", audienceCount: 37, invitationCount: 37 });
+  }
+
+  it("puts invited, said yes and showed at the top of the event", async () => {
+    vi.mocked(readEvent).mockResolvedValue(invited());
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("headline-invited").textContent)).toBe("37Invited");
+    expect(flatten(screen.getByTestId("headline-said-yes").textContent)).toBe("21Said yes");
+  });
+
+  it("reads an em dash against the invited count before any register is saved", async () => {
+    // D74. An event nobody has got round to must not read like an event nobody
+    // attended, and this is the string that keeps the two apart.
+    vi.mocked(readEvent).mockResolvedValue(invited());
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe("— / 37Showed");
+  });
+
+  it("reads 0 / 37 once a register is saved with everybody absent", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "occurred", invitationCount: 37 }));
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(
+      summary({ showed: 0, recorded: 37, registerSaved: true }),
+    );
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe("0 / 37Showed");
+  });
+
+  it("explains neither value in words, and never as a percentage", async () => {
+    // The packet is explicit: "the application does not explain the difference
+    // in words", and D62 asks for raw pairs. Both are assertions about what is
+    // *absent* from the payload, which is the only way to state them.
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "occurred", invitationCount: 37 }));
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(
+      summary({ showed: 20, recorded: 30, registerSaved: true }),
+    );
+
+    const { container } = render(await EventDetailPage(detailProps()));
+    const text = flatten(container.textContent).toLowerCase();
+
+    expect(text).not.toContain("%");
+    expect(text).not.toContain("washout");
+    expect(text).not.toContain("turnout rate");
+    expect(text).not.toContain("nobody came");
+    expect(text).not.toContain("not yet recorded because");
+  });
+
+  it("shows nothing at all on a draft, which has nobody to count", async () => {
+    // `invitationCount` is structurally zero below approval — invariant P1 —
+    // so three zeroes would be three facts about nothing.
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("headline-numbers")).toBeNull();
+    expect(readEventAttendanceSummary).not.toHaveBeenCalled();
   });
 });
 

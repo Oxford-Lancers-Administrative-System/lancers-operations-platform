@@ -103,3 +103,87 @@ export interface WalkUpInput {
   email: string | null;
   presence: AttendancePresence;
 }
+
+// ---------------------------------------------------------------------------
+// The headline numbers — D62, D73 and D74. LAN-152.
+// ---------------------------------------------------------------------------
+
+/**
+ * The attendance states that mean somebody **turned up**.
+ *
+ * `late` counts. Arriving at 20:20 is arriving; the distinction the club draws
+ * with it is about punctuality, not about presence, and a turnout figure that
+ * dropped the people who were late would say fewer people came to a session
+ * than the coach watched walk onto the pitch. `excused` and `absent` are the
+ * two that did not come, and both are genuine observations rather than silence
+ * — which is the whole point of the axis below.
+ */
+export const SHOWED_PRESENCES = Object.freeze(["present", "late"] as const);
+
+/** Whether one recorded value means the person turned up. */
+export function isShowedPresence(presence: AttendancePresence | null): boolean {
+  return presence !== null && (SHOWED_PRESENCES as readonly string[]).includes(presence);
+}
+
+/**
+ * One event's attendance, counted.
+ *
+ * ## `registerSaved` is the whole idea
+ *
+ * Attendance is a **two-state axis**: *not recorded* against *recorded*. The
+ * save is the signal, and nothing else is — there is no finalisation column and
+ * this deliberately does not invent one. A sheet saved with all thirty-seven
+ * people marked absent is a real, hard-won zero, and it has to be
+ * distinguishable at a glance from a sheet nobody opened. That is why `showed`
+ * means nothing until this is `true`, and why every reader consults it before
+ * printing a number.
+ *
+ * The counts themselves are **raw pairs, never percentages** (D62). A club of
+ * forty-seven reading "43%" has to do arithmetic to get back to the fact it
+ * wanted, and the fact it wanted was "twenty of them came".
+ */
+export interface AttendanceSummary {
+  /** Invitations. Structurally zero below `approved` — invariant P1. */
+  invited: number;
+  /** Invitations whose standing answer is yes. Intent, never observation. */
+  saidYes: number;
+  /** Attendance rows recorded `present` or `late`. */
+  showed: number;
+  /** Attendance rows of any value, walk-ups included. */
+  recorded: number;
+  /** Attendance rows with no invitation behind them — invariant P6. */
+  walkUps: number;
+  /**
+   * `true` once **anything** has been recorded against the event.
+   *
+   * Not "everybody has been marked". A partly-filled sheet is a sheet somebody
+   * opened and saved, and the club's answer to "was this session assessed?" is
+   * yes.
+   */
+  registerSaved: boolean;
+}
+
+/**
+ * The counts, derived from the board's own rows.
+ *
+ * One derivation, shared by the register and by the event page's headline
+ * numbers, because `docs/ux/standards.md` rule 7 is exactly about two screens
+ * answering one question two ways. `src/lib/services/attendance.test.ts` pins
+ * this to the aggregate the event page reads, on the same event.
+ */
+export function summariseAttendance(
+  participants: readonly AttendanceParticipant[],
+): AttendanceSummary {
+  const recorded = participants.filter((participant) => participant.presence !== null);
+
+  return {
+    invited: participants.filter((participant) => !participant.isWalkUp).length,
+    saidYes: participants.filter(
+      (participant) => !participant.isWalkUp && participant.rsvp === "yes",
+    ).length,
+    showed: recorded.filter((participant) => isShowedPresence(participant.presence)).length,
+    recorded: recorded.length,
+    walkUps: participants.filter((participant) => participant.isWalkUp).length,
+    registerSaved: recorded.length > 0,
+  };
+}

@@ -11,10 +11,14 @@ import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
 import {
   isAttendancePresence,
+  SHOWED_PRESENCES,
+  summariseAttendance,
   type AttendanceParticipant,
   type AttendancePresence,
+  type AttendanceSummary,
   type WalkUpInput,
 } from "./attendance-vocabulary";
+import { isRegisterOpen, registerOpensAt } from "./attendance-window";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
 import { personDisplayNameSql as displayName } from "./sql-text";
 
@@ -88,10 +92,22 @@ import { personDisplayNameSql as displayName } from "./sql-text";
 export {
   ATTENDANCE_PRESENCES,
   isAttendancePresence,
+  isShowedPresence,
+  SHOWED_PRESENCES,
+  summariseAttendance,
   type AttendanceParticipant,
   type AttendancePresence,
+  type AttendanceSummary,
   type WalkUpInput,
 } from "./attendance-vocabulary";
+
+export {
+  ATTENDANCE_REGISTER_BUFFER_HOURS,
+  ATTENDANCE_REGISTER_BUFFER_MS,
+  eventStartInstant,
+  isRegisterOpen,
+  registerOpensAt,
+} from "./attendance-window";
 
 /** The event states in which the attendance surface is open. Exactly one. */
 export const ATTENDANCE_OPEN_STATUS = "occurred";
@@ -107,12 +123,45 @@ export const PARTICIPANT_NOT_FOUND_MESSAGE =
 // Reads
 // ---------------------------------------------------------------------------
 
+/**
+ * Why a closed register is closed — LAN-152.
+ *
+ * Two reasons, and the screen says different things for them, because
+ * `docs/ux/standards.md` rule 4 requires a refused control to name the step
+ * that lifts it and the two steps are not the same one. `not_yet_asserted`
+ * waits on a person; `before_buffer` waits on the clock, and nobody can do
+ * anything about it.
+ */
+export type AttendanceClosedReason = "not_yet_asserted" | "before_buffer";
+
 /** The board, and the event it belongs to. */
 export interface AttendanceBoard {
   event: EventDetail;
-  /** `true` only for `occurred`. Everything else renders UX-71 or UX-75. */
+  /**
+   * Whether the register may be opened. Everything else renders UX-71 or UX-75.
+   *
+   * Two conditions, and only one of them is the club's rule. D71 to D74 say the
+   * register opens on a buffer before the event and never closes, and
+   * `./attendance-window.ts` holds that. The stored `occurred` status is the
+   * *retiring* half: `attendance_records_require_an_occurred_event` is a check
+   * constraint, so until the migration package removes it a sheet opened
+   * against an approved event would collect values the database then refused —
+   * a screen that works right up to the save. It stays a conjunct here, alone,
+   * with a name, so retiring it is one deletion in one place.
+   */
   isOpen: boolean;
+  /** `null` when the register is open. */
+  closedReason: AttendanceClosedReason | null;
+  /**
+   * When the buffer lifts, ISO-8601, or `null` for an event with no date.
+   *
+   * Returned whether the register is open or not, because a screen saying "not
+   * yet" has to say *when*, and one saying "open" has said nothing wrong.
+   */
+  registerOpensAt: string | null;
   participants: AttendanceParticipant[];
+  /** The same numbers the event page's headline reads. See `AttendanceSummary`. */
+  summary: AttendanceSummary;
   invitedCount: number;
   recordedCount: number;
   walkUpCount: number;
@@ -217,15 +266,30 @@ function participantKey(capacity: string, membershipId: string | null, personId:
  * ask the question again for themselves rather than trusting that a caller
  * looked at it.
  */
-export async function readAttendanceBoard(eventId: string): Promise<AttendanceBoard> {
+export async function readAttendanceBoard(
+  eventId: string,
+  now: Date = new Date(),
+): Promise<AttendanceBoard> {
   return withTransaction(async (tx) => {
     const event = await readEventIn(tx, eventId);
+    const opensAt = registerOpensAt(event);
+    const opensAtIso = opensAt === null ? null : opensAt.toISOString();
 
-    if (event.status !== ATTENDANCE_OPEN_STATUS) {
+    const closedReason: AttendanceClosedReason | null =
+      event.status !== ATTENDANCE_OPEN_STATUS
+        ? "not_yet_asserted"
+        : isRegisterOpen(event, now)
+          ? null
+          : "before_buffer";
+
+    if (closedReason !== null) {
       return {
         event,
         isOpen: false,
+        closedReason,
+        registerOpensAt: opensAtIso,
         participants: [],
+        summary: summariseAttendance([]),
         invitedCount: 0,
         recordedCount: 0,
         walkUpCount: 0,
@@ -254,6 +318,36 @@ export async function readAttendanceBoard(eventId: string): Promise<AttendanceBo
       );
     }
 
+    /*
+      D74, and the defect it exists to prevent — LAN-152.
+
+      The board on `main` reported **zero recorded and thirty mismatches at the
+      same time**, on every occurred event whose register nobody had opened.
+      It is a counting fault rather than a display one, and it lives in one
+      classification: `said_yes_no_attendance_recorded` fires per person, so a
+      session nobody assessed came back as thirty separate accusations that
+      thirty people had let the club down. An unrecorded event read as a bad
+      one, which is the exact reading D74's two-state axis forbids.
+
+      A mismatch is a **disagreement between two records**. Where the second
+      record does not exist there is no disagreement — there is an absence, and
+      the club already has a word for it: *not recorded*. So while nothing at
+      all has been recorded against the event, no participant carries a
+      mismatch and the count is zero. The moment somebody saves anything the
+      sheet exists, and a person who said yes and is not on it is a genuine
+      exception again — a partly-filled register still flags them.
+
+      Suppressed **here** rather than in `public.rsvp_attendance_mismatches`
+      deliberately. The view is the durable home for this rule and it should
+      carry it, but the view is schema, and this mission's schema belongs to
+      the status-and-occurrence migration package; two packages writing
+      migrations at once is what the collision rules exist to prevent. Nothing
+      else over-counts in the meantime: `weekly-report.ts` reads only
+      `attended_without_invitation`, which cannot fire without an attendance
+      row. The pull request records the view as the follow-up.
+    */
+    const registerSaved = rows.rows.some((row) => row.attendance_id !== null);
+
     const participants = rows.rows.map((row) => {
       const key = participantKey(row.capacity, row.season_membership_id, row.person_id);
       return {
@@ -265,19 +359,105 @@ export async function readAttendanceBoard(eventId: string): Promise<AttendanceBo
         presence: isAttendancePresence(row.presence) ? row.presence : null,
         recordedAt: asIsoString(row.recorded_at),
         recordedByName: row.recorded_by_name,
-        mismatch: flagged.get(key) ?? null,
+        mismatch: registerSaved ? (flagged.get(key) ?? null) : null,
       } satisfies AttendanceParticipant;
     });
+
+    const summary = summariseAttendance(participants);
 
     return {
       event,
       isOpen: true,
+      closedReason: null,
+      registerOpensAt: opensAtIso,
       participants,
-      invitedCount: participants.filter((participant) => !participant.isWalkUp).length,
-      recordedCount: participants.filter((participant) => participant.presence !== null).length,
-      walkUpCount: participants.filter((participant) => participant.isWalkUp).length,
+      summary,
+      invitedCount: summary.invited,
+      recordedCount: summary.recorded,
+      walkUpCount: summary.walkUps,
       mismatchCount: participants.filter((participant) => participant.mismatch !== null).length,
     };
+  });
+}
+
+interface SummaryRow {
+  invited: string;
+  said_yes: string;
+  showed: string;
+  recorded: string;
+  walk_ups: string;
+}
+
+/**
+ * The three headline numbers, for the event page — REQ-headline-numbers, D62,
+ * D73, D74. LAN-152.
+ *
+ * ## Why this is not `readAttendanceBoard`
+ *
+ * The board answers "may the register be opened, and who is on it?", and for
+ * an event whose buffer has not lifted the honest answer to the first half is
+ * no — so it returns no participants. The headline is a different question:
+ * **forty-seven people were asked and twenty-one said yes** is true of an
+ * approved event a fortnight away, and the event page has to print it. Reading
+ * the board for it would make the numbers vanish exactly when they are most
+ * useful.
+ *
+ * So it is five counts in one round trip rather than a `full outer join` and a
+ * view read the page has no use for. `attendance.test.ts` pins this to
+ * `summariseAttendance` over the board's own rows, on one event, because
+ * `docs/ux/standards.md` rule 7 is about precisely this pair.
+ *
+ * ## What it does not do
+ *
+ * Judge. It reports `registerSaved` and leaves the difference between "nobody
+ * came" and "nobody looked" to the two values, which is what D74 asks for and
+ * what the packet means by "the application explains neither value in words".
+ */
+export async function readEventAttendanceSummary(eventId: string): Promise<AttendanceSummary> {
+  return withTransaction(async (tx) => {
+    // Proves the event exists, and refuses with a sentence rather than
+    // returning five zeroes for an identifier that names nothing.
+    await readEventIn(tx, eventId);
+
+    const result = await tx.query<SummaryRow>(
+      `with invited as (
+         select i.id,
+                coalesce(i.season_membership_id, i.person_id) as anchor_id
+           from public.invitations i
+          where i.event_id = $1
+       ),
+       recorded as (
+         select a.id,
+                a.presence::text as presence,
+                coalesce(a.season_membership_id, a.person_id) as anchor_id
+           from public.attendance_records a
+          where a.event_id = $1
+       )
+       select (select count(*) from invited)::text as invited,
+              (select count(*)
+                 from public.current_rsvp r
+                 join invited iv on iv.id = r.invitation_id
+                where r.response = 'yes')::text as said_yes,
+              (select count(*) from recorded
+                where presence = any($2::text[]))::text as showed,
+              (select count(*) from recorded)::text as recorded,
+              (select count(*) from recorded rec
+                where not exists (select 1 from invited iv
+                                   where iv.anchor_id = rec.anchor_id))::text as walk_ups`,
+      [eventId, [...SHOWED_PRESENCES]],
+    );
+
+    const row = result.rows[0];
+    const recorded = Number(row.recorded);
+
+    return {
+      invited: Number(row.invited),
+      saidYes: Number(row.said_yes),
+      showed: Number(row.showed),
+      recorded,
+      walkUps: Number(row.walk_ups),
+      registerSaved: recorded > 0,
+    } satisfies AttendanceSummary;
   });
 }
 

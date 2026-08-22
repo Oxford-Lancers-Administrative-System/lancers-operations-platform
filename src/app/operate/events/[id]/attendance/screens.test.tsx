@@ -32,6 +32,7 @@ vi.mock("@/lib/services/attendance", async (importOriginal) => {
   return {
     ...actual,
     readAttendanceBoard: vi.fn(),
+    readEventAttendanceSummary: vi.fn(),
     recordAttendance: vi.fn(),
     recordWalkUpAttendance: vi.fn(),
     removeAttendance: vi.fn(),
@@ -60,7 +61,9 @@ import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
   readAttendanceBoard,
+  readEventAttendanceSummary,
   recordAttendance,
+  summariseAttendance,
   type AttendanceBoard,
   type AttendanceParticipant,
 } from "@/lib/services/attendance";
@@ -140,13 +143,17 @@ function participant(overrides: Partial<AttendanceParticipant> = {}): Attendance
 
 function board(overrides: Partial<AttendanceBoard> = {}): AttendanceBoard {
   const participants = overrides.participants ?? [participant()];
+  const summary = summariseAttendance(participants);
   return {
     event: detail({ status: "occurred" }),
     isOpen: true,
+    closedReason: null,
+    registerOpensAt: "2026-10-14T13:00:00.000Z",
     participants,
-    invitedCount: participants.filter((entry) => !entry.isWalkUp).length,
-    recordedCount: participants.filter((entry) => entry.presence !== null).length,
-    walkUpCount: participants.filter((entry) => entry.isWalkUp).length,
+    summary,
+    invitedCount: summary.invited,
+    recordedCount: summary.recorded,
+    walkUpCount: summary.walkUps,
     mismatchCount: participants.filter((entry) => entry.mismatch !== null).length,
     ...overrides,
   };
@@ -169,6 +176,7 @@ function detailProps(query: Record<string, string> = {}) {
 beforeEach(() => {
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: operator() });
   vi.mocked(readEventAudience).mockResolvedValue([]);
+  vi.mocked(readEventAttendanceSummary).mockResolvedValue(summariseAttendance([]));
   routerPush.mockClear();
 });
 
@@ -266,6 +274,99 @@ describe("UX-75 — Event marked not held", () => {
 
     const link = screen.getByTestId("open-attendance");
     expect(link.getAttribute("href")).toBe(`/operate/events/${EVENT_ID}/attendance`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The register's buffer — D71 and D72. LAN-152.
+// ---------------------------------------------------------------------------
+
+describe("the register before its buffer lifts", () => {
+  function notYet(overrides: Partial<AttendanceBoard> = {}) {
+    return board({
+      event: detail({ status: "occurred", scheduledOn: "2099-01-01", startsAt: "20:00" }),
+      isOpen: false,
+      closedReason: "before_buffer",
+      registerOpensAt: "2099-01-01T14:00:00.000Z",
+      participants: [],
+      ...overrides,
+    });
+  }
+
+  it("says the register is not open yet, and when it will be", async () => {
+    // `docs/ux/standards.md` rule 4: a refused control names the step that
+    // lifts it. Here nobody can perform that step, so naming the moment is the
+    // whole of the answer — and rule 3 says it reads as a formatted moment on
+    // club time, never as a raw ISO instant.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("register-not-open-yet")).toBeVisible();
+    expect(container.textContent).toContain("The register is not open yet");
+    expect(screen.getByTestId("register-opens-at").textContent).toBe(
+      "It opens on 1 Jan 2099, 14:00.",
+    );
+    expect(container.textContent).not.toContain("2099-01-01T14:00:00.000Z");
+  });
+
+  it("says the rule, including that it never closes afterwards", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain(
+      "The register opens about 6 hours before the event starts, and never closes afterwards.",
+    );
+  });
+
+  it("does not tell anybody to go and mark the event occurred", async () => {
+    // The other closed state's sentence names an action. This one must not
+    // borrow it: the event has been asserted, and the only thing anybody is
+    // waiting for is the clock.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).not.toContain("mark this event as occurred");
+    expect(screen.queryByTestId("attendance-locked")).toBeNull();
+  });
+
+  it("shows no names, no rows and no counts", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(screen.queryByTestId("attendance-board")).toBeNull();
+    expect(screen.queryByTestId("attendance-row")).toBeNull();
+    expect(container.textContent).not.toContain("Avery Fielding");
+  });
+
+  it("sends a coach back to their eligible events rather than to administration", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: coach() });
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByRole("link", { name: "Return to eligible events" })).toHaveAttribute(
+      "href",
+      "/operate/events",
+    );
+  });
+
+  it("says so plainly for an event with no date at all", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      notYet({
+        event: detail({ status: "occurred", scheduledOn: null, startsAt: null }),
+        registerOpensAt: null,
+      }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("This event has no date yet");
+    expect(container.textContent).not.toContain("Invalid Date");
+    expect(container.textContent).not.toContain("NaN");
   });
 });
 

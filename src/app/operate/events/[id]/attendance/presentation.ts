@@ -2,6 +2,7 @@ import type {
   AttendanceParticipant,
   AttendancePresence,
 } from "@/lib/services/attendance-vocabulary";
+import { ATTENDANCE_REGISTER_BUFFER_HOURS } from "@/lib/services/attendance-window";
 
 /**
  * The words the attendance screens use — UX-70 through UX-75, LAN-80.
@@ -128,6 +129,100 @@ export const ATTENDANCE_LOCKED_DETAIL =
 export const ATTENDANCE_LOCKED_RULE =
   "The service rejects attendance writes while occurrence is unset or the event is marked " +
   "not held.";
+
+// ---------------------------------------------------------------------------
+// The register's own window — D71 and D72. LAN-152.
+// ---------------------------------------------------------------------------
+
+/**
+ * The buffer, said once, in the club's words rather than in a number this file
+ * repeats.
+ *
+ * `ATTENDANCE_REGISTER_BUFFER_HOURS` is a tuning value the packet delegated,
+ * so the sentence is built from it: change the constant and the screen changes
+ * with it, rather than the two disagreeing about what the product does.
+ */
+export const REGISTER_BUFFER_RULE =
+  `The register opens about ${ATTENDANCE_REGISTER_BUFFER_HOURS} hours before the event starts, ` +
+  "and never closes afterwards.";
+
+export const REGISTER_NOT_YET_HEADLINE = "The register is not open yet";
+
+/**
+ * What lifts it — `docs/ux/standards.md` rule 4.
+ *
+ * A refused control names the step that enables it, and here the step is not
+ * something anybody can go and do: it is the clock. Saying which moment is the
+ * difference between a rule and a broken page.
+ */
+export function describeRegisterOpensAt(opensAt: string | null): string {
+  if (opensAt === null) {
+    return "This event has no date yet, so there is nothing to take a register for.";
+  }
+  const moment = new Date(opensAt);
+  if (Number.isNaN(moment.getTime())) return REGISTER_BUFFER_RULE;
+  return `It opens on ${formatClubMoment(moment)}.`;
+}
+
+/**
+ * "27 Aug 2026, 14:00", on club time — `docs/ux/standards.md` rule 3.
+ *
+ * `Europe/London` rather than UTC because this one *is* an instant: it is
+ * derived from the event's wall clock and printed back as the moment a person
+ * standing in Oxford will see on their phone. Rendering it at UTC would show
+ * 13:00 for a register that opens at 14:00, every summer.
+ */
+function formatClubMoment(moment: Date): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(moment);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  return `${value("day")} ${value("month")} ${value("year")}, ${value("hour")}:${value("minute")}`;
+}
+
+// ---------------------------------------------------------------------------
+// The three headline numbers — D62, D73, D74. LAN-152.
+// ---------------------------------------------------------------------------
+
+export const HEADLINE_INVITED_LABEL = "Invited";
+export const HEADLINE_SAID_YES_LABEL = "Said yes";
+export const HEADLINE_SHOWED_LABEL = "Showed";
+
+/** What a value reads before there is anything to read. */
+export const NOT_RECORDED_VALUE = "—";
+
+/**
+ * `— / 37` before a register has been saved, `0 / 37` after one was saved with
+ * everybody absent, `20 / 37` the rest of the time.
+ *
+ * ## The dash is the whole point
+ *
+ * D74: an event nobody has got round to must not read like an event nobody
+ * attended. Both are a small number over forty-seven, and the club acts very
+ * differently on them — one is a session to ask about, the other is a register
+ * to go and take. The save is the signal, and `registerSaved` carries it.
+ *
+ * ## And it is never a percentage
+ *
+ * D62 says raw pairs. "43%" is the same fact with the two numbers the club
+ * actually wanted taken out of it.
+ */
+export function formatShowedAgainstInvited(summary: {
+  showed: number;
+  invited: number;
+  registerSaved: boolean;
+}): string {
+  const showed = summary.registerSaved ? String(summary.showed) : NOT_RECORDED_VALUE;
+  return `${showed} / ${summary.invited}`;
+}
 
 // ---------------------------------------------------------------------------
 // UX-90 — the same lock, seen by a coaching assignment

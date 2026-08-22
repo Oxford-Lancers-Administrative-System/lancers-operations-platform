@@ -113,6 +113,21 @@ const MARKER = "LAN82Walk";
  */
 const EVENT_ON = "2026-10-14";
 const EVENT_STARTS_AT = "19:00";
+
+/**
+ * The evening the register is taken — D71 and D72, LAN-152.
+ *
+ * The event is deliberately in the future, for the reasons the header gives,
+ * and the register now opens on a buffer before its start rather than the
+ * moment somebody asserts occurrence. So the two steps below that open the
+ * register say **when** they are standing at the pitch, rather than reading it
+ * from a clock that is still weeks short of the evening.
+ *
+ * That is what the walk is: a workflow moving through its own timeline. Every
+ * other step already happens at a moment the previous one made possible, and
+ * this is the first one whose moment the product cares about.
+ */
+const EVENING_OF_THE_EVENT = new Date(`${EVENT_ON}T${EVENT_STARTS_AT}:00Z`);
 const EVENT_ENDS_AT = "21:00";
 const EVENT_TERM = "michaelmas";
 const EVENT_ACADEMIC_YEAR = "2026-27";
@@ -1001,7 +1016,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
   // -------------------------------------------------------------------------
 
   it("lets the authorized coach record attendance, correct it, and add one walk-up", async () => {
-    const board = await readAttendanceBoard(eventId);
+    const board = await readAttendanceBoard(eventId, EVENING_OF_THE_EVENT);
     expect(board.isOpen).toBe(true);
     expect(board.invitedCount).toBe(2);
 
@@ -1068,7 +1083,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     ).toBe(true);
     expect(audit.rows.some((row) => row.action === "attendance.walk_up_recorded")).toBe(true);
 
-    const after = await readAttendanceBoard(eventId);
+    const after = await readAttendanceBoard(eventId, EVENING_OF_THE_EVENT);
     expect(after.recordedCount).toBe(3);
     expect(after.walkUpCount).toBe(1);
     expect(after.participants.find((entry) => entry.key === walkUpKey)?.isWalkUp).toBe(true);

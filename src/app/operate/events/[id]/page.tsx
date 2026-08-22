@@ -10,6 +10,7 @@ import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import { readEvent, type EventDetail } from "@/lib/services/events";
+import { readEventAttendanceSummary, type AttendanceSummary } from "@/lib/services/attendance";
 import {
   readApprovalPreview,
   readEventAudience,
@@ -58,6 +59,10 @@ import {
 import {
   ATTENDANCE_OPENS_AFTER,
   ATTENDANCE_UNAVAILABLE,
+  formatShowedAgainstInvited,
+  HEADLINE_INVITED_LABEL,
+  HEADLINE_SAID_YES_LABEL,
+  HEADLINE_SHOWED_LABEL,
   NOT_HELD_DETAIL,
   NOT_HELD_HEADLINE,
   OCCURRENCE_DETAIL,
@@ -180,6 +185,11 @@ export default async function EventDetailPage({
   // approved event answers "who was actually invited?" without a second screen.
   const audience = event.audienceCount > 0 ? await readEventAudience(event.id) : [];
 
+  // REQ-headline-numbers, LAN-152. Read once there is an audience to count,
+  // which is from approval onward — invitations are what approval creates, so
+  // below it the three numbers would be three zeroes describing nothing.
+  const summary = event.invitationCount > 0 ? await readEventAttendanceSummary(event.id) : null;
+
   return (
     <EventDetailView
       event={event}
@@ -189,6 +199,7 @@ export default async function EventDetailPage({
       mayAssertOccurrence={mayAssertOccurrence}
       justApproved={justApproved}
       audience={audience}
+      summary={summary}
     />
   );
 }
@@ -389,6 +400,58 @@ function AudienceList({
   );
 }
 
+/**
+ * The three headline numbers — REQ-headline-numbers, D62, D73 and D74. LAN-152.
+ *
+ * **Invited · Said yes · Showed**, at the top of the event page and large,
+ * because they are the primary operational facts about an event and the build
+ * rendered them nowhere. Everything else on this page is administration; this
+ * is what somebody opened it to find out.
+ *
+ * ## Three deliberate absences
+ *
+ * **No percentages.** D62 asks for raw pairs. `20 / 37` is the fact; `54%` is
+ * the fact with both of the numbers the club wanted removed from it.
+ *
+ * **No sentence explaining the dash.** `Showed` reads `— / 37` until a register
+ * has been saved and `0 / 37` afterwards, and the packet is explicit that the
+ * application explains neither in words: "explanatory text about washouts
+ * belongs in a review artifact, not in the product". The two values carry it.
+ *
+ * **No judgment.** Nothing here is coloured, flagged or compared against a
+ * target. A quiet Tuesday in fifth week is a fact about the term, not a
+ * failing, and a screen that decided otherwise would be inventing a club
+ * policy nobody has agreed.
+ */
+function HeadlineNumbers({ summary }: { summary: AttendanceSummary }) {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gap: 2,
+        gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+      }}
+      data-testid="headline-numbers"
+    >
+      <Metric
+        value={String(summary.invited)}
+        label={HEADLINE_INVITED_LABEL}
+        testId="headline-invited"
+      />
+      <Metric
+        value={String(summary.saidYes)}
+        label={HEADLINE_SAID_YES_LABEL}
+        testId="headline-said-yes"
+      />
+      <Metric
+        value={formatShowedAgainstInvited(summary)}
+        label={HEADLINE_SHOWED_LABEL}
+        testId="headline-showed"
+      />
+    </Box>
+  );
+}
+
 function Metric({ value, label, testId }: { value: string; label: string; testId?: string }) {
   return (
     <Paper variant="outlined" sx={{ p: 2 }} data-testid={testId}>
@@ -584,6 +647,7 @@ function EventDetailView({
   mayAssertOccurrence,
   justApproved,
   audience,
+  summary,
 }: {
   event: EventDetail;
   mayManage: boolean;
@@ -592,6 +656,7 @@ function EventDetailView({
   mayAssertOccurrence: boolean;
   justApproved: boolean;
   audience: AudienceMember[];
+  summary: AttendanceSummary | null;
 }) {
   const preApproval = isPreApproval(event.status);
   const proposed = event.status === "draft" && audience.length > 0;
@@ -618,6 +683,8 @@ function EventDetailView({
           <Typography variant="body2">{APPROVED_NOTHING_SENT_YET}</Typography>
         </Alert>
       ) : null}
+
+      {summary ? <HeadlineNumbers summary={summary} /> : null}
 
       {preApproval ? (
         <Alert severity="info" data-testid="no-invitations-note">

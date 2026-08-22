@@ -32,8 +32,11 @@ import {
   COACH_RETURN_TO_ELIGIBLE,
   COMPLETE_ATTENDANCE,
   COMPLETE_ATTENDANCE_MEANING,
+  describeRegisterOpensAt,
   NOBODY_INVITED,
   NO_MATCHING_PARTICIPANTS,
+  REGISTER_BUFFER_RULE,
+  REGISTER_NOT_YET_HEADLINE,
   RSVP_STAYS_SEPARATE,
 } from "./presentation";
 
@@ -119,6 +122,22 @@ export default async function AttendancePage({
   // happened, or was asserted not to have — either way there is nothing to
   // record, and the service says so as well as the screen does.
   if (!board.isOpen) {
+    // LAN-152. Two closed states now, and they are not the same refusal: one
+    // waits on a person and the other on the clock. `docs/ux/standards.md`
+    // rule 4 says a refused control names the step that lifts it, and telling
+    // somebody to go and mark an event occurred when the register simply has
+    // not opened yet would name the wrong one.
+    if (board.closedReason === "before_buffer") {
+      return (
+        <RegisterNotOpenYet
+          eventId={event.id}
+          status={event.status}
+          opensAt={board.registerOpensAt}
+          isCoachView={isCoachView}
+        />
+      );
+    }
+
     return isCoachView ? (
       <CoachAttendanceLocked status={event.status} />
     ) : (
@@ -266,6 +285,56 @@ export default async function AttendancePage({
           </Typography>
         </Stack>
       )}
+    </Stack>
+  );
+}
+
+/**
+ * The register's buffer, before it lifts — D71 and D72. LAN-152.
+ *
+ * One screen for both readers, unlike the two above. The reason those differ is
+ * authority: an operator can go and assert occurrence and a coach cannot, so
+ * the sentence has to change with who is reading it. Nobody can hurry a clock,
+ * so this one says the same thing to everybody, and only the way back out
+ * differs — a coach's route is their eligible events, not event administration
+ * that would refuse them.
+ */
+function RegisterNotOpenYet({
+  eventId,
+  status,
+  opensAt,
+  isCoachView,
+}: {
+  eventId: string;
+  status: string;
+  opensAt: string | null;
+  isCoachView: boolean;
+}) {
+  return (
+    <Stack
+      spacing={3}
+      sx={{ maxWidth: 720 }}
+      data-testid="register-not-open-yet"
+      data-status={status}
+    >
+      <Box>
+        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+          {REGISTER_NOT_YET_HEADLINE}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" data-testid="register-opens-at">
+          {describeRegisterOpensAt(opensAt)}
+        </Typography>
+      </Box>
+      <Alert severity="info">{REGISTER_BUFFER_RULE}</Alert>
+      <Box>
+        <Button
+          variant="contained"
+          href={isCoachView ? "/operate/events" : `/operate/events/${eventId}`}
+          sx={{ minHeight: 44 }}
+        >
+          {isCoachView ? COACH_RETURN_TO_ELIGIBLE : "Return to event"}
+        </Button>
+      </Box>
     </Stack>
   );
 }
