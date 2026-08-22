@@ -61,8 +61,11 @@ function viewportDefects(evidence, repoPath) {
       defects.push(`${required.label}: the screenshot this viewport produced`);
       continue;
     }
-    const artifact = path.resolve(reviewArtifactRoot(repoPath), entry.screenshot);
-    if (!artifact.startsWith(path.resolve(reviewArtifactRoot(repoPath)))) {
+    const root = path.resolve(reviewArtifactRoot(repoPath));
+    const artifact = path.resolve(root, entry.screenshot);
+    // A bare prefix test also accepts a sibling directory whose name merely
+    // starts the same way, so compare on the separator.
+    if (artifact !== root && !artifact.startsWith(root + path.sep)) {
       defects.push(`${required.label}: the screenshot path escapes the artifact directory`);
       continue;
     }

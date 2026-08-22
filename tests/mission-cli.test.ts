@@ -50,6 +50,90 @@ function readyMission(m: ReturnType<typeof fixture>) {
 }
 
 describe("mission CLI", () => {
+  /**
+   * The rule said a dependency reviewed clean at its exact head is a usable
+   * base; the dispatch command had no way to say so, so the Lead's only
+   * interface refused every such dispatch and waited on Brian's merge anyway.
+   * Proved through the CLI, because asserting appendEvent directly is how the
+   * gap survived.
+   */
+  it("dispatches on a reviewed dependency through the CLI, recording the head it stands on", () => {
+    const m = fixture();
+    readyMission(m);
+    const HEAD = "a".repeat(40);
+    const write = (name: string, body: unknown) => {
+      const file = path.join(m.repo, name);
+      fs.writeFileSync(file, JSON.stringify(body));
+      return file;
+    };
+
+    expect(
+      m.run(
+        "dispatch",
+        MISSION,
+        "WP-attendance-export",
+        "--worker",
+        "worker-1",
+        "--worktree",
+        ".claude/worktrees/wp-attendance",
+        "--branch",
+        "feat/wp-attendance",
+      ).status,
+    ).toBe(0);
+    expect(
+      m.run(
+        "receipt",
+        MISSION,
+        "WP-attendance-export",
+        "--worker",
+        "worker-1",
+        "--receipt",
+        write("receipt.json", {
+          branch: "feat/wp-attendance",
+          worktree: ".claude/worktrees/wp-attendance",
+          surfaces: ["src/lib/services/attendance.ts"],
+          acceptance_criteria: ["exports"],
+          verification: "npm run verify observed to pass",
+          ci_state: "green",
+          visual_state: "nonvisual",
+          migration_implications: "none",
+          limitations: "none",
+          result: "completed",
+        }),
+      ).status,
+    ).toBe(0);
+    expect(m.run("pr", MISSION, "WP-attendance-export", "41", HEAD).status).toBe(0);
+    expect(
+      m.run(
+        "review",
+        MISSION,
+        "WP-attendance-export",
+        "--receipt",
+        write("review.json", {
+          review_mode: "full",
+          full_review_sha: HEAD,
+          reviewed_head_sha: HEAD,
+          round: 1,
+          result: "clear",
+        }),
+      ).status,
+    ).toBe(0);
+
+    const dispatched = m.run(
+      "dispatch",
+      MISSION,
+      "WP-report-footer",
+      "--worker",
+      "worker-2",
+      "--worktree",
+      ".claude/worktrees/wp-report",
+      "--branch",
+      "feat/wp-report",
+    );
+    expect(dispatched.status).toBe(0);
+    expect(dispatched.stdout).toContain(`standing on reviewed WP-attendance-export at ${HEAD}`);
+  });
+
   it("initializes only from a matching approved packet and exits 1 on refusal", () => {
     const m = fixture();
     const mismatched = m.run("init", "M-OTHER", "--packet", PACKET);

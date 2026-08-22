@@ -322,8 +322,9 @@ questions or scheduled check-in items in this section.
 
 Never run `gh pr merge`, `gh pr ready`, or any direct merge, and never use
 the fast lane for mission work. For a qualifying package — standard
-application work at low or normal risk, never a migration owner, never
-Highest risk — evaluate the local gate first:
+application work, never a migration owner, and Highest risk only when an
+answered owner checkpoint names the package (§9) — evaluate the local gate
+first:
 `npm run mission -- gate $ARGUMENTS <package> --pr-json <file>
 --checks-json <file> --files <file>`. It composes the journal facts (clear
 review at the exact head SHA, visual approval or genuinely nonvisual, no
@@ -338,9 +339,11 @@ JSON block into the PR body, apply the `mission-merge` label with
 refusal from the workflow is recorded reality — read its reasons, correct,
 and re-ask; never work around it. After the workflow merges, record
 `merge-record` with route `guarded-auto`. Migrations, RLS/auth/security,
-secrets, deployment, WhatsApp and external configuration, Highest-risk work,
-and unapproved visual behavior are owner-gated: hand them to Brian as normal
-draft PRs and record his merges with route `owner`.
+secrets, deployment, WhatsApp and external configuration, and unapproved
+visual behavior are owner-gated: hand them to Brian as normal draft PRs and
+record his merges with route `owner`. What is owner-gated is decided from the
+diff by the prohibited-path scan, not from a risk label — and routing a
+lane-qualified package to Brian anyway is recorded as a harness defect.
 
 ## 11. Completion and acceptance
 

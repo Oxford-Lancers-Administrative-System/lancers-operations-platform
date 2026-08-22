@@ -39,9 +39,17 @@ run an exit step.
 
 It reclaims **per package**: a package's worktree, branch and attachment to the
 mission stack are released the moment its pull request merges, proved from the
-repository (`gh pr view` plus the head being an ancestor of `origin/main`) and
-never from the pull-request body or the Linear state — the `mission-merge` lane
-merges without a human, so nobody may infer that Brian did.
+repository and never from the pull-request body or the Linear state — the
+`mission-merge` lane merges without a human, so nobody may infer that Brian did.
+
+The proof is the **merge commit**, not the branch head. This repository squash-
+merges, and a squash produces a new commit, so the head is never an ancestor of
+`main` afterwards; proving by ancestry alone would report every merged package
+as unmerged and reclaim nothing. `gh pr view` must report `MERGED` and its merge
+commit must be on `origin/main` (fetched first, so a stale local view cannot
+condemn finished work). A true merge commit leaves the head reachable, and that
+is accepted as an independent proof. `--delete-branch` having removed the remote
+branch is evidence the work landed, not unpushed work.
 
 The mission-owned stack is shared by several workers, so **whoever detaches last
 retires it**. A mission whose acquiring worktree is already gone can still be
@@ -178,9 +186,16 @@ records.
 **Always Brian's, never autonomous:** schema and migrations; RLS and the
 authentication routes; the public RSVP token surfaces (`src/lib/rsvp/**`);
 mission packets (`missions/**` — the packet PR _is_ the approval); secrets
-and credentials; deployment and production data; Highest-risk work; and
-visual work without recorded approval. These arrive as ordinary draft PRs
-for Brian to merge.
+and credentials; deployment and production data; and visual work without
+recorded approval. These arrive as ordinary draft PRs for Brian to merge, and
+each is decided from the diff by the prohibited-path scan rather than from a
+risk label.
+
+Highest risk is **not** on that list any more. A grade says how rigorously a
+change is reviewed; it does not decide the route. Highest-risk work may use the
+lane only when an answered owner checkpoint names the package, so Brian hears
+about it before it merges — see
+[ADR 0032](adr/0032-harness-after-the-first-live-mission.md) §4.
 
 **A mission merge does not deploy** — decided deliberately. `main` moves
 ahead of production until Brian ships it:

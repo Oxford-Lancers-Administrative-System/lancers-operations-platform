@@ -9,10 +9,12 @@ Nothing from it is repeated here, so that the two cannot drift apart.
 
 Only genuinely Claude-specific notes belong in this file.
 
-- **Two workflows and two subagents.** Brian invokes `/start-issue LAN-###`
+- **Four workflows and two subagents.** Brian invokes `/start-issue LAN-###`
   to implement exactly one issue in the top-level session, or
   `/run-mission M-<id>` to execute one approved mission packet as the Mission
-  Lead. `code-reviewer` performs graded independent review;
+  Lead, `/mission-intake <n>` to prepare one packet, and `/finish-mission M-<id>`
+  to reclaim a finished or abandoned mission's worktrees, branches and database
+  stack. `code-reviewer` performs graded independent review;
   `implementation-worker` implements one Mission-Lead-assigned work package
   and spawns nothing. See `docs/adr/0027-mission-harness.md` and, for the
   preserved single-issue model, `docs/adr/0018-single-issue-agent-development.md`.

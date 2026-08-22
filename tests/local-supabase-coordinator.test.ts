@@ -758,6 +758,106 @@ describe("mission-owned local Supabase stacks", () => {
     ).rejects.toThrow(/requires an explicit owning session pid/);
   });
 
+  /**
+   * Ports come from the index alone, the slot name from the mission id, so two
+   * different missions both landing on index 0 pass the name check while
+   * colliding on every port. Phase one's port check is taken before the probe
+   * releases the allocator lock, so it is stale by the time the claim happens.
+   *
+   * The probe here actually yields, which is what lets the two allocations
+   * interleave — a probe that resolves in a single microtask serializes them
+   * and hides this entirely.
+   */
+  it("never gives two concurrent missions the same ports", async () => {
+    const { repo, env } = fixture();
+    const slowProbe = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      return false;
+    };
+    const [alpha, beta] = await Promise.all([
+      acquireMissionLease({
+        missionId: "M-ALPHA",
+        repoPath: repo,
+        baseCommit: "a".repeat(40),
+        migrationHead: 20260819000000,
+        pid: 4242,
+        env,
+        portProbe: slowProbe,
+      }),
+      acquireMissionLease({
+        missionId: "M-BETA",
+        repoPath: repo,
+        baseCommit: "b".repeat(40),
+        migrationHead: 20260819000000,
+        pid: 4242,
+        env,
+        portProbe: slowProbe,
+      }),
+    ]);
+
+    expect(alpha.slot).not.toBe(beta.slot);
+    expect(alpha.applicationPort).not.toBe(beta.applicationPort);
+    const overlap = Object.values(alpha.ports).filter((port) =>
+      Object.values(beta.ports).includes(port),
+    );
+    expect(overlap).toEqual([]);
+  });
+
+  /**
+   * Using a shared stack and retiring one are different rights. A mission stack
+   * is attached to by several workers; a worker running db:release must not
+   * drop the whole mission's lease, least of all a protected review-ready one
+   * — that locks out every sibling and the Lead, and makes it reclaimable.
+   */
+  it("refuses to let a merely-attached worktree release the shared stack", async () => {
+    const { repo, env } = fixture();
+    const lease = await acquireMissionLease({
+      missionId: "M-SHARED",
+      repoPath: repo,
+      baseCommit: "c".repeat(40),
+      migrationHead: 20260819000000,
+      pid: 4242,
+      env,
+      portProbe: async () => false,
+    });
+    const worker = path.join(path.dirname(repo), "shared-worker");
+    fs.cpSync(repo, worker, { recursive: true });
+    await attachMissionLease({ missionId: "M-SHARED", repoPath: worker, token: lease.token, env });
+    await updateLease({ repoPath: repo, token: lease.token, state: "review-ready", env });
+
+    await expect(
+      releaseLease({ repoPath: worker, token: lease.token, slot: lease.slot, env }),
+    ).rejects.toThrow(/attached to it, not its owner. Detach instead of releasing/);
+
+    // The protection, and every sibling's access, survive.
+    expect(coordinatorStatus(repo, env).slots[lease.slot].state).toBe("review-ready");
+    await expect(updateLease({ repoPath: worker, token: lease.token, env })).resolves.toMatchObject(
+      {
+        slot: lease.slot,
+      },
+    );
+
+    // The acquiring worktree still may.
+    await expect(
+      releaseLease({ repoPath: repo, token: lease.token, slot: lease.slot, env }),
+    ).resolves.toMatchObject({ state: "released" });
+  });
+
+  it("refuses an owning pid that is not a real process id", async () => {
+    const { repo, env } = fixture();
+    for (const pid of [null, 0, -1, "123"]) {
+      await expect(
+        acquireLeaseRaw({
+          issueId: "LAN-1",
+          repoPath: repo,
+          pid: pid as number,
+          env,
+          portProbe: async () => false,
+        }),
+      ).rejects.toThrow(/needs a real owning session pid/);
+    }
+  });
+
   it("attaches a worker worktree to its mission and rejects another mission", async () => {
     const { repo, env } = fixture();
     const lease = await acquireMissionLease({

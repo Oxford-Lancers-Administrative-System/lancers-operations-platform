@@ -731,6 +731,23 @@ describe("mission harness v1", () => {
     expect(gateSource).toContain("only when it cites the answered owner question");
     expect(gateSource).toContain("no answered owner question names it");
     expect(missionBody).toMatch(/ADR 0020 stands/);
+    // The review found the skill's operative merge procedure (§10) still
+    // forbidding what its own §9 and the gate permit. Pin both, in the files
+    // that carry them, so they cannot drift apart again.
+    expect(missionBody).toMatch(
+      /Highest risk only when an answered owner checkpoint names the package/i,
+    );
+    expect(missionBody).toMatch(
+      /decided from the diff by the prohibited-path scan, not from a risk label/i,
+    );
+    expect(missionBody).not.toMatch(/external configuration, Highest-risk work,/i);
+
+    const runbook = flat(readFileSync(path.join(root, "docs", "mission-harness.md"), "utf8"));
+    expect(runbook).toMatch(/Highest risk is not on that list any more/);
+    expect(runbook).toMatch(/only when an answered owner checkpoint names the package/);
+    // B-3: the runbook described a proof the code no longer uses.
+    expect(runbook).toMatch(/squash/i);
+    expect(runbook).not.toMatch(/plus the head being an ancestor of/i);
   });
 });
 

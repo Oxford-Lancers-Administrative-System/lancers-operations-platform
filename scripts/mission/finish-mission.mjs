@@ -50,59 +50,54 @@ function git(args, cwd = repoPath) {
   }).trim();
 }
 
-/** Ask the repository, never the pull-request body and never Linear. The
- * mission-merge lane merges without a human, so "Brian merged it" is not a
- * state anyone may infer. */
-function mergeProof(pkg) {
-  const reasons = [];
-  let mergeSha = null;
-  try {
-    const raw = execFileSync(
-      "gh",
-      ["pr", "view", String(pkg.pr_number), "--json", "state,mergeCommit"],
-      { cwd: repoPath, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-    );
-    const view = JSON.parse(raw);
-    if (view.state !== "MERGED") reasons.push(`pull request #${pkg.pr_number} is ${view.state}`);
-    mergeSha = view.mergeCommit?.oid ?? null;
-  } catch (error) {
-    reasons.push(`could not read pull request #${pkg.pr_number} (${error.message.split("\n")[0]})`);
-  }
-  if (pkg.head_sha) {
+/** The real repository, behind the seam the proof is tested against. */
+const io = {
+  pullRequest(number) {
+    const raw = execFileSync("gh", ["pr", "view", String(number), "--json", "state,mergeCommit"], {
+      cwd: repoPath,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return JSON.parse(raw);
+  },
+  isAncestor(sha, ref) {
     try {
-      execFileSync("git", ["merge-base", "--is-ancestor", pkg.head_sha, "origin/main"], {
+      execFileSync("git", ["merge-base", "--is-ancestor", sha, ref], {
         cwd: repoPath,
         stdio: "ignore",
       });
+      return true;
     } catch {
-      reasons.push(`${pkg.head_sha} is not an ancestor of origin/main`);
+      return false;
     }
-  }
-  return { merged: reasons.length === 0, reasons, mergeSha };
-}
-
-/** A worktree is only debris when nothing in it is unsaved or unpushed. */
-function worktreeDefects(worktree, branch) {
-  const defects = [];
-  if (!fs.existsSync(worktree)) return { defects, gone: true };
-  if (git(["status", "--porcelain"], worktree) !== "") {
-    defects.push("its working tree is dirty");
-  }
-  try {
-    const unpushed = git(["log", "--oneline", `origin/${branch}..${branch}`], worktree);
-    if (unpushed !== "") defects.push(`it has ${unpushed.split("\n").length} unpushed commit(s)`);
-  } catch {
-    defects.push(`its branch ${branch} has no pushed counterpart`);
-  }
-  if (git(["stash", "list"], worktree) !== "") defects.push("it has stash entries");
-  return { defects, gone: false };
-}
+  },
+  exists: (candidate) => fs.existsSync(candidate),
+  status: (worktree) => git(["status", "--porcelain"], worktree),
+  stashList: (worktree) => git(["stash", "list"], worktree),
+  hasRemoteBranch(worktree, branch) {
+    try {
+      git(["rev-parse", "--verify", `refs/remotes/origin/${branch}`], worktree);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  unpushed: (worktree, branch) =>
+    git(["log", "--oneline", `origin/${branch}..${branch}`], worktree),
+};
 
 try {
   if (!missionId || !/^M-[A-Za-z0-9][A-Za-z0-9-]*$/.test(missionId)) {
     fail("Usage: mission:finish M-<id> [--abandon --reason <why> --preserved <what>]");
   }
   if (!leadId) fail("LANCERS_MISSION_LEAD_ID must hold this session's stable UUID.");
+
+  // A stale origin/main reports merged work as unmerged and reclaims nothing.
+  try {
+    execFileSync("git", ["fetch", "origin", "main", "--quiet"], { cwd: repoPath, stdio: "ignore" });
+  } catch {
+    console.warn("Could not fetch origin/main; proving merges against the local view.");
+  }
 
   const state = replayState(repoPath, missionId);
   if (!state.initialized) fail(`Mission ${missionId} has no durable state to finish.`);
@@ -132,12 +127,12 @@ try {
       if (!abandoning) blocked.push(`${pkg.id} is ${pkg.status}, not merged`);
       continue;
     }
-    const proof = mergeProof(pkg);
+    const proof = mergeProof(pkg, io);
     if (!proof.merged) {
       blocked.push(`${pkg.id}: ${proof.reasons.join("; ")}`);
       continue;
     }
-    const { defects, gone } = worktreeDefects(pkg.worktree, pkg.branch);
+    const { defects, gone } = worktreeDefects(pkg.worktree, pkg.branch, io);
     if (defects.length > 0) {
       blocked.push(`${pkg.id}: ${defects.join(", ")}`);
       continue;
@@ -170,6 +165,11 @@ try {
     console.log(`Reclaimed ${pkg.id}: worktree removed, branch ${pkg.branch} deleted.`);
   }
 
+  if (blocked.length > 0) {
+    console.error(`${blocked.length} package(s) were left alone:`);
+    for (const reason of blocked) console.error(`  - ${reason}`);
+  }
+
   if (abandoning) {
     const reason = flag("--reason");
     const preserved = flag("--preserved");
@@ -190,13 +190,10 @@ try {
   }
 
   if (blocked.length > 0) {
-    console.error(`Mission ${missionId} is not finished. Nothing further was released:`);
-    for (const reason of blocked) console.error(`  - ${reason}`);
     console.error(
-      "\nFinish or abandon those packages first. Absence of evidence is never permission.",
+      `\nMission ${missionId} is not finished. Finish or abandon those packages first; absence of evidence is never permission.`,
     );
-    process.exitCode = 2;
-    process.exit();
+    process.exit(2);
   }
 
   if (!state.closeout) {
@@ -208,8 +205,21 @@ try {
   // Retire the stack only when this was its last attachment. Whoever detaches
   // last does it, so a mission whose acquiring worktree is already gone can
   // still be tidied up.
-  const registry = coordinatorStatus(repoPath);
-  const stack = Object.values(registry.slots).find((record) => record.missionId === missionId);
+  let stack = Object.values(coordinatorStatus(repoPath).slots).find(
+    (record) => record.missionId === missionId,
+  );
+  // The Lead's own repository is an attachment too — `acquireMissionLease` puts
+  // it in the list — and nothing else will ever let go of it.
+  if (stack) {
+    try {
+      await detachMissionLease({ missionId, repoPath });
+    } catch {
+      // Already detached.
+    }
+    stack = Object.values(coordinatorStatus(repoPath).slots).find(
+      (record) => record.missionId === missionId,
+    );
+  }
   let disposition = "no mission-owned stack was allocated";
   if (stack) {
     const attached = stack.attachedRepoPaths ?? [];
@@ -222,6 +232,13 @@ try {
           ["stop", "--no-backup", "--workdir", stack.runtimeRoot],
           { cwd: repoPath, stdio: "ignore" },
         );
+        // Hand the ports back as well, or the record holds them until the
+        // heartbeat window expires and someone runs cleanup-stale.
+        try {
+          await releaseLease({ repoPath, token: stack.token, slot: stack.slot });
+        } catch {
+          // The record may already be released; the stack is stopped either way.
+        }
         disposition = `retired ${stack.slot}`;
       } catch (error) {
         disposition = `${stack.slot} could not be stopped (${error.message.split("\n")[0]}); it holds no lease and can be stopped by hand`;

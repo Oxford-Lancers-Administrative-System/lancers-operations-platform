@@ -205,6 +205,17 @@ function requiredSessionPid(caller) {
   );
 }
 
+/** A default only fires on `undefined`, so null, 0, -1 and "123" would all slip
+ * past it and produce a lease that is stealable a second later. */
+function assertSessionPid(pid, caller) {
+  if (!Number.isInteger(pid) || pid <= 0) {
+    throw new Error(
+      `${caller} needs a real owning session pid (got ${JSON.stringify(pid)}) — pass findOwningSessionPid(). A lease whose owner cannot be probed is reclaimable at once.`,
+    );
+  }
+  return pid;
+}
+
 /** A lease is demonstrably in use when its heartbeat is inside the window. */
 export function leaseLive(record, now) {
   const beat = Date.parse(record?.lastHeartbeat ?? "");
@@ -377,6 +388,7 @@ export async function acquireLease({
 }) {
   if (!/^LAN-\d+$/.test(issueId))
     throw new Error("A single Linear issue identifier such as LAN-112 is required.");
+  assertSessionPid(pid, "acquireLease");
   const resolvedRepo = fs.realpathSync(repoPath);
   const paths = coordinatorPaths(resolvedRepo, env);
 
@@ -477,6 +489,7 @@ export async function acquireMissionLease({
   if (!/^[0-9a-f]{40}$/.test(baseCommit ?? "") || !/^\d+$/.test(String(migrationHead ?? ""))) {
     throw new Error("Mission allocation records a full base commit and numeric migration head.");
   }
+  assertSessionPid(pid, "acquireMissionLease");
   const resolvedRepo = fs.realpathSync(repoPath);
   const paths = coordinatorPaths(resolvedRepo, env);
 
@@ -558,6 +571,19 @@ export async function acquireMissionLease({
     const claimed = await withAllocatorLock(paths, () => {
       const registry = readRegistry(paths.registry);
       if (registry.slots[free.name]) return null;
+      // The slot *name* carries the mission id, so two different missions both
+      // choosing index 0 pass the name check while colliding on every port —
+      // ports are derived from the index alone. Phase 1's port check was taken
+      // before the probe released the lock, so it is stale by now. Re-check it
+      // here, under the lock that actually claims, and let the loop re-select.
+      const taken = new Set(
+        Object.values(registry.slots).flatMap((record) => [
+          ...Object.values(record.ports),
+          record.applicationPort,
+        ]),
+      );
+      const wanted = [...Object.values(free.ports), free.applicationPort];
+      if (wanted.some((port) => taken.has(port))) return null;
       const token = crypto.randomBytes(32).toString("hex");
       const runtimeRoot = prepareRuntime(resolvedRepo, free);
       const record = {
@@ -654,7 +680,13 @@ export function readSession(repoPath) {
   return JSON.parse(fs.readFileSync(path.join(repoPath, ".lancers-runtime", "lease.json"), "utf8"));
 }
 
-/** Every holder of this token: the acquiring worktree and any attached one. */
+/**
+ * Every holder of this token: the acquiring worktree and any attached one.
+ *
+ * This is the right test for *using* a stack — heartbeats, state changes,
+ * recording an applied config. It is deliberately not the test for releasing
+ * one: see `releaseLease`.
+ */
 function holds(record, resolvedRepo) {
   return (
     record.repoPath === resolvedRepo || Boolean(record.attachedRepoPaths?.includes(resolvedRepo))
@@ -753,8 +785,19 @@ export async function releaseLease({
   return withAllocatorLock(paths, () => {
     const registry = readRegistry(paths.registry);
     const record = Object.values(registry.slots).find((candidate) => candidate.token === token);
-    if (!record || !holds(record, resolvedRepo))
-      throw new Error("Missing, invalid, or stale local Supabase ownership token.");
+    if (!record) throw new Error("Missing, invalid, or stale local Supabase ownership token.");
+    // Using a shared stack and retiring one are different rights. A mission
+    // stack is attached to by several workers, and a worker running
+    // `db:release` or `visual:release` must not drop the whole mission's
+    // lease — least of all a protected `review-ready` one, which would lock
+    // out every sibling and the Lead. An attached worktree lets go with
+    // `detachMissionLease`; only the worktree that acquired the record may
+    // release it.
+    if (record.repoPath !== resolvedRepo) {
+      throw new Error(
+        `${record.slot} was acquired by another worktree; this one is attached to it, not its owner. Detach instead of releasing.`,
+      );
+    }
     if (slot !== undefined && slot !== record.slot) {
       throw new Error(
         `This session records slot ${slot}, but its token belongs to ${record.slot}; refusing to release a slot this session does not hold.`,

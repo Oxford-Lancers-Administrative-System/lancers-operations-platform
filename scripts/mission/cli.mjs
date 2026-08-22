@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   appendEvent,
+  dependencyUsable,
   leadLeaseAvailable,
   missionPaths,
   nextActions,
@@ -299,14 +300,35 @@ async function main() {
           "Usage: mission dispatch <mission-id> <package-id> --worker <id> --worktree <path> --branch <name>",
         );
       }
+      // A dependency that is reviewed clean at exactly its recorded head is a
+      // usable base — the whole point of LAN-148 §F. The state machine asks the
+      // dispatch to record that basis, pinned to the commit it relies on, and
+      // without this the Lead's only interface could never satisfy it and every
+      // such dispatch waited on Brian's merge after all. Derived from state by
+      // default; --dependency-basis <file> overrides for an unusual case.
+      const current = replayState(repoPath, missionId);
+      const pkg = current.packages[packageId];
+      const basis = flags["dependency-basis"]
+        ? readJson(flags["dependency-basis"])
+        : (pkg?.depends_on ?? [])
+            .map((dep) => ({ dep, verdict: dependencyUsable(current, dep) }))
+            .filter(({ verdict }) => verdict.usable && verdict.basis === "reviewed-at-head")
+            .map(({ dep, verdict }) => ({ package_id: dep, head_sha: verdict.head_sha }));
+
       await append(missionId, {
         type: "worker-dispatched",
         package_id: packageId,
         worker_id: flags.worker,
         worktree: flags.worktree,
         branch: flags.branch,
+        ...(basis.length > 0 ? { dependency_basis: basis } : {}),
       });
-      console.log(`Worker ${flags.worker} dispatched on ${packageId}.`);
+      const standing = basis.map((entry) => `${entry.package_id} at ${entry.head_sha}`).join(", ");
+      console.log(
+        standing
+          ? `Worker ${flags.worker} dispatched on ${packageId}, standing on reviewed ${standing}.`
+          : `Worker ${flags.worker} dispatched on ${packageId}.`,
+      );
       break;
     }
 
@@ -513,7 +535,9 @@ async function main() {
         fail("Usage: mission closeout <mission-id> --payload <file>");
       }
       const payload = readJson(flags.payload);
-      const state = await append(missionId, { type: "mission-closeout", ...payload });
+      // Spread first: a payload carrying its own `type` or `at` must not
+      // decide what event this is.
+      const state = await append(missionId, { ...payload, type: "mission-closeout" });
       console.log(
         `Mission ${missionId} closed as ${state.closeout.outcome}. Write this into ${state.closeout.notion_record} — it extends that record; it never creates a Linear planning document or a deferred-findings issue.`,
       );

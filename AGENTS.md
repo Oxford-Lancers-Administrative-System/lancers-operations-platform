@@ -498,7 +498,7 @@ steps, dependencies, theme contents — proceed and explain in the pull request.
 
 ## Agent tooling
 
-Exactly three user-invoked workflows and two subagents are approved:
+Exactly four user-invoked workflows and two subagents are approved:
 
 | Role                                                          | File                                      | What it does                                                                                                                                                                                                    |
 | ------------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

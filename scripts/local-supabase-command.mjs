@@ -27,8 +27,13 @@ function run(command, args, env = process.env, echo = true) {
   return result.stdout;
 }
 
-/** Stopping a stack that is not running is not a failure worth aborting on. */
-function runTolerant(command, args, env = process.env) {
+/**
+ * Stopping a stack that is not running is not a failure worth aborting on. A
+ * stop that fails while it *is* running is a different matter — the restart is
+ * the only thing that makes Auth pick up this holder's redirect allow-list —
+ * so the caller checks afterwards rather than trusting the exit code.
+ */
+function stopIfRunning(command, args, env = process.env) {
   spawnSync(command, args, {
     cwd: repoPath,
     env,
@@ -99,7 +104,24 @@ try {
     // allow-list. Unproven is treated as drifted.
     if (lease.appliedConfig !== fingerprint) {
       console.log(`Applying this holder's configuration to ${lease.slot}; restarting the stack.`);
-      runTolerant(cli, cliArgs("stop", ["--no-backup"]), cliEnv);
+      stopIfRunning(cli, cliArgs("stop", ["--no-backup"]), cliEnv);
+      // Prove the containers are actually down before starting again. A stop
+      // that silently failed would leave `supabase start` a no-op, and the
+      // fingerprint recorded afterwards would claim a configuration that Auth
+      // is not serving — the precise failure this check exists to prevent.
+      const after = run(cli, cliArgs("status", ["-o", "json"]), cliEnv, false);
+      let stillRunning = false;
+      try {
+        const parsed = JSON.parse(after);
+        stillRunning = Boolean(parsed.API_URL && parsed.DB_URL);
+      } catch {
+        stillRunning = false;
+      }
+      if (stillRunning) {
+        throw new Error(
+          `${lease.slot} is still running after a stop, so a restart would not apply this holder's configuration. Stop it by hand and retry; readiness would otherwise pass while Auth served the previous holder's redirect allow-list.`,
+        );
+      }
     }
     return fingerprint;
   };
