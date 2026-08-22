@@ -1,12 +1,12 @@
 {
   "mission_id": "M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY",
   "ledger_version": 2,
-  "stage": "boundary",
+  "stage": "overview",
   "baseline": {
     "branch": "main",
     "commit": "c59bff174d6d17b5fa9dec4396eb3397d67e0c63"
   },
-  "approvals": {},
+  "approvals": { "boundary": { "words": "The boundary is correct.", "date": "2026-08-22" } },
   "workflows": [],
   "mockup_hub": "generated",
   "decision_coverage": {
@@ -20,5 +20,5 @@
     ],
     "decisions": []
   },
-  "next_action": "Complete and approve 00-boundary.md"
+  "next_action": "Write and approve 01-overview.md"
 }

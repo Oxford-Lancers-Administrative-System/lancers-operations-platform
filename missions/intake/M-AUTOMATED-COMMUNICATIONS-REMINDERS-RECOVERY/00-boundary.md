@@ -376,5 +376,5 @@ One surface is genuinely new and is commissioned by Brian directly rather than b
 any brief: the pre-approval communications plan on the event page, §6 above,
 2026-08-22.
 
-- **Brian approval words:**
-- **Approval date:**
+- **Brian approval words:** "The boundary is correct."
+- **Approval date:** 2026-08-22
