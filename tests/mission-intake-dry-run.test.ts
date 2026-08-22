@@ -1,95 +1,56 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { validatePacket } from "../scripts/mission/lib/packet.mjs";
+import { validateFinalPrPaths } from "../scripts/intake/lib/pr.mjs";
+import {
+  createSyntheticLedger,
+  removeLedger,
+  type SyntheticLedger,
+} from "./helpers/synthetic-intake-ledger";
 
-const roots: string[] = [];
+const open: SyntheticLedger[] = [];
 
 afterEach(() => {
-  for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+  for (const helper of open.splice(0)) removeLedger(helper);
 });
 
 describe("synthetic mission intake", () => {
   it("produces a schema-valid ledger-cited packet and resumes after a session kill", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "lancers-intake-"));
-    roots.push(root);
-    const missionId = "M-SYNTHETIC-INTAKE";
-    const ledger = path.join(root, "missions", "intake", missionId);
-    fs.mkdirSync(path.join(ledger, "workflows"), { recursive: true });
-    fs.mkdirSync(path.join(ledger, "mockups"), { recursive: true });
-    fs.mkdirSync(path.join(ledger, "acceptance"), { recursive: true });
-    fs.writeFileSync(path.join(ledger, "00-boundary.md"), "# Approved synthetic boundary\n");
-    fs.writeFileSync(path.join(ledger, "01-overview.md"), "# Approved synthetic overview\n");
-    fs.writeFileSync(
-      path.join(ledger, "02-workflows.md"),
-      "# Frozen workflow inventory\n\n1. `W1` — Review synthetic outcome\n",
-    );
-    fs.writeFileSync(
-      path.join(ledger, "workflows", "W1-review.md"),
-      "# W1 — Review synthetic outcome\n\nApproved synthetic workflow.\n",
-    );
-    fs.writeFileSync(
-      path.join(ledger, "mockups", "W1-review.html"),
-      "<!doctype html><title>W1</title>",
-    );
-    fs.writeFileSync(path.join(ledger, "acceptance", "W1.md"), "# W1 approved\n");
-    const state = {
-      mission_id: missionId,
-      stage: "assembly",
-      baseline: {
-        branch: "main",
-        commit: "315fbbbcdff2da3a5b6ead2d4352785bb12943be",
-      },
-      approvals: {
-        boundary: { words: "Approve the synthetic boundary.", date: "2026-08-20" },
-        overview: { words: "Approve the synthetic overview.", date: "2026-08-20" },
-        inventory: { words: "Approve the one-workflow inventory.", date: "2026-08-20" },
-      },
-      workflows: [
-        {
-          id: "W1",
-          name: "Review synthetic outcome",
-          state: "done",
-          stale: false,
-          feedback: [],
-          approvals: {
-            spec: { words: "Approve W1 spec.", date: "2026-08-20" },
-            mock: { words: "Approve W1 mock.", date: "2026-08-20" },
-          },
-        },
-      ],
-      next_action: "Assemble the synthetic packet from approved ledger files",
-    };
-    fs.writeFileSync(path.join(ledger, "state.json"), JSON.stringify(state, null, 2));
+    const helper = createSyntheticLedger();
+    open.push(helper);
+    const { root, ledger, missionId } = helper;
 
-    const cli = path.resolve("scripts/intake/cli.mjs");
-    const first = spawnSync(process.execPath, [cli, "status", missionId], {
-      cwd: root,
-      encoding: "utf8",
-    });
+    // The ledger publishes its generated artifacts before it can be read.
+    expect(helper.intake("coverage", missionId, "--write").status).toBe(0);
+    expect(helper.intake("hub", missionId, "--write").status).toBe(0);
+
+    const assembling = helper.state();
+    assembling.stage = "assembly";
+    helper.writeState(assembling);
+    expect(helper.intake("hub", missionId, "--write").status).toBe(0);
+
+    const first = helper.intake("status", missionId);
     expect(first.status).toBe(0);
 
     // A fresh process has no prior conversation or in-memory state.
-    const resumed = spawnSync(process.execPath, [cli, "status", missionId], {
-      cwd: root,
-      encoding: "utf8",
-    });
+    const resumed = helper.intake("status", missionId);
     expect(resumed.status).toBe(0);
     expect(resumed.stdout).toBe(first.stdout);
     expect(resumed.stdout).toContain("Stage: assembly");
     expect(resumed.stdout).toContain("W1 · Review synthetic outcome: done");
 
     fs.rmSync(path.join(ledger, "acceptance", "W1.md"));
-    const divergent = spawnSync(process.execPath, [cli, "status", missionId], {
-      cwd: root,
-      encoding: "utf8",
-    });
+    const divergent = helper.intake("status", missionId);
     expect(divergent.status).toBe(1);
     expect(divergent.stderr).toContain("done requires acceptance/W1.md");
     fs.writeFileSync(path.join(ledger, "acceptance", "W1.md"), "# W1 approved\n");
 
+    const state = helper.state() as {
+      baseline: { branch: string; commit: string };
+      workflows: { id: string }[];
+    };
     const packet = {
       packet_version: 1,
       mission_id: missionId,
@@ -162,6 +123,28 @@ describe("synthetic mission intake", () => {
     );
     expect(valid.status).toBe(0);
     expect(valid.stdout).toContain("Frozen workflow inventory matches");
+
+    // The one owner-approved merge lands the ledger and the packet together.
+    const finalDiff = [
+      ...fs
+        .readdirSync(ledger, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) =>
+          path.posix.join(
+            `missions/intake/${missionId}`,
+            path
+              .relative(ledger, path.join(entry.parentPath, entry.name))
+              .split(path.sep)
+              .join("/"),
+          ),
+        ),
+      `missions/packets/${missionId}/packet.json`,
+      `missions/packets/${missionId}/README.md`,
+    ];
+    expect(validateFinalPrPaths(missionId, finalDiff)).toEqual([]);
+    expect(
+      validateFinalPrPaths(missionId, [...finalDiff, "scripts/intake/cli.mjs"]).join("\n"),
+    ).toMatch(/scripts\/intake\/cli.mjs is not an intake artifact/);
 
     fs.writeFileSync(
       inventoryFile,

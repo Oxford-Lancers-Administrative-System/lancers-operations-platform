@@ -3,6 +3,7 @@ import { renderResumeBanner, validateIntakeState } from "../scripts/intake/lib/s
 
 const state = {
   mission_id: "M-SYNTHETIC-INTAKE",
+  ledger_version: 2,
   stage: "workflows",
   baseline: {
     branch: "main",
@@ -32,6 +33,26 @@ const state = {
       feedback: [],
     },
   ],
+  mockup_hub: "generated",
+  decision_coverage: {
+    sources: [
+      {
+        id: "SRC-brief",
+        ref: "https://example.invalid/synthetic-brief",
+        version: "2026-08-20",
+        decision_ids: ["D1"],
+      },
+    ],
+    decisions: [
+      {
+        id: "D1",
+        source_id: "SRC-brief",
+        disposition: "workflow",
+        workflow: "W1",
+        reason: "W1 owns the only journey the brief describes.",
+      },
+    ],
+  },
   next_action: "Revise W1-02 per Brian 2026-08-20",
 };
 
