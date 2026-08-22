@@ -254,7 +254,7 @@ describe("issue closeout workflow", () => {
 
   it("proves the terminal state from the repository, never from the story told about it", () => {
     expect(body).toMatch(/state == MERGED/);
-    expect(body).toMatch(/All four of these, not any one of them/i);
+    expect(body).toMatch(/All of these, not any one of them/i);
     expect(body).toMatch(/git merge-base --is-ancestor "<mergeCommit>" origin\/main/i);
     expect(body).toMatch(/is never evidence that the work merged/i);
     expect(body).toMatch(/Brian passed `--abandoned`/i);
@@ -281,15 +281,22 @@ describe("issue closeout workflow", () => {
     // known-mutating names is not enough: `db:status` itself validates this
     // worktree's token and writes a heartbeat, which is exactly the defect the
     // sentence above is there to prevent.
-    const evidenceBlock = /```bash\n([\s\S]*?)```/.exec(finishSkill.body)?.[1] ?? "";
-    expect(evidenceBlock).not.toBe("");
+    // Select §2's own block by its heading — not the first fence in the file,
+    // which a `bash` example added anywhere above would silently substitute.
+    const section2 =
+      /## 2\. Establish the facts[\s\S]*?(?=\n## )/.exec(finishSkill.body)?.[0] ?? "";
+    expect(section2, "§2 must exist and be findable by heading").not.toBe("");
+    const evidenceBlock = /```bash\n([\s\S]*?)```/.exec(section2)?.[1] ?? "";
+    expect(evidenceBlock, "§2 must carry the evidence command block").not.toBe("");
+    // Anchored end to end: a prefix match would pass
+    // `npm run db:coordinator status && npm run db:reset`.
     const readOnly = [
-      /^git fetch origin\b/,
-      /^git worktree list --porcelain\b/,
-      /^gh pr list --head <branch> --state all\b/,
-      /^git -C <worktree> status --short --branch\b/,
-      /^git -C <worktree> rev-parse HEAD\b/,
-      /^npm run db:coordinator status\b/,
+      /^git fetch origin$/,
+      /^git worktree list --porcelain$/,
+      /^gh pr list --head <branch> --state all --json [\w,]+$/,
+      /^git -C <worktree> status --short --branch$/,
+      /^git -C <worktree> rev-parse HEAD$/,
+      /^npm run db:coordinator status$/,
     ];
     for (const line of evidenceBlock
       .split("\n")
@@ -316,9 +323,17 @@ describe("issue closeout workflow", () => {
     );
     expect(body).toMatch(/defaults to `--state open`/i);
     expect(body).toMatch(/its `headRefName` is exactly that branch/i);
-    expect(body).toMatch(/its `headRefOid` equals the local branch tip/i);
     expect(body).toMatch(
-      /the pull request's `headRefName` is not this issue's branch, or its `headRefOid` is not the local branch tip/i,
+      /while the local branch still exists, its `headRefOid` equals that branch's tip/i,
+    );
+    expect(body).toMatch(
+      /required exactly while there is a local branch to compare and is not required once §4.3 has removed it/i,
+    );
+    expect(body).toMatch(
+      /the pull request's `headRefName` is not this issue's branch — the pull request is not this branch's/i,
+    );
+    expect(body).toMatch(
+      /the local branch still exists and its tip is not the pull request's `headRefOid`/i,
     );
     expect(body).toMatch(/commits pushed to the branch _after_ the merge/i);
     // The defect this replaced: a search that finds no merged pull request.
@@ -369,6 +384,12 @@ describe("issue closeout workflow", () => {
   it("never destroys work, another owner's slot, or the primary checkout", () => {
     expect(body).toMatch(/Never remove a dirty, interrupted, unmerged, or review-ready worktree/i);
     expect(body).toMatch(/Use `-d` and never `-D`, but do not lean on `-d` as the safety check/i);
+    // The prose said `-d`; pin the command block too, or the block can say `-D`.
+    const removalBlock =
+      /### 4\.3 Remove the worktree[\s\S]*?```bash\n([\s\S]*?)```/.exec(finishSkill.body)?.[1] ??
+      "";
+    expect(removalBlock).toMatch(/^git branch -d <branch>/m);
+    expect(removalBlock).not.toMatch(/git branch -D/);
     expect(body).toMatch(/Delete the local branch .{0,20}only in the merged case/i);
     expect(body).toMatch(/it will delete a branch that was merely pushed/i);
     expect(body).toMatch(/If `-d` refuses, leave the branch alone and report it/i);
@@ -391,6 +412,16 @@ describe("issue closeout workflow", () => {
       /Never move an issue to Done while human or visual acceptance is genuinely pending/i,
     );
     expect(body).toMatch(/reports `already finalized` without acting or failing/i);
+    // The short-circuit is what makes that reachable: §4.3 destroys the branch
+    // tip the merged proof compares against, so a strict re-proof would refuse
+    // every issue the workflow had already finished.
+    expect(body).toMatch(/First, the already-finalized case/i);
+    expect(body).toMatch(
+      /If this issue has no worktree, no local branch and no lease, there is nothing left to reclaim/i,
+    );
+    expect(body).toMatch(/Do not evaluate the rest of §3/i);
+    expect(body).toMatch(/its absence is the proof that closeout already happened, not a blocker/i);
+    expect(body).toMatch(/A run that stopped between §4.3 and §4.4/i);
   });
 
   it("is announced by /start-issue and by the working agreement, and leaves missions alone", () => {

@@ -524,17 +524,20 @@ happens after Brian merges.
 Under `/finish-issue`, the top-level session finalizes exactly one issue whose
 work has already reached a terminal state. It proves that state from the
 repository — the pull request found from this issue's branch, `MERGED`, still
-pointing at that branch at its current tip, and its **merge commit** an ancestor
-of a freshly fetched `origin/main`; the Linear issue canceled; or Brian's
-explicit `--abandoned` over a fully pushed branch — never from a pull-request body, a handoff summary, or the
+pointing at that branch, its **merge commit** an ancestor of a freshly fetched
+`origin/main`, and its head commit equal to the local branch tip while that
+branch still exists; the Linear issue canceled; or Brian's explicit
+`--abandoned` over a fully pushed branch — never from a pull-request body, a handoff summary, or the
 Linear state alone. It then stops the services, releases the lease, removes the
 worktree and local branch, and closes the ticket with one comment, in that
 order. It implements nothing, launches no subagent, and fails closed: an
 unmerged pull request, a dirty or unpushed worktree, a stash entry, an
 unresolved `correct-before-handoff` finding, a pending visual gate, or a lease
 that now belongs to somebody else all mean it releases nothing, deletes
-nothing, changes no Linear state, and reports the blocker instead. Mission
-closeout is not its job.
+nothing, changes no Linear state, and reports the blocker instead. An issue with
+no worktree, no branch and no lease is the one case it does not re-prove: that
+is closeout that already happened, so it says so and finishes any Linear write
+still outstanding. Mission closeout is not its job.
 
 Under `/run-mission`, the top-level session is the Mission Lead. Mission memory
 is an append-only journal owned by `scripts/mission/cli.mjs` — every plan,

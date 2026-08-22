@@ -87,6 +87,17 @@ destroys the only proof of ownership the coordinator accepts.
 and edits no pull request, and selects no further work. Every step is
 idempotent: a second run finds nothing to do and says so.
 
+Idempotence needs one deliberate exception to the evidence rule, and it is worth
+stating because the obvious design gets it wrong. A successful run destroys the
+local branch, and the branch tip is one of the things the merged proof compares
+against. Demanding the full proof on every invocation would therefore make the
+workflow refuse every issue it had already finished, and would strand any run
+interrupted between removing the worktree and closing the ticket. So an issue
+with no worktree, no branch and no lease short-circuits: absence is treated as
+proof that closeout already happened, and the only thing left to do is the
+Linear write, if it is still outstanding. The branch-tip comparison is required
+exactly while there is a branch to compare.
+
 Mission closeout — `/run-mission`'s worker worktrees and mission-owned stacks —
 is deliberately out of scope. A mission has many worktrees per unit of work, a
 shared stack with attached repositories, and a durable journal that must record

@@ -73,18 +73,25 @@ nothing.
 
 ## 3. Prove the terminal state, or stop
 
-Finalize only when exactly one of these is proved:
+**First, the already-finalized case.** If this issue has no worktree, no local
+branch and no lease, there is nothing left to reclaim. Report `already
+finalized`, complete §4.4 if the Linear issue is not yet Done or canceled, and
+stop. Do not evaluate the rest of §3 — the evidence it asks for was consumed by
+the run that succeeded, and its absence is the proof that closeout already
+happened, not a blocker.
 
-- **Merged.** All four of these, not any one of them: the pull request was found
-  from this issue's branch; its `headRefName` is exactly that branch; its
-  `headRefOid` equals the local branch tip; and its **`mergeCommit`** is an
-  ancestor of a freshly fetched `origin/main`.
+Otherwise, finalize only when exactly one of these is proved:
+
+- **Merged.** All of these, not any one of them: the pull request was found from
+  this issue's branch; its `headRefName` is exactly that branch; its
+  **`mergeCommit`** is an ancestor of a freshly fetched `origin/main`; and, while
+  the local branch still exists, its `headRefOid` equals that branch's tip.
 
   ```bash
   git fetch origin
   gh pr list --head <branch> --state all --json number,state,mergeCommit,headRefOid,headRefName
-  # require: state == MERGED, headRefName == <branch>,
-  #          headRefOid == git -C <worktree> rev-parse HEAD
+  # require: state == MERGED, headRefName == <branch>, and — only while the
+  #          local branch exists — headRefOid == git rev-parse <branch>
   git merge-base --is-ancestor "<mergeCommit>" origin/main
   ```
 
@@ -92,13 +99,15 @@ Finalize only when exactly one of these is proved:
   so a merged branch's own head is never an ancestor of `main` and testing it
   would refuse every genuinely merged issue.
 
-  The three identity checks are not ceremony. Without them a pull-request number
-  lifted from a comment proves somebody else's merge, and commits pushed to the
-  branch _after_ the merge still satisfy `MERGED` plus an ancestor merge commit
-  while `main` does not contain them — the branch would then be deleted with
-  work on it that never landed. `headRefOid` equal to the local tip is what
-  excludes that. An empty `mergeCommit`, which every unmerged pull request has,
-  fails this step rather than being handed to `git`.
+  The identity checks are not ceremony. Without them a pull-request number lifted
+  from a comment proves somebody else's merge, and commits pushed to the branch
+  _after_ the merge still satisfy `MERGED` plus an ancestor merge commit while
+  `main` does not contain them — the branch would then be deleted with work on it
+  that never landed. `headRefOid` equal to the local tip is what excludes that,
+  which is why it is required exactly while there is a local branch to compare
+  and is not required once §4.3 has removed it. An empty `mergeCommit`, which
+  every unmerged pull request has, fails this step rather than being handed to
+  `git`.
 
 - **Canceled.** The Linear issue is in a canceled state.
 - **Abandoned.** Brian passed `--abandoned`, and the branch is pushed with no
@@ -110,9 +119,11 @@ what is blocking and end:
 
 - the pull request is open, draft, or closed unmerged, or there is no pull
   request at all for this branch;
-- the pull request's `headRefName` is not this issue's branch, or its
-  `headRefOid` is not the local branch tip — the branch has moved since the
-  merge, or the pull request is not this branch's;
+- the pull request's `headRefName` is not this issue's branch — the pull request
+  is not this branch's;
+- the local branch still exists and its tip is not the pull request's
+  `headRefOid` — the branch has moved since the merge, and `main` does not
+  contain what is on it;
 - the worktree has uncommitted changes, untracked files that are not ignored,
   unpushed commits, or stash entries;
 - a `correct-before-handoff` finding is recorded as unresolved;
@@ -223,8 +234,15 @@ canceled and add the same closing comment.
 
 Every step is safe to repeat. A second `/finish-issue` on the same issue finds
 no lease, no worktree, no branch, and an issue already Done, and reports
-`already finalized` without acting or failing. Re-running after a partial run
-completes only the steps that are still outstanding.
+`already finalized` without acting or failing — that is the §3 short-circuit,
+and it exists because the successful run consumed the very evidence a strict
+re-proof would demand.
+
+Re-running after a partial run completes only the steps that are still
+outstanding, and the short-circuit is what makes that possible. A run that
+stopped between §4.3 and §4.4 leaves no worktree and no branch but an open
+issue; the re-run closes the ticket rather than refusing because it can no
+longer compare a branch tip that no longer exists.
 
 ## 6. Boundaries
 
