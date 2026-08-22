@@ -1216,11 +1216,11 @@ for (const [key, name, type, venue, starts, ends, weekday, note] of [
     "chalk",
     "Tuesday Chalk",
     "chalk",
-    "Online",
+    "Microsoft Teams",
     "18:00",
     "19:00",
     2,
-    "Tuesday chalk talk, competitive weeks only.",
+    "Tuesday chalk talk, competitive weeks only. Online — the venue is the destination.",
   ],
   [
     "conditioning",
@@ -1403,6 +1403,10 @@ for (const slot of calendar) {
     slot.term.name === "hilary" ||
     (slot.term.name === "trinity" && slot.week <= 3);
   if (chalkWeek) {
+    // D20 and D21: chalk is on Teams, and since LAN-151 that is a property of
+    // the event rather than the word "Online" typed into the venue field. The
+    // venue then holds the destination, and the joining link is its own field
+    // and never reaches a public surface (REQ-no-joining-url).
     makeEvent({
       name: `Chalk — ${slot.term.name} week ${slot.week}`,
       type: "chalk",
@@ -1412,7 +1416,9 @@ for (const slot of calendar) {
       date: tuesday,
       starts: "18:00",
       ends: "19:00",
-      venue: "Online",
+      online: true,
+      venue: "Microsoft Teams",
+      joining_url: `https://teams.example.invalid/l/meetup-join/chalk-${slot.term.name}-${slot.week}`,
     });
   }
 

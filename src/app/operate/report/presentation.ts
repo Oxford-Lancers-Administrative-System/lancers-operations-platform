@@ -44,8 +44,8 @@ export const ONBOARDING_EMPTY = "Every active member is up to date.";
  */
 export const NOTHING_AT_ALL =
   "No events last week and nothing outstanding. If that is a surprise, check that last " +
-  "week's events were approved and marked occurred — an empty report can mean a quiet week " +
-  "or a week nobody recorded.";
+  "week's events were approved — an empty report can mean a quiet week or a week nobody " +
+  "recorded.";
 
 export const CHANGE_DATE_LABEL = "Reporting date";
 export const CHANGE_DATE_SUBMIT = "Show report";

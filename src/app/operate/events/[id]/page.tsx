@@ -488,11 +488,21 @@ function EventDetailView({
         <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
           {event.name}
         </Typography>
+        {/*
+          The derived state sits beside the stored one only where it says
+          something the stored one does not — which is an approved event, and
+          only that. A cancelled event would read "Cancelled · Cancelled", and a
+          past draft would read "Draft · Occurred", which is worse than
+          redundant: a draft nobody approved did not happen.
+        */}
         <Typography variant="body2" color="text.secondary" data-testid="event-subtitle">
-          {`${labelFor(STATUS_LABELS, event.status)} · ${labelFor(
-            DERIVED_STATE_LABELS,
-            derived,
-          )} · ${formatDetailWhen(event)}`}
+          {[
+            labelFor(STATUS_LABELS, event.status),
+            event.status === "approved" ? labelFor(DERIVED_STATE_LABELS, derived) : null,
+            formatDetailWhen(event),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </Typography>
       </Box>
 

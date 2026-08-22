@@ -176,6 +176,14 @@ export default function EventForm({
               fullWidth
             />
 
+            {/*
+              `shrink` is explicit because this select always has a value —
+              `practice` when nothing was chosen — and MUI was leaving the
+              outline's notch closed, so the label sat on top of the value.
+              Found in the LAN-151 browser preflight, on both the create and the
+              edit screen; every other field on this form notches correctly
+              because every other field can legitimately be empty.
+            */}
             <TextField
               select
               label="Type"
@@ -184,6 +192,7 @@ export default function EventForm({
               defaultValue={value("eventType") || "practice"}
               error={Boolean(issueFor(state, "eventType"))}
               helperText={issueFor(state, "eventType")}
+              slotProps={{ inputLabel: { shrink: true } }}
               fullWidth
             >
               {DRAFTABLE_EVENT_TYPES.map((type) => (

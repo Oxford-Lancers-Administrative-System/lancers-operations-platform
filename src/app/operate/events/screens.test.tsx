@@ -713,10 +713,10 @@ describe("UX-32 — a draft event", () => {
     const { container } = render(await EventDetailPage(detailProps()));
     const text = flatten(container.textContent);
 
-    // The stored status and the derived one, side by side. They answer
-    // different questions and the screen never collapses them (D30).
+    // A draft carries the stored status alone: the derived state only says
+    // something the stored one does not for an approved event.
     expect(flatten(screen.getByTestId("event-subtitle").textContent)).toBe(
-      "Draft · Upcoming · Wednesday, 14 October 2026 · 20:00–22:00",
+      "Draft · Wednesday, 14 October 2026 · 20:00–22:00",
     );
     expect(text).toContain("Michaelmas 2026-27 · Week 2");
 
@@ -729,6 +729,34 @@ describe("UX-32 — a draft event", () => {
     expect(text).not.toContain("Who sets the date");
   });
 
+  it("shows the derived state beside the stored one, but only for an approved event", async () => {
+    // D30, on the surface it matters on. "Approved" says what the club decided;
+    // "Upcoming" or "Occurred" says where the date has got to, and the screen
+    // never collapses the two into one word.
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+    const upcoming = render(await EventDetailPage(detailProps()));
+    expect(flatten(screen.getByTestId("event-subtitle").textContent)).toContain(
+      "Approved · Upcoming",
+    );
+    upcoming.unmount();
+
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ status: "approved", scheduledOn: "2020-10-14" }),
+    );
+    const past = render(await EventDetailPage(detailProps()));
+    expect(flatten(screen.getByTestId("event-subtitle").textContent)).toContain(
+      "Approved · Occurred",
+    );
+    past.unmount();
+
+    // And a cancelled event says it once, not twice.
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "cancelled" }));
+    render(await EventDetailPage(detailProps()));
+    const subtitle = flatten(screen.getByTestId("event-subtitle").textContent);
+    expect(subtitle).toContain("Cancelled");
+    expect(subtitle).not.toContain("Cancelled · Cancelled");
+  });
+
   it("says so plainly when the event has no date yet", async () => {
     vi.mocked(readEvent).mockResolvedValue(
       detail({ scheduledOn: null, startsAt: null, endsAt: null }),
@@ -736,11 +764,7 @@ describe("UX-32 — a draft event", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    // An event with no date at all is `upcoming`: nothing is known about when
-    // it is, and a date that has not been chosen has certainly not passed.
-    expect(flatten(screen.getByTestId("event-subtitle").textContent)).toBe(
-      "Draft · Upcoming · No date yet",
-    );
+    expect(flatten(screen.getByTestId("event-subtitle").textContent)).toBe("Draft · No date yet");
   });
 
   it("explains an event it cannot find", async () => {

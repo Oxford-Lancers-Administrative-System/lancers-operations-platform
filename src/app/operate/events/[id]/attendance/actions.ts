@@ -137,20 +137,16 @@ export async function recordAttendanceAction(
  * Removes one attendance record.
  *
  * The only way to unwind an occurrence assertion made against the wrong event:
- * the assertion cannot be corrected while attendance hangs off it, so without
- * this there is no route back at all. It is not the way to change somebody's
- * state — that is a save, which is audited as a correction and keeps the
- * history.
+ * a row recorded against the wrong person is otherwise permanent, and an event
+ * carrying attendance cannot be cancelled until it is gone. It is not the way to
+ * change somebody's state — that is a save, which is audited as a correction and
+ * keeps the history.
  *
- * ## Why this one guards on the assertion, and the other two do not. LAN-110
+ * ## Why this one guards on the calendar, and the other two do not. LAN-110
  *
- * Because it *is* the assertion, one step removed. This control exists so that
- * an operator who marked the wrong event `occurred` can get back out of it, and
- * LAN-110's fixed boundary is explicit that "coaches cannot mark an event
- * occurred or not held unless a separate authorization rule explicitly grants
- * that action". Leaving removal on `attendance_recording` would have handed a
- * coach the one action whose purpose is to make that assertion editable — the
- * boundary by a different door.
+ * Because removing a record is an act on the club's record of an event rather
+ * than an observation about a person, and LAN-110's boundary puts changes to
+ * the calendar's record outside what a coaching seat holds.
  *
  * It is also not in what LAN-110 permits. The capability is "record and correct
  * Present, Absent, Late or Excused"; a correction keeps the observation and the
