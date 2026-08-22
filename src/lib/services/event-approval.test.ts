@@ -38,7 +38,7 @@ import {
 } from "./event-audience";
 import { createEventDraft, readEvent, updateEventDraft, type EventDraftInput } from "./events";
 import { responseDeadlineRule, RESPONSE_DEADLINE_RULES } from "./response-deadline";
-import { openObserver, SEEDED_IDENTITY_CREATED_AT } from "../../../tests/helpers/service-layer";
+import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN77ApprovalSuite";
 
@@ -50,7 +50,7 @@ beforeAll(async () => {
   observer = await openObserver();
   const people = await observer.query<{ id: string }>(
     "select id from public.people where created_at = $1::timestamptz order by id",
-    [SEEDED_IDENTITY_CREATED_AT],
+    [await seededIdentityCreatedAt(observer)],
   );
   seededPeople = new Set(people.rows.map((row) => row.id));
 
@@ -148,7 +148,7 @@ async function insertDraftDirectly(input: {
 
 /**
  * The catalogue an operator would be offered for this event, narrowed to the
- * seeded cohort — see `SEEDED_PEOPLE_CREATED_AT`.
+ * seeded cohort — see `seededIdentityCreatedAt`.
  *
  * The narrowing is this suite's isolation, not a property of the code under
  * test: `listAudienceCatalogueIn` is called exactly as the application calls it,

@@ -23,6 +23,9 @@
  */
 import pg from "pg";
 
+// Shared with the seed itself, so the frame is expressed in exactly one place.
+import { AUTHORED_SEASON_STARTS_ON, shiftAuthoredValue } from "../../scripts/lib/seed-clock.mjs";
+
 import { resolveDatabaseUrl } from "@/lib/db/url";
 
 /**
@@ -105,8 +108,51 @@ export function createFixture(suite: string): Fixture {
  * It lived as a literal in three separate test files, which is three places to
  * forget when the seed changes. One place, and `seededActorPersonId` below is
  * the one way to use it.
+ *
+ * The literal is the stamp in the seed's **authored** calendar. The seed slides
+ * that whole calendar onto the day it runs, so the stamp actually in the
+ * database is the slid one — and the slide is read back **from the database**
+ * rather than recomputed from this machine's clock, because a stack seeded
+ * yesterday holds yesterday's frame and a suite that assumed today's would fail
+ * for a reason that has nothing to do with what it tests.
+ *
+ * The assertion is unchanged in substance: still "the person the seed stamped
+ * as an identity record", still an exact stamp rather than whoever sorts first,
+ * still the cohort no suite deletes.
  */
-export const SEEDED_IDENTITY_CREATED_AT = "2025-06-01T09:00:00Z";
+export const AUTHORED_IDENTITY_CREATED_AT = "2025-06-01T09:00:00Z";
+
+/**
+ * How far the seeded database's calendar sits from the authored one.
+ *
+ * Read off the current season's opening, which the seed slides like every other
+ * date, so any seeded row's stamp can be recovered from its authored value.
+ */
+export async function seededFrameShiftDays(client: pg.Client): Promise<number> {
+  const season = await client.query<{ starts_on: string }>(
+    `select to_char(starts_on, 'YYYY-MM-DD') as starts_on
+       from public.seasons
+      where status = 'active'
+      order by starts_on
+      limit 1`,
+  );
+  if (season.rows.length === 0) {
+    throw new Error(
+      "No active season in the local database. Run `npm run db:reset` — these " +
+        "suites read the seeded dataset and cannot run without it.",
+    );
+  }
+  return Math.round(
+    (Date.parse(`${season.rows[0].starts_on}T00:00:00Z`) -
+      Date.parse(`${AUTHORED_SEASON_STARTS_ON}T00:00:00Z`)) /
+      86_400_000,
+  );
+}
+
+/** The stamp the seeded identity cohort actually carries in this database. */
+export async function seededIdentityCreatedAt(client: pg.Client): Promise<string> {
+  return shiftAuthoredValue(AUTHORED_IDENTITY_CREATED_AT, await seededFrameShiftDays(client));
+}
 
 /**
  * A person the seed created, to act in a suite's transitions.
@@ -116,17 +162,18 @@ export const SEEDED_IDENTITY_CREATED_AT = "2025-06-01T09:00:00Z";
  * prevent.
  */
 export async function seededActorPersonId(client: pg.Client): Promise<string> {
+  const createdAt = await seededIdentityCreatedAt(client);
   const actor = await client.query<{ id: string }>(
     `select id from public.people
       where merged_into_person_id is null
         and created_at = $1::timestamptz
       order by id
       limit 1`,
-    [SEEDED_IDENTITY_CREATED_AT],
+    [createdAt],
   );
   if (actor.rows.length === 0) {
     throw new Error(
-      `No seeded person found at ${SEEDED_IDENTITY_CREATED_AT}. ` +
+      `No seeded person found at ${createdAt}. ` +
         "`scripts/seed-local.mjs` no longer stamps identity records with that timestamp.",
     );
   }

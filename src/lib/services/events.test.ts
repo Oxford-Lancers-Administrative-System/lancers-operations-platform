@@ -32,14 +32,14 @@ import {
   type EventDraftInput,
 } from "./events";
 import { readCurrentSeason } from "./seasons";
-import { openObserver, SEEDED_IDENTITY_CREATED_AT } from "../../../tests/helpers/service-layer";
+import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 /** Unique to this file. Two suites sharing one marker delete each other's rows. */
 const NAME_MARKER = "LAN76EventsSuite";
 
 /**
- * The seed stamps every person it creates with one fixed `created_at`, and this
- * suite draws its actor only from that cohort.
+ * The seed stamps every person it creates with one `created_at`, and this suite
+ * draws its actor only from that cohort.
  *
  * `select id from public.people limit 1` returned an arbitrary row, and "the
  * oldest person" returned somebody else's fixture — the seed's people are dated
@@ -53,19 +53,57 @@ const NAME_MARKER = "LAN76EventsSuite";
  * lives. Anchoring here closes the hazard before it is somebody's afternoon.
  * The seeded cohort is the only population no suite ever deletes.
  */
-const SEEDED_PEOPLE_CREATED_AT = SEEDED_IDENTITY_CREATED_AT;
 
 let observer: Client;
 let actorPersonId: string;
+
+/**
+ * Oxford coordinates, read off the seeded term calendar rather than written
+ * down.
+ *
+ * The dates used to be literals — 14 October 2026 for Michaelmas week 1, and so
+ * on — which was only ever shorthand for "the Wednesday of Michaelmas week 1".
+ * The seed now slides its whole calendar onto the day it runs, so the literal
+ * and the term it named parted company; the coordinate is what these tests are
+ * about, so the coordinate is what they ask for.
+ *
+ * Michaelmas's `starts_on` is the first day of week −1, so week 1's Wednesday is
+ * seventeen days later — exactly the arithmetic the old comment spelled out.
+ */
+let michaelmasWeek1Wednesday: string;
+let hilaryWeek0: string;
+let outsideEveryTerm: string;
+
+async function termDate(
+  observer: Client,
+  name: "michaelmas" | "hilary" | "trinity",
+  column: "starts_on" | "ends_on",
+  offsetDays: number,
+): Promise<string> {
+  const row = await observer.query<{ day: string }>(
+    `select to_char(t.${column} + $2::int, 'YYYY-MM-DD') as day
+       from public.terms t
+       join public.seasons s on s.label = t.academic_year
+      where t.name = $1::term_name and s.status = 'active'`,
+    [name, offsetDays],
+  );
+  expect(row.rows.length).toBe(1);
+  return row.rows[0].day;
+}
 
 beforeAll(async () => {
   observer = await openObserver();
   const person = await observer.query<{ id: string }>(
     "select id from public.people where created_at = $1::timestamptz and merged_into_person_id is null order by id limit 1",
-    [SEEDED_PEOPLE_CREATED_AT],
+    [await seededIdentityCreatedAt(observer)],
   );
   expect(person.rows.length).toBe(1);
   actorPersonId = person.rows[0].id;
+
+  michaelmasWeek1Wednesday = await termDate(observer, "michaelmas", "starts_on", 17);
+  hilaryWeek0 = await termDate(observer, "hilary", "starts_on", 0);
+  // Deep in the long vacation, where no term reaches.
+  outsideEveryTerm = await termDate(observer, "trinity", "ends_on", 26);
 });
 
 afterEach(async () => {
@@ -88,7 +126,7 @@ function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} Wednesday practice`,
     eventType: "practice",
-    scheduledOn: "2026-10-14",
+    scheduledOn: michaelmasWeek1Wednesday,
     startsAt: "20:00",
     endsAt: "22:00",
     venue: "Iffley Road Astro",
@@ -207,7 +245,7 @@ describe("row 1 — an operator creates the Wednesday practice as a draft", () =
     expect(event.status).toBe("draft");
     expect(event.eventType).toBe("practice");
     expect(event.origin).toBe("club_controlled");
-    expect(event.scheduledOn).toBe("2026-10-14");
+    expect(event.scheduledOn).toBe(michaelmasWeek1Wednesday);
     expect(event.startsAt).toBe("20:00");
     expect(event.endsAt).toBe("22:00");
     expect(event.venue).toBe("Iffley Road Astro");
@@ -460,8 +498,6 @@ describe("row 6 — abandoning a draft ends it, and says why", () => {
 
 describe("the term and week are derived from the date, never chosen", () => {
   it("stores the Oxford coordinate the date falls in", async () => {
-    // 14 October 2026 is Michaelmas week 1: term starts 27 September, which is
-    // the first day of week −1, and 14 October is seventeen days later.
     const event = await createEventDraft(actorPersonId, draft());
 
     const term = await observer.query<{ name: string; academic_year: string }>(
@@ -475,7 +511,7 @@ describe("the term and week are derived from the date, never chosen", () => {
   });
 
   it("records no term for a date outside every term", async () => {
-    const event = await createEventDraft(actorPersonId, draft({ scheduledOn: "2027-07-15" }));
+    const event = await createEventDraft(actorPersonId, draft({ scheduledOn: outsideEveryTerm }));
 
     expect(event.termId).toBeNull();
     expect(event.weekNumber).toBeNull();
@@ -489,7 +525,7 @@ describe("the term and week are derived from the date, never chosen", () => {
     const moved = await updateEventDraft(
       actorPersonId,
       event.id,
-      draft({ scheduledOn: "2027-01-10" }),
+      draft({ scheduledOn: hilaryWeek0 }),
     );
 
     const term = await observer.query<{ name: string }>(
@@ -721,7 +757,7 @@ describe("row 7 — two events on one date are both accepted (invariant E4)", ()
     const alongside = await createEventDraft(actorPersonId, draft({ name: `${NAME_MARKER} B` }));
 
     expect(alongside.status).toBe("draft");
-    expect(alongside.scheduledOn).toBe("2026-10-14");
+    expect(alongside.scheduledOn).toBe(michaelmasWeek1Wednesday);
   });
 });
 
@@ -733,7 +769,7 @@ describe("row 8 — the form's rules, checked without a database", () => {
   const complete = {
     name: "Wednesday practice",
     eventType: "practice",
-    scheduledOn: "2026-10-14",
+    scheduledOn: michaelmasWeek1Wednesday,
     startsAt: "20:00",
     endsAt: "22:00",
     venue: "Iffley Road Astro",

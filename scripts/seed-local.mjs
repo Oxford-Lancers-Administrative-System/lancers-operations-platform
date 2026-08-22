@@ -24,7 +24,10 @@
  * position vocabularies — is measured from the club's own workbooks.
  *
  * Determinism: one fixed PRNG seed drives every value, including the UUIDs, so
- * two runs on two machines produce identical rows.
+ * two runs on two machines produce identical rows. The *calendar* those rows
+ * sit on is derived from the machine clock rather than fixed — see the frame
+ * below — so two runs on the same day are identical, and a run tomorrow is the
+ * same club one day later.
  */
 import {
   connectLocal,
@@ -33,18 +36,28 @@ import {
   makeUuidFactory,
   resolveLocalDatabaseUrl,
 } from "./lib/local-db.mjs";
+import { seedFrame, shiftAuthoredValue, shiftedYearOf } from "./lib/seed-clock.mjs";
 
 const SEED = 20260810;
 const random = makeRandom(SEED);
 const uuid = makeUuidFactory(random);
 
 /**
- * The dataset's notional "now": Hilary 2027, week 6. Michaelmas and early
- * Hilary are therefore history with outcomes, and the rest of the season is
- * still ahead — which is what makes the nonresponse queue and the mid-term
- * attendance lapse visible at the same time.
+ * The frame this run seeds in — see `./lib/seed-clock.mjs` for the whole rule.
+ *
+ * Everything below is written in the dataset's own authored calendar, whose
+ * notional "now" is Hilary 2027, week 6: Michaelmas and early Hilary are
+ * history with outcomes, and the rest of the season is still ahead, which is
+ * what makes the nonresponse queue and the mid-term attendance lapse visible at
+ * the same time. `NOW` is today expressed in that calendar, and `SHIFT_DAYS`
+ * carries every date the other way — onto today — on the way into the database.
+ *
+ * Nothing between here and the write is re-dated when the clock moves. The
+ * dataset is one club's history, slid; it is not a different history.
  */
-const NOW = new Date("2027-02-20T12:00:00Z");
+const FRAME = seedFrame(new Date());
+const SHIFT_DAYS = FRAME.shiftDays;
+const NOW = FRAME.now;
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -59,6 +72,34 @@ const addDays = (date, n) => new Date(date.getTime() + n * 86400000);
 const asDate = (date) => date.toISOString().slice(0, 10);
 const at = (date, time) => new Date(`${asDate(date)}T${time}Z`).toISOString();
 const isPast = (date) => date.getTime() < NOW.getTime();
+
+/**
+ * A housekeeping stamp pinned to the dataset's own now.
+ *
+ * `updated_at` on a row nobody has touched since is "when the club last looked
+ * at this", and that is now, not a date typed into this file. Written as a
+ * literal it would sit in the future whenever the frame put now earlier than
+ * the literal — the same class of defect as the founding members whose
+ * `created_at` was once tomorrow (see the People section below).
+ */
+const nowAt = (time) => at(NOW, time);
+
+/** The calendar year an authored date lands in once this run's frame is applied. */
+const shiftedYear = (authoredDate) => shiftedYearOf(authoredDate, SHIFT_DAYS);
+
+/**
+ * A season's or committee year's name, derived from where its opening lands.
+ *
+ * Derived rather than written down so that a label and the date it names cannot
+ * disagree: the frame moves, and an academic year called "2026-27" whose
+ * opening had slid into 2027 would be a lie of exactly the kind tidy fixtures
+ * tell. Inside the residual bound this reproduces the authored labels
+ * character for character; beyond a whole-year wrap it follows.
+ */
+const academicYearLabel = (authoredStartsOn) => {
+  const opens = shiftedYear(authoredStartsOn);
+  return `${opens}-${String(opens + 1).slice(2)}`;
+};
 
 function weighted(entries) {
   const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
@@ -222,13 +263,22 @@ const DECLINE_REASONS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Position vocabularies — two incompatible taxonomies, three years apart
+// Position vocabularies — two incompatible taxonomies, years apart
 // ---------------------------------------------------------------------------
 
+// Each vocabulary is named for the era it was adopted in, and that name is read
+// off the adoption date once the frame has been applied rather than typed
+// alongside it. A workbook labelled 2023 whose adoption date had slid into 2022
+// would be the map disagreeing with the territory.
+const OLD_VOCAB_ADOPTED_ON = "2023-05-07";
+const NEW_VOCAB_ADOPTED_ON = "2026-08-01";
+const OLD_VOCAB_ERA = shiftedYear(OLD_VOCAB_ADOPTED_ON);
+const NEW_VOCAB_ERA = shiftedYear(NEW_VOCAB_ADOPTED_ON);
+
 const VOCAB_2023 = {
-  code: "oulafc-2023",
-  label: "OULAFC position list (2023 roster workbook)",
-  adopted_on: "2023-05-07",
+  code: `oulafc-${OLD_VOCAB_ERA}`,
+  label: `OULAFC position list (${OLD_VOCAB_ERA} roster workbook)`,
+  adopted_on: OLD_VOCAB_ADOPTED_ON,
   positions: [
     ["WR", "Wide Receiver", "offence"],
     ["RB", "Running Back", "offence"],
@@ -245,9 +295,9 @@ const VOCAB_2023 = {
 };
 
 const VOCAB_2026 = {
-  code: "oulafc-2026",
-  label: "OULAFC position list (2026 term-card era)",
-  adopted_on: "2026-08-01",
+  code: `oulafc-${NEW_VOCAB_ERA}`,
+  label: `OULAFC position list (${NEW_VOCAB_ERA} term-card era)`,
+  adopted_on: NEW_VOCAB_ADOPTED_ON,
   positions: [
     ["WR", "Wide Receiver", "offence"],
     ["TE", "Tight End", "offence"],
@@ -497,7 +547,8 @@ add("contact_points", {
   is_preferred: false,
   valid_from: "2024-10-01",
   valid_until: "2026-08-14",
-  source: "2024 roster",
+  // Named for the roster it came off, which is the year its own validity opens.
+  source: `${shiftedYear("2024-10-01")} roster`,
   created_at: "2025-06-01T09:00:00Z",
 });
 
@@ -551,7 +602,7 @@ for (const vocab of [vocab2023, vocab2026]) {
 
 const seasonPrevious = {
   id: uuid(),
-  label: "2025-26",
+  label: academicYearLabel("2025-09-28"),
   status: "archived",
   position_vocabulary_id: vocab2023.id,
   starts_on: "2025-09-28",
@@ -565,7 +616,7 @@ const seasonPrevious = {
 };
 const seasonCurrent = {
   id: uuid(),
-  label: "2026-27",
+  label: academicYearLabel("2026-09-27"),
   status: "active",
   position_vocabulary_id: vocab2026.id,
   starts_on: "2026-09-27",
@@ -575,7 +626,7 @@ const seasonCurrent = {
   closed_at: null,
   closed_by_person_id: null,
   created_at: "2026-06-10T10:00:00Z",
-  updated_at: "2027-02-20T10:00:00Z",
+  updated_at: nowAt("10:00:00"),
 };
 add("seasons", seasonPrevious);
 add("seasons", seasonCurrent);
@@ -590,12 +641,19 @@ const TERM_SPEC = [
   ["hilary", "2026-27", "2027-01-10", "2027-03-13", 0],
   ["trinity", "2026-27", "2027-04-18", "2027-06-19", 0],
 ];
+// A term belongs to a season, so it is named by that season rather than by a
+// second string that could drift from it. The keys stay the authored ones —
+// they are how the rest of this file addresses a term, not something stored.
+const seasonLabelByAuthoredYear = {
+  "2025-26": seasonPrevious.label,
+  "2026-27": seasonCurrent.label,
+};
 const terms = {};
 for (const [name, year, starts, ends, firstWeek] of TERM_SPEC) {
   const term = {
     id: uuid(),
     name,
-    academic_year: year,
+    academic_year: seasonLabelByAuthoredYear[year],
     starts_on: starts,
     ends_on: ends,
     first_week: firstWeek,
@@ -608,9 +666,11 @@ for (const [name, year, starts, ends, firstWeek] of TERM_SPEC) {
 
 // The AGM drifted from early March to June across a decade, so the actual date
 // is data. The two years must not overlap — an exclusion constraint says so.
+// A committee year is named for the season it serves, which is why these read
+// off the seasons rather than repeating their labels.
 const committeePrevious = {
   id: uuid(),
-  label: "2025-26",
+  label: seasonPrevious.label,
   agm_held_on: "2025-06-04",
   starts_on: "2025-06-04",
   ends_on: "2026-06-10",
@@ -618,7 +678,7 @@ const committeePrevious = {
 };
 const committeeCurrent = {
   id: uuid(),
-  label: "2026-27",
+  label: seasonCurrent.label,
   agm_held_on: "2026-06-10",
   starts_on: "2026-06-10",
   ends_on: null,
@@ -871,7 +931,7 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
     departure_reason: status === "departed" ? "Left Oxford mid-year" : null,
     inactivity_label: status === "inactive" ? "Stepped away for term" : null,
     created_at: "2026-09-01T09:00:00Z",
-    updated_at: "2027-02-01T09:00:00Z",
+    updated_at: nowAt("09:00:00"),
   };
   add("season_memberships", membership);
   memberships.push(membership);
@@ -925,14 +985,18 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
     );
   }
 
-  // Register D1 in action: the November-quit / February-return case is one
+  // Register D1 in action: the Michaelmas-quit / Hilary-return case is one
   // membership whose status history carries the gap, not two records.
+  //
+  // Anchored to Hilary week 1 rather than to a date in February, because the
+  // return has to have *happened* for the gap to be in the history at all, and
+  // the frame can put now as early as Hilary week 1's Saturday.
   if (i === 30) {
     recordTransition(
       membership,
       "inactive",
       "active",
-      "2027-02-08T09:00:00Z",
+      at(addDays(day(terms["hilary-2026-27"].starts_on), 8), "09:00:00"),
       people[9],
       "Back after Christmas",
     );
@@ -1322,7 +1386,7 @@ function makeEvent(spec) {
     outcome_recorded_by_person_id: ["occurred", "not_held"].includes(status) ? people[2].id : null,
     decision_reason: spec.decision_reason ?? null,
     created_at: "2026-09-01T09:00:00Z",
-    updated_at: "2027-02-20T09:00:00Z",
+    updated_at: nowAt("09:00:00"),
     _order: eventOrder++,
   };
 
@@ -1512,7 +1576,7 @@ for (const [termName, week] of SUNDAY_PRACTICE_WEEKS) {
 }
 
 const varsitySlot = weekOf("trinity", 3);
-makeEvent({
+const varsityMatch = makeEvent({
   name: "Varsity Match",
   type: "varsity",
   term: varsitySlot.term,
@@ -2294,6 +2358,21 @@ add("audit_events", {
 
 // --- Legacy staging fixtures ----------------------------------------------
 
+// Provenance the club would recognise: a batch is named for the year it was
+// imported, and a workbook for the day it was exported. Both are read off the
+// dates they describe, so a batch called "2026-…" is always a batch imported in
+// 2026 whatever frame this run seeds in.
+const LEGACY_IMPORTED_ON = "2026-09-01";
+const LEGACY_IMPORTED_AT = `${LEGACY_IMPORTED_ON}T09:00:00Z`;
+const LEGACY_IMPORT_YEAR = shiftedYear(LEGACY_IMPORTED_ON);
+
+/** `YYMMDD`, the way the club's own exports are named. */
+const workbookStamp = (authoredDate) =>
+  shiftAuthoredValue(authoredDate, SHIFT_DAYS).replaceAll("-", "").slice(2);
+
+const OLD_ROSTER_WORKBOOK = `OULAFC active roster ${workbookStamp(OLD_VOCAB_ADOPTED_ON)}.xlsx`;
+const TERM_CARD_YEAR = shiftedYear(terms["michaelmas-2026-27"].starts_on);
+
 // The historical vocabulary lives here and ONLY here. `Unsure`, `Yes?` and
 // `No?` are normalised to the binary domain value or rejected; there is no
 // column in the staging table capable of promoting a third answer.
@@ -2358,7 +2437,7 @@ LEGACY_RSVP.forEach(
   ([person, event, raw, rawReason, status, normalised, normalisedReason, rejection], index) => {
     add("staging.legacy_rsvp_rows", {
       id: uuid(),
-      import_batch: "2026-legacy-rsvp-01",
+      import_batch: `${LEGACY_IMPORT_YEAR}-legacy-rsvp-01`,
       source_file: "OULAFC Master Table.xlsx",
       source_row_number: index + 2,
       raw_person: person || null,
@@ -2369,7 +2448,7 @@ LEGACY_RSVP.forEach(
       normalised_response: normalised,
       normalised_reason: normalisedReason,
       rejection_reason: rejection,
-      imported_at: "2026-09-01T09:00:00Z",
+      imported_at: LEGACY_IMPORTED_AT,
     });
   },
 );
@@ -2475,8 +2554,8 @@ LEGACY_ROSTER.forEach(
   ) => {
     add("staging.legacy_roster_rows", {
       id: uuid(),
-      import_batch: "2026-legacy-roster-01",
-      source_file: "OULAFC active roster 230507.xlsx",
+      import_batch: `${LEGACY_IMPORT_YEAR}-legacy-roster-01`,
+      source_file: OLD_ROSTER_WORKBOOK,
       source_row_number: index + 2,
       raw_name: name || null,
       raw_email: email || null,
@@ -2486,16 +2565,20 @@ LEGACY_ROSTER.forEach(
       raw_jersey_blue: blue || null,
       raw_jersey_white: white || null,
       raw_status: status || null,
-      raw_extra: JSON.stringify({ sheet: "Squad", note: "Vocabulary is the 2023 taxonomy" }),
+      raw_extra: JSON.stringify({
+        sheet: "Squad",
+        note: `Vocabulary is the ${OLD_VOCAB_ERA} taxonomy`,
+      }),
       normalisation_status: normalisation,
       rejection_reason: rejection,
       matched_person_id: matched,
-      imported_at: "2026-09-01T09:00:00Z",
+      imported_at: LEGACY_IMPORTED_AT,
     });
   },
 );
 
 // SDA §11.2: the term-card cell shapes that break naive parsers.
+const VARSITY_YEAR = shiftedYear(varsityMatch.scheduled_on);
 const LEGACY_EVENTS = [
   [
     "Iffley Road Astro — Practice — Wed 20:00",
@@ -2522,13 +2605,16 @@ const LEGACY_EVENTS = [
     "Comma inside the location, so field splitting produces five fields, not three.",
   ],
   ["Chalk 18:00", "5", "Tuesday", "blue", "needs_review", "Start time with no end time."],
+  // The hazard here is a title a year behind the fixture it names, so both
+  // years are read off the fixture itself; a fixed pair would stop being off
+  // by one the moment the frame moved either of them across a New Year.
   [
-    "Varsity Match 2026",
+    `Varsity Match ${VARSITY_YEAR - 1}`,
     "3",
     "Sunday",
     "red",
     "rejected",
-    "Title carries the wrong year; the fixture is in 2027.",
+    `Title carries the wrong year; the fixture is in ${VARSITY_YEAR}.`,
   ],
   [
     "Fixture or practice — TBC",
@@ -2542,9 +2628,9 @@ const LEGACY_EVENTS = [
 LEGACY_EVENTS.forEach(([cell, week, weekday, colour, status, reason], index) => {
   add("staging.legacy_event_rows", {
     id: uuid(),
-    import_batch: "2026-legacy-termcard-01",
-    source_file: "Michaelmas 2026 Term Card.xlsx",
-    source_sheet: "MT26",
+    import_batch: `${LEGACY_IMPORT_YEAR}-legacy-termcard-01`,
+    source_file: `Michaelmas ${TERM_CARD_YEAR} Term Card.xlsx`,
+    source_sheet: `MT${String(TERM_CARD_YEAR).slice(2)}`,
     source_cell: `D${index + 4}`,
     raw_cell: cell,
     raw_week: week,
@@ -2553,7 +2639,7 @@ LEGACY_EVENTS.forEach(([cell, week, weekday, colour, status, reason], index) => 
     normalisation_status: status,
     normalised_event_id: null,
     rejection_reason: status === "rejected" ? reason : null,
-    imported_at: "2026-09-01T09:00:00Z",
+    imported_at: LEGACY_IMPORTED_AT,
   });
 });
 
@@ -3129,12 +3215,68 @@ const WRITE_PLAN = [
   ],
 ];
 
+// ---------------------------------------------------------------------------
+// Slide the whole calendar onto today
+// ---------------------------------------------------------------------------
+
+// Everything above was built in the dataset's authored calendar, against a NOW
+// that is today expressed in that calendar. One offset now carries all of it
+// the other way. It is applied here, once, over the finished rows rather than
+// at each of the several hundred places a date is written, because a single
+// pass cannot miss one — and a date this missed would be a row silently
+// inconsistent with every row around it.
+//
+// Only a value that is *entirely* an ISO date or timestamp moves, plus ISO
+// values inside a JSON payload. `"2026-27"`, `"oulafc-2026"` and `"{72,24}"`
+// contain digits and are not dates; the year-bearing labels that do track the
+// calendar are derived from it above instead.
+
+// Counted before the slide, while `isPast` and the dates it reads are still in
+// the same calendar. The slide moves both together, so these counts describe
+// the stored dataset just as well.
+const pastAttendable = attendableSessions.length;
+const withRegister = recordedSessions.length;
+const withoutRegister = pastAttendable - withRegister;
+const stillToCome = events.filter(
+  (event) => event.scheduled_on === null || !isPast(day(event.scheduled_on)),
+).length;
+
+for (const table of Object.keys(rows)) {
+  for (const row of rows[table]) {
+    for (const [column, value] of Object.entries(row)) {
+      const moved = shiftAuthoredValue(value, SHIFT_DAYS);
+      if (moved !== value) row[column] = moved;
+    }
+  }
+}
+
+// The dataset exists to be *looked at*, and the register states are the reason
+// this frame is derived at all. Prove they are there rather than trusting the
+// arithmetic: a seed that quietly produced a season with nothing behind it is
+// exactly the failure this replaced, and it is better to refuse than to hand
+// somebody a database to review that has nothing in it to review.
+for (const [what, count, needed] of [
+  ["past sessions carrying a saved register", withRegister, 1],
+  ["past sessions with no register saved", withoutRegister, 2],
+  ["events still to come", stillToCome, 1],
+]) {
+  if (count < needed) {
+    throw new Error(
+      `The seeded frame leaves ${count} ${what}; at least ${needed} is required. ` +
+        `Frame: shift ${SHIFT_DAYS}d (${FRAME.wraps} wraps + ${FRAME.residual}d` +
+        `${FRAME.clamped ? ", clamped" : ""}), notional now ${NOW.toISOString()}. ` +
+        "Re-base the authored constants in scripts/lib/seed-clock.mjs.",
+    );
+  }
+}
+
 try {
   await client.query("begin");
 
   // Wiping first is what makes the seed re-runnable and the dataset identical
-  // every time. It runs as the database owner, which is why the append-only
-  // privilege revocations do not block it — those bind the application role.
+  // every time it runs on the same day. It runs as the database owner, which is
+  // why the append-only privilege revocations do not block it — those bind the
+  // application role.
   await client.query(
     `truncate table ${WRITE_PLAN.map(([table]) => table).join(", ")} restart identity cascade`,
   );
@@ -3153,6 +3295,17 @@ try {
     eventTypes[event.event_type] = (eventTypes[event.event_type] ?? 0) + 1;
 
   console.log(`Seeded ${total} rows into ${url}\n`);
+  console.log("Calendar frame (derived from this machine's clock):");
+  console.log(
+    counts(
+      "  slid by",
+      `${SHIFT_DAYS >= 0 ? "+" : ""}${SHIFT_DAYS}d = ${FRAME.wraps}y ${FRAME.residual}d${
+        FRAME.clamped ? " (bounded)" : ""
+      }`,
+    ),
+  );
+  console.log(counts("  season", `${seasonCurrent.label} opens ${seasonCurrent.starts_on}`));
+  console.log("");
   console.log("Synthetic dataset (Source Data Analysis §11):");
   console.log(counts("people", rows.people.length));
   console.log(counts("  first-name-only", rows.people.filter((p) => !p.family_name).length));
@@ -3215,6 +3368,21 @@ try {
         rows["staging.legacy_event_rows"].length,
     ),
   );
+  // The three attendance states, named. Whoever is about to look at this needs
+  // to know which event shows which, and working that out by hand from
+  // sixty-seven events and two hundred and forty-eight attendance rows is the
+  // kind of chore that gets skipped and then guessed at.
+  const unrecorded = attendableSessions.slice(recordedSessions.length);
+  const showAs = (label, event) =>
+    console.log(
+      `  ${label.padEnd(34)} ${event.scheduled_on}  ${event.name}\n${" ".repeat(37)}/operate/events/${event.id}`,
+    );
+
+  console.log("\nAttendance states to look at:");
+  showAs("register open, nothing saved", unrecorded[unrecorded.length - 1]);
+  showAs("occurred, no register (a dash)", unrecorded[unrecorded.length - 2]);
+  showAs("register saved (a real pair)", recordedSessions[recordedSessions.length - 1]);
+
   console.log("\nNo real person, contact detail or club record is present in this dataset.");
 } catch (error) {
   await client.query("rollback");

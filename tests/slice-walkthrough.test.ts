@@ -45,11 +45,14 @@
  * one. The reporting date is this file's alone, so the version chain it asserts
  * cannot interleave with another suite's.
  *
- * The dates are fixed rather than relative to `now()`: the event has to be in
- * the future for a token to be issuable at all (a link for an event that has
- * started is refused), and inside a seeded Oxford term for the term-card
- * projection to be assertable. Michaelmas 2026 week 1 satisfies both and will
- * keep satisfying them, because the seeded calendar is fixed too.
+ * The event's date is **read off the seeded term calendar** rather than written
+ * down. It has to satisfy two things at once: be in the future, because a
+ * signed link for an event that has started is refused, and sit inside a seeded
+ * Oxford term, because the term-card projection is otherwise unassertable. A
+ * literal used to satisfy both, and stopped: the seed now slides its whole
+ * calendar onto the day it runs, so a fixed date drifts out of the term it was
+ * chosen for and eventually into the past. The walk therefore asks the database
+ * for the first term that has not started yet and takes its week 1.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -108,10 +111,14 @@ import { openLocalClient } from "./helpers/domain-fixture";
 const MARKER = "LAN82Walk";
 
 /**
- * Michaelmas 2026, week 1 — inside a seeded term and comfortably in the future,
- * for the two reasons the header gives.
+ * Week 1 of the next seeded term to begin — inside a term and comfortably in
+ * the future, for the two reasons the header gives. Resolved in `beforeAll`.
  */
-const EVENT_ON = "2026-10-14";
+let EVENT_ON: string;
+let EVENT_TERM: string;
+let EVENT_ACADEMIC_YEAR: string;
+let EVENT_MONTH: string;
+const EVENT_WEEK = 1;
 const EVENT_STARTS_AT = "19:00";
 
 /**
@@ -127,12 +134,8 @@ const EVENT_STARTS_AT = "19:00";
  * other step already happens at a moment the previous one made possible, and
  * this is the first one whose moment the product cares about.
  */
-const EVENING_OF_THE_EVENT = new Date(`${EVENT_ON}T${EVENT_STARTS_AT}:00Z`);
+let EVENING_OF_THE_EVENT: Date;
 const EVENT_ENDS_AT = "21:00";
-const EVENT_TERM = "michaelmas";
-const EVENT_ACADEMIC_YEAR = "2026-27";
-const EVENT_WEEK = 1;
-const EVENT_MONTH = "2026-10";
 
 /**
  * The reporting date this walk files snapshots for. **This file's alone.**
@@ -144,7 +147,7 @@ const EVENT_MONTH = "2026-10";
  * be able to collide, so the manual one and the automated one have a date each,
  * and `cleanUp()` clears this one whoever wrote it.
  */
-const REPORT_ON = "2026-10-16";
+let REPORT_ON: string;
 
 /** Local logins this walk creates. Deleted with everything else. */
 const OPERATOR_EMAIL = "lan82.operator@oxfordlancers.local";
@@ -551,12 +554,46 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     admin = createClient(url!, secretKey!, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    await cleanUp();
-
     const season = await db.query<{ id: string }>(
       "select id from public.seasons where status = 'active' order by starts_on desc limit 1",
     );
     seasonId = season.rows[0].id;
+
+    // The next term to begin, and the Wednesday of its week 1. `first_week` is
+    // −1 in Michaelmas and 0 in the other two, so the offset is derived from
+    // the term rather than assumed — the coordinate is what matters, not which
+    // term of the year happens to be next when this runs.
+    const term = await db.query<{
+      name: string;
+      academic_year: string;
+      day: string;
+    }>(
+      `select t.name::text as name,
+              t.academic_year,
+              to_char(t.starts_on + ((1 - t.first_week) * 7 + 3), 'YYYY-MM-DD') as day
+         from public.terms t
+         join public.seasons s on s.label = t.academic_year
+        where s.id = $1 and t.starts_on > current_date
+        order by t.starts_on
+        limit 1`,
+      [seasonId],
+    );
+    expect(term.rows[0], "the seeded season has no term still to begin").toBeDefined();
+
+    EVENT_ON = term.rows[0].day;
+    EVENT_TERM = term.rows[0].name;
+    EVENT_ACADEMIC_YEAR = term.rows[0].academic_year;
+    EVENT_MONTH = EVENT_ON.slice(0, 7);
+    EVENING_OF_THE_EVENT = new Date(`${EVENT_ON}T${EVENT_STARTS_AT}:00Z`);
+    // Two days after the event, so the report's look-back week contains it —
+    // the same relation the fixed pair of dates used to express.
+    REPORT_ON = new Date(EVENING_OF_THE_EVENT.getTime() + 2 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+
+    // Cleanup last: it deletes this walk's report by `REPORT_ON`, so it cannot
+    // run before the date is known.
+    await cleanUp();
   }, 120_000);
 
   afterAll(async () => {
