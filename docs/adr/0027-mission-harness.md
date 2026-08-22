@@ -1,6 +1,6 @@
 # 0027 — Mission Harness v1: mission-oriented orchestration with a guarded autonomous merge lane
 
-**Status:** Accepted; concurrency topology superseded by [0030](0030-concurrent-missions.md) · **Date:** 2026-08-18 · **Extends:**
+**Status:** Accepted; concurrency topology superseded by [0030](0030-concurrent-missions.md); planning, integrated review, merge routing, dispatch and closeout amended by [0032](0032-harness-after-the-first-live-mission.md) · **Date:** 2026-08-18 · **Extends:**
 [0017](0017-batched-fast-lane.md), [0020](0020-zero-command-visual-review.md),
 [0024](0024-bounded-lineage-aware-review.md),
 [0025](0025-separate-finding-impact-from-gate-disposition.md) ·

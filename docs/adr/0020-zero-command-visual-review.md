@@ -1,7 +1,8 @@
 # 0020 — Zero-command visual acceptance precedes final review
 
 **Status:** Accepted; correction-review rule superseded by
-[0024](0024-bounded-lineage-aware-review.md) · **Date:** 2026-08-13 ·
+[0024](0024-bounded-lineage-aware-review.md); environment lifecycle and viewport
+evidence amended by [0032](0032-harness-after-the-first-live-mission.md) · **Date:** 2026-08-13 ·
 **Supersedes [0018](0018-single-issue-agent-development.md)**
 
 ## Context

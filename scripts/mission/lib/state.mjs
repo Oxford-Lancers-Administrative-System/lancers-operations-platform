@@ -175,6 +175,42 @@ const REVIEW_RECEIPT_FIELDS = ["review_mode", "reviewed_head_sha", "round", "res
  */
 export const INTEGRATED_REVIEW_MODES = ["workflow-walker", "cross-surface"];
 
+/**
+ * The four sources a UI brief must name (LAN-148 §E).
+ *
+ * Root AGENTS.md has always required user-facing work to read them. The Mission
+ * Lead's brief did not name them, so mission-delegated UI work could — and in
+ * the first live run did — reach implementation with the packet as its only
+ * contract, and the durable contract directory never learned what shipped.
+ */
+export const UX_SOURCE_KEYS = ["slice_ux", "standards", "ticket_contract", "wireframes"];
+
+const UX_TICKET_PATTERN = /^docs\/ux\/tickets\/LAN-\d+-[a-z0-9-]+\.md$/;
+
+function uxDefects(receipt, packageId) {
+  const sources = receipt.ux_sources;
+  if (sources === null || typeof sources !== "object" || Array.isArray(sources)) {
+    return [
+      `${packageId}: user-facing work names its UX sources — docs/ux/slice-ux.md, docs/ux/standards.md, the applicable docs/ux/tickets/ contract, and the desktop and 375px wireframes.`,
+    ];
+  }
+  const defects = [];
+  for (const key of UX_SOURCE_KEYS) {
+    if (!isNonEmptyString(sources[key])) {
+      defects.push(`${packageId}: \`ux_sources.${key}\` is not named.`);
+    }
+  }
+  // When the packet was the only contract, delivery writes what was actually
+  // built into the durable directory, so the next mission reads a contract
+  // rather than re-deriving one from a packet that has been superseded.
+  if (!UX_TICKET_PATTERN.test(sources.ticket_contract ?? "")) {
+    defects.push(
+      `${packageId}: ux_sources.ticket_contract must be a durable contract at docs/ux/tickets/<LINEAR-ID>-<slug>.md. If the packet was the only contract, delivery writes the implemented one there.`,
+    );
+  }
+  return defects;
+}
+
 /** What an unresolved finding has to carry to survive the mission (§G). */
 const FINDING_FIELDS = [
   "id",
@@ -669,6 +705,13 @@ export function validateEvent(event, state) {
       // the defect can be put back and that a named test notices. Only for
       // corrections, and only for the findings this one was dispatched to fix —
       // this is four recorded facts about one fix, not a mutation platform.
+      // LAN-148 §E: user-facing work says which contract it was built against.
+      if (
+        receipt.result === "completed" &&
+        state.packages[event.package_id]?.visual !== "nonvisual"
+      ) {
+        errors.push(...uxDefects(receipt, event.package_id));
+      }
       if (worker.kind === "correction" && receipt.result === "completed") {
         const evidence = Array.isArray(receipt.injection_evidence)
           ? receipt.injection_evidence

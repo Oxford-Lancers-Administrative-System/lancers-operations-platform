@@ -110,6 +110,14 @@ async function synced(m: ReturnType<typeof mission>) {
   return driver;
 }
 
+/** The UX sources LAN-148 §E requires of user-facing work. */
+const uxSources = {
+  slice_ux: "docs/ux/slice-ux.md",
+  standards: "docs/ux/standards.md",
+  ticket_contract: "docs/ux/tickets/LAN-900-events-filter.md",
+  wireframes: "docs/ux/wireframes/events-filter-desktop.png, events-filter-375.png",
+};
+
 const workerReceipt = (result = "completed") => ({
   branch: "feat/wp-events-filter",
   worktree: ".claude/worktrees/wp-events-filter",
@@ -120,6 +128,7 @@ const workerReceipt = (result = "completed") => ({
   visual_state: "preflight-complete-awaiting-brian",
   migration_implications: "none",
   limitations: "none",
+  ux_sources: uxSources,
   result,
 });
 

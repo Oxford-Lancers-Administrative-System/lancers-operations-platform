@@ -70,6 +70,14 @@ const planEvent = (packages: PlanPackage[], extra: object = {}) => ({
   ...extra,
 });
 
+/** The UX sources §E requires of user-facing work. */
+const uxSources = {
+  slice_ux: "docs/ux/slice-ux.md",
+  standards: "docs/ux/standards.md",
+  ticket_contract: "docs/ux/tickets/LAN-900-events-filter.md",
+  wireframes: "docs/ux/wireframes/events-filter-desktop.png, events-filter-375.png",
+};
+
 const workerReceipt = (result: string) => ({
   branch: "feat/synthetic",
   worktree: ".claude/worktrees/synthetic",
@@ -80,6 +88,7 @@ const workerReceipt = (result: string) => ({
   visual_state: "pending",
   migration_implications: "none",
   limitations: "none",
+  ux_sources: uxSources,
   result,
 });
 
@@ -1980,6 +1989,119 @@ describe("closing the mission where Brian will find it", () => {
     expect(state.closeout.outcome).toBe("delivered-with-residue");
     expect(state.closeout.unresolved_findings[0].id).toBe("F-001");
     expect(state.closeout.notion_record).toMatch(/notion/);
+  });
+});
+
+describe("user-facing work says what contract it was built against", () => {
+  /**
+   * LAN-148 §E. Root AGENTS.md has always required user-facing work to read the
+   * slice UX contract, the general standards, the applicable ticket contract
+   * and both wireframes. The Mission Lead's brief did not name them, so
+   * mission-delegated UI work reached implementation with the packet as its
+   * only contract — and a packet is superseded, while docs/ux/tickets/ is
+   * where the next mission will look.
+   */
+  const uiReceipt = (overrides: Record<string, unknown> = {}) => ({
+    ...workerReceipt("completed"),
+    ux_sources: { ...uxSources, ...overrides },
+  });
+
+  async function dispatched(m: ReturnType<typeof fixture>) {
+    await readyMission(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/wp-events",
+      branch: "feat/wp-events",
+    });
+  }
+
+  it("refuses a UI receipt that names no UX sources at all", async () => {
+    const m = fixture();
+    await dispatched(m);
+    const receipt = workerReceipt("completed");
+    delete (receipt as Record<string, unknown>).ux_sources;
+    await expect(
+      m.append({
+        type: "worker-receipt",
+        package_id: "WP-events-filter",
+        worker_id: "worker-1",
+        receipt,
+      }),
+    ).rejects.toThrow(/user-facing work names its UX sources/);
+  });
+
+  it.each(["slice_ux", "standards", "ticket_contract", "wireframes"])(
+    "refuses a UI receipt missing %s",
+    async (key) => {
+      const m = fixture();
+      await dispatched(m);
+      await expect(
+        m.append({
+          type: "worker-receipt",
+          package_id: "WP-events-filter",
+          worker_id: "worker-1",
+          receipt: uiReceipt({ [key]: "" }),
+        }),
+      ).rejects.toThrow(new RegExp("ux_sources.Aa".replace("Aa", key)));
+    },
+  );
+
+  it("requires the contract to be durable, not the packet it came from", async () => {
+    const m = fixture();
+    await dispatched(m);
+    await expect(
+      m.append({
+        type: "worker-receipt",
+        package_id: "WP-events-filter",
+        worker_id: "worker-1",
+        receipt: uiReceipt({
+          ticket_contract: "missions/packets/M-SYNTHETIC/packet.json",
+        }),
+      }),
+    ).rejects.toThrow(/delivery writes the implemented one there/);
+  });
+
+  it("accepts a UI receipt whose contract lives in the durable directory", async () => {
+    const m = fixture();
+    await dispatched(m);
+    const state = await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      receipt: uiReceipt(),
+    });
+    expect(state.packages["WP-events-filter"].status).toBe("implemented");
+  });
+
+  it("asks nothing of nonvisual work", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-attendance-export",
+      worker_id: "worker-2",
+      worktree: ".claude/worktrees/wp-attendance",
+      branch: "feat/wp-attendance",
+    });
+    const receipt = workerReceipt("completed");
+    delete (receipt as Record<string, unknown>).ux_sources;
+    const state = await m.append({
+      type: "worker-receipt",
+      package_id: "WP-attendance-export",
+      worker_id: "worker-2",
+      receipt,
+    });
+    expect(state.packages["WP-attendance-export"].status).toBe("implemented");
+  });
+
+  it("keeps every durable contract findable by the name the rule states", () => {
+    const contracts = fs.readdirSync(path.join(__dirname, "..", "docs", "ux", "tickets"));
+    expect(contracts.length).toBeGreaterThan(0);
+    for (const name of contracts) {
+      expect(name).toMatch(/^LAN-\d+-[a-z0-9-]+\.md$/);
+    }
   });
 });
 
