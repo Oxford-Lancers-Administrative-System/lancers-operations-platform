@@ -23,11 +23,13 @@ function frontMatter(file: string) {
 const flat = (value: string) => value.replace(/\*\*/g, "").replace(/\s+/g, " ");
 const skillPath = path.join(skills, "start-issue", "SKILL.md");
 const reviewerPath = path.join(agents, "code-reviewer.md");
+const finishSkillPath = path.join(skills, "finish-issue", "SKILL.md");
 const missionSkillPath = path.join(skills, "run-mission", "SKILL.md");
 const intakeSkillPath = path.join(skills, "mission-intake", "SKILL.md");
 const workerPath = path.join(agents, "implementation-worker.md");
 const skill = frontMatter(skillPath);
 const reviewer = frontMatter(reviewerPath);
+const finishSkill = frontMatter(finishSkillPath);
 const missionSkill = frontMatter(missionSkillPath);
 const intakeSkill = frontMatter(intakeSkillPath);
 const worker = frontMatter(workerPath);
@@ -69,8 +71,9 @@ const contradictoryPolicyPatterns = {
 const settings = JSON.parse(readFileSync(path.join(root, ".claude", "settings.json"), "utf8"));
 
 describe("single-issue Claude workflow", () => {
-  it("has exactly the three user-invoked workflows and no obsolete batch artifacts", () => {
+  it("has exactly the four user-invoked workflows and no obsolete batch artifacts", () => {
     expect([...readdirSync(skills)].sort()).toEqual([
+      "finish-issue",
       "mission-intake",
       "run-mission",
       "start-issue",
@@ -226,6 +229,86 @@ describe("single-issue Claude workflow", () => {
     expect(body).toMatch(
       /Routine engineering choices, test failures, local-environment faults, and recoverable tooling problems belong to this session/i,
     );
+  });
+});
+
+describe("issue closeout workflow", () => {
+  const body = flat(finishSkill.body);
+
+  it("is user-invoked, takes one Linear identifier, and delegates nothing", () => {
+    expect(finishSkill.fields.name).toBe("finish-issue");
+    expect(finishSkill.fields["disable-model-invocation"]).toBe("true");
+    expect(finishSkill.fields["argument-hint"]).toBe("LAN-###");
+    expect(body).toMatch(/match exactly `\^LAN-\[0-9\]\+\$`/i);
+    expect(body).toMatch(
+      /Refuse a missing argument, extra words, comma-separated identifiers, or more than one identifier/i,
+    );
+    expect(body).toMatch(/Never select another issue or begin a batch/i);
+    expect(body).toMatch(/It launches no subagent of any kind/i);
+  });
+
+  it("proves the terminal state from the repository, never from the story told about it", () => {
+    expect(body).toMatch(/reports the pull request `MERGED`/i);
+    expect(body).toMatch(/git merge-base --is-ancestor <branch> origin\/main/i);
+    expect(body).toMatch(/Both, not either/i);
+    expect(body).toMatch(/is never evidence that the work merged/i);
+    expect(body).toMatch(/Brian passed `--abandoned`/i);
+    expect(body).toMatch(/it is Brian's explicit statement and is never inferred/i);
+  });
+
+  it("fails closed on anything unfinished, unclean, or no longer owned", () => {
+    expect(body).toMatch(
+      /Release nothing, delete nothing, stop nothing, and change no Linear state/i,
+    );
+    expect(body).toMatch(/Absence of evidence is never permission/i);
+    for (const blocker of [
+      /pull request is open, draft, or closed unmerged/i,
+      /uncommitted changes, untracked files .{0,40}unpushed commits, or stash entries/i,
+      /`correct-before-handoff` finding is recorded as unresolved/i,
+      /human or visual acceptance is genuinely still pending/i,
+      /fencing token no longer matches — another session owns that slot now/i,
+    ])
+      expect(body).toMatch(blocker);
+  });
+
+  it("stops before releasing, and releases before removing, with the reason for each", () => {
+    expect(body).toMatch(/Stop the services first/i);
+    expect(body).toMatch(/refuses any lease that is not `active` or `review-ready`/i);
+    expect(body).toMatch(/Stop, then release/i);
+    expect(body).toMatch(/This must run before the worktree is removed/i);
+    expect(body).toMatch(/`db:cleanup-stale` never reclaims a `review-ready` record/i);
+    expect(body.indexOf("npm run db:stop")).toBeLessThan(body.indexOf("npm run db:release"));
+    expect(body.indexOf("npm run db:release")).toBeLessThan(body.indexOf("git worktree remove"));
+  });
+
+  it("never destroys work, another owner's slot, or the primary checkout", () => {
+    expect(body).toMatch(/Never remove a dirty, interrupted, unmerged, or review-ready worktree/i);
+    expect(body).toMatch(/`git branch -d`, which refuses an unmerged branch, and never `-D`/i);
+    expect(body).toMatch(
+      /Never touch another issue's worktree, a locked agent worktree, or a mission worker's worktree/i,
+    );
+    expect(body).toMatch(/primary checkout must be clean and on its original branch/i);
+    expect(body).toMatch(/never stop a mission-owned stack/i);
+  });
+
+  it("closes the ticket once, and never over a pending human gate", () => {
+    expect(body).toMatch(/Set the Linear issue to Done if it is not already/i);
+    expect(body).toMatch(/add exactly one closing comment/i);
+    expect(body).toMatch(
+      /only Linear writes this workflow makes|That comment and the state change are the only Linear writes/i,
+    );
+    expect(body).toMatch(
+      /Never move an issue to Done while human or visual acceptance is genuinely pending/i,
+    );
+    expect(body).toMatch(/reports `already finalized` without acting or failing/i);
+  });
+
+  it("is announced by /start-issue and by the working agreement, and leaves missions alone", () => {
+    expect(flat(skill.body)).toMatch(/Closeout is a separate, later invocation/i);
+    expect(flat(skill.body)).toMatch(/`\/finish-issue LAN-###`/i);
+    expect(flat(agreement)).toMatch(/four user-invoked workflows and two subagents are approved/i);
+    expect(flat(agreement)).toMatch(/Under `\/finish-issue`, the top-level session finalizes/i);
+    expect(body).toMatch(/Mission closeout .{0,120}is out of scope/i);
   });
 });
 
@@ -701,6 +784,7 @@ describe("production and security boundaries", () => {
   it("preserves draft-only, human-merge, no-deploy, and local-only Supabase rules", () => {
     for (const text of [
       flat(skill.body),
+      flat(finishSkill.body),
       flat(missionSkill.body),
       flat(worker.body),
       flat(agreement),

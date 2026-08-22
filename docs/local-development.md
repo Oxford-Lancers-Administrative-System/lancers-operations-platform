@@ -164,6 +164,30 @@ own pitches, which no geocoder indexes, are typed rather than searched.
 | `npm run db:release`                                                         | Release the current slot after stopping it        |
 | `npm run db:cleanup-stale`                                                   | Mark dead, expired active leases stale            |
 
+### Closing out a finished issue
+
+When an issue's pull request has merged, the slot it held is still held, its
+worktree is still on disk, and its stack may still be running. Reclaim them in
+this order — from **inside** the issue worktree for the first two commands:
+
+```bash
+npm run db:stop      # inside the worktree; needs the still-valid fencing token
+npm run db:release   # inside the worktree; the token lives in .lancers-runtime/
+git worktree remove <path> && git worktree prune && git branch -d <branch>
+```
+
+The order is not interchangeable. `db:stop` validates the lease and refuses one
+that is already released, so releasing first leaves the containers running with
+no guarded way to stop them. And the fencing token lives in the worktree's
+ignored `.lancers-runtime/lease.json`, so removing the worktree before releasing
+destroys the only proof of ownership — `db:cleanup-stale` will not rescue you,
+because it never reclaims a `review-ready` record.
+
+`/finish-issue LAN-###` does exactly this, after proving from the repository
+that the work merged, and closes the Linear issue with one comment. It fails
+closed on an unmerged pull request, a dirty or unpushed worktree, or a lease
+that now belongs to another session.
+
 The authoritative lease registry lives in machine-local state, keyed by the
 repository remote so clones and worktrees coordinate. `.lancers-runtime/` in
 the claiming worktree holds generated config and its fencing token and is

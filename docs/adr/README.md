@@ -41,3 +41,4 @@ accident. Routine implementation choices do not need an ADR.
 | [0029](0029-serialized-database-test-suites.md)               | Database test files run one at a time; the parallel ones are refused a connection                      | Accepted                                            |
 | [0030](0030-concurrent-missions.md)                           | Concurrent missions are independently fenced and own disposable local databases                        | Accepted                                            |
 | [0031](0031-firebase-hosting-front-door.md)                   | The club hostname is served by Firebase Hosting, not a load balancer                                   | Accepted                                            |
+| [0032](0032-explicit-issue-closeout.md)                       | Issue closeout is an explicit, evidence-gated workflow                                                 | Accepted                                            |
