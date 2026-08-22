@@ -503,11 +503,22 @@ describe("zero-command visual acceptance", () => {
   });
 
   it("requires browser-proven URL, login, seeded states, viewports, and protected lease", () => {
-    expect(body).toMatch(/use a browser to open the supplied URL, sign in/i);
+    // LAN-148 §B: the viewport is measured through a real browser, not asserted.
+    // The claim this replaces could not be produced honestly on this machine,
+    // which is why it was satisfied on paper and refused in practice.
+    expect(body).toMatch(/npm run visual:preflight/i);
+    expect(body).toMatch(/measures each viewport by asking the browser context how wide/i);
+    expect(body).toMatch(/A self-reported 375px claim is refused/i);
     expect(body).toMatch(/working URL, real login, seeded states, desktop and 375px evidence/i);
     expect(body).toMatch(/mark the slot `review-ready`/i);
     expect(body).toMatch(/Do not claim readiness from scripts or HTTP probes alone/i);
     expect(body).toMatch(/db:review-ready.*validates that record and fails closed/i);
+  });
+
+  it("gives a pending visual environment an owner that outlives the session", () => {
+    expect(body).toMatch(/npm run visual:start/i);
+    expect(body).toMatch(/outlives this session/i);
+    expect(body).toMatch(/once the branch moves past the head it serves/i);
   });
 
   it("gives Brian no commands or setup actions", () => {

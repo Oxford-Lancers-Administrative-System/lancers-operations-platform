@@ -240,6 +240,7 @@ actions, elapsed time and cost, and the next action. Intake's job is to pin it,
 so the Lead does not have to guess where Brian looks. Closeout extends that
 record; it never creates a Linear planning document or an automatic
 deferred-findings issue.
+
 ## Scripted edits and generated artifacts
 
 A scripted replacement that matched nothing, and continued as though it had
