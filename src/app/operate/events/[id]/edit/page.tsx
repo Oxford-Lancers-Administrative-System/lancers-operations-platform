@@ -59,9 +59,12 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
     scheduledOn: event.scheduledOn ?? "",
     startsAt: event.startsAt ?? "",
     endsAt: event.endsAt ?? "",
+    deliveryMode: event.deliveryMode,
     venue: event.venue ?? "",
+    description: event.description ?? "",
+    requiredEquipment: event.requiredEquipment ?? "",
+    joiningUrl: event.joiningUrl ?? "",
     attendance: event.isMandatory ? "mandatory" : "optional",
-    solicitsResponse: event.solicitsResponse ? "yes" : "no",
   };
 
   return (

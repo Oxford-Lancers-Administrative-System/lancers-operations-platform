@@ -257,7 +257,7 @@ on conflict (id) do nothing;
 -- date the operator edits through the application rather than a third event.
 insert into public.events
   (id, season_id, name, event_type, origin, status, scheduled_on, starts_at, ends_at,
-   venue, is_mandatory, solicits_response)
+   venue, is_mandatory)
 select
   scenario.id,
   season.id,
@@ -269,7 +269,6 @@ select
   '19:00',
   '21:00',
   'PILOT-LAN-77 synthetic venue',
-  true,
   true
 from (values
   ('00770077-0077-4077-8077-000000000050'::uuid, 'PILOT-LAN-77 Approval scenario'),

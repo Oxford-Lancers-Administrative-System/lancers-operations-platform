@@ -63,7 +63,7 @@ select
   (
     select count(*) from public.events
      where name like '%PILOT-LAN-76%'
-       and status in ('draft', 'pending_approval', 'withdrawn')
+       and status = 'draft'
   ) as scenario_events_this_script_would_delete,
   (select count(*) from public.events) as event_rows_before,
   (select count(*) from public.audit_events) as audit_rows_before,
@@ -87,9 +87,9 @@ begin
   if exists (
     select 1 from public.events
      where name like '%PILOT-LAN-76%'
-       and status not in ('draft', 'pending_approval', 'withdrawn')
+       and status <> 'draft'
   ) then
-    raise exception 'LAN-76 pilot cleanup refused: a PILOT-LAN-76 event has passed approval. An approved, occurred, cancelled or rejected event is never removed by a scenario cleanup.';
+    raise exception 'LAN-76 pilot cleanup refused: a PILOT-LAN-76 event has passed approval. An approved or cancelled event is never removed by a scenario cleanup.';
   end if;
 
   -- (c) Rows PostgreSQL would remove WITHOUT being asked. Both `on delete
@@ -179,7 +179,7 @@ $preflight$;
 
 delete from public.events
  where name like '%PILOT-LAN-76%'
-   and status in ('draft', 'pending_approval', 'withdrawn');
+   and status = 'draft';
 
 -- ---------------------------------------------------------------------------
 -- Verification — read this before you commit

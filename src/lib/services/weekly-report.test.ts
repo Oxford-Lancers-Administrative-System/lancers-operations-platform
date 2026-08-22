@@ -30,8 +30,19 @@ import type { Client } from "pg";
 import { closePool, isServiceError, withTransaction, type ServiceError } from "@/lib/db";
 import { approveEvent, saveEventAudience } from "./event-approval";
 import { listAudienceCatalogueIn } from "./event-audience";
-import { createEventDraft, markEventOccurred, type EventDraftInput } from "./events";
-import { recordAttendance, recordWalkUpAttendance } from "./attendance";
+import { createEventDraft, type EventDraftInput } from "./events";
+/*
+ * This suite writes attendance rows directly rather than through
+ * `recordAttendance`.
+ *
+ * It reports on a fixed date — 2027-03-25, chosen because the synthetic season
+ * has no event of its own in that week, which is what lets the count assertions
+ * below be equalities rather than deltas. Since LAN-151 the register only opens
+ * for an event whose date has *actually* passed (D30), so a service call here
+ * would be answering a question about the day the suite runs rather than about
+ * the report. The gate itself is `attendance.test.ts`'s subject and is proved
+ * there, against dates that test owns.
+ */
 import { readCurrentSeason } from "./seasons";
 import {
   computeReportContent,
@@ -170,7 +181,10 @@ function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
     endsAt: "22:00",
     venue: "Iffley Road Astro",
     isMandatory: true,
-    solicitsResponse: true,
+    deliveryMode: "in_person",
+    description: null,
+    requiredEquipment: null,
+    joiningUrl: null,
     ...overrides,
   };
 }
@@ -192,10 +206,49 @@ async function approvedEvent(size = 3, overrides: Partial<EventDraftInput> = {})
   return event;
 }
 
+/**
+ * An approved event whose date has passed, which since LAN-151 is the whole of
+ * what makes it one that occurred (D30). `IN_WINDOW` is already inside the
+ * report's look-back window, so it is already behind us — there is nothing left
+ * for this helper to do but say what it is arranging.
+ */
 async function occurredEvent(size = 3, overrides: Partial<EventDraftInput> = {}) {
-  const event = await approvedEvent(size, overrides);
-  await markEventOccurred(actorPersonId, event.id);
-  return event;
+  return approvedEvent(size, overrides);
+}
+
+/**
+ * One attendance row, written the way the service writes it. `event_status` is
+ * the literal the check constraint admits, so the composite foreign key still
+ * proves the event is approved.
+ */
+async function attend(
+  eventId: string,
+  seasonMembershipId: string,
+  presence: "present" | "late" | "excused" | "absent",
+): Promise<void> {
+  await observer.query(
+    `insert into public.attendance_records
+       (event_id, event_status, season_id, capacity, season_membership_id, presence,
+        recorded_by_person_id)
+     values ($1, 'approved', $2, 'player', $3, $4::public.attendance_presence, $5)`,
+    [eventId, seasonId, seasonMembershipId, presence, actorPersonId],
+  );
+}
+
+/** Somebody who turned up having never been invited — invariant P6. */
+async function walkUp(eventId: string, givenName: string): Promise<void> {
+  const person = await observer.query<{ id: string }>(
+    `insert into public.people (given_name, family_name)
+     values ($1, $2) returning id`,
+    [givenName, NAME_MARKER],
+  );
+  await observer.query(
+    `insert into public.attendance_records
+       (event_id, event_status, season_id, capacity, person_id, presence,
+        recorded_by_person_id)
+     values ($1, 'approved', $2, 'guest', $3, 'present', $4)`,
+    [eventId, seasonId, person.rows[0].id, actorPersonId],
+  );
 }
 
 async function invitationsFor(eventId: string) {
@@ -233,9 +286,9 @@ async function secondInvitationFor(eventId: string, invitationId: string) {
   );
   await observer.query(
     `insert into public.invitations
-       (event_id, event_status, solicits_response, season_id, capacity, person_id,
+       (event_id, event_status, season_id, capacity, person_id,
         audience_member_id, status, issued_at)
-     values ($1, 'occurred', true, $2, 'coach', $3, $4, 'issued', now())`,
+     values ($1, 'approved', $2, 'coach', $3, $4, 'issued', now())`,
     [eventId, seasonId, person.rows[0].person_id, audience.rows[0].id],
   );
 }
@@ -316,12 +369,7 @@ describe("last week, event by event", () => {
     const invitations = await invitationsFor(event.id);
     await answer(invitations[0].id, "yes", null);
     await answer(invitations[1].id, "no", "Working.");
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[0].season_membership_id}`,
-      "present",
-    );
+    await attend(event.id, invitations[0].season_membership_id, "present");
 
     const outcome = eventNamed(await compute(), `${NAME_MARKER} Wednesday practice`);
 
@@ -338,18 +386,8 @@ describe("last week, event by event", () => {
   it("counts late as having turned up, and absent as not", async () => {
     const event = await occurredEvent(2);
     const invitations = await invitationsFor(event.id);
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[0].season_membership_id}`,
-      "late",
-    );
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[1].season_membership_id}`,
-      "absent",
-    );
+    await attend(event.id, invitations[0].season_membership_id, "late");
+    await attend(event.id, invitations[1].season_membership_id, "absent");
 
     const outcome = eventNamed(await compute(), `${NAME_MARKER} Wednesday practice`);
     expect(outcome.late).toBe(1);
@@ -374,13 +412,7 @@ describe("last week, event by event", () => {
 
   it("carries the walk-up and the approval defect on the event they belong to", async () => {
     const event = await occurredEvent();
-    await recordWalkUpAttendance(actorPersonId, event.id, {
-      givenName: "Devon",
-      familyName: NAME_MARKER,
-      phone: "07700 900081",
-      email: null,
-      presence: "present",
-    });
+    await walkUp(event.id, "Devon");
 
     // Somebody the approver confirmed and nobody invited. Inserting the
     // audience row directly is the only way to produce it, because the
@@ -445,12 +477,7 @@ describe("the attendance grid", () => {
     const event = await occurredEvent();
     const invitations = await invitationsFor(event.id);
     await answer(invitations[0].id, "yes", null);
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[0].season_membership_id}`,
-      "absent",
-    );
+    await attend(event.id, invitations[0].season_membership_id, "absent");
 
     const cell = discrepancies(await compute()).find((entry) => entry.rsvp === "yes");
     expect(cell?.rsvp).toBe("yes");
@@ -463,18 +490,8 @@ describe("the attendance grid", () => {
     const invitations = await invitationsFor(event.id);
     await answer(invitations[0].id, "yes", null);
     await answer(invitations[1].id, "yes", null);
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[0].season_membership_id}`,
-      "present",
-    );
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[1].season_membership_id}`,
-      "present",
-    );
+    await attend(event.id, invitations[0].season_membership_id, "present");
+    await attend(event.id, invitations[1].season_membership_id, "present");
 
     const flagged = discrepancies(await compute());
     expect(flagged).toHaveLength(1);
@@ -498,18 +515,8 @@ describe("the attendance grid", () => {
     const invitations = await invitationsFor(event.id);
     await answer(invitations[0].id, "yes", null);
     await answer(invitations[1].id, "yes", null);
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[0].season_membership_id}`,
-      "present",
-    );
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[1].season_membership_id}`,
-      "late",
-    );
+    await attend(event.id, invitations[0].season_membership_id, "present");
+    await attend(event.id, invitations[1].season_membership_id, "late");
 
     // Late is not present, so it is still a discrepancy — "didn't come to the
     // event, were late, or something else" — and the person who was present is
@@ -541,12 +548,7 @@ describe("the attendance grid", () => {
     const event = await occurredEvent();
     const invitations = await invitationsFor(event.id);
     for (const invitation of invitations) await answer(invitation.id, "yes", null);
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[0].season_membership_id}`,
-      "present",
-    );
+    await attend(event.id, invitations[0].season_membership_id, "present");
 
     const flagged = discrepancies(await compute());
     expect(flagged).toHaveLength(2);
@@ -590,9 +592,9 @@ describe("the attendance grid", () => {
       );
       await observer.query(
         `insert into public.invitations
-           (id, event_id, event_status, solicits_response, season_id, capacity, person_id,
+           (id, event_id, event_status, season_id, capacity, person_id,
             audience_member_id, status, issued_at)
-         values ($1, $2, 'occurred', true, $3, 'coach', $4, $5, 'issued', now())`,
+         values ($1, $2, 'approved', $3, 'coach', $4, $5, 'issued', now())`,
         [id, eventId, seasonId, person.rows[0].person_id, audience.rows[0].id],
       );
     }
@@ -624,12 +626,7 @@ describe("the attendance grid", () => {
       // The membership invitation is answered and honoured. The coach one is
       // never answered, so it disagrees — and must be what shows.
       await answer(invitations[0].id, "yes", null);
-      await recordAttendance(
-        actorPersonId,
-        event.id,
-        `player:${invitations[0].season_membership_id}`,
-        "present",
-      );
+      await attend(event.id, invitations[0].season_membership_id, "present");
 
       const content = await compute();
       const row = content.grid.rows.find((entry) => entry.person === person);
@@ -715,12 +712,7 @@ describe("the attendance grid", () => {
     // discrepancy instead of two.
     const invitations = await invitationsFor(first.id);
     await answer(invitations[0].id, "yes", null);
-    await recordAttendance(
-      actorPersonId,
-      first.id,
-      `player:${invitations[0].season_membership_id}`,
-      "present",
-    );
+    await attend(first.id, invitations[0].season_membership_id, "present");
 
     const rows = (await compute()).grid.rows;
     expect(rows[0].problems).toBe(2);
@@ -732,18 +724,8 @@ describe("the attendance grid", () => {
     const invitations = await invitationsFor(event.id);
     await answer(invitations[0].id, "yes", null);
     await answer(invitations[1].id, "yes", null);
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[0].season_membership_id}`,
-      "present",
-    );
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[1].season_membership_id}`,
-      "present",
-    );
+    await attend(event.id, invitations[0].season_membership_id, "present");
+    await attend(event.id, invitations[1].season_membership_id, "present");
 
     const content = await compute();
     expect(content.grid.rows).toEqual([]);
@@ -954,13 +936,7 @@ describe("the week ahead", () => {
 describe("walk-ups and availability", () => {
   it("names a walk-up and the event they turned up to", async () => {
     const event = await occurredEvent();
-    await recordWalkUpAttendance(actorPersonId, event.id, {
-      givenName: "Devon",
-      familyName: NAME_MARKER,
-      phone: "07700 900081",
-      email: null,
-      presence: "present",
-    });
+    await walkUp(event.id, "Devon");
 
     const walkUps = (await compute()).walkUps;
     expect(walkUps).toHaveLength(1);
@@ -1002,16 +978,16 @@ describe("what the snapshot still stores, whatever the screen leads with", () =>
     const event = await occurredEvent();
     const invitations = await invitationsFor(event.id);
     await answer(invitations[0].id, "yes", null);
-    await recordAttendance(
-      actorPersonId,
-      event.id,
-      `player:${invitations[0].season_membership_id}`,
-      "present",
-    );
+    await attend(event.id, invitations[0].season_membership_id, "present");
 
     const content = await compute();
     expect(content.lastWeek.map((entry) => entry.id)).toContain(event.id);
-    expect(eventNamed(content, `${NAME_MARKER} Wednesday practice`).status).toBe("occurred");
+    const stored = eventNamed(content, `${NAME_MARKER} Wednesday practice`);
+    expect(stored.status).toBe("approved");
+    // The snapshot stores whether it had occurred at the moment it was taken —
+    // a snapshot is immutable, so it cannot re-derive that against a later
+    // clock and change its mind about last month.
+    expect(stored.occurred).toBe(true);
     expect(eventNamed(content, `${NAME_MARKER} Wednesday practice`).respondedYes).toBe(1);
     expect(content.attendance.present).toBe(1);
   });
@@ -1118,35 +1094,29 @@ describe("what the snapshot still stores, whatever the screen leads with", () =>
 });
 
 // ---------------------------------------------------------------------------
-// Invariant E6
+// D23 — every event in the window is a column
 // ---------------------------------------------------------------------------
 
-describe("invariant E6 — a non-soliciting event never enters the response stream", () => {
-  it("keeps its audience off the chase list and out of the breakdown", async () => {
-    const informational = await approvedEvent(3, {
+describe("the grid covers the whole window", () => {
+  it("gives a meeting a column exactly like a practice", async () => {
+    // Invariant E6 kept a non-soliciting event's audience off the chase list
+    // and out of the grid. LAN-151 retired it with `solicits_response` (D23):
+    // mandatory or optional already carries whether the club expects somebody
+    // to be there, and everyone sent an event is expected to answer. So a
+    // committee briefing is a column, and its audience is chaseable, exactly
+    // like a practice's.
+    const briefing = await approvedEvent(3, {
       name: `${NAME_MARKER} Committee briefing`,
-      solicitsResponse: false,
+      eventType: "meeting",
       isMandatory: false,
     });
+    const practice = await approvedEvent(3, { name: `${NAME_MARKER} Wednesday practice` });
 
     const content = await compute();
 
-    // It is an event in the window, and the snapshot says so — the exclusion is
-    // about responses, not about the event's existence.
-    expect(content.lastWeek.map((entry) => entry.id)).toContain(informational.id);
-    expect(content.lastWeek.find((entry) => entry.id === informational.id)?.solicitsResponse).toBe(
-      false,
-    );
-
-    // And nobody is being chased about it.
-    expect(content.grid.columns.map((column) => column.eventId)).not.toContain(informational.id);
-    expect(content.grid.columns.map((column) => column.eventId)).not.toContain(informational.id);
-
-    // Non-vacuous: an otherwise identical soliciting event does produce chases.
-    const soliciting = await approvedEvent(3, { name: `${NAME_MARKER} Wednesday practice` });
-    const withBoth = await compute();
-    expect(withBoth.grid.columns.map((column) => column.eventId)).toContain(soliciting.id);
-    expect(withBoth.grid.columns.map((column) => column.eventId)).toContain(soliciting.id);
+    expect(content.lastWeek.map((entry) => entry.id)).toContain(briefing.id);
+    expect(content.grid.columns.map((column) => column.eventId)).toContain(briefing.id);
+    expect(content.grid.columns.map((column) => column.eventId)).toContain(practice.id);
   });
 });
 

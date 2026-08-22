@@ -226,28 +226,6 @@ async function scenarioRows() {
   };
 }
 
-/**
- * Asserts the event occurred, the way the application does.
- *
- * The service opens its own pool connection, so it cannot participate in this
- * test's transaction; these are the statements it issues, and its own behaviour
- * is proved in `src/lib/services/attendance.test.ts`.
- */
-async function markOccurred() {
-  await client.query(
-    `update public.events
-        set status = 'occurred', outcome_recorded_at = now(), outcome_recorded_by_person_id = $2
-      where id = $1`,
-    [EVENT_ID, PEOPLE.saidYes],
-  );
-  await client.query(
-    `insert into public.audit_events
-       (actor_person_id, action, entity_table, entity_id, from_state, to_state)
-     values ($2, 'event.marked_occurred', 'events', $1, 'approved', 'occurred')`,
-    [EVENT_ID, PEOPLE.saidYes],
-  );
-}
-
 /** Records attendance against a membership, the way the coach's board does. */
 async function recordPlayer(membershipId: string, presence: string) {
   const row = await one<{ id: string }>(
@@ -255,7 +233,7 @@ async function recordPlayer(membershipId: string, presence: string) {
     `insert into public.attendance_records
        (event_id, event_status, season_id, capacity, season_membership_id,
         presence, recorded_by_person_id)
-     select $1, 'occurred', e.season_id, 'player', $2, $3::public.attendance_presence, $4
+     select $1, 'approved', e.season_id, 'player', $2, $3::public.attendance_presence, $4
        from public.events e where e.id = $1
      returning id`,
     [EVENT_ID, membershipId, presence, PEOPLE.authorizedCoach],
@@ -306,7 +284,7 @@ async function recordWalkUp(typedName: string, contact: string | null) {
     client,
     `insert into public.attendance_records
        (event_id, event_status, season_id, capacity, person_id, presence, recorded_by_person_id)
-     select $1, 'occurred', e.season_id, 'recruit', $2, 'present', $3
+     select $1, 'approved', e.season_id, 'recruit', $2, 'present', $3
        from public.events e where e.id = $1
      returning id`,
     [EVENT_ID, person.id, PEOPLE.authorizedCoach],
@@ -324,7 +302,9 @@ async function recordWalkUp(typedName: string, contact: string | null) {
 
 /** Everything README.md's matrix asks Brian to do, as the database sees it. */
 async function workThroughTheMatrix(): Promise<string> {
-  await markOccurred();
+  // Nothing marks the event as having happened: LAN-151 retired the
+  // assertion (D30), and the scenario's first event is already two days old,
+  // which is the whole of what opens its register.
   await recordPlayer(MEMBERSHIPS[0], "present");
   await recordPlayer(MEMBERSHIPS[1], "present");
   await recordPlayer(MEMBERSHIPS[2], "late");
@@ -448,38 +428,34 @@ describe("setup.sql", () => {
     }
   });
 
-  it("leaves the event approved and un-asserted — invariant E5", async () => {
+  it("leaves both events approved, one past and one today", async () => {
     await client.query(SETUP);
 
-    const event = await one<{
-      status: string;
-      outcome_recorded_at: Date | null;
-      start_passed: boolean;
-    }>(
+    const event = await one<{ status: string; occurred: boolean }>(
       client,
-      `select status::text as status, outcome_recorded_at,
-              (scheduled_on + starts_at) at time zone 'Europe/London' <= now() as start_passed
+      `select status::text as status,
+              scheduled_on < current_date as occurred
          from public.events where id = $1`,
       [EVENT_ID],
     );
 
-    // The gate is the exercise. A scenario that arrived asserted would skip the
-    // half of the boundary worth testing — and a coach may not lift it.
+    // The gate is the exercise, and since LAN-151 the date is the gate (D30).
+    // The scenario's first event is two days old, so its register is open; a
+    // coach opening it is the boundary worth testing.
     expect(event.status).toBe("approved");
-    expect(event.outcome_recorded_at).toBeNull();
-    expect(event.start_passed).toBe(true);
+    expect(event.occurred).toBe(true);
 
-    // Both of them, including today's.
-    const both = await client.query<{ status: string; outcome_recorded_at: Date | null }>(
-      `select status::text as status, outcome_recorded_at
-         from public.events where id = any($1::uuid[])`,
+    // Both of them, including today's — which is approved and NOT yet occurred,
+    // because its date has not passed. That is the pair the coach's two
+    // sections need.
+    const both = await client.query<{ status: string; occurred: boolean }>(
+      `select status::text as status, scheduled_on < current_date as occurred
+         from public.events where id = any($1::uuid[]) order by scheduled_on`,
       [EVENT_IDS],
     );
     expect(both.rows).toHaveLength(2);
-    for (const row of both.rows) {
-      expect(row.status).toBe("approved");
-      expect(row.outcome_recorded_at).toBeNull();
-    }
+    expect(both.rows.map((row) => row.status)).toEqual(["approved", "approved"]);
+    expect(both.rows.map((row) => row.occurred)).toEqual([true, false]);
   });
 
   /**
@@ -771,7 +747,6 @@ describe("cleanup.sql", () => {
    */
   it("refuses to delete a walk-up person who does not carry the sentinel", async () => {
     await client.query(SETUP);
-    await markOccurred();
     const unmarked = await recordWalkUp("Devon Skye", null);
 
     await expect(runCleanup()).rejects.toThrow(/do not carry the PILOT-LAN-110 sentinel/i);

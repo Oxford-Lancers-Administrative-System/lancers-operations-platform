@@ -207,15 +207,17 @@ describe("squad structure as the club actually records it", () => {
 });
 
 describe("events as the club actually schedules them", () => {
-  it("accepts an approved fixture with a date and nothing else", async () => {
-    // SDA §5.6: eight of eleven scheduled fixtures currently have a confirmed
-    // date and null opponent, venue and time. First-class, not an error state.
+  it("accepts an approved game with a date and nothing else", async () => {
+    // SDA §5.6: eight of eleven scheduled games currently have a confirmed date
+    // and null venue and time. First-class, not an error state. Since D14 there
+    // is no opponent field at all — the name carries it, exactly as the club
+    // writes it on its own term card.
     await expectAccepted(
       client,
       `insert into public.events
          (season_id, name, event_type, origin, status, scheduled_on,
           audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-       values ($1, 'BUCS fixture — TBC', 'fixture', 'externally_assigned', 'approved', '2026-11-08',
+       values ($1, 'BUCS fixture — TBC', 'game', 'externally_assigned', 'approved', '2026-11-08',
                now(), $2, now(), $2)`,
       [base.seasonId, base.personId],
     );
@@ -251,11 +253,14 @@ describe("events as the club actually schedules them", () => {
        values ($1, $2, 'Potential Crewdate A', 'social', 'approved', '2026-11-05', now(), $3, now(), $3)`,
       [base.seasonId, group.id, base.personId],
     );
+    // The losing candidate is a draft. LAN-151 retired `rejected` with the rest
+    // of the alternative-group machinery: an unconfirmed event is a draft, and
+    // "it never became an event" is what deleting one means (D29).
     await expectAccepted(
       client,
       `insert into public.events
          (season_id, alternative_group_id, name, event_type, status, scheduled_on, decision_reason)
-       values ($1, $2, 'Potential Crewdate B', 'social', 'rejected', '2026-11-06', 'A was taken instead')`,
+       values ($1, $2, 'Potential Crewdate B', 'social', 'draft', '2026-11-06', 'A was taken instead')`,
       [base.seasonId, group.id],
     );
   });
@@ -278,7 +283,7 @@ describe("participation as it really happens", () => {
       client,
       `insert into public.attendance_records
          (event_id, event_status, season_id, capacity, season_membership_id, presence)
-       values ($1, 'occurred', $2, 'player', $3, 'present')`,
+       values ($1, 'approved', $2, 'player', $3, 'present')`,
       [base.occurredEventId, base.seasonId, base.otherMembershipId],
     );
   });
@@ -380,9 +385,9 @@ describe("participation as it really happens", () => {
     const coachInvitation = await one<{ id: string }>(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, person_id, status)
-       values ($1, 'approved', true, $2, $3, 'coach', $4, 'issued') returning id`,
+       values ($1, 'approved', $2, $3, 'coach', $4, 'issued') returning id`,
       [base.approvedEventId, base.seasonId, coachMember, base.otherPersonId],
     );
 
@@ -558,41 +563,45 @@ describe("derived current-state views", () => {
     expect(answered.response_state).toBe("responded_no");
   });
 
-  it("excludes non-soliciting events from the response and nonresponse streams", async () => {
-    // Invariant E6: an informational event never pollutes the escalation queue.
-    const informational = await one<{ id: string }>(
+  it("puts every approved event's audience in the response stream", async () => {
+    // The replacement for invariant E6's exclusion, which LAN-151 retired with
+    // `solicits_response`. D23: "Response requested" was not a real concept —
+    // mandatory or optional already carries it, and everyone sent an event is
+    // expected to answer. So a meeting's audience is in the stream exactly like
+    // a practice's, and the nonresponse queue can reach it.
+    const meeting = await one<{ id: string }>(
       client,
       `insert into public.events
-         (season_id, name, event_type, status, scheduled_on, solicits_response,
+         (season_id, name, event_type, status, scheduled_on,
           audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-       values ($1, 'AGM', 'meeting', 'approved', '2027-06-09', false, now(), $2, now(), $2) returning id`,
+       values ($1, 'AGM', 'meeting', 'approved', '2027-06-09', now(), $2, now(), $2) returning id`,
       [base.seasonId, base.personId],
     );
     const member = await confirmAudienceMember(
       client,
-      { eventId: informational.id, seasonId: base.seasonId },
+      { eventId: meeting.id, seasonId: base.seasonId },
       { capacity: "player", membershipId: base.membershipId },
     );
     await client.query(
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, season_membership_id, status)
-       values ($1, 'approved', false, $2, $3, 'player', $4, 'issued')`,
-      [informational.id, base.seasonId, member, base.membershipId],
+       values ($1, 'approved', $2, $3, 'player', $4, 'issued')`,
+      [meeting.id, base.seasonId, member, base.membershipId],
     );
 
     const inStream = await one<{ count: string }>(
       client,
       "select count(*) as count from public.invitation_response_state where event_id = $1",
-      [informational.id],
+      [meeting.id],
     );
     const inQueue = await one<{ count: string }>(
       client,
       "select count(*) as count from public.nonresponse_queue where event_id = $1",
-      [informational.id],
+      [meeting.id],
     );
-    expect(Number(inStream.count)).toBe(0);
-    expect(Number(inQueue.count)).toBe(0);
+    expect(Number(inStream.count)).toBe(1);
+    expect(Number(inQueue.count)).toBe(1);
   });
 
   it("computes RSVP-versus-attendance mismatches rather than reconciling them", async () => {
@@ -605,9 +614,9 @@ describe("derived current-state views", () => {
     const invitation = await one<{ id: string }>(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, season_membership_id, status)
-       values ($1, 'occurred', true, $2, $3, 'player', $4, 'responded') returning id`,
+       values ($1, 'approved', $2, $3, 'player', $4, 'responded') returning id`,
       [base.occurredEventId, base.seasonId, member, base.membershipId],
     );
     await client.query(
@@ -618,7 +627,7 @@ describe("derived current-state views", () => {
     await client.query(
       `insert into public.attendance_records
          (event_id, event_status, season_id, capacity, season_membership_id, presence)
-       values ($1, 'occurred', $2, 'player', $3, 'present')`,
+       values ($1, 'approved', $2, 'player', $3, 'present')`,
       [base.occurredEventId, base.seasonId, base.membershipId],
     );
 

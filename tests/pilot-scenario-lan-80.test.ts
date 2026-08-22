@@ -219,29 +219,6 @@ async function scenarioRows() {
   };
 }
 
-/**
- * Asserts an event occurred, the way the application does.
- *
- * The service opens its own pool connection, so it cannot participate in this
- * test's transaction; these are the statements it issues, and its own behaviour
- * is proved in `src/lib/services/attendance.test.ts`. What matters here is only
- * that rows of this shape exist for cleanup to find.
- */
-async function markOccurred(eventId: string) {
-  await client.query(
-    `update public.events
-        set status = 'occurred', outcome_recorded_at = now(), outcome_recorded_by_person_id = $2
-      where id = $1`,
-    [eventId, PEOPLE[0]],
-  );
-  await client.query(
-    `insert into public.audit_events
-       (actor_person_id, action, entity_table, entity_id, from_state, to_state)
-     values ($2, 'event.marked_occurred', 'events', $1, 'approved', 'occurred')`,
-    [eventId, PEOPLE[0]],
-  );
-}
-
 /** Records attendance against a membership, the way the board does. */
 async function recordPlayer(eventId: string, membershipId: string, presence: string) {
   const row = await one<{ id: string }>(
@@ -249,7 +226,7 @@ async function recordPlayer(eventId: string, membershipId: string, presence: str
     `insert into public.attendance_records
        (event_id, event_status, season_id, capacity, season_membership_id,
         presence, recorded_by_person_id)
-     select $1, 'occurred', e.season_id, 'player', $2, $3::public.attendance_presence, $4
+     select $1, 'approved', e.season_id, 'player', $2, $3::public.attendance_presence, $4
        from public.events e where e.id = $1
      returning id`,
     [eventId, membershipId, presence, PEOPLE[0]],
@@ -291,7 +268,7 @@ async function recordWalkUp(eventId: string, typedName: string, contact: string 
     client,
     `insert into public.attendance_records
        (event_id, event_status, season_id, capacity, person_id, presence, recorded_by_person_id)
-     select $1, 'occurred', e.season_id, 'guest', $2, 'present', $3
+     select $1, 'approved', e.season_id, 'guest', $2, 'present', $3
        from public.events e where e.id = $1
      returning id`,
     [eventId, person.id, PEOPLE[0]],
@@ -330,7 +307,9 @@ async function runCleanup(): Promise<void> {
 
 /** The whole matrix in README.md, performed. */
 async function workThroughTheMatrix() {
-  await markOccurred(EVENTS.occurrence);
+  // Nothing marks the event as having happened: LAN-151 retired the
+  // assertion (D30), and both scenario events are already dated in the past,
+  // which is the whole of what opens their registers.
   await recordPlayer(EVENTS.occurrence, MEMBERSHIPS.saidYes, "absent");
   await recordPlayer(EVENTS.occurrence, MEMBERSHIPS.saidNo, "present");
   await recordPlayer(EVENTS.occurrence, MEMBERSHIPS.noResponse, "late");
@@ -367,29 +346,26 @@ describe("setup.sql", () => {
     expect(await scenarioRows()).toEqual(first);
   });
 
-  it("leaves both events approved and un-asserted — invariant E5", async () => {
+  it("leaves both events approved, and dated in the past so both registers open", async () => {
     await client.query(SETUP);
 
-    const events = await client.query<{
-      id: string;
-      status: string;
-      outcome_recorded_at: Date | null;
-      start_passed: boolean;
-    }>(
-      `select id::text, status::text as status, outcome_recorded_at,
-              (scheduled_on + starts_at) at time zone 'Europe/London' <= now() as start_passed
+    const events = await client.query<{ id: string; status: string; occurred: boolean }>(
+      `select id::text, status::text as status,
+              (status = 'approved' and scheduled_on < current_date) as occurred
          from public.events where id = any($1::uuid[]) order by id`,
       [eventIds],
     );
 
     expect(events.rows).toHaveLength(2);
     for (const row of events.rows) {
-      // The assertion is the exercise. A scenario that arrived asserted would
-      // be testing this script rather than the application.
+      // `approved` is the only status a past event that was not called off can
+      // be in, and the date is the whole of what makes its register open (D30).
+      // Invariant E5 used to be asserted here: that occurrence was somebody's
+      // act, and that a scenario arriving asserted would be testing the script
+      // rather than the application. LAN-151 retired it, and the columns that
+      // recorded the assertion are gone from the schema.
       expect(row.status, `${row.id} must arrive approved`).toBe("approved");
-      expect(row.outcome_recorded_at, `${row.id} must arrive un-asserted`).toBeNull();
-      // And both are in the past, so "Start time has passed" is true on screen.
-      expect(row.start_passed, `${row.id} must already have started`).toBe(true);
+      expect(row.occurred, `${row.id} must already have been and gone`).toBe(true);
     }
   });
 
@@ -550,7 +526,9 @@ describe("cleanup.sql", () => {
    */
   it("refuses to delete a walk-up person who does not carry the sentinel", async () => {
     await client.query(SETUP);
-    await markOccurred(EVENTS.occurrence);
+    // Nothing marks the event as having happened: LAN-151 retired the
+    // assertion (D30), and both scenario events are already dated in the past,
+    // which is the whole of what opens their registers.
     const unmarked = await recordWalkUp(EVENTS.occurrence, "Devon Skye", null);
 
     await expect(runCleanup()).rejects.toThrow(/do not carry the PILOT-LAN-80 sentinel/i);

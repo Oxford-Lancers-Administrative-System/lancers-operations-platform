@@ -44,20 +44,24 @@ import { formatCellDate, typeColour } from "./presentation";
 /**
  * The statuses a tile stays quiet about: the event is proceeding normally, and
  * the date already says whether that is ahead of us or behind us.
+ *
+ * One, since LAN-151 — and the date saying it is now the whole mechanism,
+ * because `occurred` is derived from exactly that rather than stored (D30).
  */
-const QUIET_STATUSES: readonly string[] = Object.freeze(["approved", "occurred"]);
+const QUIET_STATUSES: readonly string[] = Object.freeze(["approved"]);
 
 export function isQuietStatus(status: string): boolean {
   return QUIET_STATUSES.includes(status);
 }
 
-/** The statuses that mean the event did not, or will not, take place. */
-const STRUCK_STATUSES: readonly string[] = Object.freeze([
-  "cancelled",
-  "not_held",
-  "withdrawn",
-  "rejected",
-]);
+/**
+ * The statuses that mean the event did not, or will not, take place.
+ *
+ * One, and terminal. D57: a cancelled event stays on the calendar marked
+ * cancelled and is never removed — an event that silently disappears reads as a
+ * sync failure.
+ */
+const STRUCK_STATUSES: readonly string[] = Object.freeze(["cancelled"]);
 
 export function isStruckStatus(status: string): boolean {
   return STRUCK_STATUSES.includes(status);

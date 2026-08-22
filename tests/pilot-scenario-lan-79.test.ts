@@ -434,21 +434,15 @@ describe("cleanup.sql", () => {
     // creates one, so its presence means something else did — and the cleanup
     // must stop rather than delete it on the way past.
     //
-    // Invariant P5 admits attendance only against an `occurred` event, so the
-    // event is asserted to have happened first. That is exactly the sequence
-    // that would produce one in real life.
-    // Invariant E5: an asserted outcome names who asserted it and when.
-    await client.query(
-      `update public.events
-          set status = 'occurred', outcome_recorded_at = now(), outcome_recorded_by_person_id = $2
-        where id = $1`,
-      [EVENTS[0], PEOPLE[0]],
-    );
+    // Invariant P5's database half admits attendance against an approved event,
+    // which this one already is. The other half — that its date has passed,
+    // which since LAN-151 is the whole of what "occurred" means (D30) — is a
+    // service rule, and this is a direct insert.
     await client.query(
       `insert into public.attendance_records
          (event_id, event_status, season_id, capacity, season_membership_id,
           presence, recorded_at, recorded_by_person_id)
-       select $1, 'occurred', e.season_id, 'player',
+       select $1, 'approved', e.season_id, 'player',
               '00790079-0079-4079-8079-000000000011', 'present', now(), $2
          from public.events e where e.id = $1`,
       [EVENTS[0], PEOPLE[0]],

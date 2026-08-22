@@ -15,8 +15,10 @@ import {
   type AttendancePresence,
   type WalkUpInput,
 } from "./attendance-vocabulary";
-import { lockEventIn, readEventIn, type EventDetail } from "./events";
+import { hasOccurred, lockEventIn, readEventIn, type EventDetail } from "./events";
+import { type EventStatus } from "./event-input";
 import { personDisplayNameSql as displayName } from "./sql-text";
+import { todayInClubZone } from "@/lib/club-time";
 
 /**
  * Attendance — locked Requirement 7, invariants P5, P6 and P8. LAN-80.
@@ -41,13 +43,17 @@ import { personDisplayNameSql as displayName } from "./sql-text";
  * Nothing in this file re-implements a rule the schema already carries, and the
  * two that matter are worth naming:
  *
- *   * **Invariant P5** — attendance requires an `occurred` event. Held by a
- *     cascading composite foreign key plus
- *     `check (event_status = 'occurred')`, so it is true of every row in the
- *     table at every instant, including rows written by a script that never
- *     called this module. The status check below exists so that the operator
- *     gets a sentence rather than an integrity error, and it is a courtesy
- *     rather than the guarantee.
+ *   * **Invariant P5** — attendance requires an event that has occurred, and
+ *     since LAN-151 occurrence is derived rather than asserted (D30). The rule
+ *     is therefore in two halves, deliberately. The database holds "the event
+ *     is approved", with a cascading composite foreign key plus
+ *     `check (event_status = 'approved')`, so it is true of every row in the
+ *     table at every instant including rows written by a script that never
+ *     called this module. The other half — "its date has passed" — cannot be a
+ *     check constraint, because a check constraint cannot read the clock, so it
+ *     is `hasOccurred` in `./event-input` and is enforced here. That half is a
+ *     genuine service-layer guarantee rather than a courtesy, which is why
+ *     `requireOccurredEvent` takes the row lock before asking.
  *
  *   * **Invariant P8** — player capacity anchors to the season membership;
  *     coach, committee, guest and recruit anchor to the durable person. Held by
@@ -93,12 +99,18 @@ export {
   type WalkUpInput,
 } from "./attendance-vocabulary";
 
-/** The event states in which the attendance surface is open. Exactly one. */
-export const ATTENDANCE_OPEN_STATUS = "occurred";
+/**
+ * The stored status an event must be in for a register to exist at all.
+ *
+ * Necessary and not sufficient: `hasOccurred` adds the half the database cannot
+ * hold. A draft was never held and a cancelled event did not happen, and
+ * neither can carry attendance.
+ */
+export const ATTENDANCE_OPEN_STATUS: EventStatus = "approved";
 
 export const ATTENDANCE_CLOSED_MESSAGE =
-  "Attendance can only be recorded against an event that has happened. " +
-  "An authorized operator has to mark this event as occurred first.";
+  "Attendance can only be recorded against an event that has happened — an approved event " +
+  "whose date has passed.";
 
 export const PARTICIPANT_NOT_FOUND_MESSAGE =
   "That person is not on this event's list. Add them as a walk-up if they turned up uninvited.";
@@ -221,7 +233,7 @@ export async function readAttendanceBoard(eventId: string): Promise<AttendanceBo
   return withTransaction(async (tx) => {
     const event = await readEventIn(tx, eventId);
 
-    if (event.status !== ATTENDANCE_OPEN_STATUS) {
+    if (!hasOccurred(event, todayInClubZone())) {
       return {
         event,
         isOpen: false,
@@ -554,14 +566,15 @@ async function writeAttendance(
   } else {
     // `event_status` is written as the literal the check constraint admits
     // rather than copied from the event we read, so that this statement states
-    // the rule it is relying on. If the event is not `occurred` the composite
+    // the rule it is relying on. If the event is not `approved` the composite
     // foreign key has nothing to point at and the insert is refused — which is
-    // invariant P5 holding without this module being trusted.
+    // the database's half of invariant P5 holding without this module being
+    // trusted. The other half, that the date has passed, was proved above.
     const inserted = await tx.query<{ id: string; recorded_at: Date }>(
       `insert into public.attendance_records
          (event_id, event_status, season_id, capacity, season_membership_id, person_id,
           presence, recorded_by_person_id)
-       values ($1, 'occurred', $2, $3::public.invitation_capacity, $4::uuid, $5::uuid,
+       values ($1, 'approved', $2, $3::public.invitation_capacity, $4::uuid, $5::uuid,
                $6::public.attendance_presence, $7::uuid)
        returning id, recorded_at`,
       [
@@ -617,19 +630,22 @@ async function writeAttendance(
 // ---------------------------------------------------------------------------
 
 /**
- * The event, locked, and proved to be `occurred`.
+ * The event, locked, and proved to have occurred.
  *
- * The lock is taken before the status is read so that an operator correcting
- * the occurrence assertion and a recorder saving a value cannot both proceed on
- * a picture the other is changing. The refusal is `InvalidTransition` rather
- * than `NotPermitted`: the recorder is allowed to do this, the event is not yet
- * in a state where there is anything to record.
+ * The lock is taken before the question is asked so that an operator cancelling
+ * the event and a recorder saving a value cannot both proceed on a picture the
+ * other is changing. The refusal is `InvalidTransition` rather than
+ * `NotPermitted`: the recorder is allowed to do this, the event is not yet in a
+ * state where there is anything to record.
+ *
+ * Both halves of invariant P5 are asked here, through the one derivation
+ * (`hasOccurred`) that every other reader also uses.
  */
 async function requireOccurredEvent(tx: Tx, eventId: string): Promise<EventDetail> {
   const event = await lockEventIn(tx, eventId);
-  if (event.status !== ATTENDANCE_OPEN_STATUS) {
+  if (!hasOccurred(event, todayInClubZone())) {
     throw new InvalidTransition(ATTENDANCE_CLOSED_MESSAGE, {
-      rule: "attendance_records_require_an_occurred_event",
+      rule: "attendance_records_require_an_approved_event",
     });
   }
   return event;

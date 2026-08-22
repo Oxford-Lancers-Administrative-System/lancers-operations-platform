@@ -409,7 +409,7 @@ describe("row 10 — an attendance recorder receives nothing else", () => {
     // do not decide that there was anything to turn up to.
     for (const code of COACHES) {
       expect(operatorHasCapability(actor([code]), "attendance_recording")).toBe(true);
-      expect(operatorHasCapability(actor([code]), "event_occurrence_assertion")).toBe(false);
+      expect(operatorHasCapability(actor([code]), "event_calendar_management")).toBe(false);
     }
   });
 

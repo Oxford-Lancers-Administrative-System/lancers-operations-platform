@@ -25,7 +25,6 @@ import {
   composeReason,
   readSignedRsvpPageIn,
   recordSignedLinkResponse,
-  EVENT_SOLICITS_NO_RESPONSE_RULE,
   INVITATION_WITHDRAWN_RULE,
   NO_REQUIRES_A_REASON_RULE,
   RESPONSE_WINDOW_CLOSED_RULE,
@@ -141,7 +140,7 @@ async function fixture(
       `with target as (select (now() + make_interval(hours => $3)) at time zone 'Europe/London' as local)
        insert into public.events
          (season_id, name, event_type, status, scheduled_on, starts_at, ends_at, venue,
-          solicits_response, audience_confirmed_at, audience_confirmed_by_person_id,
+          audience_confirmed_at, audience_confirmed_by_person_id,
           approved_at, approved_by_person_id)
        select $1, $2, 'practice', $4::public.event_status,
               (select local::date from target),
@@ -164,7 +163,7 @@ async function fixture(
                         else (local + interval '150 minutes')::time
                       end from target),
               $6,
-              true, now(), $5::uuid, now(), $5::uuid
+              now(), $5::uuid, now(), $5::uuid
        returning id`,
       [seasonId, `${MARKER} practice`, startsInHours, status, personId, "Iffley Road Astro"],
     );
@@ -179,9 +178,9 @@ async function fixture(
 
     const invitation = await observer.query<{ id: string }>(
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity,
+         (event_id, event_status, season_id, capacity,
           season_membership_id, status, audience_member_id, expires_at)
-       values ($1, $2::public.event_status, true, $3, 'player', $4, 'pending', $5,
+       values ($1, $2::public.event_status, $3, 'player', $4, 'pending', $5,
                now() + make_interval(hours => $6))
        returning id`,
       [
@@ -402,25 +401,28 @@ describe("recordSignedLinkResponse", () => {
     expect(await statusOf(invitationId)).toBe("responded");
   });
 
-  it("refuses an event that solicits no response at all", async () => {
-    // Invariant E6. An informational event resolves an audience for visibility
-    // only, but approval still creates invitations and nothing stops a token
-    // being minted — so without this guard a signed link would record an
-    // authoritative answer that then stands in `current_rsvp` and in the P7
-    // reporting LAN-81 consumes. The resolver carried the fact; nobody read it.
+  it("accepts an answer to an event with no deadline of its own", async () => {
+    // This replaced "refuses an event that solicits no response at all".
+    //
+    // Invariant E6 meant an informational event resolved an audience for
+    // visibility only, and a signed link to one had to be refused. D23 removed
+    // the flag: mandatory or optional already carries whether the club expects
+    // somebody to be there, and everyone sent an event is expected to answer.
+    // So there is no event a link can reach that has nothing to answer, and the
+    // case that is left — an invitation carrying no deadline — is answerable
+    // like any other, because a deadline was never a cutoff.
     const { invitationId, eventId } = await fixture(48);
     const token = await tokenFor(invitationId);
-    await observer.query(
-      "update public.events set solicits_response = false, response_deadline_at = null where id = $1",
-      [eventId],
-    );
+    await observer.query("update public.events set response_deadline_at = null where id = $1", [
+      eventId,
+    ]);
     await observer.query("update public.invitations set expires_at = null where id = $1", [
       invitationId,
     ]);
 
-    const error = await caught(() => recordSignedLinkResponse(token, { response: "yes" }));
-    expect(error.rule).toBe(EVENT_SOLICITS_NO_RESPONSE_RULE);
-    expect(await responsesFor(invitationId)).toHaveLength(0);
+    await recordSignedLinkResponse(token, { response: "yes" });
+    expect(await responsesFor(invitationId)).toHaveLength(1);
+    expect(await statusOf(invitationId)).toBe("responded");
   });
 
   it("rolls the whole answer back when the last of its four writes fails", async () => {
@@ -705,9 +707,9 @@ describe("readSignedRsvpPageIn", () => {
     );
     const peerInvitation = await observer.query<{ id: string }>(
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity,
+         (event_id, event_status, season_id, capacity,
           season_membership_id, status, audience_member_id, expires_at)
-       values ($1, 'approved', true, $2, 'player', $3, 'pending', $4, now() + interval '47 hours')
+       values ($1, 'approved', $2, 'player', $3, 'pending', $4, now() + interval '47 hours')
        returning id`,
       [mine.eventId, seasonId, peerMembership.rows[0].id, peerAudience.rows[0].id],
     );

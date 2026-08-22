@@ -116,31 +116,75 @@ export function formatDetailWhen(event: {
   return times ? `${date} · ${times}` : date;
 }
 
-/** `event_status` in the club's words. The list, the detail and the chips agree. */
+/**
+ * `event_status` in the club's words. The list, the detail and the chips agree.
+ *
+ * Three, since LAN-151. `Occurred` is not here because it is not a stored
+ * status: it is derived from the date passing, and `DERIVED_STATE_LABELS`
+ * below is where a screen gets the word for it.
+ */
 export const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
   draft: "Draft",
-  pending_approval: "Pending approval",
   approved: "Approved",
-  occurred: "Occurred",
-  not_held: "Not held",
   cancelled: "Cancelled",
-  rejected: "Rejected",
-  withdrawn: "Withdrawn",
 });
 
-/** `event_type` in the club's words. */
+/**
+ * What the event looks like now, in the club's words (D30).
+ *
+ * A screen shows this beside the stored status, never instead of it: "Approved"
+ * and "Occurred" are answers to two different questions, and collapsing them
+ * would put the club back where the assertion was.
+ */
+export const DERIVED_STATE_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  upcoming: "Upcoming",
+  occurred: "Occurred",
+  cancelled: "Cancelled",
+});
+
+/** `event_type` in the club's words — the seven approved types (D12). */
 export const TYPE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   practice: "Practice",
   strength_and_conditioning: "Strength and conditioning",
   chalk: "Chalk",
-  fixture: "Fixture",
+  game: "Game",
   social: "Social",
   recruitment: "Recruitment",
-  camp: "Camp",
-  varsity: "Varsity",
   meeting: "Meeting",
-  other: "Other",
 });
+
+/** `event_delivery_mode` in the club's words (D20). */
+export const DELIVERY_MODE_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  in_person: "In person",
+  online: "Online",
+});
+
+/** What the venue field is called, which depends on where the event is (D21). */
+export function venueLabel(deliveryMode: string): string {
+  return deliveryMode === "online" ? "Destination" : "Venue";
+}
+
+/**
+ * D86. The zone every event time is in, said on the form rather than assumed.
+ *
+ * The recorded defect this closes: the date input renders in the browser's
+ * locale, so an operator in Oxford could be reading `mm/dd/yyyy`, and the two
+ * time fields carried no zone at all. Per-user timezones are a later release
+ * (DEC-timezone); this is the club's, fixed, and stated.
+ */
+export const CLUB_TIME_ZONE_NOTE =
+  "Dates and times are Europe/London — the club's own clock — and times are entered in " +
+  "five-minute steps.";
+
+/**
+ * REQ-no-joining-url, said to the operator entering one.
+ *
+ * The rule is real and enforced elsewhere; this is the sentence that stops
+ * somebody assuming the link will reach people because they typed it in.
+ */
+export const JOINING_URL_IS_NEVER_PUBLIC =
+  "Never shown on the public calendar or in a subscription feed. How an invited person " +
+  "receives it is not yet built.";
 
 /** `event_origin` in the club's words — Source Data Analysis §5.6. */
 export const ORIGIN_LABELS: Readonly<Record<string, string>> = Object.freeze({
@@ -214,9 +258,8 @@ export function describeAudience(event: EventListEntry): string {
  * row.
  */
 export const AUDIENCE_AND_RESPONSES_COME_LATER =
-  "A draft or pending event has no audience, no invitations and no responses, and cannot " +
-  "have any. The audience is chosen and confirmed during approval, which is when anything " +
-  "is sent at all.";
+  "A draft has no invitations and no responses, and cannot have any. The audience is " +
+  "chosen and confirmed during approval, which is when anything is sent at all.";
 
 /** The same statement, for the form and the event itself. */
 export const AUDIENCE_COMES_LATER =
@@ -236,22 +279,15 @@ export const NO_DISTRIBUTION_HEADLINE = "Nothing distributed";
 export const NO_DISTRIBUTION_DETAIL = "No invitations or responses";
 
 export const NO_DISTRIBUTION_RULE =
-  "A draft or pending event can carry no invitations, responses or attendance. " +
+  "A draft can carry no invitations, responses or attendance. " +
   "Nothing is sent until the designated approver approves it.";
 
-/** True where that rule applies — the two pre-approval states. */
+/**
+ * True where that rule applies. One state, since LAN-151 retired
+ * `pending_approval` — there is no step between drafting and approval.
+ */
 export function isPreApproval(status: string): boolean {
-  return status === "draft" || status === "pending_approval";
-}
-
-/** The meaning of the response-solicited flag, on screen, in both states. */
-export const SOLICITS_RESPONSE_MEANING =
-  "A soliciting event asks its audience to answer, carries a deadline and chases " +
-  "nonresponses. An event that does not solicit a response is visible to its " +
-  "audience and asks nothing.";
-
-export function describeSolicitation(solicitsResponse: boolean): string {
-  return solicitsResponse ? "Response requested" : "No response requested";
+  return status === "draft";
 }
 
 export function describeAttendance(isMandatory: boolean): string {

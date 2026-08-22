@@ -204,8 +204,9 @@ delete from public.audit_events
    and entity_id in (select id from public.attendance_records where event_id in ('00800080-0080-4080-8080-000000000021', '00800080-0080-4080-8080-000000000022'))
    and entity_id in (select id from public.attendance_records where event_id in (select id from public.events where name like '%PILOT-LAN-80%'));
 
--- The audit rows the occurrence assertion wrote — one per Mark occurred, Mark
--- not held and correction.
+-- Any audit rows the application wrote against these events. LAN-151 retired
+-- the occurrence assertion that used to write them, so on a fresh walkthrough
+-- there may be none — which is a legitimate answer, not a miss.
 delete from public.audit_events
  where entity_table = 'events'
    and entity_id in ('00800080-0080-4080-8080-000000000021', '00800080-0080-4080-8080-000000000022')

@@ -87,7 +87,11 @@ export default async function AttendancePage({
   // the operator from the verified session on every save, and the coach's
   // constraints are enforced there whatever this page rendered.
   const isCoachView = isNarrowAttendanceRecorder(gate.operator.roleCodes);
-  const mayRemove = operatorHasCapability(gate.operator, "event_occurrence_assertion");
+  // The same four calendar roles plus the IT Officer that `removeAttendanceAction`
+  // requires. `event_occurrence_assertion` guarded this until LAN-151 retired
+  // it; `event_calendar_management` carries the identical role list, so the
+  // boundary is unchanged.
+  const mayRemove = operatorHasCapability(gate.operator, "event_calendar_management");
 
   const { id } = await params;
   const query = await searchParams;

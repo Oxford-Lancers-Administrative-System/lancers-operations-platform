@@ -152,7 +152,7 @@ function eventEntry(
   id: string,
   name: string,
   scheduledOn: string,
-  status: EventListEntry["status"] = "occurred",
+  status: EventListEntry["status"] = "approved",
 ): EventListEntry {
   return {
     id,
@@ -162,9 +162,9 @@ function eventEntry(
     scheduledOn,
     startsAt: "20:00",
     endsAt: "22:00",
+    deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
-    solicitsResponse: true,
     audienceCount: 0,
     invitationCount: 0,
     responseCount: 0,
@@ -797,9 +797,9 @@ describe("LAN-110 — the coach shell", () => {
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
       season: { id: "season", label: "2026-27", status: "active" },
       events: [
-        eventEntry("today-practice", "Practice", today, "occurred"),
+        eventEntry("today-practice", "Practice", today, "approved"),
         eventEntry("next-week", "S&C", shiftDays(today, 5), "approved"),
-        eventEntry("last-week", "Varsity", shiftDays(today, -3), "occurred"),
+        eventEntry("last-week", "Varsity", shiftDays(today, -3), "approved"),
       ],
       totalInSeason: 3,
     });
@@ -828,28 +828,34 @@ describe("LAN-110 — the coach shell", () => {
   it("says on the card when a register cannot be opened yet", async () => {
     // A coach who taps three sessions looking for a register they can fill in
     // has learned nothing except that the list is unreliable.
+    //
+    // Since LAN-151 what decides is the date: a session that has been and gone
+    // opens (D30), and one still ahead — including today's — does not.
     const today = londonToday();
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
       season: { id: "season", label: "2026-27", status: "active" },
       events: [
-        eventEntry("open", "Practice", today, "occurred"),
+        eventEntry("open", "Practice", shiftDays(today, -1), "approved"),
+        eventEntry("today", "Chalk", today, "approved"),
         eventEntry("not-yet", "S&C", shiftDays(today, 2), "approved"),
       ],
-      totalInSeason: 2,
+      totalInSeason: 3,
     });
     givenAccess({ state: "active", operator: actor(COACH) });
 
     render(await EventsPage(eventsProps()));
 
-    expect(screen.getAllByTestId("coach-event-not-open")).toHaveLength(1);
-    expect(screen.getByTestId("coach-event-not-open").textContent).toBe("Attendance not open");
+    expect(screen.getAllByTestId("coach-event-not-open")).toHaveLength(2);
+    expect(screen.getAllByTestId("coach-event-not-open")[0].textContent).toBe(
+      "Attendance not open",
+    );
   });
 
   it("draws no heading for a section with nothing in it", async () => {
     // A club practises for eight months and then stops for the summer.
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
       season: { id: "season", label: "2026-27", status: "active" },
-      events: [eventEntry("long-ago", "Varsity", shiftDays(londonToday(), -60), "occurred")],
+      events: [eventEntry("long-ago", "Varsity Match", shiftDays(londonToday(), -60), "approved")],
       totalInSeason: 1,
     });
     givenAccess({ state: "active", operator: actor(COACH) });
@@ -860,7 +866,7 @@ describe("LAN-110 — the coach shell", () => {
     expect(screen.getByTestId("coach-events-section-earlier")).toBeVisible();
   });
 
-  it("shows no draft, cancelled or not-held session, whatever the query string says", async () => {
+  it("shows no draft or cancelled session, whatever the query string says", async () => {
     // No status comes from the URL, so `?status=draft` cannot show a coach a
     // draft; and the visible set is decided in coach-event-buckets.ts.
     const today = londonToday();
@@ -868,9 +874,9 @@ describe("LAN-110 — the coach shell", () => {
       season: { id: "season", label: "2026-27", status: "active" },
       events: [
         eventEntry("draft", "A draft nobody approved", today, "draft"),
-        eventEntry("cancelled", "A cancelled fixture", today, "cancelled"),
-        eventEntry("not-held", "A washed-out practice", shiftDays(today, -1), "not_held"),
-        eventEntry("real", "Practice", today, "occurred"),
+        eventEntry("cancelled", "A cancelled game", today, "cancelled"),
+        eventEntry("washed-out", "A washed-out practice", shiftDays(today, -1), "cancelled"),
+        eventEntry("real", "Practice", today, "approved"),
       ],
       totalInSeason: 4,
     });
@@ -886,7 +892,7 @@ describe("LAN-110 — the coach shell", () => {
     expect(screen.getAllByTestId("coach-event-row")).toHaveLength(1);
     expect(container.textContent).toContain("Practice");
     expect(container.textContent).not.toContain("A draft nobody approved");
-    expect(container.textContent).not.toContain("A cancelled fixture");
+    expect(container.textContent).not.toContain("A cancelled game");
     expect(container.textContent).not.toContain("A washed-out practice");
   });
 

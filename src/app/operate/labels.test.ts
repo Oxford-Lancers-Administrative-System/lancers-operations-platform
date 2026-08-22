@@ -16,7 +16,7 @@ import { EVENT_STATUS_LABELS } from "./report/presentation";
  * What it is protecting against: the club's vocabularies are stored values, and
  * a value can outlive the map that names it — a status added to the schema, a
  * seed carrying a type the screens predate, a map that loses an entry in a
- * merge. Falling back to the raw value renders `pending_approval` where the
+ * merge. Falling back to the raw value renders `strength_and_conditioning` where the
  * label is missing, which is ugly and self-explanatory. Falling back to an
  * empty string renders a blank cell, which reads as "this member has no status"
  * — the opposite of the truth, in the column an operator scans first.
@@ -24,7 +24,7 @@ import { EVENT_STATUS_LABELS } from "./report/presentation";
 describe("labelFor", () => {
   it("gives the club's word for a value the map names", () => {
     expect(labelFor(MEMBERSHIP_STATUS_LABELS, "active")).toBe("Active");
-    expect(labelFor(STATUS_LABELS, "pending_approval")).toBe("Pending approval");
+    expect(labelFor(STATUS_LABELS, "approved")).toBe("Approved");
   });
 
   it("falls back to the value itself, never to blank", () => {
@@ -47,18 +47,18 @@ describe("labelFor", () => {
 /**
  * One event status, one word for it — LAN-127 finding 2.
  *
- * The report kept its own copy of this map and the copy had drifted:
- * `pending_approval` read "Awaiting approval" on the Monday report and
- * "Pending approval" on every events screen, while the report's comment
- * asserted the two matched. Nothing anywhere asserted it, so the two words
- * coexisted through every green run.
- *
- * The approved wireframes decide which word is right: UX-30 and UX-33 both say
- * "Pending approval", and nothing in `docs/ux/` says "Awaiting approval".
+ * The report kept its own copy of this map and the copy had drifted: one status
+ * read one word on the Monday report and another on every events screen, while
+ * the report's comment asserted the two matched. Nothing anywhere asserted it,
+ * so the two words coexisted through every green run.
  */
 describe("the event status vocabulary", () => {
-  it("says Pending approval, the word the approved wireframes use", () => {
-    expect(labelFor(STATUS_LABELS, "pending_approval")).toBe("Pending approval");
+  it("names the three stored statuses, and nothing that is not one", () => {
+    // LAN-151 narrowed `public.event_status` to three. `Occurred` is
+    // deliberately absent: it is derived from the date rather than stored
+    // (D30), and it has its own map so that a screen cannot show it in the
+    // column that means "what the club decided about this event".
+    expect(Object.keys(STATUS_LABELS)).toEqual(["draft", "approved", "cancelled"]);
   });
 
   it("gives the report and the events screens the same word for every status", () => {

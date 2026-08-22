@@ -154,10 +154,10 @@ async function fixture(startsInHours: number, status = "approved") {
     const event = await observer.query<{ id: string }>(
       `with target as (select (now() + make_interval(hours => $3)) at time zone 'Europe/London' as local)
      insert into public.events
-       (season_id, name, event_type, status, scheduled_on, starts_at, solicits_response,
+       (season_id, name, event_type, status, scheduled_on, starts_at,
         audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
      select $1, $2, 'practice', $4::public.event_status,
-            (select local::date from target), (select local::time from target), true,
+            (select local::date from target), (select local::time from target),
             case when $4 = 'draft' then null else now() end,
             case when $4 = 'draft' then null else $5::uuid end,
             case when $4 = 'draft' then null else now() end,
@@ -176,9 +176,9 @@ async function fixture(startsInHours: number, status = "approved") {
 
     const invitation = await observer.query<{ id: string }>(
       `insert into public.invitations
-       (event_id, event_status, solicits_response, season_id, capacity,
+       (event_id, event_status, season_id, capacity,
         season_membership_id, status, audience_member_id)
-     values ($1, $2::public.event_status, true, $3, 'player', $4, 'pending', $5)
+     values ($1, $2::public.event_status, $3, 'player', $4, 'pending', $5)
      returning id`,
       [eventId, status, seasonId, membership.rows[0].id, audience.rows[0].id],
     );

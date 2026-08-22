@@ -99,9 +99,9 @@ describe("invariant P7 — all five states are derivable", () => {
     const invitation = await one<{ id: string }>(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, season_membership_id, status)
-       values ($1, 'approved', true, $2, $3, 'player', $4, 'issued') returning id`,
+       values ($1, 'approved', $2, $3, 'player', $4, 'issued') returning id`,
       [base.approvedEventId, base.seasonId, member, base.otherMembershipId],
     );
     expect((await stateOf(base.approvedEventId, base.otherMembershipId))[0].response_state).toBe(
@@ -161,26 +161,31 @@ describe("invariant P7 — all five states are derivable", () => {
     expect(Number(queued.count)).toBe(0);
   });
 
-  it("excludes a non-soliciting event's audience from the report entirely", async () => {
-    // Invariant E6: an informational event resolves an audience for visibility
-    // and creates no response obligation.
-    const informational = await one<{ id: string }>(
+  it("reports a meeting's audience exactly like a practice's", async () => {
+    // Invariant E6 said an informational event resolved an audience for
+    // visibility and created no response obligation. LAN-151 retired it with
+    // `solicits_response` (D23): mandatory or optional already carries whether
+    // the club expects somebody to be there, and everyone sent an event is
+    // expected to answer. So a meeting's audience is in the P7 partition, and
+    // `never_invited` is derivable for it like anything else.
+    const meeting = await one<{ id: string }>(
       client,
       `insert into public.events
-         (season_id, name, event_type, status, scheduled_on, solicits_response,
+         (season_id, name, event_type, status, scheduled_on,
           audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-       values ($1, 'AGM', 'meeting', 'approved', '2027-06-09', false, now(), $2, now(), $2)
+       values ($1, 'AGM', 'meeting', 'approved', '2027-06-09', now(), $2, now(), $2)
        returning id`,
       [base.seasonId, base.personId],
     );
     await confirmAudienceMember(
       client,
-      { eventId: informational.id, seasonId: base.seasonId },
+      { eventId: meeting.id, seasonId: base.seasonId },
       { capacity: "player", membershipId: base.membershipId },
     );
 
-    const rows = await stateOf(informational.id, base.membershipId);
-    expect(rows).toHaveLength(0);
+    const rows = await stateOf(meeting.id, base.membershipId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].response_state).toBe("never_invited");
   });
 });
 
@@ -271,9 +276,9 @@ describe("invitations are resolved from the audience", () => {
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, season_membership_id)
-       values ($1, 'occurred', true, $2, $3, 'player', $4)`,
+       values ($1, 'approved', $2, $3, 'player', $4)`,
       [base.occurredEventId, base.seasonId, base.audienceMemberId, base.membershipId],
       "invitations_belong_to_the_resolved_audience",
     );
@@ -302,9 +307,9 @@ describe("invitations are resolved from the audience", () => {
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, season_membership_id)
-       values ($1, 'approved', true, $2, $3, 'player', $4)`,
+       values ($1, 'approved', $2, $3, 'player', $4)`,
       [base.approvedEventId, base.seasonId, confirmedForThird, base.otherMembershipId],
       "invitations_belong_to_the_resolved_audience",
     );
@@ -320,9 +325,9 @@ describe("invitations are resolved from the audience", () => {
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, person_id)
-       values ($1, 'approved', true, $2, $3, 'committee', $4)`,
+       values ($1, 'approved', $2, $3, 'committee', $4)`,
       [base.approvedEventId, base.seasonId, member, base.otherPersonId],
       "invitations_belong_to_the_resolved_audience",
     );
@@ -371,7 +376,7 @@ describe("audience, invitation, RSVP and attendance stay independent", () => {
       client,
       `insert into public.attendance_records
          (event_id, event_status, season_id, capacity, season_membership_id, presence)
-       values ($1, 'occurred', $2, 'player', $3, 'present')`,
+       values ($1, 'approved', $2, 'player', $3, 'present')`,
       [base.occurredEventId, base.seasonId, base.otherMembershipId],
     );
 

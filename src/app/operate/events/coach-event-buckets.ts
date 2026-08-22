@@ -14,14 +14,13 @@
  *     other reason to open this is to correct the session you were at last
  *     week.
  *
- * ## Why this list is no longer occurred-only
+ * ## Why this list is not occurred-only
  *
- * It cannot be. An event that has not happened has not been asserted to have
- * happened — invariant E5 makes occurrence a human act — so a forward-looking
- * list of occurred events would be permanently empty, which is what the first
- * implementation of this screen ran into. Looking forward means showing events
- * that are not yet open, and saying so on the card: they carry **Attendance not
- * open**, and opening one gives UX-90 rather than a register.
+ * It cannot be. Looking forward means showing events that are not yet open, and
+ * saying so on the card: they carry **Attendance not open**, and opening one
+ * gives UX-90 rather than a register. Since LAN-151, "has occurred" is derived
+ * from the date rather than asserted (D30), so the two sections and the
+ * open/not-open line are now answers to the same question about the clock.
  *
  * That is a widening of what a coaching assignment sees, and it is recorded as
  * a deviation in `docs/ux/tickets/LAN-110-coach-attendance.md`. What it adds is
@@ -31,12 +30,12 @@
  *
  * ## What is deliberately not in either section
  *
- * A draft, a pending or rejected submission, a withdrawn one, a cancelled event
- * and one asserted **not held**. None of those is a session anybody is going
- * to; showing a coach the calendar's discarded drafts would be the event
- * administration § 3 withholds, and listing a cancelled fixture under Upcoming
+ * A draft, and a cancelled event. Neither is a session anybody is going to;
+ * showing a coach the calendar's unfinished drafts would be the event
+ * administration § 3 withholds, and listing a cancelled game under Upcoming
  * would be worse than not listing it.
  */
+import { hasOccurred } from "@/lib/services/event-input";
 import type { EventListEntry } from "@/lib/services/events";
 
 export type CoachEventBucketKey = "upcoming" | "earlier";
@@ -57,11 +56,13 @@ export const EARLIER_DETAIL = "Before today, most recent first";
 /**
  * The statuses a coach sees at all.
  *
- * `approved` is a session that is going to happen; `occurred` is one that did.
- * Everything else is either a decision still being taken or a session that is
- * not happening, and neither is a coach's business — see the note above.
+ * `approved` covers both halves of what a coach needs — a session that is going
+ * to happen and one that did, which are the same stored status and differ only
+ * in whether the date has passed (D30). A draft is a decision still being
+ * taken and a cancelled event is not happening, and neither is a coach's
+ * business — see the note above.
  */
-export const COACH_VISIBLE_STATUSES: readonly string[] = Object.freeze(["approved", "occurred"]);
+export const COACH_VISIBLE_STATUSES: readonly string[] = Object.freeze(["approved"]);
 
 /**
  * Today's date in the club's timezone, as `YYYY-MM-DD`.
@@ -97,9 +98,15 @@ export function isToday(event: EventListEntry, today: string): boolean {
   return event.scheduledOn === today;
 }
 
-/** Can a register be opened for it yet? Drives the "Attendance not open" line. */
-export function isOpenForAttendance(event: EventListEntry): boolean {
-  return event.status === "occurred";
+/**
+ * Can a register be opened for it yet? Drives the "Attendance not open" line.
+ *
+ * D30: the event has occurred when its date has passed and it was not
+ * cancelled. Nobody asserts it, so this is derived from the same rule the
+ * service layer and the database's mismatch view both use.
+ */
+export function isOpenForAttendance(event: EventListEntry, today: string): boolean {
+  return hasOccurred(event, today);
 }
 
 /**

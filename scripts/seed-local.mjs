@@ -1282,10 +1282,11 @@ let eventOrder = 0;
 
 function makeEvent(spec) {
   const scheduled = spec.date ? asDate(spec.date) : null;
-  const past = spec.date ? isPast(spec.date) : false;
-  const status = spec.status ?? (past ? "occurred" : "approved");
-  const approved = !["draft", "pending_approval", "rejected", "withdrawn"].includes(status);
-  const solicits = spec.solicits_response ?? true;
+  // LAN-151: three stored statuses. A past event is `approved` like any other —
+  // that its date has gone by is what makes it an event that happened (D30),
+  // and nobody asserts it.
+  const status = spec.status ?? "approved";
+  const approved = status !== "draft";
 
   const event = {
     id: uuid(),
@@ -1301,25 +1302,21 @@ function makeEvent(spec) {
     scheduled_on: scheduled,
     starts_at: spec.starts ?? null,
     ends_at: spec.ends ?? null,
+    delivery_mode: spec.online ? "online" : "in_person",
     venue: spec.venue ?? null,
-    opponent: spec.opponent ?? null,
-    side: spec.side ?? null,
+    joining_url: spec.joining_url ?? null,
+    description: spec.description ?? null,
+    required_equipment: spec.equipment ?? null,
     competition: spec.competition ?? null,
     is_mandatory: spec.mandatory ?? false,
-    solicits_response: solicits,
-    response_deadline_at:
-      solicits && approved && spec.date ? at(addDays(spec.date, -2), "18:00:00") : null,
-    reminder_offsets_hours: solicits && approved ? "{72,24}" : "{}",
+    response_deadline_at: approved && spec.date ? at(addDays(spec.date, -2), "18:00:00") : null,
+    reminder_offsets_hours: approved ? "{72,24}" : "{}",
     aggregate_headcount: spec.headcount ?? null,
     owner_person_id: (spec.owner ?? people[1]).id,
     audience_confirmed_at: approved ? at(addDays(spec.date, -12), "19:00:00") : null,
     audience_confirmed_by_person_id: approved ? people[1].id : null,
     approved_at: approved ? at(addDays(spec.date, -12), "19:05:00") : null,
     approved_by_person_id: approved ? people[1].id : null,
-    outcome_recorded_at: ["occurred", "not_held"].includes(status)
-      ? at(addDays(spec.date, 1), "09:00:00")
-      : null,
-    outcome_recorded_by_person_id: ["occurred", "not_held"].includes(status) ? people[2].id : null,
     decision_reason: spec.decision_reason ?? null,
     created_at: "2026-09-01T09:00:00Z",
     updated_at: "2027-02-20T09:00:00Z",
@@ -1358,7 +1355,7 @@ for (const [week, name, headcount] of [
 
 makeEvent({
   name: "Pre-season camp",
-  type: "camp",
+  type: "practice",
   term: weekOf("michaelmas", -1).term,
   week: -1,
   date: addDays(weekOf("michaelmas", -1).sunday, 6),
@@ -1369,7 +1366,7 @@ makeEvent({
 });
 makeEvent({
   name: "Varsity preparation camp",
-  type: "camp",
+  type: "practice",
   term: weekOf("trinity", 0).term,
   week: 0,
   date: addDays(weekOf("trinity", 0).sunday, 6),
@@ -1469,31 +1466,33 @@ const SUNDAY_PRACTICE_WEEKS = [
   ["trinity", 2],
 ];
 
+// D14: there is no opponent field. The club writes the opponent into the name,
+// exactly as it does on its own term card, and the name is what carries it.
 const fixtures = [];
 for (const [termName, week, opponent, side] of FIXTURE_WEEKS) {
   const slot = weekOf(termName, week);
   const unconfirmed = opponent === null;
-  fixtures.push(
-    makeEvent({
-      // SDA §5.6: eight of eleven scheduled fixtures currently have a confirmed
+  fixtures.push({
+    opponent,
+    side,
+    event: makeEvent({
+      // SDA §5.6: eight of eleven scheduled games currently have a confirmed
       // date and NOTHING else. Two of these reproduce that exactly — approved,
-      // dated, and null on opponent, venue and both times.
+      // dated, and null on venue and both times.
       name: unconfirmed ? `BUCS fixture — ${termName} week ${week}` : `vs ${opponent}`,
-      type: "fixture",
+      type: "game",
       term: slot.term,
       week,
       date: slot.sunday,
       starts: unconfirmed ? null : "14:00",
       ends: unconfirmed ? null : "16:30",
       venue: unconfirmed ? null : side === "home" ? "Iffley Road Astro" : "Away",
-      opponent,
-      side,
       competition: "BUCS Premier South",
       origin: "externally_assigned",
       mandatory: true,
       owner: people[6],
     }),
-  );
+  });
 }
 
 for (const [termName, week] of SUNDAY_PRACTICE_WEEKS) {
@@ -1513,16 +1512,14 @@ for (const [termName, week] of SUNDAY_PRACTICE_WEEKS) {
 
 const varsitySlot = weekOf("trinity", 3);
 makeEvent({
-  name: "Varsity Match",
-  type: "varsity",
+  name: "Varsity Match vs Cambridge",
+  type: "game",
   term: varsitySlot.term,
   week: 3,
   date: varsitySlot.sunday,
   starts: "14:00",
   ends: "17:00",
   venue: "Iffley Road Astro",
-  opponent: "Cambridge",
-  side: "home",
   competition: "Varsity",
   mandatory: true,
   owner: people[1],
@@ -1557,8 +1554,9 @@ for (const [termName, week, offset] of SOCIAL_WEEKS) {
   });
 }
 
-// Two mutually exclusive candidates for one social: A is approved, B is
-// rejected. Invariant E3 makes a second approval structurally impossible.
+// Two candidates for one social: A was approved and B stayed a draft. LAN-151
+// retired invariant E3 and its index — an unconfirmed event is simply a draft,
+// and the club carries no alternative-group machinery.
 const crewdateSlot = weekOf("michaelmas", 5);
 makeEvent({
   name: "Potential Crewdate A",
@@ -1579,7 +1577,7 @@ makeEvent({
   term: crewdateSlot.term,
   week: 5,
   date: addDays(crewdateSlot.sunday, 5),
-  status: "rejected",
+  status: "draft",
   decision_reason: "Crewdate A was taken instead — one slot, two candidates.",
   starts: "19:30",
   ends: "23:00",
@@ -1601,13 +1599,13 @@ makeEvent({
   venue: "Iffley Road Astro",
 });
 makeEvent({
-  name: "Hilary week 4 Sunday — fixture",
-  type: "fixture",
+  name: "Hilary week 4 Sunday — game",
+  type: "game",
   group: fixtureOrPracticeGroup,
   term: eitherSlot.term,
   week: 4,
   date: eitherSlot.sunday,
-  status: "rejected",
+  status: "draft",
   decision_reason: "BUCS did not allocate a fixture; the practice runs instead.",
   origin: "externally_assigned",
   competition: "BUCS Premier South",
@@ -1625,11 +1623,9 @@ makeEvent({
   starts: "19:00",
   owner: people[12],
 });
-// A draft, not `pending_approval`. The state still exists in the enum and in
-// the frozen model, but PR #18 removed the Submit step, so the application can
-// no longer put an event into it — and LAN-77's approval only accepts a draft.
-// A seeded `pending_approval` row was therefore an event nobody could act on:
-// staleness rather than realism. Brian found it on the real screen.
+// A draft. `pending_approval` left the enum with LAN-151; PR #18 had already
+// removed the Submit step, so the application could not put an event into it
+// and a seeded row in it was an event nobody could act on.
 makeEvent({
   name: "Alumni touch game (proposed)",
   type: "social",
@@ -1648,7 +1644,7 @@ makeEvent({
   term: weekOf("hilary", 0).term,
   week: 0,
   date: addDays(weekOf("hilary", 0).sunday, 4),
-  status: "withdrawn",
+  status: "draft",
   decision_reason: "Owner abandoned the idea before submitting it.",
   owner: people[12],
 });
@@ -1661,40 +1657,43 @@ const cancelledEvent = events.find(
 );
 cancelledEvent.status = "cancelled";
 cancelledEvent.decision_reason = "Astro double-booked by the university.";
-cancelledEvent.outcome_recorded_at = null;
-cancelledEvent.outcome_recorded_by_person_id = null;
 
-const notHeldEvent = events.find((e) => e.name === "Sunday session — michaelmas week 2");
-notHeldEvent.status = "not_held";
-notHeldEvent.decision_reason = null;
-
-// Invariant E5 in the seed: `not_held` is an assertion someone made on the
-// morning, not something inferred from the date passing.
-notHeldEvent.outcome_recorded_at = at(addDays(day(notHeldEvent.scheduled_on), 0), "09:15:00");
-notHeldEvent.outcome_recorded_by_person_id = people[2].id;
+// The second cancellation is the one the club used to record as `not_held`: a
+// session called off on the morning. LAN-151 retired that status, and the
+// approved mapping sends it here — a cancellation, carrying its internal reason
+// (D76) and told to nobody after the fact.
+const calledOffEvent = events.find((e) => e.name === "Sunday session — michaelmas week 2");
+calledOffEvent.status = "cancelled";
+calledOffEvent.decision_reason = "Pitch frozen; called off on the morning.";
 
 // "We asked for the 8th and got the 15th" is the normal case with BUCS.
 const movedFixture = fixtures[2];
 add("schedule_changes", {
   id: uuid(),
-  event_id: movedFixture.id,
+  event_id: movedFixture.event.id,
   source: "league",
   reason: "BUCS reallocated the fixture to the following week and swapped the venue.",
-  previous_scheduled_on: asDate(addDays(day(movedFixture.scheduled_on), -7)),
-  new_scheduled_on: movedFixture.scheduled_on,
+  previous_scheduled_on: asDate(addDays(day(movedFixture.event.scheduled_on), -7)),
+  new_scheduled_on: movedFixture.event.scheduled_on,
   previous_starts_at: "13:00",
   new_starts_at: "14:00",
+  previous_ends_at: "15:30",
+  new_ends_at: movedFixture.event.ends_at,
   previous_venue: "Away",
-  new_venue: movedFixture.venue,
+  new_venue: movedFixture.event.venue,
+  previous_name: `vs ${movedFixture.opponent}`,
+  new_name: movedFixture.event.name,
   previous_opponent: movedFixture.opponent,
   new_opponent: movedFixture.opponent,
+  notified: true,
   changed_at: "2026-10-30T11:00:00Z",
   recorded_by_person_id: people[6].id,
   approved_by_person_id: people[1].id,
 });
 
-// Invariant E6: informational events resolve an audience for visibility and
-// create no response obligation, so they never enter the nonresponse stream.
+// Meetings. D23 removed "Response requested" — mandatory or optional already
+// carries it, and everyone sent an event is expected to answer — so these two
+// resolve an audience and ask for an answer like anything else.
 const agmDate = day("2027-06-09");
 makeEvent({
   name: "Annual General Meeting",
@@ -1703,17 +1702,19 @@ makeEvent({
   starts: "18:00",
   ends: "20:00",
   venue: "College lecture room",
-  solicits_response: false,
   owner: people[1],
 });
+// D20, D21: an online event. The venue field holds the destination rather than
+// an address, and the joining link is its own field and never public.
 makeEvent({
   name: "Committee handover briefing",
   type: "meeting",
   date: day("2027-06-16"),
   starts: "18:00",
   ends: "19:30",
-  venue: "College lecture room",
-  solicits_response: false,
+  online: true,
+  venue: "Microsoft Teams",
+  joining_url: "https://teams.example.invalid/l/meetup-join/oulafc-handover",
   owner: people[2],
 });
 
@@ -1724,7 +1725,7 @@ for (const fixture of fixtures) {
   const destination = fixture.side === "away" ? fixture.opponent : "Iffley Road";
   add("event_questions", {
     id: uuid(),
-    event_id: fixture.id,
+    event_id: fixture.event.id,
     prompt: `Transport to ${destination}?`,
     answer_type: "boolean",
     choices: null,
@@ -1734,7 +1735,7 @@ for (const fixture of fixtures) {
   });
   add("event_questions", {
     id: uuid(),
-    event_id: fixture.id,
+    event_id: fixture.event.id,
     prompt: `Transport back from ${destination}?`,
     answer_type: "boolean",
     choices: null,
@@ -1757,10 +1758,7 @@ const staffInvitees = [
 ];
 
 const invitations = [];
-const invitedEvents = events.filter(
-  (e) =>
-    ["approved", "occurred", "not_held", "cancelled"].includes(e.status) && e.solicits_response,
-);
+const invitedEvents = events.filter((e) => ["approved", "cancelled"].includes(e.status));
 
 /** Records who the approver confirmed. Invitations are resolved from this. */
 function addAudienceMember(event, { membership = null, person = null, capacity }) {
@@ -1782,7 +1780,6 @@ function inviteAudienceMember(event, member, status) {
       id: uuid(),
       event_id: event.id,
       event_status: event.status,
-      solicits_response: event.solicits_response,
       season_id: seasonCurrent.id,
       audience_member_id: member.id,
       capacity: member.capacity,
@@ -1827,15 +1824,6 @@ invitedEvents.forEach((event, index) => {
   }
 });
 
-// Informational events resolve an audience too — for visibility only. Invariant
-// E6 keeps them out of the response and nonresponse streams entirely.
-for (const event of events.filter((e) => !e.solicits_response && e.status === "approved")) {
-  for (const membership of invitableMemberships) {
-    const member = addAudienceMember(event, { membership, capacity: "player" });
-    inviteAudienceMember(event, member, "issued");
-  }
-}
-
 const questionsByEvent = new Map();
 for (const question of rows.event_questions) {
   if (!questionsByEvent.has(question.event_id)) questionsByEvent.set(question.event_id, []);
@@ -1848,7 +1836,6 @@ let confidenceMarkers = 0;
 
 for (const invitation of invitations) {
   const event = invitation._event;
-  if (!event.solicits_response) continue;
 
   if (event.status === "cancelled") {
     // Register D5: cancellation cancels the invitation and preserves whatever
@@ -1961,9 +1948,16 @@ for (const invitation of invitations) {
 // job is preventing it." The lapse is reproduced exactly — every practice after
 // the twelfth has occurred and carries no attendance at all, which is what the
 // mismatch view is for.
+// D30: an event has occurred when its date has passed and it was not
+// cancelled. Nothing asserts it, so the seed derives it the same way every
+// other reader does.
 const attendableSessions = events
   .filter(
-    (e) => e.status === "occurred" && ["practice", "fixture", "varsity"].includes(e.event_type),
+    (e) =>
+      e.status === "approved" &&
+      e.scheduled_on !== null &&
+      isPast(day(e.scheduled_on)) &&
+      ["practice", "game"].includes(e.event_type),
   )
   .sort((a, b) => a.scheduled_on.localeCompare(b.scheduled_on));
 const recordedSessions = attendableSessions.slice(0, 12);
@@ -1999,7 +1993,7 @@ for (const session of recordedSessions) {
     add("attendance_records", {
       id: uuid(),
       event_id: session.id,
-      event_status: "occurred",
+      event_status: "approved",
       season_id: seasonCurrent.id,
       capacity: "player",
       season_membership_id: membership.id,
@@ -2018,7 +2012,7 @@ for (const session of recordedSessions) {
   add("attendance_records", {
     id: uuid(),
     event_id: session.id,
-    event_status: "occurred",
+    event_status: "approved",
     season_id: seasonCurrent.id,
     capacity: "coach",
     season_membership_id: null,
@@ -2043,7 +2037,7 @@ for (const membership of walkUps) {
   add("attendance_records", {
     id: uuid(),
     event_id: walkUpSession.id,
-    event_status: "occurred",
+    event_status: "approved",
     season_id: seasonCurrent.id,
     capacity: "player",
     season_membership_id: membership.id,
@@ -2836,12 +2830,13 @@ const WRITE_PLAN = [
       "scheduled_on",
       "starts_at",
       "ends_at",
+      "delivery_mode",
       "venue",
-      "opponent",
-      "side",
+      "joining_url",
+      "description",
+      "required_equipment",
       "competition",
       "is_mandatory",
-      "solicits_response",
       "response_deadline_at",
       "reminder_offsets_hours",
       "aggregate_headcount",
@@ -2850,8 +2845,6 @@ const WRITE_PLAN = [
       "audience_confirmed_by_person_id",
       "approved_at",
       "approved_by_person_id",
-      "outcome_recorded_at",
-      "outcome_recorded_by_person_id",
       "decision_reason",
       "created_at",
       "updated_at",
@@ -2869,10 +2862,15 @@ const WRITE_PLAN = [
       "new_scheduled_on",
       "previous_starts_at",
       "new_starts_at",
+      "previous_ends_at",
+      "new_ends_at",
       "previous_venue",
       "new_venue",
+      "previous_name",
+      "new_name",
       "previous_opponent",
       "new_opponent",
+      "notified",
       "changed_at",
       "recorded_by_person_id",
       "approved_by_person_id",
@@ -2913,7 +2911,6 @@ const WRITE_PLAN = [
       "id",
       "event_id",
       "event_status",
-      "solicits_response",
       "season_id",
       "audience_member_id",
       "capacity",

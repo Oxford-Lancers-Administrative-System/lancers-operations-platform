@@ -11,14 +11,15 @@
 --     season. No contact points: this scenario sends nothing, and a phone
 --     number it does not need is a phone number that could be dialled.
 --   * Two events, both carrying the sentinel in `name`, both `approved`, and
---     both with a start time already in the past — because the two assertions
---     are about events that have already been and gone:
---       - "PILOT-LAN-80 Occurrence scenario" — three days ago. This is the one
---         you mark **occurred** and then take attendance for.
---       - "PILOT-LAN-80 Not-held scenario"   — four days ago. This is the one
---         you mark **not held**, and whose attendance screen must stay closed
---         forever afterwards.
---   * Five invitations: four on the occurrence event, one on the not-held one.
+--     both with a start time already in the past — which since LAN-151 is
+--     exactly what makes them events that have occurred (D30) and opens their
+--     registers. Nobody marks either as having happened:
+--       - "PILOT-LAN-80 Occurrence scenario"      — three days ago. The one you
+--         take attendance for.
+--       - "PILOT-LAN-80 Second register scenario" — four days ago. A second
+--         open register, so a walkthrough can be repeated without undoing the
+--         first.
+--   * Five invitations: four on the first event, one on the second.
 --   * Three RSVP answers on the occurrence event, deliberately contrasting, so
 --     that every mismatch the club cares about is one attendance press away:
 --       1. Attending      — mark them **Absent** → said_yes_marked_absent
@@ -44,9 +45,10 @@
 -- WHAT IT DELIBERATELY DOES NOT ADD
 --   * No attendance record. Attendance is the thing under test; a row inserted
 --     here would test this script instead of the application.
---   * No occurrence assertion. `status` stays `approved` and
---     `outcome_recorded_at` stays null, because the human assertion is exactly
---     what LAN-80 exists to make somebody perform.
+--   * No occurrence assertion, because there is no longer one to make.
+--     LAN-151 retired it: an event has occurred when its date has passed and it
+--     was not cancelled (D30). Both events are `approved` and dated in the
+--     past, which is what opens their registers.
 --   * No season. The open season belongs to the permanent pilot foundation and
 --     this script ASSERTS it rather than creating one — the service layer
 --     refuses when two seasons are open at once.
@@ -227,17 +229,16 @@ on conflict (id) do nothing;
 -- ---------------------------------------------------------------------------
 -- The events
 -- ---------------------------------------------------------------------------
--- Two, because the assertion is a fork and each branch has to be walkable
--- without undoing the other. Both are in the past because an event nobody could
--- have attended yet makes a poor rehearsal for one that has been — not because
--- the screen checks. It does not: nothing infers occurrence from the clock, and
--- the caption that used to say so was removed on 14 August 2026.
+-- Two, so that a second walkthrough does not have to undo the first. Both are
+-- dated in the past, and since LAN-151 that is not decoration: it is what makes
+-- them events that have occurred (D30), and therefore what opens their
+-- registers. Nobody asserts it and no screen offers to.
 --
--- Both stay `approved` with a null `outcome_recorded_at`. That is the state
--- LAN-80 exists to move out of, by hand, which is the whole exercise.
+-- Both stay `approved`, which is now the only stored status a past event that
+-- was not called off can be in.
 insert into public.events
   (id, season_id, name, event_type, status, scheduled_on, starts_at, ends_at, venue,
-   solicits_response, is_mandatory,
+   is_mandatory,
    audience_confirmed_at, audience_confirmed_by_person_id,
    approved_at, approved_by_person_id, response_deadline_at)
 select
@@ -250,7 +251,6 @@ select
   '19:00'::time,
   '21:00'::time,
   'PILOT-LAN-80 synthetic venue',
-  true,
   false,
   now(),
   '00800080-0080-4080-8080-000000000001',
@@ -263,7 +263,7 @@ from (values
    (current_date - 3)::text,
    (((current_date - 5) + '18:00'::time) at time zone 'Europe/London')::text),
   ('00800080-0080-4080-8080-000000000022',
-   'PILOT-LAN-80 Not-held scenario',
+   'PILOT-LAN-80 Second register scenario',
    (current_date - 4)::text,
    (((current_date - 6) + '18:00'::time) at time zone 'Europe/London')::text)
 ) as event(id, name, scheduled_on, deadline_at)
@@ -303,16 +303,15 @@ on conflict (id) do nothing;
 -- The invitations
 -- ---------------------------------------------------------------------------
 -- `event_status` is `approved` and is kept true by the cascading composite
--- foreign key: marking the event occurred rewrites it, which is the mechanism
+-- foreign key: cancelling the event rewrites it, which is the mechanism
 -- invariant P1 and invariant P5 both stand on.
 insert into public.invitations
-  (id, event_id, event_status, solicits_response, season_id, capacity,
+  (id, event_id, event_status, season_id, capacity,
    season_membership_id, status, issued_at, expires_at, audience_member_id)
 select
   invitation.id::uuid,
   invitation.event_id::uuid,
   'approved',
-  true,
   (select id from public.seasons where status in ('open', 'active')),
   'player',
   invitation.membership_id::uuid,

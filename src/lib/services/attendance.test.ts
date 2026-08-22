@@ -35,15 +35,9 @@ import {
 } from "./attendance";
 import { approveEvent, saveEventAudience } from "./event-approval";
 import { listAudienceCatalogueIn } from "./event-audience";
-import {
-  correctOccurrenceAssertion,
-  createEventDraft,
-  markEventNotHeld,
-  markEventOccurred,
-  readEvent,
-  type EventDraftInput,
-} from "./events";
+import { createEventDraft, type EventDraftInput } from "./events";
 import { withTransaction } from "@/lib/db";
+import { todayInClubZone } from "@/lib/club-time";
 import { openObserver, SEEDED_IDENTITY_CREATED_AT } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN80AttendanceSuite";
@@ -142,7 +136,10 @@ function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
     endsAt: "22:00",
     venue: "Iffley Road Astro",
     isMandatory: true,
-    solicitsResponse: true,
+    deliveryMode: "in_person",
+    description: null,
+    requiredEquipment: null,
+    joiningUrl: null,
     ...overrides,
   };
 }
@@ -152,8 +149,8 @@ function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
  * every test here starts from, because attendance needs an approved event and
  * its invitations before it needs anything else.
  */
-async function approvedEvent(size = 3) {
-  const event = await createEventDraft(actorPersonId, draft());
+async function approvedEvent(size = 3, overrides: Partial<EventDraftInput> = {}) {
+  const event = await createEventDraft(actorPersonId, draft(overrides));
 
   const catalogue = await withTransaction((tx) =>
     listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn),
@@ -170,11 +167,24 @@ async function approvedEvent(size = 3) {
   return event;
 }
 
-/** The same, asserted to have happened. */
+/**
+ * The same, on a date that has passed — which is the whole of what makes an
+ * event one that has occurred (D30). Nobody asserts it, and this helper
+ * deliberately does nothing but move the date: if it had to call something, the
+ * assertion would still exist.
+ *
+ * The date is relative to the clock rather than fixed, because the answer this
+ * is arranging is itself relative to the clock.
+ */
 async function occurredEvent(size = 3) {
-  const event = await approvedEvent(size);
-  await markEventOccurred(actorPersonId, event.id);
-  return event;
+  return approvedEvent(size, { scheduledOn: daysFromToday(-7) });
+}
+
+/** `YYYY-MM-DD`, `offset` days from today in the club's own zone. */
+function daysFromToday(offset: number): string {
+  const day = new Date(`${todayInClubZone()}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + offset);
+  return day.toISOString().slice(0, 10);
 }
 
 async function participants(eventId: string) {
@@ -234,163 +244,80 @@ async function auditFor(eventId: string, action: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Invariant E5 — occurrence is asserted, never inferred
+// D30 — occurrence is derived, and nobody asserts it
 // ---------------------------------------------------------------------------
 
-describe("the occurrence assertion", () => {
-  it("moves an approved event to occurred, naming who said so and when", async () => {
-    const event = await approvedEvent();
+/*
+ * Two describe blocks stood here: "the occurrence assertion" and "correcting an
+ * occurrence assertion". LAN-151 removed both with the thing they tested.
+ *
+ * Invariant E5 said the passage of time never equals occurrence and only a
+ * person could say an event had happened. D30 reverses exactly that: an event
+ * has occurred when its date has passed and it was not cancelled, nothing
+ * stores it, and there is no *Mark occurred*, *Mark not held*, *Confirm what
+ * happened* or *Correct this to not held* anywhere in the application.
+ *
+ * There is correspondingly nothing to correct. What the correction path existed
+ * for — an operator who pressed the wrong button on the wrong event — cannot
+ * happen, because there is no button.
+ */
 
-    const before = await observer.query<{ outcome_recorded_at: Date | null }>(
-      "select outcome_recorded_at from public.events where id = $1",
+describe("occurrence, derived", () => {
+  it("opens the register for an approved event whose date has passed", async () => {
+    const event = await occurredEvent();
+
+    const board = await readAttendanceBoard(event.id);
+    expect(board.isOpen).toBe(true);
+    expect(board.participants.length).toBeGreaterThan(0);
+  });
+
+  it("leaves it shut for an approved event that has not happened yet", async () => {
+    const event = await approvedEvent(3, { scheduledOn: daysFromToday(7) });
+
+    const board = await readAttendanceBoard(event.id);
+    expect(board.isOpen).toBe(false);
+    expect(board.participants).toEqual([]);
+  });
+
+  it("stores nothing about it — the event row is untouched by the passing date", async () => {
+    const event = await occurredEvent();
+
+    // Both halves matter. The status is what it always was, and the columns
+    // that used to record who asserted occurrence are gone from the schema
+    // rather than merely unwritten.
+    const stored = await observer.query<{ status: string; columns: string }>(
+      `select e.status::text as status,
+              (select count(*)::text from information_schema.columns
+                where table_schema = 'public' and table_name = 'events'
+                  and column_name in ('outcome_recorded_at', 'outcome_recorded_by_person_id'))
+                as columns
+         from public.events e where e.id = $1`,
       [event.id],
     );
-    expect(before.rows[0].outcome_recorded_at).toBeNull();
-
-    const after = await markEventOccurred(actorPersonId, event.id);
-    expect(after.status).toBe("occurred");
-
-    const stored = await observer.query<{
-      outcome_recorded_at: Date | null;
-      outcome_recorded_by_person_id: string | null;
-    }>(
-      `select outcome_recorded_at, outcome_recorded_by_person_id
-         from public.events where id = $1`,
-      [event.id],
-    );
-    expect(stored.rows[0].outcome_recorded_at).not.toBeNull();
-    expect(stored.rows[0].outcome_recorded_by_person_id).toBe(actorPersonId);
-
-    const audit = await auditFor(event.id, "event.marked_occurred");
-    expect(audit).toHaveLength(1);
-    expect(audit[0]).toMatchObject({
-      actor_person_id: actorPersonId,
-      from_state: "approved",
-      to_state: "occurred",
-    });
+    expect(stored.rows[0].status).toBe("approved");
+    expect(stored.rows[0].columns).toBe("0");
   });
 
-  it("moves an approved event to not held, and records that assertion too", async () => {
-    const event = await approvedEvent();
-    const after = await markEventNotHeld(actorPersonId, event.id);
-
-    expect(after.status).toBe("not_held");
-    const audit = await auditFor(event.id, "event.marked_not_held");
-    expect(audit).toHaveLength(1);
-    expect(audit[0].to_state).toBe("not_held");
-  });
-
-  it("refuses a second assertion, so a double submission cannot re-record it", async () => {
+  it("writes no audit row, because nobody did anything", async () => {
     const event = await occurredEvent();
 
-    const error = await expectRefused(markEventOccurred(actorPersonId, event.id));
-    expect(error.kind).toBe("invalid_transition");
-    expect(error.message).toContain("recorded as having happened");
-
-    expect((await auditFor(event.id, "event.marked_occurred")).length).toBe(1);
-  });
-
-  it("cannot be reached from a draft", async () => {
-    const event = await createEventDraft(actorPersonId, draft());
-    const error = await expectRefused(markEventOccurred(actorPersonId, event.id));
-    expect(error.kind).toBe("invalid_transition");
-  });
-
-  it("is never produced by the passage of time — invariant E5", async () => {
-    // The whole point, stated as a test rather than as a comment: an event
-    // whose date and start time are long past is still `approved` until a
-    // person says otherwise. Nothing reads a clock to decide this.
-    const event = await approvedEvent();
-    await observer.query("update public.events set scheduled_on = '2020-01-01' where id = $1", [
-      event.id,
-    ]);
-
-    const reread = await readEvent(event.id);
-    expect(reread.status).toBe("approved");
-
-    // And the date really is in the past, so the assertion above is about a
-    // clock that has passed rather than about one that has not yet. Read from
-    // the database rather than from the event, because nothing on `EventDetail`
-    // carries this any more — the screen's "start time has passed" caption went
-    // when Brian removed it, and the computation went with the caption.
-    const past = await observer.query<{ started: boolean }>(
-      `select (scheduled_on + coalesce(starts_at, '00:00'::time))
-                at time zone 'Europe/London' <= now() as started
-         from public.events where id = $1`,
-      [event.id],
-    );
-    expect(past.rows[0].started).toBe(true);
-  });
-});
-
-describe("correcting an occurrence assertion", () => {
-  it("needs a reason, because it is a correction", async () => {
-    const event = await occurredEvent();
-    const error = await expectRefused(correctOccurrenceAssertion(actorPersonId, event.id, "  "));
-    expect(error.kind).toBe("constraint_violated");
-    expect(error.rule).toBe("event_occurrence_correction_is_explained");
-  });
-
-  it("turns occurred into not held, and records why", async () => {
-    const event = await occurredEvent();
-    const after = await correctOccurrenceAssertion(
-      actorPersonId,
-      event.id,
-      "Recorded against the wrong Wednesday.",
-    );
-
-    expect(after.status).toBe("not_held");
-    const audit = await auditFor(event.id, "event.occurrence_corrected");
-    expect(audit).toHaveLength(1);
-    expect(audit[0]).toMatchObject({ from_state: "occurred", to_state: "not_held" });
-    expect(audit[0].reason).toBe("Recorded against the wrong Wednesday.");
-  });
-
-  it("turns not held back into occurred", async () => {
-    const event = await approvedEvent();
-    await markEventNotHeld(actorPersonId, event.id);
-
-    const after = await correctOccurrenceAssertion(actorPersonId, event.id, "It did happen.");
-    expect(after.status).toBe("occurred");
-  });
-
-  it("is refused while attendance exists, in a sentence about the attendance", async () => {
-    const event = await occurredEvent();
-    const [first] = await participants(event.id);
-    await recordAttendance(actorPersonId, event.id, first.key, "present");
-
-    const error = await expectRefused(
-      correctOccurrenceAssertion(actorPersonId, event.id, "Wrong event."),
-    );
-
-    expect(error.kind).toBe("invalid_transition");
-    expect(error.rule).toBe("event_occurrence_locked_by_attendance");
-    expect(error.message).toContain("1 attendance record");
-    // Readable, and specifically not the raw constraint the cascade would have
-    // broken. This is the half of invariant P5 an operator ever sees.
-    expect(error.message).not.toContain("attendance_records_require_an_occurred_event");
-
-    expect((await readEvent(event.id)).status).toBe("occurred");
-  });
-
-  it("is possible again once the attendance is removed", async () => {
-    const event = await occurredEvent();
-    const [first] = await participants(event.id);
-    await recordAttendance(actorPersonId, event.id, first.key, "present");
-    await removeAttendance(actorPersonId, event.id, first.key);
-
-    const after = await correctOccurrenceAssertion(actorPersonId, event.id, "Wrong event.");
-    expect(after.status).toBe("not_held");
+    for (const action of [
+      "event.marked_occurred",
+      "event.marked_not_held",
+      "event.occurrence_corrected",
+    ]) {
+      expect(await auditFor(event.id, action), action).toEqual([]);
+    }
   });
 });
 
 // ---------------------------------------------------------------------------
-// Invariant P5 — attendance requires an occurred event
+// Invariant P5 — attendance requires an event that has occurred
 // ---------------------------------------------------------------------------
 
 describe("the attendance gate", () => {
-  it("refuses a write against an approved event", async () => {
-    const event = await approvedEvent();
+  it("refuses a write against an approved event whose date has not passed", async () => {
+    const event = await approvedEvent(3, { scheduledOn: daysFromToday(7) });
     const board = await readAttendanceBoard(event.id);
 
     expect(board.isOpen).toBe(false);
@@ -412,9 +339,11 @@ describe("the attendance gate", () => {
     expect(await attendanceRows(event.id)).toEqual([]);
   });
 
-  it("refuses a write against an event marked not held", async () => {
-    const event = await approvedEvent();
-    await markEventNotHeld(actorPersonId, event.id);
+  it("refuses a write against a draft, past date or not", async () => {
+    // The database's half of P5 as well as the service's: a draft was never
+    // held, and `attendance_records_require_an_approved_event` would refuse the
+    // row even if this check were removed.
+    const event = await createEventDraft(actorPersonId, draft({ scheduledOn: daysFromToday(-7) }));
 
     const board = await readAttendanceBoard(event.id);
     expect(board.isOpen).toBe(false);
@@ -431,11 +360,12 @@ describe("the attendance gate", () => {
     expect(await attendanceRows(event.id)).toEqual([]);
   });
 
-  it("refuses a write against a cancelled event", async () => {
-    const event = await approvedEvent();
-    // No application path produces `cancelled` yet — LAN-77 leaves it to a
-    // later issue — so the state is created directly. The refusal under test is
-    // the service's, and it must not depend on how the event got there.
+  it("refuses a write against a cancelled event whose date has passed", async () => {
+    const event = await occurredEvent();
+    // No application path produces `cancelled` yet — W6 is a later work package
+    // in this mission — so the state is created directly. The refusal under
+    // test is the service's, and it must not depend on how the event got there.
+    // The date has passed, so only the cancellation can be what shuts this.
     await observer.query(
       `update public.events
           set status = 'cancelled', decision_reason = 'Pitch unavailable'
@@ -497,7 +427,7 @@ describe("recording attendance", () => {
       capacity: "player",
       person_id: null,
       presence: "present",
-      event_status: "occurred",
+      event_status: "approved",
       recorded_by_person_id: actorPersonId,
     });
     // Invariant P8: the anchor is the membership, and the person column is null.
@@ -573,6 +503,47 @@ describe("recording attendance", () => {
     );
     expect(error.kind).toBe("constraint_violated");
     expect(await attendanceRows(event.id)).toEqual([]);
+  });
+});
+
+describe("removing a recorded attendance", () => {
+  it("deletes the row, reports what it removed, and audits it", async () => {
+    // Not an edit to `absent`: the two say different things. "Absent" is an
+    // observation somebody made; removal is the correction of a row that should
+    // never have been written, and the audit trail is what tells them apart.
+    const event = await occurredEvent();
+    const [first] = await participants(event.id);
+    await recordAttendance(actorPersonId, event.id, first.key, "late");
+
+    const removed = await removeAttendance(actorPersonId, event.id, first.key);
+    expect(removed.removedPresence).toBe("late");
+    expect(await attendanceRows(event.id)).toEqual([]);
+
+    const audit = await auditFor(event.id, "attendance.removed");
+    expect(audit).toHaveLength(1);
+    expect(audit[0].actor_person_id).toBe(actorPersonId);
+
+    // And the board shows them unrecorded again, rather than absent.
+    const [again] = await participants(event.id);
+    expect(again.presence).toBeNull();
+  });
+
+  it("refuses a person this event has no attendance for", async () => {
+    const event = await occurredEvent();
+    const [first] = await participants(event.id);
+
+    const error = await expectRefused(removeAttendance(actorPersonId, event.id, first.key));
+    expect(error.kind).toBe("not_found");
+  });
+
+  it("refuses a removal against an event that has not occurred", async () => {
+    const event = await approvedEvent(3, { scheduledOn: daysFromToday(7) });
+
+    const error = await expectRefused(
+      removeAttendance(actorPersonId, event.id, "player:00000000-0000-4000-8000-000000000000"),
+    );
+    expect(error.kind).toBe("invalid_transition");
+    expect(error.message).toBe(ATTENDANCE_CLOSED_MESSAGE);
   });
 });
 
@@ -1060,7 +1031,7 @@ describe("invariant P8", () => {
       observer.query(
         `insert into public.attendance_records
            (event_id, event_status, season_id, capacity, person_id, presence)
-         values ($1, 'occurred', $2, 'player', $3, 'present')`,
+         values ($1, 'approved', $2, 'player', $3, 'present')`,
         [event.id, event.seasonId, membership.rows[0].person_id],
       ),
     ).rejects.toMatchObject({ constraint: "attendance_records_anchor_matches_capacity" });
@@ -1077,7 +1048,7 @@ describe("invariant P8", () => {
       observer.query(
         `insert into public.attendance_records
            (event_id, event_status, season_id, capacity, season_membership_id, presence)
-         values ($1, 'occurred', $2, 'guest', $3, 'present')`,
+         values ($1, 'approved', $2, 'guest', $3, 'present')`,
         [event.id, event.seasonId, membership.rows[0].season_membership_id],
       ),
     ).rejects.toMatchObject({ constraint: "attendance_records_anchor_matches_capacity" });
@@ -1093,7 +1064,7 @@ describe("invariant P8", () => {
       observer.query(
         `insert into public.attendance_records
            (event_id, event_status, season_id, capacity, season_membership_id, presence)
-         values ($1, 'occurred', $2, 'player', $3, 'absent')`,
+         values ($1, 'approved', $2, 'player', $3, 'absent')`,
         [event.id, event.seasonId, membership],
       ),
     ).rejects.toMatchObject({ constraint: "attendance_records_one_per_player_per_event" });

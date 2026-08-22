@@ -243,7 +243,6 @@ export interface ResolvedInvitation {
   readonly eventStatus: string;
   readonly startsAt: Date;
   readonly inviteeName: string;
-  readonly solicitsResponse: boolean;
   readonly expiresAt: Date | null;
 }
 
@@ -279,7 +278,6 @@ export async function resolveRsvpTokenIn(tx: Tx, token: string): Promise<TokenRe
     event_status: string;
     starts_at: Date;
     expires_at: Date;
-    solicits_response: boolean;
     given_name: string;
     known_as: string | null;
   }>(
@@ -290,7 +288,6 @@ export async function resolveRsvpTokenIn(tx: Tx, token: string): Promise<TokenRe
             ${EVENT_START_EXPRESSION} <= now() as already_started,
             t.expires_at,
             i.id as invitation_id,
-            i.solicits_response,
             e.id as event_id, e.name as event_name, e.status::text as event_status,
             ${EVENT_START_EXPRESSION} as starts_at,
             p.given_name, p.known_as
@@ -314,7 +311,6 @@ export async function resolveRsvpTokenIn(tx: Tx, token: string): Promise<TokenRe
     eventStatus: row.event_status,
     startsAt: row.starts_at,
     inviteeName: known && known !== "" ? known : row.given_name,
-    solicitsResponse: row.solicits_response,
     expiresAt: row.expires_at,
   };
 

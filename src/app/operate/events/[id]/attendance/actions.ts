@@ -48,18 +48,20 @@ import type { AttendanceSaveState, WalkUpFormState } from "./action-state";
  * ## What is still refused, and by whom
  *
  *   * **The event's state.** Every write goes through the service, which locks
- *     the event and refuses anything that is not `occurred`; underneath that,
- *     the cascading composite foreign key makes the row impossible to write at
- *     all. Two independent refusals, neither relying on the other.
+ *     the event and refuses one that has not occurred — approved, with its date
+ *     passed (D30); underneath that, the cascading composite foreign key makes a
+ *     row against anything but an approved event impossible to write at all.
+ *     Two independent refusals, neither relying on the other.
  *
  *   * **Who the write is about.** A posted participant key is resolved against
  *     rows that already exist for *this* event. A key naming somebody else's
  *     membership is a `NotFound`, not a new attendance record.
  *
- *   * **The occurrence assertion itself.** Not here. It is
- *     `assertEventOutcomeAction` in `../../actions.ts`, guarded on
- *     `event_occurrence_assertion`, because a recorder may say who turned up
- *     and may not say that there was anything to turn up to.
+ *   * **The occurrence assertion.** There is no longer one anywhere. LAN-151
+ *     retired it: an event has occurred when its date has passed and it was not
+ *     cancelled, and nobody types that. The rule it used to carry — a recorder
+ *     may say who turned up and may not say that there was anything to turn up
+ *     to — now holds because the second half is not a decision at all.
  */
 
 function text(formData: FormData, field: string): string {
@@ -156,12 +158,19 @@ export async function recordAttendanceAction(
  *
  * This narrows LAN-80, which had removal on `attendance_recording`, and narrows
  * nothing else: the four calendar roles that could remove a record still can.
+ *
+ * The guard was `event_occurrence_assertion` until LAN-151 retired it, and is
+ * now `event_calendar_management`. The boundary is unchanged, deliberately and
+ * verifiably: the two capabilities carry the identical role list — President,
+ * Vice-President, Secretary, General Manager and IT Officer — so exactly the
+ * same people may remove an attendance record as before, and no coaching seat
+ * may.
  */
 export async function removeAttendanceAction(
   _previous: AttendanceSaveState,
   formData: FormData,
 ): Promise<AttendanceSaveState> {
-  const operator = await requireCapability("event_occurrence_assertion");
+  const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
   const key = text(formData, "participantKey");
 

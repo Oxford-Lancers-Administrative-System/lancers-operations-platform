@@ -56,7 +56,6 @@
  * | Membership activation     | the four offices, plus `general_manager`       | Lead, 12 Aug 2026  |
  * | Event calendar management | President, VP, Secretary, General Manager      | Brian, 12 Aug 2026 |
  * | Event approval            | President, VP, Secretary, General Manager      | Brian, 12 Aug 2026 |
- * | Occurrence assertion      | President, VP, Secretary, General Manager      | Lead, 14 Aug 2026  |
  * | Delivery administration   | President, VP, Secretary, General Manager      | Lead, 13 Aug 2026  |
  * | Leadership report         | President, VP, Secretary, General Manager      | Lead, 14 Aug 2026  |
  * | Role management           | President, General Manager, IT Officer         | Brian, 18 Aug 2026 |
@@ -98,7 +97,6 @@ export type CapabilityKey =
   | "membership_activation"
   | "event_calendar_management"
   | "event_approval"
-  | "event_occurrence_assertion"
   | "attendance_recording"
   | "role_management"
   | "delivery_administration"
@@ -540,45 +538,26 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
       "guarded here. The Treasurer is still excluded.",
   }),
 
-  /**
-   * The occurrence assertion — **Mark occurred** and **Mark not held**, and the
-   * correction of either. LAN-80.
+  /*
+   * `event_occurrence_assertion` was here, and it is gone.
    *
-   * It is its own capability rather than a reuse of `event_calendar_management`
-   * because `docs/ux/slice-ux.md` § 8 lists it as its own row in the
-   * authorization contract, and because it is the one thing the contract says
-   * explicitly is *not* implied by something else: "Authorized operator only;
-   * not implied by attendance-recorder capability". A coach who may record
-   * attendance may not decide that there was anything to record.
+   * It guarded **Mark occurred**, **Mark not held** and the correction of
+   * either. LAN-151 retired all three with the concept behind them: nothing
+   * asserts that an event occurred, because the date passing without a
+   * cancellation is the whole of it (D30, REQ-occurrence-retired).
    *
-   * The grant is a lead derivation from two recorded decisions, not a new one:
+   * Removed rather than left in place unused. A capability nobody checks is an
+   * authorization decision with no subject — it would still appear in the
+   * operator catalogue, still be grantable, and still read to somebody as a
+   * permission the club hands out, for an action that does not exist.
    *
-   *   * Brian's LAN-77 clarification — "only active President, Vice President,
-   *     Secretary, and General Manager role holders may create, edit, abandon,
-   *     or approve calendar events". Asserting what happened to an event is a
-   *     change to the club's calendar record of it, and it is the gate that
-   *     opens attendance.
-   *
-   *   * LAN-110's fixed boundary — "Coaches cannot mark an event occurred or
-   *     not held unless a separate authorization rule explicitly grants that
-   *     action". No coaching seat is listed here, and none may be added without
-   *     that separate rule.
-   *
-   * Like every other derivation in this file it is cheap to narrow: separation
-   * of duties, or restricting the assertion to the approver, is an edit to one
-   * array. Flagged as an assumption on LAN-80's pull request.
+   * What it protected is not lost. `docs/ux/slice-ux.md` § 8's rule that a
+   * coach who records attendance may not decide that there was anything to
+   * record survives as the fact that there is no such decision for anybody to
+   * make; `attendance_recording` still guards the register itself, and the
+   * service layer still refuses a register for an event whose date has not
+   * passed.
    */
-  event_occurrence_assertion: capability({
-    key: "event_occurrence_assertion",
-    action: "assert that an event occurred or was not held",
-    roleCodes: ["president", "vice_president", "secretary", "general_manager", "it_officer"],
-    decision:
-      "Lead, 14 August 2026 (LAN-80): derived from Brian's LAN-77 event-workflow authority " +
-      "and from LAN-110's boundary that no coaching seat may assert occurrence. Recorded as " +
-      "an assumption on LAN-80 and narrowed by editing this list. " +
-      "Brian, 15 August 2026 (LAN-124) added it_officer, the administrative seat that " +
-      "holds every capability in this file.",
-  }),
 
   /**
    * Operator-account and role administration — the floor every Administration

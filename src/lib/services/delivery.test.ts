@@ -236,10 +236,10 @@ async function fixture(options: { phone?: string | null } = {}) {
     const event = await observer.query<{ id: string }>(
       `with target as (select (now() + interval '48 hours') at time zone 'Europe/London' as local)
      insert into public.events
-       (season_id, name, event_type, status, scheduled_on, starts_at, solicits_response,
+       (season_id, name, event_type, status, scheduled_on, starts_at,
         audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
      select $1, $2, 'practice', 'approved',
-            (select local::date from target), (select local::time from target), true,
+            (select local::date from target), (select local::time from target),
             now(), $3, now(), $3
      returning id`,
       [seasonId, `${MARKER} practice`, personId],
@@ -255,9 +255,9 @@ async function fixture(options: { phone?: string | null } = {}) {
 
     const invitation = await observer.query<{ id: string }>(
       `insert into public.invitations
-       (event_id, event_status, solicits_response, season_id, capacity,
+       (event_id, event_status, season_id, capacity,
         season_membership_id, status, audience_member_id)
-     values ($1, 'approved', true, $2, 'player', $3, 'pending', $4) returning id`,
+     values ($1, 'approved', $2, 'player', $3, 'pending', $4) returning id`,
       [eventId, seasonId, membership.rows[0].id, audience.rows[0].id],
     );
 
@@ -331,9 +331,9 @@ async function addInvitee(tag: string, phone = "07700 900444") {
 
   const invitation = await observer.query<{ id: string }>(
     `insert into public.invitations
-       (event_id, event_status, solicits_response, season_id, capacity,
+       (event_id, event_status, season_id, capacity,
         season_membership_id, status, audience_member_id)
-     values ($1, 'approved', true, $2, 'player', $3, 'pending', $4) returning id`,
+     values ($1, 'approved', $2, 'player', $3, 'pending', $4) returning id`,
     [event.rows[0].id, event.rows[0].season_id, membership.rows[0].id, audience.rows[0].id],
   );
 

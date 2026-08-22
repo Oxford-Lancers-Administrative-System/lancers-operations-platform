@@ -24,7 +24,7 @@ const TODAY = "2026-10-14";
 function event(
   id: string,
   scheduledOn: string | null,
-  status: EventListEntry["status"] = "occurred",
+  status: EventListEntry["status"] = "approved",
 ): EventListEntry {
   return {
     id,
@@ -34,9 +34,9 @@ function event(
     scheduledOn,
     startsAt: "20:00",
     endsAt: "22:00",
+    deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
-    solicitsResponse: true,
     audienceCount: 0,
     invitationCount: 0,
     responseCount: 0,
@@ -145,26 +145,25 @@ describe("bucketCoachEvents", () => {
     expect(result.earlier).toEqual(["yesterday", "undated"]);
   });
 
-  it("shows approved and occurred sessions, and nothing else", () => {
+  it("shows approved sessions ahead and behind, and nothing else", () => {
+    // One status covers both halves since LAN-151: a session that is going to
+    // happen and one that did are the same stored status, and differ only in
+    // whether the date has passed (D30).
     const result = bucketed([
-      event("approved", "2026-10-15", "approved"),
-      event("occurred", "2026-10-13", "occurred"),
+      event("ahead", "2026-10-15", "approved"),
+      event("behind", "2026-10-13", "approved"),
       event("draft", "2026-10-15", "draft"),
-      event("pending", "2026-10-15", "pending_approval"),
-      event("rejected", "2026-10-15", "rejected"),
-      event("withdrawn", "2026-10-15", "withdrawn"),
       event("cancelled", "2026-10-15", "cancelled"),
-      event("notHeld", "2026-10-13", "not_held"),
     ]);
 
-    expect(result.upcoming).toEqual(["approved"]);
-    expect(result.earlier).toEqual(["occurred"]);
+    expect(result.upcoming).toEqual(["ahead"]);
+    expect(result.earlier).toEqual(["behind"]);
   });
 
   it("names the visible statuses as a set, so widening them is a line in a diff", () => {
-    // A coach seeing the calendar's discarded drafts would be the event
+    // A coach seeing the calendar's unfinished drafts would be the event
     // administration slice-ux.md § 3 withholds.
-    expect([...COACH_VISIBLE_STATUSES].sort()).toEqual(["approved", "occurred"]);
+    expect([...COACH_VISIBLE_STATUSES].sort()).toEqual(["approved"]);
   });
 
   it("loses nothing it is allowed to show", () => {
@@ -195,9 +194,20 @@ describe("isToday", () => {
 });
 
 describe("isOpenForAttendance", () => {
-  it("is true only once an operator has asserted the session occurred", () => {
-    // The gate LAN-110 exists around: a coach may record, and may not assert.
-    expect(isOpenForAttendance(event("a", TODAY, "occurred"))).toBe(true);
-    expect(isOpenForAttendance(event("a", TODAY, "approved"))).toBe(false);
+  it("is true once the session's date has passed, and not before", () => {
+    // D30, and the gate LAN-110 exists around. It used to turn on an operator
+    // asserting occurrence; nobody asserts it now, so what it turns on is the
+    // date — which is also why a coach can no longer be waiting on somebody.
+    expect(isOpenForAttendance(event("a", "2026-10-13", "approved"), TODAY)).toBe(true);
+    expect(isOpenForAttendance(event("a", TODAY, "approved"), TODAY)).toBe(false);
+    expect(isOpenForAttendance(event("a", "2026-10-15", "approved"), TODAY)).toBe(false);
+  });
+
+  it("is false for a cancelled session however long ago it was", () => {
+    expect(isOpenForAttendance(event("a", "2026-10-13", "cancelled"), TODAY)).toBe(false);
+  });
+
+  it("is false for a session with no date at all", () => {
+    expect(isOpenForAttendance(event("a", null, "approved"), TODAY)).toBe(false);
   });
 });

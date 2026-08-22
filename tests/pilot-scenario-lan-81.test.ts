@@ -295,9 +295,11 @@ describe("setup.sql", () => {
 
     const window = "scheduled_on between current_date - 35 and current_date - 29";
 
-    // Two people were asked and never answered: one on the practice, one on
-    // the empty-register session.
-    expect(await count(`public.nonresponse_queue where ${window}`)).toBe(2);
+    // Three people were asked and never answered: one on the practice, one on
+    // the empty-register session, and one on the committee briefing. The
+    // briefing joined them when D23 removed "Response requested" — everyone
+    // sent an event is expected to answer, so its invitee is chaseable too.
+    expect(await count(`public.nonresponse_queue where ${window}`)).toBe(3);
 
     // One declined, with a reason.
     expect(
@@ -321,17 +323,19 @@ describe("setup.sql", () => {
     // One approval defect: confirmed in the audience and never invited.
     expect(await count(`public.uninvited_audience_members where ${window}`)).toBe(1);
 
-    // And one occurred event in the window with no attendance at all.
+    // And one event in the window, approved and behind us, with no attendance
+    // at all — the empty register the report leads with.
     expect(
       await count(
         `public.events e
-          where e.${window} and e.status = 'occurred'
+          where e.${window} and e.status = 'approved' and e.scheduled_on < current_date
+            and e.name like '%Empty register%'
             and not exists (select 1 from public.attendance_records a where a.event_id = e.id)`,
       ),
     ).toBe(1);
   });
 
-  it("keeps the non-soliciting briefing out of the response stream — invariant E6", async () => {
+  it("puts the briefing in the response stream like everything else — D23", async () => {
     await client.query(SETUP);
 
     // It has an audience and an invitation, and the invitee never answered.
@@ -340,12 +344,15 @@ describe("setup.sql", () => {
       await count("public.event_audience_members where event_id = $1", [EVENTS.briefing]),
     ).toBe(1);
 
-    // And it is absent from the partition entirely, so nothing about it can
-    // reach the report's breakdown or its nonresponse queue.
+    // Invariant E6 kept it out of the P7 partition entirely. LAN-151 retired
+    // that with `solicits_response`: D23 removed "Response requested" because
+    // mandatory or optional already carries it, and everyone sent an event is
+    // expected to answer. So the briefing is in the partition, and its
+    // unanswered invitation is chaseable.
     expect(
       await count("public.invitation_response_state where event_id = $1", [EVENTS.briefing]),
-    ).toBe(0);
-    expect(await count("public.nonresponse_queue where event_id = $1", [EVENTS.briefing])).toBe(0);
+    ).toBe(1);
+    expect(await count("public.nonresponse_queue where event_id = $1", [EVENTS.briefing])).toBe(1);
   });
 
   it("creates no contact point, so nothing here can be dialled or emailed", async () => {

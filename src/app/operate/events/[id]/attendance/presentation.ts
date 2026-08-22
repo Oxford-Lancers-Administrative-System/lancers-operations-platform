@@ -74,47 +74,31 @@ export function describeMismatch(mismatch: string | null): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// UX-70 — Confirm what happened
+// Whether the register is open, which nobody decides
 // ---------------------------------------------------------------------------
-
-export const OCCURRENCE_HEADLINE = "Confirm what happened";
 
 /**
- * The wireframe's sentence, with the issue number taken out of it.
+ * What replaced **Confirm what happened**.
  *
- * UX-70 reads "This human assertion is required before attendance. Coaches with
- * LAN-110 access cannot perform it." Brian's verdict on the equivalent sentence
- * on the walk-up screen — "the warning names in LAN-85 are stupid, I don't know
- * why you put that in the app in the first place" — applies to this one for the
- * same reason: an operator at the side of a pitch has no use for a backlog
- * identifier, and the club's screens are not where one belongs.
+ * UX-70 asked an operator to assert that the evening had happened, and UX-75
+ * showed the event they had marked not held. LAN-151 retired both, with the
+ * whole idea behind them: an event has occurred when its date has passed and it
+ * was not cancelled (D30), and no screen offers *Mark occurred*, *Mark not
+ * held*, *Confirm what happened* or *Correct this to not held* any more.
  *
- * The information the wireframe was carrying survives whole: the assertion is a
- * person's, it gates attendance, and a coach who records attendance cannot make
- * it. Only the tracker reference went. Recorded as a deviation from the SVG in
- * LAN-80's pull request, under the owner decision that produced it.
+ * D71-D74 are what the assertion was really standing in for, and they answer it
+ * better: the register opens on a buffer before the event and never closes, and
+ * whether it has been saved is the record of whether the session was assessed.
+ * A sheet saved with everybody absent is a real zero, and one nobody opened is
+ * distinguishable from it.
  */
-export const OCCURRENCE_DETAIL =
-  "This is a human assertion and is required before attendance. A coach who records " +
-  "attendance cannot make it.";
+export const ATTENDANCE_OPEN_DETAIL =
+  "This event's date has passed and it was not cancelled, so attendance can be recorded " +
+  "against it.";
 
-export const OCCURRENCE_NOT_ASSERTED = "Not yet asserted";
-
-export const OCCURRENCE_NEVER_INFERRED = "Never inferred from time";
-
-export const ATTENDANCE_UNAVAILABLE = "Unavailable";
-
-export const ATTENDANCE_OPENS_AFTER = "Opens only after Mark occurred";
-
-// ---------------------------------------------------------------------------
-// UX-75 — Event marked not held
-// ---------------------------------------------------------------------------
-
-export const NOT_HELD_HEADLINE = "Event marked not held";
-
-export const NOT_HELD_DETAIL =
-  "Attendance remains unavailable. The occurrence decision and actor are retained in the " +
-  "audit trail.";
+export const ATTENDANCE_NOT_OPEN_YET =
+  "Attendance opens once the event's date has passed. Nobody has to mark it as having " +
+  "happened.";
 
 // ---------------------------------------------------------------------------
 // UX-71 — Attendance is not available yet
@@ -123,35 +107,31 @@ export const NOT_HELD_DETAIL =
 export const ATTENDANCE_LOCKED_HEADLINE = "Attendance is not available yet";
 
 export const ATTENDANCE_LOCKED_DETAIL =
-  "An authorized operator must first mark this event as occurred.";
+  "Attendance opens once this event's date has passed. A draft or a cancelled event never " +
+  "opens one.";
 
 export const ATTENDANCE_LOCKED_RULE =
-  "The service rejects attendance writes while occurrence is unset or the event is marked " +
-  "not held.";
+  "The service rejects attendance writes until the event is approved and its date has " + "passed.";
 
 // ---------------------------------------------------------------------------
 // UX-90 — the same lock, seen by a coaching assignment
 // ---------------------------------------------------------------------------
 
 /**
- * The coach's version of the locked state, and why the words differ.
+ * The coach's version of the locked state.
  *
- * UX-71 tells an operator that somebody must mark the event occurred, and that
- * operator may well be them — the sentence is an instruction. UX-90 shows the
- * same lock to a coach, for whom it is not: `slice-ux.md` § 8 and LAN-110's
- * fixed boundaries both say the assertion is closed to a coaching assignment,
- * and a screen that told a coach to go and mark the event occurred would be
- * describing an action the service refuses them.
- *
- * So the coach is told what is true and what to do about it: an operator has
- * not marked it, and this is not yours to mark.
+ * It used to differ from UX-71 because the operator could go and assert
+ * occurrence and the coach could not, so one sentence was an instruction and
+ * the other was not. Since LAN-151 neither is: nobody asserts occurrence, and
+ * the register opens because the date passed. Both sentences now say the same
+ * true thing in the voice of the person reading them.
  */
 export const COACH_LOCKED_HEADLINE = "Attendance is not open";
 
-export const COACH_LOCKED_DETAIL = "An authorized operator has not marked this event as occurred.";
+export const COACH_LOCKED_DETAIL = "This session's date has not passed yet.";
 
 export const COACH_LOCKED_RULE =
-  "Coach attendance access does not include Mark occurred or Mark not held.";
+  "A register opens once the session has been and gone, and stays open afterwards.";
 
 export const COACH_RETURN_TO_ELIGIBLE = "Return to eligible events";
 

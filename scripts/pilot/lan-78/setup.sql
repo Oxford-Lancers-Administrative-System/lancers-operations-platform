@@ -225,7 +225,7 @@ on conflict (id) do nothing;
 -- RSVP link and would make the token half of the screen untestable.
 insert into public.events
   (id, season_id, name, event_type, status, scheduled_on, starts_at, venue,
-   solicits_response, is_mandatory,
+   is_mandatory,
    audience_confirmed_at, audience_confirmed_by_person_id,
    approved_at, approved_by_person_id, response_deadline_at)
 select
@@ -237,7 +237,6 @@ select
   current_date + 7,
   '19:00',
   'PILOT-LAN-78 synthetic venue',
-  true,
   false,
   now(),
   '00780078-0078-4078-8078-000000000001',
@@ -264,13 +263,12 @@ from (values
 on conflict (id) do nothing;
 
 insert into public.invitations
-  (id, event_id, event_status, solicits_response, season_id, capacity,
+  (id, event_id, event_status, season_id, capacity,
    season_membership_id, status, expires_at, audience_member_id)
 select
   invitation.id::uuid,
   '00780078-0078-4078-8078-000000000050',
   'approved',
-  true,
   (select id from public.seasons where status in ('open', 'active')),
   'player',
   invitation.membership_id::uuid,

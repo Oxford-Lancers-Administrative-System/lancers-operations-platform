@@ -283,6 +283,71 @@ export type Database = {
           },
         ]
       }
+      club_link_tokens: {
+        Row: {
+          event_id: string
+          id: string
+          issued_at: string
+          issued_by_person_id: string | null
+          last_used_at: string | null
+          revoked_at: string | null
+          revoked_reason: string | null
+          token_hash: string
+          use_count: number
+        }
+        Insert: {
+          event_id: string
+          id?: string
+          issued_at?: string
+          issued_by_person_id?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          token_hash: string
+          use_count?: number
+        }
+        Update: {
+          event_id?: string
+          id?: string
+          issued_at?: string
+          issued_by_person_id?: string | null
+          last_used_at?: string | null
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          token_hash?: string
+          use_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "club_link_tokens_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_link_tokens_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "rsvp_attendance_mismatches"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "club_link_tokens_issued_by_person_id_fkey"
+            columns: ["issued_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "club_link_tokens_issued_by_person_id_fkey"
+            columns: ["issued_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       committee_years: {
         Row: {
           agm_held_on: string | null
@@ -699,6 +764,7 @@ export type Database = {
           applies_to_capacities: Database["public"]["Enums"]["invitation_capacity"][]
           choices: string[] | null
           event_id: string
+          from_template: boolean
           id: string
           is_required: boolean
           prompt: string
@@ -709,6 +775,7 @@ export type Database = {
           applies_to_capacities?: Database["public"]["Enums"]["invitation_capacity"][]
           choices?: string[] | null
           event_id: string
+          from_template?: boolean
           id?: string
           is_required?: boolean
           prompt: string
@@ -719,6 +786,7 @@ export type Database = {
           applies_to_capacities?: Database["public"]["Enums"]["invitation_capacity"][]
           choices?: string[] | null
           event_id?: string
+          from_template?: boolean
           id?: string
           is_required?: boolean
           prompt?: string
@@ -791,6 +859,130 @@ export type Database = {
           },
         ]
       }
+      event_template_audience_groups: {
+        Row: {
+          audience_group: Database["public"]["Enums"]["audience_group"]
+          event_type: Database["public"]["Enums"]["event_type"]
+        }
+        Insert: {
+          audience_group: Database["public"]["Enums"]["audience_group"]
+          event_type: Database["public"]["Enums"]["event_type"]
+        }
+        Update: {
+          audience_group?: Database["public"]["Enums"]["audience_group"]
+          event_type?: Database["public"]["Enums"]["event_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_template_audience_groups_event_type_fkey"
+            columns: ["event_type"]
+            isOneToOne: false
+            referencedRelation: "event_templates"
+            referencedColumns: ["event_type"]
+          },
+        ]
+      }
+      event_template_questions: {
+        Row: {
+          answer_type: Database["public"]["Enums"]["question_answer_type"]
+          applies_to_capacities: Database["public"]["Enums"]["invitation_capacity"][]
+          choices: string[] | null
+          created_at: string
+          event_type: Database["public"]["Enums"]["event_type"]
+          id: string
+          is_required: boolean
+          prompt: string
+          sort_order: number
+        }
+        Insert: {
+          answer_type?: Database["public"]["Enums"]["question_answer_type"]
+          applies_to_capacities?: Database["public"]["Enums"]["invitation_capacity"][]
+          choices?: string[] | null
+          created_at?: string
+          event_type: Database["public"]["Enums"]["event_type"]
+          id?: string
+          is_required?: boolean
+          prompt: string
+          sort_order?: number
+        }
+        Update: {
+          answer_type?: Database["public"]["Enums"]["question_answer_type"]
+          applies_to_capacities?: Database["public"]["Enums"]["invitation_capacity"][]
+          choices?: string[] | null
+          created_at?: string
+          event_type?: Database["public"]["Enums"]["event_type"]
+          id?: string
+          is_required?: boolean
+          prompt?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_template_questions_event_type_fkey"
+            columns: ["event_type"]
+            isOneToOne: false
+            referencedRelation: "event_templates"
+            referencedColumns: ["event_type"]
+          },
+        ]
+      }
+      event_templates: {
+        Row: {
+          default_delivery_mode:
+            | Database["public"]["Enums"]["event_delivery_mode"]
+            | null
+          default_description: string | null
+          default_duration_minutes: number | null
+          default_is_mandatory: boolean | null
+          default_required_equipment: string | null
+          default_venue: string | null
+          event_type: Database["public"]["Enums"]["event_type"]
+          updated_at: string
+        }
+        Insert: {
+          default_delivery_mode?:
+            | Database["public"]["Enums"]["event_delivery_mode"]
+            | null
+          default_description?: string | null
+          default_duration_minutes?: number | null
+          default_is_mandatory?: boolean | null
+          default_required_equipment?: string | null
+          default_venue?: string | null
+          event_type: Database["public"]["Enums"]["event_type"]
+          updated_at?: string
+        }
+        Update: {
+          default_delivery_mode?:
+            | Database["public"]["Enums"]["event_delivery_mode"]
+            | null
+          default_description?: string | null
+          default_duration_minutes?: number | null
+          default_is_mandatory?: boolean | null
+          default_required_equipment?: string | null
+          default_venue?: string | null
+          event_type?: Database["public"]["Enums"]["event_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      event_type_settings: {
+        Row: {
+          chase_threshold_days: number
+          event_type: Database["public"]["Enums"]["event_type"]
+          updated_at: string
+        }
+        Insert: {
+          chase_threshold_days: number
+          event_type: Database["public"]["Enums"]["event_type"]
+          updated_at?: string
+        }
+        Update: {
+          chase_threshold_days?: number
+          event_type?: Database["public"]["Enums"]["event_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           aggregate_headcount: number | null
@@ -802,23 +994,22 @@ export type Database = {
           competition: string | null
           created_at: string
           decision_reason: string | null
+          delivery_mode: Database["public"]["Enums"]["event_delivery_mode"]
+          description: string | null
           ends_at: string | null
           event_type: Database["public"]["Enums"]["event_type"]
           id: string
           is_mandatory: boolean
+          joining_url: string | null
           name: string
-          opponent: string | null
           origin: Database["public"]["Enums"]["event_origin"]
-          outcome_recorded_at: string | null
-          outcome_recorded_by_person_id: string | null
           owner_person_id: string | null
           reminder_offsets_hours: number[]
+          required_equipment: string | null
           response_deadline_at: string | null
           scheduled_on: string | null
           season_id: string
           series_id: string | null
-          side: Database["public"]["Enums"]["fixture_side"] | null
-          solicits_response: boolean
           starts_at: string | null
           status: Database["public"]["Enums"]["event_status"]
           term_id: string | null
@@ -836,23 +1027,22 @@ export type Database = {
           competition?: string | null
           created_at?: string
           decision_reason?: string | null
+          delivery_mode?: Database["public"]["Enums"]["event_delivery_mode"]
+          description?: string | null
           ends_at?: string | null
           event_type: Database["public"]["Enums"]["event_type"]
           id?: string
           is_mandatory?: boolean
+          joining_url?: string | null
           name: string
-          opponent?: string | null
           origin?: Database["public"]["Enums"]["event_origin"]
-          outcome_recorded_at?: string | null
-          outcome_recorded_by_person_id?: string | null
           owner_person_id?: string | null
           reminder_offsets_hours?: number[]
+          required_equipment?: string | null
           response_deadline_at?: string | null
           scheduled_on?: string | null
           season_id: string
           series_id?: string | null
-          side?: Database["public"]["Enums"]["fixture_side"] | null
-          solicits_response?: boolean
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
           term_id?: string | null
@@ -870,23 +1060,22 @@ export type Database = {
           competition?: string | null
           created_at?: string
           decision_reason?: string | null
+          delivery_mode?: Database["public"]["Enums"]["event_delivery_mode"]
+          description?: string | null
           ends_at?: string | null
           event_type?: Database["public"]["Enums"]["event_type"]
           id?: string
           is_mandatory?: boolean
+          joining_url?: string | null
           name?: string
-          opponent?: string | null
           origin?: Database["public"]["Enums"]["event_origin"]
-          outcome_recorded_at?: string | null
-          outcome_recorded_by_person_id?: string | null
           owner_person_id?: string | null
           reminder_offsets_hours?: number[]
+          required_equipment?: string | null
           response_deadline_at?: string | null
           scheduled_on?: string | null
           season_id?: string
           series_id?: string | null
-          side?: Database["public"]["Enums"]["fixture_side"] | null
-          solicits_response?: boolean
           starts_at?: string | null
           status?: Database["public"]["Enums"]["event_status"]
           term_id?: string | null
@@ -926,20 +1115,6 @@ export type Database = {
           {
             foreignKeyName: "events_audience_confirmed_by_person_id_fkey"
             columns: ["audience_confirmed_by_person_id"]
-            isOneToOne: false
-            referencedRelation: "person_standing"
-            referencedColumns: ["person_id"]
-          },
-          {
-            foreignKeyName: "events_outcome_recorded_by_person_id_fkey"
-            columns: ["outcome_recorded_by_person_id"]
-            isOneToOne: false
-            referencedRelation: "people"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "events_outcome_recorded_by_person_id_fkey"
-            columns: ["outcome_recorded_by_person_id"]
             isOneToOne: false
             referencedRelation: "person_standing"
             referencedColumns: ["person_id"]
@@ -1121,7 +1296,6 @@ export type Database = {
           person_id: string | null
           season_id: string
           season_membership_id: string | null
-          solicits_response: boolean
           status: Database["public"]["Enums"]["invitation_status"]
         }
         Insert: {
@@ -1138,7 +1312,6 @@ export type Database = {
           person_id?: string | null
           season_id: string
           season_membership_id?: string | null
-          solicits_response: boolean
           status?: Database["public"]["Enums"]["invitation_status"]
         }
         Update: {
@@ -1155,7 +1328,6 @@ export type Database = {
           person_id?: string | null
           season_id?: string
           season_membership_id?: string | null
-          solicits_response?: boolean
           status?: Database["public"]["Enums"]["invitation_status"]
         }
         Relationships: [
@@ -1187,10 +1359,10 @@ export type Database = {
           },
           {
             foreignKeyName: "invitations_event_state_is_current"
-            columns: ["event_id", "event_status", "solicits_response"]
+            columns: ["event_id", "event_status"]
             isOneToOne: false
             referencedRelation: "events"
-            referencedColumns: ["id", "status", "solicits_response"]
+            referencedColumns: ["id", "status"]
           },
           {
             foreignKeyName: "invitations_membership_same_season"
@@ -1285,6 +1457,9 @@ export type Database = {
           claimed_by: string | null
           created_at: string
           event_id: string | null
+          held_at: string | null
+          held_by_person_id: string | null
+          held_reason: string | null
           id: string
           idempotency_key: string
           invitation_id: string | null
@@ -1304,6 +1479,9 @@ export type Database = {
           claimed_by?: string | null
           created_at?: string
           event_id?: string | null
+          held_at?: string | null
+          held_by_person_id?: string | null
+          held_reason?: string | null
           id?: string
           idempotency_key: string
           invitation_id?: string | null
@@ -1323,6 +1501,9 @@ export type Database = {
           claimed_by?: string | null
           created_at?: string
           event_id?: string | null
+          held_at?: string | null
+          held_by_person_id?: string | null
+          held_reason?: string | null
           id?: string
           idempotency_key?: string
           invitation_id?: string | null
@@ -1348,6 +1529,20 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "rsvp_attendance_mismatches"
             referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "notification_jobs_held_by_person_id_fkey"
+            columns: ["held_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_jobs_held_by_person_id_fkey"
+            columns: ["held_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
           },
           {
             foreignKeyName: "notification_jobs_invitation_id_fkey"
@@ -2353,10 +2548,15 @@ export type Database = {
           changed_at: string
           event_id: string
           id: string
+          new_ends_at: string | null
+          new_name: string | null
           new_opponent: string | null
           new_scheduled_on: string | null
           new_starts_at: string | null
           new_venue: string | null
+          notified: boolean | null
+          previous_ends_at: string | null
+          previous_name: string | null
           previous_opponent: string | null
           previous_scheduled_on: string | null
           previous_starts_at: string | null
@@ -2370,10 +2570,15 @@ export type Database = {
           changed_at?: string
           event_id: string
           id?: string
+          new_ends_at?: string | null
+          new_name?: string | null
           new_opponent?: string | null
           new_scheduled_on?: string | null
           new_starts_at?: string | null
           new_venue?: string | null
+          notified?: boolean | null
+          previous_ends_at?: string | null
+          previous_name?: string | null
           previous_opponent?: string | null
           previous_scheduled_on?: string | null
           previous_starts_at?: string | null
@@ -2387,10 +2592,15 @@ export type Database = {
           changed_at?: string
           event_id?: string
           id?: string
+          new_ends_at?: string | null
+          new_name?: string | null
           new_opponent?: string | null
           new_scheduled_on?: string | null
           new_starts_at?: string | null
           new_venue?: string | null
+          notified?: boolean | null
+          previous_ends_at?: string | null
+          previous_name?: string | null
           previous_opponent?: string | null
           previous_scheduled_on?: string | null
           previous_starts_at?: string | null
@@ -3231,37 +3441,32 @@ export type Database = {
     }
     Enums: {
       attendance_presence: "present" | "absent" | "late" | "excused"
+      audience_group:
+        | "everyone_active"
+        | "active_players"
+        | "active_coaches"
+        | "active_committee"
+        | "recruits"
       availability_level: "green" | "orange" | "red"
       competition_scope: "club_play" | "bucs" | "varsity" | "bafa"
       contact_point_kind: "email" | "phone"
       delivery_outcome: "delivered" | "failed" | "rejected" | "manual"
       eligibility_status: "pending" | "eligible" | "ineligible" | "expired"
+      event_delivery_mode: "in_person" | "online"
       event_origin:
         | "club_controlled"
         | "externally_assigned"
         | "externally_scheduled"
         | "negotiated"
-      event_status:
-        | "draft"
-        | "pending_approval"
-        | "approved"
-        | "occurred"
-        | "not_held"
-        | "cancelled"
-        | "rejected"
-        | "withdrawn"
+      event_status: "draft" | "approved" | "cancelled"
       event_type:
         | "practice"
         | "strength_and_conditioning"
         | "chalk"
-        | "fixture"
+        | "game"
         | "social"
         | "recruitment"
-        | "camp"
-        | "varsity"
         | "meeting"
-        | "other"
-      fixture_side: "home" | "away" | "neutral"
       follow_up_category:
         | "nonresponse"
         | "rsvp_attendance_mismatch"
@@ -3472,40 +3677,35 @@ export const Constants = {
   public: {
     Enums: {
       attendance_presence: ["present", "absent", "late", "excused"],
+      audience_group: [
+        "everyone_active",
+        "active_players",
+        "active_coaches",
+        "active_committee",
+        "recruits",
+      ],
       availability_level: ["green", "orange", "red"],
       competition_scope: ["club_play", "bucs", "varsity", "bafa"],
       contact_point_kind: ["email", "phone"],
       delivery_outcome: ["delivered", "failed", "rejected", "manual"],
       eligibility_status: ["pending", "eligible", "ineligible", "expired"],
+      event_delivery_mode: ["in_person", "online"],
       event_origin: [
         "club_controlled",
         "externally_assigned",
         "externally_scheduled",
         "negotiated",
       ],
-      event_status: [
-        "draft",
-        "pending_approval",
-        "approved",
-        "occurred",
-        "not_held",
-        "cancelled",
-        "rejected",
-        "withdrawn",
-      ],
+      event_status: ["draft", "approved", "cancelled"],
       event_type: [
         "practice",
         "strength_and_conditioning",
         "chalk",
-        "fixture",
+        "game",
         "social",
         "recruitment",
-        "camp",
-        "varsity",
         "meeting",
-        "other",
       ],
-      fixture_side: ["home", "away", "neutral"],
       follow_up_category: [
         "nonresponse",
         "rsvp_attendance_mismatch",

@@ -9,19 +9,15 @@ import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { operatorHasCapability } from "@/lib/auth/guards";
-import { readEvent, type EventDetail } from "@/lib/services/events";
+import { derivedEventState, readEvent, type EventDetail } from "@/lib/services/events";
+import { todayInClubZone } from "@/lib/club-time";
 import {
   readApprovalPreview,
   readEventAudience,
   type AudienceMember,
 } from "@/lib/services/event-approval";
 import { gateShellPage } from "../../gate";
-import {
-  AbandonDraftForm,
-  ApproveEventForm,
-  CorrectOccurrenceForm,
-  OccurrenceDecisionForm,
-} from "../event-actions";
+import { ApproveEventForm } from "../event-actions";
 import { AudienceBuilder } from "./audience-builder";
 import {
   APPROVAL_DETAIL,
@@ -35,8 +31,9 @@ import {
   DEADLINE_DUE_IMMEDIATELY_DETAIL,
   DEADLINE_NONE,
   DEADLINE_NONE_DETAIL,
+  DELIVERY_MODE_LABELS,
+  DERIVED_STATE_LABELS,
   describeAttendance,
-  describeSolicitation,
   DISTRIBUTION_AUTOMATED,
   DISTRIBUTION_BEGINS_AFTER_APPROVAL,
   EMPTY_AUDIENCE_DETAIL,
@@ -50,21 +47,13 @@ import {
   NO_DISTRIBUTION_DETAIL,
   NO_DISTRIBUTION_HEADLINE,
   NO_DISTRIBUTION_RULE,
+  JOINING_URL_IS_NEVER_PUBLIC,
   NOTHING_DELIVERED_YET,
-  SOLICITS_RESPONSE_MEANING,
   STATUS_LABELS,
   TYPE_LABELS,
+  venueLabel,
 } from "../presentation";
-import {
-  ATTENDANCE_OPENS_AFTER,
-  ATTENDANCE_UNAVAILABLE,
-  NOT_HELD_DETAIL,
-  NOT_HELD_HEADLINE,
-  OCCURRENCE_DETAIL,
-  OCCURRENCE_HEADLINE,
-  OCCURRENCE_NEVER_INFERRED,
-  OCCURRENCE_NOT_ASSERTED,
-} from "./attendance/presentation";
+import { ATTENDANCE_NOT_OPEN_YET, ATTENDANCE_OPEN_DETAIL } from "./attendance/presentation";
 
 /**
  * One event, in every presentation this route owns — UX-32, UX-33, and LAN-77's
@@ -131,7 +120,6 @@ export default async function EventDetailPage({
   const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
   const mayApprove = operatorHasCapability(gate.operator, "event_approval");
   const mayAdministerDelivery = operatorHasCapability(gate.operator, "delivery_administration");
-  const mayAssertOccurrence = operatorHasCapability(gate.operator, "event_occurrence_assertion");
   const canWorkOnAudience = mayApprove && event.status === "draft";
 
   // UX-40 and UX-41 are read-heavy and only reachable by an approver working on
@@ -186,7 +174,6 @@ export default async function EventDetailPage({
       mayManage={mayManage}
       mayApprove={mayApprove}
       mayAdministerDelivery={mayAdministerDelivery}
-      mayAssertOccurrence={mayAssertOccurrence}
       justApproved={justApproved}
       audience={audience}
     />
@@ -296,8 +283,9 @@ function ApprovalReview({
           <Fact
             label="Event"
             value={`${labelFor(TYPE_LABELS, event.eventType)} · ${event.venue ?? "No venue yet"}`}
-            note={`${describeAttendance(event.isMandatory)} · ${describeSolicitation(
-              event.solicitsResponse,
+            note={`${describeAttendance(event.isMandatory)} · ${labelFor(
+              DELIVERY_MODE_LABELS,
+              event.deliveryMode,
             ).toLowerCase()}`}
           />
           <Fact
@@ -432,126 +420,30 @@ function Fact({
 }
 
 /**
- * UX-70 — **Confirm what happened**. LAN-80.
+ * The register, and whether it is open yet.
  *
- * ## Why it is offered whatever the clock says
+ * This panel replaced **Confirm what happened**. There is nothing to confirm:
+ * an event has occurred when its date has passed and it was not cancelled
+ * (D30), so the panel states that rather than asking anybody to assert it, and
+ * offers the register once it is true.
  *
- * The wireframe showed "Start time has passed" beside the two buttons. Brian
- * removed it on 14 August 2026 — "not useful, they know they're there" — so
- * nothing here mentions the clock at all.
- *
- * The rule it was decorating is untouched, and it is why the decision is
- * offered without a time condition. Invariant E5 says "the passage of time
- * never equals occurrence", and that cuts both ways: time does not make an
- * event occurred, and it does not license the interface to decide when somebody
- * may say what happened. The two real cases settle it — a practice abandoned at
- * 19:55 because the pitch flooded is **not held** before its own start time,
- * and last Wednesday's practice is still waiting to be recorded on Friday.
- * Refusing either would be a rule this repository invented.
- *
- * ## Why an operator without the capability still sees it
- *
- * They see the three facts and no buttons, because the point of the panel is
- * that this event is waiting on a decision — which is true regardless of who is
- * looking. The action guards itself server-side; hiding the buttons is the
- * courtesy that stops somebody pressing one to find out.
+ * D71-D74 are what the assertion was standing in for. The register opens on a
+ * buffer before the event and never closes, and its saved-versus-untouched
+ * state is the record of whether the session was assessed — so there is no
+ * moment at which somebody has to declare the evening over.
  */
-function OccurrencePanel({
-  event,
-  mayAssertOccurrence,
-}: {
-  event: EventDetail;
-  mayAssertOccurrence: boolean;
-}) {
+function RegisterPanel({ event, occurred }: { event: EventDetail; occurred: boolean }) {
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="occurrence-decision">
-      <Stack spacing={3}>
-        <Box>
-          <Typography variant="h6" component="h2">
-            {OCCURRENCE_HEADLINE}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {OCCURRENCE_DETAIL}
-          </Typography>
-        </Box>
-
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-          }}
-        >
-          {/*
-            No "start time has passed" line. The wireframe had one and Brian
-            removed it on the real screen: an operator standing in front of this
-            decision was at the event, or knows perfectly well that it has been
-            and gone, so a computed restatement of the date above adds nothing.
-            Nothing decided from it either — invariant E5 kept time out of the
-            assertion — so the whole computation went with the caption.
-          */}
-          <Fact
-            label="Event status"
-            value={labelFor(STATUS_LABELS, event.status)}
-            testId="occurrence-status-fact"
-          />
-          <Fact
-            label="Occurrence"
-            value={OCCURRENCE_NOT_ASSERTED}
-            note={OCCURRENCE_NEVER_INFERRED}
-            testId="occurrence-fact"
-          />
-          <Fact
-            label="Attendance"
-            value={ATTENDANCE_UNAVAILABLE}
-            note={ATTENDANCE_OPENS_AFTER}
-            testId="occurrence-attendance-fact"
-          />
-        </Box>
-
-        {mayAssertOccurrence ? (
-          <OccurrenceDecisionForm eventId={event.id} />
-        ) : (
-          <Typography variant="body2" color="text.secondary" data-testid="occurrence-read-only">
-            Recording what happened is done by the President, Vice-President, Secretary and General
-            Manager.
-          </Typography>
-        )}
-      </Stack>
-    </Paper>
-  );
-}
-
-/**
- * What the event looks like once somebody has said what happened — UX-75 for
- * `not_held`, and the way through to the board for `occurred`.
- *
- * Both carry the correction, because § 9 requires a completed state to offer
- * "any permitted correction" and because an assertion made against the wrong
- * event in a list is the mistake this whole panel is one press away from.
- */
-function OutcomePanel({
-  event,
-  mayAssertOccurrence,
-}: {
-  event: EventDetail;
-  mayAssertOccurrence: boolean;
-}) {
-  const notHeld = event.status === "not_held";
-
-  return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="outcome-panel">
+    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="register-panel">
       <Stack spacing={2}>
         <Typography variant="h6" component="h2">
-          {notHeld ? NOT_HELD_HEADLINE : "Attendance is open"}
+          {occurred ? "Attendance is open" : "Attendance not open yet"}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          {notHeld
-            ? NOT_HELD_DETAIL
-            : "This event is recorded as having happened, so attendance can be recorded against it."}
+          {occurred ? ATTENDANCE_OPEN_DETAIL : ATTENDANCE_NOT_OPEN_YET}
         </Typography>
 
-        {notHeld ? null : (
+        {occurred ? (
           <Box>
             <Button
               variant="contained"
@@ -562,13 +454,6 @@ function OutcomePanel({
               Attendance
             </Button>
           </Box>
-        )}
-
-        {mayAssertOccurrence ? (
-          <CorrectOccurrenceForm
-            eventId={event.id}
-            currentStatus={notHeld ? "not_held" : "occurred"}
-          />
         ) : null}
       </Stack>
     </Paper>
@@ -581,7 +466,6 @@ function EventDetailView({
   mayManage,
   mayApprove,
   mayAdministerDelivery,
-  mayAssertOccurrence,
   justApproved,
   audience,
 }: {
@@ -589,13 +473,14 @@ function EventDetailView({
   mayManage: boolean;
   mayApprove: boolean;
   mayAdministerDelivery: boolean;
-  mayAssertOccurrence: boolean;
   justApproved: boolean;
   audience: AudienceMember[];
 }) {
   const preApproval = isPreApproval(event.status);
   const proposed = event.status === "draft" && audience.length > 0;
-  const asserted = event.status === "occurred" || event.status === "not_held";
+  // D30, derived and never stored. Shown beside the stored status rather than
+  // instead of it: "Approved" and "Occurred" answer different questions.
+  const derived = derivedEventState(event, todayInClubZone());
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 900 }} data-testid="event-detail" data-status={event.status}>
@@ -604,7 +489,10 @@ function EventDetailView({
           {event.name}
         </Typography>
         <Typography variant="body2" color="text.secondary" data-testid="event-subtitle">
-          {`${labelFor(STATUS_LABELS, event.status)} · ${formatDetailWhen(event)}`}
+          {`${labelFor(STATUS_LABELS, event.status)} · ${labelFor(
+            DERIVED_STATE_LABELS,
+            derived,
+          )} · ${formatDetailWhen(event)}`}
         </Typography>
       </Box>
 
@@ -626,10 +514,8 @@ function EventDetailView({
       ) : null}
 
       {event.status === "approved" ? (
-        <OccurrencePanel event={event} mayAssertOccurrence={mayAssertOccurrence} />
+        <RegisterPanel event={event} occurred={derived === "occurred"} />
       ) : null}
-
-      {asserted ? <OutcomePanel event={event} mayAssertOccurrence={mayAssertOccurrence} /> : null}
 
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
         <Box
@@ -640,15 +526,35 @@ function EventDetailView({
           }}
         >
           <Fact label="Type" value={labelFor(TYPE_LABELS, event.eventType)} />
-          <Fact label="Venue" value={event.venue ?? "No venue yet"} />
+          <Fact label="Where" value={labelFor(DELIVERY_MODE_LABELS, event.deliveryMode)} />
+          <Fact
+            label={venueLabel(event.deliveryMode)}
+            value={event.venue ?? "Not decided yet"}
+            testId="venue-fact"
+          />
           <Fact label="Term / week" value={formatTermAndWeek(event.termLabel, event.weekNumber)} />
           <Fact label="Attendance" value={describeAttendance(event.isMandatory)} />
           <Fact
-            label="Response solicited"
-            value={describeSolicitation(event.solicitsResponse)}
-            note={SOLICITS_RESPONSE_MEANING}
-            testId="solicits-fact"
+            label="Required equipment"
+            value={event.requiredEquipment ?? "Nothing listed"}
+            testId="equipment-fact"
           />
+          {event.description ? (
+            <Fact label="Description" value={event.description} testId="description-fact" />
+          ) : null}
+          {/*
+            REQ-no-joining-url. Operator tier only, and this route is operator
+            tier. It is never rendered on a public surface, never in a feed, and
+            never in a payload behind one.
+          */}
+          {event.joiningUrl ? (
+            <Fact
+              label="Joining link"
+              value={event.joiningUrl}
+              note={JOINING_URL_IS_NEVER_PUBLIC}
+              testId="joining-url-fact"
+            />
+          ) : null}
           {event.decisionReason ? (
             <Fact label="Reason" value={event.decisionReason} testId="decision-reason" />
           ) : null}
@@ -732,7 +638,14 @@ function EventDetailView({
             <Button variant="contained" href={`/operate/events/${event.id}/edit`} fullWidth>
               Edit draft
             </Button>
-            <AbandonDraftForm eventId={event.id} />
+            {/*
+              **Abandon draft** was here and went with the `withdrawn` status it
+              produced. An abandoned draft is deleted (D29), permanently and
+              after a confirmation naming it, and that path belongs to this
+              mission's W4 work package. Until it lands a draft nobody wants
+              stays a draft rather than being parked in a status that says it
+              never happened.
+            */}
           </>
         ) : null}
 

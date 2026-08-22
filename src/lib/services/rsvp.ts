@@ -184,7 +184,6 @@ export interface RecordedRsvpResponse {
 export const NO_REQUIRES_A_REASON_RULE = "rsvp_responses_no_requires_a_reason";
 export const RESPONSE_WINDOW_CLOSED_RULE = "rsvp_response_window_closed";
 export const INVITATION_WITHDRAWN_RULE = "rsvp_invitation_withdrawn";
-export const EVENT_SOLICITS_NO_RESPONSE_RULE = "rsvp_event_solicits_no_response";
 
 /** Why a pending reminder was called off, recorded on the job itself. */
 const JOB_CANCELLED_REASON = "The invitee responded, so this reminder is no longer needed.";
@@ -237,21 +236,12 @@ export async function recordSignedLinkResponse(
 
     const invitationId = resolution.invitation.invitationId;
 
-    // Invariant E6. An event that solicits no response resolves an audience for
-    // visibility only — no deadline, no reminders, and by the schema's own
-    // constraint such an invitation can never reach `expired`. Approval still
-    // creates invitations for it, and nothing upstream stops a token being
-    // minted, so without this a signed link to an informational event would
-    // record an authoritative answer and move the invitation to `responded` —
-    // which would then stand in `current_rsvp` and in the P7 reporting LAN-81
-    // consumes. Independent review found the resolver already carries this
-    // fact and that nobody read it.
-    if (!resolution.invitation.solicitsResponse) {
-      throw new InvalidTransition(
-        "This event is for information only, so there is nothing to respond to.",
-        { rule: EVENT_SOLICITS_NO_RESPONSE_RULE },
-      );
-    }
+    // The refusal that used to be here — "this event is for information only,
+    // so there is nothing to respond to" — went with `solicits_response`. D23
+    // removed the flag: everyone sent an event is expected to answer, and
+    // whether the club expects them to be there is mandatory-or-optional, which
+    // is a different question. There is no longer an event a signed link can
+    // reach that has nothing to answer.
 
     // A withdrawn invitation outlives its own cancellation (invariant P4), so
     // the token can still resolve against it. There is nothing left to answer.

@@ -421,14 +421,14 @@ describe("cleanup.sql", () => {
 
   it("refuses rather than deleting attendance", async () => {
     await client.query(SETUP);
-    await client.query(
-      "update public.events set status = 'occurred', outcome_recorded_at = now(), outcome_recorded_by_person_id = $2::uuid where id = $1::uuid",
-      [EVENT, PEOPLE[0]],
-    );
+    // The event is approved already, and invariant P5's database half admits
+    // attendance against exactly that. Whether its date has passed — the other
+    // half, and since LAN-151 the whole of what "occurred" means (D30) — is a
+    // service rule, and this is a direct insert.
     await client.query(
       `insert into public.attendance_records
          (event_id, event_status, season_id, capacity, season_membership_id, presence, recorded_at)
-       select $1::uuid, 'occurred', e.season_id, 'player', i.season_membership_id, 'present', now()
+       select $1::uuid, 'approved', e.season_id, 'player', i.season_membership_id, 'present', now()
          from public.events e
          join public.invitations i on i.id = $2::uuid
         where e.id = $1::uuid`,

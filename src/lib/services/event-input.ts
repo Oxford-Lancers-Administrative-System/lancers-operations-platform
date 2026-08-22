@@ -24,36 +24,46 @@
 // ---------------------------------------------------------------------------
 
 /**
- * The event types this slice's form can honestly describe.
+ * `public.event_type`, in full — the approved seven-type model (D12).
  *
- * `fixture` and `varsity` carry an opponent, a side and a competition, and
- * `recruitment` carries an aggregate headcount — all four fields are explicitly
- * out of LAN-76's scope, and offering a type whose defining fields the form
- * cannot record would produce a half-described event. The enum keeps every
- * value; this list is what a *draft* may be created as, and widening it is a
- * scope decision rather than a code change.
+ * LAN-151 narrowed the enum from ten values to these seven: `camp` became a
+ * practice, `fixture` and `varsity` became `game`, and `other` became
+ * `meeting`. There is no longer a subset that a draft may be created as,
+ * because there is no longer a type whose defining fields the form cannot
+ * record — the opponent went with `fixture` (D14: the name carries it) and the
+ * side went with it.
+ *
+ * Adding an eighth is a change to the approved domain model and Brian's
+ * decision, not a code change.
  */
-export const DRAFTABLE_EVENT_TYPES: readonly string[] = Object.freeze([
+export const EVENT_TYPES: readonly string[] = Object.freeze([
   "practice",
   "strength_and_conditioning",
   "chalk",
+  "game",
   "social",
-  "camp",
+  "recruitment",
   "meeting",
 ]);
+
+/**
+ * The types a draft may be created as. Every one of the seven, now that the
+ * types the form could not honestly describe are gone — so this is `EVENT_TYPES`
+ * and stays a separate name only because callers already import it.
+ */
+export const DRAFTABLE_EVENT_TYPES: readonly string[] = EVENT_TYPES;
 
 /**
  * `public.event_origin`, in full. Source Data Analysis §5.6 — not every event's
  * schedule is the club's to set.
  *
- * The column stays, and so does every value in it: a BUCS fixture really is
- * externally assigned, and that provenance is load-bearing for the schedule
- * work in later issues. What went away in Brian's LAN-76 clarification is the
- * *choice* — an operator creating an event on the club's own calendar was being
- * asked to classify its provenance from four unexplained words. An event this
- * form creates is by definition one the club scheduled, so the value is derived
- * rather than asked for, and an event that came from elsewhere keeps whatever
- * provenance it already had.
+ * The column stays, and so does every value in it: a BUCS game really is
+ * externally assigned, and that provenance is load-bearing. What went away in
+ * Brian's LAN-76 clarification is the *choice* — an operator creating an event
+ * on the club's own calendar was being asked to classify its provenance from
+ * four unexplained words. An event this form creates is by definition one the
+ * club scheduled, so the value is derived rather than asked for, and an event
+ * that came from elsewhere keeps whatever provenance it already had.
  */
 export const EVENT_ORIGINS: readonly string[] = Object.freeze([
   "club_controlled",
@@ -66,189 +76,90 @@ export const EVENT_ORIGINS: readonly string[] = Object.freeze([
  * The origin of an event created through this form.
  *
  * An operator sitting in the club's own calendar, typing in a practice, is
- * recording an event the club controls. There is no case in this slice where
- * that is not true — fixtures, which are the externally-scheduled ones, are out
- * of scope — so it is written rather than asked.
+ * recording an event the club controls.
  */
 export const OPERATOR_CREATED_ORIGIN = "club_controlled";
 
-/** The statuses a `draft`-side screen may present. */
-export type EventStatus =
-  | "draft"
-  | "pending_approval"
-  | "approved"
-  | "occurred"
-  | "not_held"
-  | "cancelled"
-  | "rejected"
-  | "withdrawn";
+/**
+ * The three stored statuses, and no others (D12, D30).
+ *
+ * LAN-151 narrowed `public.event_status` from eight values to these three, and
+ * what went is worth naming because each was a thing the club turned out not to
+ * do. `pending_approval` modelled a proposer asking a gatekeeper, and Brian
+ * removed the Submit step on 12 August 2026. `rejected` and `withdrawn` were
+ * two flavours of "it never became an event", which is a draft. `occurred` and
+ * `not_held` were assertions somebody typed, and `derivedEventState` below now
+ * answers that from the date instead.
+ */
+export type EventStatus = "draft" | "approved" | "cancelled";
+
+export const EVENT_STATUSES: readonly EventStatus[] = Object.freeze([
+  "draft",
+  "approved",
+  "cancelled",
+]);
 
 /**
- * The transitions the slice owns, as data. Anything not listed is refused.
- *
- * `abandon` is LAN-76's. The four occurrence transitions are LAN-80's: the two
- * assertions an operator makes about a past event, and the correction of each.
+ * `public.event_delivery_mode` (D20). In person or online, as a property of the
+ * event rather than something guessed from what somebody typed in the venue.
+ * The venue field then holds an address or a destination accordingly (D21).
  */
-export type EventTransition =
-  "abandon" | "mark_occurred" | "mark_not_held" | "correct_to_not_held" | "correct_to_occurred";
+export type EventDeliveryMode = "in_person" | "online";
 
-interface TransitionRule {
-  readonly from: EventStatus;
-  readonly to: EventStatus;
-  /** `audit_events.action`, in the club's language. */
-  readonly action: string;
-  /** Does this transition have to say why? */
-  readonly requiresReason: boolean;
-  /**
-   * What a missing reason is called and what the operator is told.
-   *
-   * Two different rules want a reason, for two different transitions. The three
-   * negative decisions are required to explain themselves by
-   * `events_negative_decisions_are_explained`, a durable database constraint. A
-   * **correction** is required to explain itself by the frozen model's audit
-   * rule, which the database does not carry — so its refusal names a service
-   * rule and says so honestly rather than borrowing a constraint name that did
-   * not fire.
-   */
-  readonly reasonRule?: string;
-  readonly reasonRefusal?: string;
-  /** What an operator is told when the event is in some other state. */
-  readonly refusal: string;
-  /**
-   * Does this transition record `outcome_recorded_at` and
-   * `outcome_recorded_by_person_id`?
-   *
-   * Invariant E5: `occurred` and `not_held` are assertions somebody makes, and
-   * `events_outcome_is_asserted` refuses either state without an author. The
-   * flag is here rather than inferred from `to` so that the rule is stated once
-   * beside the transition it belongs to.
-   */
-  readonly recordsOutcome?: boolean;
+export const EVENT_DELIVERY_MODES: readonly EventDeliveryMode[] = Object.freeze([
+  "in_person",
+  "online",
+]);
+
+// ---------------------------------------------------------------------------
+// Occurrence, derived rather than asserted
+// ---------------------------------------------------------------------------
+
+/**
+ * What an event looks like now, as distinct from what is stored about it.
+ *
+ * D30, and the reason this function exists at all: **nothing asserts that an
+ * event occurred**. There is no *Mark occurred*, no *Mark not held*, no
+ * *Confirm what happened* and no *Correct this to not held*, and no code path
+ * anywhere writes an occurrence. An event has occurred when its date has passed
+ * and it was not cancelled — that is the whole definition, and it is the same
+ * one `public.rsvp_attendance_mismatches` uses in SQL.
+ *
+ * What replaced the assertion is not another flag but the register itself: its
+ * saved-versus-untouched state is the record of whether the session was
+ * assessed (D71-D74), and a sheet saved with everybody absent is a real zero
+ * rather than a sheet nobody opened.
+ *
+ * Pure, and takes today as an argument, so the clock stays the caller's problem
+ * and the rule can be checked at any date.
+ */
+export type DerivedEventState = "upcoming" | "occurred" | "cancelled";
+
+export function derivedEventState(
+  event: { status: EventStatus; scheduledOn: string | null },
+  today: string,
+): DerivedEventState {
+  if (event.status === "cancelled") return "cancelled";
+  // A draft with no date has not happened, and neither has one dated tomorrow.
+  if (event.scheduledOn === null) return "upcoming";
+  return event.scheduledOn < today ? "occurred" : "upcoming";
 }
 
 /**
- * ## Why there is no "submit for approval" here
+ * Has this event happened, in the sense that lets a register be taken?
  *
- * There was, and Brian removed it on 12 August 2026 after reading it on the
- * screen. The frozen model's §2.3 has `draft → pending_approval` on submission,
- * and the interface built from it asked a Secretary who had just typed in
- * Wednesday's practice to then press "Submit for approval" — announcing to
- * themselves that they were ready.
- *
- * That step models a proposer asking a gatekeeper for permission, and this club
- * has no such relationship: only the four calendar roles can create an event at
- * all, so there is no outsider to submit anything. In his words: "the intent of
- * what you're doing makes it seem like any player on the team can submit an
- * event, which is not the case."
- *
- * So a saved event is a **draft**, full stop, and a draft goes to approval when
- * the club wants the automation to go out. Approval itself is unchanged and
- * still exists — it is the second pair of eyes and the switch that releases
- * invitations — and it is LAN-77's to build, now from `draft` rather than from
- * `pending_approval`.
- *
- * `pending_approval` stays in the `event_status` enum: removing a value is a
- * migration and a domain-model change, seeded rows use it, and nothing is
- * gained by churning the schema. Nothing in the application produces it.
+ * Both halves of invariant P5, in one place. `attendance_records` carries the
+ * "the event is approved" half as a check constraint; the "its date has passed"
+ * half cannot be one, because a check constraint cannot read the clock. So it
+ * is stated here, once, and every caller asks the same question rather than
+ * re-deriving it.
  */
-export const EVENT_TRANSITIONS: Readonly<Record<EventTransition, TransitionRule>> = Object.freeze({
-  /**
-   * `draft → withdrawn` — a candidate the club abandons.
-   *
-   * The one transition this issue owns. Distinct from anything to do with
-   * approval: it ends an event that is never going to happen, and the schema
-   * requires it to say why.
-   */
-  abandon: Object.freeze({
-    from: "draft",
-    to: "withdrawn",
-    action: "event.draft_abandoned",
-    requiresReason: true,
-    reasonRule: "events_negative_decisions_are_explained",
-    reasonRefusal: "Say why this event is being abandoned.",
-    refusal: "Only a draft can be abandoned.",
-  }),
-
-  /**
-   * `approved → occurred` — LAN-80's whole point, and invariant E5's.
-   *
-   * "The passage of time never equals occurrence." There is no timer, no
-   * scheduled job and no derivation from `scheduled_on` anywhere in this
-   * repository that produces this transition: a person asserts it, and the row
-   * records which person and when. The frozen model permits a policy auto-mark
-   * with a correction window; this slice deliberately does not build one.
-   *
-   * It is what opens attendance. `attendance_records` carries a copy of the
-   * event's status behind a cascading composite foreign key and a
-   * `check (event_status = 'occurred')`, so nothing can be recorded against an
-   * event until this transition has been made by somebody.
-   */
-  mark_occurred: Object.freeze({
-    from: "approved",
-    to: "occurred",
-    action: "event.marked_occurred",
-    requiresReason: false,
-    refusal: "Only an approved event can be marked as occurred.",
-    recordsOutcome: true,
-  }),
-
-  /**
-   * `approved → not_held` — the other half of the same human assertion.
-   *
-   * Not a cancellation: a cancellation is a decision taken *before* the event
-   * about an event that will not happen, and `events_negative_decisions_are_explained`
-   * requires it to say why. This is a report about a date that has passed and
-   * on which nothing took place, so it needs no reason — and attendance stays
-   * permanently unavailable for it, which is UX-75.
-   */
-  mark_not_held: Object.freeze({
-    from: "approved",
-    to: "not_held",
-    action: "event.marked_not_held",
-    requiresReason: false,
-    refusal: "Only an approved event can be marked as not held.",
-    recordsOutcome: true,
-  }),
-
-  /**
-   * `occurred → not_held` — correcting an assertion somebody got wrong.
-   *
-   * The reason these two exist at all: the assertion is a human judgement made
-   * at the pitch, sometimes on a phone, sometimes about the wrong event in the
-   * list. `docs/ux/slice-ux.md` § 9 requires a completed state to show "any
-   * permitted correction", and without one an operator who pressed the wrong
-   * button has no route back at all.
-   *
-   * A reason is required — not by the database, which asks for one only on the
-   * three negative decisions, but by the frozen model's rule that a
-   * **correction** records why. `services/events.ts` refuses this transition
-   * outright while any attendance row exists, before the statement is sent, so
-   * that the operator gets a sentence naming the attendance rather than the
-   * cascade breaking `attendance_records_require_an_occurred_event`.
-   */
-  correct_to_not_held: Object.freeze({
-    from: "occurred",
-    to: "not_held",
-    action: "event.occurrence_corrected",
-    requiresReason: true,
-    reasonRule: "event_occurrence_correction_is_explained",
-    reasonRefusal: "Say why this event is being corrected to not held.",
-    refusal: "Only an event recorded as having happened can be corrected to not held.",
-    recordsOutcome: true,
-  }),
-
-  /** `not_held → occurred` — the same correction in the other direction. */
-  correct_to_occurred: Object.freeze({
-    from: "not_held",
-    to: "occurred",
-    action: "event.occurrence_corrected",
-    requiresReason: true,
-    reasonRule: "event_occurrence_correction_is_explained",
-    reasonRefusal: "Say why this event is being corrected to occurred.",
-    refusal: "Only an event recorded as not held can be corrected to occurred.",
-    recordsOutcome: true,
-  }),
-});
+export function hasOccurred(
+  event: { status: EventStatus; scheduledOn: string | null },
+  today: string,
+): boolean {
+  return event.status === "approved" && derivedEventState(event, today) === "occurred";
+}
 
 // ---------------------------------------------------------------------------
 // Input, and the rules it has to satisfy
@@ -273,11 +184,18 @@ export interface RawEventDraft {
   scheduledOn?: string | null;
   startsAt?: string | null;
   endsAt?: string | null;
+  /** `"in_person"` or `"online"` (D20). Absent means in person. */
+  deliveryMode?: string | null;
+  /** An address when in person, a destination when online (D21). */
   venue?: string | null;
+  /** D18: free text, absorbing anything without a home of its own. */
+  description?: string | null;
+  /** D17: its own field, separate from the description. */
+  requiredEquipment?: string | null;
+  /** The online event's link (REQ-no-joining-url). Never public. */
+  joiningUrl?: string | null;
   /** `"mandatory"` or `"optional"`. Absent is unanswered, never a default. */
   attendance?: string | null;
-  /** `"yes"` or `"no"`. Absent is unanswered, never a default. */
-  solicitsResponse?: string | null;
 }
 
 /** The same values, checked. Term, week and origin are not among them. */
@@ -287,9 +205,12 @@ export interface EventDraftInput {
   scheduledOn: string | null;
   startsAt: string | null;
   endsAt: string | null;
+  deliveryMode: EventDeliveryMode;
   venue: string | null;
+  description: string | null;
+  requiredEquipment: string | null;
+  joiningUrl: string | null;
   isMandatory: boolean;
-  solicitsResponse: boolean;
 }
 
 /** One field, one correction — the shape the shared state contract asks for. */
@@ -319,10 +240,17 @@ export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0
  * correction — for all of them, not for whichever one happened to be checked
  * first.
  *
- * The two flags are deliberately answerable only by answering them. Neither has
- * a default here, and LAN-76's acceptance criteria require exactly that of the
- * response-solicited flag; applying the same rule to mandatory/optional costs
- * one radio group and removes the other silent default.
+ * Mandatory-or-optional is deliberately answerable only by answering it: it has
+ * no default here, so an event never quietly claims attendance is expected when
+ * nobody said so. `Response requested` used to sit beside it and D23 removed
+ * it — mandatory or optional already carries that, and everyone sent an event
+ * is expected to answer.
+ *
+ * D78 and D86: times are entered in five-minute increments, in Europe/London,
+ * with the zone stated on the form. The increment is an entry rule and is
+ * checked here rather than in the database, because the club's own historical
+ * records contain times that are not multiples of five and a check constraint
+ * would refuse the club's real data at migration time.
  */
 export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
   const issues: FieldIssue[] = [];
@@ -351,12 +279,20 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     issues.push({ field: "startsAt", message: "Enter the start as a time of day." });
   } else {
     startsAt = startsAtRaw === null ? null : toMinutePrecision(startsAtRaw);
+    if (startsAt !== null && !isFiveMinuteIncrement(startsAt)) {
+      issues.push({ field: "startsAt", message: FIVE_MINUTE_INCREMENT_MESSAGE });
+      startsAt = null;
+    }
   }
 
   if (endsAtRaw !== null && !TIME_PATTERN.test(endsAtRaw)) {
     issues.push({ field: "endsAt", message: "Enter the end as a time of day." });
   } else {
     endsAt = endsAtRaw === null ? null : toMinutePrecision(endsAtRaw);
+    if (endsAt !== null && !isFiveMinuteIncrement(endsAt)) {
+      issues.push({ field: "endsAt", message: FIVE_MINUTE_INCREMENT_MESSAGE });
+      endsAt = null;
+    }
   }
 
   // `events_times_ordered` says the same thing in the database. Saying it here
@@ -373,11 +309,22 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     });
   }
 
-  const solicits = trimmed(raw.solicitsResponse);
-  if (solicits !== "yes" && solicits !== "no") {
+  // D20. Absent means in person: that is what the club runs, and it is the only
+  // default in this function that is a fact rather than an assumption about
+  // what somebody meant.
+  const deliveryModeRaw = trimmed(raw.deliveryMode);
+  const deliveryMode: EventDeliveryMode = deliveryModeRaw === "online" ? "online" : "in_person";
+  if (deliveryModeRaw !== "" && !EVENT_DELIVERY_MODES.includes(deliveryModeRaw as never)) {
+    issues.push({ field: "deliveryMode", message: "Say whether this is in person or online." });
+  }
+
+  // REQ-no-joining-url: an in-person event has no joining link, and offering to
+  // store one would put a URL on an event nobody will ever join online.
+  const joiningUrl = optional(raw.joiningUrl);
+  if (joiningUrl !== null && deliveryMode !== "online") {
     issues.push({
-      field: "solicitsResponse",
-      message: "Say whether this event asks its audience to respond.",
+      field: "joiningUrl",
+      message: "A joining link belongs to an online event. Change this to online, or clear it.",
     });
   }
 
@@ -391,11 +338,30 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
       scheduledOn,
       startsAt,
       endsAt,
+      deliveryMode,
       venue: optional(raw.venue),
+      description: optional(raw.description),
+      requiredEquipment: optional(raw.requiredEquipment),
+      joiningUrl,
       isMandatory: attendance === "mandatory",
-      solicitsResponse: solicits === "yes",
     },
   };
+}
+
+/**
+ * D78. The club enters times in five-minute increments, so 19:32 is a typo
+ * rather than a schedule.
+ *
+ * Deliberately not a database check constraint. The club's own historical
+ * records carry minute-level drift — the seeded dataset reproduces it, because
+ * the real term card does — and a constraint would refuse that data when the
+ * migration ran. The rule is about *entry*, which is where it is applied.
+ */
+export const FIVE_MINUTE_INCREMENT_MESSAGE = "Enter the time in five-minute steps.";
+
+export function isFiveMinuteIncrement(time: string): boolean {
+  const minutes = Number(time.slice(3, 5));
+  return Number.isInteger(minutes) && minutes % 5 === 0;
 }
 
 // ---------------------------------------------------------------------------

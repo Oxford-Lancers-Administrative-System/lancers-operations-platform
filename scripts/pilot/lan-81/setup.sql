@@ -28,13 +28,13 @@
 --     number it does not need is a phone number that could be dialled.
 --   * Three events, all carrying the sentinel in `name`, all inside the
 --     reporting window:
---       - "PILOT-LAN-81 Reporting week practice"  — `current_date - 32`,
---         `occurred`, soliciting. The one that produces most of the report.
+--       - "PILOT-LAN-81 Reporting week practice"  — `current_date - 32`.
+--         The one that produces most of the report.
 --       - "PILOT-LAN-81 Empty register session"   — `current_date - 31`,
---         `occurred`, soliciting, and deliberately with no attendance at all.
---       - "PILOT-LAN-81 Committee briefing"       — `current_date - 34`,
---         `approved`, and **not** soliciting a response. Invariant E6's
---         exclusion, which you verify by its absence.
+--         deliberately with no attendance at all.
+--       - "PILOT-LAN-81 Committee briefing"       — `current_date - 34`.
+--     All three are `approved` and all three are in the past, which since
+--     LAN-151 is what makes them events that have occurred (D30).
 --   * An audience for each, invitations for everybody in it except one person,
 --     and answers that between them produce every section:
 --       1. Answered Attending, marked Absent      → an RSVP/attendance mismatch
@@ -245,19 +245,17 @@ on conflict (id) do nothing;
 -- ---------------------------------------------------------------------------
 -- The events
 -- ---------------------------------------------------------------------------
--- Two are already `occurred`, with the assertion recorded, because this
--- scenario is about the week AFTER the week happened — LAN-80 is where the
--- assertion itself is rehearsed. The third is `approved` and solicits nothing,
--- which is the state invariant E6 excludes from the response stream.
+-- All three are `approved` and dated in the past, because this scenario is
+-- about the week AFTER the week happened. Nothing records that they happened:
+-- LAN-151 retired the occurrence assertion, and the date is the whole of it.
 --
--- The approver and the asserter are the person the scenario itself created, so
--- that no real pilot identity is written into a synthetic event's audit trail.
+-- The approver is the person the scenario itself created, so that no real pilot
+-- identity is written into a synthetic event's audit trail.
 insert into public.events
   (id, season_id, name, event_type, status, scheduled_on, starts_at, ends_at, venue,
-   solicits_response, is_mandatory,
+   is_mandatory,
    audience_confirmed_at, audience_confirmed_by_person_id,
    approved_at, approved_by_person_id,
-   outcome_recorded_at, outcome_recorded_by_person_id,
    response_deadline_at)
 select
   event.id::uuid,
@@ -269,36 +267,29 @@ select
   '19:00'::time,
   '21:00'::time,
   'PILOT-LAN-81 synthetic venue',
-  event.solicits_response::boolean,
   false,
   now(),
   '00810081-0081-4081-8081-000000000001',
   now(),
   '00810081-0081-4081-8081-000000000001',
-  event.outcome_at::timestamptz,
-  event.outcome_by::uuid,
   event.deadline_at::timestamptz
 from (values
   ('00810081-0081-4081-8081-000000000021',
    'PILOT-LAN-81 Reporting week practice',
-   'practice', 'occurred', (current_date - 32)::text, true,
-   (((current_date - 32) + '20:00'::time) at time zone 'Europe/London')::text,
-   '00810081-0081-4081-8081-000000000001',
+   'practice', 'approved', (current_date - 32)::text,
    (((current_date - 34) + '18:00'::time) at time zone 'Europe/London')::text),
   ('00810081-0081-4081-8081-000000000022',
    'PILOT-LAN-81 Empty register session',
-   'practice', 'occurred', (current_date - 31)::text, true,
-   (((current_date - 31) + '20:00'::time) at time zone 'Europe/London')::text,
-   '00810081-0081-4081-8081-000000000001',
+   'practice', 'approved', (current_date - 31)::text,
    (((current_date - 33) + '18:00'::time) at time zone 'Europe/London')::text),
-  -- Solicits nothing, so it is approved and stays approved. Invariant E6 keeps
-  -- its audience out of the response stream entirely.
+  -- A third past event, so the report has a meeting in its week as well as two
+  -- practices. Since D23 removed "Response requested" it asks for an answer
+  -- like everything else.
   ('00810081-0081-4081-8081-000000000023',
    'PILOT-LAN-81 Committee briefing',
-   'meeting', 'approved', (current_date - 34)::text, false,
-   null, null, null)
-) as event(id, name, event_type, status, scheduled_on, solicits_response,
-           outcome_at, outcome_by, deadline_at)
+   'meeting', 'approved', (current_date - 34)::text,
+   (((current_date - 36) + '18:00'::time) at time zone 'Europe/London')::text)
+) as event(id, name, event_type, status, scheduled_on, deadline_at)
 on conflict (id) do nothing;
 
 -- ---------------------------------------------------------------------------
@@ -338,18 +329,17 @@ on conflict (id) do nothing;
 -- ---------------------------------------------------------------------------
 -- The invitations
 -- ---------------------------------------------------------------------------
--- `event_status` and `solicits_response` are carried on the row and bound to the
--- event by a cascading composite foreign key, so they have to agree with the
--- event as inserted above. That is invariants P1 and E6 as declarative
--- constraints rather than as a rule somebody remembers.
+-- `event_status` is carried on the row and bound to the event by a cascading
+-- composite foreign key, so it has to agree with the event as inserted above.
+-- That is invariant P1 as a declarative constraint rather than as a rule
+-- somebody remembers.
 insert into public.invitations
-  (id, event_id, event_status, solicits_response, season_id, capacity,
+  (id, event_id, event_status, season_id, capacity,
    season_membership_id, audience_member_id, status, issued_at, expires_at)
 select
   invitation.id::uuid,
   invitation.event_id::uuid,
   invitation.event_status::public.event_status,
-  invitation.solicits_response::boolean,
   (select id from public.seasons where status in ('open', 'active')),
   'player',
   invitation.membership_id::uuid,
@@ -360,30 +350,29 @@ select
 from (values
   -- Answered Attending, and marked Absent below.
   ('00810081-0081-4081-8081-000000000041', '00810081-0081-4081-8081-000000000021',
-   'occurred', true, '00810081-0081-4081-8081-000000000011',
+   'approved', '00810081-0081-4081-8081-000000000011',
    '00810081-0081-4081-8081-000000000031', 'responded',
    (((current_date - 33) + '18:00'::time) at time zone 'Europe/London')::text),
   -- Answered Not attending, with the reason.
   ('00810081-0081-4081-8081-000000000042', '00810081-0081-4081-8081-000000000021',
-   'occurred', true, '00810081-0081-4081-8081-000000000012',
+   'approved', '00810081-0081-4081-8081-000000000012',
    '00810081-0081-4081-8081-000000000032', 'responded',
    (((current_date - 33) + '18:00'::time) at time zone 'Europe/London')::text),
   -- Asked, never answered, and the deadline has passed. The nonresponse queue.
   ('00810081-0081-4081-8081-000000000043', '00810081-0081-4081-8081-000000000021',
-   'occurred', true, '00810081-0081-4081-8081-000000000013',
+   'approved', '00810081-0081-4081-8081-000000000013',
    '00810081-0081-4081-8081-000000000033', 'expired',
    (((current_date - 33) + '18:00'::time) at time zone 'Europe/London')::text),
   -- The empty-register session's one invitee, who also never answered.
   ('00810081-0081-4081-8081-000000000044', '00810081-0081-4081-8081-000000000022',
-   'occurred', true, '00810081-0081-4081-8081-000000000011',
+   'approved', '00810081-0081-4081-8081-000000000011',
    '00810081-0081-4081-8081-000000000035', 'expired',
    (((current_date - 32) + '18:00'::time) at time zone 'Europe/London')::text),
-  -- The briefing's one invitee. Never answered either — and invariant E6 keeps
-  -- them out of the nonresponse queue anyway, which is the point of them.
+  -- The briefing's one invitee, who never answered either.
   ('00810081-0081-4081-8081-000000000045', '00810081-0081-4081-8081-000000000023',
-   'approved', false, '00810081-0081-4081-8081-000000000016',
+   'approved', '00810081-0081-4081-8081-000000000016',
    '00810081-0081-4081-8081-000000000036', 'issued', null)
-) as invitation(id, event_id, event_status, solicits_response, membership_id,
+) as invitation(id, event_id, event_status, membership_id,
                 audience_member_id, status, expires_at)
 on conflict (id) do nothing;
 
@@ -420,7 +409,7 @@ insert into public.attendance_records
 select
   record.id::uuid,
   '00810081-0081-4081-8081-000000000021',
-  'occurred',
+  'approved',
   (select id from public.seasons where status in ('open', 'active')),
   'player',
   record.membership_id::uuid,

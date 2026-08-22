@@ -1,4 +1,4 @@
-# LAN-80 — the occurrence assertion and attendance
+# LAN-80 — attendance on an event that has been and gone
 
 Two SQL files, run **by hand**, against hosted Supabase, by Brian and nobody
 else. Nothing in this repository runs them: not a migration, not the seed, not
@@ -13,18 +13,18 @@ stack, so their behaviour is checked before either goes near production.
 
 ## What this scenario is for
 
-LAN-80 puts two decisions in front of an operator and one screen behind them.
+LAN-80 put two decisions in front of an operator — **Mark occurred** and
+**Mark not held** — and one screen behind them. **LAN-151 retired both.** An
+event has occurred when its date has passed and it was not cancelled (D30), so
+there is nothing for anybody to assert and no screen offers to.
 
-The decisions are **Mark occurred** and **Mark not held**, and the whole point
-of invariant E5 is that neither is ever inferred: a date passing does not mean a
-practice happened, and only a person can say that it did. So this scenario gives
-you two events that are already in the past and still `approved`, waiting for
-somebody to say what happened to each.
+What survives, and what this scenario is now for, is the screen: attendance on
+an event that has been and gone. The two events it installs are `approved` and
+dated in the past, which is the whole of what opens their registers.
 
-The screen behind them is attendance, which opens only for the event you marked
-occurred. What makes it worth testing by hand rather than only in the suite is
-the RSVP contrast: four invitees, three answers, and every one of the club's
-mismatches one press apart.
+What makes it worth testing by hand rather than only in the suite is the RSVP
+contrast: four invitees, three answers, and every one of the club's mismatches
+one press apart.
 
 Everything is synthetic. No person, event, answer or venue here corresponds to
 anybody real, and the scenario creates no contact point, no notification job and
@@ -43,10 +43,10 @@ no delivery work of any kind — so it can send nothing to anybody, ever.
 
 The two events:
 
-| Event                              | When       | Status     | Invitees |
-| ---------------------------------- | ---------- | ---------- | -------- |
-| `PILOT-LAN-80 Occurrence scenario` | 3 days ago | `approved` | 4        |
-| `PILOT-LAN-80 Not-held scenario`   | 4 days ago | `approved` | 1        |
+| Event                                   | When       | Status     | Invitees |
+| --------------------------------------- | ---------- | ---------- | -------- |
+| `PILOT-LAN-80 Occurrence scenario`      | 3 days ago | `approved` | 4        |
+| `PILOT-LAN-80 Second register scenario` | 4 days ago | `approved` | 1        |
 
 The four invitees on the occurrence event, and what each is for:
 
@@ -58,32 +58,27 @@ The four invitees on the occurrence event, and what each is for:
 | `PILOT-LAN-80 No response`              | No response   | Mark **Late**, then correct | none — this one is the correction |
 
 The fifth person, `PILOT-LAN-80 Uninvited roster match`, is invited to the
-**not-held** event and to nothing else. On the occurrence event they are
-uninvited, which is what puts them under **Possible roster match** on the
-walk-up form.
+**second** event and to nothing else. On the first event they are uninvited,
+which is what puts them under **Possible roster match** on the walk-up form.
 
 ## The matrix
 
 Sign in as yourself. You hold the President, Vice-President, Secretary or
-General Manager role through the durable pilot foundation, which is what the
-occurrence assertion requires.
+General Manager role through the durable pilot foundation.
 
-1. **Attendance is closed before the assertion.** Open the occurrence event, and
-   from it go to `/operate/events/<id>/attendance` directly in the address bar.
-   Expect **Attendance is not available yet**, no names, and no way to record
-   anything. This is UX-71 and it is the refusal invariant P5 exists for.
-2. **The decision is offered, and is a decision.** On the event, expect **Confirm
-   what happened**, both buttons, and the three facts beside them: the event's
-   status, **Not yet asserted** with "Never inferred from time", and
-   **Unavailable** with "Opens only after Mark occurred". There is deliberately
-   no "start time has passed" line — Brian removed it on 14 August 2026, and the
-   rule it was decorating is unchanged: nothing infers occurrence from the clock,
-   in either direction.
-3. **Mark not held.** Do this on the _not-held_ event. Expect **Event marked not
-   held**, the note that attendance remains unavailable, and no route through to
-   a board. Visit its attendance URL directly: still closed, permanently.
-4. **Mark occurred.** Do this on the _occurrence_ event. Expect a route through
-   to **Attendance · PILOT-LAN-80 Occurrence scenario**.
+1. **Nothing offers to assert what happened.** Open either event. There must be
+   no **Confirm what happened**, no **Mark occurred**, no **Mark not held** and
+   no **Correct this to not held**, anywhere on the page.
+2. **The register is open because the date passed.** Both events are dated in
+   the past, so both say **Attendance is open** and offer the register. Nobody
+   pressed anything to make that true.
+3. **A future event's register is not open.** Create a draft, approve it with a
+   date next week, and confirm its page says **Attendance not open yet** and
+   offers no register — and that going to `/operate/events/<id>/attendance`
+   directly is refused. This is UX-71, and it is the refusal invariant P5 exists
+   for.
+4. **Open the board.** From the first event, go through to **Attendance ·
+   PILOT-LAN-80 Occurrence scenario**.
 5. **Record the four states.** Work through the table above. Each press should
    show `Saving…` and then `Saved · <your name> · <time>`. Do this at phone
    width — this is recorded at the side of a pitch, and 375px is the size that
@@ -112,7 +107,7 @@ Run these against hosted after the matrix, before cleanup.
 
 ```sql
 -- What was asserted, by whom, and when. Both events, one row each.
-select name, status, outcome_recorded_at, outcome_recorded_by_person_id
+select name, status, scheduled_on
   from public.events where name like 'PILOT-LAN-80%' order by name;
 
 -- The attendance you recorded, with its anchor and its recorder.

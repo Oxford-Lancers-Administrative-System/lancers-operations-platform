@@ -34,7 +34,6 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
     readEvent: vi.fn(),
     createEventDraft: vi.fn(),
     updateEventDraft: vi.fn(),
-    abandonEventDraft: vi.fn(),
   };
 });
 vi.mock("@/lib/services/seasons", async (importOriginal) => {
@@ -62,7 +61,6 @@ import {
   createEventDraft,
   listCurrentSeasonEvents,
   updateEventDraft,
-  abandonEventDraft,
   type EventListEntry,
 } from "@/lib/services/events";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
@@ -128,9 +126,9 @@ function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
     scheduledOn: "2026-10-14",
     startsAt: "20:00",
     endsAt: "22:00",
+    deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
-    solicitsResponse: true,
     audienceCount: 0,
     invitationCount: 0,
     responseCount: 0,
@@ -488,26 +486,17 @@ describe("the Oxford term card", () => {
 
 describe("what a calendar tile states", () => {
   it("states a status that needs acting on, in words rather than colour", async () => {
+    // Two, since LAN-151 narrowed the vocabulary to three: `approved` is the
+    // one that needs no acting on, and the tile stays quiet about it.
     givenEvents([
       listEntry({ name: "Draft practice", status: "draft", scheduledOn: "2026-10-11" }),
-      listEntry({ name: "Pending fixture", status: "pending_approval", scheduledOn: "2026-10-12" }),
       listEntry({ name: "Cancelled social", status: "cancelled", scheduledOn: "2026-10-15" }),
-      listEntry({ name: "Not-held meeting", status: "not_held", scheduledOn: "2026-10-17" }),
-      listEntry({ name: "Withdrawn taster", status: "withdrawn", scheduledOn: "2026-10-18" }),
-      listEntry({ name: "Rejected trip", status: "rejected", scheduledOn: "2026-10-19" }),
     ]);
 
     const { container } = render(await EventCalendarPage(calendarProps()));
     const text = flatten(within(container).getByTestId("gregorian-grid").textContent);
 
-    for (const label of [
-      "Draft",
-      "Pending approval",
-      "Cancelled",
-      "Not held",
-      "Withdrawn",
-      "Rejected",
-    ]) {
+    for (const label of ["Draft", "Cancelled"]) {
       expect(text).toContain(label);
     }
   });
@@ -516,16 +505,19 @@ describe("what a calendar tile states", () => {
     // Brian's 14 August 2026 review: "if an event is in draft, I think it's
     // important. If it happened in the past, that's fine. We don't need to see
     // that." A card of sixty occurred practices should not say so sixty times.
+    // Both approved: one ahead of today and one behind it. Since LAN-151 the
+    // date is the only thing that separates them, and the tile is quiet about
+    // both because neither needs acting on.
     givenEvents([
       listEntry({ name: "Approved chalk", status: "approved", scheduledOn: "2026-10-13" }),
-      listEntry({ name: "Occurred camp", status: "occurred", scheduledOn: "2026-10-16" }),
+      listEntry({ name: "Past practice", status: "approved", scheduledOn: "2026-10-16" }),
     ]);
 
     const { container } = render(await EventCalendarPage(calendarProps()));
     const text = flatten(within(container).getByTestId("gregorian-grid").textContent);
 
     expect(text).toContain("Approved chalk");
-    expect(text).toContain("Occurred camp");
+    expect(text).toContain("Past practice");
     expect(text).not.toContain("Approved ·");
     expect(text).not.toContain("Occurred ·");
   });
@@ -536,7 +528,7 @@ describe("what a calendar tile states", () => {
     givenEvents([
       listEntry({ name: "Team Practice", eventType: "practice", scheduledOn: "2026-10-11" }),
       listEntry({ name: "Rookie Curry", eventType: "social", scheduledOn: "2026-10-12" }),
-      listEntry({ name: "vs Elmswell", eventType: "fixture", scheduledOn: "2026-10-13" }),
+      listEntry({ name: "vs Elmswell", eventType: "game", scheduledOn: "2026-10-13" }),
     ]);
 
     const { container } = render(await EventCalendarPage(calendarProps()));
@@ -544,7 +536,7 @@ describe("what a calendar tile states", () => {
 
     expect(text).toContain("Practice");
     expect(text).toContain("Social");
-    expect(text).toContain("Fixture");
+    expect(text).toContain("Game");
 
     // Scoped to the desktop grid: the phone agenda renders the same events
     // again, which is the point of it.
@@ -554,7 +546,7 @@ describe("what a calendar tile states", () => {
     expect(tiles.map((tile) => tile.getAttribute("data-event-type"))).toEqual([
       "practice",
       "social",
-      "fixture",
+      "game",
     ]);
   });
 
@@ -567,8 +559,8 @@ describe("what a calendar tile states", () => {
       listEntry({ eventType: "practice", scheduledOn: "2026-10-11" }),
       listEntry({ eventType: "social", scheduledOn: "2026-10-12" }),
       listEntry({ eventType: "practice", scheduledOn: "2026-10-13" }),
-      listEntry({ eventType: "fixture", scheduledOn: "2027-01-24" }),
-      listEntry({ eventType: "camp", scheduledOn: "2027-04-25" }),
+      listEntry({ eventType: "game", scheduledOn: "2027-01-24" }),
+      listEntry({ eventType: "chalk", scheduledOn: "2027-04-25" }),
     ]);
 
     const { container } = render(await EventCalendarPage(calendarProps({ month: "2026-10" })));
@@ -614,19 +606,19 @@ describe("what a calendar tile states", () => {
     // Quieting the tile is a presentation choice. Dropping the status from the
     // accessible name would be a loss of information.
     givenEvents([
-      listEntry({ name: "Occurred camp", status: "occurred", scheduledOn: "2026-10-16" }),
+      listEntry({ name: "Past practice", status: "approved", scheduledOn: "2026-10-16" }),
     ]);
 
     const { container } = render(await EventCalendarPage(calendarProps()));
     const label = within(container).getAllByTestId("calendar-entry")[0].getAttribute("aria-label");
 
-    expect(label).toContain("Occurred");
+    expect(label).toContain("Approved");
   });
 
-  it("shows a draft and a pending event as ordinary club-calendar records", async () => {
+  it("shows a draft and a cancelled event as ordinary club-calendar records", async () => {
     givenEvents([
       listEntry({ name: "Draft practice", status: "draft", scheduledOn: "2026-10-14" }),
-      listEntry({ name: "Pending fixture", status: "pending_approval", scheduledOn: "2026-10-14" }),
+      listEntry({ name: "Cancelled game", status: "cancelled", scheduledOn: "2026-10-14" }),
     ]);
 
     const { container } = render(await EventCalendarPage(calendarProps()));
@@ -707,13 +699,7 @@ describe("authorization and side effects", () => {
     const oxford = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
     oxford.unmount();
 
-    for (const write of [
-      createEventDraft,
-      updateEventDraft,
-      abandonEventDraft,
-      approveEvent,
-      saveEventAudience,
-    ]) {
+    for (const write of [createEventDraft, updateEventDraft, approveEvent, saveEventAudience]) {
       expect(write).not.toHaveBeenCalled();
     }
     expect(listCurrentSeasonEvents).toHaveBeenCalledTimes(2);
@@ -740,7 +726,7 @@ describe("one event, three presentations", () => {
   it("shows the same identity, date, time and status in both calendars", async () => {
     const event = listEntry({
       name: "Team Practice",
-      status: "pending_approval",
+      status: "cancelled",
       scheduledOn: "2026-10-14",
       startsAt: "20:00",
     });
@@ -762,6 +748,6 @@ describe("one event, three presentations", () => {
 
     expect(fromGrid).toBe(fromCard);
     expect(fromGrid).toContain("20:00 Team Practice");
-    expect(fromGrid).toContain("Pending approval");
+    expect(fromGrid).toContain("Cancelled");
   });
 });

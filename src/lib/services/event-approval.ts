@@ -104,8 +104,8 @@ export interface ApprovalPreview {
   /** The audience already saved on this event. Empty until one is proposed. */
   audience: AudienceMember[];
   /**
-   * Where the deadline would land if the event were approved now. `null` for an
-   * event that solicits no response — invariant E6.
+   * Where the deadline would land if the event were approved now. `null` only
+   * while the event has no date — approval is refused without one (E1a).
    */
   deadline: ResolvedResponseDeadline | null;
 }
@@ -229,10 +229,10 @@ export async function readApprovalPreview(eventId: string): Promise<ApprovalPrev
     const event = await readEventIn(tx, eventId);
     const catalogue = await listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn);
     const audience = await readAudienceIn(tx, eventId, catalogue);
-    const deadline =
-      event.solicitsResponse && event.scheduledOn !== null
-        ? await resolveResponseDeadlineIn(tx, event)
-        : null;
+    // D23 removed "Response requested": everyone sent an event is expected to
+    // answer, so the only thing that can stop a deadline being computed is the
+    // event not having a date yet.
+    const deadline = event.scheduledOn !== null ? await resolveResponseDeadlineIn(tx, event) : null;
 
     return { event, catalogue, audience, deadline };
   });
@@ -360,11 +360,10 @@ export async function approveEvent(
     const moment = await tx.query<{ at: Date }>("select now() as at");
     const approvedAt = moment.rows[0].at;
 
-    // Invariant E6: a non-soliciting event carries no deadline at all, which is
-    // also what stops its invitations ever reaching `expired`.
-    const deadline = before.solicitsResponse
-      ? await resolveResponseDeadlineIn(tx, before, approvedAt)
-      : null;
+    // Every approved event carries a deadline (D23). Invariant E1a has already
+    // guaranteed the date it is computed from, because approval is refused
+    // without one.
+    const deadline = await resolveResponseDeadlineIn(tx, before, approvedAt);
 
     const updated = await tx.query<{ id: string }>(
       `update public.events
@@ -377,7 +376,7 @@ export async function approveEvent(
               updated_at = now()
         where id = $1 and status = 'draft'
        returning id`,
-      [eventId, approvedAt, actorPersonId, deadline?.at ?? null],
+      [eventId, approvedAt, actorPersonId, deadline.at],
     );
 
     if (updated.rowCount === 0) {
@@ -395,14 +394,14 @@ export async function approveEvent(
     // `never_invited` state cannot arise from an approval that ran this code.
     const invitations = await tx.query<{ id: string }>(
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity,
+         (event_id, event_status, season_id, capacity,
           season_membership_id, person_id, status, expires_at, audience_member_id)
-       select a.event_id, 'approved'::public.event_status, $2, a.season_id, a.capacity,
-              a.season_membership_id, a.person_id, 'pending', $3::timestamptz, a.id
+       select a.event_id, 'approved'::public.event_status, a.season_id, a.capacity,
+              a.season_membership_id, a.person_id, 'pending', $2::timestamptz, a.id
          from public.event_audience_members a
         where a.event_id = $1
        returning id`,
-      [eventId, before.solicitsResponse, deadline?.at ?? null],
+      [eventId, deadline.at],
     );
 
     // Invariant M1: the key is derived from facts that do not change — the
@@ -458,9 +457,8 @@ export async function approveEvent(
         byCapacity,
         invitationsCreated: invitations.rowCount,
         notificationJobsCreated: jobs.rowCount,
-        solicitsResponse: before.solicitsResponse,
-        responseDeadlineAt: deadline?.at.toISOString() ?? null,
-        responseDeadlineClamped: deadline?.clamped ?? false,
+        responseDeadlineAt: deadline.at.toISOString(),
+        responseDeadlineClamped: deadline.clamped,
       },
     });
 
@@ -486,13 +484,8 @@ const requireActor = actorRequirement("An audience change has to name the operat
 
 const STATUS_DESCRIPTIONS: Readonly<Record<string, string>> = Object.freeze({
   draft: "a draft",
-  pending_approval: "awaiting approval",
   approved: "already approved",
-  occurred: "recorded as having happened",
-  not_held: "recorded as not held",
   cancelled: "cancelled",
-  rejected: "rejected",
-  withdrawn: "withdrawn",
 });
 
 function describeStatus(status: string): string {

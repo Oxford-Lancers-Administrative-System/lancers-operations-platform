@@ -123,31 +123,47 @@ describe.runIf(seeded)("synthetic dataset properties (SDA §11.5)", () => {
   });
 
   it("has a confirmed date with everything else unknown", async () => {
+    // SDA §5.6, and unchanged by LAN-151 except that `opponent` is gone with
+    // D14 — the name carries it, so a game with nothing but a date still reads
+    // "BUCS fixture — hilary week 7" and has no venue and no time.
     const bare = await count(
       `select count(*) as count from public.events
         where status = 'approved' and scheduled_on is not null
-          and opponent is null and venue is null and starts_at is null`,
+          and venue is null and starts_at is null`,
     );
     expect(bare).toBeGreaterThanOrEqual(2);
   });
 
-  it("has events that were proposed and never happened", async () => {
-    // `pending_approval` is deliberately absent, on Brian's decision of
-    // 13 August 2026. PR #18 removed the Submit step, so the application can no
-    // longer put an event into that state, and LAN-77's approval accepts only a
-    // draft — a seeded row was therefore an event nobody could act on, which he
-    // hit on the real screen and read as polluted test data.
-    //
-    // The state itself remains in the enum, in the frozen model, and in the
-    // historical audit rows the seed still writes with `from_state =
-    // 'pending_approval'`. What went is the live row, not the vocabulary.
-    for (const status of ["draft", "rejected", "withdrawn", "not_held", "cancelled"]) {
+  it("has an event in every one of the three stored statuses", async () => {
+    // Three, since LAN-151. `pending_approval`, `rejected` and `withdrawn` were
+    // never states the club acted in — the first was removed from the
+    // application on 13 August 2026, and the other two both meant "it never
+    // became an event", which is a draft. `occurred` and `not_held` were
+    // assertions somebody typed, and D30 derives occurrence from the date
+    // instead.
+    for (const status of ["draft", "approved", "cancelled"]) {
       expect(
         await count("select count(*) as count from public.events where status = $1", [status]),
         `no event in the ${status} state`,
       ).toBeGreaterThan(0);
     }
   });
+
+  /*
+   * There is deliberately no assertion here about which seeded events have
+   * *occurred*.
+   *
+   * Since LAN-151 occurrence is derived from the real clock (D30: the date has
+   * passed and the event was not cancelled), and this dataset is the 2026-27
+   * season — a fixed, real Oxford academic year. Whether any of it has happened
+   * therefore depends on the day the suite runs, and an assertion about it
+   * would pass in March and fail in August for no reason anybody changed.
+   *
+   * The behaviour is covered where a test can own the date instead:
+   * `tests/schema-accepts.test.ts` and `tests/schema-invariants.test.ts` build
+   * their events at `current_date - 7`, and `src/lib/services/event-input`'s
+   * `derivedEventState` is pure and takes today as an argument.
+   */
 
   it("has two or more events on one day, several times over", async () => {
     const days = await count(
@@ -196,16 +212,20 @@ describe.runIf(seeded)("synthetic dataset properties (SDA §11.5)", () => {
     // "That is the normal failure mode and the system's main job is preventing
     // it." The lapse has to be in the dataset for the exception views to have
     // anything to find.
-    const occurredSessions = await count(
+    //
+    // Asserted as a shape rather than against the clock, for the reason above:
+    // far more of the season's sessions carry no register than carry one, and
+    // that is true of the dataset whatever day it is read on.
+    const sessions = await count(
       `select count(*) as count from public.events
-        where status = 'occurred' and event_type in ('practice', 'fixture', 'varsity')`,
+        where status = 'approved' and event_type in ('practice', 'game')`,
     );
     const withAttendance = await count(
       "select count(distinct event_id) as count from public.attendance_records",
     );
 
     expect(withAttendance).toBeGreaterThan(0);
-    expect(withAttendance).toBeLessThan(occurredSessions);
+    expect(withAttendance).toBeLessThan(sessions);
   });
 });
 
@@ -337,10 +357,39 @@ describe.runIf(seeded)("the scenarios the schema ticket names", () => {
     expect(superseded).toBeGreaterThan(0);
   });
 
-  it("has RSVP-versus-attendance mismatches to surface", async () => {
-    expect(
-      await count("select count(*) as count from public.rsvp_attendance_mismatches"),
-    ).toBeGreaterThan(0);
+  it("has the ingredients of an RSVP-versus-attendance mismatch", async () => {
+    // Requirement 7: a disagreement between what somebody said and what they
+    // did is surfaced, never silently reconciled.
+    //
+    // The view itself is only populated once an event's date has passed, so
+    // reading it here would be an assertion about today rather than about the
+    // dataset. What the dataset owes is the disagreement: somebody who answered
+    // and then did the other thing, and somebody who turned up having never
+    // been invited. `tests/schema-accepts.test.ts` proves the view classifies
+    // them, against an event whose date the test controls.
+    const contradicted = await count(
+      `select count(*) as count
+         from public.attendance_records a
+         join public.invitations i
+           on i.event_id = a.event_id
+          and coalesce(i.season_membership_id, i.person_id)
+                = coalesce(a.season_membership_id, a.person_id)
+         join public.current_rsvp r on r.invitation_id = i.id
+        where (r.response = 'yes' and a.presence = 'absent')
+           or (r.response = 'no' and a.presence in ('present', 'late'))`,
+    );
+    expect(contradicted, "nobody in the dataset said one thing and did another").toBeGreaterThan(0);
+
+    const walkUps = await count(
+      `select count(*) as count
+         from public.attendance_records a
+        where not exists (
+          select 1 from public.invitations i
+           where i.event_id = a.event_id
+             and coalesce(i.season_membership_id, i.person_id)
+                   = coalesce(a.season_membership_id, a.person_id))`,
+    );
+    expect(walkUps, "nobody in the dataset turned up uninvited").toBeGreaterThan(0);
   });
 
   it("has availability transitions, and every return to green names its confirmer", async () => {

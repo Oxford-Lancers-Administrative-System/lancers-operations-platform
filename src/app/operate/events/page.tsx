@@ -38,9 +38,9 @@ import EventFilters from "./event-filters";
 import ViewSwitch from "./view-switch";
 import {
   AUDIENCE_AND_RESPONSES_COME_LATER,
+  DELIVERY_MODE_LABELS,
   describeAttendance,
   describeAudience,
-  describeSolicitation,
   formatListWhen,
   labelFor,
   STATUS_LABELS,
@@ -62,12 +62,16 @@ import {
  * ## What the columns are, after Brian's clarification
  *
  * **Occurrence is gone.** It read "Awaiting assertion" for every approved
- * event, which is internal vocabulary for a decision this screen cannot make —
- * asserting that an event happened is LAN-80's, on its own surface. A column
- * that names a state and offers no action is a column an operator learns to
- * ignore. **Responses is gone too**: RSVP counts are excluded from this
- * correction pass, and the column said "—" for everything a calendar operator
- * can currently create.
+ * event, which was internal vocabulary for a decision nobody makes any more:
+ * LAN-151 retired the assertion entirely, and an event has occurred when its
+ * date has passed and it was not cancelled (D30). **Responses is gone too**:
+ * RSVP counts are excluded from this list, and the column said "—" for
+ * everything a calendar operator can currently create.
+ *
+ * **Where** replaced the response-solicited column when D23 removed "Response
+ * requested". In person or online is a fact about the event that changes what
+ * an operator has to do to get to it; whether a response was requested was not
+ * a real concept, because everyone sent an event is expected to answer.
  *
  * **Audience stays, and says when it arrives** rather than that it is missing:
  * the clarification asks the list to make clear that audience and response
@@ -83,16 +87,7 @@ import {
  */
 
 /** The statuses an operator can filter by — the whole vocabulary, in order. */
-const FILTERABLE_STATUSES: readonly string[] = Object.freeze([
-  "draft",
-  "pending_approval",
-  "approved",
-  "occurred",
-  "not_held",
-  "cancelled",
-  "rejected",
-  "withdrawn",
-]);
+const FILTERABLE_STATUSES: readonly string[] = Object.freeze(["draft", "approved", "cancelled"]);
 
 function first(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -103,10 +98,7 @@ function first(value: string | string[] | undefined): string {
 function statusColour(status: string): "default" | "info" | "success" | "warning" {
   switch (status) {
     case "approved":
-    case "occurred":
       return "success";
-    case "pending_approval":
-      return "warning";
     case "draft":
       return "info";
     default:
@@ -247,7 +239,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
                     direction={direction}
                     query={params}
                   />
-                  <TableCell>Response</TableCell>
+                  <TableCell>Where</TableCell>
                   <TableCell>Audience</TableCell>
                 </TableRow>
               </TableHead>
@@ -274,7 +266,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
                         color={statusColour(event.status)}
                       />
                     </TableCell>
-                    <TableCell>{describeSolicitation(event.solicitsResponse)}</TableCell>
+                    <TableCell>{labelFor(DELIVERY_MODE_LABELS, event.deliveryMode)}</TableCell>
                     <TableCell>{describeAudience(event)}</TableCell>
                   </TableRow>
                 ))}
@@ -342,7 +334,7 @@ async function coachEventList(search: string) {
           when: formatListWhen(event),
           venue: event.venue,
           isToday: isToday(event, today),
-          isOpen: isOpenForAttendance(event),
+          isOpen: isOpenForAttendance(event, today),
         })),
       }))}
     />
@@ -411,11 +403,10 @@ function SortableHeader({
 /**
  * The phone presentation of one event.
  *
- * The wireframe's card carries name, date and venue. Status, response
- * solicitation and attendance are carried too, because LAN-76 scopes the list
- * to "date, type, status and whether a response is solicited" — dropping a
- * status on a narrow screen would leave an operator unable to tell a draft from
- * an approved event, and § 7 forbids reflow that removes data needed for the
+ * The wireframe's card carries name, date and venue. Status, where the event
+ * is and whether attendance is expected are carried too — dropping a status on
+ * a narrow screen would leave an operator unable to tell a draft from an
+ * approved event, and § 7 forbids reflow that removes data needed for the
  * task.
  */
 function EventCard({ event }: { event: EventListEntry }) {
@@ -437,7 +428,7 @@ function EventCard({ event }: { event: EventListEntry }) {
             />
             <Chip size="small" label={labelFor(TYPE_LABELS, event.eventType)} />
             {event.venue ? <Chip size="small" label={event.venue} /> : null}
-            <Chip size="small" label={describeSolicitation(event.solicitsResponse)} />
+            <Chip size="small" label={labelFor(DELIVERY_MODE_LABELS, event.deliveryMode)} />
             <Chip size="small" label={describeAttendance(event.isMandatory)} />
           </Stack>
         </Stack>
