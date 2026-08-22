@@ -163,6 +163,11 @@ own pitches, which no geocoder indexes, are typed rather than searched.
 | `npm run db:review-ready`                                                    | Validate browser evidence and protect review      |
 | `npm run db:release`                                                         | Release the current slot after stopping it        |
 | `npm run db:cleanup-stale`                                                   | Mark abandoned active leases stale                |
+| `npm run visual:start`                                                       | Supervise a pending visual environment            |
+| `npm run visual:preflight -- /route …`                                       | Measure both viewports and capture the artifacts  |
+| `npm run visual:status`                                                      | Report whether it is still genuinely ready        |
+| `npm run visual:disposition -- --set <state>`                                | Record approved/rejected/obsolete/abandoned       |
+| `npm run visual:release`                                                     | Stop the supervisor and hand the slot back        |
 
 The authoritative lease registry lives in machine-local state, keyed by the
 repository remote so clones and worktrees coordinate. `.lancers-runtime/` in
@@ -193,12 +198,30 @@ protected until its owner releases it. `npm run db:cleanup-stale` is the
 deliberate route for a slot known to be finished, and it never touches a live or
 `review-ready` one.
 
-For UI work, the issue agent records its completed browser preflight in ignored
-`.lancers-runtime/visual-review.json`. `db:review-ready` refuses to protect the
-slot unless the assigned loopback URL, real login, seeded states, review routes,
-desktop layout, and 375px layout are all recorded as verified, and unless the
-running stack holds this holder's rendered configuration. This record contains no
-password.
+For UI work the environment has an owner of its own. `npm run visual:start`
+spawns a detached supervisor that holds the application and refreshes the
+database lease on a timer; the agent that started it can then exit, and the
+environment stays reachable, authenticated and seeded until it is approved,
+rejected, obsoleted or explicitly abandoned. `npm run visual:status` says
+whether it is genuinely still ready, and refuses it once its supervisor is gone,
+once it has stopped proving itself live, or — the failure that looks fine —
+once the branch has moved past the head it serves, because Brian would then be
+approving something that is not what would merge.
+
+`npm run visual:preflight -- /route …` drives a real browser through the real
+login and **measures** each viewport by asking the browser context how wide it
+actually is, capturing a screenshot per route. This replaces a self-reported
+`phone375Verified` boolean, which this machine could not honestly produce —
+Chrome's window resizing is clamped well above 375px here — so the claim was
+satisfied on paper and refused in practice. A browser context is exactly the
+width it is told to be.
+
+The result lands in ignored `.lancers-runtime/visual-review.json`, with the
+screenshots beside it. `db:review-ready` refuses to protect the slot unless the
+assigned loopback URL, real login, seeded states, review routes, exact head SHA,
+and both measured viewports with the artifacts they name are all present, and
+unless the running stack holds this holder's rendered configuration. Neither
+record contains a password.
 
 Run `npm run verify` before opening a pull request. It is what CI runs.
 
