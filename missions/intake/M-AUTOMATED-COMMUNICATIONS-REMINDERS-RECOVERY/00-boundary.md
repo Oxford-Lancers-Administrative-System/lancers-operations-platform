@@ -9,26 +9,51 @@
   [Release One Mission Portfolio, row 4](https://app.notion.com/p/3bb488886d578126a88cdd747f590a01)
   — approved by Brian Schuster 2026-08-19; page fetched 2026-08-22T14:52Z
 - **Observed `main` SHA:** `c59bff174d6d17b5fa9dec4396eb3397d67e0c63`
-- **Primary coverage:** R6, R12, R15 · Tasks 02 + 03 · Scope 2
-  ("Automated Communications, RSVP, Reminders and Recovery"). R5 is satisfied
-  (LAN-79, PR #28) and retained for traceability, not rebuilt.
+- **Primary coverage:** R5, R6, R12, R15 · Tasks 02 + 03 · Scope 2
+  ("Automated Communications, RSVP, Reminders and Recovery")
 - **Deliberately shared coverage:**
   - **Task 11 transport reuse → Mission 6.** Mission 6's onboarding chase rides
     this mission's pipeline verbatim. One machine, two streams. The chase's
     behaviour, queue, caps and refused state stay with Mission 6.
   - **Consent enforcement → defined in Mission 7.** Mission 7 defines the lawful
-    basis and the acceptance record; this mission enforces it at dispatch.
-  - **C4 delivery half → Mission 2 owns the event-side rules.** Mission 2 places
-    the hold; this mission disposes of what is held.
-  - **Escalation-list surfacing ↔ Mission 9.** Chase-list content overlaps the
-    Monday report's exception sections (Task 02 §8, Task 05 boundary).
+    basis and the acceptance record; this mission refuses to dispatch without it.
+  - **The event page → Mission 2 builds it; this mission adds to it.** Mission 2
+    owns the event and its surfaces. This mission adds what those surfaces say
+    about communication.
+  - **Chase-list content ↔ Mission 9.** The Monday report is Mission 9's surface;
+    this mission supplies its exception content.
 
-## What this mission is for
+## The ownership rule for this boundary
 
-Release One's largest approved-but-unbuilt capability. The manifest's own words:
-R6 is "**Defined; not implemented** — no scheduler on main; largest
-approved-but-untracked capability." Verified against `main` @ `c59bff1`: the
-substrate exists and nothing drives it. `notification_jobs` carries
+**Ownership is by subject, not by build state.** If it concerns a message the
+club sends a person, or the response that comes back, it belongs to this mission
+— whether it shipped months ago, is half-built, or does not exist.
+
+This is written down because the first draft of this boundary got it wrong. It
+excluded the RSVP page and the operator response-monitoring views on the grounds
+that they were already built and verified. That is the wrong test: no other
+mission in the portfolio touches responses, so excluding them left the response
+surface with no owner at all. Brian corrected it, 2026-08-22:
+
+> Just because it's built doesn't mean that it's out of scope. … If there is no
+> other place we handle responses, this is the thing.
+
+A shipped part being in scope does not mean it is rebuilt. It means this mission
+is where its gaps are closed and where it changes when the surrounding machinery
+changes.
+
+## What this mission is
+
+**Everything that happens between the club and a person, and everything that
+comes back.**
+
+Mission 2 decides _that_ a message is owed and to whom. This mission owns the
+message, the answer, and the chase.
+
+Release One's largest approved-but-unbuilt capability sits inside it. The
+manifest's own words: R6 is "**Defined; not implemented** — no scheduler on main;
+largest approved-but-untracked capability." Verified against `main` @ `c59bff1`:
+the substrate exists and nothing drives it. `notification_jobs` carries
 `scheduled_for`, an idempotency key and the six locked states; the `reminder` and
 `escalation` job types are already in the enum; `nonresponse_queue` and
 `invitation_response_state` are live views. There is no scheduler, no reminder
@@ -39,82 +64,118 @@ essentially unusable… 30 chats with players."
 
 ## In scope
 
-**Reminders and escalation (Task 03 §4, the D5 behaviour definition).**
+### 1. Every message the club sends a person
 
-- Automatic reminders to unanswered invitations at configured offsets before the
-  response deadline, riding the Task 02 pipeline as ordinary notification jobs.
-- An arriving RSVP cancels that person's pending reminders and clears any
-  un-actioned escalation flag.
-- Nonresponse becomes an escalation flag **N hours past the response deadline**,
-  N configurable per event type, N = 0 permitted.
-- The escalation target is an **office, not a person** — initial value President,
-  resolving to the current holder; a vacant office surfaces as a visible
-  exception, never a silent drop.
-- Three surfaces for a flag: a proactive automated message to the office holder,
-  the in-app nonresponse queue, and the Monday report.
-- **No player personal data in an escalation message body** — event, count and a
-  link into the operator area; names stay behind the operator login.
-- A quiet-hours send window (proposed 08:00–21:00 Europe/London), with anything
-  outside it rolling to the next opening; clamped-deadline events skip reminders
-  and still receive the full N-hour grace.
-- Flag lifecycle: one flag per invitation per threshold, idempotent under
-  scheduler reruns, cleared by an arriving RSVP. **Recorded provisional by Brian
-  on 2026-08-14 and explicitly owed a restatement and confirmation here.**
-- Configuration values in central repository config on the ADR 0021 pattern — one
-  frozen table, one file, no default arm, reasoning beside the values — plus the
-  operator-readable pointer saying where policy lives and how a change is
-  requested.
+Invitation, reminder, change notice, cancellation notice, escalation, chase, and
+the onboarding acceptance message. Their content, their approved Meta templates
+and their parameter contracts — Task 02's **F7** template inventory, enumerated,
+created and tested.
 
-**Delivery, retry and recovery (Task 02).**
+Message structure is expected to change here. The shipped invitation template
+carries four body parameters in a fixed order (invitee name, event name, when,
+signed link); nothing about that is frozen by a decision, and restructuring what
+goes out is this mission's to do.
 
+### 2. When each one goes out
+
+- Invitations dispatch on approval, as today.
+- Reminders to unanswered invitations at configured offsets **before** the
+  response deadline.
+- A quiet-hours send window (proposed 08:00–21:00 Europe/London); anything
+  outside it rolls to the next opening. Clamped-deadline events skip reminders
+  and still receive the full grace before any flag.
+- The policy that decides all of it: values in central repository config on the
+  ADR 0021 pattern — one frozen table, one file, no default arm, reasoning beside
+  the values — plus the operator-readable pointer saying where policy lives and
+  how a change is requested.
+
+### 3. How it goes out, and what happens when it fails
+
+- WhatsApp first, as the primary attention channel.
 - **F1** — the automated retry loop: Cloud Scheduler owns _when_, the database
   records what is due; backoff, attempt ceiling, idempotent
   `for update skip locked` claims (D6, M1).
-- **F2** — undelivered-job behaviour on amendment and cancellation, as corrected
-  below.
-- **F3** — the R15 recovery procedure (§5 verbatim) into the operating runbook.
-- **F4** — undeliverable recipients joining the escalation/chase list: one list,
-  two streams — didn't receive it, didn't answer it.
 - **F5** — the Shape B automated email + calendar fallback: Resend on the club
   domain, the same signed RSVP link, an ICS attachment, delivery and bounce
   webhooks into the same evidence tables.
-- **F7** — the template inventory: invitation, change notice, cancellation
-  notice, onboarding acceptance, reminder and chase-list messages, enumerated,
-  created and tested.
 - **D8** — the "Not dispatched — no channel" backstop, counted and visible.
+- **F3** — the R15 recovery procedure (§5 verbatim) into the operating runbook.
+- The delivery-confirmation webhook, which today is unconfigured and leaves every
+  accepted message stalled at **Attempted**.
 
-**Arriving from Mission 2's approved packet (merged 2026-08-21, after the
-portfolio row was written).**
+### 4. The response surface, end to end
 
-- Disposal of a **held** job when an amendment is saved — released, re-anchored,
-  replaced or cancelled.
-- Recomputing the chase threshold against a moved date (OD-1/Q6).
-- Discharging the obligation a Mission 2 re-notify (D54) produces.
+This mission owns how an answer is given and recorded, by every route.
 
-**From the pilot residuals (2026-08-18), routed here by name.**
+- The signed no-login RSVP page. Its shipped binary Yes/No path (LAN-79, PR #28)
+  stands and is not rebuilt.
+- **The operator-recorded response** — a Yes or No given in person or by text,
+  with actor, reason and visible provenance. Legal in the schema, deliberately
+  left out of LAN-79, and named in the 2026-08-18 pilot residuals as landing
+  here. Without it the escalation stream produces false positives.
+- **The inbound channel reply path** — treating a reply in the channel as an
+  answer. Deferred from LAN-79 pending Stuart's real-experience review, and tied
+  to the deferred in-chat buttons (D9).
+- The page changes with the messages that link to it.
 
-- **Operator-recorded verbal RSVP** — a response given in person or by text, with
-  operator provenance visible. Without it the escalation stream produces false
-  positives. The portfolio's 2026-08-19 decisions place the wording at this
-  intake.
+### 5. The people who don't answer
+
+- Nonresponse past the deadline surfacing without anyone compiling a list.
+- An escalation flag **N hours past the response deadline**, N configurable per
+  event type, N = 0 permitted.
+- The escalation target is an **office, not a person** — initial value President,
+  resolving to the current holder; a vacant office surfaces as a visible
+  exception, never a silent drop.
+- **No player personal data in an escalation message body** — event, count and a
+  link into the operator area; names stay behind the operator login.
+- An arriving RSVP cancels that person's pending reminders and clears any
+  un-actioned flag.
+- Flag lifecycle: one flag per invitation per threshold, idempotent under
+  scheduler reruns. **Recorded provisional by Brian on 2026-08-14 and explicitly
+  owed a restatement and confirmation here.**
+- **F4** — undeliverable recipients joining the same chase list: one list, two
+  streams — didn't receive it, didn't answer it.
+
+### 6. What an operator or approver sees about all of it
+
+- **The communications plan, before approval.** On the event page, before the
+  irreversible action, the approver sees what approval will set off. Brian,
+  2026-08-22:
+
+  > When an event gets created and I am about to approve it and send it out, I
+  > then need to see the workflow by which notifications go out — when they go
+  > out, how they go out, where they do it.
+
+  No brief specifies this today. Task 02 §4 has only a post-approval delivery
+  view and a planned problem flag; Task 03 §4.2 tells the operator where policy
+  lives through a documentation pointer, not a screen; and Task 02 D6 argued
+  against showing a "next automated attempt" precisely because no scheduler
+  existed. This mission builds that scheduler, so that reasoning inverts.
+
+- **Response monitoring, extended.** The shipped views (LAN-77/78/81) show
+  Yes / No / no-response and stay. None of them knows about a reminder, a flag or
+  an escalation, because none exists yet. Everything this mission's machinery
+  adds has to become visible, or the club is chasing people it cannot see.
+- **Delivery health**, per event and per person, as shipped and as extended by
+  the retry loop and the email route.
 
 ## Out of scope
 
-| Excluded                                                                                          | Where it lives, or why                                                                         |
-| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| The player RSVP page and its response path                                                        | R5 satisfied — LAN-79, PR #28. Verified, not rebuilt                                           |
-| Operator response-monitoring views (E2)                                                           | Confirmed adequate for release one across LAN-77/78/81                                         |
-| A live per-event RSVP screen                                                                      | Task 03 §3: record it if the pilot shows the need; do not build it now                         |
-| Mission 6's onboarding chase behaviour, caps and refused state                                    | Task 11. Reuses this transport; the behaviour is not this mission's                            |
-| Consent capture, lawful basis, the D6 acceptance wording                                          | Mission 7 / Task 07. This mission enforces the rule it defines                                 |
-| Event-side amendment and cancellation rules (Q6/Q7/Q9, D49–D61)                                   | Mission 2, packet v1, merged                                                                   |
-| The committee-facing configuration UI                                                             | LAN-106, committed post-release-one. Release One is repository config                          |
-| A cross-event delivery-health queue                                                               | Task 02 D4 — the per-event view plus the event-page flag is the operating model                |
-| In-chat interactive Yes/No reply buttons                                                          | Task 02 D9, deferred; revisit after Stuart's review                                            |
-| Recall of anything already sent                                                                   | Task 02 §11, and unaffected by the D49 supersession                                            |
-| Broadcast announcements                                                                           | Owner decision 2026-08-19: they stay in WhatsApp groups. Structured communications only        |
-| Any manual copy, send, post or "mark as sent" path, in any state                                  | R12/R15 as clarified; enforced by `channel <> 'manual'` and `tests/no-manual-delivery.test.ts` |
-| Production activation itself — club number, Meta verification, template approval, Stuart's review | Track A: LAN-101, LAN-126. Gates acceptance, not build                                         |
+| Excluded                                                                                                               | Where it lives, or why                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| The event itself — creating, importing a term, the calendar, amending, cancelling, event templates, audience selection | Mission 2, packet v1, merged                                                                       |
+| Whether an amendment or cancellation notifies                                                                          | Mission 2 decides (D54/D58 notify choice); this mission carries what it decides                    |
+| Defining consent — lawful basis, the acceptance record, the D6 wording                                                 | Mission 7 / Task 07. This mission enforces it at dispatch                                          |
+| Mission 6's onboarding chase behaviour, caps and refused state                                                         | Task 11. Reuses this transport; the behaviour is not this mission's                                |
+| The Monday report surface                                                                                              | Mission 9 / Task 05. This mission supplies its exception content                                   |
+| The committee-facing configuration UI                                                                                  | LAN-106, committed post-release-one. Release One is repository config                              |
+| A cross-event delivery-health queue                                                                                    | Task 02 D4 — the per-event view plus the event-page flag is the operating model                    |
+| Peer visibility of who else is coming, on the RSVP page                                                                | Locked out of the slice; additive later at no rework cost                                          |
+| Recall of anything already sent                                                                                        | Task 02 §11, and unaffected by the D49 supersession                                                |
+| Broadcast announcements                                                                                                | Owner decision 2026-08-19: they stay in WhatsApp groups. Structured communications only            |
+| A third RSVP state                                                                                                     | R5 as clarified 2026-08-13: strictly binary. Any third state is new scope needing a fresh decision |
+| Any manual copy, send, post or "mark as sent" path, in any state                                                       | R12/R15 as clarified; enforced by `channel <> 'manual'` and `tests/no-manual-delivery.test.ts`     |
+| Production activation itself — club number, Meta verification, template approval, Stuart's review                      | Track A: LAN-101, LAN-126. Gates acceptance, not build                                             |
 
 ## Determinations recorded, not escalated
 
@@ -154,6 +215,12 @@ authority, scope, risk or user-visible meaning.
    corrections are recorded in `notion-corrections.md`, unapplied, awaiting
    Brian. The substance — nothing goes out describing a superseded value — is
    unchanged.
+7. **Mockups on the event page are grounded against Mission 2's approved
+   mockups, not against `main`.** Mission 2 builds that surface and has not
+   started; the screens this mission adds to do not exist to screenshot. The
+   "current" side of any such mock is Mission 2's approved mockup — `W4` for
+   approval, `W5` for amendment — and the acceptance record says so, so that
+   nobody later reads an invented surface as observed reality.
 
 ## Carried to Stage 3 as genuine owner decisions
 
@@ -164,11 +231,15 @@ each belongs to the workflow that owns it, after that workflow has been walked.
   re-anchored to the new date, replaced with a change notice, or cancelled.
   Mission 2 correctly declined to decide it. It changes what a player receives
   after a session moves, so it is not a Mission Lead delegation.
-- **The operator-recorded verbal RSVP rule** — its provenance, whether it counts
-  as a response for escalation purposes, and its wording.
+- **The operator-recorded response rule** — its provenance, and whether it counts
+  as a response for escalation purposes.
 - **The flag lifecycle**, which Brian approved provisionally on 2026-08-14 and
-  asked to have restated at ticketing.
+  asked to have restated at ticketing. If a genuine escalation ladder is wanted —
+  more than one step, ending somewhere other than the President — that is a
+  change to what was approved and is asked here.
 - **The quiet-hours window** — proposed 08:00–21:00, accepted but never fixed.
+- **The inbound reply path**, which was deferred pending Stuart's review and is
+  entangled with the deferred in-chat buttons (D9).
 
 ## Split decision
 
@@ -183,14 +254,20 @@ them together.
 
 ## Portfolio deviation
 
-**None.** The boundary as written is the approved row.
+**None to the row's coverage.** Scope 2 is "Automated Communications, RSVP,
+Reminders and Recovery" and names R5, R6, R12 and R15 — the RSVP and
+response-monitoring surfaces were always inside it. The first draft of this file
+narrowed the row; this version restores it.
 
 Two things arrived after the row was approved on 2026-08-19 and are recorded as
 covered by it rather than as amendments: Mission 2's amendment-hold seam
-(2026-08-21) falls inside Task 02's F2, which the row already carries through
-"Tasks 02+03"; and the chase-threshold recompute falls inside "reminders,
-configurable nonresponse escalation". Neither adds coverage the row does not
-name.
+(2026-08-21) falls inside Task 02's F2, which the row carries through "Tasks
+02+03"; and the chase-threshold recompute falls inside "reminders, configurable
+nonresponse escalation".
+
+One surface is genuinely new and is commissioned by Brian directly rather than by
+any brief: the pre-approval communications plan on the event page, §6 above,
+2026-08-22.
 
 - **Brian approval words:**
 - **Approval date:**
