@@ -12,6 +12,12 @@ import { operatorHasCapability } from "@/lib/auth/guards";
 import { derivedEventState, readEvent, type EventDetail } from "@/lib/services/events";
 import { todayInClubZone } from "@/lib/club-time";
 import {
+  isRegisterAvailable,
+  readEventAttendanceSummary,
+  registerOpensAt,
+  type AttendanceSummary,
+} from "@/lib/services/attendance";
+import {
   readApprovalPreview,
   readEventAudience,
   type AudienceMember,
@@ -53,7 +59,16 @@ import {
   TYPE_LABELS,
   venueLabel,
 } from "../presentation";
-import { ATTENDANCE_NOT_OPEN_YET, ATTENDANCE_OPEN_DETAIL } from "./attendance/presentation";
+import {
+  ATTENDANCE_OPEN_DETAIL,
+  describeRegisterOpensAt,
+  formatShowedAgainstInvited,
+  HEADLINE_INVITED_LABEL,
+  HEADLINE_SAID_YES_LABEL,
+  HEADLINE_SHOWED_LABEL,
+  REGISTER_BUFFER_RULE,
+  REGISTER_NOT_YET_HEADLINE,
+} from "./attendance/presentation";
 
 /**
  * One event, in every presentation this route owns — UX-32, UX-33, and LAN-77's
@@ -168,6 +183,11 @@ export default async function EventDetailPage({
   // approved event answers "who was actually invited?" without a second screen.
   const audience = event.audienceCount > 0 ? await readEventAudience(event.id) : [];
 
+  // REQ-headline-numbers, LAN-152. Read once there is an audience to count,
+  // which is from approval onward — invitations are what approval creates, so
+  // below it the three numbers would be three zeroes describing nothing.
+  const summary = event.invitationCount > 0 ? await readEventAttendanceSummary(event.id) : null;
+
   return (
     <EventDetailView
       event={event}
@@ -176,6 +196,7 @@ export default async function EventDetailPage({
       mayAdministerDelivery={mayAdministerDelivery}
       justApproved={justApproved}
       audience={audience}
+      summary={summary}
     />
   );
 }
@@ -377,6 +398,58 @@ function AudienceList({
   );
 }
 
+/**
+ * The three headline numbers — REQ-headline-numbers, D62, D73 and D74. LAN-152.
+ *
+ * **Invited · Said yes · Showed**, at the top of the event page and large,
+ * because they are the primary operational facts about an event and the build
+ * rendered them nowhere. Everything else on this page is administration; this
+ * is what somebody opened it to find out.
+ *
+ * ## Three deliberate absences
+ *
+ * **No percentages.** D62 asks for raw pairs. `20 / 37` is the fact; `54%` is
+ * the fact with both of the numbers the club wanted removed from it.
+ *
+ * **No sentence explaining the dash.** `Showed` reads `— / 37` until a register
+ * has been saved and `0 / 37` afterwards, and the packet is explicit that the
+ * application explains neither in words: "explanatory text about washouts
+ * belongs in a review artifact, not in the product". The two values carry it.
+ *
+ * **No judgment.** Nothing here is coloured, flagged or compared against a
+ * target. A quiet Tuesday in fifth week is a fact about the term, not a
+ * failing, and a screen that decided otherwise would be inventing a club
+ * policy nobody has agreed.
+ */
+function HeadlineNumbers({ summary }: { summary: AttendanceSummary }) {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gap: 2,
+        gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+      }}
+      data-testid="headline-numbers"
+    >
+      <Metric
+        value={String(summary.invited)}
+        label={HEADLINE_INVITED_LABEL}
+        testId="headline-invited"
+      />
+      <Metric
+        value={String(summary.saidYes)}
+        label={HEADLINE_SAID_YES_LABEL}
+        testId="headline-said-yes"
+      />
+      <Metric
+        value={formatShowedAgainstInvited(summary)}
+        label={HEADLINE_SHOWED_LABEL}
+        testId="headline-showed"
+      />
+    </Box>
+  );
+}
+
 function Metric({ value, label, testId }: { value: string; label: string; testId?: string }) {
   return (
     <Paper variant="outlined" sx={{ p: 2 }} data-testid={testId}>
@@ -422,28 +495,33 @@ function Fact({
 /**
  * The register, and whether it is open yet.
  *
- * This panel replaced **Confirm what happened**. There is nothing to confirm:
- * an event has occurred when its date has passed and it was not cancelled
- * (D30), so the panel states that rather than asking anybody to assert it, and
- * offers the register once it is true.
+ * D71 opens it on a buffer before the event starts and D72 never closes it, so
+ * this panel has one question to answer and it is the clock's. Nobody is asked
+ * to decide anything here, and there is nothing to confirm.
  *
- * D71-D74 are what the assertion was standing in for. The register opens on a
- * buffer before the event and never closes, and its saved-versus-untouched
- * state is the record of whether the session was assessed — so there is no
- * moment at which somebody has to declare the evening over.
+ * `isRegisterAvailable` is the same function the register itself calls, with
+ * `registerSaved` taken off the headline numbers this page has already read.
+ * `docs/ux/standards.md` rule 7 is why it has to be the same one: this panel
+ * offering **Attendance** beside a register that then says "not open yet" is
+ * two screens answering one question two ways, and it is what the LAN-152
+ * browser preflight found.
  */
-function RegisterPanel({ event, occurred }: { event: EventDetail; occurred: boolean }) {
+function RegisterPanel({ event, registerSaved }: { event: EventDetail; registerSaved: boolean }) {
+  const available = isRegisterAvailable(event, registerSaved);
+
   return (
     <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="register-panel">
       <Stack spacing={2}>
         <Typography variant="h6" component="h2">
-          {occurred ? "Attendance is open" : "Attendance not open yet"}
+          {available ? "Attendance is open" : REGISTER_NOT_YET_HEADLINE}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          {occurred ? ATTENDANCE_OPEN_DETAIL : ATTENDANCE_NOT_OPEN_YET}
+          {available
+            ? ATTENDANCE_OPEN_DETAIL
+            : `${describeRegisterOpensAt(registerOpensAt(event)?.toISOString() ?? null)} ${REGISTER_BUFFER_RULE}`}
         </Typography>
 
-        {occurred ? (
+        {available ? (
           <Box>
             <Button
               variant="contained"
@@ -468,6 +546,7 @@ function EventDetailView({
   mayAdministerDelivery,
   justApproved,
   audience,
+  summary,
 }: {
   event: EventDetail;
   mayManage: boolean;
@@ -475,6 +554,7 @@ function EventDetailView({
   mayAdministerDelivery: boolean;
   justApproved: boolean;
   audience: AudienceMember[];
+  summary: AttendanceSummary | null;
 }) {
   const preApproval = isPreApproval(event.status);
   const proposed = event.status === "draft" && audience.length > 0;
@@ -517,6 +597,8 @@ function EventDetailView({
         </Alert>
       ) : null}
 
+      {summary ? <HeadlineNumbers summary={summary} /> : null}
+
       {preApproval ? (
         <Alert severity="info" data-testid="no-invitations-note">
           {NO_DISTRIBUTION_RULE}
@@ -524,7 +606,7 @@ function EventDetailView({
       ) : null}
 
       {event.status === "approved" ? (
-        <RegisterPanel event={event} occurred={derived === "occurred"} />
+        <RegisterPanel event={event} registerSaved={summary?.registerSaved ?? false} />
       ) : null}
 
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>

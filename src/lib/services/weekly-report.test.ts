@@ -79,12 +79,12 @@ let seasonId: string;
 let seededPeople: Set<string>;
 
 beforeAll(async () => {
-  const { openObserver, SEEDED_IDENTITY_CREATED_AT } =
+  const { openObserver, seededIdentityCreatedAt } =
     await import("../../../tests/helpers/service-layer");
   observer = await openObserver();
   const people = await observer.query<{ id: string }>(
     "select id from public.people where created_at = $1::timestamptz order by id",
-    [SEEDED_IDENTITY_CREATED_AT],
+    [await seededIdentityCreatedAt(observer)],
   );
   seededPeople = new Set(people.rows.map((row) => row.id));
 

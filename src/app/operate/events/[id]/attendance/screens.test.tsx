@@ -32,6 +32,7 @@ vi.mock("@/lib/services/attendance", async (importOriginal) => {
   return {
     ...actual,
     readAttendanceBoard: vi.fn(),
+    readEventAttendanceSummary: vi.fn(),
     recordAttendance: vi.fn(),
     recordWalkUpAttendance: vi.fn(),
     removeAttendance: vi.fn(),
@@ -60,12 +61,21 @@ import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
   readAttendanceBoard,
+  readEventAttendanceSummary,
   recordAttendance,
+  summariseAttendance,
   type AttendanceBoard,
   type AttendanceParticipant,
 } from "@/lib/services/attendance";
 import { readEvent, type EventDetail } from "@/lib/services/events";
 import { readEventAudience } from "@/lib/services/event-approval";
+import {
+  ATTENDANCE_LOCKED_DETAIL,
+  COACH_BOARD_SUBTITLE,
+  COACH_LOCKED_DETAIL,
+  COACH_LOCKED_RULE,
+  REGISTER_NOT_YET_HEADLINE,
+} from "./presentation";
 import AttendancePage, { filterParticipants } from "./page";
 import { AttendanceRow } from "./attendance-row";
 import EventDetailPage from "../page";
@@ -143,15 +153,19 @@ function participant(overrides: Partial<AttendanceParticipant> = {}): Attendance
 
 function board(overrides: Partial<AttendanceBoard> = {}): AttendanceBoard {
   const participants = overrides.participants ?? [participant()];
+  const summary = summariseAttendance(participants);
   return {
     // Approved, and behind us — which since LAN-151 is the whole of what makes
     // an event one that has occurred and opens its register (D30).
     event: detail({ status: "approved", scheduledOn: "2020-10-14" }),
     isOpen: true,
+    closedReason: null,
+    registerOpensAt: "2026-10-14T13:00:00.000Z",
     participants,
-    invitedCount: participants.filter((entry) => !entry.isWalkUp).length,
-    recordedCount: participants.filter((entry) => entry.presence !== null).length,
-    walkUpCount: participants.filter((entry) => entry.isWalkUp).length,
+    summary,
+    invitedCount: summary.invited,
+    recordedCount: summary.recorded,
+    walkUpCount: summary.walkUps,
     mismatchCount: participants.filter((entry) => entry.mismatch !== null).length,
     ...overrides,
   };
@@ -174,6 +188,7 @@ function detailProps(query: Record<string, string> = {}) {
 beforeEach(() => {
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: operator() });
   vi.mocked(readEventAudience).mockResolvedValue([]);
+  vi.mocked(readEventAttendanceSummary).mockResolvedValue(summariseAttendance([]));
   routerPush.mockClear();
 });
 
@@ -193,7 +208,7 @@ beforeEach(() => {
  */
 
 describe("the register panel, which decides nothing", () => {
-  it("offers the register once the event's date has passed", async () => {
+  it("offers the register once its buffer has lifted", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail({ scheduledOn: "2020-10-14" }));
 
     render(await EventDetailPage(detailProps()));
@@ -209,8 +224,26 @@ describe("the register panel, which decides nothing", () => {
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.getByTestId("register-panel").textContent).toContain("Attendance not open yet");
+    expect(screen.getByTestId("register-panel").textContent).toContain(REGISTER_NOT_YET_HEADLINE);
     expect(screen.queryByTestId("open-attendance")).toBeNull();
+  });
+
+  /**
+   * VG-003. The panel says what the surface does; it does not report what the
+   * product stopped doing. Brian, on the sentence that used to be here:
+   * "That second line is weird. Why is that in the app?"
+   */
+  it("does not tell anybody that nobody has to mark the event as having happened", async () => {
+    for (const scheduledOn of ["2020-10-14", "2099-01-01"]) {
+      vi.mocked(readEvent).mockResolvedValue(detail({ scheduledOn }));
+
+      const { container, unmount } = render(await EventDetailPage(detailProps()));
+
+      for (const gone of ["Nobody has to mark", "having happened", "has to mark it", "no longer"]) {
+        expect(container.textContent, gone).not.toContain(gone);
+      }
+      unmount();
+    }
   });
 
   it("offers nobody, of any seat, a way to assert what happened", async () => {
@@ -246,6 +279,139 @@ describe("the register panel, which decides nothing", () => {
 
     expect(screen.queryByTestId("register-panel")).toBeNull();
   });
+
+  /**
+   * `docs/ux/standards.md` rule 7 — this panel and the register answer one
+   * question, and it has to be the same answer. LAN-152.
+   *
+   * The browser preflight found the version where it was not: the panel said
+   * "Attendance is open" and offered the button, and the register the button
+   * led to said "The register is not open yet". Both were reading the same
+   * database at the same moment.
+   */
+  it("does not offer the board before the register's buffer lifts", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ status: "approved", scheduledOn: "2099-01-01", startsAt: "20:00" }),
+    );
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(summariseAttendance([]));
+
+    const { container } = render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("open-attendance")).toBeNull();
+    expect(container.textContent).toContain(REGISTER_NOT_YET_HEADLINE);
+    expect(container.textContent).toContain("It opens on 1 Jan 2099, 14:00.");
+    expect(container.textContent).not.toContain("Attendance is open");
+  });
+
+  it("offers the board for a register that already has something in it", async () => {
+    // D72: it never closes. The synthetic season records sessions as having
+    // happened whose dates are still ahead of today, and refusing a coach the
+    // sheet they have already written names on is what this prevents.
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ status: "approved", scheduledOn: "2099-01-01", startsAt: "20:00" }),
+    );
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(
+      summariseAttendance([participant({ presence: "present" })]),
+    );
+
+    const { container } = render(await EventDetailPage(detailProps()));
+
+    expect(screen.getByTestId("open-attendance")).toBeVisible();
+    expect(container.textContent).toContain("Attendance is open");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The register's buffer — D71 and D72. LAN-152.
+// ---------------------------------------------------------------------------
+
+describe("the register before its buffer lifts", () => {
+  function notYet(overrides: Partial<AttendanceBoard> = {}) {
+    return board({
+      event: detail({ status: "approved", scheduledOn: "2099-01-01", startsAt: "20:00" }),
+      isOpen: false,
+      closedReason: "before_buffer",
+      registerOpensAt: "2099-01-01T14:00:00.000Z",
+      participants: [],
+      ...overrides,
+    });
+  }
+
+  it("says the register is not open yet, and when it will be", async () => {
+    // `docs/ux/standards.md` rule 4: a refused control names the step that
+    // lifts it. Here nobody can perform that step, so naming the moment is the
+    // whole of the answer — and rule 3 says it reads as a formatted moment on
+    // club time, never as a raw ISO instant.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("register-not-open-yet")).toBeVisible();
+    expect(container.textContent).toContain("The register is not open yet");
+    expect(screen.getByTestId("register-opens-at").textContent).toBe(
+      "It opens on 1 Jan 2099, 14:00.",
+    );
+    expect(container.textContent).not.toContain("2099-01-01T14:00:00.000Z");
+  });
+
+  it("says the rule, including that it never closes afterwards", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain(
+      "The register opens about 6 hours before the event starts, and never closes afterwards.",
+    );
+  });
+
+  it("does not tell anybody to go and mark the event occurred", async () => {
+    // The other closed state's sentence names an action. This one must not
+    // borrow it: the event has been asserted, and the only thing anybody is
+    // waiting for is the clock.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).not.toContain("mark this event as occurred");
+    expect(screen.queryByTestId("attendance-locked")).toBeNull();
+  });
+
+  it("shows no names, no rows and no counts", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(screen.queryByTestId("attendance-board")).toBeNull();
+    expect(screen.queryByTestId("attendance-row")).toBeNull();
+    expect(container.textContent).not.toContain("Avery Fielding");
+  });
+
+  it("sends a coach back to their eligible events rather than to administration", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: coach() });
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByRole("link", { name: "Return to eligible events" })).toHaveAttribute(
+      "href",
+      "/operate/events",
+    );
+  });
+
+  it("says so plainly for an event with no date at all", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      notYet({
+        event: detail({ status: "approved", scheduledOn: null, startsAt: null }),
+        registerOpensAt: null,
+      }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("This event has no date yet");
+    expect(container.textContent).not.toContain("Invalid Date");
+    expect(container.textContent).not.toContain("NaN");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -263,7 +429,7 @@ describe("UX-71 — attendance is not available yet", () => {
 
       expect(screen.getByTestId("attendance-locked")).toBeTruthy();
       expect(container.textContent).toContain("Attendance is not available yet");
-      expect(container.textContent).toContain("Attendance opens once this event's date has");
+      expect(container.textContent).toContain(ATTENDANCE_LOCKED_DETAIL);
       expect(container.textContent).toContain("The service rejects attendance writes");
       // And it never tells anybody to go and mark it, because nobody can.
       expect(container.textContent).not.toContain("mark this event as occurred");
@@ -672,7 +838,10 @@ describe("UX-91 — the coach's board", () => {
     expect(container.textContent).toContain(
       "RSVP reasons, contact, availability and administration are omitted",
     );
-    expect(container.textContent).toContain("Occurred · coach recorder view");
+    expect(container.textContent).toContain(COACH_BOARD_SUBTITLE);
+    // VG-003: the subtitle names the reader's seat, not a status the model
+    // retired.
+    expect(container.textContent).not.toContain("Occurred ·");
   });
 
   it("carries the standing RSVP, which is what the coach is given", async () => {
@@ -814,8 +983,8 @@ describe("UX-90 — attendance is not open, told to a coach", () => {
 
       expect(screen.getByTestId("coach-attendance-locked")).toBeVisible();
       expect(container.textContent).toContain("Attendance is not open");
-      expect(container.textContent).toContain("date has not passed yet");
-      expect(container.textContent).toContain("A register opens once the session has been");
+      expect(container.textContent).toContain(COACH_LOCKED_DETAIL);
+      expect(container.textContent).toContain(COACH_LOCKED_RULE);
       // Nobody is waiting on anybody: the sentence names the clock, not a
       // person, because since LAN-151 that is what it is waiting for.
       expect(container.textContent).not.toContain("An authorized operator has not marked");

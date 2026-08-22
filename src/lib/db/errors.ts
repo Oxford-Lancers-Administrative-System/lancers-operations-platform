@@ -262,13 +262,14 @@ const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
       context,
     }),
 
-  // Invariant P5's database half. The other half — that the event's date has
-  // passed — cannot be a check constraint, so it never reaches this map: the
-  // service refuses it first, in `attendance.ts`.
+  // Invariant P5's database half. The other half — when the register opens —
+  // cannot be a check constraint, because a check constraint cannot read the
+  // clock, so it never reaches this map: the service refuses it first, in
+  // `attendance.ts`.
   attendance_records_require_an_approved_event: (context) =>
     new InvalidTransition(
-      "Attendance can only be recorded against an event that has happened. " +
-        "A draft was never held, and a cancelled event did not take place.",
+      "Attendance can only be recorded against an approved event. " +
+        "A draft has nobody on it, and a cancelled event did not take place.",
       { rule: "attendance_records_require_an_approved_event", context },
     ),
 

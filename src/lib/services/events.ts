@@ -10,6 +10,7 @@ import {
 import {
   deriveTermCoordinate,
   DRAFTABLE_EVENT_TYPES,
+  OCCURRED_FILTER,
   OPERATOR_CREATED_ORIGIN,
   optional,
   toMinutePrecision,
@@ -24,6 +25,7 @@ import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
 import { readCurrentSeasonIn, type Season } from "./seasons";
 import { escapeLikePattern } from "./sql-text";
+import { todayInClubZone } from "@/lib/club-time";
 
 /**
  * The event aggregate — drafting, editing and reading one event. LAN-76, as
@@ -82,7 +84,9 @@ export {
   DRAFTABLE_EVENT_TYPES,
   EVENT_DELIVERY_MODES,
   EVENT_ORIGINS,
+  EVENT_STATUS_FILTERS,
   EVENT_STATUSES,
+  OCCURRED_FILTER,
   EVENT_TYPES,
   hasOccurred,
   OPERATOR_CREATED_ORIGIN,
@@ -147,7 +151,12 @@ export interface EventDetail extends EventListEntry {
 export interface EventListFilters {
   /** Free text over name and venue. */
   search?: string | null;
-  /** An `event_status` value, or `null` for all. */
+  /**
+   * One of `EVENT_STATUS_FILTERS`, or `null` for all.
+   *
+   * Three of the four are `event_status` values compared against the column.
+   * The fourth, `occurred`, is derived and never stored (D30) — see the query.
+   */
   status?: string | null;
   /** An `event_type` value, or `null` for all. */
   eventType?: string | null;
@@ -155,6 +164,15 @@ export interface EventListFilters {
   sort?: string | null;
   /** `"asc"` or `"desc"`. Anything else falls back to the column's default. */
   direction?: string | null;
+  /**
+   * Today in the club's zone, `YYYY-MM-DD`. Defaults to the real one.
+   *
+   * An argument so that "has this event occurred?" can be asked at a stated
+   * date, which is what makes the derived filter testable at all: the answer is
+   * a function of the clock, and a test that could only ask it *now* would be
+   * asserting today's weather.
+   */
+  today?: string;
 }
 
 /**
@@ -286,7 +304,23 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
     const search = escapeLikePattern(optional(filters.search));
     const status = optional(filters.status);
     const eventType = optional(filters.eventType);
+    const today = filters.today ?? todayInClubZone();
 
+    /*
+      Q-6, and the one filter value that is not a column.
+
+      `occurred` is derived and never stored (D30), so it cannot be compared
+      against `e.status` — it is the same three-part rule `derivedEventState`
+      applies in TypeScript and `public.rsvp_attendance_mismatches` applies in
+      SQL, written here a third time only because a `where` clause cannot call
+      either. Today is a parameter rather than `current_date` so that the club's
+      zone decides which day it is, exactly as it does on every screen: at 00:30
+      in Oxford in June, `current_date` at UTC is still yesterday.
+
+      The stored branch is unchanged, and a value that is neither is compared
+      against the enum and matches nothing — which is what an unknown filter
+      should do.
+    */
     const result = await tx.query<EventRow>(
       `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
               e.scheduled_on, e.starts_at::text as starts_at, e.ends_at::text as ends_at,
@@ -296,10 +330,12 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
         where e.season_id = $1
           and ($2::text is null or e.name ilike '%' || $2 || '%'
                                 or coalesce(e.venue, '') ilike '%' || $2 || '%')
-          and ($3::text is null or e.status::text = $3)
+          and ($3::text is null
+                or ($3 = $5 and e.status = 'approved' and e.scheduled_on < $6::date)
+                or ($3 <> $5 and e.status::text = $3))
           and ($4::text is null or e.event_type::text = $4)
         order by ${orderBy(optional(filters.sort), optional(filters.direction))}`,
-      [season.id, search, status, eventType],
+      [season.id, search, status, eventType, OCCURRED_FILTER, today],
     );
 
     const total = await tx.query<{ count: string }>(

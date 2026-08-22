@@ -32,7 +32,7 @@ import {
   retryDelivery,
   revokeAndReissue,
 } from "./delivery";
-import { openObserver, SEEDED_IDENTITY_CREATED_AT } from "../../../tests/helpers/service-layer";
+import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN78DeliverySuite";
 
@@ -99,7 +99,7 @@ beforeAll(async () => {
   // people with one fixed timestamp, and no suite ever deletes them.
   const anchor = await observer.query<{ id: string }>(
     "select id from public.people where created_at = $1::timestamptz order by id limit 1",
-    [SEEDED_IDENTITY_CREATED_AT],
+    [await seededIdentityCreatedAt(observer)],
   );
   expect(anchor.rows.length).toBe(1);
   const vocabulary = await observer.query<{ id: string }>(

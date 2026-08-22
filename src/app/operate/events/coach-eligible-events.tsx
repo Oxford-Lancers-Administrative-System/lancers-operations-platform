@@ -42,8 +42,7 @@ export const COACH_EVENTS_HEADING = "Attendance";
 export const COACH_EVENTS_DETAIL = "This season's sessions";
 
 export const COACH_EVENTS_NOTE =
-  "A register opens once the session's date has passed, and stays open afterwards. Nobody " +
-  "has to mark a session as having happened.";
+  "A register opens shortly before the session starts, and stays open afterwards.";
 
 export const COACH_EVENTS_EMPTY =
   "This season has no approved sessions yet. They appear here as soon as one is approved.";

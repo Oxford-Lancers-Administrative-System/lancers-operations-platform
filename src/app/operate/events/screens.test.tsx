@@ -42,6 +42,10 @@ vi.mock("@/lib/services/seasons", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/seasons")>();
   return { ...actual, listTerms: vi.fn(), listTermWindows: vi.fn(), readCurrentSeason: vi.fn() };
 });
+vi.mock("@/lib/services/attendance", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/attendance")>();
+  return { ...actual, readEventAttendanceSummary: vi.fn() };
+});
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-approval")>();
   return {
@@ -56,6 +60,7 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
 import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
+  EVENT_STATUS_FILTERS,
   EVENT_STATUSES,
   EVENT_TYPES,
   listCurrentSeasonEvents,
@@ -70,7 +75,13 @@ import {
   type AudienceMember,
 } from "@/lib/services/event-approval";
 import type { AudienceCandidate } from "@/lib/services/audience-selection";
-import { labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
+import {
+  readEventAttendanceSummary,
+  summariseAttendance,
+  type AttendanceSummary,
+} from "@/lib/services/attendance";
+import { todayInClubZone } from "@/lib/club-time";
+import { DERIVED_STATE_LABELS, labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
 import EventsPage from "./page";
 import NewEventPage from "./new/page";
 import EventDetailPage from "./[id]/page";
@@ -161,10 +172,23 @@ function flatten(text: string | null): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
 }
 
+/**
+ * The headline numbers the detail page reads — LAN-152.
+ *
+ * Built through `summariseAttendance` rather than as an object literal, so a
+ * fixture cannot claim a combination the real derivation never produces —
+ * `registerSaved: false` beside a non-zero `showed`, for instance, which is the
+ * exact state D74 says must be unreachable.
+ */
+function summary(overrides: Partial<AttendanceSummary> = {}): AttendanceSummary {
+  return { ...summariseAttendance([]), invited: 37, saidYes: 21, ...overrides };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   routerPush.mockClear();
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: operator() });
+  vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
   vi.mocked(listTermWindows).mockResolvedValue([
     {
       id: "55555555-5555-4555-8555-555555555555",
@@ -310,6 +334,64 @@ describe("UX-30 — the current season's events", () => {
     expect(text).toContain("In person");
   });
 
+  /**
+   * Q-6, the other half. The filter finding the events is no use if the list
+   * then reads `Approved` against every one of them — Brian asked to "easily
+   * tell which ones happened versus not", and the column is where he looks.
+   */
+  describe("the Status column, which says what an event is now", () => {
+    const PAST = "2020-10-14";
+    const AHEAD = "2099-01-01";
+
+    function statusChipsOf(container: HTMLElement): string[] {
+      return [...container.querySelectorAll('[data-testid="event-row"] .MuiChip-label')].map(
+        (chip) => chip.textContent ?? "",
+      );
+    }
+
+    it("reads Occurred against an approved event whose date has passed", async () => {
+      givenList([listEntry({ status: "approved", scheduledOn: PAST })]);
+
+      const { container } = render(await EventsPage(listProps()));
+
+      expect(statusChipsOf(container)).toEqual(["Occurred"]);
+    });
+
+    it("still reads Approved against one that is still to come", async () => {
+      givenList([listEntry({ status: "approved", scheduledOn: AHEAD })]);
+
+      const { container } = render(await EventsPage(listProps()));
+
+      expect(statusChipsOf(container)).toEqual(["Approved"]);
+    });
+
+    it("never reads Occurred against a draft or a cancellation, whatever the date", async () => {
+      // A draft nobody approved did not happen, and a cancelled event did not
+      // happen by definition. Both are past-dated here so that the date alone
+      // cannot be what decides.
+      givenList([
+        listEntry({ id: "e1", status: "draft", scheduledOn: PAST }),
+        listEntry({ id: "e2", status: "cancelled", scheduledOn: PAST }),
+      ]);
+
+      const { container } = render(await EventsPage(listProps()));
+
+      expect(statusChipsOf(container)).toEqual(["Draft", "Cancelled"]);
+    });
+
+    it("says the same word on the phone card as in the table", async () => {
+      givenList([listEntry({ status: "approved", scheduledOn: PAST })]);
+
+      const { container } = render(await EventsPage(listProps()));
+      const cardChips = [
+        ...container.querySelectorAll('[data-testid="event-card"] .MuiChip-label'),
+      ].map((chip) => chip.textContent);
+
+      expect(cardChips[0]).toBe("Occurred");
+      expect(statusChipsOf(container)[0]).toBe("Occurred");
+    });
+  });
+
   it("keeps the status on the phone card, which the operator needs at 375px", async () => {
     givenList([listEntry({ status: "cancelled" })]);
 
@@ -430,8 +512,52 @@ describe("UX-30 — the current season's events", () => {
 
       expect(optionsOf("Status")).toEqual([
         "All statuses",
-        ...EVENT_STATUSES.map((status) => labelFor(STATUS_LABELS, status)),
+        ...EVENT_STATUS_FILTERS.map((value) =>
+          value in STATUS_LABELS
+            ? labelFor(STATUS_LABELS, value)
+            : labelFor(DERIVED_STATE_LABELS, value),
+        ),
       ]);
+    });
+
+    /**
+     * Q-6, answered 2026-08-22. Brian: "I want to be able to see the status on
+     * the status filter, and I want to see the events that occurred, to easily
+     * be able to tell which ones happened versus not."
+     */
+    it("offers Occurred beside the three stored states", async () => {
+      givenList([listEntry()]);
+      render(await EventsPage(listProps()));
+
+      expect(optionsOf("Status")).toEqual([
+        "All statuses",
+        "Draft",
+        "Approved",
+        "Occurred",
+        "Cancelled",
+      ]);
+    });
+
+    it("keeps Occurred out of the stored vocabulary it sits beside", () => {
+      // The filter offers four things and the enum holds three. If this ever
+      // fails, somebody has widened `event_status` — which D30 forbids and
+      // which no migration in this branch does.
+      expect(EVENT_STATUSES).not.toContain("occurred");
+      expect(EVENT_STATUS_FILTERS).toEqual([
+        ...EVENT_STATUSES.slice(0, 2),
+        "occurred",
+        "cancelled",
+      ]);
+    });
+
+    it("filters by Occurred through the service, not by pretending it is a status", async () => {
+      givenList([listEntry()]);
+      render(await EventsPage(listProps()));
+
+      choose("Status", "Occurred");
+
+      const url = routerPush.mock.calls[0][0] as string;
+      expect(url).toContain("status=occurred");
     });
 
     it("offers exactly the event types the model has, and nothing retired", async () => {
@@ -523,6 +649,10 @@ describe("UX-30 — the current season's events", () => {
       eventType: "practice",
       sort: "date",
       direction: "desc",
+      // Q-6. The page reads the club's clock once and hands it down, so the
+      // derived `occurred` filter and every row's Status column cannot straddle
+      // midnight and disagree.
+      today: todayInClubZone(),
     });
   });
 
@@ -630,6 +760,78 @@ describe("UX-31 — creating an event", () => {
     expect(flatten(screen.getByTestId("audience-comes-later").textContent)).toContain(
       "chosen and confirmed during the approval step",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The three headline numbers — REQ-headline-numbers, D62, D73, D74. LAN-152.
+// ---------------------------------------------------------------------------
+
+describe("the event's headline numbers", () => {
+  function invited() {
+    return detail({ status: "approved", audienceCount: 37, invitationCount: 37 });
+  }
+
+  it("puts invited, said yes and showed at the top of the event", async () => {
+    vi.mocked(readEvent).mockResolvedValue(invited());
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("headline-invited").textContent)).toBe("37Invited");
+    expect(flatten(screen.getByTestId("headline-said-yes").textContent)).toBe("21Said yes");
+  });
+
+  it("reads an em dash against the invited count before any register is saved", async () => {
+    // D74. An event nobody has got round to must not read like an event nobody
+    // attended, and this is the string that keeps the two apart.
+    vi.mocked(readEvent).mockResolvedValue(invited());
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe("— / 37Showed");
+  });
+
+  it("reads 0 / 37 once a register is saved with everybody absent", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved", invitationCount: 37 }));
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(
+      summary({ showed: 0, recorded: 37, registerSaved: true }),
+    );
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe("0 / 37Showed");
+  });
+
+  it("explains neither value in words, and never as a percentage", async () => {
+    // The packet is explicit: "the application does not explain the difference
+    // in words", and D62 asks for raw pairs. Both are assertions about what is
+    // *absent* from the payload, which is the only way to state them.
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved", invitationCount: 37 }));
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(
+      summary({ showed: 20, recorded: 30, registerSaved: true }),
+    );
+
+    const { container } = render(await EventDetailPage(detailProps()));
+    const text = flatten(container.textContent).toLowerCase();
+
+    expect(text).not.toContain("%");
+    expect(text).not.toContain("washout");
+    expect(text).not.toContain("turnout rate");
+    expect(text).not.toContain("nobody came");
+    expect(text).not.toContain("not yet recorded because");
+  });
+
+  it("shows nothing at all on a draft, which has nobody to count", async () => {
+    // `invitationCount` is structurally zero below approval — invariant P1 —
+    // so three zeroes would be three facts about nothing.
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("headline-numbers")).toBeNull();
+    expect(readEventAttendanceSummary).not.toHaveBeenCalled();
   });
 });
 

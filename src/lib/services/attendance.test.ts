@@ -24,21 +24,26 @@ import type { Client } from "pg";
 import { closePool, isServiceError, type ServiceError } from "@/lib/db";
 import {
   ATTENDANCE_CLOSED_MESSAGE,
+  ATTENDANCE_TOO_EARLY_MESSAGE,
+  eventStartInstant,
   PARTICIPANT_NOT_FOUND_MESSAGE,
   readAttendanceBoard,
+  readEventAttendanceSummary,
   recordAttendance,
   recordWalkUpAttendance,
   removeAttendance,
+  summariseAttendance,
   WALK_UP_FAMILY_NAME_REQUIRED,
   WALK_UP_GIVEN_NAME_REQUIRED,
   WALK_UP_PHONE_REQUIRED,
 } from "./attendance";
+import { formatShowedAgainstInvited } from "@/app/operate/events/[id]/attendance/presentation";
 import { approveEvent, saveEventAudience } from "./event-approval";
 import { listAudienceCatalogueIn } from "./event-audience";
 import { createEventDraft, type EventDraftInput } from "./events";
 import { withTransaction } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
-import { openObserver, SEEDED_IDENTITY_CREATED_AT } from "../../../tests/helpers/service-layer";
+import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN80AttendanceSuite";
 
@@ -51,7 +56,7 @@ beforeAll(async () => {
   observer = await openObserver();
   const people = await observer.query<{ id: string }>(
     "select id from public.people where created_at = $1::timestamptz order by id",
-    [SEEDED_IDENTITY_CREATED_AT],
+    [await seededIdentityCreatedAt(observer)],
   );
   seededPeople = new Set(people.rows.map((row) => row.id));
 
@@ -168,13 +173,17 @@ async function approvedEvent(size = 3, overrides: Partial<EventDraftInput> = {})
 }
 
 /**
- * The same, on a date that has passed — which is the whole of what makes an
- * event one that has occurred (D30). Nobody asserts it, and this helper
- * deliberately does nothing but move the date: if it had to call something, the
- * assertion would still exist.
+ * The same, on a date that has been and gone.
  *
- * The date is relative to the clock rather than fixed, because the answer this
- * is arranging is itself relative to the clock.
+ * Nobody asserts occurrence any more (D30), so this helper does nothing but
+ * move the date. That is deliberate: if it had to call something, the assertion
+ * would still exist.
+ *
+ * The date is relative to the clock rather than fixed, for two reasons that
+ * point the same way. The answer being arranged is itself relative to the clock
+ * — an event has occurred when its date has passed — and D71's buffer, which
+ * decides whether the register is open, is relative to it too. A fixed date in
+ * a file that keeps being run later drifts out of both.
  */
 async function occurredEvent(size = 3) {
   return approvedEvent(size, { scheduledOn: daysFromToday(-7) });
@@ -316,16 +325,22 @@ describe("occurrence, derived", () => {
 // ---------------------------------------------------------------------------
 
 describe("the attendance gate", () => {
-  it("refuses a write against an approved event whose date has not passed", async () => {
+  it("refuses a write against an approved event whose register has not opened", async () => {
     const event = await approvedEvent(3, { scheduledOn: daysFromToday(7) });
     const board = await readAttendanceBoard(event.id);
 
     expect(board.isOpen).toBe(false);
+    expect(board.closedReason).toBe("before_buffer");
     expect(board.participants).toEqual([]);
 
     // The board is closed, so it names nobody — which is exactly the state a
     // caller bypassing the screen would be in. A key that cannot be produced is
     // still refused for the right reason: the event, not the participant.
+    //
+    // And the refusal says which of the two closed states this is. The write
+    // path asks `closedReasonFor`, the same function the board asks, so a
+    // screen cannot offer a sheet the save then refuses — the defect LAN-152
+    // found on the event page, kept fixed here on the way in.
     const error = await expectRefused(
       recordAttendance(
         actorPersonId,
@@ -335,8 +350,35 @@ describe("the attendance gate", () => {
       ),
     );
     expect(error.kind).toBe("invalid_transition");
-    expect(error.message).toBe(ATTENDANCE_CLOSED_MESSAGE);
+    expect(error.message).toBe(ATTENDANCE_TOO_EARLY_MESSAGE);
     expect(await attendanceRows(event.id)).toEqual([]);
+  });
+
+  it("accepts a write once the buffer has lifted, though the event is still on", async () => {
+    // D71's whole point: the person taking a register is standing at the pitch
+    // as people arrive, so the sheet opens before the evening is over. Asked at
+    // a stated instant rather than at whatever the clock says during the run.
+    const scheduledOn = daysFromToday(7);
+    const event = await approvedEvent(3, { scheduledOn });
+    // Kick-off itself: hours after the buffer lifted and before the evening is
+    // over, which is the window the old "its date has passed" rule refused.
+    const kickOff = eventStartInstant({ scheduledOn, startsAt: "20:00" })!;
+
+    const board = await readAttendanceBoard(event.id, kickOff);
+    const target = board.participants[0];
+
+    expect(board.isOpen).toBe(true);
+    expect(target).toBeDefined();
+
+    const recorded = await recordAttendance(
+      actorPersonId,
+      event.id,
+      target.key,
+      "present",
+      kickOff,
+    );
+
+    expect(recorded.presence).toBe("present");
   });
 
   it("refuses a write against a draft, past date or not", async () => {
@@ -536,14 +578,14 @@ describe("removing a recorded attendance", () => {
     expect(error.kind).toBe("not_found");
   });
 
-  it("refuses a removal against an event that has not occurred", async () => {
+  it("refuses a removal against an event whose register has not opened", async () => {
     const event = await approvedEvent(3, { scheduledOn: daysFromToday(7) });
 
     const error = await expectRefused(
       removeAttendance(actorPersonId, event.id, "player:00000000-0000-4000-8000-000000000000"),
     );
     expect(error.kind).toBe("invalid_transition");
-    expect(error.message).toBe(ATTENDANCE_CLOSED_MESSAGE);
+    expect(error.message).toBe(ATTENDANCE_TOO_EARLY_MESSAGE);
   });
 });
 
@@ -1007,6 +1049,377 @@ describe("the wall between RSVP and attendance", () => {
       [event.id],
     );
     expect(view.rows).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D74 — a mismatch is never counted against nothing recorded. LAN-152.
+// ---------------------------------------------------------------------------
+
+/**
+ * The defect this package exists to kill.
+ *
+ * The board on `main` reported **zero recorded and thirty mismatches at the
+ * same time**, on every occurred event whose register nobody had opened. It is
+ * a counting fault: `said_yes_no_attendance_recorded` fires per person, so a
+ * session nobody assessed came back as thirty separate accusations that thirty
+ * people had let the club down. D74's two-state axis says an unrecorded event
+ * must not read like a badly-attended one, and those two numbers side by side
+ * are exactly that reading.
+ *
+ * Three assertions, deliberately at three scales: the view still emits the
+ * classification (nothing was hidden in the database); the board no longer
+ * reports it (the rule is applied where the club's definition is read); and the
+ * whole synthetic season satisfies the invariant (it holds over real-shaped
+ * data, not just the three rows this file mints).
+ */
+describe("a mismatch counted against nothing recorded", () => {
+  async function answerYes(invitationId: string) {
+    await observer.query(
+      `insert into public.rsvp_responses
+         (invitation_id, response, reason, source, responded_at)
+       values ($1, 'yes'::public.rsvp_value, null, 'operator', now())`,
+      [invitationId],
+    );
+  }
+
+  async function invitationIds(eventId: string) {
+    const result = await observer.query<{ id: string; season_membership_id: string }>(
+      "select id, season_membership_id from public.invitations where event_id = $1 order by id",
+      [eventId],
+    );
+    return result.rows;
+  }
+
+  it("is never reported while the register is untouched", async () => {
+    const event = await occurredEvent(3);
+    const invitations = await invitationIds(event.id);
+    for (const invitation of invitations) await answerYes(invitation.id);
+
+    // The view says three, and that is left alone: it is the club's stored
+    // definition and this package does not rewrite schema. What changed is
+    // what the board makes of it.
+    const view = await observer.query<{ mismatch: string }>(
+      "select mismatch from public.rsvp_attendance_mismatches where event_id = $1",
+      [event.id],
+    );
+    expect(view.rows.map((row) => row.mismatch)).toEqual([
+      "said_yes_no_attendance_recorded",
+      "said_yes_no_attendance_recorded",
+      "said_yes_no_attendance_recorded",
+    ]);
+
+    const board = await readAttendanceBoard(event.id);
+    expect(board.recordedCount).toBe(0);
+    expect(board.mismatchCount).toBe(0);
+    expect(board.participants.every((participant) => participant.mismatch === null)).toBe(true);
+  });
+
+  it("comes back the moment the register is saved, for whoever is not on it", async () => {
+    // The complement, and the reason this is not simply "hide the mismatches".
+    // A partly-filled sheet is a sheet somebody opened, so somebody who said
+    // yes and is not on it is a genuine exception again.
+    const event = await occurredEvent(3);
+    const invitations = await invitationIds(event.id);
+    for (const invitation of invitations) await answerYes(invitation.id);
+
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[0].season_membership_id}`,
+      "present",
+    );
+
+    const board = await readAttendanceBoard(event.id);
+    expect(board.recordedCount).toBe(1);
+    expect(board.mismatchCount).toBe(2);
+    expect(
+      board.participants
+        .filter((participant) => participant.mismatch !== null)
+        .map((participant) => participant.mismatch),
+    ).toEqual(["said_yes_no_attendance_recorded", "said_yes_no_attendance_recorded"]);
+  });
+
+  it("holds across the whole synthetic season, not just this suite's fixtures", async () => {
+    // The seed carries fifteen occurred sessions nobody recorded, which is what
+    // put thirty mismatches on a board reporting nothing. Asserting over all of
+    // them is what makes this a property rather than an example — and it is
+    // real-shaped data rather than a tidy fixture, which is the point of having
+    // a synthetic season at all.
+    const untouched = await observer.query<{ id: string; mismatches: string }>(
+      `select e.id,
+              (select count(*) from public.rsvp_attendance_mismatches m
+                where m.event_id = e.id)::text as mismatches
+         from public.events e
+        where e.status = 'approved'
+          and e.scheduled_on < (now() at time zone 'Europe/London')::date
+          and not exists (select 1 from public.attendance_records a where a.event_id = e.id)
+        order by e.scheduled_on desc
+        limit 8`,
+      [],
+    );
+
+    // A pass produced by an empty population is not a pass, and the view really
+    // does still classify these — the numbers below are the defect, unchanged.
+    expect(untouched.rows.length).toBeGreaterThan(0);
+    expect(untouched.rows.some((row) => Number(row.mismatches) > 0)).toBe(true);
+
+    for (const row of untouched.rows) {
+      const board = await readAttendanceBoard(row.id);
+      expect(board.recordedCount, `event ${row.id} recorded`).toBe(0);
+      expect(board.mismatchCount, `event ${row.id} mismatches`).toBe(0);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D71 and D72 — the register's window. LAN-152.
+// ---------------------------------------------------------------------------
+
+describe("when the register opens", () => {
+  async function moveTo(eventId: string, scheduledOn: string, startsAt: string) {
+    await observer.query(
+      "update public.events set scheduled_on = $2::date, starts_at = $3::time where id = $1",
+      [eventId, scheduledOn, startsAt],
+    );
+  }
+
+  it("is closed before the buffer lifts, and says why", async () => {
+    const event = await occurredEvent();
+    await moveTo(event.id, "2099-01-01", "20:00");
+
+    const board = await readAttendanceBoard(event.id);
+    expect(board.isOpen).toBe(false);
+    expect(board.closedReason).toBe("before_buffer");
+    expect(board.participants).toEqual([]);
+
+    // And it says when, because a refusal that names no step is a dead end —
+    // `docs/ux/standards.md` rule 4.
+    // January, so the club is on GMT: a 20:00 start is 20:00Z and the buffer
+    // lifts at 14:00Z the same day.
+    expect(board.registerOpensAt).toBe("2099-01-01T14:00:00.000Z");
+  });
+
+  it("opens on the buffer, six hours before the start", async () => {
+    const event = await occurredEvent();
+    await moveTo(event.id, "2026-11-25", "20:00");
+
+    const opens = new Date("2026-11-25T14:00:00.000Z");
+    expect((await readAttendanceBoard(event.id, new Date(opens.getTime() - 1))).isOpen).toBe(false);
+    expect((await readAttendanceBoard(event.id, opens)).isOpen).toBe(true);
+  });
+
+  it("stays open for a register that already has something in it", async () => {
+    // D72, at the point it actually bites. The synthetic season carries
+    // sessions recorded as having happened whose dates are still ahead of
+    // today, and this is the state that found the defect on screen: twenty-one
+    // names already saved, and a product refusing to show the sheet they were
+    // saved on. A register with anything in it has been opened, so the buffer
+    // cannot take it back.
+    const event = await occurredEvent(3);
+    const invitations = await observer.query<{ season_membership_id: string }>(
+      "select season_membership_id from public.invitations where event_id = $1 order by id limit 1",
+      [event.id],
+    );
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations.rows[0].season_membership_id}`,
+      "present",
+    );
+
+    await moveTo(event.id, "2099-01-01", "20:00");
+
+    const board = await readAttendanceBoard(event.id);
+    expect(board.isOpen).toBe(true);
+    expect(board.closedReason).toBeNull();
+    expect(board.recordedCount).toBe(1);
+  });
+
+  it("never closes, so last term's forgotten session can still be filled in", async () => {
+    const event = await occurredEvent();
+    await moveTo(event.id, "2026-06-10", "20:00");
+
+    const board = await readAttendanceBoard(event.id, new Date("2031-01-01T00:00:00.000Z"));
+    expect(board.isOpen).toBe(true);
+    expect(board.closedReason).toBeNull();
+  });
+
+  it("distinguishes an unapproved event from one whose buffer has not lifted", async () => {
+    // Two closed states, two different sentences on the screen: one waits on a
+    // person and the other only on the clock. Since LAN-151 the person's step
+    // is the approval — there is no assertion left to wait for.
+    const draftEvent = await createEventDraft(actorPersonId, draft());
+    const notApproved = await readAttendanceBoard(draftEvent.id);
+    expect(notApproved.isOpen).toBe(false);
+    expect(notApproved.closedReason).toBe("not_approved");
+
+    const ahead = await approvedEvent(3, { scheduledOn: daysFromToday(7) });
+    const tooEarly = await readAttendanceBoard(ahead.id);
+    expect(tooEarly.isOpen).toBe(false);
+    expect(tooEarly.closedReason).toBe("before_buffer");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// REQ-headline-numbers — D62, D73, D74. LAN-152.
+// ---------------------------------------------------------------------------
+
+describe("the event page's headline numbers", () => {
+  async function answer(invitationId: string, response: "yes" | "no") {
+    // A no carries a reason — `rsvp_responses_no_requires_a_reason`. The reason
+    // itself is never read by anything under test here, and the assertions
+    // below prove it never reaches the payload either.
+    await observer.query(
+      `insert into public.rsvp_responses
+         (invitation_id, response, reason, source, responded_at)
+       values ($1, $2::public.rsvp_value, $3, 'operator', now())`,
+      [invitationId, response, response === "no" ? "Working." : null],
+    );
+  }
+
+  async function invitationIds(eventId: string) {
+    const result = await observer.query<{ id: string; season_membership_id: string }>(
+      "select id, season_membership_id from public.invitations where event_id = $1 order by id",
+      [eventId],
+    );
+    return result.rows;
+  }
+
+  it("counts an approved event nobody has recorded as not recorded", async () => {
+    // And it counts it at all, which is the reason this is not the board: an
+    // approved event a fortnight away has a register that will not open for a
+    // fortnight, and "forty-seven asked, twenty-one said yes" is true today.
+    const event = await approvedEvent(3);
+    const invitations = await invitationIds(event.id);
+    await answer(invitations[0].id, "yes");
+    await answer(invitations[1].id, "no");
+
+    const summary = await readEventAttendanceSummary(event.id);
+    expect(summary).toEqual({
+      invited: 3,
+      saidYes: 1,
+      showed: 0,
+      recorded: 0,
+      walkUps: 0,
+      registerSaved: false,
+    });
+    expect(formatShowedAgainstInvited(summary)).toBe("— / 3");
+  });
+
+  it("reports a real zero once a register is saved with everybody absent", async () => {
+    // The pair the packet names, at the scale this suite can build: the sheet
+    // was taken and nobody came. `0 / 3` here is `0 / 37` on the club's own
+    // event, and it must not be the same string as the case above.
+    const event = await occurredEvent(3);
+    const invitations = await invitationIds(event.id);
+    for (const invitation of invitations) await answer(invitation.id, "yes");
+    for (const invitation of invitations) {
+      await recordAttendance(
+        actorPersonId,
+        event.id,
+        `player:${invitation.season_membership_id}`,
+        "absent",
+      );
+    }
+
+    const summary = await readEventAttendanceSummary(event.id);
+    expect(summary.registerSaved).toBe(true);
+    expect(summary.showed).toBe(0);
+    expect(summary.recorded).toBe(3);
+    expect(formatShowedAgainstInvited(summary)).toBe("0 / 3");
+  });
+
+  it("counts Late among the people who showed, and a walk-up too", async () => {
+    const event = await occurredEvent(3);
+    const invitations = await invitationIds(event.id);
+
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[0].season_membership_id}`,
+      "present",
+    );
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[1].season_membership_id}`,
+      "late",
+    );
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[2].season_membership_id}`,
+      "excused",
+    );
+    await recordWalkUpAttendance(actorPersonId, event.id, {
+      givenName: "Devon",
+      familyName: NAME_MARKER,
+      phone: "+44 7700 900131",
+      email: null,
+      presence: "present",
+    });
+
+    const summary = await readEventAttendanceSummary(event.id);
+    expect(summary.showed).toBe(3);
+    expect(summary.recorded).toBe(4);
+    expect(summary.walkUps).toBe(1);
+    expect(summary.invited).toBe(3);
+    // Invariant P6 in one string: more people showed than were asked, which is
+    // a fact about the evening rather than a number to clamp.
+    expect(formatShowedAgainstInvited(summary)).toBe("3 / 3");
+  });
+
+  /**
+   * `docs/ux/standards.md` rule 7 — two surfaces, one answer.
+   *
+   * The event page reads five aggregates in one round trip and the register
+   * derives the same five from its own participant rows. Two derivations of one
+   * fact is a design decision here rather than an accident — drawing the page
+   * through the board's `full outer join` and its view read would be a query
+   * the headline has no use for — so the two are pinned to each other, on data
+   * staged to include the cases a naive count gets wrong: a walk-up with no
+   * invitation, a Late, an Excused, and an invitee nobody marked.
+   */
+  it("agrees exactly with the register's own counts, on the same event", async () => {
+    const event = await occurredEvent(3);
+    const invitations = await invitationIds(event.id);
+    await answer(invitations[0].id, "yes");
+    await answer(invitations[1].id, "no");
+
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[0].season_membership_id}`,
+      "late",
+    );
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[1].season_membership_id}`,
+      "excused",
+    );
+    await recordWalkUpAttendance(actorPersonId, event.id, {
+      givenName: "Marlow",
+      familyName: NAME_MARKER,
+      phone: "+44 7700 900132",
+      email: null,
+      presence: "present",
+    });
+
+    const board = await readAttendanceBoard(event.id);
+    const headline = await readEventAttendanceSummary(event.id);
+
+    expect(headline).toEqual(board.summary);
+    expect(headline).toEqual(summariseAttendance(board.participants));
+  });
+
+  it("refuses an identifier that names no event, rather than reporting zeroes", async () => {
+    // Five zeroes would read as a real event nobody was invited to.
+    const error = await expectRefused(
+      readEventAttendanceSummary("00000000-0000-4000-8000-000000000000"),
+    );
+    expect(error.kind).toBe("not_found");
   });
 });
 

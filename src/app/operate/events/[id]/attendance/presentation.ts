@@ -2,6 +2,7 @@ import type {
   AttendanceParticipant,
   AttendancePresence,
 } from "@/lib/services/attendance-vocabulary";
+import { ATTENDANCE_REGISTER_BUFFER_HOURS } from "@/lib/services/attendance-window";
 
 /**
  * The words the attendance screens use — UX-70 through UX-75, LAN-80.
@@ -13,8 +14,8 @@ import type {
  * database.
  *
  * `docs/ux/slice-ux.md` § 6 is the authority for every label below. The four
- * attendance states and the two occurrence assertions are fixed club
- * vocabulary; none of them is a synonym chosen here.
+ * attendance states are fixed club vocabulary; none of them is a synonym
+ * chosen here.
  */
 
 // ---------------------------------------------------------------------------
@@ -78,27 +79,20 @@ export function describeMismatch(mismatch: string | null): string | null {
 // ---------------------------------------------------------------------------
 
 /**
- * What replaced **Confirm what happened**.
+ * What the register panel says, in two states.
  *
- * UX-70 asked an operator to assert that the evening had happened, and UX-75
- * showed the event they had marked not held. LAN-151 retired both, with the
- * whole idea behind them: an event has occurred when its date has passed and it
- * was not cancelled (D30), and no screen offers *Mark occurred*, *Mark not
- * held*, *Confirm what happened* or *Correct this to not held* any more.
+ * Both sentences say what the surface does. Neither describes what the product
+ * no longer asks for — VG-003: "That second line is weird. Why is that in the
+ * app?" The controls being gone is the whole of the change, and an app that
+ * narrates its own history is explaining a decision the reader never saw made.
  *
- * D71-D74 are what the assertion was really standing in for, and they answer it
- * better: the register opens on a buffer before the event and never closes, and
- * whether it has been saved is the record of whether the session was assessed.
- * A sheet saved with everybody absent is a real zero, and one nobody opened is
- * distinguishable from it.
+ * The rule they describe is D71 and D72's, and it is the clock's: the register
+ * opens shortly before the event starts and never closes afterwards. It is
+ * deliberately not "once the date has passed" — that was this file's previous
+ * answer and it was wrong, because the person taking a register is standing at
+ * the pitch while it fills up.
  */
-export const ATTENDANCE_OPEN_DETAIL =
-  "This event's date has passed and it was not cancelled, so attendance can be recorded " +
-  "against it.";
-
-export const ATTENDANCE_NOT_OPEN_YET =
-  "Attendance opens once the event's date has passed. Nobody has to mark it as having " +
-  "happened.";
+export const ATTENDANCE_OPEN_DETAIL = "Record who was there, and correct it whenever you need to.";
 
 // ---------------------------------------------------------------------------
 // UX-71 — Attendance is not available yet
@@ -107,11 +101,105 @@ export const ATTENDANCE_NOT_OPEN_YET =
 export const ATTENDANCE_LOCKED_HEADLINE = "Attendance is not available yet";
 
 export const ATTENDANCE_LOCKED_DETAIL =
-  "Attendance opens once this event's date has passed. A draft or a cancelled event never " +
-  "opens one.";
+  "A register belongs to an approved event, and opens shortly before it starts. A draft or a " +
+  "cancelled event never opens one.";
 
 export const ATTENDANCE_LOCKED_RULE =
-  "The service rejects attendance writes until the event is approved and its date has " + "passed.";
+  "The service rejects attendance writes until the event is approved and its register has opened.";
+
+// ---------------------------------------------------------------------------
+// The register's own window — D71 and D72. LAN-152.
+// ---------------------------------------------------------------------------
+
+/**
+ * The buffer, said once, in the club's words rather than in a number this file
+ * repeats.
+ *
+ * `ATTENDANCE_REGISTER_BUFFER_HOURS` is a tuning value the packet delegated,
+ * so the sentence is built from it: change the constant and the screen changes
+ * with it, rather than the two disagreeing about what the product does.
+ */
+export const REGISTER_BUFFER_RULE =
+  `The register opens about ${ATTENDANCE_REGISTER_BUFFER_HOURS} hours before the event starts, ` +
+  "and never closes afterwards.";
+
+export const REGISTER_NOT_YET_HEADLINE = "The register is not open yet";
+
+/**
+ * What lifts it — `docs/ux/standards.md` rule 4.
+ *
+ * A refused control names the step that enables it, and here the step is not
+ * something anybody can go and do: it is the clock. Saying which moment is the
+ * difference between a rule and a broken page.
+ */
+export function describeRegisterOpensAt(opensAt: string | null): string {
+  if (opensAt === null) {
+    return "This event has no date yet, so there is nothing to take a register for.";
+  }
+  const moment = new Date(opensAt);
+  if (Number.isNaN(moment.getTime())) return REGISTER_BUFFER_RULE;
+  return `It opens on ${formatClubMoment(moment)}.`;
+}
+
+/**
+ * "27 Aug 2026, 14:00", on club time — `docs/ux/standards.md` rule 3.
+ *
+ * `Europe/London` rather than UTC because this one *is* an instant: it is
+ * derived from the event's wall clock and printed back as the moment a person
+ * standing in Oxford will see on their phone. Rendering it at UTC would show
+ * 13:00 for a register that opens at 14:00, every summer.
+ */
+function formatClubMoment(moment: Date): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(moment);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  return `${value("day")} ${value("month")} ${value("year")}, ${value("hour")}:${value("minute")}`;
+}
+
+// ---------------------------------------------------------------------------
+// The three headline numbers — D62, D73, D74. LAN-152.
+// ---------------------------------------------------------------------------
+
+export const HEADLINE_INVITED_LABEL = "Invited";
+export const HEADLINE_SAID_YES_LABEL = "Said yes";
+export const HEADLINE_SHOWED_LABEL = "Showed";
+
+/** What a value reads before there is anything to read. */
+export const NOT_RECORDED_VALUE = "—";
+
+/**
+ * `— / 37` before a register has been saved, `0 / 37` after one was saved with
+ * everybody absent, `20 / 37` the rest of the time.
+ *
+ * ## The dash is the whole point
+ *
+ * D74: an event nobody has got round to must not read like an event nobody
+ * attended. Both are a small number over forty-seven, and the club acts very
+ * differently on them — one is a session to ask about, the other is a register
+ * to go and take. The save is the signal, and `registerSaved` carries it.
+ *
+ * ## And it is never a percentage
+ *
+ * D62 says raw pairs. "43%" is the same fact with the two numbers the club
+ * actually wanted taken out of it.
+ */
+export function formatShowedAgainstInvited(summary: {
+  showed: number;
+  invited: number;
+  registerSaved: boolean;
+}): string {
+  const showed = summary.registerSaved ? String(summary.showed) : NOT_RECORDED_VALUE;
+  return `${showed} / ${summary.invited}`;
+}
 
 // ---------------------------------------------------------------------------
 // UX-90 — the same lock, seen by a coaching assignment
@@ -120,18 +208,15 @@ export const ATTENDANCE_LOCKED_RULE =
 /**
  * The coach's version of the locked state.
  *
- * It used to differ from UX-71 because the operator could go and assert
- * occurrence and the coach could not, so one sentence was an instruction and
- * the other was not. Since LAN-151 neither is: nobody asserts occurrence, and
- * the register opens because the date passed. Both sentences now say the same
- * true thing in the voice of the person reading them.
+ * Neither sentence is an instruction, because there is nothing for either
+ * reader to go and do: what lifts this is the clock. They differ only in voice.
  */
 export const COACH_LOCKED_HEADLINE = "Attendance is not open";
 
-export const COACH_LOCKED_DETAIL = "This session's date has not passed yet.";
+export const COACH_LOCKED_DETAIL = "This session's register has not opened yet.";
 
 export const COACH_LOCKED_RULE =
-  "A register opens once the session has been and gone, and stays open afterwards.";
+  "A register opens shortly before the session starts, and stays open afterwards.";
 
 export const COACH_RETURN_TO_ELIGIBLE = "Return to eligible events";
 
@@ -139,7 +224,7 @@ export const COACH_RETURN_TO_ELIGIBLE = "Return to eligible events";
 // UX-91 to UX-95 — the board, seen by a coaching assignment
 // ---------------------------------------------------------------------------
 
-export const COACH_BOARD_SUBTITLE = "Occurred · coach recorder view";
+export const COACH_BOARD_SUBTITLE = "Coach recorder view";
 
 /**
  * The sentence UX-91 puts at the top of the coach's board.

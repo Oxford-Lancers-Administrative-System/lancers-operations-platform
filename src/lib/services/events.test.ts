@@ -22,6 +22,8 @@ import type { Client } from "pg";
 
 import { closePool, isServiceError, type ServiceError } from "@/lib/db";
 import {
+  derivedEventState,
+  EVENT_STATUS_FILTERS,
   EVENT_STATUSES,
   createEventDraft,
   listCurrentSeasonEvents,
@@ -31,14 +33,14 @@ import {
   type EventDraftInput,
 } from "./events";
 import { readCurrentSeason } from "./seasons";
-import { openObserver, SEEDED_IDENTITY_CREATED_AT } from "../../../tests/helpers/service-layer";
+import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 /** Unique to this file. Two suites sharing one marker delete each other's rows. */
 const NAME_MARKER = "LAN76EventsSuite";
 
 /**
- * The seed stamps every person it creates with one fixed `created_at`, and this
- * suite draws its actor only from that cohort.
+ * The seed stamps every person it creates with one `created_at`, and this suite
+ * draws its actor only from that cohort.
  *
  * `select id from public.people limit 1` returned an arbitrary row, and "the
  * oldest person" returned somebody else's fixture — the seed's people are dated
@@ -52,19 +54,57 @@ const NAME_MARKER = "LAN76EventsSuite";
  * lives. Anchoring here closes the hazard before it is somebody's afternoon.
  * The seeded cohort is the only population no suite ever deletes.
  */
-const SEEDED_PEOPLE_CREATED_AT = SEEDED_IDENTITY_CREATED_AT;
 
 let observer: Client;
 let actorPersonId: string;
+
+/**
+ * Oxford coordinates, read off the seeded term calendar rather than written
+ * down.
+ *
+ * The dates used to be literals — 14 October 2026 for Michaelmas week 1, and so
+ * on — which was only ever shorthand for "the Wednesday of Michaelmas week 1".
+ * The seed now slides its whole calendar onto the day it runs, so the literal
+ * and the term it named parted company; the coordinate is what these tests are
+ * about, so the coordinate is what they ask for.
+ *
+ * Michaelmas's `starts_on` is the first day of week −1, so week 1's Wednesday is
+ * seventeen days later — exactly the arithmetic the old comment spelled out.
+ */
+let michaelmasWeek1Wednesday: string;
+let hilaryWeek0: string;
+let outsideEveryTerm: string;
+
+async function termDate(
+  observer: Client,
+  name: "michaelmas" | "hilary" | "trinity",
+  column: "starts_on" | "ends_on",
+  offsetDays: number,
+): Promise<string> {
+  const row = await observer.query<{ day: string }>(
+    `select to_char(t.${column} + $2::int, 'YYYY-MM-DD') as day
+       from public.terms t
+       join public.seasons s on s.label = t.academic_year
+      where t.name = $1::term_name and s.status = 'active'`,
+    [name, offsetDays],
+  );
+  expect(row.rows.length).toBe(1);
+  return row.rows[0].day;
+}
 
 beforeAll(async () => {
   observer = await openObserver();
   const person = await observer.query<{ id: string }>(
     "select id from public.people where created_at = $1::timestamptz and merged_into_person_id is null order by id limit 1",
-    [SEEDED_PEOPLE_CREATED_AT],
+    [await seededIdentityCreatedAt(observer)],
   );
   expect(person.rows.length).toBe(1);
   actorPersonId = person.rows[0].id;
+
+  michaelmasWeek1Wednesday = await termDate(observer, "michaelmas", "starts_on", 17);
+  hilaryWeek0 = await termDate(observer, "hilary", "starts_on", 0);
+  // Deep in the long vacation, where no term reaches.
+  outsideEveryTerm = await termDate(observer, "trinity", "ends_on", 26);
 });
 
 afterEach(async () => {
@@ -87,7 +127,7 @@ function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} Wednesday practice`,
     eventType: "practice",
-    scheduledOn: "2026-10-14",
+    scheduledOn: michaelmasWeek1Wednesday,
     startsAt: "20:00",
     endsAt: "22:00",
     venue: "Iffley Road Astro",
@@ -205,7 +245,7 @@ describe("row 1 — an operator creates the Wednesday practice as a draft", () =
     expect(event.status).toBe("draft");
     expect(event.eventType).toBe("practice");
     expect(event.origin).toBe("club_controlled");
-    expect(event.scheduledOn).toBe("2026-10-14");
+    expect(event.scheduledOn).toBe(michaelmasWeek1Wednesday);
     expect(event.startsAt).toBe("20:00");
     expect(event.endsAt).toBe("22:00");
     expect(event.venue).toBe("Iffley Road Astro");
@@ -450,8 +490,6 @@ describe("row 3 — a draft can be edited, and only while it is a draft", () => 
 
 describe("the term and week are derived from the date, never chosen", () => {
   it("stores the Oxford coordinate the date falls in", async () => {
-    // 14 October 2026 is Michaelmas week 1: term starts 27 September, which is
-    // the first day of week −1, and 14 October is seventeen days later.
     const event = await createEventDraft(actorPersonId, draft());
 
     const term = await observer.query<{ name: string; academic_year: string }>(
@@ -465,7 +503,7 @@ describe("the term and week are derived from the date, never chosen", () => {
   });
 
   it("records no term for a date outside every term", async () => {
-    const event = await createEventDraft(actorPersonId, draft({ scheduledOn: "2027-07-15" }));
+    const event = await createEventDraft(actorPersonId, draft({ scheduledOn: outsideEveryTerm }));
 
     expect(event.termId).toBeNull();
     expect(event.weekNumber).toBeNull();
@@ -479,7 +517,7 @@ describe("the term and week are derived from the date, never chosen", () => {
     const moved = await updateEventDraft(
       actorPersonId,
       event.id,
-      draft({ scheduledOn: "2027-01-10" }),
+      draft({ scheduledOn: hilaryWeek0 }),
     );
 
     const term = await observer.query<{ name: string }>(
@@ -696,7 +734,7 @@ describe("row 7 — two events on one date are both accepted (invariant E4)", ()
     const alongside = await createEventDraft(actorPersonId, draft({ name: `${NAME_MARKER} B` }));
 
     expect(alongside.status).toBe("draft");
-    expect(alongside.scheduledOn).toBe("2026-10-14");
+    expect(alongside.scheduledOn).toBe(michaelmasWeek1Wednesday);
   });
 });
 
@@ -708,7 +746,7 @@ describe("row 8 — the form's rules, checked without a database", () => {
   const complete = {
     name: "Wednesday practice",
     eventType: "practice",
-    scheduledOn: "2026-10-14",
+    scheduledOn: michaelmasWeek1Wednesday,
     startsAt: "20:00",
     endsAt: "22:00",
     venue: "Iffley Road Astro",
@@ -904,6 +942,125 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
     expect(drafts.events.every((row) => row.status === "draft")).toBe(true);
     expect(drafts.events.map((row) => row.id)).toContain(event.id);
     expect(drafts.totalInSeason).toBeGreaterThan(drafts.events.length - 1);
+  });
+
+  /**
+   * Q-6, answered 2026-08-22, against the real database rather than a mock.
+   *
+   * `occurred` is the one filter value that is not a column, so the assertion
+   * that matters is that the SQL and `derivedEventState` agree: an approved
+   * event whose date has passed is in, and everything else — a past draft, a
+   * past cancellation, an approved event still to come, one with no date at all
+   * — is out. A `where` clause that had drifted from the derivation would put a
+   * cancelled evening in the list of evenings that happened.
+   */
+  describe("filtering by Occurred, which is derived and never stored", () => {
+    const TODAY = "2026-10-20";
+    const BEFORE = "2026-10-14";
+    const AFTER = "2026-11-11";
+
+    async function plant(status: string, scheduledOn: string | null, name: string) {
+      const event = await createEventDraft(
+        actorPersonId,
+        draft({ name: `${NAME_MARKER} ${name}`, scheduledOn: scheduledOn ?? BEFORE }),
+      );
+      if (status !== "draft") await forceStatus(event.id, status);
+      if (scheduledOn === null) {
+        // After the status, never before: invariant E1a refuses an approval
+        // with no date, so an undated event can only be a draft — which is why
+        // the case below plants one.
+        await observer.query("update public.events set scheduled_on = null where id = $1", [
+          event.id,
+        ]);
+      }
+      return event.id;
+    }
+
+    it("lists an approved event whose date has passed, and only that", async () => {
+      const occurred = await plant("approved", BEFORE, "Occurred");
+      const stillToCome = await plant("approved", AFTER, "Still to come");
+      const pastDraft = await plant("draft", BEFORE, "Past draft");
+      const pastCancellation = await plant("cancelled", BEFORE, "Past cancellation");
+      // Invariant E1a refuses an approval without a date, so the undated case
+      // the derivation guards is only ever a draft.
+      const undated = await plant("draft", null, "Undated");
+
+      const list = await listCurrentSeasonEvents({
+        search: NAME_MARKER,
+        status: "occurred",
+        today: TODAY,
+      });
+      const ids = list.events.map((row) => row.id);
+
+      expect(ids).toContain(occurred);
+      for (const excluded of [stillToCome, pastDraft, pastCancellation, undated]) {
+        expect(ids).not.toContain(excluded);
+      }
+      // Every row it did return really is one, by the rule stated in TypeScript.
+      for (const row of list.events) {
+        expect(derivedEventState(row, TODAY), `event ${row.id}`).toBe("occurred");
+        expect(row.status).toBe("approved");
+      }
+    });
+
+    it("moves an event in and out of the answer as the day it is asked about moves", async () => {
+      const event = await plant("approved", BEFORE, "On the boundary");
+
+      const before = await listCurrentSeasonEvents({
+        search: NAME_MARKER,
+        status: "occurred",
+        today: BEFORE,
+      });
+      const after = await listCurrentSeasonEvents({
+        search: NAME_MARKER,
+        status: "occurred",
+        today: AFTER,
+      });
+
+      // Its own date is not yet past on the day itself — the rule is `<`, not
+      // `<=`, and an evening is not over at breakfast.
+      expect(before.events.map((row) => row.id)).not.toContain(event);
+      expect(after.events.map((row) => row.id)).toContain(event);
+    });
+
+    it("does not widen the stored vocabulary to hold it", async () => {
+      // The filter offers four values; the enum still holds three. Asked of the
+      // database rather than of a constant, because that is where widening it
+      // would show.
+      const values = await observer.query<{ label: string }>(
+        `select e.enumlabel as label
+           from pg_enum e
+           join pg_type t on t.oid = e.enumtypid
+          where t.typname = 'event_status'
+          order by e.enumsortorder`,
+      );
+
+      expect(values.rows.map((row) => row.label)).toEqual(["draft", "approved", "cancelled"]);
+      expect(EVENT_STATUS_FILTERS).toContain("occurred");
+    });
+
+    it("still combines with the type filter and the search box", async () => {
+      const practice = await plant("approved", BEFORE, "Occurred practice");
+      const game = await createEventDraft(
+        actorPersonId,
+        draft({
+          name: `${NAME_MARKER} Occurred game`,
+          eventType: "game",
+          scheduledOn: BEFORE,
+        }),
+      );
+      await forceStatus(game.id, "approved");
+
+      const combined = await listCurrentSeasonEvents({
+        search: NAME_MARKER,
+        status: "occurred",
+        eventType: "practice",
+        today: TODAY,
+      });
+
+      expect(combined.events.map((row) => row.id)).toContain(practice);
+      expect(combined.events.map((row) => row.id)).not.toContain(game.id);
+    });
   });
 
   it("filters by free text over the name", async () => {

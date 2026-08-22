@@ -154,6 +154,33 @@ export function derivedEventState(
  * is stated here, once, and every caller asks the same question rather than
  * re-deriving it.
  */
+/**
+ * The value the events list's Status filter uses for the derived state — Q-6.
+ *
+ * Brian asked to "see the events that occurred, to easily be able to tell which
+ * ones happened versus not", and this is the fourth thing that filter offers.
+ * It is deliberately **not** a fourth `event_status`: nothing stores it and
+ * nobody asserts it (D30), so it lives here beside the derivation rather than
+ * in the enum, and a reader who follows it arrives at `derivedEventState`
+ * rather than at a column.
+ */
+export const OCCURRED_FILTER: DerivedEventState = "occurred";
+
+/**
+ * What the Status filter offers, in the order an operator reads a season in.
+ *
+ * The three stored states with the derived one in its place in time: a draft
+ * becomes approved, the evening happens, and a cancellation is the thing that
+ * stops it. `EVENT_STATUSES` stays the stored vocabulary and nothing here
+ * widens it — `src/app/operate/labels.test.ts` holds those two apart.
+ */
+export const EVENT_STATUS_FILTERS: readonly string[] = Object.freeze([
+  "draft",
+  "approved",
+  OCCURRED_FILTER,
+  "cancelled",
+]);
+
 export function hasOccurred(
   event: { status: EventStatus; scheduledOn: string | null },
   today: string,

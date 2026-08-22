@@ -19,12 +19,15 @@ import { UnavailableScreen } from "@/app/operate/unavailable";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import {
   DEFAULT_EVENT_SORT,
+  derivedEventState,
   DRAFTABLE_EVENT_TYPES,
   EVENT_SORT_COLUMNS,
+  EVENT_STATUS_FILTERS,
   listCurrentSeasonEvents,
   type EventList,
   type EventListEntry,
 } from "@/lib/services/events";
+import { todayInClubZone } from "@/lib/club-time";
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import { gateShellPage } from "../gate";
 import { CoachEligibleEvents } from "./coach-eligible-events";
@@ -39,6 +42,7 @@ import ViewSwitch from "./view-switch";
 import {
   AUDIENCE_AND_RESPONSES_COME_LATER,
   DELIVERY_MODE_LABELS,
+  DERIVED_STATE_LABELS,
   describeAttendance,
   describeAudience,
   formatListWhen,
@@ -86,20 +90,45 @@ import {
  * the same transaction as the list so the two cannot disagree.
  */
 
-/** The statuses an operator can filter by — the whole vocabulary, in order. */
-const FILTERABLE_STATUSES: readonly string[] = Object.freeze(["draft", "approved", "cancelled"]);
+/**
+ * What the Status filter offers, and what each row's Status column says — Q-6.
+ *
+ * Brian, at the visual gate: "I want to be able to see the status on the status
+ * filter, and I want to see the events that occurred, to easily be able to tell
+ * which ones happened versus not." So **Occurred** is a fourth choice beside
+ * the three stored states, and a past approved event reads `Occurred` in the
+ * column rather than `Approved`.
+ *
+ * It stays derived. Nothing stores it, nobody asserts it, and the enum is still
+ * three values (D30) — `EVENT_STATUS_FILTERS` lives beside `derivedEventState`
+ * in the service layer for exactly that reason, so a reader who follows the
+ * word arrives at the rule rather than at a column.
+ */
+function statusLabel(event: EventListEntry, today: string): string {
+  const derived = derivedEventState(event, today);
+  return event.status === "approved" && derived === "occurred"
+    ? labelFor(DERIVED_STATE_LABELS, derived)
+    : labelFor(STATUS_LABELS, event.status);
+}
 
 function first(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
   return value ?? "";
 }
 
-/** Colour is never the only carrier — every chip states its status in words. */
-function statusColour(status: string): "default" | "info" | "success" | "warning" {
-  switch (status) {
-    case "approved":
+/**
+ * Colour is never the only carrier — every chip states its status in words.
+ *
+ * Keyed on the word the chip actually shows rather than on the stored status,
+ * so an `Occurred` chip cannot be shaded as though it read `Approved`.
+ */
+function statusColour(label: string): "default" | "info" | "success" | "warning" {
+  switch (label) {
+    case "Approved":
       return "success";
-    case "draft":
+    case "Occurred":
+      return "warning";
+    case "Draft":
       return "info";
     default:
       return "default";
@@ -133,9 +162,14 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
   // regardless: a hidden button is a courtesy, never a boundary.
   const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
 
+  // One reading of the club's clock for the whole page: the filter and every
+  // row's Status column must agree about which day it is, and two calls either
+  // side of midnight would not.
+  const today = todayInClubZone();
+
   let list: EventList;
   try {
-    list = await listCurrentSeasonEvents({ search, status, eventType, sort, direction });
+    list = await listCurrentSeasonEvents({ search, status, eventType, sort, direction, today });
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return <UnavailableScreen title="Events" message={error.message} testId="events-unavailable" />;
@@ -178,7 +212,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
       />
 
       <EventFilters
-        statuses={FILTERABLE_STATUSES}
+        statuses={EVENT_STATUS_FILTERS}
         types={DRAFTABLE_EVENT_TYPES}
         sortColumns={SORT_OPTIONS}
         search={search}
@@ -262,8 +296,8 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
                     <TableCell>
                       <Chip
                         size="small"
-                        label={labelFor(STATUS_LABELS, event.status)}
-                        color={statusColour(event.status)}
+                        label={statusLabel(event, today)}
+                        color={statusColour(statusLabel(event, today))}
                       />
                     </TableCell>
                     <TableCell>{labelFor(DELIVERY_MODE_LABELS, event.deliveryMode)}</TableCell>
@@ -277,7 +311,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
           {/* Phone: the same events as cards, with nothing left out. */}
           <Stack spacing={2} sx={{ display: { xs: "flex", md: "none" } }}>
             {list.events.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventCard key={event.id} event={event} today={today} />
             ))}
           </Stack>
         </>
@@ -409,7 +443,7 @@ function SortableHeader({
  * approved event, and § 7 forbids reflow that removes data needed for the
  * task.
  */
-function EventCard({ event }: { event: EventListEntry }) {
+function EventCard({ event, today }: { event: EventListEntry; today: string }) {
   return (
     <Card variant="outlined" data-testid="event-card">
       <CardActionArea href={`/operate/events/${event.id}`} sx={{ p: 2 }}>
@@ -423,8 +457,8 @@ function EventCard({ event }: { event: EventListEntry }) {
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
             <Chip
               size="small"
-              label={labelFor(STATUS_LABELS, event.status)}
-              color={statusColour(event.status)}
+              label={statusLabel(event, today)}
+              color={statusColour(statusLabel(event, today))}
             />
             <Chip size="small" label={labelFor(TYPE_LABELS, event.eventType)} />
             {event.venue ? <Chip size="small" label={event.venue} /> : null}

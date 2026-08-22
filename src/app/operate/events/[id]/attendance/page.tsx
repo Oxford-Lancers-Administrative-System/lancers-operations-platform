@@ -32,8 +32,11 @@ import {
   COACH_RETURN_TO_ELIGIBLE,
   COMPLETE_ATTENDANCE,
   COMPLETE_ATTENDANCE_MEANING,
+  describeRegisterOpensAt,
   NOBODY_INVITED,
   NO_MATCHING_PARTICIPANTS,
+  REGISTER_BUFFER_RULE,
+  REGISTER_NOT_YET_HEADLINE,
   RSVP_STAYS_SEPARATE,
 } from "./presentation";
 
@@ -119,10 +122,24 @@ export default async function AttendancePage({
 
   const { event } = board;
 
-  // UX-71, and UX-90 for a coach. The event has not been asserted to have
-  // happened, or was asserted not to have — either way there is nothing to
-  // record, and the service says so as well as the screen does.
+  // UX-71, and UX-90 for a coach. There is nothing to record yet, and the
+  // service refuses a write as firmly as the screen refuses the control.
   if (!board.isOpen) {
+    // Two closed states, and they are not the same refusal: one waits on the
+    // approval and the other only on the clock. `docs/ux/standards.md` rule 4
+    // says a refused control names the step that lifts it, so a register that
+    // simply has not opened yet must not be described as waiting on a person.
+    if (board.closedReason === "before_buffer") {
+      return (
+        <RegisterNotOpenYet
+          eventId={event.id}
+          status={event.status}
+          opensAt={board.registerOpensAt}
+          isCoachView={isCoachView}
+        />
+      );
+    }
+
     return isCoachView ? (
       <CoachAttendanceLocked status={event.status} />
     ) : (
@@ -270,6 +287,56 @@ export default async function AttendancePage({
           </Typography>
         </Stack>
       )}
+    </Stack>
+  );
+}
+
+/**
+ * The register's buffer, before it lifts — D71 and D72. LAN-152.
+ *
+ * One screen for both readers, unlike the two above. The reason those differ is
+ * authority: an operator can go and assert occurrence and a coach cannot, so
+ * the sentence has to change with who is reading it. Nobody can hurry a clock,
+ * so this one says the same thing to everybody, and only the way back out
+ * differs — a coach's route is their eligible events, not event administration
+ * that would refuse them.
+ */
+function RegisterNotOpenYet({
+  eventId,
+  status,
+  opensAt,
+  isCoachView,
+}: {
+  eventId: string;
+  status: string;
+  opensAt: string | null;
+  isCoachView: boolean;
+}) {
+  return (
+    <Stack
+      spacing={3}
+      sx={{ maxWidth: 720 }}
+      data-testid="register-not-open-yet"
+      data-status={status}
+    >
+      <Box>
+        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+          {REGISTER_NOT_YET_HEADLINE}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" data-testid="register-opens-at">
+          {describeRegisterOpensAt(opensAt)}
+        </Typography>
+      </Box>
+      <Alert severity="info">{REGISTER_BUFFER_RULE}</Alert>
+      <Box>
+        <Button
+          variant="contained"
+          href={isCoachView ? "/operate/events" : `/operate/events/${eventId}`}
+          sx={{ minHeight: 44 }}
+        >
+          {isCoachView ? COACH_RETURN_TO_ELIGIBLE : "Return to event"}
+        </Button>
+      </Box>
     </Stack>
   );
 }
