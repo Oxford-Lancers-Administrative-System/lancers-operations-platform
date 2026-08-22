@@ -140,9 +140,11 @@ export interface AttendanceBoard {
   /**
    * Whether the register may be opened. Everything else renders UX-71 or UX-75.
    *
-   * Two conditions, and only one of them is the club's rule. D71 to D74 say the
-   * register opens on a buffer before the event and never closes, and
-   * `./attendance-window.ts` holds that. The stored `occurred` status is the
+   * Three conditions, and only two of them are the club's rule. D71 says the
+   * register opens on a buffer before the event and D72 says it never closes —
+   * `./attendance-window.ts` holds the first, and `closedReasonFor` below holds
+   * the second by treating a register with anything recorded against it as one
+   * that is already open. The stored `occurred` status is the
    * *retiring* half: `attendance_records_require_an_occurred_event` is a check
    * constraint, so until the migration package removes it a sheet opened
    * against an approved event would collect values the database then refused —
@@ -259,6 +261,41 @@ function participantKey(capacity: string, membershipId: string | null, personId:
 }
 
 /**
+ * Why this event's register is closed, or `null` because it is not — LAN-152.
+ *
+ * ## The buffer opens it; nothing closes it
+ *
+ * D72 is that the register never closes, and the third branch below is what
+ * makes that literally true rather than nearly true. **A register with anything
+ * recorded against it has already been opened**, whatever the clock now says
+ * about the event's start, so the buffer cannot take it back.
+ *
+ * That is not a hypothetical tidy-up. It was found on the screen: the synthetic
+ * season carries sessions recorded as having happened whose dates are still
+ * ahead of today — an assertion invariant E5 permits and the seed makes — and
+ * without this branch the product refused to show a coach a register they had
+ * already filled in twenty-one names on. A rule that shuts a sheet somebody is
+ * halfway through is the opposite of the one D72 asks for.
+ *
+ * The extra round trip is one `exists` and is taken only on the path that would
+ * otherwise refuse.
+ */
+async function closedReasonFor(
+  tx: Tx,
+  event: EventDetail,
+  now: Date,
+): Promise<AttendanceClosedReason | null> {
+  if (event.status !== ATTENDANCE_OPEN_STATUS) return "not_yet_asserted";
+  if (isRegisterOpen(event, now)) return null;
+
+  const saved = await tx.query<{ saved: boolean }>(
+    "select exists (select 1 from public.attendance_records where event_id = $1) as saved",
+    [event.id],
+  );
+  return saved.rows[0].saved ? null : "before_buffer";
+}
+
+/**
  * The board for one event, in whatever state it is in.
  *
  * It does **not** refuse a non-occurred event: the route has to render UX-71
@@ -275,12 +312,7 @@ export async function readAttendanceBoard(
     const opensAt = registerOpensAt(event);
     const opensAtIso = opensAt === null ? null : opensAt.toISOString();
 
-    const closedReason: AttendanceClosedReason | null =
-      event.status !== ATTENDANCE_OPEN_STATUS
-        ? "not_yet_asserted"
-        : isRegisterOpen(event, now)
-          ? null
-          : "before_buffer";
+    const closedReason = await closedReasonFor(tx, event, now);
 
     if (closedReason !== null) {
       return {

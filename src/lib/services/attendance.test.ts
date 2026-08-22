@@ -1218,6 +1218,33 @@ describe("when the register opens", () => {
     expect((await readAttendanceBoard(event.id, opens)).isOpen).toBe(true);
   });
 
+  it("stays open for a register that already has something in it", async () => {
+    // D72, at the point it actually bites. The synthetic season carries
+    // sessions recorded as having happened whose dates are still ahead of
+    // today, and this is the state that found the defect on screen: twenty-one
+    // names already saved, and a product refusing to show the sheet they were
+    // saved on. A register with anything in it has been opened, so the buffer
+    // cannot take it back.
+    const event = await occurredEvent(3);
+    const invitations = await observer.query<{ season_membership_id: string }>(
+      "select season_membership_id from public.invitations where event_id = $1 order by id limit 1",
+      [event.id],
+    );
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations.rows[0].season_membership_id}`,
+      "present",
+    );
+
+    await moveTo(event.id, "2099-01-01", "20:00");
+
+    const board = await readAttendanceBoard(event.id);
+    expect(board.isOpen).toBe(true);
+    expect(board.closedReason).toBeNull();
+    expect(board.recordedCount).toBe(1);
+  });
+
   it("never closes, so last term's forgotten session can still be filled in", async () => {
     const event = await occurredEvent();
     await moveTo(event.id, "2026-06-10", "20:00");
