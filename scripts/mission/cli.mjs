@@ -490,6 +490,36 @@ async function main() {
       break;
     }
 
+    case "integrated-review": {
+      if (!missionId || !flags.mode || !flags.head || !flags.result) {
+        fail(
+          "Usage: mission integrated-review <mission-id> --mode workflow-walker|cross-surface --head <sha> --result clear|blocked [--jobs <what was completed>] [--findings <file>]",
+        );
+      }
+      await append(missionId, {
+        type: "integrated-review",
+        mode: flags.mode,
+        head_sha: flags.head,
+        result: flags.result,
+        ...(flags.jobs ? { jobs_completed: flags.jobs } : {}),
+        ...(flags.findings ? { findings: readJson(flags.findings) } : {}),
+      });
+      console.log(`Integrated ${flags.mode} review recorded at ${flags.head}: ${flags.result}.`);
+      break;
+    }
+
+    case "closeout": {
+      if (!missionId || !flags.payload) {
+        fail("Usage: mission closeout <mission-id> --payload <file>");
+      }
+      const payload = readJson(flags.payload);
+      const state = await append(missionId, { type: "mission-closeout", ...payload });
+      console.log(
+        `Mission ${missionId} closed as ${state.closeout.outcome}. Write this into ${state.closeout.notion_record} — it extends that record; it never creates a Linear planning document or a deferred-findings issue.`,
+      );
+      break;
+    }
+
     case "checkpoint": {
       if (!missionId)
         fail(
@@ -608,7 +638,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
       );
   }
 }

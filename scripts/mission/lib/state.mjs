@@ -44,6 +44,7 @@ export const EVENT_TYPES = [
   "correction-dispatched",
   "pr-opened",
   "review-receipt",
+  "integrated-review",
   "visual-approval",
   "owner-question",
   "owner-answer",
@@ -52,6 +53,7 @@ export const EVENT_TYPES = [
   "checkpoint",
   "scope-drift",
   "packet-revised",
+  "mission-closeout",
   "mission-stopped",
   "mission-resumed",
 ];
@@ -160,6 +162,51 @@ const WORKER_RECEIPT_FIELDS = [
 ];
 
 const REVIEW_RECEIPT_FIELDS = ["review_mode", "reviewed_head_sha", "round", "result"];
+
+/**
+ * The two reviews that only make sense against the whole mission (LAN-148 §D).
+ *
+ * Package-scoped review caught serious defects in the first live run and missed
+ * twelve usability and consistency ones, because nobody reviewed the thing the
+ * packages add up to. A walker completes the mission's actual user jobs end to
+ * end before Brian is asked to look at anything; a cross-surface pass compares
+ * the repeated facts, states, dates, permissions and copy across the surfaces
+ * once they have all integrated.
+ */
+export const INTEGRATED_REVIEW_MODES = ["workflow-walker", "cross-surface"];
+
+/** What an unresolved finding has to carry to survive the mission (§G). */
+const FINDING_FIELDS = [
+  "id",
+  "impact_severity",
+  "gate_disposition",
+  "consequence",
+  "evidence",
+  "recommendation",
+  "owner_disposition",
+];
+
+/** Bounded injection proof: the defect came back, the named test failed, the
+ * fix was restored, the test passed. Not a mutation-testing framework — four
+ * recorded facts about one fix (§D). */
+const INJECTION_FIELDS = ["finding_id", "test", "command", "failing_output", "restored_pass"];
+
+function injectionDefects(entry) {
+  const label = entry?.finding_id ?? "a correction";
+  if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
+    return [`${label}: injection evidence must be an object.`];
+  }
+  const defects = [];
+  for (const field of INJECTION_FIELDS) {
+    if (!isNonEmptyString(entry[field])) {
+      defects.push(`${label}: injection evidence is missing \`${field}\`.`);
+    }
+  }
+  if (!/^[0-9a-f]{40}$/.test(entry.sha ?? "")) {
+    defects.push(`${label}: injection evidence records the exact SHA it was produced at.`);
+  }
+  return defects;
+}
 
 /** The unanswered questions whose affected set names this package. */
 function openQuestionsAffecting(state, packageId) {
@@ -618,6 +665,24 @@ export function validateEvent(event, state) {
       if (!WORKER_RESULTS.includes(receipt.result)) {
         errors.push(`Worker receipt result must be one of ${WORKER_RESULTS.join(", ")}.`);
       }
+      // LAN-148 §D. A correction that says it fixed something has to show that
+      // the defect can be put back and that a named test notices. Only for
+      // corrections, and only for the findings this one was dispatched to fix —
+      // this is four recorded facts about one fix, not a mutation platform.
+      if (worker.kind === "correction" && receipt.result === "completed") {
+        const evidence = Array.isArray(receipt.injection_evidence)
+          ? receipt.injection_evidence
+          : [];
+        const proved = new Set(evidence.map((entry) => entry?.finding_id));
+        for (const findingId of worker.finding_ids ?? []) {
+          if (!proved.has(findingId)) {
+            errors.push(
+              `${findingId} was corrected without injection evidence: reintroduce the defect, run the named regression test and observe it fail, restore the fix, and run it again.`,
+            );
+          }
+        }
+        for (const entry of evidence) errors.push(...injectionDefects(entry));
+      }
       break;
     }
 
@@ -692,6 +757,30 @@ export function validateEvent(event, state) {
       break;
     }
 
+    case "integrated-review": {
+      if (!INTEGRATED_REVIEW_MODES.includes(event.mode)) {
+        errors.push(`An integrated review's mode is one of ${INTEGRATED_REVIEW_MODES.join(", ")}.`);
+      }
+      if (!/^[0-9a-f]{40}$/.test(event.head_sha ?? "")) {
+        errors.push("An integrated review records the exact integrated head it ran against.");
+      }
+      if (!["clear", "blocked"].includes(event.result)) {
+        errors.push('An integrated review result is "clear" or "blocked".');
+      }
+      if (event.mode === "workflow-walker" && !isNonEmptyString(event.jobs_completed)) {
+        errors.push(
+          "A workflow walker records the user jobs it completed end to end, not the screens it visited.",
+        );
+      }
+      if (
+        event.result === "blocked" &&
+        (!Array.isArray(event.findings) || event.findings.length === 0)
+      ) {
+        errors.push("A blocked integrated review names its findings.");
+      }
+      break;
+    }
+
     case "visual-approval": {
       const pkg = state.packages[event.package_id];
       if (!pkg) {
@@ -700,6 +789,19 @@ export function validateEvent(event, state) {
       }
       if (pkg.visual === "nonvisual") {
         errors.push(`${event.package_id} is nonvisual; there is nothing to visually approve.`);
+      }
+      // LAN-148 §D: Brian looks at the integrated result, not at one package in
+      // isolation. The walker runs first, at the head he will be shown.
+      const walked = state.integratedReviews.find(
+        (review) =>
+          review.mode === "workflow-walker" &&
+          review.result === "clear" &&
+          review.head_sha === pkg.head_sha,
+      );
+      if (!walked) {
+        errors.push(
+          `No clear workflow-walker review covers ${pkg.head_sha ?? "this package's head"}. The mission's own user jobs are completed end to end before Brian is asked to judge presentation.`,
+        );
       }
       if (!isNonEmptyString(event.approved_by) || !isNonEmptyString(event.evidence)) {
         errors.push("A visual approval records who approved and where (the live review).");
@@ -823,6 +925,62 @@ export function validateEvent(event, state) {
       break;
     }
 
+    case "mission-closeout": {
+      if (!["delivered", "delivered-with-residue", "stopped-incomplete"].includes(event.outcome)) {
+        errors.push(
+          'A mission closes as "delivered", "delivered-with-residue" or "stopped-incomplete" — the three labels that can be true.',
+        );
+      }
+      if (!isNonEmptyString(event.notion_record)) {
+        errors.push(
+          "Closeout records the existing Notion mission record it was written to. It extends that record; it never creates a Linear planning document or an automatic deferred-findings issue.",
+        );
+      }
+      if (!isNonEmptyString(event.next_action)) {
+        errors.push("Closeout records the next action, even when that is 'none'.");
+      }
+      if (!Array.isArray(event.shipped) || event.shipped.length === 0) {
+        errors.push("Closeout lists what shipped.");
+      } else {
+        for (const entry of event.shipped) {
+          if (!isNonEmptyString(entry?.linear_issue_id) || !Number.isInteger(entry?.pr_number)) {
+            errors.push("Each shipped entry names its Linear issue and pull request.");
+          }
+          if (!/^[0-9a-f]{40}$/.test(entry?.sha ?? "")) {
+            errors.push("Each shipped entry records the exact merged SHA.");
+          }
+        }
+      }
+      // Every unresolved finding survives the mission in a form Brian can
+      // triage once — the alternative is LAN-146, an issue created to hold
+      // eleven findings because nothing durable would.
+      for (const finding of Array.isArray(event.unresolved_findings)
+        ? event.unresolved_findings
+        : []) {
+        for (const field of FINDING_FIELDS) {
+          if (!isNonEmptyString(finding?.[field])) {
+            errors.push(
+              `Unresolved finding ${finding?.id ?? "(unidentified)"} is missing \`${field}\`.`,
+            );
+          }
+        }
+      }
+      if (!isNonEmptyString(event.owner_actions)) {
+        errors.push("Closeout states what Brian or an external service must do, or 'none'.");
+      }
+      if (event.outcome !== "stopped-incomplete") {
+        const crossSurface = state.integratedReviews.find(
+          (review) => review.mode === "cross-surface" && review.result === "clear",
+        );
+        if (!crossSurface) {
+          errors.push(
+            "No clear cross-surface review covers the integrated result. Repeated facts, states, dates, permissions and copy are compared across the surfaces once they have all landed.",
+          );
+        }
+      }
+      break;
+    }
+
     case "mission-stopped": {
       if (!["usage-exhausted", "owner-stop", "blocked"].includes(event.reason)) {
         errors.push('A stop reason is "usage-exhausted", "owner-stop" or "blocked".');
@@ -867,6 +1025,8 @@ export function validateEvent(event, state) {
  *   decomposition: Record<string, any> | null,
  *   dispatchDeferrals: Array<Record<string, any>>,
  *   laneBypasses: Array<Record<string, any>>,
+ *   integratedReviews: Array<Record<string, any>>,
+ *   closeout: Record<string, any> | null,
  *   eventCount: number,
  * }} MissionState
  * @typedef {{ action: string, detail: string, package_id?: string, question_id?: string }} MissionAction
@@ -890,6 +1050,8 @@ function emptyState() {
     decomposition: null,
     dispatchDeferrals: [],
     laneBypasses: [],
+    integratedReviews: [],
+    closeout: null,
     eventCount: 0,
   };
 }
@@ -1059,6 +1221,29 @@ export function reduce(events) {
         }
         break;
       }
+      case "integrated-review":
+        state.integratedReviews.push({
+          at: event.at,
+          mode: event.mode,
+          head_sha: event.head_sha,
+          result: event.result,
+          jobs_completed: event.jobs_completed ?? null,
+          findings: event.findings ?? [],
+        });
+        break;
+      case "mission-closeout":
+        state.closeout = {
+          at: event.at,
+          outcome: event.outcome,
+          notion_record: event.notion_record,
+          shipped: event.shipped,
+          unresolved_findings: event.unresolved_findings ?? [],
+          owner_actions: event.owner_actions,
+          next_action: event.next_action,
+          elapsed: event.elapsed ?? null,
+          cost: event.cost ?? null,
+        };
+        break;
       case "visual-approval": {
         const pkg = state.packages[event.package_id];
         pkg.visual_approved = true;
@@ -1288,6 +1473,42 @@ export function nextActions(state) {
         action: "merge-gate",
         package_id: pkg.id,
         detail: "Evaluate the guarded merge gate.",
+      });
+    }
+    // The walker runs against the head Brian will be shown, before he is asked.
+    if (
+      pkg.visual !== "nonvisual" &&
+      pkg.head_sha &&
+      !pkg.visual_approved &&
+      ["implemented", "reviewed"].includes(pkg.status) &&
+      !state.integratedReviews.some(
+        (review) =>
+          review.mode === "workflow-walker" &&
+          review.result === "clear" &&
+          review.head_sha === pkg.head_sha,
+      )
+    ) {
+      actions.push({
+        action: "workflow-walker",
+        package_id: pkg.id,
+        detail: `Complete the mission's user jobs end to end against ${pkg.head_sha} before asking Brian to judge presentation.`,
+      });
+    }
+  }
+
+  const live = packages.filter((pkg) => pkg.status !== "removed");
+  if (live.length > 0 && live.every((pkg) => pkg.status === "merged")) {
+    if (!state.integratedReviews.some((review) => review.mode === "cross-surface")) {
+      actions.push({
+        action: "cross-surface-review",
+        detail:
+          "Every package has landed. Compare the repeated facts, states, dates, permissions and copy across the surfaces they add up to.",
+      });
+    } else if (!state.closeout) {
+      actions.push({
+        action: "closeout",
+        detail:
+          "Write the closeout into the existing Notion mission record: outcome, shipped issues, pull requests and exact SHAs, acceptance and injection evidence, unresolved findings and their dispositions, owner and external actions, elapsed time and cost, and the next action.",
       });
     }
   }

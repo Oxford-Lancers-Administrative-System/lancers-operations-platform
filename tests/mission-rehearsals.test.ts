@@ -513,6 +513,14 @@ describe("Rehearsal 9 — guarded merge permits the qualifying case and refuses 
       },
     });
     await m.append({
+      type: "integrated-review",
+      mode: "workflow-walker",
+      head_sha: HEAD,
+      result: "clear",
+      jobs_completed:
+        "Signed in, drafted a practice, confirmed its audience and took the register.",
+    });
+    await m.append({
       type: "visual-approval",
       package_id: "WP-events-filter",
       approved_by: "Brian",
