@@ -48,7 +48,12 @@ import {
   type EventDraftInput,
 } from "./events";
 import { readEventAttendanceSummary } from "./attendance";
-import { dispatchEventInvitations } from "./delivery";
+import {
+  dispatchEventInvitations,
+  JOB_HELD_MESSAGE,
+  JOB_HELD_RULE,
+  retryDelivery,
+} from "./delivery";
 import { resolveRsvpToken } from "./rsvp-tokens";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
@@ -593,6 +598,39 @@ describe("saving an amendment holds the event's unsent messages", () => {
       `select count(*)::text as count from public.delivery_attempts
         where notification_job_id in (select id from public.notification_jobs where event_id = $1)`,
       [fixture.eventId],
+    );
+    expect(Number(attempts.rows[0].count)).toBe(0);
+  });
+
+  it("stops the operator's Retry sending one, as a sentence rather than a shrug", async () => {
+    const fixture = await approvedEvent();
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks" },
+      { notify: true },
+    );
+
+    const job = await observer.query<{ id: string }>(
+      `select id from public.notification_jobs
+        where event_id = $1 and job_type = 'invitation' order by id limit 1`,
+      [fixture.eventId],
+    );
+
+    const failure = await serviceFailure(() =>
+      retryDelivery(actorPersonId, job.rows[0].id, {
+        source: {},
+        transport: async () => new Response("{}", { status: 200 }),
+      }),
+    );
+
+    expect(failure.rule).toBe(JOB_HELD_RULE);
+    expect(failure.message).toBe(JOB_HELD_MESSAGE);
+
+    const attempts = await observer.query<{ count: string }>(
+      `select count(*)::text as count from public.delivery_attempts
+        where notification_job_id = $1`,
+      [job.rows[0].id],
     );
     expect(Number(attempts.rows[0].count)).toBe(0);
   });
