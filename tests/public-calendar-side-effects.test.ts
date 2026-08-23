@@ -133,21 +133,106 @@ function eventProps(id: string) {
   } as unknown as Parameters<typeof PublicEventPage>[0];
 }
 
-/** Every public surface, rendered once, with the markup each produced. */
-async function renderEverySurface(eventId: string): Promise<string> {
-  const markup: string[] = [];
-  for (const page of [
-    () => PublicCalendarPage(listProps({ period: "all" })),
-    () => PublicCalendarPage(listProps({ period: "week" })),
-    () => PublicCalendarViewPage(viewProps({ mode: "gregorian" })),
-    () => PublicCalendarViewPage(viewProps({ mode: "oxford" })),
-    () => PublicEventPage(eventProps(eventId)),
-  ]) {
-    const { container } = render(await page());
-    markup.push(container.innerHTML);
+interface Surface {
+  name: string;
+  markup: string;
+}
+
+/**
+ * What each surface must have produced for its render to count — R153-B3.
+ *
+ * Each marker is emitted only by that surface's **success** path. When
+ * `listPublicSeasonEvents` refuses, every list and calendar page returns the
+ * shell wrapped around one alert and none of these appear, which is what a
+ * length threshold over the concatenated markup could not tell apart: four
+ * alerts inside the shell comfortably clear five thousand characters, and
+ * "no records were created" is trivially true when nothing rendered.
+ *
+ * The row and week-row counts are the second half. Chrome alone is not a
+ * render — the surface has to have laid out real event data.
+ */
+const SURFACES: {
+  name: string;
+  page: (eventId: string) => Promise<React.ReactElement>;
+  /** Emitted only on this surface's success path. */
+  requires: string[];
+  /** A repeated element this surface must have produced at least one of. */
+  atLeastOne?: string;
+}[] = [
+  {
+    name: "public list (all events)",
+    page: async () => PublicCalendarPage(listProps({ period: "all" })),
+    requires: ['data-testid="period-switch"', 'data-testid="public-event-filters"'],
+    atLeastOne: 'data-testid="public-event-row"',
+  },
+  {
+    name: "public list (this week)",
+    page: async () => PublicCalendarPage(listProps({ period: "week" })),
+    requires: ['data-testid="period-switch"', 'data-testid="public-event-filters"'],
+  },
+  {
+    name: "Calendar View",
+    page: async () => PublicCalendarViewPage(viewProps({ mode: "gregorian" })),
+    requires: ['data-testid="public-gregorian-view"', 'data-testid="gregorian-grid"'],
+    atLeastOne: 'data-testid="calendar-entry"',
+  },
+  {
+    name: "Oxford View",
+    page: async () => PublicCalendarViewPage(viewProps({ mode: "oxford" })),
+    requires: ['data-testid="public-oxford-view"', 'data-testid="year-column"'],
+    atLeastOne: 'data-testid="year-week-row"',
+  },
+  {
+    name: "public event page",
+    page: async (eventId: string) => PublicEventPage(eventProps(eventId)),
+    requires: ['data-testid="public-event-name"'],
+    atLeastOne: 'data-testid="public-event-fact"',
+  },
+];
+
+/** The states that mean a surface refused rather than rendered. */
+const REFUSAL_MARKERS = [
+  'data-testid="public-calendar-unavailable"',
+  'data-testid="public-event-missing"',
+];
+
+/**
+ * Every public surface, rendered once, each proved to have actually rendered.
+ *
+ * The proof lives here rather than in one test so that **every** caller gets
+ * it: "no records were created" and "the payload carries no joining URL" are
+ * both trivially true of a page that rendered nothing, and this is what stops
+ * either passing that way.
+ */
+async function renderEverySurface(eventId: string): Promise<Surface[]> {
+  const surfaces: Surface[] = [];
+
+  for (const surface of SURFACES) {
+    const { container } = render(await surface.page(eventId));
+    const markup = container.innerHTML;
     cleanup();
+
+    for (const refusal of REFUSAL_MARKERS) {
+      expect(markup, `${surface.name} refused instead of rendering`).not.toContain(refusal);
+    }
+    for (const required of surface.requires) {
+      expect(markup, `${surface.name} did not render (${required} absent)`).toContain(required);
+    }
+    if (surface.atLeastOne) {
+      const count = markup.split(surface.atLeastOne).length - 1;
+      expect(count, `${surface.name} produced no ${surface.atLeastOne}`).toBeGreaterThan(0);
+    }
+
+    surfaces.push({ name: surface.name, markup });
   }
-  return markup.join("\n");
+
+  expect(surfaces).toHaveLength(SURFACES.length);
+  return surfaces;
+}
+
+/** Every surface's markup at once, for the "carries nothing" assertions. */
+function allMarkup(surfaces: readonly Surface[]): string {
+  return surfaces.map((surface) => surface.markup).join("\n");
 }
 
 beforeAll(async () => {
@@ -161,13 +246,27 @@ afterAll(async () => {
 describe("a request carrying no cookie, session or token", () => {
   it("renders the public list, both calendars and an event page", async () => {
     const online = await anOnlineEvent();
-    const markup = await renderEverySurfaceSafely(online.id);
+    const surfaces = await renderEverySurfaceSafely(online.id);
 
-    // Each surface actually produced something: an empty string would make
-    // every "does not contain" assertion below pass for the wrong reason.
-    expect(markup.length).toBeGreaterThan(5_000);
-    expect(markup).toContain("Oxford Lancers");
-    expect(markup).toContain(online.name);
+    // R153-B3. Each surface is proved to have rendered *its own* content by
+    // `renderEverySurface` — its success-path markers, and at least one real
+    // row, entry or week. A length threshold over the concatenation could not:
+    // when the service was made to refuse, four alerts inside the shell cleared
+    // it and this test passed while nothing had rendered at all.
+    for (const surface of surfaces) {
+      expect(surface.markup, `${surface.name} is missing the club's own shell`).toContain(
+        "Oxford Lancers",
+      );
+    }
+    expect(surfaces.map((surface) => surface.name)).toEqual([
+      "public list (all events)",
+      "public list (this week)",
+      "Calendar View",
+      "Oxford View",
+      "public event page",
+    ]);
+    // The event this walk is about reached the surfaces that show it by name.
+    expect(allMarkup(surfaces)).toContain(online.name);
   }, 120_000);
 
   it("creates no audience, invitation, RSVP, attendance or notification record", async () => {
@@ -190,7 +289,7 @@ describe("what an anonymous response carries", () => {
     // ever being rendered.
     const online = await anOnlineEvent();
 
-    const markup = await renderEverySurfaceSafely(online.id);
+    const markup = allMarkup(await renderEverySurfaceSafely(online.id));
     expect(markup).not.toContain(online.joiningUrl);
 
     const list = await listPublicSeasonEvents();
@@ -211,7 +310,7 @@ describe("what an anonymous response carries", () => {
     const online = await anOnlineEvent();
     const surname = await anInvitedPerson();
 
-    const markup = await renderEverySurfaceSafely(online.id);
+    const markup = allMarkup(await renderEverySurfaceSafely(online.id));
     expect(markup).not.toContain(surname);
 
     const payload = JSON.stringify({
@@ -280,7 +379,7 @@ describe("the public projection reads no participation table", () => {
  * "does not contain" assertion trivially true — which is exactly the shape of
  * false pass this suite exists to avoid.
  */
-async function renderEverySurfaceSafely(eventId: string): Promise<string> {
+async function renderEverySurfaceSafely(eventId: string): Promise<Surface[]> {
   try {
     return await renderEverySurface(eventId);
   } catch (error) {
