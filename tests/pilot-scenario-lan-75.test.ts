@@ -100,13 +100,22 @@ const CLEANUP = scriptBody("cleanup.sql", CLEANUP_FILE);
  * because the activation the scenario exercises is a real thing an operator
  * really did and `entity_id` is not a foreign key precisely so the record can
  * outlive its subject. A test that demanded the digest match would be demanding
- * the opposite of the behaviour the scripts are documented to have — so the
- * table is excluded here and asserted on directly where it matters.
+ * the opposite of the behaviour the scripts are documented to have — so its
+ * digest is excluded while its row count remains explicit in every snapshot.
  */
 const HISTORY_KEPT = new Set(["public.audit_events"]);
 
 async function snapshot(client: Client): Promise<Record<string, string>> {
   return scopedPilotSnapshot(client, CLEANUP, { excludeDigests: HISTORY_KEPT });
+}
+
+function withAdditionalAuditRows(
+  before: Record<string, string>,
+  additional: number,
+): Record<string, string> {
+  const table = "public.audit_events";
+  const count = Number(before[table].split(":", 1)[0]);
+  return { ...before, [table]: `${count + additional}:-` };
 }
 
 async function count(client: Client, sql: string, params: unknown[] = []): Promise<number> {
@@ -560,7 +569,7 @@ describe("cleanup.sql", () => {
 
     await client.query(CLEANUP);
 
-    expect(await snapshot(client)).toEqual(before);
+    expect(await snapshot(client)).toEqual(withAdditionalAuditRows(before, 2));
     // The two audit rows the "activation" wrote are still there. Cleanup tidies
     // up the synthetic member, never the record of what somebody did.
     expect(await count(client, "select count(*) as n from public.audit_events")).toBe(
@@ -625,7 +634,7 @@ describe("cleanup.sql", () => {
 
     await client.query(CLEANUP);
 
-    expect(await snapshot(client)).toEqual(before);
+    expect(await snapshot(client)).toEqual(withAdditionalAuditRows(before, 1));
   });
 
   /**
