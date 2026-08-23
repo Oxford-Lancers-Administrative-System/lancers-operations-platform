@@ -256,9 +256,7 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
     expect(agreement).toMatch(
       /No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to production/i,
     );
-    expect(agreement).toMatch(
-      /mission merge performed with GITHUB_TOKEN deliberately does not deploy/i,
-    );
+    expect(agreement).toMatch(/mission merge does not deploy because deploy\.yml is manual-only/i);
   });
 
   it("prohibits every owner-gated surface class from the mission lane", () => {

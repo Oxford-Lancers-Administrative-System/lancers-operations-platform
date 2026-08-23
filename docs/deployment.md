@@ -16,12 +16,15 @@ pull request  ──▶  CI only (.github/workflows/ci.yml)
                    migrations from empty · RLS gate · type-drift gate
                    container build + health probe
 
-merge to main ──▶  CI, then deploy (.github/workflows/deploy.yml)
+merge to main ──▶  CI only
+
+manual dispatch ─▶ deploy (.github/workflows/deploy.yml)
                    OIDC → GCP · build image · push to Artifact Registry
                    deploy Cloud Run revision · smoke-test /api/health
 ```
 
-A pull request never deploys. Only `main` does.
+A pull request and a merge never deploy. Brian dispatches `deploy.yml` manually
+from `main` after the required CI checks pass.
 
 ## One-time GCP setup
 
@@ -138,10 +141,11 @@ gcloud run services update lancers-operations-platform --region europe-west2
 ```
 
 `/api/health` reports `secretsLoaded: true|false` and
-`databaseConfigured: true|false` — presence only, never the value — so a deploy
-can be verified without anyone reading a secret. The deploy workflow fails if
-either is `false`. Neither field reveals the host, port, connection mode, role
-or any error, and the endpoint never connects to the database.
+`databaseConfigured: true|false` and `schemaCompatible: true|false` — never a
+value or error — so a deploy can be verified without anyone reading a secret.
+The deploy workflow fails if any required field is `false`. The schema probe
+selects one row from `public.events`; neither it nor the response reveals the
+host, port, connection mode, role, credential, or failure reason.
 
 ## Activating the runtime database connection
 
@@ -208,9 +212,10 @@ printf '%s' 'PASTE-THE-CONNECTION-STRING-HERE' | gcloud secrets create database-
 gcloud secrets add-iam-policy-binding database-url --member="serviceAccount:$(gcloud run services describe lancers-operations-platform --region europe-west2 --format='value(spec.template.spec.serviceAccountName)')" --role=roles/secretmanager.secretAccessor
 ```
 
-**4 — Merge the pull request.** The deploy workflow injects the secret and fails
-the revision unless `/api/health` reports both `secretsLoaded` and
-`databaseConfigured` as true.
+**4 — Merge the pull request, wait for CI, then manually dispatch `deploy.yml`.**
+The deploy workflow injects the secret and fails the revision unless
+`/api/health` reports `secretsLoaded`, `databaseConfigured`, and
+`schemaCompatible` as true.
 
 **5 — Prove the credential actually works.** Presence is not correctness: a wrong
 password, a role without `BYPASSRLS`, or a pooler refusing the login all pass the
@@ -297,7 +302,7 @@ worked locally, and no deployed revision had ever been told to enable it.
 it for password recovery, and the sender still refuses without the other three,
 so setting it enables no delivery. It is in the workflow rather than typed into
 the Cloud Run console because `--set-env-vars` replaces the environment: a value
-set by hand would be erased by the next merge to `main`, and recovery would stop
+set by hand would be erased by the next manual deploy, and recovery would stop
 sending without any error appearing anywhere.
 
 **It also decides where an email link lands after the token is spent** — LAN-141.
@@ -441,9 +446,10 @@ limits.
 
 ## Health check and logging
 
-- `GET /api/health` → `{ status, service, revision, commit, secretsLoaded, databaseConfigured, timestamp }`.
-- It touches no dependency on purpose: a health check that fails when the
-  database blips turns a blip into an outage.
+- `GET /api/health` → `{ status, service, revision, commit, secretsLoaded, databaseConfigured, schemaCompatible, timestamp }`.
+- When `DATABASE_URL` is configured, it selects from `public.events` and returns
+  503 unless the current schema is readable. It is a deploy-readiness check, not
+  a Cloud Run liveness probe.
 - `commit` is the Git SHA baked into the image at build time, so a running
   revision can always be tied back to a commit.
 
@@ -582,7 +588,7 @@ gcloud run services update-traffic lancers-operations-platform \
 ```
 
 Use this when the site is down and minutes matter. Follow it with a revert
-pull request, otherwise the next merge to `main` re-deploys the bad code.
+pull request, otherwise a later manual deploy could re-deploy the bad code.
 
 **Verify either way:**
 

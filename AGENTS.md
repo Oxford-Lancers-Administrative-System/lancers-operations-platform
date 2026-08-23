@@ -172,9 +172,11 @@ harmless and unnecessary.
 ## Deployment
 
 - **Pull request → CI only.** Nothing deploys.
-- **Merge to `main` → deploy.** Builds the image, pushes to Artifact Registry,
+- **Merge to `main` → CI only.** Deployment is a manual `deploy.yml` dispatch
+  from `main` after CI passes. It builds the image, pushes to Artifact Registry,
   deploys a Cloud Run revision, and smoke-tests `/api/health`. The deploy fails
-  itself unless the response reports `status: ok` and `secretsLoaded: true`.
+  itself unless the response reports `status: ok`, `secretsLoaded: true`, and a
+  current-schema probe succeeds.
 - **Rollback:** `gh workflow run deploy.yml -f image_tag=<previous-commit-sha>`.
   Every image is tagged with its commit SHA. Full runbook, including the faster
   traffic-shifting route, is in `docs/deployment.md`.
@@ -351,10 +353,9 @@ eligibility itself. Agents still open drafts and still cannot un-draft or merge;
 `.claude/settings.json` and `tests/agent-harness.test.ts` are unchanged by the
 fast lane.
 
-**A fast-lane merge does not deploy.** A merge performed with `GITHUB_TOKEN` does
-not trigger downstream workflows, so `deploy.yml` does not run. Nothing eligible
-for this lane needs deploying, but `main` can move without a Cloud Run revision
-following it.
+**A fast-lane merge does not deploy.** `deploy.yml` is manual-only. Nothing
+eligible for this lane needs deploying, and `main` can move without a Cloud Run
+revision following it.
 
 ## Pilot data and the production handoff
 
@@ -634,7 +635,7 @@ questions**: a grade says how rigorously a change is reviewed, and Highest-risk
 work may use the guarded lane only when an answered owner checkpoint names the
 package, so Brian hears about it before it merges
 ([ADR 0033](docs/adr/0033-harness-after-the-first-live-mission.md) §4). A
-mission merge performed with `GITHUB_TOKEN` deliberately does not deploy. **No agent
+mission merge does not deploy because `deploy.yml` is manual-only. **No agent
 merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to
 production.**
 
