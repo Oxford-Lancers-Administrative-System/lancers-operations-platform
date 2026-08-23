@@ -89,7 +89,15 @@ export default async function EventTemplatesPage() {
             >
               <Button
                 href={`/operate/events/templates/${template.eventType}`}
-                sx={{ p: 0, minHeight: 44, fontWeight: 700 }}
+                sx={{
+                  p: 0,
+                  minWidth: 0,
+                  minHeight: 44,
+                  fontWeight: 700,
+                  justifyContent: "flex-start",
+                  textAlign: "left",
+                  textTransform: "none",
+                }}
               >
                 {labelFor(TYPE_LABELS, template.eventType)}
               </Button>
@@ -123,7 +131,22 @@ export default async function EventTemplatesPage() {
                   <TableCell>
                     <Button
                       href={`/operate/events/templates/${template.eventType}`}
-                      sx={{ p: 0, minHeight: 44 }}
+                      // `textTransform: none` because these are the club's own
+                      // words for its own event types — "Strength and
+                      // conditioning", not "STRENGTH AND CONDITIONING" — and
+                      // MUI's button default would shout them at an operator
+                      // reading a table of sentence-case values. The width and
+                      // alignment overrides stop a short label like "Game"
+                      // being centred inside the button's minimum width while a
+                      // long one starts at the cell edge.
+                      sx={{
+                        p: 0,
+                        minWidth: 0,
+                        minHeight: 44,
+                        justifyContent: "flex-start",
+                        textAlign: "left",
+                        textTransform: "none",
+                      }}
                     >
                       {labelFor(TYPE_LABELS, template.eventType)}
                     </Button>
