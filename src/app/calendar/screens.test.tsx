@@ -434,110 +434,18 @@ describe("the public calendar arrangements", () => {
     expect(within(container).getByTestId("gregorian-grid")).toBeTruthy();
   });
 
-  it("does not let the jump control's menu lock body scroll", async () => {
-    // The defect this pins was invisible on screen. MUI opens a select's menu
-    // inside a `Modal`, which locks body scroll while it is open — and
-    // **restores the previous scroll position when it closes**. Scrolling from
-    // `onChange` therefore happened and was then silently undone, so the
-    // viewport never moved, while the fragment updated and made the control look
-    // live. Found by driving a real browser; pinned here on the mechanism.
-    const { container } = render(await PublicCalendarViewPage(viewProps({ mode: "oxford" })));
-
-    const jump = within(container).getByTestId("year-jump").querySelector('[role="combobox"]');
-    expect(jump).toBeTruthy();
-
-    fireEvent.mouseDown(jump as Element);
-
-    // With the lock on, MUI sets `overflow: hidden` here for as long as the menu
-    // is open. With it off, the body is untouched and nothing is restored.
-    expect(document.body.style.overflow).not.toBe("hidden");
-  });
-
-  /**
-   * W153-F1 — the jump control was inert at every width below `md`.
-   *
-   * `YearColumn` draws the year twice and the two presentations carry different
-   * anchors: the week grid has `id={segment.key}`, the stacked week cards have
-   * `id={segment.key + "-stack"}`. The control resolved only the first, which
-   * below `md` sits inside a `display: none` subtree with no geometry at all —
-   * so `scrollIntoView` was a no-op at 375px while the select's label changed
-   * and `replaceState` rewrote the address bar. The reader was told they had
-   * navigated a nine-thousand-pixel page, and had not.
-   *
-   * These assert the **mechanism** — which element is scrolled — because a test
-   * that only proved the handler ran, or only checked a prop, passed the whole
-   * time the defect was live. That `scrollY` actually moves at 375, 768 and
-   * 1440 is a real browser's measurement and is recorded on the pull request;
-   * jsdom lays nothing out, so the two presentations' geometry is simulated
-   * here exactly as `display: none` reports it.
+  /*
+   * The scroll-lock test that stood here is gone with the control it guarded —
+   * BG-153-2. It asserted that MUI's select menu did not lock body scroll,
+   * because a `Modal` locks it while open and restores the previous scroll
+   * position on close, which silently undid the jump (W153-F1's first half).
+   * The jump control is buttons now: no `Modal`, nothing locked, nothing
+   * restored, and no workaround to keep honest. Removed rather than carried
+   * forward, because a test whose mechanism no longer exists passes for no
+   * reason. What replaced it is the measurement at five widths on the pull
+   * request, and the two tests below, which are about the anchor rather than
+   * the widget.
    */
-  describe("the jump control scrolls the presentation the reader can see", () => {
-    /** Render the year and hand back both anchors for one segment. */
-    async function anchorsForTrinity() {
-      const { container } = render(await PublicCalendarViewPage(viewProps({ mode: "oxford" })));
-
-      const headings = [...container.querySelectorAll('[data-testid="year-segment-heading"]')];
-      const grid = headings.find((h) => flatten(h.textContent) === "Trinity") as HTMLElement;
-      expect(grid, "no Trinity heading in the grid").toBeTruthy();
-
-      const stack = document.getElementById(grid.id + "-stack");
-      expect(stack, "no Trinity heading in the phone stack").toBeTruthy();
-
-      const gridScroll = vi.fn();
-      const stackScroll = vi.fn();
-      grid.scrollIntoView = gridScroll;
-      (stack as HTMLElement).scrollIntoView = stackScroll;
-
-      return { container, grid, stack: stack as HTMLElement, gridScroll, stackScroll };
-    }
-
-    /** What `getClientRects()` reports for a laid-out element, and a hidden one. */
-    const laidOut = () => [{ top: 10, height: 50, width: 900 }] as unknown as DOMRectList;
-    const hidden = () => [] as unknown as DOMRectList;
-
-    async function chooseTrinity(container: HTMLElement) {
-      const combobox = within(container)
-        .getByTestId("year-jump")
-        .querySelector('[role="combobox"]');
-      fireEvent.mouseDown(combobox as Element);
-      fireEvent.click(await screen.findByRole("option", { name: "Trinity" }));
-    }
-
-    it("scrolls the stacked cards when the grid is not laid out — 375px", async () => {
-      const { container, grid, stack, gridScroll, stackScroll } = await anchorsForTrinity();
-      // Below `md`: the grid is `display: none` and reports no rects at all.
-      grid.getClientRects = hidden;
-      stack.getClientRects = laidOut;
-
-      await chooseTrinity(container);
-
-      expect(stackScroll, "the phone stack was never scrolled").toHaveBeenCalled();
-      expect(gridScroll, "a hidden element was scrolled instead").not.toHaveBeenCalled();
-    });
-
-    it("scrolls the week grid when that is the one laid out — desktop", async () => {
-      const { container, grid, stack, gridScroll, stackScroll } = await anchorsForTrinity();
-      grid.getClientRects = laidOut;
-      stack.getClientRects = hidden;
-
-      await chooseTrinity(container);
-
-      expect(gridScroll).toHaveBeenCalled();
-      expect(stackScroll).not.toHaveBeenCalled();
-    });
-
-    it("writes one fragment whichever presentation served the jump", async () => {
-      // The fragment is the segment's own key, so a shared link means the same
-      // segment at either width, even though the element it resolves to differs.
-      const { container, grid, stack } = await anchorsForTrinity();
-      grid.getClientRects = hidden;
-      stack.getClientRects = laidOut;
-
-      await chooseTrinity(container);
-
-      expect(window.location.hash).toBe("#" + grid.id);
-    });
-  });
 
   it("warns rather than showing an empty year when no term is configured", async () => {
     vi.mocked(listTermWindows).mockResolvedValue([]);

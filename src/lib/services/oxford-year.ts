@@ -344,6 +344,78 @@ function byDate(left: CalendarEvent, right: CalendarEvent): number {
  */
 const MINIMUM_TRAILING_VACATION_WEEKS = 1;
 
+/**
+ * How much of the year's two Long Vacations is drawn — BG-153-1.
+ *
+ * Brian, at the visual gate, on a leading vacation rendered to its full length:
+ * _"It just shows a really dead calendar, and that's not what I want to see."_
+ * A season opening at an AGM can sit three months before Michaelmas, and every
+ * one of those weeks was being drawn empty above the first thing that happens.
+ *
+ * So the two ends are trimmed to where the club's records actually reach: the
+ * **last** `LEADING_VACATION_WEEKS` of the vacation before the year's first
+ * term, and the **first** `TRAILING_VACATION_WEEKS` of the one after its last —
+ * each extended, never shortened, to include an event that sits further out.
+ * Brian: _"if there was an event 7 weeks beforehand, it should show 7, 6, 5, 4,
+ * 3, 2, 1, all the way down"_, and _"if there's an event 3 weeks after the
+ * season, it should show weeks 1, 2, and 3."_
+ *
+ * ## What this does not do
+ *
+ * **It does not renumber anything.** Those counts are distances from the term
+ * boundary, describing how far to extend; they are not labels. Vacation weeks
+ * are numbered forward from 1 from the vacation's real start and meet the next
+ * term at its own first week (D85, Stewart Humble) — a leading vacation trimmed
+ * to its last five weeks therefore *starts* at whatever number those weeks
+ * already carry, which on a fourteen-week vacation is "Long Vacation 10".
+ *
+ * **It does not touch terms.** Michaelmas, Hilary and Trinity keep every
+ * configured week, empty or not: an empty term week is the term card, and is
+ * the thing the club reads a term card for.
+ *
+ * **It does not special-case Christmas or Easter.** Those sit *between* terms
+ * and are neither the leading nor the trailing vacation, so the rule simply does
+ * not reach them — which is the outcome Brian asked for without a rule of their
+ * own.
+ */
+export const LEADING_VACATION_WEEKS = 5;
+
+export const TRAILING_VACATION_WEEKS = 1;
+
+/** Which end of a vacation is kept when it is longer than it needs to be. */
+type VacationTrim = "none" | "keep-last" | "keep-first";
+
+/** True if any day of this week holds an event. */
+function weekHasEvents(week: YearWeek): boolean {
+  return week.days.some((day) => day.events.length > 0);
+}
+
+/**
+ * The weeks of a vacation that are actually drawn.
+ *
+ * Extends past the default only far enough to reach the outermost week that
+ * holds something, so a vacation with nothing in it renders the default and one
+ * with a distant event renders down to it. A vacation shorter than the default
+ * renders whole — there is nothing to pad it with, and inventing weeks would be
+ * inventing calendar.
+ */
+function trimVacationWeeks(weeks: YearWeek[], trim: VacationTrim): YearWeek[] {
+  if (trim === "none" || weeks.length === 0) return weeks;
+
+  if (trim === "keep-last") {
+    const earliest = weeks.findIndex(weekHasEvents);
+    const reach = earliest === -1 ? 0 : weeks.length - earliest;
+    return weeks.slice(-Math.min(weeks.length, Math.max(LEADING_VACATION_WEEKS, reach)));
+  }
+
+  let latest = -1;
+  weeks.forEach((week, index) => {
+    if (weekHasEvents(week)) latest = index;
+  });
+  const reach = latest === -1 ? 0 : latest + 1;
+  return weeks.slice(0, Math.min(weeks.length, Math.max(TRAILING_VACATION_WEEKS, reach)));
+}
+
 export interface AcademicYearOptions {
   /** Today in the club's zone, `YYYY-MM-DD`. Highlights one column of cells. */
   today?: string | null;
@@ -380,7 +452,6 @@ export function buildAcademicYear(
   }
 
   const segments: YearSegment[] = [];
-  const placed = new Set<string>();
 
   /** One row, seven days, each cell holding whatever that day has. */
   const emitWeek = (
@@ -396,7 +467,6 @@ export function buildAcademicYear(
       if (day === null) break;
       if (lastDay !== null && day > lastDay) break;
       const dayEvents = byDay.get(day) ?? [];
-      for (const event of dayEvents) placed.add(event.id);
       days.push({
         day,
         weekday: column,
@@ -428,6 +498,7 @@ export function buildAcademicYear(
     key: string,
     startsOn: string,
     endsOn: string,
+    trim: VacationTrim = "none",
   ) => {
     const length = daysBetween(startsOn, endsOn);
     if (length === null || length < 0) return;
@@ -442,15 +513,22 @@ export function buildAcademicYear(
     }
     if (weeks.length === 0) return;
 
+    // Trimmed after the weeks are built, never before: the numbers come from the
+    // vacation's real start, so dropping rows cannot shift them.
+    const drawn = trimVacationWeeks(weeks, trim);
+    if (drawn.length === 0) return;
+
     segments.push({
       key,
       kind: "vacation",
       name,
       jumpLabel,
       termId: null,
-      startsOn,
-      endsOn,
-      weeks,
+      // The span the column actually draws, so a coordinate lookup agrees with
+      // what is on screen.
+      startsOn: drawn[0].startsOn,
+      endsOn: drawn[drawn.length - 1].endsOn,
+      weeks: drawn,
     });
   };
 
@@ -483,6 +561,7 @@ export function buildAcademicYear(
         `vacation-before-${firstEntry.term.id}`,
         leadingStart,
         leadingEnd,
+        "keep-last",
       );
     }
   }
@@ -561,6 +640,7 @@ export function buildAcademicYear(
       `vacation-after-${term.id}`,
       gapStart,
       gapEnd,
+      "keep-first",
     );
   });
 
@@ -574,8 +654,10 @@ export function buildAcademicYear(
   }
 
   const outsideTheYear: CalendarEvent[] = [];
+  let placedCount = 0;
   for (const [day, group] of byDay) {
-    if (!covered.has(day)) outsideTheYear.push(...group);
+    if (covered.has(day)) placedCount += group.length;
+    else outsideTheYear.push(...group);
   }
   outsideTheYear.sort(byDate);
 
@@ -584,7 +666,7 @@ export function buildAcademicYear(
     segments,
     undated,
     outsideTheYear,
-    placedCount: placed.size,
+    placedCount,
   };
 }
 

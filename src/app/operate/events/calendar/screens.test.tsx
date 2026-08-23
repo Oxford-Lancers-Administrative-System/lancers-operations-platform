@@ -496,16 +496,18 @@ describe("the Oxford View", () => {
     expect(screen.getByTestId("season-label").textContent).toBe("Season 2026-27");
   });
 
-  it("offers every segment of the year as a jump target", async () => {
+  it("offers every segment of the year as its own jump button", async () => {
+    // BG-153-2. Brian: "A drop down doesn't really make sense. Maybe some
+    // buttons there to 'jump' to the right place?"
     const { container } = render(await oxford());
-    const options = [...within(container).getByTestId("year-jump").querySelectorAll("option")].map(
-      (option) => option.textContent,
+    const jump = within(container).getByTestId("year-jump");
+    const buttons = [...jump.querySelectorAll("button")].map((button) =>
+      flatten(button.textContent),
     );
 
-    // MUI renders the native select for its hidden input; the visible list is
-    // the same set of choices.
-    expect(options.length === 0 || options.length === 7).toBe(true);
-    expect(segments(container)).toHaveLength(7);
+    expect(buttons).toEqual(segments(container));
+    expect(buttons).toHaveLength(7);
+    expect(jump.querySelector("select, [role='combobox']")).toBeNull();
   });
 
   it("renders the same weeks and events at phone width as at desktop", async () => {

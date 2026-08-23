@@ -43,6 +43,8 @@ import type { TermWindow } from "./event-input";
 import type { CalendarEvent } from "./calendar";
 import {
   academicYearFor,
+  LEADING_VACATION_WEEKS,
+  TRAILING_VACATION_WEEKS,
   academicYearEvents,
   buildAcademicYear,
   formatOxfordWeek,
@@ -297,11 +299,12 @@ describe("buildAcademicYear — the boundaries the club supplied", () => {
     // Stewart's own example reached the twenties. The leading Long Vacation runs
     // from the previous Trinity's last week to Michaelmas, which is fourteen.
     const leading = column.segments.find((segment) => segment.jumpLabel === "Long Vacation 2026");
-    expect(leading?.weeks.map((week) => week.week)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
-    ]);
-    expect(leading?.weeks[13].label).toBe("Long Vacation 14");
-    expect(coordinate("2026-06-21")).toBe("Long Vacation 1");
+    // Drawn from its last five weeks since BG-153-1, and numbered from the
+    // vacation's real start regardless — so these run 10 to 14, well past the
+    // 8 an Oxford term stops at, which is the property Stewart described.
+    expect(leading?.weeks.map((week) => week.week)).toEqual([10, 11, 12, 13, 14]);
+    expect(leading?.weeks[4].label).toBe("Long Vacation 14");
+    expect(leading?.weeks.every((week) => week.week > 8)).toBe(true);
   });
 
   it("opens a trailing Long Vacation after Trinity even with nothing in it", () => {
@@ -442,5 +445,158 @@ describe("yearCoordinateOf", () => {
     const column = year();
     expect(yearCoordinateOf(column, null)).toBeNull();
     expect(yearCoordinateOf(column, "2020-01-01")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BG-153-1 — the two Long Vacations are drawn only as far as the club reaches
+// ---------------------------------------------------------------------------
+
+/**
+ * Brian, at the visual gate: a leading vacation drawn to its full length
+ * _"just shows a really dead calendar, and that's not what I want to see."_
+ *
+ * The rule is a **default that extends, never shortens**: the last five weeks of
+ * the leading vacation and the first one of the trailing, each reaching further
+ * out if something is out there. These pin all four edges the rule has — nothing
+ * in the vacation, something exactly at the default boundary, something beyond
+ * it, and a vacation shorter than the default — because a rule with a
+ * `Math.max` in it fails at exactly those places or nowhere.
+ */
+describe("the year's two Long Vacations are trimmed to where events are", () => {
+  const leading = (column: AcademicYearColumn) =>
+    column.segments.find((segment) => segment.jumpLabel === "Long Vacation 2026")!;
+  const trailing = (column: AcademicYearColumn) =>
+    column.segments.find((segment) => segment.jumpLabel === "Long Vacation 2027")!;
+
+  it("draws five leading weeks and one trailing week when nothing is out there", () => {
+    const column = year();
+
+    expect(leading(column).weeks).toHaveLength(LEADING_VACATION_WEEKS);
+    expect(trailing(column).weeks).toHaveLength(TRAILING_VACATION_WEEKS);
+  });
+
+  it("keeps the LAST weeks of the leading vacation, up against Michaelmas", () => {
+    // Trimming the wrong end would draw five dead weeks and hide the ones next
+    // to term, which is the whole complaint inverted.
+    const column = year();
+    const weeks = leading(column).weeks;
+
+    expect(weeks[weeks.length - 1].endsOn).toBe("2026-09-26");
+    const michaelmas = column.segments.find((segment) => segment.name === "michaelmas")!;
+    expect(michaelmas.startsOn).toBe("2026-09-27");
+  });
+
+  it("keeps the FIRST weeks of the trailing vacation, straight after Trinity", () => {
+    const column = year();
+    const weeks = trailing(column).weeks;
+
+    expect(weeks[0].startsOn).toBe("2027-06-20");
+  });
+
+  it("does not renumber: the trimmed leading vacation starts mid-sequence", () => {
+    // D85 and Stewart Humble fix the numbering — forward from 1, from the
+    // vacation's real start. Brian's "7, 6, 5, 4, 3, 2, 1" is a distance from
+    // the term boundary describing how far to extend, not a relabelling. The
+    // visible consequence is that a fourteen-week vacation trimmed to five opens
+    // at "Long Vacation 10", and that is correct rather than an off-by-nine.
+    const weeks = leading(year()).weeks;
+
+    expect(weeks.map((week) => week.week)).toEqual([10, 11, 12, 13, 14]);
+    expect(weeks[0].label).toBe("Long Vacation 10");
+  });
+
+  it("still draws exactly five when an event sits on the default boundary", () => {
+    // The fifth week from the end. One row further out and the answer changes;
+    // this is the case that stays put.
+    const boundary = leading(year()).weeks[0];
+    const column = year([event({ scheduledOn: boundary.startsOn, name: "On the boundary" })]);
+
+    expect(leading(column).weeks).toHaveLength(LEADING_VACATION_WEEKS);
+    expect(leading(column).weeks[0].startsOn).toBe(boundary.startsOn);
+  });
+
+  it("extends the leading vacation to reach an event further back", () => {
+    // Brian's own example: an event seven weeks before term draws seven weeks.
+    // Seven weeks before Michaelmas starts, i.e. the seventh row from the end of
+    // a vacation the column cuts to five when it is empty.
+    const seventhFromEnd = "2026-08-09";
+    const column = year([event({ scheduledOn: seventhFromEnd, name: "Pre-season camp" })]);
+
+    expect(leading(year()).weeks).toHaveLength(LEADING_VACATION_WEEKS);
+    expect(leading(column).weeks).toHaveLength(7);
+    expect(leading(column).weeks[0].startsOn).toBe(seventhFromEnd);
+    // Extended, not renumbered: the seventh row from the end is week 8 of 14.
+    expect(leading(column).weeks.map((week) => week.week)).toEqual([8, 9, 10, 11, 12, 13, 14]);
+    expect(column.outsideTheYear).toEqual([]);
+    expect(column.placedCount).toBe(1);
+  });
+
+  it("extends the trailing vacation to reach a later event", () => {
+    // And his: an event three weeks after the season draws weeks 1, 2 and 3.
+    const column = year([event({ scheduledOn: "2027-07-06", name: "Summer tour" })]);
+    const weeks = trailing(column).weeks;
+
+    expect(weeks.map((week) => week.week)).toEqual([1, 2, 3]);
+    expect(weeks[weeks.length - 1].endsOn >= "2027-07-06").toBe(true);
+    expect(column.outsideTheYear).toEqual([]);
+  });
+
+  it("draws a leading vacation shorter than the default whole, inventing nothing", () => {
+    // Previous Trinity ending three weeks before Michaelmas: there is no fifth
+    // week to pad with, and padding would be inventing calendar.
+    const tightPreviousYear: TermWindow = {
+      ...TRINITY_2026,
+      startsOn: "2026-07-05",
+      endsOn: "2026-09-05",
+    };
+    const column = buildAcademicYear(
+      "2026-27",
+      [TRINITY_2027, HILARY_2027, MICHAELMAS_2026, tightPreviousYear],
+      [],
+    );
+    const weeks = leading(column).weeks;
+
+    expect(weeks.length).toBeLessThan(LEADING_VACATION_WEEKS);
+    expect(weeks.map((week) => week.week)).toEqual([1, 2, 3]);
+    expect(weeks[0].startsOn).toBe("2026-09-06");
+  });
+
+  it("leaves the terms alone — an empty term week is the term card", () => {
+    const column = year();
+
+    for (const segment of column.segments) {
+      if (segment.kind !== "term") continue;
+      const term = TERMS.find((candidate) => candidate.id === segment.termId)!;
+      expect(segment.weeks, segment.name).toHaveLength(term.lastWeek - term.firstWeek + 1);
+    }
+  });
+
+  it("leaves Christmas and Easter alone — they are neither end of the year", () => {
+    // No rule of their own, and none needed: the trim reaches only the vacation
+    // before the first term and the one after the last.
+    const column = year();
+
+    expect(
+      column.segments.find((segment) => segment.name === "Christmas Vacation")!.weeks,
+    ).toHaveLength(5);
+    expect(
+      column.segments.find((segment) => segment.name === "Easter Vacation")!.weeks,
+    ).toHaveLength(5);
+  });
+
+  it("loses no event to the trim, at either end", () => {
+    // The property that matters more than any single count: whatever is trimmed
+    // away held nothing.
+    const events = [
+      event({ scheduledOn: "2026-08-09", name: "Early" }),
+      event({ scheduledOn: "2026-09-22", name: "Just before term" }),
+      event({ scheduledOn: "2027-07-06", name: "Late" }),
+    ];
+    const column = year(events);
+
+    expect(column.placedCount).toBe(events.length);
+    expect(column.outsideTheYear).toEqual([]);
+    expect(column.undated).toEqual([]);
   });
 });

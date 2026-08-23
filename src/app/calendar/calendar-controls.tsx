@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import Button from "@mui/material/Button";
-import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 
@@ -162,6 +161,22 @@ export interface SegmentChoice {
  * this replaced. Moving the viewport is the whole action, so the control moves
  * the viewport and leaves a fragment behind as a bookmark.
  *
+ * ## Buttons, not a dropdown — BG-153-2
+ *
+ * Brian, at the visual gate: _"A drop down doesn't really make sense. Maybe some
+ * buttons there to 'jump' to the right place?"_ He is right about the shape: a
+ * select asks the reader to open something, read a list and commit, for an
+ * action that is one tap and is undone by scrolling. Seven segments fit on a
+ * row and wrap on a phone.
+ *
+ * **The MUI `disableScrollLock` workaround went with the select, and was checked
+ * rather than assumed.** It existed because MUI renders a select's menu inside a
+ * `Modal`, which locks body scroll while open and restores the previous scroll
+ * position when it closes — so the jump happened and was silently undone
+ * (W153-F1's first half). A `Button` opens no `Modal`, locks nothing and
+ * restores nothing, so there is no longer anything to disable. Confirmed by
+ * measuring `scrollY` at five widths rather than by reasoning about it.
+ *
  * ## And there is no season selector
  *
  * Brian, 21 August 2026: "that filter should be removed entirely from the
@@ -184,43 +199,49 @@ export function YearJumpControl({
   if (segments.length === 0) return null;
 
   return (
-    <TextField
-      select
-      size="small"
-      label="Jump to"
-      defaultValue={current}
-      // `disableScrollLock` is load-bearing, and the reason is worth writing
-      // down because the failure looked exactly like success.
-      //
-      // MUI opens a select's menu inside a `Modal`, which locks body scroll
-      // while it is open **and restores the previous scroll position when it
-      // closes**. Scrolling from `onChange` therefore happened and was then
-      // silently undone by the menu's own restore, so the viewport never moved
-      // — while the fragment updated, which made the control look live. Found by
-      // driving it rather than by photographing it.
-      // Through `slotProps.select`, not the deprecated `SelectProps`: MUI v9
-      // ignores the latter, which is a silent no-op rather than a build error.
-      slotProps={{ select: { MenuProps: { disableScrollLock: true } } }}
-      onChange={(event) => {
-        const key = event.target.value;
-        const target = laidOutAnchor(key);
-        if (!target) return;
-        // `scrollIntoView` is absent in jsdom and in anything old enough not to
-        // have it, so the fragment below is both the fallback and the bookmark.
-        target.scrollIntoView?.({ behavior: "smooth", block: "start" });
-        // `replaceState` rather than `location.hash`: assigning the hash jumps
-        // instantly, which cancels the smooth scroll above, and it pushes a
-        // history entry so Back becomes "un-jump" rather than "leave the page".
-        window.history.replaceState(null, "", `#${key}`);
-      }}
-      sx={{ minWidth: 220 }}
+    <Stack
+      component="nav"
+      aria-label="Jump to a term or vacation"
+      direction="row"
+      spacing={1}
+      sx={{ flexWrap: "wrap", gap: 1 }}
       data-testid="year-jump"
     >
       {segments.map((segment) => (
-        <MenuItem key={segment.key} value={segment.key}>
+        <Button
+          key={segment.key}
+          size="small"
+          variant={segment.key === current ? "contained" : "outlined"}
+          aria-current={segment.key === current ? "true" : undefined}
+          data-testid={`year-jump-${segment.key}`}
+          data-segment={segment.key}
+          // 44px is the touch minimum the rest of this repository honours, and
+          // this control is the only navigation a very tall page has at 375.
+          sx={{ minHeight: 44 }}
+          onClick={() => jumpTo(segment.key)}
+        >
           {segment.label}
-        </MenuItem>
+        </Button>
       ))}
-    </TextField>
+    </Stack>
   );
+}
+
+/**
+ * Move the viewport to a segment, and leave a fragment behind.
+ *
+ * Shared by every button rather than written into each, and kept out of the
+ * component so the two halves that have each been wrong once — *which* element
+ * to scroll, and *how* to record it — are readable in one place.
+ */
+function jumpTo(key: string): void {
+  const target = laidOutAnchor(key);
+  if (!target) return;
+  // `scrollIntoView` is absent in jsdom and in anything old enough not to have
+  // it, so the fragment below is both the fallback and the bookmark.
+  target.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  // `replaceState` rather than `location.hash`: assigning the hash jumps
+  // instantly, which cancels the smooth scroll above, and it pushes a history
+  // entry so Back becomes "un-jump" rather than "leave the page".
+  window.history.replaceState(null, "", `#${key}`);
 }
