@@ -1893,6 +1893,18 @@ describe("binding a fix to the test that would catch it again", () => {
       }),
     ).rejects.toThrow(/R-001: injection evidence is missing/);
 
+    // The worker cannot read state.mjs and its own instructions do not carry
+    // the field list, so a refusal that only names the missing key sends it
+    // back to guess. Every one of these refusals states the whole shape.
+    await expect(
+      m.append({
+        type: "worker-receipt",
+        package_id: "WP-events-filter",
+        worker_id: "worker-1",
+        receipt: evidence,
+      }),
+    ).rejects.toThrow(/"finding_id", "test", "command", "failing_output", "restored_pass", "sha"/);
+
     const unpinned = correctionReceipt(["R-001", "R-002"]);
     unpinned.injection_evidence[1].sha = "abc";
     await expect(

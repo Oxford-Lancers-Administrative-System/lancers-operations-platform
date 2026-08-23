@@ -79,6 +79,23 @@ const io = {
     }
   },
   exists: (candidate) => fs.existsSync(candidate),
+  /** Registered with git, as opposed to merely present on disk. */
+  isWorktree(candidate) {
+    // Git reports canonical paths, while macOS commonly supplies temporary
+    // paths through the `/var` symlink. Compare real paths so a live worktree
+    // is not mistaken for an unregistered directory shell.
+    const canonical = (value) => {
+      try {
+        return fs.realpathSync(value);
+      } catch {
+        return path.resolve(repoPath, value);
+      }
+    };
+    const resolved = canonical(candidate);
+    return git(["worktree", "list", "--porcelain"])
+      .split("\n")
+      .some((line) => line.startsWith("worktree ") && canonical(line.slice(9)) === resolved);
+  },
   status: (worktree) => git(["status", "--porcelain"], worktree),
   stashList: (worktree) => git(["stash", "list"], worktree),
   hasRemoteBranch(worktree, branch) {
@@ -162,7 +179,16 @@ try {
       } catch {
         // A mission that never allocated a stack has nothing to detach from.
       }
-      git(["worktree", "remove", pkg.worktree]);
+      // One package's removal must not take the others down with it. This ran
+      // as an uncaught throw and killed the whole reclamation on the first
+      // worktree git refused, so packages that were perfectly reclaimable
+      // stayed on disk because an unrelated one was not.
+      try {
+        git(["worktree", "remove", pkg.worktree]);
+      } catch (error) {
+        blocked.push(`${pkg.id}: its worktree could not be removed — ${error.message.trim()}`);
+        continue;
+      }
     }
     git(["worktree", "prune"]);
     try {

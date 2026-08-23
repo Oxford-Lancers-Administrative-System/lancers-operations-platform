@@ -249,6 +249,60 @@ describe("mission CLI", () => {
     expect(parsed.next_actions).toEqual(nextActions(replayed));
   });
 
+  // Regression: the validator refuses an owner merge the guarded lane could have
+  // taken unless the reason is recorded, and no CLI path set that field — so
+  // every such merge was unrecordable and its package stayed open in state
+  // forever. The reason has to survive into the journal, not just be accepted.
+  it("carries the owner-route reason into the journal entry", () => {
+    const m = fixture();
+    readyMission(m);
+    const sha = "c".repeat(40);
+    expect(
+      m.run("merge-record", MISSION, "WP-events-filter", "12", sha, "--route", "owner").status,
+    ).toBe(0);
+    const withoutReason = readJournal(missionPaths(m.repo, MISSION, m.env).journal).filter(
+      (event) => event.type === "merge-recorded",
+    );
+    expect(withoutReason.at(-1)?.owner_route_reason).toBeUndefined();
+
+    expect(
+      m.run(
+        "merge-record",
+        MISSION,
+        "WP-events-filter",
+        "12",
+        sha,
+        "--route",
+        "owner",
+        "--reason",
+        "Its pull request also carried a prohibited path.",
+      ).status,
+    ).toBe(0);
+    const recorded = readJournal(missionPaths(m.repo, MISSION, m.env).journal).filter(
+      (event) => event.type === "merge-recorded",
+    );
+    expect(recorded.at(-1)?.owner_route_reason).toBe(
+      "Its pull request also carried a prohibited path.",
+    );
+  });
+
+  // Regression: finish-mission.mjs used mergeProof and worktreeDefects without
+  // importing them. Every invocation died with a ReferenceError before it could
+  // prove a single merge, and the unit tests for those helpers passed the whole
+  // time because they import the library directly. Loading the real entry point
+  // is the only thing that catches it.
+  it("loads the reclamation entry point with every symbol it uses", () => {
+    const m = fixture();
+    const finish = path.join(__dirname, "..", "scripts", "mission", "finish-mission.mjs");
+    const result = spawnSync(process.execPath, [finish, "M-NO-SUCH-MISSION"], {
+      cwd: m.repo,
+      env: m.env,
+      encoding: "utf8",
+    });
+    expect(result.stderr).not.toMatch(/is not defined/);
+    expect(result.stderr).toMatch(/no durable state to finish/);
+  });
+
   it("promotes rules through the registry and applies them to answer without asking", () => {
     const m = fixture();
     readyMission(m);

@@ -569,6 +569,11 @@ async function main() {
         pr_number: Number(prNumber),
         sha,
         route: flags.route,
+        // The validator counts an owner merge the guarded lane could have taken
+        // as a harness defect and demands the reason in writing. Without this
+        // the reason could not be supplied, so every such merge was unrecordable
+        // and the package stayed open in state forever.
+        ...(flags.reason ? { owner_route_reason: flags.reason } : {}),
       });
       console.log(`Merge recorded for ${packageId} (${flags.route}).`);
       const reclamation = spawnSync(
