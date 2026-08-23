@@ -230,6 +230,19 @@ const FINDING_FIELDS = [
  * recorded facts about one fix (§D). */
 const INJECTION_FIELDS = ["finding_id", "test", "command", "failing_output", "restored_pass"];
 
+/**
+ * The shape, said once, in the refusal that first asks for it.
+ *
+ * A worker cannot read this file, and nothing in its own instructions carries
+ * the field list — so a receipt that had done the work honestly was refused
+ * three times over the shape rather than the substance, and each round trip
+ * cost a resumption of a worker whose branch was already green. Naming the
+ * shape in the refusal is the difference between a validator that gates and
+ * one that teaches.
+ */
+const INJECTION_SHAPE =
+  'Each entry is {"finding_id", "test", "command", "failing_output", "restored_pass", "sha"} — every value a non-empty string, and `sha` exactly the 40-character commit the run was produced at.';
+
 function injectionDefects(entry) {
   const label = entry?.finding_id ?? "a correction";
   if (entry === null || typeof entry !== "object" || Array.isArray(entry)) {
@@ -238,11 +251,13 @@ function injectionDefects(entry) {
   const defects = [];
   for (const field of INJECTION_FIELDS) {
     if (!isNonEmptyString(entry[field])) {
-      defects.push(`${label}: injection evidence is missing \`${field}\`.`);
+      defects.push(`${label}: injection evidence is missing \`${field}\`. ${INJECTION_SHAPE}`);
     }
   }
   if (!/^[0-9a-f]{40}$/.test(entry.sha ?? "")) {
-    defects.push(`${label}: injection evidence records the exact SHA it was produced at.`);
+    defects.push(
+      `${label}: injection evidence records the exact SHA it was produced at, as 40 hex characters and nothing else — a qualifier belongs in \`failing_output\`, not in \`sha\`.`,
+    );
   }
   return defects;
 }
@@ -723,7 +738,7 @@ export function validateEvent(event, state) {
         for (const findingId of worker.finding_ids ?? []) {
           if (!proved.has(findingId)) {
             errors.push(
-              `${findingId} was corrected without injection evidence: reintroduce the defect, run the named regression test and observe it fail, restore the fix, and run it again.`,
+              `${findingId} was corrected without injection evidence: reintroduce the defect, run the named regression test and observe it fail, restore the fix, and run it again. Record it under \`injection_evidence\` on the receipt. ${INJECTION_SHAPE}`,
             );
           }
         }
