@@ -191,9 +191,25 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
           </Typography>
         </Box>
         {mayManage ? (
-          <Button variant="contained" href="/operate/events/new">
-            Create event
-          </Button>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+            <Button variant="contained" href="/operate/events/new">
+              Create event
+            </Button>
+            {/*
+              D40's administration surface, reached from the Events area rather
+              than from the shell: a template is a property of an event type, and
+              somebody comes to it having noticed that every practice needs the
+              same thing typed in again.
+            */}
+            <Button
+              variant="outlined"
+              href="/operate/events/templates"
+              data-testid="open-templates"
+              sx={{ minHeight: 44 }}
+            >
+              Templates
+            </Button>
+          </Stack>
         ) : null}
       </Stack>
 

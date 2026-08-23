@@ -7,6 +7,18 @@ import {
   withTransaction,
   type Tx,
 } from "@/lib/db";
+import { listAudienceCatalogueIn, resolveSelection } from "./event-audience";
+import {
+  readTemplateInheritanceIn,
+  templateAudienceKeys,
+  type NewEventInheritance,
+} from "./event-templates";
+import {
+  readEventQuestionsIn,
+  writeEventQuestionsIn,
+  type EventQuestion,
+  type EventQuestionInput,
+} from "./event-questions";
 import {
   deriveTermCoordinate,
   DRAFTABLE_EVENT_TYPES,
@@ -54,11 +66,9 @@ import { todayInClubZone } from "@/lib/club-time";
  * between.
  *
  *   * `draft → withdrawn` (abandon) went with `withdrawn`. "Withdrawn" meant it
- *     never became an event, which is what a *deleted* draft means now (D29) —
- *     and the delete path is REQ-delete-draft's, in this mission's W4 work
- *     package rather than here. Until it lands, an abandoned draft simply stays
- *     a draft, which is exactly where the approved legacy mapping puts every
- *     previously-withdrawn row.
+ *     never became an event, which is what a *deleted* draft means now (D29).
+ *     `deleteEventDraft` below is that path, added by LAN-154: there is no
+ *     status to move to, because the row goes.
  *   * `approved → occurred`, `approved → not_held` and the two corrections went
  *     with the occurrence assertion itself. **Nothing asserts that an event
  *     occurred** (D30, REQ-occurrence-retired): the date passing without a
@@ -100,6 +110,26 @@ export {
   type TermCoordinate,
   type TermWindow,
 } from "./event-input";
+
+/**
+ * The question vocabulary, re-exported for the same reason as the event's own:
+ * `./event-questions-input` is pure and is what the form imports, and a server
+ * caller should not have to know that the module is split in two.
+ */
+export {
+  describeQuestionAnswer,
+  describeQuestionCount,
+  joinQuestionChoices,
+  QUESTION_ANSWER_TYPE_LABELS,
+  QUESTION_ANSWER_TYPES,
+  splitQuestionChoices,
+  validateEventQuestions,
+  type EventQuestion,
+  type EventQuestionInput,
+  type QuestionAnswerType,
+  type QuestionIssue,
+  type RawEventQuestion,
+} from "./event-questions";
 
 // ---------------------------------------------------------------------------
 // Reads
@@ -391,6 +421,18 @@ export async function readEvent(eventId: string): Promise<EventDetail> {
 }
 
 /**
+ * The questions this event asks, in the order a player will be asked them.
+ *
+ * A read of its own rather than a field on `EventDetail`, because the list
+ * screen draws thirty events and none of them shows a question. The detail, the
+ * editor and the approval review each ask for them, and all three get the same
+ * rows in the same order.
+ */
+export async function readEventQuestions(eventId: string): Promise<EventQuestion[]> {
+  return withTransaction(async (tx) => readEventQuestionsIn(tx, eventId));
+}
+
+/**
  * The event, read under a row lock that is held until the transaction ends.
  *
  * ## What this is for, and the bug that produced it
@@ -513,12 +555,17 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
 export async function createEventDraft(
   actorPersonId: string,
   input: EventDraftInput,
+  questions?: readonly EventQuestionInput[],
 ): Promise<EventDetail> {
   requireActor(actorPersonId);
   requireValid(input);
 
   return withTransaction(async (tx) => {
     const season = await readCurrentSeasonIn(tx);
+    // Read before the event exists, so the questions and the default audience a
+    // new draft inherits come from one template rather than from whatever it
+    // said between three separate reads.
+    const inherited = await readTemplateInheritanceIn(tx, input.eventType);
     // Derived, not chosen: the date the operator entered decides both.
     const term = deriveTermCoordinate(input.scheduledOn, await listTermWindows(tx));
 
@@ -553,6 +600,21 @@ export async function createEventDraft(
 
     const id = inserted.rows[0].id;
 
+    // D42, amendment W4-A1. The form posts the questions it is showing, which
+    // already include the template's; a caller with nothing to say about them
+    // gets the template's, which is what "they arrive with any event created
+    // from that template" means.
+    await writeEventQuestionsIn(tx, id, questions ?? inherited.questions);
+
+    const audienceSize = await applyTemplateAudienceIn(
+      tx,
+      id,
+      season.id,
+      input,
+      inherited,
+      actorPersonId,
+    );
+
     await recordAudit(tx, {
       actorPersonId,
       action: "event.drafted",
@@ -565,11 +627,73 @@ export async function createEventDraft(
         isMandatory: input.isMandatory,
         origin: OPERATOR_CREATED_ORIGIN,
         weekNumber: term.weekNumber,
+        questionCount: (questions ?? inherited.questions).length,
+        // D47. Recorded because the audience arriving from the template is a
+        // decision the club made once, and the audit should say when it was the
+        // template speaking rather than an approver choosing.
+        templateAudienceGroups: inherited.audienceGroups,
+        templateAudienceSize: audienceSize,
       },
     });
 
     return readEventIn(tx, id);
   });
+}
+
+/**
+ * D47 — the type's template supplies a default audience, which arrives with the
+ * event already set, visible and editable.
+ *
+ * This reverses LAN-77's shipped "the audience begins empty", and the reversal
+ * is narrow and worth stating precisely: what the *system* still never does is
+ * imply an audience nobody chose. A default audience is a choice the club made
+ * once, deliberately, on the template — so the approver checks it rather than
+ * rebuilding the same thirty-two names every Wednesday. ADR 0012's rule that the
+ * stored audience is an explicit resolved list is untouched, and is the reason
+ * this resolves the groups to people here rather than storing a live query.
+ *
+ * Returns how many people it wrote, for the audit. Zero when the template names
+ * no groups, which is the ordinary case for a type the club has not configured.
+ */
+async function applyTemplateAudienceIn(
+  tx: Tx,
+  eventId: string,
+  seasonId: string,
+  input: EventDraftInput,
+  inherited: NewEventInheritance,
+  actorPersonId: string,
+): Promise<number> {
+  if (inherited.audienceGroups.length === 0) return 0;
+
+  const catalogue = await listAudienceCatalogueIn(tx, seasonId, input.scheduledOn);
+  const resolution = resolveSelection(
+    catalogue.candidates,
+    templateAudienceKeys(catalogue.candidates, inherited.audienceGroups),
+  );
+  // A group that resolves to nobody — a Recruitment template in a season with no
+  // prospects yet — is an empty audience, not an error. Approval still refuses
+  // it under invariant E1b, which is the right place for that to bite.
+  if (!resolution.ok) return 0;
+
+  await tx.query(
+    `insert into public.event_audience_members
+       (event_id, season_id, capacity, season_membership_id, person_id, added_at,
+        added_by_person_id)
+     select $1, $2, member.capacity::public.invitation_capacity,
+            case when member.capacity = 'player' then member.anchor_id::uuid end,
+            case when member.capacity <> 'player' then member.anchor_id::uuid end,
+            now(), $5
+       from unnest($3::text[], $4::text[]) as member(capacity, anchor_id)`,
+    [
+      eventId,
+      seasonId,
+      resolution.members.map((member) => member.capacity),
+      resolution.members.map((member) => member.anchorId),
+      actorPersonId,
+    ],
+  );
+
+  return resolution.members.length;
 }
 
 export const EDIT_REFUSAL_MESSAGE = "Only a draft can be edited.";
@@ -587,6 +711,7 @@ export async function updateEventDraft(
   actorPersonId: string,
   eventId: string,
   input: EventDraftInput,
+  questions?: readonly EventQuestionInput[],
 ): Promise<EventDetail> {
   requireActor(actorPersonId);
   requireValid(input);
@@ -634,6 +759,11 @@ export async function updateEventDraft(
       });
     }
 
+    // Only when the caller has something to say about them. `undefined` means
+    // "this edit was not about the questions" — a caller that posted no question
+    // fields would otherwise silently clear the lot.
+    if (questions !== undefined) await writeEventQuestionsIn(tx, eventId, questions);
+
     await recordAudit(tx, {
       actorPersonId,
       action: "event.draft_updated",
@@ -646,12 +776,111 @@ export async function updateEventDraft(
         deliveryMode: input.deliveryMode,
         isMandatory: input.isMandatory,
         weekNumber: term.weekNumber,
+        ...(questions === undefined ? {} : { questionCount: questions.length }),
       },
     });
 
     return readEventIn(tx, eventId);
   });
 }
+
+export const DELETE_REFUSAL_MESSAGE = "Only a draft can be deleted.";
+
+export const DELETE_REFUSAL_RULE = "event_delete_requires_draft";
+
+/**
+ * Deletes a draft, permanently — REQ-delete-draft, D29.
+ *
+ * ## Why deleting is the right verb, and the only one
+ *
+ * "Withdrawn" used to mean *it never became an event*, and LAN-151 removed the
+ * status because that is not a state an event is in — it is an event that should
+ * not exist. So an abandoned draft is removed, and a `cancelled` event is
+ * something quite different: one that *was* approved, that people were told
+ * about, and that was called off. They are not two flavours of one thing.
+ *
+ * ## Only a draft, and the refusal is where somebody meets it
+ *
+ * An approved event is cancelled (`W6`), never deleted, because people have been
+ * told about it — and by then invitations, RSVPs and attendance hang off it, so
+ * deleting it would destroy answers real people gave. The guard is the
+ * `and status = 'draft'` below rather than a preceding read, for the same reason
+ * every other write in this module guards that way: a read and a delete are two
+ * decisions with a gap between them.
+ *
+ * Brian, 2026-08-21, on where the rule is stated: "That warning should pop up if
+ * you try to delete an approved event ... I don't think it needs to be called out
+ * there specifically." So the confirmation on a draft says what deleting *that
+ * draft* does, and this sentence appears only to somebody who tried it on
+ * something else.
+ *
+ * ## The audit row is written first, and survives
+ *
+ * `audit_events` is deliberately polymorphic and deliberately not a foreign key,
+ * precisely so a record can outlive its subject. Writing it before the delete, in
+ * the same transaction, means a rolled-back delete takes the audit row with it
+ * and a committed one leaves the only remaining evidence that the event ever
+ * existed.
+ */
+export async function deleteEventDraft(
+  actorPersonId: string,
+  eventId: string,
+): Promise<{ id: string; name: string }> {
+  requireActor(actorPersonId);
+
+  return withTransaction(async (tx) => {
+    const before = await lockEventIn(tx, eventId);
+
+    if (before.status !== "draft") {
+      throw new InvalidTransition(
+        `${DELETE_REFUSAL_MESSAGE} ${describeState(before.status)} ${CANCEL_INSTEAD_MESSAGE}`,
+        { rule: DELETE_REFUSAL_RULE },
+      );
+    }
+
+    await recordAudit(tx, {
+      actorPersonId,
+      action: "event.draft_deleted",
+      entityTable: "events",
+      entityId: eventId,
+      fromState: "draft",
+      context: {
+        name: before.name,
+        eventType: before.eventType,
+        scheduledOn: before.scheduledOn,
+        // Both are structurally zero on a draft — invariant P1 — and are
+        // recorded so the audit row proves it rather than asserting it.
+        invitationCount: before.invitationCount,
+        audienceCount: before.audienceCount,
+      },
+    });
+
+    const deleted = await tx.query<{ id: string }>(
+      "delete from public.events where id = $1 and status = 'draft' returning id",
+      [eventId],
+    );
+
+    if (deleted.rowCount === 0) {
+      throw new InvalidTransition(
+        `${DELETE_REFUSAL_MESSAGE} ${describeState(before.status)} ${CANCEL_INSTEAD_MESSAGE}`,
+        { rule: DELETE_REFUSAL_RULE },
+      );
+    }
+
+    return { id: eventId, name: before.name };
+  });
+}
+
+/**
+ * The half of the refusal that says what to do instead.
+ *
+ * `docs/ux/standards.md` rule 5 in its general form: a refusal names the route
+ * out rather than stating a constraint and stopping. Cancellation is `W6` and is
+ * not built yet, so this names the act rather than linking to a screen that does
+ * not exist — which is honest, and becomes a link when that work package lands.
+ */
+export const CANCEL_INSTEAD_MESSAGE =
+  "People have been told about it, so it is cancelled rather than deleted.";
 
 // ---------------------------------------------------------------------------
 // Shared refusals

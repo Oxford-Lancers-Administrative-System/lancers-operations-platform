@@ -18,18 +18,29 @@ import {
  * database half, and it is re-exported from here so a server caller has a single
  * import.
  *
- * ## The one rule this module exists to serve
+ * ## The one rule this module exists to serve, as D47 narrowed it
  *
- * `docs/adr/0012-explicit-event-audience.md` and Brian's 12 August clarification
- * agree: **selection begins empty and nothing is ever implied**. There is no
- * default group, no whole-roster fallback, and no "if none selected then
- * everyone" anywhere here or in anything that calls it. The convenience of
- * "select all active players" is a button an operator presses, not a state the
- * system starts in.
+ * `docs/adr/0012-explicit-event-audience.md` and Brian's 12 August
+ * clarification said selection begins empty and nothing is ever implied. **D47
+ * reverses half of that, deliberately and narrowly**, and LAN-154 is where the
+ * reversal lands: a type's template supplies a default audience, which arrives
+ * with a new event already set, visible and editable, so the approver checks
+ * rather than builds the same thirty-two names every Wednesday.
+ *
+ * What survives unchanged is the part ADR 0012 was actually about. There is
+ * still no whole-roster fallback and no "if none selected then everyone"
+ * anywhere here or in anything that calls it: an audience that nobody put there
+ * is still empty, and approval still refuses it. What the club configured once,
+ * on purpose, on the template, is not the system implying anything.
+ *
+ * The stored audience is still an explicit resolved list. A group is a way of
+ * selecting people, never a live query that changes underneath an approved
+ * event — which is why `createEventDraft` resolves the template's groups to
+ * people at the moment the draft is created.
  *
  * ## Where the groups come from
  *
- * All four derived groups are read from current authoritative domain data, not
+ * All five derived groups are read from current authoritative domain data, not
  * from a stored list somebody has to maintain:
  *
  *   * **Active players** — the season's `active` memberships.
@@ -38,6 +49,8 @@ import {
  *     but not everything scoped to a season coaches — see that constant.
  *   * **Active committee** — `committee_year`-scoped role assignments effective then.
  *   * **Everyone active** — the de-duplicated union of the three.
+ *   * **Recruits** — open prospects in `recruitment_prospects`, offered on a
+ *     Recruitment event alone (D46).
  *
  * "Effective" is the domain's own definition and not a status column:
  * `effective_from <= date < effective_to`, per register D11 and invariant S4,
@@ -63,6 +76,8 @@ import {
 
 export {
   AUDIENCE_GROUPS,
+  groupsForEventType,
+  summariseAudienceGroups,
   CAPACITY_PRECEDENCE,
   EMPTY_AUDIENCE_MESSAGE,
   EMPTY_AUDIENCE_RULE,
@@ -78,6 +93,8 @@ export {
   type AudienceCapacity,
   type AudienceCatalogue,
   type AudienceGroup,
+  type AudienceGroupKey,
+  type AudienceGroupSummary,
   type ResolvedAudienceMember,
   type SelectionResolution,
 } from "./audience-selection";
@@ -192,6 +209,29 @@ export async function listAudienceCatalogueIn(
         -- hangs. See COACH_ROLE_CODES.
         and (r.scope <> 'season' or (ra.season_id = $1 and r.code = any($3::text[])))
 
+      union all
+
+     -- D46. The recruits group, offered on a Recruitment event alone. Read from
+     -- the funnel rather than from the roster, because that is where a prospect
+     -- lives: modelling them as provisional memberships would pollute the roster
+     -- with people who never commit (model §1.2).
+     --
+     -- Converted is excluded because a converted prospect IS a member and
+     -- appears above under the player capacity; lapsed and declined are
+     -- excluded because D45 says inactive people are never invited, and
+     -- somebody who said no is exactly that.
+     select 'recruit' as capacity,
+            p.id as anchor_id,
+            p.id as person_id,
+            p.given_name, p.family_name, p.known_as,
+            initcap(rp.status::text) as standing,
+            null as unit,
+            ${CONTACT_EXPRESSION} as contact
+       from public.recruitment_prospects rp
+       join public.people p on p.id = rp.person_id
+      where rp.season_id = $1
+        and rp.status in ('identified', 'engaged', 'committed')
+
       order by 1, 6, 5`,
     [seasonId, scheduledOn, COACH_ROLE_CODES],
   );
@@ -226,6 +266,7 @@ export async function listAudienceCatalogueIn(
       player: candidates.filter((candidate) => candidate.capacity === "player").length,
       coach: candidates.filter((candidate) => candidate.capacity === "coach").length,
       committee: candidates.filter((candidate) => candidate.capacity === "committee").length,
+      recruit: candidates.filter((candidate) => candidate.capacity === "recruit").length,
     },
   };
 }

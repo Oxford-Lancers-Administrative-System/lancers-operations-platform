@@ -28,8 +28,10 @@ import {
   groupIsSelected,
   groupSelectionKeys,
   groupSize,
+  groupsForEventType,
   resolveSelection,
   selectionKey,
+  summariseAudienceGroups,
   toggleGroup,
   type AudienceCandidate,
 } from "./audience-selection";
@@ -215,5 +217,118 @@ describe("resolution is unaffected by how a person was selected", () => {
   it("refuses an empty selection", () => {
     const resolution = resolveSelection(CLUB, []);
     expect(resolution.ok === false && resolution.failure).toBe("empty");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-154 — the recruits group (D46), and the audience read as a shape
+// ---------------------------------------------------------------------------
+
+describe("a recruits group, on the Recruitment type alone (D46)", () => {
+  const OTHER_TYPES = [
+    "practice",
+    "strength_and_conditioning",
+    "chalk",
+    "game",
+    "social",
+    "meeting",
+  ];
+
+  it("is not offered on any other kind of event", () => {
+    for (const type of OTHER_TYPES) {
+      expect(groupsForEventType(type).map((group) => group.key)).toEqual([
+        EVERYONE,
+        PLAYERS,
+        COACHES,
+        COMMITTEE,
+      ]);
+    }
+  });
+
+  it("is offered on a recruitment event, after the four standing groups", () => {
+    expect(groupsForEventType("recruitment").map((group) => group.key)).toEqual([
+      EVERYONE,
+      PLAYERS,
+      COACHES,
+      COMMITTEE,
+      "recruits",
+    ]);
+  });
+
+  it("does not fold recruits into everyone-active", () => {
+    // D45: inactive people are never invited, and a prospect is not a member.
+    // "Everyone active" means the roster, and a recruit is deliberately not on
+    // it — `recruitment_prospects` exists so the roster keeps meaning "people
+    // on the team".
+    const everyone = AUDIENCE_GROUPS.find((group) => group.key === EVERYONE)!;
+
+    expect([...everyone.capacities]).toEqual(["player", "coach", "committee"]);
+    expect(everyone.capacities).not.toContain("recruit");
+  });
+});
+
+describe("the audience named by its groups before its people", () => {
+  // Brian, 2026-08-21: "it should say at the very top what groups it would be
+  // ... You don't have to show me how it's done."
+
+  it("names the widest group that is wholly in, and not the ones it subsumes", () => {
+    const summary = summariseAudienceGroups(CLUB, groupSelectionKeys(CLUB, EVERYONE), "practice");
+
+    expect(summary.groups).toEqual(["Everyone active"]);
+    expect(summary.others).toBe(0);
+    expect(summary.total).toBe(4);
+  });
+
+  it("names two narrower groups when that is what was chosen", () => {
+    const chosen = [...groupSelectionKeys(CLUB, PLAYERS), ...groupSelectionKeys(CLUB, COACHES)];
+
+    const summary = summariseAudienceGroups(CLUB, chosen, "practice");
+
+    expect(summary.groups).toEqual(["All active players", "All active coaches"]);
+    expect(summary.total).toBe(3);
+  });
+
+  it("never names a group that is only partly selected", () => {
+    // Naming it would tell the approver the whole group is invited when it is
+    // not, which is the one thing this line must never do.
+    const [onePlayer] = groupSelectionKeys(CLUB, PLAYERS);
+
+    const summary = summariseAudienceGroups(CLUB, [onePlayer], "practice");
+
+    expect(summary.groups).toEqual([]);
+    expect(summary.others).toBe(1);
+    expect(summary.total).toBe(1);
+  });
+
+  it("counts somebody chosen by hand rather than inventing a group for them", () => {
+    const chosen = [...groupSelectionKeys(CLUB, PLAYERS), selectionKey("committee", "person-di")];
+
+    const summary = summariseAudienceGroups(CLUB, chosen, "practice");
+
+    expect(summary.groups).toEqual(["All active players"]);
+    expect(summary.others).toBe(1);
+    expect(summary.total).toBe(3);
+  });
+
+  it("says nothing about a group whose people are already covered", () => {
+    // Cy coaches and sits on the committee. Selecting everyone-active covers
+    // both, and the line must not read "Everyone active, all active coaches".
+    const summary = summariseAudienceGroups(CLUB, groupSelectionKeys(CLUB, EVERYONE), "practice");
+
+    expect(summary.groups).toHaveLength(1);
+  });
+
+  it("is empty for an empty audience, and says so as a count", () => {
+    expect(summariseAudienceGroups(CLUB, [], "practice")).toEqual({
+      groups: [],
+      others: 0,
+      total: 0,
+    });
+  });
+
+  it("never names the recruits group on an event that cannot have one", () => {
+    const summary = summariseAudienceGroups(CLUB, groupSelectionKeys(CLUB, EVERYONE), "practice");
+
+    expect(summary.groups).not.toContain("Recruits");
   });
 });

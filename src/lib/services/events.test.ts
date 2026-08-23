@@ -805,8 +805,24 @@ describe("row 8 — the form's rules, checked without a database", () => {
     expect(result.value.joiningUrl).toBe("https://teams.example.invalid/x");
   });
 
-  it("refuses an unanswered attendance choice", () => {
+  it("accepts an unanswered attendance, as optional", () => {
+    // LAN-154 changed this deliberately. LAN-76 refused a draft whose
+    // attendance was unanswered, so that an event never quietly claimed
+    // attendance was expected. D15 makes name, type and date the minimum to
+    // save, and W8 puts the answer on the type's template — so an unanswered
+    // one saves as *optional*, which claims nothing and is the direction the
+    // original rule was protecting.
     const result = validateEventDraft({ ...complete, attendance: "" });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.isMandatory).toBe(false);
+  });
+
+  it("still refuses an attendance value that is neither word", () => {
+    // The control offers two answers, so anything else means it was tampered
+    // with — and guessing what was meant is the wrong recovery.
+    const result = validateEventDraft({ ...complete, attendance: "whenever" });
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -818,7 +834,7 @@ describe("row 8 — the form's rules, checked without a database", () => {
       ...complete,
       name: "  ",
       endsAt: "19:00",
-      attendance: "",
+      attendance: "whenever",
       joiningUrl: "https://teams.example.invalid/x",
     });
 

@@ -4,10 +4,17 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
-import { createEventDraft, updateEventDraft, validateEventDraft } from "@/lib/services/events";
+import {
+  createEventDraft,
+  deleteEventDraft,
+  updateEventDraft,
+  validateEventDraft,
+  validateEventQuestions,
+} from "@/lib/services/events";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import { dispatchEventInvitations } from "@/lib/services/delivery";
 import type { RawEventDraft } from "@/lib/services/event-input";
+import type { EventQuestionInput, RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { EventFormState, EventTransitionState } from "./form-state";
 
 /**
@@ -96,6 +103,49 @@ function messageFor(error: unknown): string {
   return error.message;
 }
 
+/**
+ * The questions the form posted, as five parallel repeating fields.
+ *
+ * `null` when the form did not carry the questions section at all, which is not
+ * the same as an event that asks nothing: the section always posts
+ * `questionsPresent`, so its absence means the submission was not about the
+ * questions and the stored ones must be left alone.
+ */
+function readQuestions(formData: FormData): RawEventQuestion[] | null {
+  if (formData.get("questionsPresent") === null) return null;
+
+  const strings = (field: string) =>
+    formData.getAll(field).map((value) => (typeof value === "string" ? value : ""));
+
+  const prompts = strings("questionPrompt");
+  const answerTypes = strings("questionAnswerType");
+  const required = strings("questionRequired");
+  const choices = strings("questionChoices");
+  const fromTemplate = strings("questionFromTemplate");
+
+  return prompts.map((prompt, index) => ({
+    prompt,
+    answerType: answerTypes[index] ?? "",
+    required: required[index] ?? "",
+    choices: choices[index] ?? "",
+    fromTemplate: fromTemplate[index] ?? "false",
+  }));
+}
+
+/**
+ * Where a successful save lands.
+ *
+ * The form has two submit buttons and they are one submission; the second
+ * carries `then=audience`. Read as a whitelist rather than as a path, so a
+ * crafted post cannot redirect an operator anywhere this action has not already
+ * decided is a destination.
+ */
+function destinationAfterSave(formData: FormData, eventId: string): string {
+  return formData.get("then") === "audience"
+    ? `/operate/events/${eventId}?step=audience`
+    : `/operate/events/${eventId}`;
+}
+
 /** Create a draft. On success the operator lands on the new event. */
 export async function createEventDraftAction(
   _previous: EventFormState,
@@ -103,22 +153,42 @@ export async function createEventDraftAction(
 ): Promise<EventFormState> {
   const operator = await requireCapability("event_calendar_management");
   const raw = readDraft(formData);
+  const rawQuestions = readQuestions(formData);
 
   const validation = validateEventDraft(raw);
-  if (!validation.ok) {
-    return { issues: validation.issues, error: null, values: raw };
+  const questions = validateEventQuestions(rawQuestions ?? []);
+  if (!validation.ok || !questions.ok) {
+    return {
+      issues: validation.ok ? [] : validation.issues,
+      questionIssues: questions.ok ? [] : questions.issues,
+      error: null,
+      values: raw,
+      questions: rawQuestions,
+    };
   }
 
   let eventId: string;
   try {
-    const event = await createEventDraft(operator.personId, validation.value);
+    const event = await createEventDraft(
+      operator.personId,
+      validation.value,
+      // `undefined` rather than an empty array when the form carried no question
+      // section, so the new draft still inherits its type's default questions.
+      rawQuestions === null ? undefined : (questions.value as EventQuestionInput[]),
+    );
     eventId = event.id;
   } catch (error) {
-    return { issues: [], error: messageFor(error), values: raw };
+    return {
+      issues: [],
+      questionIssues: [],
+      error: messageFor(error),
+      values: raw,
+      questions: rawQuestions,
+    };
   }
 
   revalidatePath("/operate/events");
-  redirect(`/operate/events/${eventId}`);
+  redirect(destinationAfterSave(formData, eventId));
 }
 
 /** Edit a draft. Refused by the service for anything that is not a draft. */
@@ -129,21 +199,71 @@ export async function updateEventDraftAction(
   const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
   const raw = readDraft(formData);
+  const rawQuestions = readQuestions(formData);
 
   const validation = validateEventDraft(raw);
-  if (!validation.ok) {
-    return { issues: validation.issues, error: null, values: raw };
+  const questions = validateEventQuestions(rawQuestions ?? []);
+  if (!validation.ok || !questions.ok) {
+    return {
+      issues: validation.ok ? [] : validation.issues,
+      questionIssues: questions.ok ? [] : questions.issues,
+      error: null,
+      values: raw,
+      questions: rawQuestions,
+    };
   }
 
   try {
-    await updateEventDraft(operator.personId, eventId, validation.value);
+    await updateEventDraft(
+      operator.personId,
+      eventId,
+      validation.value,
+      rawQuestions === null ? undefined : (questions.value as EventQuestionInput[]),
+    );
   } catch (error) {
-    return { issues: [], error: messageFor(error), values: raw };
+    return {
+      issues: [],
+      questionIssues: [],
+      error: messageFor(error),
+      values: raw,
+      questions: rawQuestions,
+    };
   }
 
   revalidatePath("/operate/events");
   revalidatePath(`/operate/events/${eventId}`);
-  redirect(`/operate/events/${eventId}`);
+  redirect(destinationAfterSave(formData, eventId));
+}
+
+/**
+ * Deletes a draft, permanently — REQ-delete-draft, D29.
+ *
+ * Guarded on `event_calendar_management`, the same capability that creates and
+ * edits one: deciding an event should never have existed is drafting work, and
+ * it releases nothing and tells nobody. Approval's capability is for the act
+ * that sends messages to real people.
+ *
+ * The refusal for anything that is not a draft lives in the service, so a client
+ * skipping the confirmation reaches it anyway. This action does not check the
+ * status at all, deliberately — a second opinion here would be one more place
+ * for the two to disagree.
+ */
+export async function deleteEventDraftAction(
+  _previous: EventTransitionState,
+  formData: FormData,
+): Promise<EventTransitionState> {
+  const operator = await requireCapability("event_calendar_management");
+  const eventId = text(formData, "eventId");
+
+  try {
+    await deleteEventDraft(operator.personId, eventId);
+  } catch (error) {
+    return { error: messageFor(error) };
+  }
+
+  revalidatePath("/operate/events");
+  revalidatePath("/operate/events/calendar");
+  redirect("/operate/events?deleted=1");
 }
 
 /**
@@ -258,8 +378,6 @@ export async function saveEventAudienceAction(
  * `abandonEventDraftAction` went with the `withdrawn` status. "Withdrawn" meant
  * the event never happened, and the target state says an abandoned draft is
  * **deleted** instead (D29) — permanently, from its own event page, after a
- * confirmation naming it. That delete path is REQ-delete-draft's and belongs to
- * this mission's W4 work package; until it lands, an abandoned draft stays a
- * draft, which is where the approved legacy mapping put every previously
- * withdrawn row.
+ * confirmation naming it. That is `deleteEventDraftAction` above, added by
+ * LAN-154.
  */

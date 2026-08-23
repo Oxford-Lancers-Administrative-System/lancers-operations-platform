@@ -203,14 +203,17 @@ under the field reads "Address search is not set up here. Type the venue
 yourself." Typing the venue by hand is the supported path and the draft saves
 normally. With a provider configured the same field offers suggestions.
 
-4. Choose **Optional** attendance and **Yes** to Response requested.
+4. Leave **Optional** attendance as the Practice template set it, and leave the
+   **Questions** section as it arrived.
 5. Press **Save draft**.
 
 **Expected.** The event detail page, headed `Draft · Wednesday, 14 October 2026 ·
 19:00–21:00`, with the banner "A draft or pending event can carry no invitations,
 responses or attendance. Nothing is sent until the designated approver approves
-it." Audience reads **Chosen at approval**; Distribution reads **Nothing
-distributed**.
+it." Audience reads **Not chosen yet** on a type whose template names no default
+groups, and the resolved headcount on one that does (D47); Distribution reads
+**Nothing distributed**. A **Questions** panel lists what this event asks beyond
+"Are you coming?", and **Delete this draft** sits at the foot of the page.
 
 **There is no Submit button, and that is correct.** Save creates a draft; a draft
 goes to approval when the club wants the automation to go out. Only President,
@@ -224,10 +227,13 @@ proposer.
 
 1. Press **Choose audience and approve**.
 
-**Expected.** **Build event audience** — "Nothing is selected to begin with, and
-there is no whole-roster default: the audience is stored as the explicit list you
-confirm here." Group shortcuts offer Everyone active, All active players, All
-active coaches and All active committee, with their counts.
+**Expected.** **Build event audience**. The sentence under the heading names the
+template that supplied the default audience — "The Practice template invites all
+active players. Check it, change it, or add people by hand" — or says "Choose who
+this event is for" where the template names no groups (D47, reversing LAN-77's
+"nothing is selected to begin with"). Group shortcuts offer Everyone active, All
+active players, All active coaches and All active committee, with their counts;
+a Recruits group appears on a Recruitment event alone (D46).
 
 2. Search for `Runbook`, tick **Runbook Walker**, press **Review 1 selected**.
 

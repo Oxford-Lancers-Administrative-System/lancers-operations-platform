@@ -249,23 +249,27 @@ export function formatTermAndWeek(termLabel: string | null, weekNumber: number |
 export function describeAudience(event: EventListEntry): string {
   if (event.invitationCount > 0) return `${event.invitationCount} invited`;
   if (event.audienceCount > 0) return `${event.audienceCount} selected`;
-  if (isPreApproval(event.status)) return "Chosen at approval";
+  if (isPreApproval(event.status)) return NO_AUDIENCE_YET;
   return "None recorded";
 }
+
+/**
+ * What a draft with nobody in its audience says — D47.
+ *
+ * It used to read "Chosen at approval", which is no longer true of most events:
+ * a type whose template names a default audience arrives with one already set,
+ * and only a type whose template says nothing arrives empty. So the words state
+ * what is the case rather than what is about to happen.
+ */
+export const NO_AUDIENCE_YET = "Not chosen yet";
 
 /**
  * The sentence above the list, saying the same thing once rather than in every
  * row.
  */
 export const AUDIENCE_AND_RESPONSES_COME_LATER =
-  "A draft has no invitations and no responses, and cannot have any. The audience is " +
-  "chosen and confirmed during approval, which is when anything is sent at all.";
-
-/** The same statement, for the form and the event itself. */
-export const AUDIENCE_COMES_LATER =
-  "You are recording the event's operational facts. Who it goes to is chosen and confirmed " +
-  "during the approval step, and nothing is sent to anybody until an approver has completed " +
-  "it.";
+  "A draft has no invitations and no responses, and cannot have any. Nothing is sent " +
+  "until an approver has approved it.";
 
 /**
  * The sentence a draft or pending event carries, stated as the structural fact
@@ -332,10 +336,34 @@ export const CAPACITY_LABELS: Readonly<Record<string, string>> = Object.freeze({
 /** UX-40's heading, and the sentence under it. */
 export const AUDIENCE_BUILDER_HEADLINE = "Build event audience";
 
-export const AUDIENCE_BUILDER_DETAIL =
-  "Select current active memberships and any eligible coaching or committee capacities. " +
-  "Nothing is selected to begin with, and there is no whole-roster default: the audience " +
-  "is stored as the explicit list you confirm here.";
+/**
+ * What the builder says under its heading — and the one sentence in the
+ * application that D47 explicitly reverses.
+ *
+ * It used to read: "Nothing is selected to begin with, and there is no
+ * whole-roster default: the audience is stored as the explicit list you confirm
+ * here." The last clause is still true and is still what the database holds. The
+ * first is not: a type's template supplies a default audience, and the approver
+ * checks it rather than rebuilding it.
+ *
+ * So the sentence now names the template that put people there, and says what to
+ * do with them. A type whose template names no groups gets the second form,
+ * because on that event nothing did arrive and there is nothing to check.
+ */
+export function describeBuilderDefault(
+  eventTypeLabel: string,
+  groupLabels: readonly string[],
+): string {
+  if (groupLabels.length === 0) return "Choose who this event is for.";
+  return `The ${eventTypeLabel} template invites ${joinWithAnd(groupLabels).toLowerCase()}. Check it, change it, or add people by hand.`;
+}
+
+/** "A, B and C" — the club's punctuation rather than ICU's. */
+export function joinWithAnd(parts: readonly string[]): string {
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
 
 /** UX-42 — the empty-audience refusal, which is a screen rather than a toast. */
 export const EMPTY_AUDIENCE_HEADLINE = "This event cannot be approved";
@@ -346,13 +374,19 @@ export const EMPTY_AUDIENCE_DETAIL =
 export const EMPTY_AUDIENCE_SERVER_NOTE =
   "Approval is refused on the server even if this screen is bypassed.";
 
-/** UX-41 — what approval will do, said before it is done. */
+/** UX-41 — the event, the people and the questions, read once before approving. */
 export const APPROVAL_HEADLINE_PREFIX = "Approve";
 
-export const APPROVAL_DETAIL =
-  "Approval is limited to the designated approver. It confirms this exact list of people, " +
-  "creates their invitations and queues automated delivery. The audience is frozen once " +
-  "approved — this workflow has no way to add, remove or re-send afterwards.";
+/*
+ * A paragraph explaining what approving does used to sit at the foot of this
+ * screen — that it confirms the list, creates invitations, queues delivery and
+ * freezes the audience. Brian removed it on 2026-08-21: "You don't really have
+ * to explain what approving does because we already know what it is ... That's
+ * over-explaining for no reason."
+ *
+ * Nothing replaced it, deliberately. The screen shows what is being approved and
+ * the button says what it will do, and that is the whole of it.
+ */
 
 export const DISTRIBUTION_AUTOMATED = "Automated 1:1 WhatsApp";
 
@@ -396,3 +430,85 @@ export const AUDIENCE_FROZEN_AT_APPROVAL =
  * reached anybody, and the screen has to say so rather than implying contact.
  */
 export const NOTHING_DELIVERED_YET = "nothing delivered yet";
+
+// ---------------------------------------------------------------------------
+// Questions — amendment W4-A1
+// ---------------------------------------------------------------------------
+
+/** The heading the create-and-edit form and the event page share. */
+export const QUESTIONS_HEADLINE = "Questions";
+
+/** What the form says under it: what these are for, not what the rule is. */
+export const QUESTIONS_FORM_DETAIL =
+  "Asked on the RSVP page, in this order, alongside whether they are coming.";
+
+/** What the approval review says under its own copy of them. */
+export const QUESTIONS_REVIEW_DETAIL = "Exactly as they will appear on the RSVP page.";
+
+/** The first thing every invitee is asked, and it is not one of these. */
+export const RSVP_FIRST_QUESTION = "Are you coming?";
+
+export const RSVP_FIRST_QUESTION_ANSWER = "Yes · No — a reason is asked on No";
+
+/** D42. What marks a question that came with the type. */
+export const FROM_TEMPLATE_CHIP_PREFIX = "From the";
+
+export function fromTemplateChip(eventTypeLabel: string): string {
+  return `${FROM_TEMPLATE_CHIP_PREFIX} ${eventTypeLabel} template`;
+}
+
+/** The empty state, which says what to do rather than what is absent. */
+export const NO_QUESTIONS_YET = "Nothing extra is asked. Add a question if this event needs one.";
+
+// ---------------------------------------------------------------------------
+// Deleting a draft — REQ-delete-draft, D29
+// ---------------------------------------------------------------------------
+
+export const DELETE_DRAFT_HEADLINE = "Delete this draft";
+
+export const DELETE_DRAFT_DETAIL = "It disappears from the calendar and cannot be brought back.";
+
+export const DELETE_DRAFT_ACTION = "Delete draft";
+
+export const DELETE_DRAFT_DIALOG_TITLE = "Delete this draft?";
+
+/**
+ * The confirmation's body — the reason a draft can be deleted at all.
+ *
+ * Brian, 2026-08-21, on the rule that an approved event cannot be deleted:
+ * "That warning should pop up if you try to delete an approved event ... I don't
+ * think it needs to be called out there specifically." So it is not here. It is
+ * on the refusal, where somebody has actually run into it.
+ */
+export const DELETE_DRAFT_DIALOG_DETAIL =
+  "It disappears from the calendar and cannot be brought back. Nobody has been told about " +
+  "it, so nobody will be told it is gone.";
+
+export const DELETE_DRAFT_KEEP = "Keep it";
+
+// ---------------------------------------------------------------------------
+// Duplicating an event — D39
+// ---------------------------------------------------------------------------
+
+export const DUPLICATE_ACTION = "Duplicate";
+
+/**
+ * What the create form says when it opened from another event.
+ *
+ * D39 as Brian settled it on 2026-08-22: duplicate opens the create form
+ * prefilled, and nothing is written until the operator saves. The sentence says
+ * which event it copied, because "prefilled from something" with no name is a
+ * form an operator cannot check.
+ */
+export function duplicatedFrom(name: string): string {
+  return `Copied from ${name}. Nothing is saved until you save it.`;
+}
+
+// ---------------------------------------------------------------------------
+// The approval completeness gate — D16
+// ---------------------------------------------------------------------------
+
+export const INCOMPLETE_EVENT_HEADLINE = "This event cannot be approved";
+
+/** Where the operator goes to fix it. */
+export const INCOMPLETE_EVENT_ACTION = "Edit draft";

@@ -8,9 +8,12 @@ import {
   EMPTY_AUDIENCE_RULE,
   listAudienceCatalogueIn,
   resolveSelection,
+  summariseAudienceGroups,
   type AudienceCapacity,
   type AudienceCatalogue,
+  type AudienceGroupSummary,
 } from "./event-audience";
+import { readEventQuestionsIn, type EventQuestion } from "./event-questions";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
 import { readCurrentSeasonIn } from "./seasons";
 import { resolveResponseDeadlineIn, type ResolvedResponseDeadline } from "./response-deadline";
@@ -108,6 +111,19 @@ export interface ApprovalPreview {
    * while the event has no date — approval is refused without one (E1a).
    */
   deadline: ResolvedResponseDeadline | null;
+  /**
+   * The questions this event asks, in the order a player will meet them —
+   * amendment W4-A1. "Approve this event" means approving what these people are
+   * about to be asked, and a question is not a detail to discover afterwards.
+   */
+  questions: EventQuestion[];
+  /**
+   * The audience named by its groups before its people, so the approver checks a
+   * shape rather than reading thirty-five names to work one out.
+   */
+  groupSummary: AudienceGroupSummary;
+  /** The fields D16 requires and this event has not got. Empty when it is ready. */
+  missing: string[];
 }
 
 /** The result of a successful approval — UX-43's facts, as observed. */
@@ -117,6 +133,56 @@ export interface ApprovalOutcome {
   invitationCount: number;
   notificationJobCount: number;
   deadline: ResolvedResponseDeadline | null;
+}
+
+export const APPROVAL_INCOMPLETE_RULE = "event_approval_requires_complete_event";
+
+/**
+ * The fields an event must have before it can be approved — D16, the
+ * completeness gate.
+ *
+ * ## Which fields, and why the list is this short
+ *
+ * The date, and that is all that can be missing. `name` and `event_type` are
+ * `not null` and are the minimum to save a draft at all (D15), so an event that
+ * exists has both; everything else on the record is legitimately absent on an
+ * approved event:
+ *
+ *   * **Venue** — `TBD` is what the club writes on its own term card for a
+ *     fixture whose ground is not settled, and W4 says so in as many words: "TBD
+ *     stays a legitimate value on a draft — for venue, for time". Requiring one
+ *     would refuse an event the club really does approve.
+ *   * **Times** — same reason, and D78 governs their *entry*, not their presence.
+ *   * **Description and required equipment** — W8 makes every template field
+ *     optional, and a meeting that needs no equipment has nothing to say here.
+ *
+ * The list is a function rather than a constant so the refusal can name which
+ * fields are missing rather than which fields exist, which is what W4-06 shows
+ * and what `docs/ux/standards.md` rule 5 asks of any refusal.
+ *
+ * ## Where it is enforced
+ *
+ * Here, above the database, in the service layer — so it holds when the screen
+ * is bypassed and `approveEvent` is called directly. `events_approval_requires_date_and_audience`
+ * (invariant E1a) says the same thing in the database and remains the backstop;
+ * what it cannot do is name the field in a sentence an operator can act on.
+ */
+export function missingForApproval(event: EventDetail): string[] {
+  const missing: string[] = [];
+  if (event.scheduledOn === null) missing.push("date");
+  if (event.name.trim() === "") missing.push("name");
+  return missing;
+}
+
+/** "This event cannot be approved without its date." — the refusal, named. */
+export function describeMissingForApproval(missing: readonly string[]): string {
+  const list =
+    missing.length === 1
+      ? missing[0]
+      : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`;
+  return missing.length === 1
+    ? `This event has no ${list} yet. Add it and approve when you are ready.`
+    : `This event has no ${list} yet. Add them and approve when you are ready.`;
 }
 
 export const APPROVAL_REQUIRES_DRAFT_MESSAGE = "Only a draft can be approved.";
@@ -234,7 +300,19 @@ export async function readApprovalPreview(eventId: string): Promise<ApprovalPrev
     // event not having a date yet.
     const deadline = event.scheduledOn !== null ? await resolveResponseDeadlineIn(tx, event) : null;
 
-    return { event, catalogue, audience, deadline };
+    return {
+      event,
+      catalogue,
+      audience,
+      deadline,
+      questions: await readEventQuestionsIn(tx, eventId),
+      groupSummary: summariseAudienceGroups(
+        catalogue.candidates,
+        audience.map((member) => `${member.capacity}:${member.anchorId}`),
+        event.eventType,
+      ),
+      missing: missingForApproval(event),
+    };
   });
 }
 
@@ -348,6 +426,17 @@ export async function approveEvent(
     await assertOperatingSeason(tx, before);
     const catalogue = await listAudienceCatalogueIn(tx, before.seasonId, before.scheduledOn);
     const members = await readAudienceIn(tx, eventId, catalogue);
+
+    // D16, and checked before the audience because it is the more fundamental
+    // gap: an event with no date has no deadline to compute and no week to sit
+    // in, and telling an operator to build an audience for it first would send
+    // them down the longer of the two paths.
+    const missing = missingForApproval(before);
+    if (missing.length > 0) {
+      throw new ConstraintViolated(describeMissingForApproval(missing), {
+        rule: APPROVAL_INCOMPLETE_RULE,
+      });
+    }
 
     // Invariant E1b, and the reason it is service-layer work: the database
     // stores the audience and would accept an approval with none, so this
