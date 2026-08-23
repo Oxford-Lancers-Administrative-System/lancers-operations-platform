@@ -88,6 +88,55 @@ export function GregorianControls({
   );
 }
 
+/**
+ * The ids one segment can be anchored at, in the order they are tried.
+ *
+ * `YearColumn` draws the year twice — a week grid above `md` and stacked week
+ * cards below it — and the two cannot share an `id`, because duplicate ids are
+ * invalid and `getElementById` would answer with whichever came first in the
+ * document regardless of which one the reader can see.
+ */
+function anchorIdsFor(key: string): string[] {
+  return [key, `${key}-stack`];
+}
+
+/**
+ * The anchor for a segment **in the presentation that is actually on screen**.
+ *
+ * ## The defect this exists to stop, which shipped once
+ *
+ * The control used to resolve the desktop id and nothing else. Below `md` that
+ * element is inside a `display: none` subtree: it has no geometry at all —
+ * measured live at `{top: 0, height: 0, width: 0}` — so `scrollIntoView` on it
+ * is a no-op. The jump control was therefore inert at every width below 900px,
+ * **including 375px**, while the select's label changed and `replaceState`
+ * rewrote the address bar. A reader on a phone was told they had navigated and
+ * had not, on a nine-thousand-pixel page whose only navigation control this is.
+ * False confirmation is worse than a dead control.
+ *
+ * ## Why `getClientRects()`
+ *
+ * It is empty for any element inside a `display: none` ancestor and non-empty
+ * for one that is laid out, which is exactly the question being asked — and it
+ * asks it of the browser rather than re-deriving the breakpoint here. A second
+ * copy of "is this above `md`?" in JavaScript would be a rule that could drift
+ * from the `sx` that actually decides, which is how this went wrong the first
+ * time. Nothing here knows what `md` is.
+ */
+function laidOutAnchor(key: string): HTMLElement | null {
+  const candidates = anchorIdsFor(key)
+    .map((id) => document.getElementById(id))
+    .filter((element): element is HTMLElement => element !== null);
+
+  // `getClientRects` is absent in jsdom, where nothing is laid out and the first
+  // candidate is as good an answer as any.
+  return (
+    candidates.find((element) => (element.getClientRects?.().length ?? 0) > 0) ??
+    candidates[0] ??
+    null
+  );
+}
+
 /** One segment of the year, as the jump control needs it. */
 export interface SegmentChoice {
   /** The segment key, which is also the anchor id on the column. */
@@ -154,7 +203,7 @@ export function YearJumpControl({
       slotProps={{ select: { MenuProps: { disableScrollLock: true } } }}
       onChange={(event) => {
         const key = event.target.value;
-        const target = document.getElementById(key);
+        const target = laidOutAnchor(key);
         if (!target) return;
         // `scrollIntoView` is absent in jsdom and in anything old enough not to
         // have it, so the fragment below is both the fallback and the bookmark.

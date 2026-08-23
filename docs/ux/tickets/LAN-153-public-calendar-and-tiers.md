@@ -156,12 +156,32 @@ selector** (D85; Stewart Humble and Brian, 17 August 2026; Brian, 21 August).
 
 Two places, both recorded rather than left to be found as a contradiction.
 
-1. **The mockup draws Christmas Vacation 1–4 and then a −1st week of Hilary.**
-   Hilary has no −1st week: the HT27 term card starts it at 0th week on 10
-   January, and `terms.first_week` is `0`. The vacation therefore runs to
-   Christmas Vacation 5 and meets Hilary at its 0th week. The term data is the
-   authority; the mockup's extra row is a drawing detail.
-   `src/lib/services/oxford-year.test.ts` asserts it.
+1. **The run-up week: an open data question, not a settled design decision.**
+
+   The renderer emits exactly the weeks a term row declares, from
+   `terms.first_week` to `terms.last_week`, and invents nothing. **That principle
+   is settled and should stay settled:** a calendar must not manufacture a run-up
+   week the club's own term record does not declare, because the number it made
+   up would be an Oxford week the schema would then refuse to store.
+
+   **What is not settled is the data.** In the seeded 2026–27 season
+   `first_week` is `-1` for Michaelmas and `0` for **both** Hilary and Trinity,
+   so the column renders Michaelmas `−1st … 8th`, Hilary `0th … 8th`, Trinity
+   `0th … 8th`. The approved mockup draws a `−1st week` at 3–9 Jan 2027 and
+   summarises Trinity as `−1st – 8th`, and Stewart Humble's own words expect the
+   vacation to run _"up until minus one week of Hilary"_.
+
+   So the mockup and the product **do not disagree about behaviour** — they
+   disagree about what the term rows say, and the difference disappears the
+   moment real term data declares `first_week = -1` for Hilary and Trinity. The
+   seed currently disagrees with itself across three terms of one season, which
+   is a data question for whoever owns the term windows; **LAN-153 did not change
+   the seed and does not close this.**
+
+   `src/lib/services/oxford-year.test.ts` pins the _rule_ — a vacation runs up to
+   the next term's own first configured week, whatever that is — and not the
+   particular numbers the current seed produces.
+
 2. **The mockup's explanatory captions are not in the product.** "anyone can read
    this page", "Applied as you type — no Apply button", "One continuous column —
    jump, don't switch calendars", "Past events are history… never the default

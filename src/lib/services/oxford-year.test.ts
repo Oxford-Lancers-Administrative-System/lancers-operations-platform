@@ -15,18 +15,27 @@
  *   * `260720 OULAFC TT27 Term Card v0.xlsx` — 0th week 18–24 Apr 2027, weeks
  *     1–8 from 25 Apr to 19 Jun.
  *
- * ## The one place the approved mockup is not followed, and why
+ * ## What these pin, and what they deliberately do not
  *
- * `mockups/W1-find-and-read-events.html` draws Christmas Vacation 1–4 and then
- * a **−1st week** of Hilary beginning 3 January. Hilary has no −1st week: the
- * HT27 card starts it at 0th week on 10 January, and `terms.first_week` is `0`
- * for both Hilary and Trinity. Stewart's rule — a vacation runs "until it'll
- * match perfectly up until minus one week" of the next term — is implemented as
- * *the next term's own first configured week*, which is −1st for Michaelmas and
- * 0th for the other two. LAN-114's contract already required exactly that
- * ("Nothing assumes weeks 1 to 8"), so the mockup's extra row is a drawing
- * detail and the term data is the authority. Asserted below rather than left as
- * a comment.
+ * They pin the **rule**: a vacation runs up to the next term's *own first
+ * configured week*, whatever that is, and the column never invents a run-up week
+ * a term row does not declare. LAN-114's contract already required this
+ * ("Nothing assumes weeks 1 to 8"), and a manufactured week would be an Oxford
+ * week the schema would refuse to store.
+ *
+ * They do **not** settle which weeks the club's terms ought to declare, and the
+ * fixtures below should not be read as doing so. In the seeded 2026–27 season
+ * `first_week` is `-1` for Michaelmas and `0` for **both** Hilary and Trinity,
+ * so the column emits Michaelmas `−1st … 8th` and the other two from `0th`. The
+ * approved mockup draws a `−1st week` at 3–9 Jan 2027 and summarises Trinity as
+ * `−1st – 8th`, and Stewart Humble expects the vacation to run "until it'll match
+ * perfectly up until minus one week" of the next term.
+ *
+ * That is a disagreement about **data, not behaviour**: the moment a term row
+ * declares `first_week = -1`, this module emits the −1st week the mockup draws,
+ * and the test immediately below proves exactly that by declaring one. The seed
+ * currently disagrees with itself across three terms of one season; LAN-153 did
+ * not change it and does not close the question.
  */
 import { describe, expect, it } from "vitest";
 
@@ -234,6 +243,44 @@ describe("buildAcademicYear — the boundaries the club supplied", () => {
     // vacation meets the term wherever the term actually starts.
     expect(coordinate("2027-01-09")).toBe("Christmas Vacation 5");
     expect(coordinate("2027-01-10")).toBe("hilary 0");
+  });
+
+  it("emits the mockup's −1st week the moment a term row declares one", () => {
+    // The disagreement between the approved mockup and the seeded data, settled
+    // by changing the data rather than the rule. Hilary here declares
+    // `first_week = -1` starting 3 January — exactly the row the mockup draws —
+    // and the column emits it, shortening the vacation to four weeks to meet it.
+    //
+    // Nothing in the module is special-cased for Michaelmas; the reason
+    // Michaelmas is the only term with a −1st week today is that it is the only
+    // term row that says so.
+    const hilaryWithRunUp: TermWindow = {
+      ...HILARY_2027,
+      startsOn: "2027-01-03",
+      firstWeek: -1,
+    };
+    const column = buildAcademicYear(
+      "2026-27",
+      [TRINITY_2027, hilaryWithRunUp, MICHAELMAS_2026, TRINITY_2026],
+      [],
+    );
+
+    const christmas = column.segments.find((segment) => segment.name === "Christmas Vacation");
+    expect(christmas?.weeks.map((week) => week.label)).toEqual([
+      "Christmas Vacation 1",
+      "Christmas Vacation 2",
+      "Christmas Vacation 3",
+      "Christmas Vacation 4",
+    ]);
+    expect(christmas?.endsOn).toBe("2027-01-02");
+
+    const hilary = column.segments.find((segment) => segment.termId === hilaryWithRunUp.id);
+    expect(hilary?.weeks[0].label).toBe("−1st week");
+    expect(hilary?.weeks[0].startsOn).toBe("2027-01-03");
+    expect(yearCoordinateOf(column, "2027-01-03")).toMatchObject({
+      segmentName: "hilary",
+      week: -1,
+    });
   });
 
   it("meets Michaelmas at its −1st week, which is where Michaelmas does start", () => {

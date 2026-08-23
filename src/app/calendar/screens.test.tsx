@@ -453,6 +453,92 @@ describe("the public calendar arrangements", () => {
     expect(document.body.style.overflow).not.toBe("hidden");
   });
 
+  /**
+   * W153-F1 — the jump control was inert at every width below `md`.
+   *
+   * `YearColumn` draws the year twice and the two presentations carry different
+   * anchors: the week grid has `id={segment.key}`, the stacked week cards have
+   * `id={segment.key + "-stack"}`. The control resolved only the first, which
+   * below `md` sits inside a `display: none` subtree with no geometry at all —
+   * so `scrollIntoView` was a no-op at 375px while the select's label changed
+   * and `replaceState` rewrote the address bar. The reader was told they had
+   * navigated a nine-thousand-pixel page, and had not.
+   *
+   * These assert the **mechanism** — which element is scrolled — because a test
+   * that only proved the handler ran, or only checked a prop, passed the whole
+   * time the defect was live. That `scrollY` actually moves at 375, 768 and
+   * 1440 is a real browser's measurement and is recorded on the pull request;
+   * jsdom lays nothing out, so the two presentations' geometry is simulated
+   * here exactly as `display: none` reports it.
+   */
+  describe("the jump control scrolls the presentation the reader can see", () => {
+    /** Render the year and hand back both anchors for one segment. */
+    async function anchorsForTrinity() {
+      const { container } = render(await PublicCalendarViewPage(viewProps({ mode: "oxford" })));
+
+      const headings = [...container.querySelectorAll('[data-testid="year-segment-heading"]')];
+      const grid = headings.find((h) => flatten(h.textContent) === "Trinity") as HTMLElement;
+      expect(grid, "no Trinity heading in the grid").toBeTruthy();
+
+      const stack = document.getElementById(grid.id + "-stack");
+      expect(stack, "no Trinity heading in the phone stack").toBeTruthy();
+
+      const gridScroll = vi.fn();
+      const stackScroll = vi.fn();
+      grid.scrollIntoView = gridScroll;
+      (stack as HTMLElement).scrollIntoView = stackScroll;
+
+      return { container, grid, stack: stack as HTMLElement, gridScroll, stackScroll };
+    }
+
+    /** What `getClientRects()` reports for a laid-out element, and a hidden one. */
+    const laidOut = () => [{ top: 10, height: 50, width: 900 }] as unknown as DOMRectList;
+    const hidden = () => [] as unknown as DOMRectList;
+
+    async function chooseTrinity(container: HTMLElement) {
+      const combobox = within(container)
+        .getByTestId("year-jump")
+        .querySelector('[role="combobox"]');
+      fireEvent.mouseDown(combobox as Element);
+      fireEvent.click(await screen.findByRole("option", { name: "Trinity" }));
+    }
+
+    it("scrolls the stacked cards when the grid is not laid out — 375px", async () => {
+      const { container, grid, stack, gridScroll, stackScroll } = await anchorsForTrinity();
+      // Below `md`: the grid is `display: none` and reports no rects at all.
+      grid.getClientRects = hidden;
+      stack.getClientRects = laidOut;
+
+      await chooseTrinity(container);
+
+      expect(stackScroll, "the phone stack was never scrolled").toHaveBeenCalled();
+      expect(gridScroll, "a hidden element was scrolled instead").not.toHaveBeenCalled();
+    });
+
+    it("scrolls the week grid when that is the one laid out — desktop", async () => {
+      const { container, grid, stack, gridScroll, stackScroll } = await anchorsForTrinity();
+      grid.getClientRects = laidOut;
+      stack.getClientRects = hidden;
+
+      await chooseTrinity(container);
+
+      expect(gridScroll).toHaveBeenCalled();
+      expect(stackScroll).not.toHaveBeenCalled();
+    });
+
+    it("writes one fragment whichever presentation served the jump", async () => {
+      // The fragment is the segment's own key, so a shared link means the same
+      // segment at either width, even though the element it resolves to differs.
+      const { container, grid, stack } = await anchorsForTrinity();
+      grid.getClientRects = hidden;
+      stack.getClientRects = laidOut;
+
+      await chooseTrinity(container);
+
+      expect(window.location.hash).toBe("#" + grid.id);
+    });
+  });
+
   it("warns rather than showing an empty year when no term is configured", async () => {
     vi.mocked(listTermWindows).mockResolvedValue([]);
 
