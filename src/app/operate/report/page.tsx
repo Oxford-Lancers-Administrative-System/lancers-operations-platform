@@ -359,14 +359,19 @@ function EventRow({ event }: { event: EventOutcome }) {
         ) : null}
       </TableCell>
       <TableCell align="right">{event.invited}</TableCell>
-      <TableCell align="right">{event.solicitsResponse ? event.respondedYes : "—"}</TableCell>
-      <TableCell align="right">{event.solicitsResponse ? event.respondedNo : "—"}</TableCell>
-      <TableCell align="right">{event.solicitsResponse ? event.noAnswer : "—"}</TableCell>
+      {/*
+        Unconditional since D23 removed "Response requested": every event asks
+        its audience to answer, so there is no event whose answer columns are
+        not a real number.
+      */}
+      <TableCell align="right">{event.respondedYes}</TableCell>
+      <TableCell align="right">{event.respondedNo}</TableCell>
+      <TableCell align="right">{event.noAnswer}</TableCell>
       <TableCell align="right">{event.registerTaken ? event.present + event.late : "—"}</TableCell>
       <TableCell align="right" sx={{ fontWeight: 700, whiteSpace: "nowrap" }}>
         {event.turnoutPercent === null ? (
           <Typography variant="body2" color="warning.main" component="span">
-            {event.status === "occurred" ? "no register" : "—"}
+            {event.occurred ? "no register" : "—"}
           </Typography>
         ) : (
           `${event.turnoutPercent}%`
@@ -730,7 +735,7 @@ function UpcomingCard({ event }: { event: UpcomingEvent }) {
           {event.name}
         </Button>
         <Typography variant="body2" color="text.secondary">
-          {event.solicitsResponse ? invitations : "No response asked for"}
+          {invitations}
           {event.isMandatory ? " · mandatory" : ""}
         </Typography>
       </Stack>

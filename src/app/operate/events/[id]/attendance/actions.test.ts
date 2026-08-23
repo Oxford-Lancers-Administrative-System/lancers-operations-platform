@@ -241,7 +241,12 @@ describe("who may record attendance", () => {
       const refusal = await refusalFrom(() => removeAttendanceAction(EMPTY_SAVE_STATE, saveForm()));
 
       expect(refusal, role).toBeInstanceOf(NotPermitted);
-      expect(refusal.rule).toBe("capability:event_occurrence_assertion");
+      // The guard was `event_occurrence_assertion` until LAN-151 retired that
+      // capability. `event_calendar_management` carries the identical role
+      // list — the four calendar roles plus the IT Officer — so exactly the
+      // same people may remove an attendance record as before, and no coaching
+      // seat may.
+      expect(refusal.rule).toBe("capability:event_calendar_management");
       expect(recordAttendance).toHaveBeenCalled();
       expect(recordWalkUpAttendance).toHaveBeenCalled();
       expect(removeAttendance).not.toHaveBeenCalled();

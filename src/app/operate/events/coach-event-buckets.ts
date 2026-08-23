@@ -14,14 +14,18 @@
  *     other reason to open this is to correct the session you were at last
  *     week.
  *
- * ## Why this list is no longer occurred-only
+ * ## Why this list is not occurred-only
  *
- * It cannot be. An event that has not happened has not been asserted to have
- * happened — invariant E5 makes occurrence a human act — so a forward-looking
- * list of occurred events would be permanently empty, which is what the first
- * implementation of this screen ran into. Looking forward means showing events
- * that are not yet open, and saying so on the card: they carry **Attendance not
- * open**, and opening one gives UX-90 rather than a register.
+ * It cannot be. Looking forward means showing events that are not yet open, and
+ * saying so on the card: they carry **Attendance not open**, and opening one
+ * gives UX-90 rather than a register.
+ *
+ * The two sections and the open/not-open line are **not** the same question,
+ * and W-F1 is what happens when they are treated as one. Which section a
+ * session sits in is about the day — today and ahead, or behind. Whether its
+ * register may be opened is about the instant, six hours before it starts
+ * (D71). For several hours of every session's own day the honest answers differ:
+ * it is in **Upcoming**, and its register is open.
  *
  * That is a widening of what a coaching assignment sees, and it is recorded as
  * a deviation in `docs/ux/tickets/LAN-110-coach-attendance.md`. What it adds is
@@ -31,12 +35,12 @@
  *
  * ## What is deliberately not in either section
  *
- * A draft, a pending or rejected submission, a withdrawn one, a cancelled event
- * and one asserted **not held**. None of those is a session anybody is going
- * to; showing a coach the calendar's discarded drafts would be the event
- * administration § 3 withholds, and listing a cancelled fixture under Upcoming
+ * A draft, and a cancelled event. Neither is a session anybody is going to;
+ * showing a coach the calendar's unfinished drafts would be the event
+ * administration § 3 withholds, and listing a cancelled game under Upcoming
  * would be worse than not listing it.
  */
+import { isRegisterAvailable } from "@/lib/services/attendance-window";
 import type { EventListEntry } from "@/lib/services/events";
 
 export type CoachEventBucketKey = "upcoming" | "earlier";
@@ -57,11 +61,13 @@ export const EARLIER_DETAIL = "Before today, most recent first";
 /**
  * The statuses a coach sees at all.
  *
- * `approved` is a session that is going to happen; `occurred` is one that did.
- * Everything else is either a decision still being taken or a session that is
- * not happening, and neither is a coach's business — see the note above.
+ * `approved` covers both halves of what a coach needs — a session that is going
+ * to happen and one that did, which are the same stored status and differ only
+ * in whether the date has passed (D30). A draft is a decision still being
+ * taken and a cancelled event is not happening, and neither is a coach's
+ * business — see the note above.
  */
-export const COACH_VISIBLE_STATUSES: readonly string[] = Object.freeze(["approved", "occurred"]);
+export const COACH_VISIBLE_STATUSES: readonly string[] = Object.freeze(["approved"]);
 
 /**
  * Today's date in the club's timezone, as `YYYY-MM-DD`.
@@ -97,9 +103,34 @@ export function isToday(event: EventListEntry, today: string): boolean {
   return event.scheduledOn === today;
 }
 
-/** Can a register be opened for it yet? Drives the "Attendance not open" line. */
-export function isOpenForAttendance(event: EventListEntry): boolean {
-  return event.status === "occurred";
+/**
+ * Can a register be opened for it yet? Drives the "Attendance not open" line.
+ *
+ * **The same question the register itself asks**, through the same function —
+ * finding W-F1, and the reason it is worth a paragraph. This used to ask
+ * `hasOccurred`, which compares *dates*: it answered "not open" for the whole
+ * of the day a session happens, while the register — moved to D71's buffer,
+ * which is an *instant* six hours before the start — was open, working, and
+ * reachable from the operator's event page.
+ *
+ * What that cost is the whole point of the mission. At 19:45 on a Wednesday,
+ * with tonight's 20:00 practice open for recording since 14:00, the coach's
+ * only screen said attendance was not open. The card went on saying it until
+ * the following day.
+ *
+ * So the coach's card, the event page's panel and the register are one
+ * function with three call sites. `registerSaved` is carried on the list entry
+ * for exactly this: D72 says a register with anything in it never closes, and
+ * a card that dropped that half would disagree with the register again, more
+ * quietly.
+ */
+export function isOpenForAttendance(event: EventListEntry, now: Date): boolean {
+  // The register's status half, which `services/attendance.ts` states as
+  // `ATTENDANCE_OPEN_STATUS`. Written out rather than imported because that
+  // module reaches the database and this one must stay pure. A cancelled
+  // evening did not happen; a draft has nobody on it.
+  if (!COACH_VISIBLE_STATUSES.includes(event.status)) return false;
+  return isRegisterAvailable(event, event.registerSaved, now);
 }
 
 /**

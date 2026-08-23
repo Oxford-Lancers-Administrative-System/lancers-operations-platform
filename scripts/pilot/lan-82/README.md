@@ -125,7 +125,7 @@ club data.
 The scenarios' cleanups can only remove application-created rows they can prove
 they own, and for events that proof is two conjuncts, both pinned in
 `tests/pilot-data-contract.test.ts`: the `PILOT-LAN-76` sentinel in the name
-**and** a status in `draft`, `pending_approval` or `withdrawn`.
+**and** a status of `draft`.
 
 `docs/operating-the-slice.md` § 6 approves the event and § 9 marks it occurred.
 An approved or occurred event therefore falls outside that restriction, and

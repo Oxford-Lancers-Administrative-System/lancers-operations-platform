@@ -48,18 +48,20 @@ import type { AttendanceSaveState, WalkUpFormState } from "./action-state";
  * ## What is still refused, and by whom
  *
  *   * **The event's state.** Every write goes through the service, which locks
- *     the event and refuses anything that is not `occurred`; underneath that,
- *     the cascading composite foreign key makes the row impossible to write at
- *     all. Two independent refusals, neither relying on the other.
+ *     the event and refuses one that has not occurred — approved, with its date
+ *     passed (D30); underneath that, the cascading composite foreign key makes a
+ *     row against anything but an approved event impossible to write at all.
+ *     Two independent refusals, neither relying on the other.
  *
  *   * **Who the write is about.** A posted participant key is resolved against
  *     rows that already exist for *this* event. A key naming somebody else's
  *     membership is a `NotFound`, not a new attendance record.
  *
- *   * **The occurrence assertion itself.** Not here. It is
- *     `assertEventOutcomeAction` in `../../actions.ts`, guarded on
- *     `event_occurrence_assertion`, because a recorder may say who turned up
- *     and may not say that there was anything to turn up to.
+ *   * **The occurrence assertion.** There is no longer one anywhere. LAN-151
+ *     retired it: an event has occurred when its date has passed and it was not
+ *     cancelled, and nobody types that. The rule it used to carry — a recorder
+ *     may say who turned up and may not say that there was anything to turn up
+ *     to — now holds because the second half is not a decision at all.
  */
 
 function text(formData: FormData, field: string): string {
@@ -135,20 +137,16 @@ export async function recordAttendanceAction(
  * Removes one attendance record.
  *
  * The only way to unwind an occurrence assertion made against the wrong event:
- * the assertion cannot be corrected while attendance hangs off it, so without
- * this there is no route back at all. It is not the way to change somebody's
- * state — that is a save, which is audited as a correction and keeps the
- * history.
+ * a row recorded against the wrong person is otherwise permanent, and an event
+ * carrying attendance cannot be cancelled until it is gone. It is not the way to
+ * change somebody's state — that is a save, which is audited as a correction and
+ * keeps the history.
  *
- * ## Why this one guards on the assertion, and the other two do not. LAN-110
+ * ## Why this one guards on the calendar, and the other two do not. LAN-110
  *
- * Because it *is* the assertion, one step removed. This control exists so that
- * an operator who marked the wrong event `occurred` can get back out of it, and
- * LAN-110's fixed boundary is explicit that "coaches cannot mark an event
- * occurred or not held unless a separate authorization rule explicitly grants
- * that action". Leaving removal on `attendance_recording` would have handed a
- * coach the one action whose purpose is to make that assertion editable — the
- * boundary by a different door.
+ * Because removing a record is an act on the club's record of an event rather
+ * than an observation about a person, and LAN-110's boundary puts changes to
+ * the calendar's record outside what a coaching seat holds.
  *
  * It is also not in what LAN-110 permits. The capability is "record and correct
  * Present, Absent, Late or Excused"; a correction keeps the observation and the
@@ -156,12 +154,19 @@ export async function recordAttendanceAction(
  *
  * This narrows LAN-80, which had removal on `attendance_recording`, and narrows
  * nothing else: the four calendar roles that could remove a record still can.
+ *
+ * The guard was `event_occurrence_assertion` until LAN-151 retired it, and is
+ * now `event_calendar_management`. The boundary is unchanged, deliberately and
+ * verifiably: the two capabilities carry the identical role list — President,
+ * Vice-President, Secretary, General Manager and IT Officer — so exactly the
+ * same people may remove an attendance record as before, and no coaching seat
+ * may.
  */
 export async function removeAttendanceAction(
   _previous: AttendanceSaveState,
   formData: FormData,
 ): Promise<AttendanceSaveState> {
-  const operator = await requireCapability("event_occurrence_assertion");
+  const operator = await requireCapability("event_calendar_management");
   const eventId = text(formData, "eventId");
   const key = text(formData, "participantKey");
 

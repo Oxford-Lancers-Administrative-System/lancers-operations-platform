@@ -57,6 +57,23 @@ every email domain is under the reserved `.example` TLD, and every phone number
 is in a range reserved for fiction. It refuses to run against anything but
 loopback.
 
+**The dataset's calendar is derived from your machine clock**, so today always
+sits inside the seeded season: some of it has happened, with registers taken and
+then lapsed, and the rest is still to come. The club's history is authored once
+and slid onto today as a whole — by a whole number of weeks, so every weekday,
+term week and weekly session keeps its place — rather than re-authored, so the
+messiness the dataset exists for is unchanged. Two runs on the same day produce
+identical rows; a run tomorrow produces the same club, one day later. The rule
+and its bounds are in `scripts/lib/seed-clock.mjs`, and the seed prints the
+offset it used, along with the three attendance states — a saved register, an
+occurred session with none, and one whose register is open and empty — and the
+event to open for each.
+
+The practical consequence: **re-seed when you come back to a stack you left
+running overnight.** `npm run db:reset` is the whole of it. The suites that read
+the seeded dataset read the frame back out of the database rather than from the
+clock, so they do not care which day it was seeded on.
+
 `db:link-operator` creates the one `operator_accounts` row that lets a session
 resolve to a club Person (LAN-71). It picks the seeded person holding the most
 currently-effective committee seats in the current committee year, so the local

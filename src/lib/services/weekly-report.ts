@@ -40,12 +40,22 @@ import { readCurrentSeasonIn, type Season } from "./seasons";
  *
  * ## Almost none of the query work is here
  *
- * The five views the issue names carry it: `invitation_response_state`
+ * Four of the five views the issue names carry it: `invitation_response_state`
  * (invariant P7's partition, already excluding non-soliciting events per E6),
- * `nonresponse_queue`, `uninvited_audience_members`, `rsvp_attendance_mismatches`
- * and `current_availability`. This module composes them; it re-derives none of
- * them. A second definition of "nonresponse" written here would drift from the
- * one the attendance board reads, and the two would disagree in public.
+ * `nonresponse_queue`, `uninvited_audience_members` and `current_availability`.
+ * This module composes them; it re-derives none of them. A second definition of
+ * "nonresponse" written here would drift from the one the attendance board
+ * reads, and the two would disagree in public.
+ *
+ * The fifth, `rsvp_attendance_mismatches`, was read here until LAN-151 and is
+ * not any more — the one place this module deliberately does derive something
+ * itself. The view answers "has this event occurred?" against `now()`, and it
+ * has no reporting date to work from, so reading it here would have made a
+ * report about last March depend on the day the report was asked for. A walk-up
+ * is an attendance row with no invitation behind it (invariant P6), which needs
+ * no occurrence test at all, so it is stated directly against
+ * `attendance_records` at the point of use. `attendance.ts` still reads the
+ * view, and remains its only reader.
  *
  * ## Privacy
  *
@@ -129,9 +139,14 @@ export interface EventOutcome {
   name: string;
   eventType: string;
   status: string;
+  /**
+   * D30, derived: the date has passed and the event was not cancelled. Stored
+   * on the snapshot because a snapshot is immutable — recomputing it against
+   * today's clock would make last month's report change its mind.
+   */
+  occurred: boolean;
   on: string | null;
   isMandatory: boolean;
-  solicitsResponse: boolean;
   invited: number;
   respondedYes: number;
   respondedNo: number;
@@ -214,7 +229,6 @@ export interface UpcomingEvent {
   status: string;
   on: string | null;
   isMandatory: boolean;
-  solicitsResponse: boolean;
   /** Invitations that exist. Zero means nothing has gone out yet. */
   invited: number;
   /** Of those, how many have answered either way. */
@@ -437,7 +451,7 @@ interface EventRow {
   event_type: string;
   status: string;
   scheduled_on: Date | string | null;
-  solicits_response: boolean;
+  occurred: boolean;
   is_mandatory: boolean;
   invited: number;
   recorded: number;
@@ -486,7 +500,6 @@ interface UpcomingRow {
   event_type: string;
   status: string;
   scheduled_on: Date | string | null;
-  solicits_response: boolean;
   is_mandatory: boolean;
   invited: number;
   answered: number;
@@ -536,14 +549,25 @@ export async function computeReportContent(
 
   const events = await tx.query<EventRow>(
     `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
-            e.scheduled_on, e.solicits_response, e.is_mandatory,
+            e.scheduled_on, e.is_mandatory,
+            -- D30: the event is approved and its date has passed. Nothing
+            -- asserts it.
+            --
+            -- Judged against the REPORTING DATE rather than against the clock,
+            -- which matters and is not a shortcut. A Monday report is about the
+            -- week before its own date; regenerating January's report in March
+            -- must produce January's answer, and asking the clock would make an
+            -- immutable snapshot depend on when somebody happened to ask.
+            (e.status = 'approved'
+              and e.scheduled_on is not null
+              and e.scheduled_on < $4::date) as occurred,
             (select count(*)::int from public.invitations i where i.event_id = e.id) as invited,
             (select count(*)::int from public.attendance_records a where a.event_id = e.id) as recorded
        from public.events e
       where e.season_id = $1
         and e.scheduled_on between $2::date and $3::date
       order by e.scheduled_on, e.name`,
-    back,
+    [...back, reportOn],
   );
 
   const breakdown = await tx.query<BreakdownRow>(
@@ -582,14 +606,28 @@ export async function computeReportContent(
 
   // The two event-level exceptions. Both are properties of an event, which is
   // why they are columns on its row rather than a list of their own.
+  // A walk-up is an attendance row with no invitation behind it — invariant P6,
+  // stated directly rather than read out of `rsvp_attendance_mismatches`.
+  //
+  // The view was the source until LAN-151, and it stopped being the right one:
+  // the view derives occurrence against `now()` (it has no reporting date to
+  // work from), so reading it here would make a report about last March depend
+  // on today's date. Attendance can only exist against an approved event and
+  // somebody had to record it, so "who turned up uninvited" needs no occurrence
+  // test of its own.
   const walkUpRows = await tx.query<PersonEventRow>(
-    `select x.event_id, ${DISPLAY_NAME} as display_name, null::text as reason
-       from public.rsvp_attendance_mismatches x
-       left join public.season_memberships m on m.id = x.season_membership_id
-       left join public.people p on p.id = coalesce(x.person_id, m.person_id)
-      where x.season_id = $1
-        and x.scheduled_on between $2::date and $3::date
-        and x.mismatch = 'attended_without_invitation'`,
+    `select a.event_id, ${DISPLAY_NAME} as display_name, null::text as reason
+       from public.attendance_records a
+       join public.events e on e.id = a.event_id
+       left join public.season_memberships m on m.id = a.season_membership_id
+       left join public.people p on p.id = coalesce(a.person_id, m.person_id)
+      where a.season_id = $1
+        and e.scheduled_on between $2::date and $3::date
+        and not exists (
+          select 1 from public.invitations i
+           where i.event_id = a.event_id
+             and coalesce(i.season_membership_id, i.person_id)
+                   = coalesce(a.season_membership_id, a.person_id))`,
     back,
   );
 
@@ -623,8 +661,8 @@ export async function computeReportContent(
       eventType: row.event_type,
       status: row.status,
       on: asDate(row.scheduled_on),
+      occurred: row.occurred,
       isMandatory: row.is_mandatory,
-      solicitsResponse: row.solicits_response,
       invited: row.invited,
       respondedYes: stateOf(row.id, "responded_yes"),
       respondedNo: stateOf(row.id, "responded_no"),
@@ -674,7 +712,6 @@ export async function computeReportContent(
               = coalesce(i.season_membership_id, i.person_id)
       where e.season_id = $1
         and e.scheduled_on between $2::date and $3::date
-        and e.solicits_response
       -- Deterministic, because a snapshot is immutable and has to be
       -- reproducible. A person can hold two invitations to one event, and
       -- without an order the database may return them either way round, which
@@ -686,13 +723,13 @@ export async function computeReportContent(
     back,
   );
 
-  const columns: GridColumn[] = events.rows
-    .filter((row) => row.solicits_response)
-    .map((row) => ({
-      eventId: row.id,
-      label: columnLabel(row.name),
-      on: asDate(row.scheduled_on),
-    }));
+  // Every event asks for an answer since D23 removed "Response requested", so
+  // every event in the window is a column.
+  const columns: GridColumn[] = events.rows.map((row) => ({
+    eventId: row.id,
+    label: columnLabel(row.name),
+    on: asDate(row.scheduled_on),
+  }));
 
   const columnIds = new Set(columns.map((column) => column.eventId));
   const registerTakenFor = (eventId: string) =>
@@ -800,7 +837,7 @@ export async function computeReportContent(
 
   const upcoming = await tx.query<UpcomingRow>(
     `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
-            e.scheduled_on, e.solicits_response, e.is_mandatory,
+            e.scheduled_on, e.is_mandatory,
             (select count(*)::int from public.invitations i where i.event_id = e.id) as invited,
             (select count(*)::int from public.invitations i
               join public.current_rsvp r on r.invitation_id = i.id
@@ -808,7 +845,6 @@ export async function computeReportContent(
        from public.events e
       where e.season_id = $1
         and e.scheduled_on between $2::date and $3::date
-        and e.status <> 'withdrawn'
       order by e.scheduled_on, e.name`,
     [season.id, lookAhead.from, lookAhead.to],
   );
@@ -943,7 +979,6 @@ export async function computeReportContent(
       status: row.status,
       on: asDate(row.scheduled_on),
       isMandatory: row.is_mandatory,
-      solicitsResponse: row.solicits_response,
       invited: row.invited,
       answered: row.answered,
     })),
@@ -960,9 +995,8 @@ export async function computeReportContent(
       late: sum((entry) => entry.late),
       excused: sum((entry) => entry.excused),
       absent: sum((entry) => entry.absent),
-      eventsWithNoRegister: lastWeek.filter(
-        (entry) => entry.status === "occurred" && !entry.registerTaken,
-      ).length,
+      eventsWithNoRegister: lastWeek.filter((entry) => entry.occurred && !entry.registerTaken)
+        .length,
     },
     availabilityCounts: {
       green: levelOf("green"),

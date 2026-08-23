@@ -203,9 +203,9 @@ async function approveScenarioEvent(eventId: string): Promise<void> {
 
   await client.query(
     `insert into public.invitations
-       (event_id, event_status, solicits_response, season_id, capacity,
+       (event_id, event_status, season_id, capacity,
         season_membership_id, status, expires_at, audience_member_id)
-     select a.event_id, 'approved', true, a.season_id, a.capacity,
+     select a.event_id, 'approved', a.season_id, a.capacity,
             a.season_membership_id, 'pending', now() + interval '2 days', a.id
        from public.event_audience_members a
       where a.event_id = $1`,
@@ -551,9 +551,9 @@ describe("cleanup.sql removes the scenario and only the scenario", () => {
     );
     await client.query(
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, capacity,
+         (event_id, event_status, season_id, capacity,
           season_membership_id, status, audience_member_id)
-       values ($1, 'approved', true, $2, 'player', $3, 'pending', $4)`,
+       values ($1, 'approved', $2, 'player', $3, 'pending', $4)`,
       [other.id, other.season_id, MEMBERSHIPS[0], audience.id],
     );
 

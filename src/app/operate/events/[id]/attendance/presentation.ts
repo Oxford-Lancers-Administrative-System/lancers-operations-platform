@@ -13,8 +13,8 @@ import type {
  * database.
  *
  * `docs/ux/slice-ux.md` § 6 is the authority for every label below. The four
- * attendance states and the two occurrence assertions are fixed club
- * vocabulary; none of them is a synonym chosen here.
+ * attendance states are fixed club vocabulary; none of them is a synonym
+ * chosen here.
  */
 
 // ---------------------------------------------------------------------------
@@ -74,47 +74,24 @@ export function describeMismatch(mismatch: string | null): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// UX-70 — Confirm what happened
+// Whether the register is open, which nobody decides
 // ---------------------------------------------------------------------------
-
-export const OCCURRENCE_HEADLINE = "Confirm what happened";
 
 /**
- * The wireframe's sentence, with the issue number taken out of it.
+ * What the register panel says, in two states.
  *
- * UX-70 reads "This human assertion is required before attendance. Coaches with
- * LAN-110 access cannot perform it." Brian's verdict on the equivalent sentence
- * on the walk-up screen — "the warning names in LAN-85 are stupid, I don't know
- * why you put that in the app in the first place" — applies to this one for the
- * same reason: an operator at the side of a pitch has no use for a backlog
- * identifier, and the club's screens are not where one belongs.
+ * Both sentences say what the surface does. Neither describes what the product
+ * no longer asks for — VG-003: "That second line is weird. Why is that in the
+ * app?" The controls being gone is the whole of the change, and an app that
+ * narrates its own history is explaining a decision the reader never saw made.
  *
- * The information the wireframe was carrying survives whole: the assertion is a
- * person's, it gates attendance, and a coach who records attendance cannot make
- * it. Only the tracker reference went. Recorded as a deviation from the SVG in
- * LAN-80's pull request, under the owner decision that produced it.
+ * The rule they describe is D71 and D72's, and it is the clock's: the register
+ * opens shortly before the event starts and never closes afterwards. It is
+ * deliberately not "once the date has passed" — that was this file's previous
+ * answer and it was wrong, because the person taking a register is standing at
+ * the pitch while it fills up.
  */
-export const OCCURRENCE_DETAIL =
-  "This is a human assertion and is required before attendance. A coach who records " +
-  "attendance cannot make it.";
-
-export const OCCURRENCE_NOT_ASSERTED = "Not yet asserted";
-
-export const OCCURRENCE_NEVER_INFERRED = "Never inferred from time";
-
-export const ATTENDANCE_UNAVAILABLE = "Unavailable";
-
-export const ATTENDANCE_OPENS_AFTER = "Opens only after Mark occurred";
-
-// ---------------------------------------------------------------------------
-// UX-75 — Event marked not held
-// ---------------------------------------------------------------------------
-
-export const NOT_HELD_HEADLINE = "Event marked not held";
-
-export const NOT_HELD_DETAIL =
-  "Attendance remains unavailable. The occurrence decision and actor are retained in the " +
-  "audit trail.";
+export const ATTENDANCE_OPEN_DETAIL = "Record who was there, and correct it whenever you need to.";
 
 // ---------------------------------------------------------------------------
 // UX-71 — Attendance is not available yet
@@ -122,36 +99,156 @@ export const NOT_HELD_DETAIL =
 
 export const ATTENDANCE_LOCKED_HEADLINE = "Attendance is not available yet";
 
-export const ATTENDANCE_LOCKED_DETAIL =
-  "An authorized operator must first mark this event as occurred.";
+/**
+ * The operator's version of the locked state — corrected by W9-F1.
+ *
+ * `describeCoachLock` below is the same idea in the other seat, and the two are
+ * deliberately parallel. W-F6 made the coach's specific and left this one
+ * generic, which was rule 7 the other way round rather than a fix: one screen
+ * naming what happened to *this* event, the other reciting the design and
+ * leaving the reader to work out which limb applied.
+ *
+ * Three things were wrong with what stood here, and all three arrived with this
+ * package. It stated the rule instead of the event. It said "the service
+ * rejects attendance writes", naming an internal component to a club operator
+ * who has no "service" in their world. And "opens shortly before it starts" was
+ * exactly as false for a cancelled event whose start had passed as it was on
+ * the coach's screen before W-F6.
+ *
+ * The asymmetry that matters is the other one: **the operator is the seat that
+ * can act.** A draft is theirs to approve, so the sentence names that step —
+ * `docs/ux/standards.md` rule 4. A cancellation is not theirs to undo, and rule
+ * 4 is met by saying so plainly rather than by leaving a reader hunting for a
+ * control that does not exist.
+ */
+export function describeOperatorLock(status: string): string {
+  return status === "cancelled"
+    ? "This event was cancelled. It has no register, and there is nothing you can do to open one."
+    : "This event is still a draft, so there is nobody on it to record. Approve it, and it gets a register.";
+}
 
-export const ATTENDANCE_LOCKED_RULE =
-  "The service rejects attendance writes while occurrence is unset or the event is marked " +
-  "not held.";
+// ---------------------------------------------------------------------------
+// The register's own window — D71 and D72. LAN-152.
+// ---------------------------------------------------------------------------
+
+export const REGISTER_NOT_YET_HEADLINE = "The register is not open yet";
+
+/**
+ * What lifts it — `docs/ux/standards.md` rule 4, and finding W-F3.
+ *
+ * A refused control names the step that enables it, and here the step is not
+ * something anybody can go and do: it is the clock. Naming the moment is the
+ * whole answer, and it is the whole of what this says.
+ *
+ * There was a second sentence — "The register opens about six hours before the
+ * event starts, and never closes afterwards." Brian cut it: the first sentence
+ * has already answered the question, and how long a register stays open is
+ * irrelevant to somebody being told they cannot open it yet. The buffer is
+ * still one tunable number, `ATTENDANCE_REGISTER_BUFFER_HOURS` in
+ * `services/attendance-window.ts`; no screen repeats it in words.
+ */
+export function describeRegisterOpensAt(opensAt: string | null): string {
+  if (opensAt === null) {
+    return "This event has no date yet, so there is nothing to take a register for.";
+  }
+  const moment = new Date(opensAt);
+  // An unreadable instant is a fact about this event, not an excuse to recite
+  // the policy the sentence above no longer states.
+  if (Number.isNaN(moment.getTime())) {
+    return "This event has no usable start time, so its register has no opening moment yet.";
+  }
+  return `It opens on ${formatClubMoment(moment)}.`;
+}
+
+/**
+ * "27 Aug 2026, 14:00", on club time — `docs/ux/standards.md` rule 3.
+ *
+ * `Europe/London` rather than UTC because this one *is* an instant: it is
+ * derived from the event's wall clock and printed back as the moment a person
+ * standing in Oxford will see on their phone. Rendering it at UTC would show
+ * 13:00 for a register that opens at 14:00, every summer.
+ */
+function formatClubMoment(moment: Date): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(moment);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  return `${value("day")} ${value("month")} ${value("year")}, ${value("hour")}:${value("minute")}`;
+}
+
+// ---------------------------------------------------------------------------
+// The three headline numbers — D62, D73, D74. LAN-152.
+// ---------------------------------------------------------------------------
+
+export const HEADLINE_INVITED_LABEL = "Invited";
+export const HEADLINE_SAID_YES_LABEL = "Said yes";
+export const HEADLINE_SHOWED_LABEL = "Showed";
+
+/** What a value reads before there is anything to read. */
+export const NOT_RECORDED_VALUE = "—";
+
+/**
+ * `— / 37` before a register has been saved, `0 / 37` after one was saved with
+ * everybody absent, `20 / 37` the rest of the time.
+ *
+ * ## The dash is the whole point
+ *
+ * D74: an event nobody has got round to must not read like an event nobody
+ * attended. Both are a small number over forty-seven, and the club acts very
+ * differently on them — one is a session to ask about, the other is a register
+ * to go and take. The save is the signal, and `registerSaved` carries it.
+ *
+ * ## And it is never a percentage
+ *
+ * D62 says raw pairs. "43%" is the same fact with the two numbers the club
+ * actually wanted taken out of it.
+ */
+export function formatShowedAgainstInvited(summary: {
+  showed: number;
+  invited: number;
+  registerSaved: boolean;
+}): string {
+  const showed = summary.registerSaved ? String(summary.showed) : NOT_RECORDED_VALUE;
+  return `${showed} / ${summary.invited}`;
+}
 
 // ---------------------------------------------------------------------------
 // UX-90 — the same lock, seen by a coaching assignment
 // ---------------------------------------------------------------------------
 
 /**
- * The coach's version of the locked state, and why the words differ.
+ * The coach's version of the locked state — corrected by W-F6.
  *
- * UX-71 tells an operator that somebody must mark the event occurred, and that
- * operator may well be them — the sentence is an instruction. UX-90 shows the
- * same lock to a coach, for whom it is not: `slice-ux.md` § 8 and LAN-110's
- * fixed boundaries both say the assertion is closed to a coaching assignment,
- * and a screen that told a coach to go and mark the event occurred would be
- * describing an action the service refuses them.
+ * This screen is **not** the buffer's. A coach reaches it only for a draft or a
+ * cancelled session, both of which fail the register's status half; the session
+ * that has not started yet gets `REGISTER_NOT_YET_HEADLINE` and a moment.
  *
- * So the coach is told what is true and what to do about it: an operator has
- * not marked it, and this is not yours to mark.
+ * It used to say "This session's register has not opened yet" and then recite
+ * the buffer rule, which was false twice over for a cancelled session in the
+ * past: its start had gone, and no register was ever coming. The operator's
+ * equivalent named the real reason and the coach's did not, so the two seats
+ * were told different things about one event.
+ *
+ * Neither sentence is an instruction. A coach can neither approve a session nor
+ * un-cancel one, so naming the step is naming what somebody else's decision was
+ * — which is the honest thing to say, and the reason the two cases are worded
+ * apart: a cancellation is final, and a draft is not.
  */
 export const COACH_LOCKED_HEADLINE = "Attendance is not open";
 
-export const COACH_LOCKED_DETAIL = "An authorized operator has not marked this event as occurred.";
-
-export const COACH_LOCKED_RULE =
-  "Coach attendance access does not include Mark occurred or Mark not held.";
+export function describeCoachLock(status: string): string {
+  return status === "cancelled"
+    ? "This session was cancelled. There is no register for it, and there will not be one."
+    : "This session has not been approved yet. A register appears once it is.";
+}
 
 export const COACH_RETURN_TO_ELIGIBLE = "Return to eligible events";
 
@@ -159,7 +256,7 @@ export const COACH_RETURN_TO_ELIGIBLE = "Return to eligible events";
 // UX-91 to UX-95 — the board, seen by a coaching assignment
 // ---------------------------------------------------------------------------
 
-export const COACH_BOARD_SUBTITLE = "Occurred · coach recorder view";
+export const COACH_BOARD_SUBTITLE = "Coach recorder view";
 
 /**
  * The sentence UX-91 puts at the top of the coach's board.

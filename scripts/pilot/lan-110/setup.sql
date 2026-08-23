@@ -318,15 +318,14 @@ on conflict (id) do nothing;
 -- ---------------------------------------------------------------------------
 -- The event
 -- ---------------------------------------------------------------------------
--- In the past, because an event nobody could have attended yet makes a poor
--- rehearsal for one that has been — not because the screen checks. It does not:
--- nothing infers occurrence from the clock.
+-- One in the past and one today. Since LAN-151 the date is not decoration:
+-- an event has occurred when its date has passed and it was not cancelled
+-- (D30), so the past one's register is open and today's is not yet.
 --
--- It stays `approved` with a null `outcome_recorded_at`, which is the state the
--- exercise begins in. See the header for why.
+-- Both stay `approved`, which is the only stored status either can be in.
 insert into public.events
   (id, season_id, name, event_type, status, scheduled_on, starts_at, ends_at, venue,
-   solicits_response, is_mandatory,
+   is_mandatory,
    audience_confirmed_at, audience_confirmed_by_person_id,
    approved_at, approved_by_person_id, response_deadline_at)
 select
@@ -339,7 +338,6 @@ select
   '19:00'::time,
   '21:00'::time,
   'PILOT-LAN-110 synthetic venue',
-  true,
   false,
   now(),
   '01100110-0110-4110-8110-000000000003',
@@ -348,16 +346,17 @@ select
   scenario.deadline_at::timestamptz
 from (values
   -- The one with the invitees and the contrasting RSVP answers. Two days ago,
-  -- so once you mark it occurred it lands in **This past week**.
+  -- so it sits in **Earlier** with its register already open.
   ('01100110-0110-4110-8110-000000000031',
    'PILOT-LAN-110 Coach attendance scenario',
    (current_date - 2)::text,
    (((current_date - 4) + '18:00'::time) at time zone 'Europe/London')::text),
-  -- Today's, so that marking it occurred demonstrates the **Today** section at
-  -- the top of the coach's list — the section Brian asked for on 14 August 2026
-  -- and the one that cannot be shown without an event dated today. It carries
-  -- no audience deliberately: the walk-up is the only way onto its register,
-  -- which is the pitch-side case the coach surface exists for.
+  -- Today's, which demonstrates the **Today** section at the top of the
+  -- coach's list — the section Brian asked for on 14 August 2026 and the one
+  -- that cannot be shown without an event dated today. Its register is not open
+  -- yet, because its date has not passed. It carries no audience deliberately:
+  -- the walk-up is the only way onto its register once it opens, which is the
+  -- pitch-side case the coach surface exists for.
   ('01100110-0110-4110-8110-000000000032',
    'PILOT-LAN-110 Today session',
    current_date::text,
@@ -389,16 +388,15 @@ on conflict (id) do nothing;
 -- The invitations
 -- ---------------------------------------------------------------------------
 -- `event_status` is `approved` and is kept true by the cascading composite
--- foreign key: marking the event occurred rewrites it, which is the mechanism
+-- foreign key: cancelling the event rewrites it, which is the mechanism
 -- invariant P1 and invariant P5 both stand on.
 insert into public.invitations
-  (id, event_id, event_status, solicits_response, season_id, capacity,
+  (id, event_id, event_status, season_id, capacity,
    season_membership_id, status, issued_at, expires_at, audience_member_id)
 select
   invitation.id::uuid,
   '01100110-0110-4110-8110-000000000031'::uuid,
   'approved',
-  true,
   (select id from public.seasons where status in ('open', 'active')),
   'player',
   invitation.membership_id::uuid,

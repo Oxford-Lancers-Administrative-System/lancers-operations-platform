@@ -784,14 +784,13 @@ export function buildPlan({
         week_number: entry.week,
         name: entry.name,
         event_type: entry.eventType,
-        origin: entry.eventType === "fixture" ? "negotiated" : "club_controlled",
+        origin: entry.eventType === "game" ? "negotiated" : "club_controlled",
         status: "draft",
         scheduled_on: entry.scheduledOn,
         starts_at: entry.startsAt,
         ends_at: entry.endsAt,
         venue: entry.venue,
-        is_mandatory: entry.eventType === "practice" || entry.eventType === "fixture",
-        solicits_response: true,
+        is_mandatory: entry.eventType === "practice" || entry.eventType === "game",
         owner_person_id: actorPersonId,
       },
       "source-derived",
@@ -830,7 +829,6 @@ export function buildPlan({
     endsAt,
     venue,
     status,
-    solicits = true,
     audience = playerAudience,
     capacity = "player",
     answers = null,
@@ -840,8 +838,11 @@ export function buildPlan({
   }) => {
     const eventId = id("events", "scenario", labels.currentSeason, key);
     const scheduledOn = addDays(anchor, dayOffset);
-    const decided = ["approved", "occurred", "not_held", "cancelled", "withdrawn"].includes(status);
-    const concluded = status === "occurred" || status === "not_held";
+    const decided = status !== "draft";
+    // D30: an event has occurred when its date has passed and it was not
+    // cancelled. Nothing asserts it, so the loader derives it from the same
+    // two facts every reader does.
+    const concluded = status === "approved" && dayOffset < 0;
 
     add(
       "public.events",
@@ -859,14 +860,11 @@ export function buildPlan({
         ends_at: endsAt,
         venue,
         is_mandatory: eventType === "practice",
-        solicits_response: solicits,
         owner_person_id: actorPersonId,
         audience_confirmed_at: decided ? `${scheduledOn}T09:00:00Z` : null,
         audience_confirmed_by_person_id: decided ? actorPersonId : null,
         approved_at: decided ? `${scheduledOn}T09:05:00Z` : null,
         approved_by_person_id: decided ? actorPersonId : null,
-        outcome_recorded_at: concluded ? `${scheduledOn}T22:00:00Z` : null,
-        outcome_recorded_by_person_id: concluded ? actorPersonId : null,
         decision_reason: decisionReason,
       },
       "illustrative",
@@ -910,8 +908,7 @@ export function buildPlan({
       // invitation first and the answer afterwards left every one of them
       // looking unanswered on the delivery screen.
       const { yes = 0, no = 0 } = answers ?? {};
-      const response =
-        answers && solicits ? (index < yes ? "yes" : index < yes + no ? "no" : null) : null;
+      const response = answers ? (index < yes ? "yes" : index < yes + no ? "no" : null) : null;
 
       add(
         "public.invitations",
@@ -919,13 +916,12 @@ export function buildPlan({
           id: invitationId,
           event_id: eventId,
           event_status: status,
-          solicits_response: solicits,
           season_id: seasonId,
           capacity,
           season_membership_id: isPlayer ? member.membershipId : null,
           person_id: isPlayer ? null : member.personId,
-          status: !solicits ? "pending" : response ? "responded" : "issued",
-          issued_at: solicits ? `${scheduledOn}T09:10:00Z` : null,
+          status: response ? "responded" : "issued",
+          issued_at: `${scheduledOn}T09:10:00Z`,
           // LAN-77's audience freeze: an invitation names the audience row it
           // came from, and the column is not nullable. There is no way to
           // invite somebody who was never in the confirmed audience.
@@ -1011,7 +1007,7 @@ export function buildPlan({
     startsAt: "19:00",
     endsAt: "20:00",
     venue: "Blues Gym, Iffley Road",
-    status: "occurred",
+    status: "approved",
     answers: { yes: 24, no: 4 },
     register: { present: 22, late: 2, excused: 2, absent: 6 },
   });
@@ -1024,7 +1020,7 @@ export function buildPlan({
     startsAt: "18:00",
     endsAt: "19:00",
     venue: "Microsoft Teams",
-    status: "occurred",
+    status: "approved",
     answers: { yes: 20, no: 6 },
     register: { present: 19, late: 1, excused: 4, absent: 8 },
   });
@@ -1037,7 +1033,7 @@ export function buildPlan({
     startsAt: "10:00",
     endsAt: "13:00",
     venue: "University Parks",
-    status: "occurred",
+    status: "approved",
     answers: { yes: 25, no: 3 },
     register: { present: 22, late: 2, excused: 3, absent: 5 },
     walkUps: 1,
@@ -1051,8 +1047,7 @@ export function buildPlan({
     startsAt: "17:00",
     endsAt: "18:00",
     venue: "Iffley Road",
-    status: "occurred",
-    solicits: false,
+    status: "approved",
     audience: committee,
     capacity: "committee",
   });
@@ -1093,7 +1088,6 @@ export function buildPlan({
     endsAt: "19:30",
     venue: "Vincent's Club",
     status: "approved",
-    solicits: false,
     audience: committee,
     capacity: "committee",
   });
@@ -1110,19 +1104,22 @@ export function buildPlan({
     audience: [],
   });
 
-  // The two remaining lifecycle states, so every one is represented somewhere.
+  // The third stored status, so every one of the three is represented
+  // somewhere. `not_held` and `withdrawn` were here until LAN-151 retired them:
+  // a session called off is a cancellation, and an event that never happened is
+  // a draft.
   scenario({
     key: "sc-not-held",
     name: "Kit Collection",
-    eventType: "other",
+    eventType: "meeting",
     dayOffset: -8,
     startsAt: "12:00",
     endsAt: "13:00",
     venue: "Iffley Road",
-    status: "not_held",
-    solicits: false,
+    status: "cancelled",
     audience: committee,
     capacity: "committee",
+    decisionReason: "Kit did not arrive from the supplier in time.",
   });
 
   scenario({
@@ -1133,7 +1130,7 @@ export function buildPlan({
     startsAt: "14:00",
     endsAt: "16:00",
     venue: "University Parks",
-    status: "withdrawn",
+    status: "draft",
     audience: [],
     decisionReason: "Clashed with the BUCS fixture window; folded into the open session.",
   });

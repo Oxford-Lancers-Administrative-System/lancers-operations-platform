@@ -18,7 +18,7 @@
  *
  * The missing half is replaced by a status restriction that is at least as
  * narrow, and both halves are asserted below: the sentinel proves the event was
- * made for this test, and `status in ('draft', 'pending_approval', 'withdrawn')`
+ * made for this test, and `status = 'draft'`
  * proves it never reached approval — so the delete cannot reach an event
  * carrying invitations, responses or attendance. The events created here stand
  * in for the ones Brian creates, and every one of them is created through the
@@ -144,25 +144,21 @@ async function createScenarioEvent(
     client,
     `insert into public.events
        (season_id, name, event_type, origin, status, scheduled_on, starts_at, ends_at, venue,
-        is_mandatory, solicits_response, owner_person_id, decision_reason,
-        approved_at, approved_by_person_id, audience_confirmed_at, audience_confirmed_by_person_id,
-        outcome_recorded_at, outcome_recorded_by_person_id)
+        is_mandatory, owner_person_id, decision_reason,
+        approved_at, approved_by_person_id, audience_confirmed_at, audience_confirmed_by_person_id)
      values ($1::uuid, $2::text, 'practice', 'club_controlled', $3::public.event_status,
-             '2026-10-14', '20:00', '22:00', 'Iffley Road Astro', true, true, $4::uuid, $5::text,
-             case when $3::text in ('approved', 'occurred', 'not_held', 'cancelled') then now() end,
-             case when $3::text in ('approved', 'occurred', 'not_held', 'cancelled') then $4::uuid end,
-             case when $3::text in ('approved', 'occurred', 'not_held', 'cancelled') then now() end,
-             case when $3::text in ('approved', 'occurred', 'not_held', 'cancelled') then $4::uuid end,
-             case when $3::text in ('occurred', 'not_held') then now() end,
-             case when $3::text in ('occurred', 'not_held') then $4::uuid end)
+             '2026-10-14', '20:00', '22:00', 'Iffley Road Astro', true, $4::uuid, $5::text,
+             case when $3::text <> 'draft' then now() end,
+             case when $3::text <> 'draft' then $4::uuid end,
+             case when $3::text <> 'draft' then now() end,
+             case when $3::text <> 'draft' then $4::uuid end)
      returning id`,
     [
       seasonId,
       name,
       status,
       personId,
-      options.reason ??
-        (["withdrawn", "rejected", "cancelled"].includes(status) ? "No longer needed" : null),
+      options.reason ?? (status === "cancelled" ? "No longer needed" : null),
     ],
   );
 
@@ -410,17 +406,14 @@ describe("setup.sql asserts prerequisites and writes nothing", () => {
 // ---------------------------------------------------------------------------
 
 describe("cleanup.sql removes the scenario's events, and only those", () => {
-  it("removes every sentinel-carrying draft, pending and withdrawn event", async () => {
+  it("removes every sentinel-carrying draft", async () => {
+    // Three statuses used to be removable here: `draft`, `pending_approval` and
+    // `withdrawn`. LAN-151 retired the other two, and the approved legacy
+    // mapping sent every row in either of them to `draft` — so the marker is
+    // the same marker, over the one status that is left.
     await createScenarioEvent(client, { name: `${SENTINEL} Wednesday practice` });
-    await createScenarioEvent(client, {
-      name: `${SENTINEL} Second event`,
-      status: "pending_approval",
-    });
-    await createScenarioEvent(client, {
-      name: `${SENTINEL} Abandoned`,
-      status: "withdrawn",
-      reason: "Pitch unavailable",
-    });
+    await createScenarioEvent(client, { name: `${SENTINEL} Second event` });
+    await createScenarioEvent(client, { name: `${SENTINEL} Abandoned` });
 
     expect(await scenarioEventCount(client)).toBe(3);
 
@@ -534,7 +527,7 @@ describe("the sentinel-only ownership marker is declared, and is both halves", (
     const statement = deletes![0].replace(/\s+/g, " ");
 
     expect(statement).toContain(`name like '%${SENTINEL}%'`);
-    expect(statement).toContain("status in ('draft', 'pending_approval', 'withdrawn')");
+    expect(statement).toContain("status = 'draft'");
     expect(statement).toMatch(/\band\b/i);
     expect(statement).not.toMatch(/\bor\b/i);
   });
@@ -543,7 +536,7 @@ describe("the sentinel-only ownership marker is declared, and is both halves", (
     // Every status the restriction excludes, one at a time. This is the half of
     // the marker that stands in for the deterministic identifier, so a
     // regression here is the regression that matters.
-    for (const status of ["approved", "occurred", "not_held", "cancelled", "rejected"]) {
+    for (const status of ["approved", "cancelled"]) {
       await client.query("savepoint per_status");
       const eventId = await createScenarioEvent(client, {
         name: `${SENTINEL} ${status} event`,

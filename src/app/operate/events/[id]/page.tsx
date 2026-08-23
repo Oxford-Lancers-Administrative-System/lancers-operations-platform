@@ -9,19 +9,21 @@ import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { operatorHasCapability } from "@/lib/auth/guards";
-import { readEvent, type EventDetail } from "@/lib/services/events";
+import { derivedEventState, readEvent, type EventDetail } from "@/lib/services/events";
+import { todayInClubZone } from "@/lib/club-time";
+import {
+  isRegisterAvailable,
+  readEventAttendanceSummary,
+  registerOpensAt,
+  type AttendanceSummary,
+} from "@/lib/services/attendance";
 import {
   readApprovalPreview,
   readEventAudience,
   type AudienceMember,
 } from "@/lib/services/event-approval";
 import { gateShellPage } from "../../gate";
-import {
-  AbandonDraftForm,
-  ApproveEventForm,
-  CorrectOccurrenceForm,
-  OccurrenceDecisionForm,
-} from "../event-actions";
+import { ApproveEventForm } from "../event-actions";
 import { AudienceBuilder } from "./audience-builder";
 import {
   APPROVAL_DETAIL,
@@ -35,8 +37,9 @@ import {
   DEADLINE_DUE_IMMEDIATELY_DETAIL,
   DEADLINE_NONE,
   DEADLINE_NONE_DETAIL,
+  DELIVERY_MODE_LABELS,
+  DERIVED_STATE_LABELS,
   describeAttendance,
-  describeSolicitation,
   DISTRIBUTION_AUTOMATED,
   DISTRIBUTION_BEGINS_AFTER_APPROVAL,
   EMPTY_AUDIENCE_DETAIL,
@@ -50,20 +53,20 @@ import {
   NO_DISTRIBUTION_DETAIL,
   NO_DISTRIBUTION_HEADLINE,
   NO_DISTRIBUTION_RULE,
+  JOINING_URL_IS_NEVER_PUBLIC,
   NOTHING_DELIVERED_YET,
-  SOLICITS_RESPONSE_MEANING,
   STATUS_LABELS,
   TYPE_LABELS,
+  venueLabel,
 } from "../presentation";
 import {
-  ATTENDANCE_OPENS_AFTER,
-  ATTENDANCE_UNAVAILABLE,
-  NOT_HELD_DETAIL,
-  NOT_HELD_HEADLINE,
-  OCCURRENCE_DETAIL,
-  OCCURRENCE_HEADLINE,
-  OCCURRENCE_NEVER_INFERRED,
-  OCCURRENCE_NOT_ASSERTED,
+  ATTENDANCE_OPEN_DETAIL,
+  describeRegisterOpensAt,
+  formatShowedAgainstInvited,
+  HEADLINE_INVITED_LABEL,
+  HEADLINE_SAID_YES_LABEL,
+  HEADLINE_SHOWED_LABEL,
+  REGISTER_NOT_YET_HEADLINE,
 } from "./attendance/presentation";
 
 /**
@@ -131,7 +134,6 @@ export default async function EventDetailPage({
   const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
   const mayApprove = operatorHasCapability(gate.operator, "event_approval");
   const mayAdministerDelivery = operatorHasCapability(gate.operator, "delivery_administration");
-  const mayAssertOccurrence = operatorHasCapability(gate.operator, "event_occurrence_assertion");
   const canWorkOnAudience = mayApprove && event.status === "draft";
 
   // UX-40 and UX-41 are read-heavy and only reachable by an approver working on
@@ -180,15 +182,20 @@ export default async function EventDetailPage({
   // approved event answers "who was actually invited?" without a second screen.
   const audience = event.audienceCount > 0 ? await readEventAudience(event.id) : [];
 
+  // REQ-headline-numbers, LAN-152. Read once there is an audience to count,
+  // which is from approval onward — invitations are what approval creates, so
+  // below it the three numbers would be three zeroes describing nothing.
+  const summary = event.invitationCount > 0 ? await readEventAttendanceSummary(event.id) : null;
+
   return (
     <EventDetailView
       event={event}
       mayManage={mayManage}
       mayApprove={mayApprove}
       mayAdministerDelivery={mayAdministerDelivery}
-      mayAssertOccurrence={mayAssertOccurrence}
       justApproved={justApproved}
       audience={audience}
+      summary={summary}
     />
   );
 }
@@ -296,8 +303,9 @@ function ApprovalReview({
           <Fact
             label="Event"
             value={`${labelFor(TYPE_LABELS, event.eventType)} · ${event.venue ?? "No venue yet"}`}
-            note={`${describeAttendance(event.isMandatory)} · ${describeSolicitation(
-              event.solicitsResponse,
+            note={`${describeAttendance(event.isMandatory)} · ${labelFor(
+              DELIVERY_MODE_LABELS,
+              event.deliveryMode,
             ).toLowerCase()}`}
           />
           <Fact
@@ -389,6 +397,58 @@ function AudienceList({
   );
 }
 
+/**
+ * The three headline numbers — REQ-headline-numbers, D62, D73 and D74. LAN-152.
+ *
+ * **Invited · Said yes · Showed**, at the top of the event page and large,
+ * because they are the primary operational facts about an event and the build
+ * rendered them nowhere. Everything else on this page is administration; this
+ * is what somebody opened it to find out.
+ *
+ * ## Three deliberate absences
+ *
+ * **No percentages.** D62 asks for raw pairs. `20 / 37` is the fact; `54%` is
+ * the fact with both of the numbers the club wanted removed from it.
+ *
+ * **No sentence explaining the dash.** `Showed` reads `— / 37` until a register
+ * has been saved and `0 / 37` afterwards, and the packet is explicit that the
+ * application explains neither in words: "explanatory text about washouts
+ * belongs in a review artifact, not in the product". The two values carry it.
+ *
+ * **No judgment.** Nothing here is coloured, flagged or compared against a
+ * target. A quiet Tuesday in fifth week is a fact about the term, not a
+ * failing, and a screen that decided otherwise would be inventing a club
+ * policy nobody has agreed.
+ */
+function HeadlineNumbers({ summary }: { summary: AttendanceSummary }) {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gap: 2,
+        gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+      }}
+      data-testid="headline-numbers"
+    >
+      <Metric
+        value={String(summary.invited)}
+        label={HEADLINE_INVITED_LABEL}
+        testId="headline-invited"
+      />
+      <Metric
+        value={String(summary.saidYes)}
+        label={HEADLINE_SAID_YES_LABEL}
+        testId="headline-said-yes"
+      />
+      <Metric
+        value={formatShowedAgainstInvited(summary)}
+        label={HEADLINE_SHOWED_LABEL}
+        testId="headline-showed"
+      />
+    </Box>
+  );
+}
+
 function Metric({ value, label, testId }: { value: string; label: string; testId?: string }) {
   return (
     <Paper variant="outlined" sx={{ p: 2 }} data-testid={testId}>
@@ -432,126 +492,35 @@ function Fact({
 }
 
 /**
- * UX-70 — **Confirm what happened**. LAN-80.
+ * The register, and whether it is open yet.
  *
- * ## Why it is offered whatever the clock says
+ * D71 opens it on a buffer before the event starts and D72 never closes it, so
+ * this panel has one question to answer and it is the clock's. Nobody is asked
+ * to decide anything here, and there is nothing to confirm.
  *
- * The wireframe showed "Start time has passed" beside the two buttons. Brian
- * removed it on 14 August 2026 — "not useful, they know they're there" — so
- * nothing here mentions the clock at all.
- *
- * The rule it was decorating is untouched, and it is why the decision is
- * offered without a time condition. Invariant E5 says "the passage of time
- * never equals occurrence", and that cuts both ways: time does not make an
- * event occurred, and it does not license the interface to decide when somebody
- * may say what happened. The two real cases settle it — a practice abandoned at
- * 19:55 because the pitch flooded is **not held** before its own start time,
- * and last Wednesday's practice is still waiting to be recorded on Friday.
- * Refusing either would be a rule this repository invented.
- *
- * ## Why an operator without the capability still sees it
- *
- * They see the three facts and no buttons, because the point of the panel is
- * that this event is waiting on a decision — which is true regardless of who is
- * looking. The action guards itself server-side; hiding the buttons is the
- * courtesy that stops somebody pressing one to find out.
+ * `isRegisterAvailable` is the same function the register itself calls, with
+ * `registerSaved` taken off the headline numbers this page has already read.
+ * `docs/ux/standards.md` rule 7 is why it has to be the same one: this panel
+ * offering **Attendance** beside a register that then says "not open yet" is
+ * two screens answering one question two ways, and it is what the LAN-152
+ * browser preflight found.
  */
-function OccurrencePanel({
-  event,
-  mayAssertOccurrence,
-}: {
-  event: EventDetail;
-  mayAssertOccurrence: boolean;
-}) {
-  return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="occurrence-decision">
-      <Stack spacing={3}>
-        <Box>
-          <Typography variant="h6" component="h2">
-            {OCCURRENCE_HEADLINE}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {OCCURRENCE_DETAIL}
-          </Typography>
-        </Box>
-
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-          }}
-        >
-          {/*
-            No "start time has passed" line. The wireframe had one and Brian
-            removed it on the real screen: an operator standing in front of this
-            decision was at the event, or knows perfectly well that it has been
-            and gone, so a computed restatement of the date above adds nothing.
-            Nothing decided from it either — invariant E5 kept time out of the
-            assertion — so the whole computation went with the caption.
-          */}
-          <Fact
-            label="Event status"
-            value={labelFor(STATUS_LABELS, event.status)}
-            testId="occurrence-status-fact"
-          />
-          <Fact
-            label="Occurrence"
-            value={OCCURRENCE_NOT_ASSERTED}
-            note={OCCURRENCE_NEVER_INFERRED}
-            testId="occurrence-fact"
-          />
-          <Fact
-            label="Attendance"
-            value={ATTENDANCE_UNAVAILABLE}
-            note={ATTENDANCE_OPENS_AFTER}
-            testId="occurrence-attendance-fact"
-          />
-        </Box>
-
-        {mayAssertOccurrence ? (
-          <OccurrenceDecisionForm eventId={event.id} />
-        ) : (
-          <Typography variant="body2" color="text.secondary" data-testid="occurrence-read-only">
-            Recording what happened is done by the President, Vice-President, Secretary and General
-            Manager.
-          </Typography>
-        )}
-      </Stack>
-    </Paper>
-  );
-}
-
-/**
- * What the event looks like once somebody has said what happened — UX-75 for
- * `not_held`, and the way through to the board for `occurred`.
- *
- * Both carry the correction, because § 9 requires a completed state to offer
- * "any permitted correction" and because an assertion made against the wrong
- * event in a list is the mistake this whole panel is one press away from.
- */
-function OutcomePanel({
-  event,
-  mayAssertOccurrence,
-}: {
-  event: EventDetail;
-  mayAssertOccurrence: boolean;
-}) {
-  const notHeld = event.status === "not_held";
+function RegisterPanel({ event, registerSaved }: { event: EventDetail; registerSaved: boolean }) {
+  const available = isRegisterAvailable(event, registerSaved);
 
   return (
-    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="outcome-panel">
+    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="register-panel">
       <Stack spacing={2}>
         <Typography variant="h6" component="h2">
-          {notHeld ? NOT_HELD_HEADLINE : "Attendance is open"}
+          {available ? "Attendance is open" : REGISTER_NOT_YET_HEADLINE}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          {notHeld
-            ? NOT_HELD_DETAIL
-            : "This event is recorded as having happened, so attendance can be recorded against it."}
+          {available
+            ? ATTENDANCE_OPEN_DETAIL
+            : describeRegisterOpensAt(registerOpensAt(event)?.toISOString() ?? null)}
         </Typography>
 
-        {notHeld ? null : (
+        {available ? (
           <Box>
             <Button
               variant="contained"
@@ -562,13 +531,6 @@ function OutcomePanel({
               Attendance
             </Button>
           </Box>
-        )}
-
-        {mayAssertOccurrence ? (
-          <CorrectOccurrenceForm
-            eventId={event.id}
-            currentStatus={notHeld ? "not_held" : "occurred"}
-          />
         ) : null}
       </Stack>
     </Paper>
@@ -581,21 +543,23 @@ function EventDetailView({
   mayManage,
   mayApprove,
   mayAdministerDelivery,
-  mayAssertOccurrence,
   justApproved,
   audience,
+  summary,
 }: {
   event: EventDetail;
   mayManage: boolean;
   mayApprove: boolean;
   mayAdministerDelivery: boolean;
-  mayAssertOccurrence: boolean;
   justApproved: boolean;
   audience: AudienceMember[];
+  summary: AttendanceSummary | null;
 }) {
   const preApproval = isPreApproval(event.status);
   const proposed = event.status === "draft" && audience.length > 0;
-  const asserted = event.status === "occurred" || event.status === "not_held";
+  // D30, derived and never stored. Shown beside the stored status rather than
+  // instead of it: "Approved" and "Occurred" answer different questions.
+  const derived = derivedEventState(event, todayInClubZone());
 
   return (
     <Stack spacing={3} sx={{ maxWidth: 900 }} data-testid="event-detail" data-status={event.status}>
@@ -603,8 +567,21 @@ function EventDetailView({
         <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
           {event.name}
         </Typography>
+        {/*
+          The derived state sits beside the stored one only where it says
+          something the stored one does not — which is an approved event, and
+          only that. A cancelled event would read "Cancelled · Cancelled", and a
+          past draft would read "Draft · Occurred", which is worse than
+          redundant: a draft nobody approved did not happen.
+        */}
         <Typography variant="body2" color="text.secondary" data-testid="event-subtitle">
-          {`${labelFor(STATUS_LABELS, event.status)} · ${formatDetailWhen(event)}`}
+          {[
+            labelFor(STATUS_LABELS, event.status),
+            event.status === "approved" ? labelFor(DERIVED_STATE_LABELS, derived) : null,
+            formatDetailWhen(event),
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </Typography>
       </Box>
 
@@ -619,6 +596,8 @@ function EventDetailView({
         </Alert>
       ) : null}
 
+      {summary ? <HeadlineNumbers summary={summary} /> : null}
+
       {preApproval ? (
         <Alert severity="info" data-testid="no-invitations-note">
           {NO_DISTRIBUTION_RULE}
@@ -626,10 +605,8 @@ function EventDetailView({
       ) : null}
 
       {event.status === "approved" ? (
-        <OccurrencePanel event={event} mayAssertOccurrence={mayAssertOccurrence} />
+        <RegisterPanel event={event} registerSaved={summary?.registerSaved ?? false} />
       ) : null}
-
-      {asserted ? <OutcomePanel event={event} mayAssertOccurrence={mayAssertOccurrence} /> : null}
 
       <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
         <Box
@@ -640,15 +617,35 @@ function EventDetailView({
           }}
         >
           <Fact label="Type" value={labelFor(TYPE_LABELS, event.eventType)} />
-          <Fact label="Venue" value={event.venue ?? "No venue yet"} />
+          <Fact label="Where" value={labelFor(DELIVERY_MODE_LABELS, event.deliveryMode)} />
+          <Fact
+            label={venueLabel(event.deliveryMode)}
+            value={event.venue ?? "Not decided yet"}
+            testId="venue-fact"
+          />
           <Fact label="Term / week" value={formatTermAndWeek(event.termLabel, event.weekNumber)} />
           <Fact label="Attendance" value={describeAttendance(event.isMandatory)} />
           <Fact
-            label="Response solicited"
-            value={describeSolicitation(event.solicitsResponse)}
-            note={SOLICITS_RESPONSE_MEANING}
-            testId="solicits-fact"
+            label="Required equipment"
+            value={event.requiredEquipment ?? "Nothing listed"}
+            testId="equipment-fact"
           />
+          {event.description ? (
+            <Fact label="Description" value={event.description} testId="description-fact" />
+          ) : null}
+          {/*
+            REQ-no-joining-url. Operator tier only, and this route is operator
+            tier. It is never rendered on a public surface, never in a feed, and
+            never in a payload behind one.
+          */}
+          {event.joiningUrl ? (
+            <Fact
+              label="Joining link"
+              value={event.joiningUrl}
+              note={JOINING_URL_IS_NEVER_PUBLIC}
+              testId="joining-url-fact"
+            />
+          ) : null}
           {event.decisionReason ? (
             <Fact label="Reason" value={event.decisionReason} testId="decision-reason" />
           ) : null}
@@ -732,7 +729,14 @@ function EventDetailView({
             <Button variant="contained" href={`/operate/events/${event.id}/edit`} fullWidth>
               Edit draft
             </Button>
-            <AbandonDraftForm eventId={event.id} />
+            {/*
+              **Abandon draft** was here and went with the `withdrawn` status it
+              produced. An abandoned draft is deleted (D29), permanently and
+              after a confirmation naming it, and that path belongs to this
+              mission's W4 work package. Until it lands a draft nobody wants
+              stays a draft rather than being parked in a status that says it
+              never happened.
+            */}
           </>
         ) : null}
 

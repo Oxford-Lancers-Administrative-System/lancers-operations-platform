@@ -235,13 +235,15 @@ export async function createBaseline(client: Client): Promise<Baseline> {
      values ($1, 'Fixture draft event', 'practice', 'draft') returning id`,
     [season.id],
   );
+  // D30: an event has occurred when its date has passed and it was not
+  // cancelled. There is no `occurred` status to insert — the date is what makes
+  // this one occurred, so it is a past date on an approved event.
   const occurredEvent = await one<{ id: string }>(
     client,
     `insert into public.events (
        season_id, name, event_type, status, scheduled_on,
-       audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id,
-       outcome_recorded_at, outcome_recorded_by_person_id)
-     values ($1, 'Fixture occurred event', 'practice', 'occurred', '2026-10-14', now(), $2, now(), $2, now(), $2)
+       audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+     values ($1, 'Fixture occurred event', 'practice', 'approved', current_date - 7, now(), $2, now(), $2)
      returning id`,
     [season.id, person.id],
   );
@@ -259,9 +261,9 @@ export async function createBaseline(client: Client): Promise<Baseline> {
   const invitation = await one<{ id: string }>(
     client,
     `insert into public.invitations (
-       event_id, event_status, solicits_response, season_id, audience_member_id,
+       event_id, event_status, season_id, audience_member_id,
        capacity, season_membership_id, status)
-     values ($1, 'approved', true, $2, $3, 'player', $4, 'issued') returning id`,
+     values ($1, 'approved', $2, $3, 'player', $4, 'issued') returning id`,
     [approvedEvent.id, season.id, audienceMember.id, membership.id],
   );
 

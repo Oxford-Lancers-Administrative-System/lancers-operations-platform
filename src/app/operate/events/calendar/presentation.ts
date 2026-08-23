@@ -133,7 +133,7 @@ export function formatCellDate(day: string): string {
  * The club's own term cards colour their cells by what the event *is*, and
  * Brian's review on 14 August 2026 asked for the same: "I really like the type
  * colour coding here… every event is grey versus by type." Scanning a term card
- * is looking for the shape of a week — two practices, a chalk, a fixture,
+ * is looking for the shape of a week — two practices, a chalk, a game,
  * something social — and type is what carries that. Status answers a different
  * question and is carried in words on the tile.
  *
@@ -162,22 +162,31 @@ export interface TypeColour {
   readonly tint: string;
 }
 
+/**
+ * Seven colours for the seven types (D12, D83). `game` inherited the red the
+ * two match types shared, because a game is what both of them were.
+ */
 export const EVENT_TYPE_COLOURS: Readonly<Record<string, TypeColour>> = Object.freeze({
   practice: Object.freeze({ accent: "#1565c0", tint: "#e8f1fb" }),
   strength_and_conditioning: Object.freeze({ accent: "#00796b", tint: "#e2f1ef" }),
   chalk: Object.freeze({ accent: "#4527a0", tint: "#ece7f7" }),
-  fixture: Object.freeze({ accent: "#c62828", tint: "#fbe9e9" }),
-  varsity: Object.freeze({ accent: "#ad1457", tint: "#fbe6ee" }),
+  game: Object.freeze({ accent: "#c62828", tint: "#fbe9e9" }),
   social: Object.freeze({ accent: "#ef6c00", tint: "#fdf0e2" }),
   recruitment: Object.freeze({ accent: "#2e7d32", tint: "#e8f3e9" }),
-  camp: Object.freeze({ accent: "#5d4037", tint: "#efeae8" }),
   meeting: Object.freeze({ accent: "#455a64", tint: "#eceff1" }),
-  other: Object.freeze({ accent: "#616161", tint: "#f2f2f2" }),
 });
+
+/**
+ * The neutral fallback. No event type resolves to it any more — the enum has
+ * exactly seven values and all seven are above — so it exists only so that a
+ * tile still renders if a future type reaches this function before somebody
+ * chooses its colour.
+ */
+const UNKNOWN_TYPE_COLOUR: TypeColour = Object.freeze({ accent: "#616161", tint: "#f2f2f2" });
 
 /** The colour for a type, falling back to the neutral one for an unknown value. */
 export function typeColour(eventType: string): TypeColour {
-  return EVENT_TYPE_COLOURS[eventType] ?? EVENT_TYPE_COLOURS.other;
+  return EVENT_TYPE_COLOURS[eventType] ?? UNKNOWN_TYPE_COLOUR;
 }
 
 /** The heading above each calendar, saying what it is showing and from where. */

@@ -24,7 +24,10 @@
  * position vocabularies — is measured from the club's own workbooks.
  *
  * Determinism: one fixed PRNG seed drives every value, including the UUIDs, so
- * two runs on two machines produce identical rows.
+ * two runs on two machines produce identical rows. The *calendar* those rows
+ * sit on is derived from the machine clock rather than fixed — see the frame
+ * below — so two runs on the same day are identical, and a run tomorrow is the
+ * same club one day later.
  */
 import {
   connectLocal,
@@ -33,18 +36,28 @@ import {
   makeUuidFactory,
   resolveLocalDatabaseUrl,
 } from "./lib/local-db.mjs";
+import { seedFrame, shiftAuthoredValue, shiftedYearOf } from "./lib/seed-clock.mjs";
 
 const SEED = 20260810;
 const random = makeRandom(SEED);
 const uuid = makeUuidFactory(random);
 
 /**
- * The dataset's notional "now": Hilary 2027, week 6. Michaelmas and early
- * Hilary are therefore history with outcomes, and the rest of the season is
- * still ahead — which is what makes the nonresponse queue and the mid-term
- * attendance lapse visible at the same time.
+ * The frame this run seeds in — see `./lib/seed-clock.mjs` for the whole rule.
+ *
+ * Everything below is written in the dataset's own authored calendar, whose
+ * notional "now" is Hilary 2027, week 6: Michaelmas and early Hilary are
+ * history with outcomes, and the rest of the season is still ahead, which is
+ * what makes the nonresponse queue and the mid-term attendance lapse visible at
+ * the same time. `NOW` is today expressed in that calendar, and `SHIFT_DAYS`
+ * carries every date the other way — onto today — on the way into the database.
+ *
+ * Nothing between here and the write is re-dated when the clock moves. The
+ * dataset is one club's history, slid; it is not a different history.
  */
-const NOW = new Date("2027-02-20T12:00:00Z");
+const FRAME = seedFrame(new Date());
+const SHIFT_DAYS = FRAME.shiftDays;
+const NOW = FRAME.now;
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -59,6 +72,34 @@ const addDays = (date, n) => new Date(date.getTime() + n * 86400000);
 const asDate = (date) => date.toISOString().slice(0, 10);
 const at = (date, time) => new Date(`${asDate(date)}T${time}Z`).toISOString();
 const isPast = (date) => date.getTime() < NOW.getTime();
+
+/**
+ * A housekeeping stamp pinned to the dataset's own now.
+ *
+ * `updated_at` on a row nobody has touched since is "when the club last looked
+ * at this", and that is now, not a date typed into this file. Written as a
+ * literal it would sit in the future whenever the frame put now earlier than
+ * the literal — the same class of defect as the founding members whose
+ * `created_at` was once tomorrow (see the People section below).
+ */
+const nowAt = (time) => at(NOW, time);
+
+/** The calendar year an authored date lands in once this run's frame is applied. */
+const shiftedYear = (authoredDate) => shiftedYearOf(authoredDate, SHIFT_DAYS);
+
+/**
+ * A season's or committee year's name, derived from where its opening lands.
+ *
+ * Derived rather than written down so that a label and the date it names cannot
+ * disagree: the frame moves, and an academic year called "2026-27" whose
+ * opening had slid into 2027 would be a lie of exactly the kind tidy fixtures
+ * tell. Inside the residual bound this reproduces the authored labels
+ * character for character; beyond a whole-year wrap it follows.
+ */
+const academicYearLabel = (authoredStartsOn) => {
+  const opens = shiftedYear(authoredStartsOn);
+  return `${opens}-${String(opens + 1).slice(2)}`;
+};
 
 function weighted(entries) {
   const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
@@ -222,13 +263,22 @@ const DECLINE_REASONS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Position vocabularies — two incompatible taxonomies, three years apart
+// Position vocabularies — two incompatible taxonomies, years apart
 // ---------------------------------------------------------------------------
 
+// Each vocabulary is named for the era it was adopted in, and that name is read
+// off the adoption date once the frame has been applied rather than typed
+// alongside it. A workbook labelled 2023 whose adoption date had slid into 2022
+// would be the map disagreeing with the territory.
+const OLD_VOCAB_ADOPTED_ON = "2023-05-07";
+const NEW_VOCAB_ADOPTED_ON = "2026-08-01";
+const OLD_VOCAB_ERA = shiftedYear(OLD_VOCAB_ADOPTED_ON);
+const NEW_VOCAB_ERA = shiftedYear(NEW_VOCAB_ADOPTED_ON);
+
 const VOCAB_2023 = {
-  code: "oulafc-2023",
-  label: "OULAFC position list (2023 roster workbook)",
-  adopted_on: "2023-05-07",
+  code: `oulafc-${OLD_VOCAB_ERA}`,
+  label: `OULAFC position list (${OLD_VOCAB_ERA} roster workbook)`,
+  adopted_on: OLD_VOCAB_ADOPTED_ON,
   positions: [
     ["WR", "Wide Receiver", "offence"],
     ["RB", "Running Back", "offence"],
@@ -245,9 +295,9 @@ const VOCAB_2023 = {
 };
 
 const VOCAB_2026 = {
-  code: "oulafc-2026",
-  label: "OULAFC position list (2026 term-card era)",
-  adopted_on: "2026-08-01",
+  code: `oulafc-${NEW_VOCAB_ERA}`,
+  label: `OULAFC position list (${NEW_VOCAB_ERA} term-card era)`,
+  adopted_on: NEW_VOCAB_ADOPTED_ON,
   positions: [
     ["WR", "Wide Receiver", "offence"],
     ["TE", "Tight End", "offence"],
@@ -497,7 +547,8 @@ add("contact_points", {
   is_preferred: false,
   valid_from: "2024-10-01",
   valid_until: "2026-08-14",
-  source: "2024 roster",
+  // Named for the roster it came off, which is the year its own validity opens.
+  source: `${shiftedYear("2024-10-01")} roster`,
   created_at: "2025-06-01T09:00:00Z",
 });
 
@@ -551,7 +602,7 @@ for (const vocab of [vocab2023, vocab2026]) {
 
 const seasonPrevious = {
   id: uuid(),
-  label: "2025-26",
+  label: academicYearLabel("2025-09-28"),
   status: "archived",
   position_vocabulary_id: vocab2023.id,
   starts_on: "2025-09-28",
@@ -565,7 +616,7 @@ const seasonPrevious = {
 };
 const seasonCurrent = {
   id: uuid(),
-  label: "2026-27",
+  label: academicYearLabel("2026-09-27"),
   status: "active",
   position_vocabulary_id: vocab2026.id,
   starts_on: "2026-09-27",
@@ -575,7 +626,7 @@ const seasonCurrent = {
   closed_at: null,
   closed_by_person_id: null,
   created_at: "2026-06-10T10:00:00Z",
-  updated_at: "2027-02-20T10:00:00Z",
+  updated_at: nowAt("10:00:00"),
 };
 add("seasons", seasonPrevious);
 add("seasons", seasonCurrent);
@@ -590,12 +641,19 @@ const TERM_SPEC = [
   ["hilary", "2026-27", "2027-01-10", "2027-03-13", 0],
   ["trinity", "2026-27", "2027-04-18", "2027-06-19", 0],
 ];
+// A term belongs to a season, so it is named by that season rather than by a
+// second string that could drift from it. The keys stay the authored ones —
+// they are how the rest of this file addresses a term, not something stored.
+const seasonLabelByAuthoredYear = {
+  "2025-26": seasonPrevious.label,
+  "2026-27": seasonCurrent.label,
+};
 const terms = {};
 for (const [name, year, starts, ends, firstWeek] of TERM_SPEC) {
   const term = {
     id: uuid(),
     name,
-    academic_year: year,
+    academic_year: seasonLabelByAuthoredYear[year],
     starts_on: starts,
     ends_on: ends,
     first_week: firstWeek,
@@ -608,9 +666,11 @@ for (const [name, year, starts, ends, firstWeek] of TERM_SPEC) {
 
 // The AGM drifted from early March to June across a decade, so the actual date
 // is data. The two years must not overlap — an exclusion constraint says so.
+// A committee year is named for the season it serves, which is why these read
+// off the seasons rather than repeating their labels.
 const committeePrevious = {
   id: uuid(),
-  label: "2025-26",
+  label: seasonPrevious.label,
   agm_held_on: "2025-06-04",
   starts_on: "2025-06-04",
   ends_on: "2026-06-10",
@@ -618,7 +678,7 @@ const committeePrevious = {
 };
 const committeeCurrent = {
   id: uuid(),
-  label: "2026-27",
+  label: seasonCurrent.label,
   agm_held_on: "2026-06-10",
   starts_on: "2026-06-10",
   ends_on: null,
@@ -871,7 +931,7 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
     departure_reason: status === "departed" ? "Left Oxford mid-year" : null,
     inactivity_label: status === "inactive" ? "Stepped away for term" : null,
     created_at: "2026-09-01T09:00:00Z",
-    updated_at: "2027-02-01T09:00:00Z",
+    updated_at: nowAt("09:00:00"),
   };
   add("season_memberships", membership);
   memberships.push(membership);
@@ -925,14 +985,18 @@ for (let i = 0; i < PLAYER_COUNT; i += 1) {
     );
   }
 
-  // Register D1 in action: the November-quit / February-return case is one
+  // Register D1 in action: the Michaelmas-quit / Hilary-return case is one
   // membership whose status history carries the gap, not two records.
+  //
+  // Anchored to Hilary week 1 rather than to a date in February, because the
+  // return has to have *happened* for the gap to be in the history at all, and
+  // the frame can put now as early as Hilary week 1's Saturday.
   if (i === 30) {
     recordTransition(
       membership,
       "inactive",
       "active",
-      "2027-02-08T09:00:00Z",
+      at(addDays(day(terms["hilary-2026-27"].starts_on), 8), "09:00:00"),
       people[9],
       "Back after Christmas",
     );
@@ -1216,11 +1280,11 @@ for (const [key, name, type, venue, starts, ends, weekday, note] of [
     "chalk",
     "Tuesday Chalk",
     "chalk",
-    "Online",
+    "Microsoft Teams",
     "18:00",
     "19:00",
     2,
-    "Tuesday chalk talk, competitive weeks only.",
+    "Tuesday chalk talk, competitive weeks only. Online — the venue is the destination.",
   ],
   [
     "conditioning",
@@ -1282,10 +1346,11 @@ let eventOrder = 0;
 
 function makeEvent(spec) {
   const scheduled = spec.date ? asDate(spec.date) : null;
-  const past = spec.date ? isPast(spec.date) : false;
-  const status = spec.status ?? (past ? "occurred" : "approved");
-  const approved = !["draft", "pending_approval", "rejected", "withdrawn"].includes(status);
-  const solicits = spec.solicits_response ?? true;
+  // LAN-151: three stored statuses. A past event is `approved` like any other —
+  // that its date has gone by is what makes it an event that happened (D30),
+  // and nobody asserts it.
+  const status = spec.status ?? "approved";
+  const approved = status !== "draft";
 
   const event = {
     id: uuid(),
@@ -1301,28 +1366,24 @@ function makeEvent(spec) {
     scheduled_on: scheduled,
     starts_at: spec.starts ?? null,
     ends_at: spec.ends ?? null,
+    delivery_mode: spec.online ? "online" : "in_person",
     venue: spec.venue ?? null,
-    opponent: spec.opponent ?? null,
-    side: spec.side ?? null,
+    joining_url: spec.joining_url ?? null,
+    description: spec.description ?? null,
+    required_equipment: spec.equipment ?? null,
     competition: spec.competition ?? null,
     is_mandatory: spec.mandatory ?? false,
-    solicits_response: solicits,
-    response_deadline_at:
-      solicits && approved && spec.date ? at(addDays(spec.date, -2), "18:00:00") : null,
-    reminder_offsets_hours: solicits && approved ? "{72,24}" : "{}",
+    response_deadline_at: approved && spec.date ? at(addDays(spec.date, -2), "18:00:00") : null,
+    reminder_offsets_hours: approved ? "{72,24}" : "{}",
     aggregate_headcount: spec.headcount ?? null,
     owner_person_id: (spec.owner ?? people[1]).id,
     audience_confirmed_at: approved ? at(addDays(spec.date, -12), "19:00:00") : null,
     audience_confirmed_by_person_id: approved ? people[1].id : null,
     approved_at: approved ? at(addDays(spec.date, -12), "19:05:00") : null,
     approved_by_person_id: approved ? people[1].id : null,
-    outcome_recorded_at: ["occurred", "not_held"].includes(status)
-      ? at(addDays(spec.date, 1), "09:00:00")
-      : null,
-    outcome_recorded_by_person_id: ["occurred", "not_held"].includes(status) ? people[2].id : null,
     decision_reason: spec.decision_reason ?? null,
     created_at: "2026-09-01T09:00:00Z",
-    updated_at: "2027-02-20T09:00:00Z",
+    updated_at: nowAt("09:00:00"),
     _order: eventOrder++,
   };
 
@@ -1358,7 +1419,7 @@ for (const [week, name, headcount] of [
 
 makeEvent({
   name: "Pre-season camp",
-  type: "camp",
+  type: "practice",
   term: weekOf("michaelmas", -1).term,
   week: -1,
   date: addDays(weekOf("michaelmas", -1).sunday, 6),
@@ -1369,7 +1430,7 @@ makeEvent({
 });
 makeEvent({
   name: "Varsity preparation camp",
-  type: "camp",
+  type: "practice",
   term: weekOf("trinity", 0).term,
   week: 0,
   date: addDays(weekOf("trinity", 0).sunday, 6),
@@ -1406,6 +1467,10 @@ for (const slot of calendar) {
     slot.term.name === "hilary" ||
     (slot.term.name === "trinity" && slot.week <= 3);
   if (chalkWeek) {
+    // D20 and D21: chalk is on Teams, and since LAN-151 that is a property of
+    // the event rather than the word "Online" typed into the venue field. The
+    // venue then holds the destination, and the joining link is its own field
+    // and never reaches a public surface (REQ-no-joining-url).
     makeEvent({
       name: `Chalk — ${slot.term.name} week ${slot.week}`,
       type: "chalk",
@@ -1415,7 +1480,9 @@ for (const slot of calendar) {
       date: tuesday,
       starts: "18:00",
       ends: "19:00",
-      venue: "Online",
+      online: true,
+      venue: "Microsoft Teams",
+      joining_url: `https://teams.example.invalid/l/meetup-join/chalk-${slot.term.name}-${slot.week}`,
     });
   }
 
@@ -1469,31 +1536,33 @@ const SUNDAY_PRACTICE_WEEKS = [
   ["trinity", 2],
 ];
 
+// D14: there is no opponent field. The club writes the opponent into the name,
+// exactly as it does on its own term card, and the name is what carries it.
 const fixtures = [];
 for (const [termName, week, opponent, side] of FIXTURE_WEEKS) {
   const slot = weekOf(termName, week);
   const unconfirmed = opponent === null;
-  fixtures.push(
-    makeEvent({
-      // SDA §5.6: eight of eleven scheduled fixtures currently have a confirmed
+  fixtures.push({
+    opponent,
+    side,
+    event: makeEvent({
+      // SDA §5.6: eight of eleven scheduled games currently have a confirmed
       // date and NOTHING else. Two of these reproduce that exactly — approved,
-      // dated, and null on opponent, venue and both times.
+      // dated, and null on venue and both times.
       name: unconfirmed ? `BUCS fixture — ${termName} week ${week}` : `vs ${opponent}`,
-      type: "fixture",
+      type: "game",
       term: slot.term,
       week,
       date: slot.sunday,
       starts: unconfirmed ? null : "14:00",
       ends: unconfirmed ? null : "16:30",
       venue: unconfirmed ? null : side === "home" ? "Iffley Road Astro" : "Away",
-      opponent,
-      side,
       competition: "BUCS Premier South",
       origin: "externally_assigned",
       mandatory: true,
       owner: people[6],
     }),
-  );
+  });
 }
 
 for (const [termName, week] of SUNDAY_PRACTICE_WEEKS) {
@@ -1512,17 +1581,17 @@ for (const [termName, week] of SUNDAY_PRACTICE_WEEKS) {
 }
 
 const varsitySlot = weekOf("trinity", 3);
-makeEvent({
-  name: "Varsity Match",
-  type: "varsity",
+const varsityMatch = makeEvent({
+  // `varsity` left `public.event_type` with LAN-151 — D14 says the name carries
+  // what the old type and the dropped `opponent` column used to.
+  name: "Varsity Match vs Cambridge",
+  type: "game",
   term: varsitySlot.term,
   week: 3,
   date: varsitySlot.sunday,
   starts: "14:00",
   ends: "17:00",
   venue: "Iffley Road Astro",
-  opponent: "Cambridge",
-  side: "home",
   competition: "Varsity",
   mandatory: true,
   owner: people[1],
@@ -1557,8 +1626,9 @@ for (const [termName, week, offset] of SOCIAL_WEEKS) {
   });
 }
 
-// Two mutually exclusive candidates for one social: A is approved, B is
-// rejected. Invariant E3 makes a second approval structurally impossible.
+// Two candidates for one social: A was approved and B stayed a draft. LAN-151
+// retired invariant E3 and its index — an unconfirmed event is simply a draft,
+// and the club carries no alternative-group machinery.
 const crewdateSlot = weekOf("michaelmas", 5);
 makeEvent({
   name: "Potential Crewdate A",
@@ -1579,7 +1649,7 @@ makeEvent({
   term: crewdateSlot.term,
   week: 5,
   date: addDays(crewdateSlot.sunday, 5),
-  status: "rejected",
+  status: "draft",
   decision_reason: "Crewdate A was taken instead — one slot, two candidates.",
   starts: "19:30",
   ends: "23:00",
@@ -1601,13 +1671,13 @@ makeEvent({
   venue: "Iffley Road Astro",
 });
 makeEvent({
-  name: "Hilary week 4 Sunday — fixture",
-  type: "fixture",
+  name: "Hilary week 4 Sunday — game",
+  type: "game",
   group: fixtureOrPracticeGroup,
   term: eitherSlot.term,
   week: 4,
   date: eitherSlot.sunday,
-  status: "rejected",
+  status: "draft",
   decision_reason: "BUCS did not allocate a fixture; the practice runs instead.",
   origin: "externally_assigned",
   competition: "BUCS Premier South",
@@ -1625,11 +1695,9 @@ makeEvent({
   starts: "19:00",
   owner: people[12],
 });
-// A draft, not `pending_approval`. The state still exists in the enum and in
-// the frozen model, but PR #18 removed the Submit step, so the application can
-// no longer put an event into it — and LAN-77's approval only accepts a draft.
-// A seeded `pending_approval` row was therefore an event nobody could act on:
-// staleness rather than realism. Brian found it on the real screen.
+// A draft. `pending_approval` left the enum with LAN-151; PR #18 had already
+// removed the Submit step, so the application could not put an event into it
+// and a seeded row in it was an event nobody could act on.
 makeEvent({
   name: "Alumni touch game (proposed)",
   type: "social",
@@ -1648,7 +1716,7 @@ makeEvent({
   term: weekOf("hilary", 0).term,
   week: 0,
   date: addDays(weekOf("hilary", 0).sunday, 4),
-  status: "withdrawn",
+  status: "draft",
   decision_reason: "Owner abandoned the idea before submitting it.",
   owner: people[12],
 });
@@ -1661,40 +1729,43 @@ const cancelledEvent = events.find(
 );
 cancelledEvent.status = "cancelled";
 cancelledEvent.decision_reason = "Astro double-booked by the university.";
-cancelledEvent.outcome_recorded_at = null;
-cancelledEvent.outcome_recorded_by_person_id = null;
 
-const notHeldEvent = events.find((e) => e.name === "Sunday session — michaelmas week 2");
-notHeldEvent.status = "not_held";
-notHeldEvent.decision_reason = null;
-
-// Invariant E5 in the seed: `not_held` is an assertion someone made on the
-// morning, not something inferred from the date passing.
-notHeldEvent.outcome_recorded_at = at(addDays(day(notHeldEvent.scheduled_on), 0), "09:15:00");
-notHeldEvent.outcome_recorded_by_person_id = people[2].id;
+// The second cancellation is the one the club used to record as `not_held`: a
+// session called off on the morning. LAN-151 retired that status, and the
+// approved mapping sends it here — a cancellation, carrying its internal reason
+// (D76) and told to nobody after the fact.
+const calledOffEvent = events.find((e) => e.name === "Sunday session — michaelmas week 2");
+calledOffEvent.status = "cancelled";
+calledOffEvent.decision_reason = "Pitch frozen; called off on the morning.";
 
 // "We asked for the 8th and got the 15th" is the normal case with BUCS.
 const movedFixture = fixtures[2];
 add("schedule_changes", {
   id: uuid(),
-  event_id: movedFixture.id,
+  event_id: movedFixture.event.id,
   source: "league",
   reason: "BUCS reallocated the fixture to the following week and swapped the venue.",
-  previous_scheduled_on: asDate(addDays(day(movedFixture.scheduled_on), -7)),
-  new_scheduled_on: movedFixture.scheduled_on,
+  previous_scheduled_on: asDate(addDays(day(movedFixture.event.scheduled_on), -7)),
+  new_scheduled_on: movedFixture.event.scheduled_on,
   previous_starts_at: "13:00",
   new_starts_at: "14:00",
+  previous_ends_at: "15:30",
+  new_ends_at: movedFixture.event.ends_at,
   previous_venue: "Away",
-  new_venue: movedFixture.venue,
+  new_venue: movedFixture.event.venue,
+  previous_name: `vs ${movedFixture.opponent}`,
+  new_name: movedFixture.event.name,
   previous_opponent: movedFixture.opponent,
   new_opponent: movedFixture.opponent,
+  notified: true,
   changed_at: "2026-10-30T11:00:00Z",
   recorded_by_person_id: people[6].id,
   approved_by_person_id: people[1].id,
 });
 
-// Invariant E6: informational events resolve an audience for visibility and
-// create no response obligation, so they never enter the nonresponse stream.
+// Meetings. D23 removed "Response requested" — mandatory or optional already
+// carries it, and everyone sent an event is expected to answer — so these two
+// resolve an audience and ask for an answer like anything else.
 const agmDate = day("2027-06-09");
 makeEvent({
   name: "Annual General Meeting",
@@ -1703,17 +1774,19 @@ makeEvent({
   starts: "18:00",
   ends: "20:00",
   venue: "College lecture room",
-  solicits_response: false,
   owner: people[1],
 });
+// D20, D21: an online event. The venue field holds the destination rather than
+// an address, and the joining link is its own field and never public.
 makeEvent({
   name: "Committee handover briefing",
   type: "meeting",
   date: day("2027-06-16"),
   starts: "18:00",
   ends: "19:30",
-  venue: "College lecture room",
-  solicits_response: false,
+  online: true,
+  venue: "Microsoft Teams",
+  joining_url: "https://teams.example.invalid/l/meetup-join/oulafc-handover",
   owner: people[2],
 });
 
@@ -1724,7 +1797,7 @@ for (const fixture of fixtures) {
   const destination = fixture.side === "away" ? fixture.opponent : "Iffley Road";
   add("event_questions", {
     id: uuid(),
-    event_id: fixture.id,
+    event_id: fixture.event.id,
     prompt: `Transport to ${destination}?`,
     answer_type: "boolean",
     choices: null,
@@ -1734,7 +1807,7 @@ for (const fixture of fixtures) {
   });
   add("event_questions", {
     id: uuid(),
-    event_id: fixture.id,
+    event_id: fixture.event.id,
     prompt: `Transport back from ${destination}?`,
     answer_type: "boolean",
     choices: null,
@@ -1757,10 +1830,7 @@ const staffInvitees = [
 ];
 
 const invitations = [];
-const invitedEvents = events.filter(
-  (e) =>
-    ["approved", "occurred", "not_held", "cancelled"].includes(e.status) && e.solicits_response,
-);
+const invitedEvents = events.filter((e) => ["approved", "cancelled"].includes(e.status));
 
 /** Records who the approver confirmed. Invitations are resolved from this. */
 function addAudienceMember(event, { membership = null, person = null, capacity }) {
@@ -1782,7 +1852,6 @@ function inviteAudienceMember(event, member, status) {
       id: uuid(),
       event_id: event.id,
       event_status: event.status,
-      solicits_response: event.solicits_response,
       season_id: seasonCurrent.id,
       audience_member_id: member.id,
       capacity: member.capacity,
@@ -1827,15 +1896,6 @@ invitedEvents.forEach((event, index) => {
   }
 });
 
-// Informational events resolve an audience too — for visibility only. Invariant
-// E6 keeps them out of the response and nonresponse streams entirely.
-for (const event of events.filter((e) => !e.solicits_response && e.status === "approved")) {
-  for (const membership of invitableMemberships) {
-    const member = addAudienceMember(event, { membership, capacity: "player" });
-    inviteAudienceMember(event, member, "issued");
-  }
-}
-
 const questionsByEvent = new Map();
 for (const question of rows.event_questions) {
   if (!questionsByEvent.has(question.event_id)) questionsByEvent.set(question.event_id, []);
@@ -1848,7 +1908,6 @@ let confidenceMarkers = 0;
 
 for (const invitation of invitations) {
   const event = invitation._event;
-  if (!event.solicits_response) continue;
 
   if (event.status === "cancelled") {
     // Register D5: cancellation cancels the invitation and preserves whatever
@@ -1961,9 +2020,16 @@ for (const invitation of invitations) {
 // job is preventing it." The lapse is reproduced exactly — every practice after
 // the twelfth has occurred and carries no attendance at all, which is what the
 // mismatch view is for.
+// D30: an event has occurred when its date has passed and it was not
+// cancelled. Nothing asserts it, so the seed derives it the same way every
+// other reader does.
 const attendableSessions = events
   .filter(
-    (e) => e.status === "occurred" && ["practice", "fixture", "varsity"].includes(e.event_type),
+    (e) =>
+      e.status === "approved" &&
+      e.scheduled_on !== null &&
+      isPast(day(e.scheduled_on)) &&
+      ["practice", "game"].includes(e.event_type),
   )
   .sort((a, b) => a.scheduled_on.localeCompare(b.scheduled_on));
 const recordedSessions = attendableSessions.slice(0, 12);
@@ -1999,7 +2065,7 @@ for (const session of recordedSessions) {
     add("attendance_records", {
       id: uuid(),
       event_id: session.id,
-      event_status: "occurred",
+      event_status: "approved",
       season_id: seasonCurrent.id,
       capacity: "player",
       season_membership_id: membership.id,
@@ -2018,7 +2084,7 @@ for (const session of recordedSessions) {
   add("attendance_records", {
     id: uuid(),
     event_id: session.id,
-    event_status: "occurred",
+    event_status: "approved",
     season_id: seasonCurrent.id,
     capacity: "coach",
     season_membership_id: null,
@@ -2033,6 +2099,20 @@ for (const session of recordedSessions) {
 // showed up anyway, plus a walk-up who was never invited at all. Neither is
 // silently reconciled with the RSVP — the mismatch view surfaces both.
 const walkUpSession = recordedSessions[3];
+// A guard clause, and nothing more. This dereference sits about 1,150 lines
+// ahead of the frame self-check at the end of the file, so a frame yielding
+// fewer than four recorded sessions used to die here with a bare `TypeError`
+// rather than with the message that says what to do about it. It still failed
+// closed — the crash is well before `begin`, so nothing was written — but it
+// cost the reader the diagnosis.
+if (!walkUpSession) {
+  throw new Error(
+    `The seeded frame leaves ${recordedSessions.length} recorded sessions; the walk-up ` +
+      `scenario needs at least 4. Frame: shift ${SHIFT_DAYS}d (${FRAME.wraps} wraps + ` +
+      `${FRAME.residual}d${FRAME.clamped ? ", clamped" : ""}), notional now ` +
+      `${NOW.toISOString()}. Re-base the authored constants in scripts/lib/seed-clock.mjs.`,
+  );
+}
 const alreadyRecorded = new Set(
   rows.attendance_records
     .filter((a) => a.event_id === walkUpSession.id)
@@ -2043,7 +2123,7 @@ for (const membership of walkUps) {
   add("attendance_records", {
     id: uuid(),
     event_id: walkUpSession.id,
-    event_status: "occurred",
+    event_status: "approved",
     season_id: seasonCurrent.id,
     capacity: "player",
     season_membership_id: membership.id,
@@ -2294,6 +2374,21 @@ add("audit_events", {
 
 // --- Legacy staging fixtures ----------------------------------------------
 
+// Provenance the club would recognise: a batch is named for the year it was
+// imported, and a workbook for the day it was exported. Both are read off the
+// dates they describe, so a batch called "2026-…" is always a batch imported in
+// 2026 whatever frame this run seeds in.
+const LEGACY_IMPORTED_ON = "2026-09-01";
+const LEGACY_IMPORTED_AT = `${LEGACY_IMPORTED_ON}T09:00:00Z`;
+const LEGACY_IMPORT_YEAR = shiftedYear(LEGACY_IMPORTED_ON);
+
+/** `YYMMDD`, the way the club's own exports are named. */
+const workbookStamp = (authoredDate) =>
+  shiftAuthoredValue(authoredDate, SHIFT_DAYS).replaceAll("-", "").slice(2);
+
+const OLD_ROSTER_WORKBOOK = `OULAFC active roster ${workbookStamp(OLD_VOCAB_ADOPTED_ON)}.xlsx`;
+const TERM_CARD_YEAR = shiftedYear(terms["michaelmas-2026-27"].starts_on);
+
 // The historical vocabulary lives here and ONLY here. `Unsure`, `Yes?` and
 // `No?` are normalised to the binary domain value or rejected; there is no
 // column in the staging table capable of promoting a third answer.
@@ -2358,7 +2453,7 @@ LEGACY_RSVP.forEach(
   ([person, event, raw, rawReason, status, normalised, normalisedReason, rejection], index) => {
     add("staging.legacy_rsvp_rows", {
       id: uuid(),
-      import_batch: "2026-legacy-rsvp-01",
+      import_batch: `${LEGACY_IMPORT_YEAR}-legacy-rsvp-01`,
       source_file: "OULAFC Master Table.xlsx",
       source_row_number: index + 2,
       raw_person: person || null,
@@ -2369,7 +2464,7 @@ LEGACY_RSVP.forEach(
       normalised_response: normalised,
       normalised_reason: normalisedReason,
       rejection_reason: rejection,
-      imported_at: "2026-09-01T09:00:00Z",
+      imported_at: LEGACY_IMPORTED_AT,
     });
   },
 );
@@ -2475,8 +2570,8 @@ LEGACY_ROSTER.forEach(
   ) => {
     add("staging.legacy_roster_rows", {
       id: uuid(),
-      import_batch: "2026-legacy-roster-01",
-      source_file: "OULAFC active roster 230507.xlsx",
+      import_batch: `${LEGACY_IMPORT_YEAR}-legacy-roster-01`,
+      source_file: OLD_ROSTER_WORKBOOK,
       source_row_number: index + 2,
       raw_name: name || null,
       raw_email: email || null,
@@ -2486,16 +2581,20 @@ LEGACY_ROSTER.forEach(
       raw_jersey_blue: blue || null,
       raw_jersey_white: white || null,
       raw_status: status || null,
-      raw_extra: JSON.stringify({ sheet: "Squad", note: "Vocabulary is the 2023 taxonomy" }),
+      raw_extra: JSON.stringify({
+        sheet: "Squad",
+        note: `Vocabulary is the ${OLD_VOCAB_ERA} taxonomy`,
+      }),
       normalisation_status: normalisation,
       rejection_reason: rejection,
       matched_person_id: matched,
-      imported_at: "2026-09-01T09:00:00Z",
+      imported_at: LEGACY_IMPORTED_AT,
     });
   },
 );
 
 // SDA §11.2: the term-card cell shapes that break naive parsers.
+const VARSITY_YEAR = shiftedYear(varsityMatch.scheduled_on);
 const LEGACY_EVENTS = [
   [
     "Iffley Road Astro — Practice — Wed 20:00",
@@ -2522,13 +2621,16 @@ const LEGACY_EVENTS = [
     "Comma inside the location, so field splitting produces five fields, not three.",
   ],
   ["Chalk 18:00", "5", "Tuesday", "blue", "needs_review", "Start time with no end time."],
+  // The hazard here is a title a year behind the fixture it names, so both
+  // years are read off the fixture itself; a fixed pair would stop being off
+  // by one the moment the frame moved either of them across a New Year.
   [
-    "Varsity Match 2026",
+    `Varsity Match ${VARSITY_YEAR - 1}`,
     "3",
     "Sunday",
     "red",
     "rejected",
-    "Title carries the wrong year; the fixture is in 2027.",
+    `Title carries the wrong year; the fixture is in ${VARSITY_YEAR}.`,
   ],
   [
     "Fixture or practice — TBC",
@@ -2542,9 +2644,9 @@ const LEGACY_EVENTS = [
 LEGACY_EVENTS.forEach(([cell, week, weekday, colour, status, reason], index) => {
   add("staging.legacy_event_rows", {
     id: uuid(),
-    import_batch: "2026-legacy-termcard-01",
-    source_file: "Michaelmas 2026 Term Card.xlsx",
-    source_sheet: "MT26",
+    import_batch: `${LEGACY_IMPORT_YEAR}-legacy-termcard-01`,
+    source_file: `Michaelmas ${TERM_CARD_YEAR} Term Card.xlsx`,
+    source_sheet: `MT${String(TERM_CARD_YEAR).slice(2)}`,
     source_cell: `D${index + 4}`,
     raw_cell: cell,
     raw_week: week,
@@ -2553,7 +2655,7 @@ LEGACY_EVENTS.forEach(([cell, week, weekday, colour, status, reason], index) => 
     normalisation_status: status,
     normalised_event_id: null,
     rejection_reason: status === "rejected" ? reason : null,
-    imported_at: "2026-09-01T09:00:00Z",
+    imported_at: LEGACY_IMPORTED_AT,
   });
 });
 
@@ -2836,12 +2938,13 @@ const WRITE_PLAN = [
       "scheduled_on",
       "starts_at",
       "ends_at",
+      "delivery_mode",
       "venue",
-      "opponent",
-      "side",
+      "joining_url",
+      "description",
+      "required_equipment",
       "competition",
       "is_mandatory",
-      "solicits_response",
       "response_deadline_at",
       "reminder_offsets_hours",
       "aggregate_headcount",
@@ -2850,8 +2953,6 @@ const WRITE_PLAN = [
       "audience_confirmed_by_person_id",
       "approved_at",
       "approved_by_person_id",
-      "outcome_recorded_at",
-      "outcome_recorded_by_person_id",
       "decision_reason",
       "created_at",
       "updated_at",
@@ -2869,10 +2970,15 @@ const WRITE_PLAN = [
       "new_scheduled_on",
       "previous_starts_at",
       "new_starts_at",
+      "previous_ends_at",
+      "new_ends_at",
       "previous_venue",
       "new_venue",
+      "previous_name",
+      "new_name",
       "previous_opponent",
       "new_opponent",
+      "notified",
       "changed_at",
       "recorded_by_person_id",
       "approved_by_person_id",
@@ -2913,7 +3019,6 @@ const WRITE_PLAN = [
       "id",
       "event_id",
       "event_status",
-      "solicits_response",
       "season_id",
       "audience_member_id",
       "capacity",
@@ -3129,12 +3234,68 @@ const WRITE_PLAN = [
   ],
 ];
 
+// ---------------------------------------------------------------------------
+// Slide the whole calendar onto today
+// ---------------------------------------------------------------------------
+
+// Everything above was built in the dataset's authored calendar, against a NOW
+// that is today expressed in that calendar. One offset now carries all of it
+// the other way. It is applied here, once, over the finished rows rather than
+// at each of the several hundred places a date is written, because a single
+// pass cannot miss one — and a date this missed would be a row silently
+// inconsistent with every row around it.
+//
+// Only a value that is *entirely* an ISO date or timestamp moves, plus ISO
+// values inside a JSON payload. `"2026-27"`, `"oulafc-2026"` and `"{72,24}"`
+// contain digits and are not dates; the year-bearing labels that do track the
+// calendar are derived from it above instead.
+
+// Counted before the slide, while `isPast` and the dates it reads are still in
+// the same calendar. The slide moves both together, so these counts describe
+// the stored dataset just as well.
+const pastAttendable = attendableSessions.length;
+const withRegister = recordedSessions.length;
+const withoutRegister = pastAttendable - withRegister;
+const stillToCome = events.filter(
+  (event) => event.scheduled_on === null || !isPast(day(event.scheduled_on)),
+).length;
+
+for (const table of Object.keys(rows)) {
+  for (const row of rows[table]) {
+    for (const [column, value] of Object.entries(row)) {
+      const moved = shiftAuthoredValue(value, SHIFT_DAYS);
+      if (moved !== value) row[column] = moved;
+    }
+  }
+}
+
+// The dataset exists to be *looked at*, and the register states are the reason
+// this frame is derived at all. Prove they are there rather than trusting the
+// arithmetic: a seed that quietly produced a season with nothing behind it is
+// exactly the failure this replaced, and it is better to refuse than to hand
+// somebody a database to review that has nothing in it to review.
+for (const [what, count, needed] of [
+  ["past sessions carrying a saved register", withRegister, 1],
+  ["past sessions with no register saved", withoutRegister, 2],
+  ["events still to come", stillToCome, 1],
+]) {
+  if (count < needed) {
+    throw new Error(
+      `The seeded frame leaves ${count} ${what}; at least ${needed} is required. ` +
+        `Frame: shift ${SHIFT_DAYS}d (${FRAME.wraps} wraps + ${FRAME.residual}d` +
+        `${FRAME.clamped ? ", clamped" : ""}), notional now ${NOW.toISOString()}. ` +
+        "Re-base the authored constants in scripts/lib/seed-clock.mjs.",
+    );
+  }
+}
+
 try {
   await client.query("begin");
 
   // Wiping first is what makes the seed re-runnable and the dataset identical
-  // every time. It runs as the database owner, which is why the append-only
-  // privilege revocations do not block it — those bind the application role.
+  // every time it runs on the same day. It runs as the database owner, which is
+  // why the append-only privilege revocations do not block it — those bind the
+  // application role.
   await client.query(
     `truncate table ${WRITE_PLAN.map(([table]) => table).join(", ")} restart identity cascade`,
   );
@@ -3153,6 +3314,17 @@ try {
     eventTypes[event.event_type] = (eventTypes[event.event_type] ?? 0) + 1;
 
   console.log(`Seeded ${total} rows into ${url}\n`);
+  console.log("Calendar frame (derived from this machine's clock):");
+  console.log(
+    counts(
+      "  slid by",
+      `${SHIFT_DAYS >= 0 ? "+" : ""}${SHIFT_DAYS}d = ${FRAME.wraps}y ${FRAME.residual}d${
+        FRAME.clamped ? " (bounded)" : ""
+      }`,
+    ),
+  );
+  console.log(counts("  season", `${seasonCurrent.label} opens ${seasonCurrent.starts_on}`));
+  console.log("");
   console.log("Synthetic dataset (Source Data Analysis §11):");
   console.log(counts("people", rows.people.length));
   console.log(counts("  first-name-only", rows.people.filter((p) => !p.family_name).length));
@@ -3215,6 +3387,21 @@ try {
         rows["staging.legacy_event_rows"].length,
     ),
   );
+  // The three attendance states, named. Whoever is about to look at this needs
+  // to know which event shows which, and working that out by hand from
+  // sixty-seven events and two hundred and forty-eight attendance rows is the
+  // kind of chore that gets skipped and then guessed at.
+  const unrecorded = attendableSessions.slice(recordedSessions.length);
+  const showAs = (label, event) =>
+    console.log(
+      `  ${label.padEnd(34)} ${event.scheduled_on}  ${event.name}\n${" ".repeat(37)}/operate/events/${event.id}`,
+    );
+
+  console.log("\nAttendance states to look at:");
+  showAs("register open, nothing saved", unrecorded[unrecorded.length - 1]);
+  showAs("occurred, no register (a dash)", unrecorded[unrecorded.length - 2]);
+  showAs("register saved (a real pair)", recordedSessions[recordedSessions.length - 1]);
+
   console.log("\nNo real person, contact detail or club record is present in this dataset.");
 } catch (error) {
   await client.query("rollback");

@@ -107,15 +107,15 @@ const CASES = [
       ),
   },
   {
-    name: "attendance against an event that has not occurred",
-    constraint: "attendance_records_require_an_occurred_event",
+    name: "attendance against an event that is not approved",
+    constraint: "attendance_records_require_an_approved_event",
     kind: "invalid_transition",
     attempt: (tx: Tx, base: Baseline) =>
       tx.query(
         `insert into public.attendance_records
            (event_id, event_status, season_id, capacity, season_membership_id, presence)
-         values ($1, 'approved', $2, 'player', $3, 'present')`,
-        [base.approvedEventId, base.seasonId, base.membershipId],
+         values ($1, 'draft', $2, 'player', $3, 'present')`,
+        [base.draftEventId, base.seasonId, base.membershipId],
       ),
   },
   {
@@ -140,15 +140,13 @@ const CASES = [
       ),
   },
   {
-    name: "a withdrawal that does not say why",
+    name: "a cancellation that does not say why",
     constraint: "events_negative_decisions_are_explained",
     kind: "constraint_violated",
     attempt: (tx: Tx, base: Baseline) =>
-      tx.query(
-        `insert into public.events (season_id, name, event_type, status)
-         values ($1, 'Abandoned practice', 'practice', 'withdrawn')`,
-        [base.seasonId],
-      ),
+      tx.query(`update public.events set status = 'cancelled' where id = $1`, [
+        base.approvedEventId,
+      ]),
   },
   {
     name: "a duplicate membership for a person in a season",

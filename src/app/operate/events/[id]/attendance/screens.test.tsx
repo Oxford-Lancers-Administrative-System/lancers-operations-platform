@@ -13,7 +13,7 @@
  * which is what `container.textContent` gets closest to.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 const routerPush = vi.fn();
@@ -32,6 +32,7 @@ vi.mock("@/lib/services/attendance", async (importOriginal) => {
   return {
     ...actual,
     readAttendanceBoard: vi.fn(),
+    readEventAttendanceSummary: vi.fn(),
     recordAttendance: vi.fn(),
     recordWalkUpAttendance: vi.fn(),
     removeAttendance: vi.fn(),
@@ -60,12 +61,20 @@ import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
   readAttendanceBoard,
+  readEventAttendanceSummary,
   recordAttendance,
+  summariseAttendance,
   type AttendanceBoard,
   type AttendanceParticipant,
 } from "@/lib/services/attendance";
 import { readEvent, type EventDetail } from "@/lib/services/events";
 import { readEventAudience } from "@/lib/services/event-approval";
+import {
+  describeOperatorLock,
+  COACH_BOARD_SUBTITLE,
+  describeCoachLock,
+  REGISTER_NOT_YET_HEADLINE,
+} from "./presentation";
 import AttendancePage, { filterParticipants } from "./page";
 import { AttendanceRow } from "./attendance-row";
 import EventDetailPage from "../page";
@@ -106,9 +115,13 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     scheduledOn: "2026-10-14",
     startsAt: "20:00",
     endsAt: "22:00",
+    deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
-    solicitsResponse: true,
+    registerSaved: false,
+    description: null,
+    requiredEquipment: null,
+    joiningUrl: null,
     audienceCount: 5,
     invitationCount: 5,
     responseCount: 3,
@@ -140,13 +153,19 @@ function participant(overrides: Partial<AttendanceParticipant> = {}): Attendance
 
 function board(overrides: Partial<AttendanceBoard> = {}): AttendanceBoard {
   const participants = overrides.participants ?? [participant()];
+  const summary = summariseAttendance(participants);
   return {
-    event: detail({ status: "occurred" }),
+    // Approved, and behind us — which since LAN-151 is the whole of what makes
+    // an event one that has occurred and opens its register (D30).
+    event: detail({ status: "approved", scheduledOn: "2020-10-14" }),
     isOpen: true,
+    closedReason: null,
+    registerOpensAt: "2026-10-14T13:00:00.000Z",
     participants,
-    invitedCount: participants.filter((entry) => !entry.isWalkUp).length,
-    recordedCount: participants.filter((entry) => entry.presence !== null).length,
-    walkUpCount: participants.filter((entry) => entry.isWalkUp).length,
+    summary,
+    invitedCount: summary.invited,
+    recordedCount: summary.recorded,
+    walkUpCount: summary.walkUps,
     mismatchCount: participants.filter((entry) => entry.mismatch !== null).length,
     ...overrides,
   };
@@ -169,6 +188,7 @@ function detailProps(query: Record<string, string> = {}) {
 beforeEach(() => {
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: operator() });
   vi.mocked(readEventAudience).mockResolvedValue([]);
+  vi.mocked(readEventAttendanceSummary).mockResolvedValue(summariseAttendance([]));
   routerPush.mockClear();
 });
 
@@ -176,96 +196,236 @@ beforeEach(() => {
 // UX-70 and UX-75 — the assertion, on the event detail
 // ---------------------------------------------------------------------------
 
-describe("UX-70 — Confirm what happened", () => {
-  it("offers both assertions on an approved event, and states the facts around them", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail());
+/*
+ * UX-70 ("Confirm what happened") and UX-75 ("Event marked not held") had a
+ * describe block each, and both are gone with the screens they described.
+ *
+ * LAN-151 retired the occurrence assertion (D30, REQ-occurrence-retired): an
+ * event has occurred when its date has passed and it was not cancelled. There
+ * is no decision to offer, no state to be in as a result of one, and nothing to
+ * correct. What replaced them is below — a panel that states whether the
+ * register is open, and never asks anybody to make it so.
+ */
 
-    const { container } = render(await EventDetailPage(detailProps()));
-
-    const panel = screen.getByTestId("occurrence-decision");
-    expect(within(panel).getByText("Confirm what happened")).toBeTruthy();
-    expect(within(panel).getByRole("button", { name: "Mark occurred" })).toBeTruthy();
-    expect(within(panel).getByRole("button", { name: "Mark not held" })).toBeTruthy();
-
-    // UX-70 pairs four facts with the buttons. The fourth — "start time has
-    // passed" — Brian cut on the real screen, and the test below holds the
-    // absence so it cannot come back by accident.
-    expect(container.textContent).toContain("Approved");
-    expect(container.textContent).toContain("Not yet asserted");
-    expect(container.textContent).toContain("Never inferred from time");
-    expect(container.textContent).toContain("Opens only after Mark occurred");
-  });
-
-  it("offers the decision whatever the clock says, and says nothing about it", async () => {
-    // Brian removed the "start time has passed" caption on the real screen: an
-    // operator in front of this decision knows the event has been and gone.
-    // What survives is the property underneath it — invariant E5 keeps time out
-    // of the assertion, so a practice abandoned at 19:55 because the pitch
-    // flooded is still markable as not held before its own start time.
-    vi.mocked(readEvent).mockResolvedValue(
-      detail({ scheduledOn: "2099-01-01", startsAt: "20:00" }),
-    );
-
-    const { container } = render(await EventDetailPage(detailProps()));
-
-    expect(screen.getByRole("button", { name: "Mark occurred" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Mark not held" })).toBeTruthy();
-    expect(container.textContent).not.toMatch(/start time/i);
-  });
-
-  it("offers no assertion to an operator without the capability, and says who does", async () => {
-    vi.mocked(resolveOperatorAccess).mockResolvedValue({
-      state: "active",
-      operator: plainOperator(),
-    });
-    vi.mocked(readEvent).mockResolvedValue(detail());
+describe("the register panel, which decides nothing", () => {
+  it("offers the register once its buffer has lifted", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ scheduledOn: "2020-10-14" }));
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.queryByRole("button", { name: "Mark occurred" })).toBeNull();
-    expect(screen.getByTestId("occurrence-read-only").textContent).toContain("President");
+    expect(screen.getByTestId("register-panel").textContent).toContain("Attendance is open");
+    expect(screen.getByTestId("open-attendance").getAttribute("href")).toBe(
+      `/operate/events/${EVENT_ID}/attendance`,
+    );
   });
 
-  it("does not offer the assertion on a draft", async () => {
+  it("says it is not open yet for an event still ahead, and offers no way in", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ scheduledOn: "2099-01-01" }));
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.getByTestId("register-panel").textContent).toContain(REGISTER_NOT_YET_HEADLINE);
+    expect(screen.queryByTestId("open-attendance")).toBeNull();
+  });
+
+  /**
+   * VG-003. The panel says what the surface does; it does not report what the
+   * product stopped doing. Brian, on the sentence that used to be here:
+   * "That second line is weird. Why is that in the app?"
+   */
+  it("does not tell anybody that nobody has to mark the event as having happened", async () => {
+    for (const scheduledOn of ["2020-10-14", "2099-01-01"]) {
+      vi.mocked(readEvent).mockResolvedValue(detail({ scheduledOn }));
+
+      const { container, unmount } = render(await EventDetailPage(detailProps()));
+
+      for (const gone of ["Nobody has to mark", "having happened", "has to mark it", "no longer"]) {
+        expect(container.textContent, gone).not.toContain(gone);
+      }
+      unmount();
+    }
+  });
+
+  it("offers nobody, of any seat, a way to assert what happened", async () => {
+    // REQ-occurrence-retired, on the surface it names. Checked for the operator
+    // who used to hold the capability and for one who never did, because the
+    // point is that the decision does not exist rather than that it is guarded.
+    for (const who of [operator(), plainOperator()]) {
+      vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: who });
+      vi.mocked(readEvent).mockResolvedValue(detail({ scheduledOn: "2020-10-14" }));
+
+      const { container, unmount } = render(await EventDetailPage(detailProps()));
+
+      for (const gone of [
+        "Confirm what happened",
+        "Mark occurred",
+        "Mark not held",
+        "Correct this to not held",
+        "Not yet asserted",
+        "Never inferred from time",
+      ]) {
+        expect(container.textContent, gone).not.toContain(gone);
+      }
+      expect(screen.queryByTestId("occurrence-decision")).toBeNull();
+      expect(screen.queryByTestId("outcome-panel")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("shows no register panel at all on a draft", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail({ status: "draft", invitationCount: 0 }));
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.queryByTestId("occurrence-decision")).toBeNull();
+    expect(screen.queryByTestId("register-panel")).toBeNull();
   });
-});
 
-describe("UX-75 — Event marked not held", () => {
-  it("says attendance stays unavailable and the decision is kept", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "not_held" }));
+  /**
+   * `docs/ux/standards.md` rule 7 — this panel and the register answer one
+   * question, and it has to be the same answer. LAN-152.
+   *
+   * The browser preflight found the version where it was not: the panel said
+   * "Attendance is open" and offered the button, and the register the button
+   * led to said "The register is not open yet". Both were reading the same
+   * database at the same moment.
+   */
+  it("does not offer the board before the register's buffer lifts", async () => {
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ status: "approved", scheduledOn: "2099-01-01", startsAt: "20:00" }),
+    );
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(summariseAttendance([]));
 
     const { container } = render(await EventDetailPage(detailProps()));
 
-    expect(screen.getByTestId("outcome-panel")).toBeTruthy();
-    expect(container.textContent).toContain("Event marked not held");
-    expect(container.textContent).toContain("Attendance remains unavailable");
-    expect(container.textContent).toContain("retained in the audit trail");
-    // No route through to a board that would refuse them anyway.
     expect(screen.queryByTestId("open-attendance")).toBeNull();
+    expect(container.textContent).toContain(REGISTER_NOT_YET_HEADLINE);
+    expect(container.textContent).toContain("It opens on 1 Jan 2099, 14:00.");
+    expect(container.textContent).not.toContain("Attendance is open");
   });
 
-  it("offers the correction, because a completed state offers its correction", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "not_held" }));
+  it("offers the board for a register that already has something in it", async () => {
+    // D72: it never closes. The synthetic season records sessions as having
+    // happened whose dates are still ahead of today, and refusing a coach the
+    // sheet they have already written names on is what this prevents.
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ status: "approved", scheduledOn: "2099-01-01", startsAt: "20:00" }),
+    );
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(
+      summariseAttendance([participant({ presence: "present" })]),
+    );
 
-    render(await EventDetailPage(detailProps()));
+    const { container } = render(await EventDetailPage(detailProps()));
 
-    expect(screen.getByTestId("correct-occurrence-open").textContent).toContain(
-      "Correct this to occurred",
+    expect(screen.getByTestId("open-attendance")).toBeVisible();
+    expect(container.textContent).toContain("Attendance is open");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The register's buffer — D71 and D72. LAN-152.
+// ---------------------------------------------------------------------------
+
+describe("the register before its buffer lifts", () => {
+  function notYet(overrides: Partial<AttendanceBoard> = {}) {
+    return board({
+      event: detail({ status: "approved", scheduledOn: "2099-01-01", startsAt: "20:00" }),
+      isOpen: false,
+      closedReason: "before_buffer",
+      registerOpensAt: "2099-01-01T14:00:00.000Z",
+      participants: [],
+      ...overrides,
+    });
+  }
+
+  it("says the register is not open yet, and when it will be", async () => {
+    // `docs/ux/standards.md` rule 4: a refused control names the step that
+    // lifts it. Here nobody can perform that step, so naming the moment is the
+    // whole of the answer — and rule 3 says it reads as a formatted moment on
+    // club time, never as a raw ISO instant.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("register-not-open-yet")).toBeVisible();
+    expect(container.textContent).toContain("The register is not open yet");
+    expect(screen.getByTestId("register-opens-at").textContent).toBe(
+      "It opens on 1 Jan 2099, 14:00.",
+    );
+    expect(container.textContent).not.toContain("2099-01-01T14:00:00.000Z");
+  });
+
+  /**
+   * Finding W-F3. Brian, on the sentence that used to follow the moment:
+   * "That second line is weird. Why is that in the app?"
+   *
+   * The first sentence has already answered the question. How long a register
+   * stays open afterwards is policy, and it is irrelevant to somebody being
+   * told they cannot open one yet — the same shape he rejected at W4.
+   */
+  it("says when it opens and nothing about the rule", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByTestId("register-opens-at").textContent).toBe(
+      "It opens on 1 Jan 2099, 14:00.",
+    );
+    for (const policy of [
+      "never closes afterwards",
+      "hours before the event starts",
+      "The register opens about",
+    ]) {
+      expect(container.textContent, policy).not.toContain(policy);
+    }
+  });
+
+  it("does not tell anybody to go and mark the event occurred", async () => {
+    // The other closed state's sentence names an action. This one must not
+    // borrow it: the event has been asserted, and the only thing anybody is
+    // waiting for is the clock.
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).not.toContain("mark this event as occurred");
+    expect(screen.queryByTestId("attendance-locked")).toBeNull();
+  });
+
+  it("shows no names, no rows and no counts", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(screen.queryByTestId("attendance-board")).toBeNull();
+    expect(screen.queryByTestId("attendance-row")).toBeNull();
+    expect(container.textContent).not.toContain("Avery Fielding");
+  });
+
+  it("sends a coach back to their eligible events rather than to administration", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: coach() });
+    vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
+
+    render(await AttendancePage(attendanceProps()));
+
+    expect(screen.getByRole("link", { name: "Return to eligible events" })).toHaveAttribute(
+      "href",
+      "/operate/events",
     );
   });
 
-  it("routes an occurred event through to the board", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "occurred" }));
+  it("says so plainly for an event with no date at all", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      notYet({
+        event: detail({ status: "approved", scheduledOn: null, startsAt: null }),
+        registerOpensAt: null,
+      }),
+    );
 
-    render(await EventDetailPage(detailProps()));
+    const { container } = render(await AttendancePage(attendanceProps()));
 
-    const link = screen.getByTestId("open-attendance");
-    expect(link.getAttribute("href")).toBe(`/operate/events/${EVENT_ID}/attendance`);
+    expect(container.textContent).toContain("This event has no date yet");
+    expect(container.textContent).not.toContain("Invalid Date");
+    expect(container.textContent).not.toContain("NaN");
   });
 });
 
@@ -274,7 +434,7 @@ describe("UX-75 — Event marked not held", () => {
 // ---------------------------------------------------------------------------
 
 describe("UX-71 — attendance is not available yet", () => {
-  for (const status of ["approved", "not_held", "cancelled"] as const) {
+  for (const status of ["draft", "cancelled"] as const) {
     it(`renders the locked screen for a ${status} event`, async () => {
       vi.mocked(readAttendanceBoard).mockResolvedValue(
         board({ event: detail({ status }), isOpen: false, participants: [] }),
@@ -284,14 +444,86 @@ describe("UX-71 — attendance is not available yet", () => {
 
       expect(screen.getByTestId("attendance-locked")).toBeTruthy();
       expect(container.textContent).toContain("Attendance is not available yet");
-      expect(container.textContent).toContain("must first mark this event as occurred");
-      expect(container.textContent).toContain("The service rejects attendance writes");
+      expect(container.textContent).toContain(describeOperatorLock(status));
+      // And it never tells anybody to go and mark it, because nobody can.
+      expect(container.textContent).not.toContain("mark this event as occurred");
 
       // No board, no names, no states to press.
       expect(screen.queryByTestId("attendance-row")).toBeNull();
       expect(container.textContent).not.toContain("Avery Fielding");
     });
   }
+
+  /**
+   * Finding W9-F1. The operator's two dead ends were byte-identical: one
+   * paragraph reciting the rule for both a draft and a cancellation, leaving
+   * the reader — the only reader who can act — to work out which limb applied.
+   *
+   * The coach's screen was made specific by W-F6 and this one was not, which
+   * inverted the asymmetry rather than removing it.
+   */
+  it("tells an operator a draft is theirs to approve", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({ event: detail({ status: "draft" }), isOpen: false, participants: [] }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("still a draft");
+    // Rule 4: the sentence names the step that lifts it, and this seat can take
+    // it. The coach's equivalent deliberately cannot say this.
+    expect(container.textContent).toContain("Approve it");
+    expect(container.textContent).not.toContain("nothing you can do");
+  });
+
+  it("tells an operator plainly that a cancellation has no step at all", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        event: detail({ status: "cancelled", scheduledOn: "2020-10-14" }),
+        isOpen: false,
+        participants: [],
+      }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("was cancelled");
+    expect(container.textContent).toContain("nothing you can do to open one");
+    expect(container.textContent).not.toContain("Approve it");
+  });
+
+  it("says something different for a draft than for a cancellation", async () => {
+    // The finding in one assertion: the two were the same string. A collapse
+    // back to one paragraph fails here whichever wording survives.
+    expect(describeOperatorLock("draft")).not.toBe(describeOperatorLock("cancelled"));
+  });
+
+  it("recites no rule, and names no internal component", async () => {
+    for (const status of ["draft", "cancelled"] as const) {
+      vi.mocked(readAttendanceBoard).mockResolvedValue(
+        board({
+          event: detail({ status, scheduledOn: "2020-10-14" }),
+          isOpen: false,
+          participants: [],
+        }),
+      );
+
+      const { container, unmount } = render(await AttendancePage(attendanceProps()));
+
+      for (const wrong of [
+        // An operator has no "service" in their world.
+        "The service rejects",
+        "attendance writes",
+        // Buffer language, which is false on a cancelled event whose start has
+        // gone and beside the point on a draft nobody has approved.
+        "opens shortly before it starts",
+        "A register belongs to an approved event",
+      ]) {
+        expect(container.textContent, `${status}: ${wrong}`).not.toContain(wrong);
+      }
+      unmount();
+    }
+  });
 
   it("refuses the board to an operator without the capability, and shows no names", async () => {
     // The route is not the boundary — every write guards itself — but a screen
@@ -691,7 +923,10 @@ describe("UX-91 — the coach's board", () => {
     expect(container.textContent).toContain(
       "RSVP reasons, contact, availability and administration are omitted",
     );
-    expect(container.textContent).toContain("Occurred · coach recorder view");
+    expect(container.textContent).toContain(COACH_BOARD_SUBTITLE);
+    // VG-003: the subtitle names the reader's seat, not a status the model
+    // retired.
+    expect(container.textContent).not.toContain("Occurred ·");
   });
 
   it("carries the standing RSVP, which is what the coach is given", async () => {
@@ -822,7 +1057,7 @@ describe("UX-91 — the coach's board", () => {
 });
 
 describe("UX-90 — attendance is not open, told to a coach", () => {
-  for (const status of ["approved", "cancelled", "not_held"] as const) {
+  for (const status of ["draft", "cancelled"] as const) {
     it(`refuses the board for a ${status} event, and does not tell a coach to assert it`, async () => {
       givenCoach();
       vi.mocked(readAttendanceBoard).mockResolvedValue(
@@ -833,18 +1068,56 @@ describe("UX-90 — attendance is not open, told to a coach", () => {
 
       expect(screen.getByTestId("coach-attendance-locked")).toBeVisible();
       expect(container.textContent).toContain("Attendance is not open");
-      expect(container.textContent).toContain(
-        "An authorized operator has not marked this event as occurred",
-      );
-      expect(container.textContent).toContain(
-        "Coach attendance access does not include Mark occurred or Mark not held",
-      );
-      // The operator's wording tells the reader to go and mark it. This reader
-      // may not, and the service refuses them if they try.
-      expect(container.textContent).not.toContain("must first mark this event");
+      expect(container.textContent).toContain(describeCoachLock(status));
+      expect(container.textContent).not.toContain("An authorized operator has not marked");
+      expect(container.textContent).not.toContain("Mark occurred");
       expect(screen.queryByTestId("attendance-row")).toBeNull();
     });
   }
+
+  /**
+   * Finding W-F6. A coach reaching a cancelled session by URL was told its
+   * register "has not opened yet" and that one opens shortly before the session
+   * starts. Both false: the start had passed, and no register was coming. The
+   * operator's equivalent named the real reason and the coach's did not, so one
+   * event read two different ways depending on the seat.
+   */
+  it("tells a coach why a cancelled session will never open one", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        event: detail({ status: "cancelled", scheduledOn: "2020-10-14" }),
+        isOpen: false,
+        participants: [],
+      }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("This session was cancelled");
+    expect(container.textContent).toContain("there will not be one");
+    for (const wrong of [
+      "has not opened yet",
+      "opens shortly before the session starts",
+      "stays open afterwards",
+    ]) {
+      expect(container.textContent, wrong).not.toContain(wrong);
+    }
+  });
+
+  it("tells a coach a draft is waiting on an approval, not on the clock", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({ event: detail({ status: "draft" }), isOpen: false, participants: [] }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("has not been approved yet");
+    expect(container.textContent).not.toContain("has not opened yet");
+    // A draft is not final, so it must not borrow the cancellation's wording.
+    expect(container.textContent).not.toContain("there will not be one");
+  });
 
   it("returns the coach to their own list, never to the event detail", async () => {
     givenCoach();

@@ -3,7 +3,8 @@
 The complete first operational workflow, as a walk somebody who did not build it
 can perform by hand: enter a returning player, put a practice on the calendar,
 confirm who it goes to, approve it, let the automation invite them, collect the
-answers, assert that it happened, take the register, and read the Monday report.
+answers, watch the register open by itself, take it as a coach, and read the
+Monday report.
 
 This is the manual counterpart to `tests/slice-walkthrough.test.ts`, which walks
 the same path through the service layer in one automated run. The test proves the
@@ -23,7 +24,7 @@ code.
 6. [Confirm the audience and approve](#6-confirm-the-audience-and-approve)
 7. [Automated WhatsApp delivery](#7-automated-whatsapp-delivery)
 8. [Answer as a player](#8-answer-as-a-player)
-9. [Assert that it happened](#9-assert-that-it-happened)
+9. [Watch the register open by itself](#9-watch-the-register-open-by-itself)
 10. [Take the register as a coach](#10-take-the-register-as-a-coach)
 11. [Read the Monday report](#11-read-the-monday-report)
 12. [Check the three calendar presentations](#12-check-the-three-calendar-presentations)
@@ -394,23 +395,32 @@ clipped or needs sideways scrolling.
 
 ---
 
-## 9. Assert that it happened
+## 9. Watch the register open by itself
 
 Back in the operator's browser, open the event.
 
-**Expected before you press anything.** A panel headed **Confirm what happened**:
-Event status **Approved**, Occurrence **Not yet asserted — Never inferred from
-time**, Attendance **Unavailable — Opens only after Mark occurred**. And the
-sentence "This is a human assertion and is required before attendance. A coach
-who records attendance cannot make it."
+Nobody is asked whether it happened. LAN-151 retired that decision with both of
+its screens (D30): an event has occurred once its date has passed and it was not
+cancelled, and the register opens on its own schedule — about six hours before
+the event starts, and it never closes afterwards (D71, D72).
 
-The passage of a date never marks an event as having happened. Somebody says so,
-and the record names them.
+**Expected, for a practice that is still more than six hours away.** A panel
+headed **The register is not open yet**, naming the moment it will be — "It opens
+on 14 Oct 2026, 14:00." — and no way through to a board.
 
-Press **Mark occurred**.
+**Expected, once that moment has passed.** The same panel reads **Attendance is
+open**, with the sentence "Record who was there, and correct it whenever you need
+to." and an **Attendance** button.
 
-**Expected.** The panel becomes **Attendance is open**, with an **Attendance**
-button and a **Correct this to not held** link.
+If you are walking this in one sitting and do not want to wait for the buffer,
+move the practice's date back a day on the edit screen; the panel changes on the
+next load. Nothing else about the event changes, and no column records that it
+happened — because none exists.
+
+Beside the stored status the heading also carries the derived one: an approved
+event whose date has passed reads **Approved · Occurred**, and the events list
+shows `Occurred` in its Status column and offers it as a fourth filter value
+beside Draft, Approved and Cancelled.
 
 ---
 
@@ -423,15 +433,16 @@ Sign out and sign in as `brian.daniel.schuster+coach@gmail.com`, the second loca
 login `db:start` provisions, with the same machine-local password.
 
 **Expected immediately.** The sidebar says **Attendance** and nothing else. There
-is no Roster, no Events, no Report. The banner reads "A register opens once an
-authorized operator has marked the session occurred. Coach attendance access does
-not include Mark occurred or Mark not held."
+is no Roster, no Events, no Report. The list is this season's sessions in two
+sections — **Upcoming**, today first, then **Earlier** — and a session whose
+register has not opened yet says **Attendance not open** on its own card. There
+is no standing banner above the list explaining the rule.
 
 Open the practice from the list. Best viewed at phone width; that is what it is
 for.
 
-**Expected.** **Runbook Michaelmas practice attendance · Occurred · coach
-recorder view**, and the banner "Only event context, player identity, standing
+**Expected.** **Runbook Michaelmas practice attendance · Coach recorder view**,
+and the banner "Only event context, player identity, standing
 RSVP state and attendance are shown. RSVP reasons, contact, availability and
 administration are omitted."
 

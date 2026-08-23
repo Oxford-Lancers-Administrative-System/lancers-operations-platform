@@ -338,6 +338,25 @@ export async function readDependencies(client) {
  * entry per table and column with a count and a sample; `attached` mapping table
  * to the identifiers `--force` has to delete, deepest first.
  */
+/** Does this `schema.table` carry a column literally called `id`? Cached. */
+const ID_COLUMN_CACHE = new Map();
+
+async function hasIdColumn(client, qualified) {
+  const cached = ID_COLUMN_CACHE.get(qualified);
+  if (cached !== undefined) return cached;
+
+  const [schema, table] = qualified.includes(".") ? qualified.split(".") : ["public", qualified];
+  const result = await client.query(
+    `select 1
+       from information_schema.columns
+      where table_schema = $1 and table_name = $2 and column_name = 'id'`,
+    [schema, table],
+  );
+  const answer = result.rowCount > 0;
+  ID_COLUMN_CACHE.set(qualified, answer);
+  return answer;
+}
+
 export async function findAttachedRows(client, ownedIdsByTable, dependencies) {
   const attached = new Map();
   const blockers = new Map();
@@ -358,6 +377,20 @@ export async function findAttachedRows(client, ownedIdsByTable, dependencies) {
       for (const edge of dependencies.get(parent) ?? []) {
         const owned = ownedByTable.get(edge.child) ?? new Set();
         const already = attached.get(edge.child) ?? new Set();
+
+        // Every table this walk can reach has to be deletable by `id`, because
+        // that is the only key the rollback knows how to delete by. A table
+        // without one is refused by name rather than crashing on a missing
+        // column three statements later: LAN-151 added reference tables keyed
+        // by `event_type` rather than by a surrogate, and the first sign of it
+        // was `column "id" does not exist` out of the middle of a rollback.
+        if (!(await hasIdColumn(client, edge.child))) {
+          throw new Error(
+            `Rollback cannot follow ${edge.child}.${edge.column}: ${edge.child} has no \`id\` ` +
+              "column, and the rollback deletes by `id`. Give it one, or exclude it from the " +
+              "dependency walk deliberately.",
+          );
+        }
 
         const found = await client.query(
           `select id from ${edge.child} where ${edge.column} = any($1)`,

@@ -87,7 +87,7 @@ const TOKEN = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM0123";
 const PAGE: SignedRsvpPage = {
   invitationId: "00000000-0000-4000-8000-000000000079",
   eventName: "Team Practice",
-  eventType: "fixture",
+  eventType: "game",
   eventStatus: "approved",
   scheduledOn: "2026-10-14",
   startsAt: "20:00",
@@ -112,7 +112,6 @@ function givenToken(state: TokenState, page: SignedRsvpPage | null = PAGE) {
             eventStatus: page.eventStatus,
             startsAt: page.eventStartsAt,
             inviteeName: page.playerName,
-            solicitsResponse: true,
             expiresAt: page.responseDeadline,
           },
     writable: state === "valid",
@@ -159,12 +158,12 @@ describe("UX-60 — the invitation", () => {
   });
 
   it("says what kind of event it is, in the same words the operator screens use", async () => {
-    // Brian's visual review: "fixture or practice?" is the first thing a player
+    // Brian's visual review: "game or practice?" is the first thing a player
     // wants off a link. The label comes from the operator screens' TYPE_LABELS
     // rather than a second list, so the two surfaces cannot drift into calling
     // one event different things.
     givenToken("valid");
-    expect((await renderPage()).container.textContent).toContain("Fixture");
+    expect((await renderPage()).container.textContent).toContain("Game");
 
     givenToken("valid", { ...PAGE, eventType: "strength_and_conditioning" });
     expect((await renderPage()).container.textContent).toContain("Strength and conditioning");

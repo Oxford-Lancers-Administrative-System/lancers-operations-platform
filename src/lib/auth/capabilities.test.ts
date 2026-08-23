@@ -198,26 +198,6 @@ const MUST_REFUSE: Readonly<Record<string, readonly string[]>> = {
     "defensive_backs_coach",
     "special_teams_coach",
   ],
-  // LAN-80. The two capabilities that issue settled, listed here so the
-  // whole-catalogue check above covers them: a grant that leaves a code
-  // unasserted fails, and widening either one fails twice.
-  event_occurrence_assertion: [
-    "treasurer",
-    "social_secretary",
-    "gameday_secretary",
-    "kit_manager",
-    "media_secretary",
-    "head_coach",
-    "offence_coach",
-    "defence_coach",
-    "quarterbacks_coach",
-    "offensive_line_coach",
-    "wide_receivers_coach",
-    "defensive_line_coach",
-    "linebackers_coach",
-    "defensive_backs_coach",
-    "special_teams_coach",
-  ],
   attendance_recording: [
     "treasurer",
     "social_secretary",
@@ -287,23 +267,23 @@ describe("row 9 — the attendance-recorder grant is the coaching seats plus the
   });
 });
 
-describe("LAN-80 — occurrence assertion is the four calendar roles, and no coach", () => {
-  it("permits exactly those four", () => {
-    expect(permittedSet("event_occurrence_assertion")).toEqual(CALENDAR_WITH_ADMIN);
-  });
-
-  it.each(MUST_REFUSE.event_occurrence_assertion)("refuses %s", (code) => {
-    expect(roleCodesPermit([code], "event_occurrence_assertion")).toBe(false);
-  });
-
-  it("refuses all three coaching seats — slice-ux.md § 8 and LAN-110's boundary", () => {
-    // "not implied by attendance-recorder capability", stated as an exact-set
-    // assertion rather than trusted to the array above staying as it is.
-    for (const code of COACHES) {
-      expect(roleCodesPermit([code], "event_occurrence_assertion")).toBe(false);
-    }
-  });
-});
+/*
+ * "LAN-80 — occurrence assertion is the four calendar roles, and no coach"
+ * stood here, and is gone with the capability it guarded.
+ *
+ * `event_occurrence_assertion` protected **Mark occurred**, **Mark not held**
+ * and the correction of either. LAN-151 retired all three: an event has
+ * occurred when its date has passed and it was not cancelled (D30), so there is
+ * no decision left for anybody to hold. The capability was removed rather than
+ * left unused, because a capability nobody checks is an authorization decision
+ * with no subject — still listed, still grantable, still reading to somebody as
+ * a permission the club hands out.
+ *
+ * `slice-ux.md` § 8's rule that a coach who records attendance may not decide
+ * that there was anything to record survives as the fact that there is no such
+ * decision. The coaching seats' boundary is still asserted in full below and in
+ * the whole-catalogue check above.
+ */
 
 describe("LAN-80 — attendance recording is the calendar roles plus the coaching seats", () => {
   /**
@@ -640,7 +620,6 @@ describe("row 8 — the map is the single source of truth, and is not editable a
         "delivery_administration",
         "event_approval",
         "event_calendar_management",
-        "event_occurrence_assertion",
         "leadership_report",
         "membership_activation",
         "role_management",
@@ -1133,7 +1112,6 @@ describe("LAN-129 — the ten fixed coaching seats", () => {
         "membership_activation",
         "event_calendar_management",
         "event_approval",
-        "event_occurrence_assertion",
         "delivery_administration",
         "leadership_report",
       ] as CapabilityKey[]) {

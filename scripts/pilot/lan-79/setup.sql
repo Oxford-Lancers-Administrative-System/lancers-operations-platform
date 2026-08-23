@@ -248,7 +248,7 @@ on conflict (id) do nothing;
 -- begun, and one that was called off.
 insert into public.events
   (id, season_id, name, event_type, status, scheduled_on, starts_at, ends_at, venue,
-   solicits_response, is_mandatory,
+   is_mandatory,
    audience_confirmed_at, audience_confirmed_by_person_id,
    approved_at, approved_by_person_id, response_deadline_at, decision_reason)
 select
@@ -261,7 +261,6 @@ select
   event.starts_at::time,
   event.ends_at::time,
   'PILOT-LAN-79 synthetic venue',
-  true,
   false,
   now(),
   '00790079-0079-4079-8079-000000000001',
@@ -347,13 +346,12 @@ on conflict (id) do nothing;
 -- put it. Answering through the page must move it to `responded` — model §2.4,
 -- "late answers are answers".
 insert into public.invitations
-  (id, event_id, event_status, solicits_response, season_id, capacity,
+  (id, event_id, event_status, season_id, capacity,
    season_membership_id, status, issued_at, expires_at, audience_member_id, cancelled_at)
 select
   invitation.id::uuid,
   invitation.event_id::uuid,
   invitation.event_status::public.event_status,
-  true,
   (select id from public.seasons where status in ('open', 'active')),
   'player',
   invitation.membership_id::uuid,

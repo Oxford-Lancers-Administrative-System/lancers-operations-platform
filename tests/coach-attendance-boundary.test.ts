@@ -152,10 +152,7 @@ import {
 } from "@/app/operate/roster/actions";
 import { submitReturnerIntake } from "@/app/operate/roster/new/actions";
 import {
-  abandonEventDraftAction,
   approveEventAction,
-  assertEventOutcomeAction,
-  correctEventOutcomeAction,
   createEventDraftAction,
   saveEventAudienceAction,
   updateEventDraftAction,
@@ -247,14 +244,13 @@ const FORBIDDEN: ReadonlyArray<{ name: string; call: () => Promise<unknown> }> =
   { name: "submitReturnerIntake", call: () => submitReturnerIntake(null as never, form()) },
   { name: "createEventDraftAction", call: () => createEventDraftAction(null as never, form()) },
   { name: "updateEventDraftAction", call: () => updateEventDraftAction(null as never, form()) },
-  { name: "abandonEventDraftAction", call: () => abandonEventDraftAction(null as never, form()) },
   { name: "approveEventAction", call: () => approveEventAction(null as never, form()) },
   { name: "saveEventAudienceAction", call: () => saveEventAudienceAction(null as never, form()) },
-  { name: "assertEventOutcomeAction", call: () => assertEventOutcomeAction(null as never, form()) },
-  {
-    name: "correctEventOutcomeAction",
-    call: () => correctEventOutcomeAction(null as never, form()),
-  },
+  // `abandonEventDraftAction`, `assertEventOutcomeAction` and
+  // `correctEventOutcomeAction` were on this list and went with LAN-151. The
+  // first produced the `withdrawn` status; the other two were the occurrence
+  // assertion, which nobody makes any more (D30). A coach could not reach any
+  // of the three, and now nobody can.
   { name: "retryDeliveryAction", call: () => retryDeliveryAction(null as never, form()) },
   { name: "revokeAndReissueAction", call: () => revokeAndReissueAction(null as never, form()) },
   { name: "removeAttendanceAction", call: () => removeAttendanceAction(null as never, form()) },
@@ -319,12 +315,12 @@ describe("LAN-110 — a coaching assignment is refused every action that is not 
       }
     }
 
-    // Not every action on the list is open to a Secretary — delivery and the
-    // occurrence assertion are, membership activation is, the report is not —
-    // so this asserts that the narrowing did not close the ones that were open.
+    // Not every action on the list is open to a Secretary — delivery is,
+    // membership activation is, the report is not — so this asserts that the
+    // narrowing did not close the ones that were open.
     expect(reached).toContain("activateMembershipAction");
     expect(reached).toContain("resolveOnboardingItemAction");
-    expect(reached).toContain("assertEventOutcomeAction");
+    expect(reached).toContain("approveEventAction");
     expect(reached).toContain("retryDeliveryAction");
   });
 });

@@ -26,10 +26,11 @@ import { EMPTY_FORM_STATE, type EventFormState } from "./form-state";
 import VenueField from "./venue-field";
 import {
   AUDIENCE_COMES_LATER,
+  CLUB_TIME_ZONE_NOTE,
   describeTermCoordinate,
   formatLongDate,
+  JOINING_URL_IS_NEVER_PUBLIC,
   labelFor,
-  SOLICITS_RESPONSE_MEANING,
   TYPE_LABELS,
 } from "./presentation";
 
@@ -143,7 +144,9 @@ export default function EventForm({
   }, [state.issues]);
 
   const attendance = value("attendance");
-  const solicits = value("solicitsResponse");
+  // Controlled, because it decides which of the two venue fields is on screen
+  // and whether the joining link exists at all (D20, D21).
+  const [where, setWhere] = useState(value("deliveryMode") || "in_person");
 
   return (
     <Box component="form" action={formAction} ref={formRef} data-testid="event-form">
@@ -173,6 +176,14 @@ export default function EventForm({
               fullWidth
             />
 
+            {/*
+              `shrink` is explicit because this select always has a value —
+              `practice` when nothing was chosen — and MUI was leaving the
+              outline's notch closed, so the label sat on top of the value.
+              Found in the LAN-151 browser preflight, on both the create and the
+              edit screen; every other field on this form notches correctly
+              because every other field can legitimately be empty.
+            */}
             <TextField
               select
               label="Type"
@@ -181,6 +192,7 @@ export default function EventForm({
               defaultValue={value("eventType") || "practice"}
               error={Boolean(issueFor(state, "eventType"))}
               helperText={issueFor(state, "eventType")}
+              slotProps={{ inputLabel: { shrink: true } }}
               fullWidth
             >
               {DRAFTABLE_EVENT_TYPES.map((type) => (
@@ -213,8 +225,10 @@ export default function EventForm({
                 type="time"
                 defaultValue={value("startsAt")}
                 error={Boolean(issueFor(state, "startsAt"))}
-                helperText={issueFor(state, "startsAt") ?? "24-hour clock, e.g. 20:00."}
-                slotProps={{ inputLabel: { shrink: true } }}
+                helperText={
+                  issueFor(state, "startsAt") ?? `24-hour clock, five-minute steps, e.g. 20:00.`
+                }
+                slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }}
                 fullWidth
               />
               <TextField
@@ -225,10 +239,21 @@ export default function EventForm({
                 defaultValue={value("endsAt")}
                 error={Boolean(issueFor(state, "endsAt"))}
                 helperText={issueFor(state, "endsAt") ?? "Must be after the start."}
-                slotProps={{ inputLabel: { shrink: true } }}
+                slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }}
                 fullWidth
               />
             </Stack>
+
+            {/*
+              D86. The date input renders in the browser's locale, so an
+              operator in Oxford can be looking at `mm/dd/yyyy`, and the times
+              carry no zone of their own. Saying which zone these are is the
+              whole of D86 and it is said once, here, beside the three fields it
+              is about.
+            */}
+            <Typography variant="body2" color="text.secondary" data-testid="club-time-zone-note">
+              {CLUB_TIME_ZONE_NOTE}
+            </Typography>
 
             {/*
               Derived, and shown so the operator can see the derivation was
@@ -248,15 +273,101 @@ export default function EventForm({
             </Alert>
 
             {/*
+              D20. Where the event is, as a property, rather than something
+              guessed from what somebody typed into the venue field. It decides
+              what that field then means (D21) and whether a joining link is a
+              thing this event can have at all.
+            */}
+            <FormControl error={Boolean(issueFor(state, "deliveryMode"))} data-field="deliveryMode">
+              <FormLabel id="delivery-mode-label">Where</FormLabel>
+              <RadioGroup
+                aria-labelledby="delivery-mode-label"
+                name="deliveryMode"
+                value={where}
+                onChange={(event) => setWhere(event.target.value)}
+              >
+                <FormControlLabel value="in_person" control={<Radio />} label="In person" />
+                <FormControlLabel value="online" control={<Radio />} label="Online" />
+              </RadioGroup>
+              <FormHelperText>
+                {issueFor(state, "deliveryMode") ??
+                  "In person takes an address; online takes the destination, such as Teams."}
+              </FormHelperText>
+            </FormControl>
+
+            {/*
               LAN-115 replaced the plain venue text field with a searchable
               place/address combobox. It is still one `name="venue"` input
               posting one line of text, so nothing about how this form is read,
-              validated, saved or audited changed with it.
+              validated, saved or audited changed with it. An online event is
+              not searching a map, so it gets a plain field for its destination.
             */}
-            <VenueField
-              name="venue"
-              defaultValue={value("venue")}
-              errorMessage={issueFor(state, "venue")}
+            {where === "online" ? (
+              <TextField
+                label="Destination"
+                name="venue"
+                data-field="venue"
+                defaultValue={value("venue")}
+                error={Boolean(issueFor(state, "venue"))}
+                helperText={issueFor(state, "venue") ?? "Where online — Teams, Zoom, a Discord."}
+                fullWidth
+              />
+            ) : (
+              <VenueField
+                name="venue"
+                defaultValue={value("venue")}
+                errorMessage={issueFor(state, "venue")}
+              />
+            )}
+
+            {/*
+              REQ-no-joining-url. Stored on the event and never public, never in
+              a subscription feed and never in a payload behind one. How an
+              invited person receives it is deliberately unsolved, and this form
+              does not pretend otherwise.
+            */}
+            {where === "online" ? (
+              <TextField
+                label="Joining link"
+                name="joiningUrl"
+                data-field="joiningUrl"
+                defaultValue={value("joiningUrl")}
+                error={Boolean(issueFor(state, "joiningUrl"))}
+                helperText={issueFor(state, "joiningUrl") ?? JOINING_URL_IS_NEVER_PUBLIC}
+                fullWidth
+              />
+            ) : null}
+          </Stack>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
+          <Stack spacing={3}>
+            {/* D18. */}
+            <TextField
+              label="Description"
+              name="description"
+              data-field="description"
+              defaultValue={value("description")}
+              error={Boolean(issueFor(state, "description"))}
+              helperText={
+                issueFor(state, "description") ?? "What this is, and anything people need to know."
+              }
+              multiline
+              minRows={3}
+              fullWidth
+            />
+
+            {/* D17: its own field, so it is not buried in a paragraph. */}
+            <TextField
+              label="Required equipment"
+              name="requiredEquipment"
+              data-field="requiredEquipment"
+              defaultValue={value("requiredEquipment")}
+              error={Boolean(issueFor(state, "requiredEquipment"))}
+              helperText={
+                issueFor(state, "requiredEquipment") ?? "What to bring. Leave empty if nothing."
+              }
+              fullWidth
             />
           </Stack>
         </Paper>
@@ -278,27 +389,14 @@ export default function EventForm({
               </FormHelperText>
             </FormControl>
 
-            <FormControl
-              error={Boolean(issueFor(state, "solicitsResponse"))}
-              data-field="solicitsResponse"
-            >
-              <FormLabel id="solicits-label">Response requested</FormLabel>
-              <RadioGroup
-                aria-labelledby="solicits-label"
-                name="solicitsResponse"
-                defaultValue={solicits}
-              >
-                <FormControlLabel value="yes" control={<Radio />} label="Yes" />
-                <FormControlLabel value="no" control={<Radio />} label="No" />
-              </RadioGroup>
-              <FormHelperText data-testid="solicits-meaning">
-                {issueFor(state, "solicitsResponse") ?? SOLICITS_RESPONSE_MEANING}
-              </FormHelperText>
-            </FormControl>
-
-            <Typography variant="body2" color="text.secondary">
-              Attendance expected and response requested are different questions. An optional event
-              may still ask who is coming; a mandatory one may ask nothing.
+            {/*
+              D23 removed "Response requested" from this form. It was not a real
+              concept: mandatory or optional already carries it, and everyone
+              sent an event is expected to answer.
+            */}
+            <Typography variant="body2" color="text.secondary" data-testid="everyone-answers-note">
+              Everyone this event is sent to is asked to answer. Mandatory or optional says whether
+              the club expects them to be there, not whether it wants to know.
             </Typography>
           </Stack>
         </Paper>

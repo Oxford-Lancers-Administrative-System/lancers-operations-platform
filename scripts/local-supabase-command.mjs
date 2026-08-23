@@ -42,6 +42,26 @@ function stopIfRunning(command, args, env = process.env) {
   });
 }
 
+/**
+ * `supabase status` exits non-zero when the stack is not running — that is its
+ * normal answer to "is anything up?", not a fault. Running it through `run()`
+ * therefore killed the process before the caller could read the answer, which
+ * made a stack that had never been started impossible to start: a freshly
+ * allocated mission slot has `appliedConfig: null`, so the restart branch is
+ * always taken, and the probe after the stop always aborted. Probe with a
+ * runner that reports instead of exiting; the caller already treats an
+ * unreadable answer as "not running".
+ */
+function probe(command, args, env = process.env) {
+  const result = spawnSync(command, args, {
+    cwd: repoPath,
+    env,
+    encoding: "utf8",
+    stdio: ["inherit", "pipe", "pipe"],
+  });
+  return result.status === 0 ? (result.stdout ?? "") : "";
+}
+
 function localEnvironment(lease, account) {
   return {
     ...process.env,
@@ -109,7 +129,7 @@ try {
       // that silently failed would leave `supabase start` a no-op, and the
       // fingerprint recorded afterwards would claim a configuration that Auth
       // is not serving — the precise failure this check exists to prevent.
-      const after = run(cli, cliArgs("status", ["-o", "json"]), cliEnv, false);
+      const after = probe(cli, cliArgs("status", ["-o", "json"]), cliEnv);
       let stillRunning = false;
       try {
         const parsed = JSON.parse(after);

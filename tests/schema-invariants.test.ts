@@ -214,9 +214,9 @@ describe("participation (P1–P8)", () => {
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, season_membership_id)
-       values ($1, 'draft', true, $2, $3, 'player', $4)`,
+       values ($1, 'draft', $2, $3, 'player', $4)`,
       [base.draftEventId, base.seasonId, member, base.membershipId],
       "invitations_require_an_approved_event",
     );
@@ -232,9 +232,9 @@ describe("participation (P1–P8)", () => {
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, season_membership_id)
-       values ($1, 'approved', true, $2, $3, 'player', $4)`,
+       values ($1, 'approved', $2, $3, 'player', $4)`,
       [base.draftEventId, base.seasonId, member, base.otherMembershipId],
       "invitations_event_state_is_current",
     );
@@ -278,34 +278,47 @@ describe("participation (P1–P8)", () => {
     );
   });
 
-  it("P5 — refuses attendance against an event that has not occurred", async () => {
-    for (const status of ["approved", "cancelled", "not_held"]) {
+  it("P5 — refuses attendance against an event that is not approved", async () => {
+    // The database's half of P5, and the only half it can hold: a check
+    // constraint cannot read the clock, so when the register opens lives in the
+    // service layer (`attendance-window.ts`). A draft has nobody on it and a
+    // cancelled event did not happen, and both are refused here structurally,
+    // whatever any caller believes.
+    //
+    // A-5: the rule is named exactly. It had been weakened to the bare
+    // substring "attendance_records", which any of a dozen constraints on that
+    // table would satisfy — including the composite foreign key, which fails
+    // for an entirely different reason and would have hidden the check being
+    // dropped.
+    for (const status of ["draft", "cancelled"]) {
       await expectRejected(
         client,
         `insert into public.attendance_records
            (event_id, event_status, season_id, capacity, season_membership_id, presence)
          values ($1, $4, $2, 'player', $3, 'present')`,
         [base.approvedEventId, base.seasonId, base.membershipId, status],
+        "attendance_records_require_an_approved_event",
       );
     }
   });
 
-  it("P5 — refuses moving an event out of `occurred` while attendance exists", async () => {
+  it("P5 — refuses cancelling an event while attendance exists", async () => {
     await client.query(
       `insert into public.attendance_records
          (event_id, event_status, season_id, capacity, season_membership_id, presence)
-       values ($1, 'occurred', $2, 'player', $3, 'present')`,
+       values ($1, 'approved', $2, 'player', $3, 'present')`,
       [base.occurredEventId, base.seasonId, base.membershipId],
     );
 
     // The cascading composite foreign key rewrites the child's copy of the
-    // status, which then fails its own check. The correction has to deal with
-    // the attendance first — which is the point.
+    // status, which then fails its own check. Calling the event off has to deal
+    // with the attendance first — which is the point.
     await expectRejected(
       client,
-      "update public.events set status = 'not_held' where id = $1",
+      `update public.events set status = 'cancelled', decision_reason = 'Called off.'
+        where id = $1`,
       [base.occurredEventId],
-      "attendance_records_require_an_occurred_event",
+      "attendance_records_require_an_approved_event",
     );
   });
 
@@ -319,9 +332,9 @@ describe("participation (P1–P8)", () => {
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, season_membership_id, person_id)
-       values ($1, 'approved', true, $2, $3, 'player', $4, $5)`,
+       values ($1, 'approved', $2, $3, 'player', $4, $5)`,
       [base.approvedEventId, base.seasonId, member, base.otherMembershipId, base.personId],
       "invitations_anchor_matches_capacity",
     );
@@ -347,9 +360,9 @@ describe("participation (P1–P8)", () => {
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, season_membership_id)
-       values ($1, 'approved', true, $2, $3, 'coach', $4)`,
+       values ($1, 'approved', $2, $3, 'coach', $4)`,
       [base.approvedEventId, base.seasonId, member, base.otherMembershipId],
       "invitations_anchor_matches_capacity",
     );
@@ -378,9 +391,9 @@ describe("participation (P1–P8)", () => {
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, season_membership_id)
-       values ($1, 'approved', true, $2, $3, 'player', $4)`,
+       values ($1, 'approved', $2, $3, 'player', $4)`,
       [base.approvedEventId, base.seasonId, base.audienceMemberId, foreign.id],
       "invitations_membership_same_season",
     );
@@ -390,9 +403,9 @@ describe("participation (P1–P8)", () => {
     await expectRejected(
       client,
       `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
+         (event_id, event_status, season_id, audience_member_id,
           capacity, season_membership_id)
-       values ($1, 'approved', true, $2, $3, 'player', $4)`,
+       values ($1, 'approved', $2, $3, 'player', $4)`,
       [base.approvedEventId, base.seasonId, base.audienceMemberId, base.membershipId],
       "invitations_one_per_player_per_event",
     );
@@ -521,80 +534,119 @@ describe("events (E1–E6)", () => {
     );
   });
 
-  it("E3 — refuses a second approval within one alternative group", async () => {
+  /*
+   * E3, E5 and E6 were tested here and are gone, each with the rule it
+   * described. LAN-151 retired all three, and what replaced them is tested
+   * below rather than left as an absence:
+   *
+   *   * **E3** — "at most one event in an alternative group may ever reach
+   *     approval" — went with the alternative-group machinery. An unconfirmed
+   *     event is a draft; the club models no candidate slots.
+   *   * **E5** — "occurrence is an assertion somebody makes" — went with the
+   *     assertion. An event has occurred when its date has passed and it was
+   *     not cancelled (D30), and nothing stores that.
+   *   * **E6** — "no solicitation means no deadline and no reminders" — went
+   *     with `solicits_response` (D23). Every event asks for an answer.
+   */
+
+  it("the stored status vocabulary is exactly three values", async () => {
+    const values = await client.query<{ label: string }>(
+      `select e.enumlabel as label
+         from pg_enum e
+         join pg_type t on t.oid = e.enumtypid
+        where t.typname = 'event_status'
+        order by e.enumsortorder`,
+    );
+    expect(values.rows.map((row) => row.label)).toEqual(["draft", "approved", "cancelled"]);
+  });
+
+  it("the event type vocabulary is exactly the seven approved types", async () => {
+    const values = await client.query<{ label: string }>(
+      `select e.enumlabel as label
+         from pg_enum e
+         join pg_type t on t.oid = e.enumtypid
+        where t.typname = 'event_type'
+        order by e.enumsortorder`,
+    );
+    expect(values.rows.map((row) => row.label)).toEqual([
+      "practice",
+      "strength_and_conditioning",
+      "chalk",
+      "game",
+      "social",
+      "recruitment",
+      "meeting",
+    ]);
+  });
+
+  it("E3's index is gone, so two events in one group may both be approved", async () => {
     const group = await one<{ id: string }>(
       client,
       `insert into public.alternative_groups (season_id, label) values ($1, 'Fixture group') returning id`,
       [base.seasonId],
     );
 
-    await client.query(
-      `insert into public.events
-         (season_id, alternative_group_id, name, event_type, status, scheduled_on,
-          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-       values ($1, $2, 'Candidate A', 'social', 'approved', '2026-11-05', now(), $3, now(), $3)`,
-      [base.seasonId, group.id, base.personId],
-    );
+    for (const [name, on] of [
+      ["Candidate A", "2026-11-05"],
+      ["Candidate B", "2026-11-06"],
+    ]) {
+      await client.query(
+        `insert into public.events
+           (season_id, alternative_group_id, name, event_type, status, scheduled_on,
+            audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
+         values ($1, $2, $3, 'social', 'approved', $4, now(), $5, now(), $5)`,
+        [base.seasonId, group.id, name, on, base.personId],
+      );
+    }
 
+    const approved = await one<{ tally: string }>(
+      client,
+      `select count(*)::text as tally from public.events
+        where alternative_group_id = $1 and approved_at is not null`,
+      [group.id],
+    );
+    expect(approved.tally).toBe("2");
+  });
+
+  it("refuses a week number on an event that names no term", async () => {
+    // The reconciliation REQ-migration asks for. `week_number` is a TERM
+    // coordinate in -1..8; a vacation belongs to neither adjacent term (D85),
+    // so a vacation event carries neither and its segment is derived from
+    // `public.terms` rather than stored.
     await expectRejected(
       client,
-      `insert into public.events
-         (season_id, alternative_group_id, name, event_type, status, scheduled_on,
-          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-       values ($1, $2, 'Candidate B', 'social', 'approved', '2026-11-06', now(), $3, now(), $3)`,
-      [base.seasonId, group.id, base.personId],
-      "events_one_approved_per_alternative_group",
+      `insert into public.events (season_id, name, event_type, status, week_number)
+       values ($1, 'Vacation session', 'practice', 'draft', 3)`,
+      [base.seasonId],
+      "events_week_number_valid",
     );
   });
 
-  it("E5 — refuses an occurrence that nobody asserted", async () => {
+  it("refuses a week number outside the Oxford range", async () => {
+    const term = await one<{ id: string }>(
+      client,
+      "select id from public.terms order by starts_on limit 1",
+      [],
+    );
     await expectRejected(
       client,
-      `insert into public.events
-         (season_id, name, event_type, status, scheduled_on,
-          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-       values ($1, 'Assumed to have happened', 'practice', 'occurred', '2026-10-14', now(), $2, now(), $2)`,
-      [base.seasonId, base.personId],
-      "events_outcome_is_asserted",
+      `insert into public.events (season_id, name, event_type, status, term_id, week_number)
+       values ($1, 'Week nine', 'practice', 'draft', $2, 9)`,
+      [base.seasonId, term.id],
+      "events_week_number_valid",
     );
   });
 
-  it("E6 — refuses a response deadline on an event that solicits no response", async () => {
+  it("refuses a joining link on an in-person event", async () => {
+    // REQ-no-joining-url's structural half: an event nobody joins online has no
+    // link to leak.
     await expectRejected(
       client,
       `insert into public.events
-         (season_id, name, event_type, status, scheduled_on, solicits_response, response_deadline_at,
-          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-       values ($1, 'Calendar only', 'meeting', 'approved', '2027-06-09', false, now(), now(), $2, now(), $2)`,
-      [base.seasonId, base.personId],
-      "events_no_obligation_without_solicitation",
-    );
-  });
-
-  it("E6 — refuses an invitation expiring on an event that asked nothing", async () => {
-    const informational = await one<{ id: string }>(
-      client,
-      `insert into public.events
-         (season_id, name, event_type, status, scheduled_on, solicits_response,
-          audience_confirmed_at, audience_confirmed_by_person_id, approved_at, approved_by_person_id)
-       values ($1, 'AGM', 'meeting', 'approved', '2027-06-09', false, now(), $2, now(), $2) returning id`,
-      [base.seasonId, base.personId],
-    );
-
-    const member = await confirmAudienceMember(
-      client,
-      { eventId: informational.id, seasonId: base.seasonId },
-      { capacity: "player", membershipId: base.membershipId },
-    );
-
-    await expectRejected(
-      client,
-      `insert into public.invitations
-         (event_id, event_status, solicits_response, season_id, audience_member_id,
-          capacity, season_membership_id, status)
-       values ($1, 'approved', false, $2, $3, 'player', $4, 'expired')`,
-      [informational.id, base.seasonId, member, base.membershipId],
-      "invitations_expire_only_when_asked",
+         (season_id, name, event_type, status, delivery_mode, joining_url)
+       values ($1, 'On the pitch', 'practice', 'draft', 'in_person', 'https://example.invalid/x')`,
+      [base.seasonId],
+      "events_joining_url_is_for_online_events",
     );
   });
 

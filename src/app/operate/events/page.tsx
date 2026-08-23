@@ -19,12 +19,15 @@ import { UnavailableScreen } from "@/app/operate/unavailable";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import {
   DEFAULT_EVENT_SORT,
+  derivedEventState,
   DRAFTABLE_EVENT_TYPES,
   EVENT_SORT_COLUMNS,
+  EVENT_STATUS_FILTERS,
   listCurrentSeasonEvents,
   type EventList,
   type EventListEntry,
 } from "@/lib/services/events";
+import { todayInClubZone } from "@/lib/club-time";
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import { gateShellPage } from "../gate";
 import { CoachEligibleEvents } from "./coach-eligible-events";
@@ -38,9 +41,10 @@ import EventFilters from "./event-filters";
 import ViewSwitch from "./view-switch";
 import {
   AUDIENCE_AND_RESPONSES_COME_LATER,
+  DELIVERY_MODE_LABELS,
+  DERIVED_STATE_LABELS,
   describeAttendance,
   describeAudience,
-  describeSolicitation,
   formatListWhen,
   labelFor,
   STATUS_LABELS,
@@ -62,12 +66,16 @@ import {
  * ## What the columns are, after Brian's clarification
  *
  * **Occurrence is gone.** It read "Awaiting assertion" for every approved
- * event, which is internal vocabulary for a decision this screen cannot make —
- * asserting that an event happened is LAN-80's, on its own surface. A column
- * that names a state and offers no action is a column an operator learns to
- * ignore. **Responses is gone too**: RSVP counts are excluded from this
- * correction pass, and the column said "—" for everything a calendar operator
- * can currently create.
+ * event, which was internal vocabulary for a decision nobody makes any more:
+ * LAN-151 retired the assertion entirely, and an event has occurred when its
+ * date has passed and it was not cancelled (D30). **Responses is gone too**:
+ * RSVP counts are excluded from this list, and the column said "—" for
+ * everything a calendar operator can currently create.
+ *
+ * **Where** replaced the response-solicited column when D23 removed "Response
+ * requested". In person or online is a fact about the event that changes what
+ * an operator has to do to get to it; whether a response was requested was not
+ * a real concept, because everyone sent an event is expected to answer.
  *
  * **Audience stays, and says when it arrives** rather than that it is missing:
  * the clarification asks the list to make clear that audience and response
@@ -82,32 +90,45 @@ import {
  * the same transaction as the list so the two cannot disagree.
  */
 
-/** The statuses an operator can filter by — the whole vocabulary, in order. */
-const FILTERABLE_STATUSES: readonly string[] = Object.freeze([
-  "draft",
-  "pending_approval",
-  "approved",
-  "occurred",
-  "not_held",
-  "cancelled",
-  "rejected",
-  "withdrawn",
-]);
+/**
+ * What the Status filter offers, and what each row's Status column says — Q-6.
+ *
+ * Brian, at the visual gate: "I want to be able to see the status on the status
+ * filter, and I want to see the events that occurred, to easily be able to tell
+ * which ones happened versus not." So **Occurred** is a fourth choice beside
+ * the three stored states, and a past approved event reads `Occurred` in the
+ * column rather than `Approved`.
+ *
+ * It stays derived. Nothing stores it, nobody asserts it, and the enum is still
+ * three values (D30) — `EVENT_STATUS_FILTERS` lives beside `derivedEventState`
+ * in the service layer for exactly that reason, so a reader who follows the
+ * word arrives at the rule rather than at a column.
+ */
+function statusLabel(event: EventListEntry, today: string): string {
+  const derived = derivedEventState(event, today);
+  return event.status === "approved" && derived === "occurred"
+    ? labelFor(DERIVED_STATE_LABELS, derived)
+    : labelFor(STATUS_LABELS, event.status);
+}
 
 function first(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
   return value ?? "";
 }
 
-/** Colour is never the only carrier — every chip states its status in words. */
-function statusColour(status: string): "default" | "info" | "success" | "warning" {
-  switch (status) {
-    case "approved":
-    case "occurred":
+/**
+ * Colour is never the only carrier — every chip states its status in words.
+ *
+ * Keyed on the word the chip actually shows rather than on the stored status,
+ * so an `Occurred` chip cannot be shaded as though it read `Approved`.
+ */
+function statusColour(label: string): "default" | "info" | "success" | "warning" {
+  switch (label) {
+    case "Approved":
       return "success";
-    case "pending_approval":
+    case "Occurred":
       return "warning";
-    case "draft":
+    case "Draft":
       return "info";
     default:
       return "default";
@@ -141,9 +162,14 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
   // regardless: a hidden button is a courtesy, never a boundary.
   const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
 
+  // One reading of the club's clock for the whole page: the filter and every
+  // row's Status column must agree about which day it is, and two calls either
+  // side of midnight would not.
+  const today = todayInClubZone();
+
   let list: EventList;
   try {
-    list = await listCurrentSeasonEvents({ search, status, eventType, sort, direction });
+    list = await listCurrentSeasonEvents({ search, status, eventType, sort, direction, today });
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return <UnavailableScreen title="Events" message={error.message} testId="events-unavailable" />;
@@ -186,7 +212,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
       />
 
       <EventFilters
-        statuses={FILTERABLE_STATUSES}
+        statuses={EVENT_STATUS_FILTERS}
         types={DRAFTABLE_EVENT_TYPES}
         sortColumns={SORT_OPTIONS}
         search={search}
@@ -247,7 +273,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
                     direction={direction}
                     query={params}
                   />
-                  <TableCell>Response</TableCell>
+                  <TableCell>Where</TableCell>
                   <TableCell>Audience</TableCell>
                 </TableRow>
               </TableHead>
@@ -270,11 +296,11 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
                     <TableCell>
                       <Chip
                         size="small"
-                        label={labelFor(STATUS_LABELS, event.status)}
-                        color={statusColour(event.status)}
+                        label={statusLabel(event, today)}
+                        color={statusColour(statusLabel(event, today))}
                       />
                     </TableCell>
-                    <TableCell>{describeSolicitation(event.solicitsResponse)}</TableCell>
+                    <TableCell>{labelFor(DELIVERY_MODE_LABELS, event.deliveryMode)}</TableCell>
                     <TableCell>{describeAudience(event)}</TableCell>
                   </TableRow>
                 ))}
@@ -285,7 +311,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
           {/* Phone: the same events as cards, with nothing left out. */}
           <Stack spacing={2} sx={{ display: { xs: "flex", md: "none" } }}>
             {list.events.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventCard key={event.id} event={event} today={today} />
             ))}
           </Stack>
         </>
@@ -327,6 +353,10 @@ async function coachEventList(search: string) {
   }
 
   const today = londonToday();
+  // The card's open/not-open line is about an instant, not a day — W-F1. The
+  // sections are still bucketed by date; only the register's own question needs
+  // the clock.
+  const now = new Date();
 
   return (
     <CoachEligibleEvents
@@ -342,7 +372,7 @@ async function coachEventList(search: string) {
           when: formatListWhen(event),
           venue: event.venue,
           isToday: isToday(event, today),
-          isOpen: isOpenForAttendance(event),
+          isOpen: isOpenForAttendance(event, now),
         })),
       }))}
     />
@@ -411,14 +441,13 @@ function SortableHeader({
 /**
  * The phone presentation of one event.
  *
- * The wireframe's card carries name, date and venue. Status, response
- * solicitation and attendance are carried too, because LAN-76 scopes the list
- * to "date, type, status and whether a response is solicited" — dropping a
- * status on a narrow screen would leave an operator unable to tell a draft from
- * an approved event, and § 7 forbids reflow that removes data needed for the
+ * The wireframe's card carries name, date and venue. Status, where the event
+ * is and whether attendance is expected are carried too — dropping a status on
+ * a narrow screen would leave an operator unable to tell a draft from an
+ * approved event, and § 7 forbids reflow that removes data needed for the
  * task.
  */
-function EventCard({ event }: { event: EventListEntry }) {
+function EventCard({ event, today }: { event: EventListEntry; today: string }) {
   return (
     <Card variant="outlined" data-testid="event-card">
       <CardActionArea href={`/operate/events/${event.id}`} sx={{ p: 2 }}>
@@ -432,12 +461,12 @@ function EventCard({ event }: { event: EventListEntry }) {
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
             <Chip
               size="small"
-              label={labelFor(STATUS_LABELS, event.status)}
-              color={statusColour(event.status)}
+              label={statusLabel(event, today)}
+              color={statusColour(statusLabel(event, today))}
             />
             <Chip size="small" label={labelFor(TYPE_LABELS, event.eventType)} />
             {event.venue ? <Chip size="small" label={event.venue} /> : null}
-            <Chip size="small" label={describeSolicitation(event.solicitsResponse)} />
+            <Chip size="small" label={labelFor(DELIVERY_MODE_LABELS, event.deliveryMode)} />
             <Chip size="small" label={describeAttendance(event.isMandatory)} />
           </Stack>
         </Stack>

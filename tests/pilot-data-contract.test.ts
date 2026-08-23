@@ -843,12 +843,7 @@ describe("the scenario scripts stay inside the conventions", () => {
         ],
       ],
     ],
-    "lan-76": [
-      [
-        "public.events",
-        ["name like '%PILOT-LAN-76%'", "status in ('draft', 'pending_approval', 'withdrawn')"],
-      ],
-    ],
+    "lan-76": [["public.events", ["name like '%PILOT-LAN-76%'", "status = 'draft'"]]],
     // LAN-75's roster and activation scenario. Its setup script writes nine
     // rows with deterministic identifiers, and these six statements remove the
     // rows that have no identifier any script can know: the returner a tester

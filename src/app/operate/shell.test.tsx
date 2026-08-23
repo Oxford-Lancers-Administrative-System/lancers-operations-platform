@@ -64,7 +64,7 @@ import {
   type ResolvedOperator,
 } from "@/lib/auth/operator";
 import { listCurrentSeasonEvents, type EventListEntry } from "@/lib/services/events";
-import { londonToday, shiftDays } from "./events/coach-event-buckets";
+import { isOpenForAttendance, londonToday, shiftDays } from "./events/coach-event-buckets";
 import OperateLayout from "./layout";
 import OperatePage from "./page";
 import RosterPage from "./roster/page";
@@ -152,7 +152,7 @@ function eventEntry(
   id: string,
   name: string,
   scheduledOn: string,
-  status: EventListEntry["status"] = "occurred",
+  status: EventListEntry["status"] = "approved",
 ): EventListEntry {
   return {
     id,
@@ -162,9 +162,10 @@ function eventEntry(
     scheduledOn,
     startsAt: "20:00",
     endsAt: "22:00",
+    deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
-    solicitsResponse: true,
+    registerSaved: false,
     audienceCount: 0,
     invitationCount: 0,
     responseCount: 0,
@@ -797,9 +798,9 @@ describe("LAN-110 — the coach shell", () => {
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
       season: { id: "season", label: "2026-27", status: "active" },
       events: [
-        eventEntry("today-practice", "Practice", today, "occurred"),
+        eventEntry("today-practice", "Practice", today, "approved"),
         eventEntry("next-week", "S&C", shiftDays(today, 5), "approved"),
-        eventEntry("last-week", "Varsity", shiftDays(today, -3), "occurred"),
+        eventEntry("last-week", "Varsity", shiftDays(today, -3), "approved"),
       ],
       totalInSeason: 3,
     });
@@ -828,11 +829,15 @@ describe("LAN-110 — the coach shell", () => {
   it("says on the card when a register cannot be opened yet", async () => {
     // A coach who taps three sessions looking for a register they can fill in
     // has learned nothing except that the list is unreliable.
+    //
+    // What decides is the register's own window — D71's buffer, six hours
+    // before the start — and not the calendar day. Yesterday's session is open;
+    // one two days out is not, whatever time this suite happens to run at.
     const today = londonToday();
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
       season: { id: "season", label: "2026-27", status: "active" },
       events: [
-        eventEntry("open", "Practice", today, "occurred"),
+        eventEntry("open", "Practice", shiftDays(today, -1), "approved"),
         eventEntry("not-yet", "S&C", shiftDays(today, 2), "approved"),
       ],
       totalInSeason: 2,
@@ -842,14 +847,76 @@ describe("LAN-110 — the coach shell", () => {
     render(await EventsPage(eventsProps()));
 
     expect(screen.getAllByTestId("coach-event-not-open")).toHaveLength(1);
-    expect(screen.getByTestId("coach-event-not-open").textContent).toBe("Attendance not open");
+    expect(screen.getAllByTestId("coach-event-not-open")[0].textContent).toBe(
+      "Attendance not open",
+    );
+  });
+
+  /**
+   * Finding W-F1, at the level it was found: the screen.
+   *
+   * The card used to ask whether the session's **date** had passed while the
+   * register asked whether its **buffer** had lifted, so for the whole of a
+   * session's own day the coach's only list said "Attendance not open" about a
+   * register that was open and working. Found at 05:00 on the day of a session
+   * with 39 people on it.
+   *
+   * The assertion is the agreement rather than either answer, because today's
+   * card genuinely changes during the day: whatever `isOpenForAttendance` says
+   * at this instant is what the card must say at this instant. A card driven by
+   * the date fails it for the six hours before the session and every hour after.
+   */
+  it("agrees with the register about today's session, at whatever time it is", async () => {
+    const today = londonToday();
+    const session = eventEntry("tonight", "Practice", today, "approved");
+    vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
+      season: { id: "season", label: "2026-27", status: "active" },
+      events: [session],
+      totalInSeason: 1,
+    });
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    render(await EventsPage(eventsProps()));
+
+    const registerIsAvailable = isOpenForAttendance(session, new Date());
+    const cardSaysNotOpen = screen.queryAllByTestId("coach-event-not-open").length > 0;
+
+    expect(cardSaysNotOpen, `register available: ${registerIsAvailable}`).toBe(
+      !registerIsAvailable,
+    );
+  });
+
+  /**
+   * Finding W-F3. A banner standing above every session, saying the same thing
+   * on every visit, is the shape Brian rejected at W4 and again at this gate —
+   * and while W-F1 was live it contradicted the cards underneath it.
+   */
+  it("carries no standing note about when a register opens", async () => {
+    const today = londonToday();
+    vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
+      season: { id: "season", label: "2026-27", status: "active" },
+      events: [eventEntry("one", "Practice", shiftDays(today, -1), "approved")],
+      totalInSeason: 1,
+    });
+    givenAccess({ state: "active", operator: actor(COACH) });
+
+    const { container } = render(await EventsPage(eventsProps()));
+
+    expect(screen.queryByTestId("coach-events-note")).toBeNull();
+    for (const policy of [
+      "A register opens",
+      "stays open afterwards",
+      "shortly before the session starts",
+    ]) {
+      expect(container.textContent, policy).not.toContain(policy);
+    }
   });
 
   it("draws no heading for a section with nothing in it", async () => {
     // A club practises for eight months and then stops for the summer.
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
       season: { id: "season", label: "2026-27", status: "active" },
-      events: [eventEntry("long-ago", "Varsity", shiftDays(londonToday(), -60), "occurred")],
+      events: [eventEntry("long-ago", "Varsity Match", shiftDays(londonToday(), -60), "approved")],
       totalInSeason: 1,
     });
     givenAccess({ state: "active", operator: actor(COACH) });
@@ -860,7 +927,7 @@ describe("LAN-110 — the coach shell", () => {
     expect(screen.getByTestId("coach-events-section-earlier")).toBeVisible();
   });
 
-  it("shows no draft, cancelled or not-held session, whatever the query string says", async () => {
+  it("shows no draft or cancelled session, whatever the query string says", async () => {
     // No status comes from the URL, so `?status=draft` cannot show a coach a
     // draft; and the visible set is decided in coach-event-buckets.ts.
     const today = londonToday();
@@ -868,9 +935,9 @@ describe("LAN-110 — the coach shell", () => {
       season: { id: "season", label: "2026-27", status: "active" },
       events: [
         eventEntry("draft", "A draft nobody approved", today, "draft"),
-        eventEntry("cancelled", "A cancelled fixture", today, "cancelled"),
-        eventEntry("not-held", "A washed-out practice", shiftDays(today, -1), "not_held"),
-        eventEntry("real", "Practice", today, "occurred"),
+        eventEntry("cancelled", "A cancelled game", today, "cancelled"),
+        eventEntry("washed-out", "A washed-out practice", shiftDays(today, -1), "cancelled"),
+        eventEntry("real", "Practice", today, "approved"),
       ],
       totalInSeason: 4,
     });
@@ -886,7 +953,7 @@ describe("LAN-110 — the coach shell", () => {
     expect(screen.getAllByTestId("coach-event-row")).toHaveLength(1);
     expect(container.textContent).toContain("Practice");
     expect(container.textContent).not.toContain("A draft nobody approved");
-    expect(container.textContent).not.toContain("A cancelled fixture");
+    expect(container.textContent).not.toContain("A cancelled game");
     expect(container.textContent).not.toContain("A washed-out practice");
   });
 

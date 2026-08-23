@@ -17,12 +17,12 @@ import { ConstraintViolated, type Tx } from "@/lib/db";
  *
  * His reasoning, preserved because a bare table invites someone to "tidy" it:
  *
- *   * **Two days** — practice, S&C, chalk, recruitment, meeting, other. Routine
+ *   * **Two days** — practice, S&C, chalk, recruitment, meeting. Routine
  *     events. Long enough to see a shortage, short enough not to manufacture a
  *     chase queue against people who would have answered anyway.
- *   * **Seven days** — fixture, varsity, camp. A shortfall here affects team
- *     eligibility, travel, accommodation and opposition coordination, and all
- *     of those have to be dealt with well before the day.
+ *   * **Seven days** — a game. A shortfall here affects team eligibility,
+ *     travel, accommodation and opposition coordination, and all of those have
+ *     to be dealt with well before the day.
  *   * **Five days** — social. A middle tier for catering, deposits and venue
  *     numbers. A social that needs no numbers is better modelled as an
  *     informational event carrying no deadline at all.
@@ -82,19 +82,33 @@ function rule(daysBefore: number, atTime: string): ResponseDeadlineRule {
  * exactly the invention this file exists to prevent — so an unknown type is a
  * refusal (see `responseDeadlineRule`), and adding an event type to the enum
  * forces the decision to be made rather than inherited.
+ *
+ * ## Remapped by LAN-151, and deliberately not taken over by it
+ *
+ * The seven-type model retired four of the ten keys this table had, so the
+ * table was remapped onto the new enum and nothing else about it changed:
+ * `camp` folded into `practice` (2 days), `fixture` and `varsity` folded into
+ * `game` (7), and `other` folded into `meeting` (2). Every surviving value is
+ * the one Brian decided on 13 August 2026.
+ *
+ * The remap lands on exactly D75 and D77's chase thresholds — 2 days for
+ * practice, S&C, chalk, recruitment and meeting, 7 for a game, 5 for a social —
+ * and that is not a coincidence, but it is also not a merge. LAN-151 stores
+ * those thresholds in `public.event_type_settings` for **Mission 4**, which
+ * owns the chase. This table is the RSVP response deadline that LAN-77 shipped
+ * and still owns. Whether the two become one value is Mission 4's decision to
+ * make, and it has not been made — so there are deliberately two, and neither
+ * reads the other.
  */
 export const RESPONSE_DEADLINE_RULES: Readonly<Record<string, ResponseDeadlineRule>> =
   Object.freeze({
     practice: rule(2, "18:00"),
     strength_and_conditioning: rule(2, "18:00"),
     chalk: rule(2, "18:00"),
-    fixture: rule(7, "18:00"),
+    game: rule(7, "18:00"),
     social: rule(5, "18:00"),
     recruitment: rule(2, "18:00"),
-    camp: rule(7, "18:00"),
-    varsity: rule(7, "18:00"),
     meeting: rule(2, "18:00"),
-    other: rule(2, "18:00"),
   });
 
 export const UNCONFIGURED_EVENT_TYPE_RULE = "response_deadline_not_configured";

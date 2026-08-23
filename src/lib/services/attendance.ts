@@ -11,11 +11,16 @@ import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
 import {
   isAttendancePresence,
+  SHOWED_PRESENCES,
+  summariseAttendance,
   type AttendanceParticipant,
   type AttendancePresence,
+  type AttendanceSummary,
   type WalkUpInput,
 } from "./attendance-vocabulary";
+import { isRegisterAvailable, isRegisterOpen, registerOpensAt } from "./attendance-window";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
+import { type EventStatus } from "./event-input";
 import { personDisplayNameSql as displayName } from "./sql-text";
 
 /**
@@ -41,13 +46,24 @@ import { personDisplayNameSql as displayName } from "./sql-text";
  * Nothing in this file re-implements a rule the schema already carries, and the
  * two that matter are worth naming:
  *
- *   * **Invariant P5** — attendance requires an `occurred` event. Held by a
- *     cascading composite foreign key plus
- *     `check (event_status = 'occurred')`, so it is true of every row in the
- *     table at every instant, including rows written by a script that never
- *     called this module. The status check below exists so that the operator
- *     gets a sentence rather than an integrity error, and it is a courtesy
- *     rather than the guarantee.
+ *   * **Invariant P5** — attendance belongs to an event that is really going
+ *     to have happened, and since LAN-151 occurrence is derived rather than
+ *     asserted (D30). The rule is in two halves, deliberately. The database
+ *     holds "the event is approved", with a cascading composite foreign key
+ *     plus `check (event_status = 'approved')`, so it is true of every row in
+ *     the table at every instant including rows written by a script that never
+ *     called this module. Cancelling an event that carries attendance is
+ *     refused by the same cascade.
+ *
+ *     The other half is the **clock**, which a check constraint cannot read, so
+ *     it is enforced here: the register opens on D71's buffer before the event
+ *     starts and never closes (D72), which `./attendance-window.ts` decides.
+ *     Note that this is deliberately *not* "the date has passed" — a coach
+ *     standing at the pitch as people arrive is the person this surface exists
+ *     for, and refusing them until the evening is over would be a rule nobody
+ *     asked for. That half is a genuine service-layer guarantee rather than a
+ *     courtesy, which is why `requireOpenRegister` takes the row lock before
+ *     asking.
  *
  *   * **Invariant P8** — player capacity anchors to the season membership;
  *     coach, committee, guest and recruit anchor to the durable person. Held by
@@ -88,17 +104,53 @@ import { personDisplayNameSql as displayName } from "./sql-text";
 export {
   ATTENDANCE_PRESENCES,
   isAttendancePresence,
+  isShowedPresence,
+  SHOWED_PRESENCES,
+  summariseAttendance,
   type AttendanceParticipant,
   type AttendancePresence,
+  type AttendanceSummary,
   type WalkUpInput,
 } from "./attendance-vocabulary";
 
-/** The event states in which the attendance surface is open. Exactly one. */
-export const ATTENDANCE_OPEN_STATUS = "occurred";
+export {
+  ATTENDANCE_REGISTER_BUFFER_HOURS,
+  ATTENDANCE_REGISTER_BUFFER_MS,
+  eventStartInstant,
+  isRegisterAvailable,
+  isRegisterOpen,
+  registerOpensAt,
+} from "./attendance-window";
+
+/**
+ * The stored status an event must be in for a register to exist at all.
+ *
+ * One value, and it is `approved` rather than `occurred`, because LAN-151
+ * retired the occurrence assertion: a draft has no audience to take a register
+ * of and a cancelled event did not happen, and nothing else is stored.
+ *
+ * **When** the register opens is a separate question, and it belongs to the
+ * clock rather than to this constant — `./attendance-window.ts` opens it on
+ * D71's buffer before the event starts, which is deliberately *before* the
+ * event has happened. That is why no `hasOccurred` conjunct joins it here: a
+ * coach with the sheet in front of them at kick-off is exactly who this
+ * surface is for.
+ */
+export const ATTENDANCE_OPEN_STATUS: EventStatus = "approved";
 
 export const ATTENDANCE_CLOSED_MESSAGE =
-  "Attendance can only be recorded against an event that has happened. " +
-  "An authorized operator has to mark this event as occurred first.";
+  "Attendance can only be recorded against an approved event.";
+
+/**
+ * The other refusal: approved, but the sheet has not opened yet.
+ *
+ * Separate from the message above because the step that lifts it is different,
+ * and `docs/ux/standards.md` rule 4 asks a refusal to name that step. Neither
+ * sentence describes the register as waiting for the event to be over, which is
+ * what the previous one said and what D71 is not.
+ */
+export const ATTENDANCE_TOO_EARLY_MESSAGE =
+  "This event's register has not opened yet. It opens shortly before the event starts.";
 
 export const PARTICIPANT_NOT_FOUND_MESSAGE =
   "That person is not on this event's list. Add them as a walk-up if they turned up uninvited.";
@@ -107,12 +159,50 @@ export const PARTICIPANT_NOT_FOUND_MESSAGE =
 // Reads
 // ---------------------------------------------------------------------------
 
+/**
+ * Why a closed register is closed — LAN-152, reconciled to LAN-151's model.
+ *
+ * Two reasons, and the screen says different things for them, because
+ * `docs/ux/standards.md` rule 4 requires a refused control to name the step
+ * that lifts it and the two steps are not the same one. `not_approved` waits on
+ * a person; `before_buffer` waits on the clock, and nobody can do anything
+ * about it.
+ *
+ * It was `not_yet_asserted` while an occurrence assertion existed. Nothing
+ * asserts occurrence any more (D30), so the state a register waits on is the
+ * approval — which is also the only stored fact left that can withhold one.
+ */
+export type AttendanceClosedReason = "not_approved" | "before_buffer";
+
 /** The board, and the event it belongs to. */
 export interface AttendanceBoard {
   event: EventDetail;
-  /** `true` only for `occurred`. Everything else renders UX-71 or UX-75. */
+  /**
+   * Whether the register may be opened. Everything else renders UX-71 or UX-75.
+   *
+   * Two conditions, both of them the club's rule, since LAN-151 retired the
+   * third. D71 says the register opens on a buffer before the event and D72
+   * says it never closes — `./attendance-window.ts` holds the first, and
+   * `closedReasonFor` below holds the second by treating a register with
+   * anything recorded against it as one that is already open. What remains of
+   * the stored half is the approval: `attendance_records_require_an_occurred_event`
+   * was a check constraint and this branch's migration replaces it with
+   * `attendance_records_require_an_approved_event`, which is the same conjunct
+   * one state earlier.
+   */
   isOpen: boolean;
+  /** `null` when the register is open. */
+  closedReason: AttendanceClosedReason | null;
+  /**
+   * When the buffer lifts, ISO-8601, or `null` for an event with no date.
+   *
+   * Returned whether the register is open or not, because a screen saying "not
+   * yet" has to say *when*, and one saying "open" has said nothing wrong.
+   */
+  registerOpensAt: string | null;
   participants: AttendanceParticipant[];
+  /** The same numbers the event page's headline reads. See `AttendanceSummary`. */
+  summary: AttendanceSummary;
   invitedCount: number;
   recordedCount: number;
   walkUpCount: number;
@@ -210,6 +300,41 @@ function participantKey(capacity: string, membershipId: string | null, personId:
 }
 
 /**
+ * Why this event's register is closed, or `null` because it is not — LAN-152.
+ *
+ * ## The buffer opens it; nothing closes it
+ *
+ * D72 is that the register never closes, and the third branch below is what
+ * makes that literally true rather than nearly true. **A register with anything
+ * recorded against it has already been opened**, whatever the clock now says
+ * about the event's start, so the buffer cannot take it back.
+ *
+ * That is not a hypothetical tidy-up. It was found on the screen: the synthetic
+ * season carries sessions recorded as having happened whose dates are still
+ * ahead of today — an assertion invariant E5 permits and the seed makes — and
+ * without this branch the product refused to show a coach a register they had
+ * already filled in twenty-one names on. A rule that shuts a sheet somebody is
+ * halfway through is the opposite of the one D72 asks for.
+ *
+ * The extra round trip is one `exists` and is taken only on the path that would
+ * otherwise refuse.
+ */
+async function closedReasonFor(
+  tx: Tx,
+  event: EventDetail,
+  now: Date,
+): Promise<AttendanceClosedReason | null> {
+  if (event.status !== ATTENDANCE_OPEN_STATUS) return "not_approved";
+  if (isRegisterOpen(event, now)) return null;
+
+  const saved = await tx.query<{ saved: boolean }>(
+    "select exists (select 1 from public.attendance_records where event_id = $1) as saved",
+    [event.id],
+  );
+  return isRegisterAvailable(event, saved.rows[0].saved, now) ? null : "before_buffer";
+}
+
+/**
  * The board for one event, in whatever state it is in.
  *
  * It does **not** refuse a non-occurred event: the route has to render UX-71
@@ -217,15 +342,25 @@ function participantKey(capacity: string, membershipId: string | null, personId:
  * ask the question again for themselves rather than trusting that a caller
  * looked at it.
  */
-export async function readAttendanceBoard(eventId: string): Promise<AttendanceBoard> {
+export async function readAttendanceBoard(
+  eventId: string,
+  now: Date = new Date(),
+): Promise<AttendanceBoard> {
   return withTransaction(async (tx) => {
     const event = await readEventIn(tx, eventId);
+    const opensAt = registerOpensAt(event);
+    const opensAtIso = opensAt === null ? null : opensAt.toISOString();
 
-    if (event.status !== ATTENDANCE_OPEN_STATUS) {
+    const closedReason = await closedReasonFor(tx, event, now);
+
+    if (closedReason !== null) {
       return {
         event,
         isOpen: false,
+        closedReason,
+        registerOpensAt: opensAtIso,
         participants: [],
+        summary: summariseAttendance([]),
         invitedCount: 0,
         recordedCount: 0,
         walkUpCount: 0,
@@ -236,8 +371,11 @@ export async function readAttendanceBoard(eventId: string): Promise<AttendanceBo
     const rows = await tx.query<ParticipantRow>(PARTICIPANT_QUERY, [eventId]);
 
     // Read rather than recomputed. The view is the club's definition of a
-    // mismatch and it is what the Monday report will read; a second definition
-    // written here would drift from it and the two would disagree in public.
+    // mismatch, and a second definition written here would drift from it. It
+    // was also what the Monday report read, until LAN-151: the view derives
+    // occurrence against `now()`, so a report about last March would have
+    // depended on today's date. `weekly-report.ts` counts walk-ups off
+    // `attendance_records` instead, which leaves this the only reader.
     const mismatches = await tx.query<MismatchRow>(
       `select season_membership_id, person_id, capacity::text as capacity, mismatch
          from public.rsvp_attendance_mismatches
@@ -254,6 +392,50 @@ export async function readAttendanceBoard(eventId: string): Promise<AttendanceBo
       );
     }
 
+    /*
+      D74, and the defect it exists to prevent — LAN-152.
+
+      The board on `main` reported **zero recorded and thirty mismatches at the
+      same time**, on every occurred event whose register nobody had opened.
+      It is a counting fault rather than a display one, and it lives in one
+      classification: `said_yes_no_attendance_recorded` fires per person, so a
+      session nobody assessed came back as thirty separate accusations that
+      thirty people had let the club down. An unrecorded event read as a bad
+      one, which is the exact reading D74's two-state axis forbids.
+
+      A mismatch is a **disagreement between two records**. Where the second
+      record does not exist there is no disagreement — there is an absence, and
+      the club already has a word for it: *not recorded*. So while nothing at
+      all has been recorded against the event, no participant carries a
+      mismatch and the count is zero. The moment somebody saves anything the
+      sheet exists, and a person who said yes and is not on it is a genuine
+      exception again — a partly-filled register still flags them.
+
+      Suppressed **here** rather than in `public.rsvp_attendance_mismatches`
+      deliberately. The view is the durable home for this rule and it should
+      carry it, but the view is schema, and this mission's schema belongs to
+      the status-and-occurrence migration package; two packages writing
+      migrations at once is what the collision rules exist to prevent.
+
+      Nothing else over-counts in the meantime, and the reason is now narrower
+      than it was: **this function is the view's only reader.** `weekly-report.ts`
+      was the other one, and LAN-151 stopped it reading the view entirely,
+      because the view derives occurrence against `now()` and a report about
+      last March must not depend on today's date — it counts walk-ups straight
+      off `attendance_records`.
+
+      So the rule is applied wherever the view is read today, and what this
+      suppression protects against is a **future** reader: one written after
+      this package, going to the view directly, and not looking here.
+
+      That makes moving the rule into the view a real follow-up rather than a
+      tidy-up: a direct reader of `rsvp_attendance_mismatches` written after
+      this package, and not looking here, would over-count every session nobody
+      has taken a register for. It is recorded in the residual-risk section of
+      pull request #72, which is the one that merges.
+    */
+    const registerSaved = rows.rows.some((row) => row.attendance_id !== null);
+
     const participants = rows.rows.map((row) => {
       const key = participantKey(row.capacity, row.season_membership_id, row.person_id);
       return {
@@ -265,19 +447,105 @@ export async function readAttendanceBoard(eventId: string): Promise<AttendanceBo
         presence: isAttendancePresence(row.presence) ? row.presence : null,
         recordedAt: asIsoString(row.recorded_at),
         recordedByName: row.recorded_by_name,
-        mismatch: flagged.get(key) ?? null,
+        mismatch: registerSaved ? (flagged.get(key) ?? null) : null,
       } satisfies AttendanceParticipant;
     });
+
+    const summary = summariseAttendance(participants);
 
     return {
       event,
       isOpen: true,
+      closedReason: null,
+      registerOpensAt: opensAtIso,
       participants,
-      invitedCount: participants.filter((participant) => !participant.isWalkUp).length,
-      recordedCount: participants.filter((participant) => participant.presence !== null).length,
-      walkUpCount: participants.filter((participant) => participant.isWalkUp).length,
+      summary,
+      invitedCount: summary.invited,
+      recordedCount: summary.recorded,
+      walkUpCount: summary.walkUps,
       mismatchCount: participants.filter((participant) => participant.mismatch !== null).length,
     };
+  });
+}
+
+interface SummaryRow {
+  invited: string;
+  said_yes: string;
+  showed: string;
+  recorded: string;
+  walk_ups: string;
+}
+
+/**
+ * The three headline numbers, for the event page — REQ-headline-numbers, D62,
+ * D73, D74. LAN-152.
+ *
+ * ## Why this is not `readAttendanceBoard`
+ *
+ * The board answers "may the register be opened, and who is on it?", and for
+ * an event whose buffer has not lifted the honest answer to the first half is
+ * no — so it returns no participants. The headline is a different question:
+ * **forty-seven people were asked and twenty-one said yes** is true of an
+ * approved event a fortnight away, and the event page has to print it. Reading
+ * the board for it would make the numbers vanish exactly when they are most
+ * useful.
+ *
+ * So it is five counts in one round trip rather than a `full outer join` and a
+ * view read the page has no use for. `attendance.test.ts` pins this to
+ * `summariseAttendance` over the board's own rows, on one event, because
+ * `docs/ux/standards.md` rule 7 is about precisely this pair.
+ *
+ * ## What it does not do
+ *
+ * Judge. It reports `registerSaved` and leaves the difference between "nobody
+ * came" and "nobody looked" to the two values, which is what D74 asks for and
+ * what the packet means by "the application explains neither value in words".
+ */
+export async function readEventAttendanceSummary(eventId: string): Promise<AttendanceSummary> {
+  return withTransaction(async (tx) => {
+    // Proves the event exists, and refuses with a sentence rather than
+    // returning five zeroes for an identifier that names nothing.
+    await readEventIn(tx, eventId);
+
+    const result = await tx.query<SummaryRow>(
+      `with invited as (
+         select i.id,
+                coalesce(i.season_membership_id, i.person_id) as anchor_id
+           from public.invitations i
+          where i.event_id = $1
+       ),
+       recorded as (
+         select a.id,
+                a.presence::text as presence,
+                coalesce(a.season_membership_id, a.person_id) as anchor_id
+           from public.attendance_records a
+          where a.event_id = $1
+       )
+       select (select count(*) from invited)::text as invited,
+              (select count(*)
+                 from public.current_rsvp r
+                 join invited iv on iv.id = r.invitation_id
+                where r.response = 'yes')::text as said_yes,
+              (select count(*) from recorded
+                where presence = any($2::text[]))::text as showed,
+              (select count(*) from recorded)::text as recorded,
+              (select count(*) from recorded rec
+                where not exists (select 1 from invited iv
+                                   where iv.anchor_id = rec.anchor_id))::text as walk_ups`,
+      [eventId, [...SHOWED_PRESENCES]],
+    );
+
+    const row = result.rows[0];
+    const recorded = Number(row.recorded);
+
+    return {
+      invited: Number(row.invited),
+      saidYes: Number(row.said_yes),
+      showed: Number(row.showed),
+      recorded,
+      walkUps: Number(row.walk_ups),
+      registerSaved: recorded > 0,
+    } satisfies AttendanceSummary;
   });
 }
 
@@ -325,12 +593,13 @@ export async function recordAttendance(
   eventId: string,
   participantKeyValue: string,
   presence: AttendancePresence,
+  now: Date = new Date(),
 ): Promise<RecordedAttendance> {
   requireActor(actorPersonId);
   requirePresence(presence);
 
   return withTransaction(async (tx) => {
-    const event = await requireOccurredEvent(tx, eventId);
+    const event = await requireOpenRegister(tx, eventId, now);
     const target = await resolveParticipant(tx, eventId, participantKeyValue);
 
     return writeAttendance(tx, {
@@ -416,6 +685,7 @@ export async function recordWalkUpAttendance(
   actorPersonId: string,
   eventId: string,
   input: WalkUpInput,
+  now: Date = new Date(),
 ): Promise<RecordedAttendance> {
   requireActor(actorPersonId);
   requirePresence(input.presence);
@@ -432,7 +702,7 @@ export async function recordWalkUpAttendance(
   if (email !== null) requireEmailShape(email);
 
   return withTransaction(async (tx) => {
-    const event = await requireOccurredEvent(tx, eventId);
+    const event = await requireOpenRegister(tx, eventId, now);
     const target = await mintWalkUpProspect(tx, event, { givenName, familyName, phone, email });
 
     return writeAttendance(tx, {
@@ -448,23 +718,23 @@ export async function recordWalkUpAttendance(
 /**
  * Removes one attendance record.
  *
- * The only reason this exists: an occurrence assertion cannot be corrected
- * while attendance rows hang off it (`services/events.ts` refuses it, and the
- * cascading foreign key refuses it underneath), so an operator who marked the
- * wrong event as occurred would otherwise be stuck with it forever. Deleting an
- * observation is a real loss, so it is audited with the value that was removed
- * and it is not offered as a way to "clear" a mistake in the four states — that
- * is what a correction is for.
+ * The only reason this exists: somebody can be recorded against an event they
+ * were never at — a walk-up entered twice, a name tapped by mistake — and no
+ * value in the four states says "this row should not be here". Deleting an
+ * observation is a real loss, so it is audited with the value that was removed,
+ * and it is not offered as a way to change what somebody did: that is what a
+ * correction is for.
  */
 export async function removeAttendance(
   actorPersonId: string,
   eventId: string,
   participantKeyValue: string,
+  now: Date = new Date(),
 ): Promise<{ key: string; removedPresence: AttendancePresence | null }> {
   requireActor(actorPersonId);
 
   return withTransaction(async (tx) => {
-    const event = await requireOccurredEvent(tx, eventId);
+    const event = await requireOpenRegister(tx, eventId, now);
     const target = await resolveParticipant(tx, eventId, participantKeyValue);
 
     const removed = await tx.query<{ id: string; presence: string }>(
@@ -554,14 +824,15 @@ async function writeAttendance(
   } else {
     // `event_status` is written as the literal the check constraint admits
     // rather than copied from the event we read, so that this statement states
-    // the rule it is relying on. If the event is not `occurred` the composite
+    // the rule it is relying on. If the event is not `approved` the composite
     // foreign key has nothing to point at and the insert is refused — which is
-    // invariant P5 holding without this module being trusted.
+    // the database's half of invariant P5 holding without this module being
+    // trusted. The other half, that the date has passed, was proved above.
     const inserted = await tx.query<{ id: string; recorded_at: Date }>(
       `insert into public.attendance_records
          (event_id, event_status, season_id, capacity, season_membership_id, person_id,
           presence, recorded_by_person_id)
-       values ($1, 'occurred', $2, $3::public.invitation_capacity, $4::uuid, $5::uuid,
+       values ($1, 'approved', $2, $3::public.invitation_capacity, $4::uuid, $5::uuid,
                $6::public.attendance_presence, $7::uuid)
        returning id, recorded_at`,
       [
@@ -617,22 +888,43 @@ async function writeAttendance(
 // ---------------------------------------------------------------------------
 
 /**
- * The event, locked, and proved to be `occurred`.
+ * The event, locked, and proved to have an open register.
  *
- * The lock is taken before the status is read so that an operator correcting
- * the occurrence assertion and a recorder saving a value cannot both proceed on
- * a picture the other is changing. The refusal is `InvalidTransition` rather
- * than `NotPermitted`: the recorder is allowed to do this, the event is not yet
- * in a state where there is anything to record.
+ * The lock is taken before the question is asked so that an operator cancelling
+ * the event and a recorder saving a value cannot both proceed on a picture the
+ * other is changing. The refusal is `InvalidTransition` rather than
+ * `NotPermitted`: the recorder is allowed to do this, the event is not yet in a
+ * state where there is anything to record.
+ *
+ * **It asks exactly the question the board asks**, through the same
+ * `closedReasonFor`. That identity is the point rather than a convenience: a
+ * screen that offers a sheet the save then refuses is the defect LAN-152 fixed
+ * on the event page, and one rule written twice is how it comes back. So the
+ * status half is `approved` — LAN-151 retired the occurrence assertion, and a
+ * draft has no audience while a cancelled event did not happen — and the
+ * timing half is D71's buffer, which opens the sheet *before* the event starts.
+ *
+ * The two refusals are named apart because the steps that lift them are not the
+ * same one: an approval is a person's, and the buffer is only the clock's.
  */
-async function requireOccurredEvent(tx: Tx, eventId: string): Promise<EventDetail> {
+async function requireOpenRegister(
+  tx: Tx,
+  eventId: string,
+  now: Date = new Date(),
+): Promise<EventDetail> {
   const event = await lockEventIn(tx, eventId);
-  if (event.status !== ATTENDANCE_OPEN_STATUS) {
-    throw new InvalidTransition(ATTENDANCE_CLOSED_MESSAGE, {
-      rule: "attendance_records_require_an_occurred_event",
-    });
-  }
-  return event;
+  const closedReason = await closedReasonFor(tx, event, now);
+  if (closedReason === null) return event;
+
+  throw new InvalidTransition(
+    closedReason === "not_approved" ? ATTENDANCE_CLOSED_MESSAGE : ATTENDANCE_TOO_EARLY_MESSAGE,
+    {
+      rule:
+        closedReason === "not_approved"
+          ? "attendance_records_require_an_approved_event"
+          : "attendance_records_require_an_open_register",
+    },
+  );
 }
 
 /**

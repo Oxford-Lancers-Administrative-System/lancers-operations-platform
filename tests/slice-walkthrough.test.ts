@@ -45,11 +45,14 @@
  * one. The reporting date is this file's alone, so the version chain it asserts
  * cannot interleave with another suite's.
  *
- * The dates are fixed rather than relative to `now()`: the event has to be in
- * the future for a token to be issuable at all (a link for an event that has
- * started is refused), and inside a seeded Oxford term for the term-card
- * projection to be assertable. Michaelmas 2026 week 1 satisfies both and will
- * keep satisfying them, because the seeded calendar is fixed too.
+ * The event's date is **read off the seeded term calendar** rather than written
+ * down. It has to satisfy two things at once: be in the future, because a
+ * signed link for an event that has started is refused, and sit inside a seeded
+ * Oxford term, because the term-card projection is otherwise unassertable. A
+ * literal used to satisfy both, and stopped: the seed now slides its whole
+ * calendar onto the day it runs, so a fixed date drifts out of the term it was
+ * chosen for and eventually into the past. The walk therefore asks the database
+ * for the first term that has not started yet and takes its week 1.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -71,11 +74,7 @@ import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
 import type { Transport } from "@/lib/delivery/provider";
 import { enterReturningPlayer } from "@/lib/services/roster";
 import { activateMembership } from "@/lib/services/membership";
-import {
-  createEventDraft,
-  listCurrentSeasonEvents,
-  markEventOccurred,
-} from "@/lib/services/events";
+import { createEventDraft, listCurrentSeasonEvents } from "@/lib/services/events";
 import { selectionKey } from "@/lib/services/audience-selection";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import { RESPONSE_DEADLINE_RULES } from "@/lib/services/response-deadline";
@@ -108,19 +107,58 @@ import { openLocalClient } from "./helpers/domain-fixture";
 const MARKER = "LAN82Walk";
 
 /**
- * Michaelmas 2026, week 1 — inside a seeded term and comfortably in the future,
- * for the two reasons the header gives.
+ * Week 1 of the next seeded term to begin — inside a term and comfortably in
+ * the future, for the two reasons the header gives. Resolved in `beforeAll`.
  */
-const EVENT_ON = "2026-10-14";
-const EVENT_STARTS_AT = "19:00";
-const EVENT_ENDS_AT = "21:00";
-const EVENT_TERM = "michaelmas";
-const EVENT_ACADEMIC_YEAR = "2026-27";
+let EVENT_ON: string;
+let EVENT_TERM: string;
+let EVENT_ACADEMIC_YEAR: string;
+let EVENT_MONTH: string;
 const EVENT_WEEK = 1;
-const EVENT_MONTH = "2026-10";
+const EVENT_STARTS_AT = "19:00";
+
+const EVENT_ENDS_AT = "21:00";
+
+/**
+ * Where the practice ends up, and why it moves.
+ *
+ * The walk approves an event next Michaelmas, because approval resolves the
+ * audience as of the event's date and the season's memberships and coaching
+ * seats do not exist before it starts. Then, at step 12, its date passes —
+ * which since LAN-151 is the whole of what makes an event one that occurred
+ * (D30), and is the only step of the slice the application cannot perform,
+ * because what it is waiting for is time.
+ *
+ * A fixed date rather than one computed from the clock, for the same reason
+ * `REPORT_ON` is fixed: the reporting date has to be this file's alone so that
+ * `cleanUp()` can clear it wholesale, and a date that moved with the clock
+ * could not be cleared by a run that started before it. It only ever gets
+ * further into the past.
+ */
+const OCCURRED_ON = "2026-07-15";
+
+/**
+ * The evening the register is taken — D71 and D72, LAN-152.
+ *
+ * The register opens on a buffer before the event starts and never closes, so
+ * every step that reads or writes one says **when** it is standing at the
+ * pitch rather than reading a wall clock. That keeps the walk a workflow moving
+ * through its own timeline: every other step already happens at a moment the
+ * previous one made possible, and this is the first one whose moment the
+ * product cares about.
+ *
+ * It is the evening of `OCCURRED_ON` because that is where step 12 leaves the
+ * practice. Deriving it from the date rather than fixing a third constant is
+ * what stops the two drifting apart — a register taken on an evening the event
+ * is no longer on would prove nothing.
+ */
+const EVENING_OF_THE_EVENT = new Date(`${OCCURRED_ON}T${EVENT_STARTS_AT}:00Z`);
 
 /**
  * The reporting date this walk files snapshots for. **This file's alone.**
+ *
+ * Two days after `OCCURRED_ON`, so the practice is inside the report's
+ * look-back week.
  *
  * Deliberately not the date `docs/operating-the-slice.md` suggests a human uses
  * for the same practice: a person following the runbook files versions 1 and 2
@@ -129,7 +167,7 @@ const EVENT_MONTH = "2026-10";
  * be able to collide, so the manual one and the automated one have a date each,
  * and `cleanUp()` clears this one whoever wrote it.
  */
-const REPORT_ON = "2026-10-16";
+const REPORT_ON = "2026-07-17";
 
 /** Local logins this walk creates. Deleted with everything else. */
 const OPERATOR_EMAIL = "lan82.operator@oxfordlancers.local";
@@ -536,12 +574,38 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     admin = createClient(url!, secretKey!, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    await cleanUp();
-
     const season = await db.query<{ id: string }>(
       "select id from public.seasons where status = 'active' order by starts_on desc limit 1",
     );
     seasonId = season.rows[0].id;
+
+    // The next term to begin, and the Wednesday of its week 1. `first_week` is
+    // −1 in Michaelmas and 0 in the other two, so the offset is derived from
+    // the term rather than assumed — the coordinate is what matters, not which
+    // term of the year happens to be next when this runs.
+    const term = await db.query<{
+      name: string;
+      academic_year: string;
+      day: string;
+    }>(
+      `select t.name::text as name,
+              t.academic_year,
+              to_char(t.starts_on + ((1 - t.first_week) * 7 + 3), 'YYYY-MM-DD') as day
+         from public.terms t
+         join public.seasons s on s.label = t.academic_year
+        where s.id = $1 and t.starts_on > current_date
+        order by t.starts_on
+        limit 1`,
+      [seasonId],
+    );
+    expect(term.rows[0], "the seeded season has no term still to begin").toBeDefined();
+
+    EVENT_ON = term.rows[0].day;
+    EVENT_TERM = term.rows[0].name;
+    EVENT_ACADEMIC_YEAR = term.rows[0].academic_year;
+    EVENT_MONTH = EVENT_ON.slice(0, 7);
+
+    await cleanUp();
   }, 120_000);
 
   afterAll(async () => {
@@ -576,7 +640,6 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     for (const key of [
       "event_calendar_management",
       "event_approval",
-      "event_occurrence_assertion",
       "membership_activation",
       "delivery_administration",
       "leadership_report",
@@ -651,7 +714,10 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
       endsAt: EVENT_ENDS_AT,
       venue: "University Parks, Oxford OX1 3RF",
       isMandatory: false,
-      solicitsResponse: true,
+      deliveryMode: "in_person",
+      description: null,
+      requiredEquipment: null,
+      joiningUrl: null,
     });
 
     eventId = draft.id;
@@ -667,8 +733,9 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     );
     expect(stored.rows[0]).toMatchObject({ week_number: EVENT_WEEK, term_name: EVENT_TERM });
 
-    // `pending_approval` exists in the enum and nothing in the application
-    // produces it. A submit step would show up here as a second transition.
+    // There is no status between drafting and approval — LAN-151 removed
+    // `pending_approval` from the enum. A submit step would show up here as a
+    // second transition.
     const actions = await db.query<{ action: string }>(
       "select action from public.audit_events where entity_id = $1 order by occurred_at",
       [eventId],
@@ -920,19 +987,97 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
   }, 60_000);
 
   // -------------------------------------------------------------------------
-  // 12. The operator asserts the event occurred
+  // 11b. One event, three presentations
+  //
+  // Before step 12 rather than after it, because step 12 moves the event's date
+  // into the past — the clock is the one part of the slice the application
+  // cannot walk — and the Oxford term card is about where the event was
+  // scheduled. Asserting it here keeps the question "do the three arrangements
+  // agree?" separate from "has it happened yet?".
   // -------------------------------------------------------------------------
 
-  it("asserts the event occurred, naming the operator who asserted it", async () => {
-    const occurred = await markEventOccurred(operator.personId, eventId);
-    expect(occurred.status).toBe("occurred");
+  it("shows the same event in the list, the Gregorian month and the Oxford term card", async () => {
+    const list = await listCurrentSeasonEvents({ search: MARKER });
+    const listed = list.events.find((entry) => entry.id === eventId);
+    const on = EVENT_ON;
+    expect(listed?.scheduledOn).toBe(on);
+    expect(listed?.status).toBe("approved");
 
-    const asserted = await db.query<{ by: string; at: Date | null }>(
-      "select outcome_recorded_by_person_id as by, outcome_recorded_at as at from public.events where id = $1",
+    const terms = await listTermWindows();
+
+    const grid = buildMonthGrid(EVENT_MONTH, list.events);
+    const inMonth = monthGridEvents(grid).find((entry) => entry.id === eventId);
+    expect(inMonth, "the event is missing from the Gregorian month").toBeTruthy();
+
+    const term = terms.find(
+      (window) => window.name === EVENT_TERM && window.academicYear === EVENT_ACADEMIC_YEAR,
+    )!;
+    const card = buildTermCard(term, terms, list.events);
+    const inCard = termCardEvents(card).find((entry) => entry.id === eventId);
+    expect(inCard, "the event is missing from the Oxford term card").toBeTruthy();
+
+    // Same record, same actual date and time, same status, in all three.
+    expect([listed!.status, inMonth!.status, inCard!.status]).toEqual([
+      "approved",
+      "approved",
+      "approved",
+    ]);
+    expect([listed!.scheduledOn, inMonth!.scheduledOn, inCard!.scheduledOn]).toEqual([on, on, on]);
+
+    // And the week it lands in is the one derived from the date.
+    const week = card.weeks.find((row) =>
+      row.days.some((day) => day.events.some((entry) => entry.id === eventId)),
+    );
+    expect(week?.week).toBe(EVENT_WEEK);
+  }, 60_000);
+
+  // -------------------------------------------------------------------------
+  // 12. The event's date passes, and it has occurred — nobody says so
+  // -------------------------------------------------------------------------
+
+  it("opens the register when the date passes, with nobody asserting anything", async () => {
+    // D30, walked. Step 12 used to be **Mark occurred**: an operator asserting
+    // that the evening had happened, which then opened attendance. LAN-151
+    // retired it. An event has occurred when its date has passed and it was not
+    // cancelled, and no surface offers *Mark occurred*, *Mark not held*,
+    // *Confirm what happened* or *Correct this to not held*.
+    //
+    // Before: the practice is next Michaelmas, so it has not happened.
+    const before = await readAttendanceBoard(eventId);
+    expect(before.isOpen).toBe(false);
+    expect(before.participants).toEqual([]);
+
+    const refusal = await refusalOf(() =>
+      recordAttendance(operator.personId, eventId, `player:${sayingYes.membershipId}`, "present"),
+    );
+    expect(refusal.kind).toBe("invalid_transition");
+
+    // Now the clock advances past it. This is the one step of the walkthrough
+    // the application cannot perform, because what it is waiting for is time —
+    // so the date moves rather than the clock, which is the same fact from the
+    // other side. Nothing else about the event changes: the status is
+    // `approved` before and after, and no column records that it happened.
+    await db.query("update public.events set scheduled_on = $2::date where id = $1", [
+      eventId,
+      OCCURRED_ON,
+    ]);
+
+    const after = await readAttendanceBoard(eventId);
+    expect(after.isOpen).toBe(true);
+
+    const stored = await db.query<{ status: string }>(
+      "select status::text as status from public.events where id = $1",
       [eventId],
     );
-    expect(asserted.rows[0].by).toBe(operator.personId);
-    expect(asserted.rows[0].at).not.toBeNull();
+    expect(stored.rows[0].status).toBe("approved");
+
+    // And nobody wrote an audit row, because nobody did anything.
+    const asserted = await db.query<{ tally: string }>(
+      `select count(*)::text as tally from public.audit_events
+        where entity_id = $1 and action like 'event.marked%'`,
+      [eventId],
+    );
+    expect(asserted.rows[0].tally).toBe("0");
   }, 60_000);
 
   // -------------------------------------------------------------------------
@@ -1001,7 +1146,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
   // -------------------------------------------------------------------------
 
   it("lets the authorized coach record attendance, correct it, and add one walk-up", async () => {
-    const board = await readAttendanceBoard(eventId);
+    const board = await readAttendanceBoard(eventId, EVENING_OF_THE_EVENT);
     expect(board.isOpen).toBe(true);
     expect(board.invitedCount).toBe(2);
 
@@ -1068,7 +1213,7 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     ).toBe(true);
     expect(audit.rows.some((row) => row.action === "attendance.walk_up_recorded")).toBe(true);
 
-    const after = await readAttendanceBoard(eventId);
+    const after = await readAttendanceBoard(eventId, EVENING_OF_THE_EVENT);
     expect(after.recordedCount).toBe(3);
     expect(after.walkUpCount).toBe(1);
     expect(after.participants.find((entry) => entry.key === walkUpKey)?.isWalkUp).toBe(true);
@@ -1176,46 +1321,4 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     expect(mine[0].isSuperseded).toBe(false);
     expect(mine[1].isSuperseded).toBe(true);
   }, 120_000);
-
-  // -------------------------------------------------------------------------
-  // 17. One event, three presentations
-  // -------------------------------------------------------------------------
-
-  it("shows the same event in the list, the Gregorian month and the Oxford term card", async () => {
-    const list = await listCurrentSeasonEvents({ search: MARKER });
-    const listed = list.events.find((entry) => entry.id === eventId);
-    expect(listed?.scheduledOn).toBe(EVENT_ON);
-    expect(listed?.status).toBe("occurred");
-
-    const terms = await listTermWindows();
-
-    const grid = buildMonthGrid(EVENT_MONTH, list.events);
-    const inMonth = monthGridEvents(grid).find((entry) => entry.id === eventId);
-    expect(inMonth, "the event is missing from the Gregorian month").toBeTruthy();
-
-    const term = terms.find(
-      (window) => window.name === EVENT_TERM && window.academicYear === EVENT_ACADEMIC_YEAR,
-    )!;
-    const card = buildTermCard(term, terms, list.events);
-    const inCard = termCardEvents(card).find((entry) => entry.id === eventId);
-    expect(inCard, "the event is missing from the Oxford term card").toBeTruthy();
-
-    // Same record, same actual date and time, same status, in all three.
-    expect([listed!.status, inMonth!.status, inCard!.status]).toEqual([
-      "occurred",
-      "occurred",
-      "occurred",
-    ]);
-    expect([listed!.scheduledOn, inMonth!.scheduledOn, inCard!.scheduledOn]).toEqual([
-      EVENT_ON,
-      EVENT_ON,
-      EVENT_ON,
-    ]);
-
-    // And the week it lands in is the one derived from the date.
-    const week = card.weeks.find((row) =>
-      row.days.some((day) => day.events.some((entry) => entry.id === eventId)),
-    );
-    expect(week?.week).toBe(EVENT_WEEK);
-  }, 60_000);
 });

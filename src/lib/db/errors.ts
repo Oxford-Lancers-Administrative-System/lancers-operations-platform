@@ -252,20 +252,25 @@ const CONSTRAINT_MESSAGES: Readonly<Record<string, Mapping>> = {
       context,
     }),
 
-  // The frozen model's rule that a withdrawal, rejection or cancellation is
-  // always explained. An unexplained one is a decision nobody can review later.
+  // D76's rule that a cancellation is always explained. An unexplained one is a
+  // decision nobody can review later. Withdrawal and rejection were here too
+  // until LAN-151 retired both statuses; cancellation is the only negative
+  // decision the club still records.
   events_negative_decisions_are_explained: (context) =>
-    new ConstraintViolated(
-      "Withdrawing, rejecting or cancelling an event has to say why. Record the reason and try again.",
-      { rule: "events_negative_decisions_are_explained", context },
-    ),
+    new ConstraintViolated("Cancelling an event has to say why. Record the reason and try again.", {
+      rule: "events_negative_decisions_are_explained",
+      context,
+    }),
 
-  // Invariant P5, as revised by review F03.
-  attendance_records_require_an_occurred_event: (context) =>
+  // Invariant P5's database half. The other half — when the register opens —
+  // cannot be a check constraint, because a check constraint cannot read the
+  // clock, so it never reaches this map: the service refuses it first, in
+  // `attendance.ts`.
+  attendance_records_require_an_approved_event: (context) =>
     new InvalidTransition(
-      "Attendance can only be recorded against an event that has happened. " +
-        "Mark the event as occurred first.",
-      { rule: "attendance_records_require_an_occurred_event", context },
+      "Attendance can only be recorded against an approved event. " +
+        "A draft has nobody on it, and a cancelled event did not take place.",
+      { rule: "attendance_records_require_an_approved_event", context },
     ),
 
   // Invariant P8, on all three tables that carry it. Player capacity anchors to

@@ -44,8 +44,8 @@ export const ONBOARDING_EMPTY = "Every active member is up to date.";
  */
 export const NOTHING_AT_ALL =
   "No events last week and nothing outstanding. If that is a surprise, check that last " +
-  "week's events were approved and marked occurred — an empty report can mean a quiet week " +
-  "or a week nobody recorded.";
+  "week's events were approved — an empty report can mean a quiet week or a week nobody " +
+  "recorded.";
 
 export const CHANGE_DATE_LABEL = "Reporting date";
 export const CHANGE_DATE_SUBMIT = "Show report";
@@ -145,16 +145,13 @@ export const AVAILABILITY_LABELS: Readonly<Record<string, string>> = Object.free
  * `event_status`, in the club's words — the events screens' own map, not a
  * second copy of it.
  *
- * It was a copy, and it had already drifted: `pending_approval` read "Awaiting
- * approval" here and "Pending approval" on every events screen, under a comment
- * asserting the two matched. The approved wireframes settle which is right —
- * UX-30 and UX-33 both say "Pending approval", and nothing in `docs/ux/` says
- * "Awaiting approval" — so the events screens were conformant and the report
- * was not.
+ * It was a copy, and it had already drifted: the two files disagreed about the
+ * word for a status while a comment asserted they matched.
  *
  * Re-exported rather than corrected in place, because correcting the string
  * would have restored a claim that only a person re-reading both files could
- * keep true. One event status now has one label wherever it is shown.
+ * keep true. One event status now has one label wherever it is shown — three of
+ * them, since LAN-151.
  */
 export { STATUS_LABELS as EVENT_STATUS_LABELS } from "../events/presentation";
 

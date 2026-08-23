@@ -4,15 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError } from "@/lib/db";
-import {
-  abandonEventDraft,
-  correctOccurrenceAssertion,
-  createEventDraft,
-  markEventNotHeld,
-  markEventOccurred,
-  updateEventDraft,
-  validateEventDraft,
-} from "@/lib/services/events";
+import { createEventDraft, updateEventDraft, validateEventDraft } from "@/lib/services/events";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import { dispatchEventInvitations } from "@/lib/services/delivery";
 import type { RawEventDraft } from "@/lib/services/event-input";
@@ -81,9 +73,12 @@ function readDraft(formData: FormData): RawEventDraft {
     scheduledOn: text(formData, "scheduledOn"),
     startsAt: text(formData, "startsAt"),
     endsAt: text(formData, "endsAt"),
+    deliveryMode: text(formData, "deliveryMode"),
     venue: text(formData, "venue"),
+    description: text(formData, "description"),
+    requiredEquipment: text(formData, "requiredEquipment"),
+    joiningUrl: text(formData, "joiningUrl"),
     attendance: text(formData, "attendance"),
-    solicitsResponse: text(formData, "solicitsResponse"),
   };
 }
 
@@ -250,97 +245,21 @@ export async function saveEventAudienceAction(
   redirect(`/operate/events/${eventId}?step=review`);
 }
 
-/**
- * **Mark occurred** and **Mark not held** — UX-70, LAN-80.
+/*
+ * ## Three actions this file used to carry, and why none of them is here
  *
- * One action for both, because the difference between them is a word the form
- * posts and the transition table already holds. The word is checked against the
- * two the interface offers rather than passed through: an unrecognised value is
- * a refusal, not a fall-through to a default, because the default would be an
- * assertion nobody made.
+ * `assertEventOutcomeAction` (**Mark occurred** / **Mark not held**) and
+ * `correctEventOutcomeAction` went with the occurrence assertion itself
+ * (REQ-occurrence-retired, D30). Nothing asserts that an event occurred: the
+ * date passing without a cancellation is the whole of it, and no surface in
+ * this application offers *Mark occurred*, *Mark not held*, *Confirm what
+ * happened* or *Correct this to not held*.
  *
- * `event_occurrence_assertion` and not `attendance_recorder`. `slice-ux.md` § 8
- * is explicit that occurrence is "not implied by attendance-recorder
- * capability", and LAN-110 restates it: a coach who may record who turned up
- * may not decide that the evening happened. The guard is here and in the
- * service's transition table, and neither depends on the other.
+ * `abandonEventDraftAction` went with the `withdrawn` status. "Withdrawn" meant
+ * the event never happened, and the target state says an abandoned draft is
+ * **deleted** instead (D29) — permanently, from its own event page, after a
+ * confirmation naming it. That delete path is REQ-delete-draft's and belongs to
+ * this mission's W4 work package; until it lands, an abandoned draft stays a
+ * draft, which is where the approved legacy mapping put every previously
+ * withdrawn row.
  */
-export async function assertEventOutcomeAction(
-  _previous: EventTransitionState,
-  formData: FormData,
-): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_occurrence_assertion");
-  const eventId = text(formData, "eventId");
-  const outcome = text(formData, "outcome");
-
-  if (outcome !== "occurred" && outcome !== "not_held") {
-    return { error: "Choose whether this event occurred or was not held." };
-  }
-
-  try {
-    if (outcome === "occurred") {
-      await markEventOccurred(operator.personId, eventId);
-    } else {
-      await markEventNotHeld(operator.personId, eventId);
-    }
-  } catch (error) {
-    return { error: messageFor(error) };
-  }
-
-  revalidatePath("/operate/events");
-  revalidatePath(`/operate/events/${eventId}`);
-  revalidatePath(`/operate/events/${eventId}/attendance`);
-  redirect(`/operate/events/${eventId}?outcome=${outcome}`);
-}
-
-/**
- * Corrects an occurrence assertion somebody got wrong.
- *
- * The direction is not posted — the service derives it from the event's current
- * state — so this action cannot be used to set an arbitrary status. What it
- * posts is the event and the reason, and the reason is required: this is a
- * correction, and the frozen model's audit rule says a correction records why.
- *
- * It is refused outright while any attendance row exists. That refusal is the
- * readable half of invariant P5, which the cascading composite foreign key
- * enforces underneath whatever this action does.
- */
-export async function correctEventOutcomeAction(
-  _previous: EventTransitionState,
-  formData: FormData,
-): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_occurrence_assertion");
-  const eventId = text(formData, "eventId");
-  const reason = text(formData, "reason");
-
-  try {
-    await correctOccurrenceAssertion(operator.personId, eventId, reason);
-  } catch (error) {
-    return { error: messageFor(error) };
-  }
-
-  revalidatePath("/operate/events");
-  revalidatePath(`/operate/events/${eventId}`);
-  revalidatePath(`/operate/events/${eventId}/attendance`);
-  redirect(`/operate/events/${eventId}`);
-}
-
-/** `draft → withdrawn`. The reason is required, by the club and by the schema. */
-export async function abandonEventDraftAction(
-  _previous: EventTransitionState,
-  formData: FormData,
-): Promise<EventTransitionState> {
-  const operator = await requireCapability("event_calendar_management");
-  const eventId = text(formData, "eventId");
-  const reason = text(formData, "reason");
-
-  try {
-    await abandonEventDraft(operator.personId, eventId, reason);
-  } catch (error) {
-    return { error: messageFor(error) };
-  }
-
-  revalidatePath("/operate/events");
-  revalidatePath(`/operate/events/${eventId}`);
-  redirect(`/operate/events/${eventId}`);
-}

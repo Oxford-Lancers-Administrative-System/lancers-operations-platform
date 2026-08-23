@@ -1,7 +1,23 @@
 "use client";
 
 import ListFilters from "../list-filters";
-import { labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
+import { DERIVED_STATE_LABELS, labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
+
+/**
+ * The word for one Status filter value — Q-6.
+ *
+ * Three of the four are stored states and one is derived, and they are held in
+ * two maps on purpose: `STATUS_LABELS` is what the club calls an
+ * `event_status`, and `DERIVED_STATE_LABELS` is what it calls the state a
+ * screen works out. This filter is the one control that offers both, so it is
+ * the one place that reads from both, and neither map grows a key that does not
+ * belong to it.
+ */
+function statusFilterLabel(value: string): string {
+  return value in STATUS_LABELS
+    ? labelFor(STATUS_LABELS, value)
+    : labelFor(DERIVED_STATE_LABELS, value);
+}
 
 /**
  * UX-30's search and filters — the events list's vocabulary over the shared bar.
@@ -55,7 +71,7 @@ export default function EventFilters({
           value: status,
           allLabel: "All statuses",
           minWidth: 170,
-          options: statuses.map((value) => ({ value, label: labelFor(STATUS_LABELS, value) })),
+          options: statuses.map((value) => ({ value, label: statusFilterLabel(value) })),
         },
         {
           name: "type",

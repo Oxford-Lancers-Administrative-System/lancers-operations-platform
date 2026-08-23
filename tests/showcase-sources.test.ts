@@ -198,8 +198,11 @@ describe("classifyEvent", () => {
     ["Team Practice", "practice"],
     ["Team Chalk", "chalk"],
     ["Team S&C Session", "strength_and_conditioning"],
-    ["OULAFC Camp", "camp"],
-    ["Lancers vs TBD", "fixture"],
+    // D12's seven types: a camp is a practice that runs for longer, and a
+    // fixture is a game.
+    ["OULAFC Camp", "practice"],
+    ["Lancers vs TBD", "game"],
+    ["Varsity Match", "game"],
     ["Freshers' Fair", "recruitment"],
     ["Rookie Curry", "social"],
     ["Jersey Night", "social"],
@@ -220,9 +223,12 @@ describe("classifyEvent", () => {
     expect(classifyEvent("Team Chalk").matchedRule).toContain("chalk");
   });
 
-  it("falls back to other rather than inventing a type", () => {
+  it("falls back to meeting rather than inventing a type", () => {
+    // `other` left the enum with LAN-151, and an unclassified entry lands where
+    // the migration sent every existing `other`-typed row: on `meeting`. The
+    // manifest still records that no rule matched, so a human can move it.
     expect(classifyEvent("Something nobody anticipated")).toEqual({
-      eventType: "other",
+      eventType: "meeting",
       matchedRule: "no rule matched",
     });
   });
@@ -393,7 +399,7 @@ describe("readTermCard", () => {
     expect(entry.source.normalisation[0]).toMatch(/22:37.*22:30/);
   });
 
-  it("marks a TBD fixture tentative and keeps its venue null", () => {
+  it("marks a TBD game tentative and keeps its venue null", () => {
     const book = card([
       ["B11", text("5th (8th-14th Nov)")],
       ["C11", text("Lancers vs TBD, TBD, TBD")],
@@ -402,7 +408,7 @@ describe("readTermCard", () => {
     const [entry] = readTermCard(book, { year: 2026, sheetName: "MT26" });
     expect(entry).toMatchObject({
       name: "Lancers vs TBD",
-      eventType: "fixture",
+      eventType: "game",
       tentative: true,
       venue: null,
       startsAt: null,

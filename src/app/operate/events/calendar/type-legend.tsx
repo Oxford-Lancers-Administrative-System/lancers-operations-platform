@@ -10,9 +10,9 @@ import { typeColour } from "./presentation";
  *
  * ## Only the types actually in view
  *
- * The club has ten event types and a given month or term rarely shows more than
- * four. A fixed legend of all ten would be mostly noise and would teach an
- * operator to stop reading it. This one is built from the events being
+ * The club has seven event types (D12) and a given month or term rarely shows
+ * more than four. A fixed legend of all seven would be mostly noise and would
+ * teach an operator to stop reading it. This one is built from the events being
  * displayed, so it is short, and everything in it is on the screen below it.
  *
  * ## Why a legend at all, when every tile names its type

@@ -42,6 +42,10 @@ vi.mock("@/lib/services/seasons", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/seasons")>();
   return { ...actual, listTerms: vi.fn(), listTermWindows: vi.fn(), readCurrentSeason: vi.fn() };
 });
+vi.mock("@/lib/services/attendance", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/attendance")>();
+  return { ...actual, readEventAttendanceSummary: vi.fn() };
+});
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-approval")>();
   return {
@@ -56,6 +60,9 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
 import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
+  EVENT_STATUS_FILTERS,
+  EVENT_STATUSES,
+  EVENT_TYPES,
   listCurrentSeasonEvents,
   readEvent,
   type EventDetail,
@@ -68,6 +75,13 @@ import {
   type AudienceMember,
 } from "@/lib/services/event-approval";
 import type { AudienceCandidate } from "@/lib/services/audience-selection";
+import {
+  readEventAttendanceSummary,
+  summariseAttendance,
+  type AttendanceSummary,
+} from "@/lib/services/attendance";
+import { todayInClubZone } from "@/lib/club-time";
+import { DERIVED_STATE_LABELS, labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
 import EventsPage from "./page";
 import NewEventPage from "./new/page";
 import EventDetailPage from "./[id]/page";
@@ -105,9 +119,10 @@ function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
     scheduledOn: "2026-10-14",
     startsAt: "20:00",
     endsAt: "22:00",
+    deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
-    solicitsResponse: true,
+    registerSaved: false,
     audienceCount: 0,
     invitationCount: 0,
     responseCount: 0,
@@ -118,6 +133,9 @@ function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
 function detail(overrides: Partial<EventDetail> = {}): EventDetail {
   return {
     ...listEntry(),
+    description: null,
+    requiredEquipment: null,
+    joiningUrl: null,
     origin: "club_controlled",
     termId: null,
     termLabel: "michaelmas 2026-27",
@@ -155,10 +173,23 @@ function flatten(text: string | null): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
 }
 
+/**
+ * The headline numbers the detail page reads — LAN-152.
+ *
+ * Built through `summariseAttendance` rather than as an object literal, so a
+ * fixture cannot claim a combination the real derivation never produces —
+ * `registerSaved: false` beside a non-zero `showed`, for instance, which is the
+ * exact state D74 says must be unreachable.
+ */
+function summary(overrides: Partial<AttendanceSummary> = {}): AttendanceSummary {
+  return { ...summariseAttendance([]), invited: 37, saidYes: 21, ...overrides };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   routerPush.mockClear();
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: operator() });
+  vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
   vi.mocked(listTermWindows).mockResolvedValue([
     {
       id: "55555555-5555-4555-8555-555555555555",
@@ -286,7 +317,7 @@ describe("UX-30 — the current season's events", () => {
     expect(screen.getByTestId("season-label").textContent).toBe("Season 2026-27");
   });
 
-  it("shows date, type, status and whether a response is solicited", async () => {
+  it("shows date, type, status and where the event is", async () => {
     givenList([listEntry()]);
 
     const { container } = render(await EventsPage(listProps()));
@@ -297,16 +328,78 @@ describe("UX-30 — the current season's events", () => {
     expect(text).toContain("Iffley Road Astro");
     expect(text).toContain("Draft");
     expect(text).toContain("Practice");
-    expect(text).toContain("Response requested");
+    // "Response requested" was a column here and D23 removed it. Where the
+    // event is replaced it: in person or online changes what an operator has to
+    // do to get there, and whether a response was requested was not a real
+    // concept.
+    expect(text).toContain("In person");
+  });
+
+  /**
+   * Q-6, the other half. The filter finding the events is no use if the list
+   * then reads `Approved` against every one of them — Brian asked to "easily
+   * tell which ones happened versus not", and the column is where he looks.
+   */
+  describe("the Status column, which says what an event is now", () => {
+    const PAST = "2020-10-14";
+    const AHEAD = "2099-01-01";
+
+    function statusChipsOf(container: HTMLElement): string[] {
+      return [...container.querySelectorAll('[data-testid="event-row"] .MuiChip-label')].map(
+        (chip) => chip.textContent ?? "",
+      );
+    }
+
+    it("reads Occurred against an approved event whose date has passed", async () => {
+      givenList([listEntry({ status: "approved", scheduledOn: PAST })]);
+
+      const { container } = render(await EventsPage(listProps()));
+
+      expect(statusChipsOf(container)).toEqual(["Occurred"]);
+    });
+
+    it("still reads Approved against one that is still to come", async () => {
+      givenList([listEntry({ status: "approved", scheduledOn: AHEAD })]);
+
+      const { container } = render(await EventsPage(listProps()));
+
+      expect(statusChipsOf(container)).toEqual(["Approved"]);
+    });
+
+    it("never reads Occurred against a draft or a cancellation, whatever the date", async () => {
+      // A draft nobody approved did not happen, and a cancelled event did not
+      // happen by definition. Both are past-dated here so that the date alone
+      // cannot be what decides.
+      givenList([
+        listEntry({ id: "e1", status: "draft", scheduledOn: PAST }),
+        listEntry({ id: "e2", status: "cancelled", scheduledOn: PAST }),
+      ]);
+
+      const { container } = render(await EventsPage(listProps()));
+
+      expect(statusChipsOf(container)).toEqual(["Draft", "Cancelled"]);
+    });
+
+    it("says the same word on the phone card as in the table", async () => {
+      givenList([listEntry({ status: "approved", scheduledOn: PAST })]);
+
+      const { container } = render(await EventsPage(listProps()));
+      const cardChips = [
+        ...container.querySelectorAll('[data-testid="event-card"] .MuiChip-label'),
+      ].map((chip) => chip.textContent);
+
+      expect(cardChips[0]).toBe("Occurred");
+      expect(statusChipsOf(container)[0]).toBe("Occurred");
+    });
   });
 
   it("keeps the status on the phone card, which the operator needs at 375px", async () => {
-    givenList([listEntry({ status: "pending_approval" })]);
+    givenList([listEntry({ status: "cancelled" })]);
 
     render(await EventsPage(listProps()));
 
     const card = screen.getByTestId("event-card");
-    expect(flatten(card.textContent)).toContain("Pending approval");
+    expect(flatten(card.textContent)).toContain("Cancelled");
   });
 
   it("says when a draft's audience arrives, rather than that it is missing", async () => {
@@ -395,15 +488,98 @@ describe("UX-30 — the current season's events", () => {
       fireEvent.click(within(listbox).getByRole("option", { name: option }));
     }
 
-    it("navigates with the value that was chosen, not the one before it", async () => {
+    /** Opens a MUI select and reads back what it offers, in order. */
+    function optionsOf(label: string): string[] {
+      fireEvent.mouseDown(screen.getByRole("combobox", { name: label }));
+      return within(screen.getByRole("listbox"))
+        .getAllByRole("option")
+        .map((option) => option.textContent ?? "");
+    }
+
+    /**
+     * LAN-151 changed both vocabularies underneath these two controls, and a
+     * filter list frozen against the old one would offer a value the database
+     * can no longer return — a filter that always finds nothing, which reads as
+     * a broken control rather than as an empty result.
+     *
+     * So the expectation is derived from the vocabulary rather than typed out:
+     * the ninth event type or the fourth status has to appear here, or fail.
+     * `src/lib/services/events.test.ts` is what ties those constants to the
+     * enums the database actually holds.
+     */
+    it("offers exactly the statuses the model has, and nothing retired", async () => {
+      givenList([listEntry()]);
+      render(await EventsPage(listProps()));
+
+      expect(optionsOf("Status")).toEqual([
+        "All statuses",
+        ...EVENT_STATUS_FILTERS.map((value) =>
+          value in STATUS_LABELS
+            ? labelFor(STATUS_LABELS, value)
+            : labelFor(DERIVED_STATE_LABELS, value),
+        ),
+      ]);
+    });
+
+    /**
+     * Q-6, answered 2026-08-22. Brian: "I want to be able to see the status on
+     * the status filter, and I want to see the events that occurred, to easily
+     * be able to tell which ones happened versus not."
+     */
+    it("offers Occurred beside the three stored states", async () => {
+      givenList([listEntry()]);
+      render(await EventsPage(listProps()));
+
+      expect(optionsOf("Status")).toEqual([
+        "All statuses",
+        "Draft",
+        "Approved",
+        "Occurred",
+        "Cancelled",
+      ]);
+    });
+
+    it("keeps Occurred out of the stored vocabulary it sits beside", () => {
+      // The filter offers four things and the enum holds three. If this ever
+      // fails, somebody has widened `event_status` — which D30 forbids and
+      // which no migration in this branch does.
+      expect(EVENT_STATUSES).not.toContain("occurred");
+      expect(EVENT_STATUS_FILTERS).toEqual([
+        ...EVENT_STATUSES.slice(0, 2),
+        "occurred",
+        "cancelled",
+      ]);
+    });
+
+    it("filters by Occurred through the service, not by pretending it is a status", async () => {
       givenList([listEntry()]);
       render(await EventsPage(listProps()));
 
       choose("Status", "Occurred");
 
-      expect(routerPush).toHaveBeenCalledTimes(1);
       const url = routerPush.mock.calls[0][0] as string;
       expect(url).toContain("status=occurred");
+    });
+
+    it("offers exactly the event types the model has, and nothing retired", async () => {
+      givenList([listEntry()]);
+      render(await EventsPage(listProps()));
+
+      expect(optionsOf("Type")).toEqual([
+        "All types",
+        ...EVENT_TYPES.map((type) => labelFor(TYPE_LABELS, type)),
+      ]);
+    });
+
+    it("navigates with the value that was chosen, not the one before it", async () => {
+      givenList([listEntry()]);
+      render(await EventsPage(listProps()));
+
+      choose("Status", "Cancelled");
+
+      expect(routerPush).toHaveBeenCalledTimes(1);
+      const url = routerPush.mock.calls[0][0] as string;
+      expect(url).toContain("status=cancelled");
       expect(url).not.toContain("status=&");
     });
 
@@ -474,6 +650,10 @@ describe("UX-30 — the current season's events", () => {
       eventType: "practice",
       sort: "date",
       direction: "desc",
+      // Q-6. The page reads the club's clock once and hands it down, so the
+      // derived `occurred` filter and every row's Status column cannot straddle
+      // midnight and disagree.
+      today: todayInClubZone(),
     });
   });
 
@@ -501,24 +681,35 @@ describe("UX-31 — creating an event", () => {
     );
   });
 
-  it("makes the response-solicited choice explicit, with its meaning on screen", async () => {
+  it("asks where the event is, and says what the venue field then means", async () => {
+    // D20 replaced the response-solicited choice on this form. In person or
+    // online is a property of the event, and it decides whether the venue field
+    // takes an address or a destination (D21).
     const { container } = render(await NewEventPage());
 
-    const yes = container.querySelector<HTMLInputElement>(
-      'input[name="solicitsResponse"][value="yes"]',
+    const inPerson = container.querySelector<HTMLInputElement>(
+      'input[name="deliveryMode"][value="in_person"]',
     );
-    const no = container.querySelector<HTMLInputElement>(
-      'input[name="solicitsResponse"][value="no"]',
+    const online = container.querySelector<HTMLInputElement>(
+      'input[name="deliveryMode"][value="online"]',
     );
 
-    expect(yes).not.toBeNull();
-    expect(no).not.toBeNull();
-    // Neither is preselected: the operator has to answer it.
-    expect(yes?.checked).toBe(false);
-    expect(no?.checked).toBe(false);
+    expect(inPerson).not.toBeNull();
+    expect(online).not.toBeNull();
+    // In person is the default, because that is what the club runs.
+    expect(inPerson?.checked).toBe(true);
+    expect(online?.checked).toBe(false);
 
-    expect(flatten(screen.getByTestId("solicits-meaning").textContent)).toContain(
-      "asks its audience to answer",
+    // D86: the zone is stated, because the date input renders in the browser's
+    // locale and the time fields carry no zone of their own.
+    expect(flatten(screen.getByTestId("club-time-zone-note").textContent)).toContain(
+      "Europe/London",
+    );
+
+    // D23's replacement sentence, so nobody reads the removal as the club no
+    // longer wanting an answer.
+    expect(flatten(screen.getByTestId("everyone-answers-note").textContent)).toContain(
+      "asked to answer",
     );
   });
 
@@ -574,6 +765,78 @@ describe("UX-31 — creating an event", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The three headline numbers — REQ-headline-numbers, D62, D73, D74. LAN-152.
+// ---------------------------------------------------------------------------
+
+describe("the event's headline numbers", () => {
+  function invited() {
+    return detail({ status: "approved", audienceCount: 37, invitationCount: 37 });
+  }
+
+  it("puts invited, said yes and showed at the top of the event", async () => {
+    vi.mocked(readEvent).mockResolvedValue(invited());
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("headline-invited").textContent)).toBe("37Invited");
+    expect(flatten(screen.getByTestId("headline-said-yes").textContent)).toBe("21Said yes");
+  });
+
+  it("reads an em dash against the invited count before any register is saved", async () => {
+    // D74. An event nobody has got round to must not read like an event nobody
+    // attended, and this is the string that keeps the two apart.
+    vi.mocked(readEvent).mockResolvedValue(invited());
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(summary());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe("— / 37Showed");
+  });
+
+  it("reads 0 / 37 once a register is saved with everybody absent", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved", invitationCount: 37 }));
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(
+      summary({ showed: 0, recorded: 37, registerSaved: true }),
+    );
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("headline-showed").textContent)).toBe("0 / 37Showed");
+  });
+
+  it("explains neither value in words, and never as a percentage", async () => {
+    // The packet is explicit: "the application does not explain the difference
+    // in words", and D62 asks for raw pairs. Both are assertions about what is
+    // *absent* from the payload, which is the only way to state them.
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved", invitationCount: 37 }));
+    vi.mocked(readEventAttendanceSummary).mockResolvedValue(
+      summary({ showed: 20, recorded: 30, registerSaved: true }),
+    );
+
+    const { container } = render(await EventDetailPage(detailProps()));
+    const text = flatten(container.textContent).toLowerCase();
+
+    expect(text).not.toContain("%");
+    expect(text).not.toContain("washout");
+    expect(text).not.toContain("turnout rate");
+    expect(text).not.toContain("nobody came");
+    expect(text).not.toContain("not yet recorded because");
+  });
+
+  it("shows nothing at all on a draft, which has nobody to count", async () => {
+    // `invitationCount` is structurally zero below approval — invariant P1 —
+    // so three zeroes would be three facts about nothing.
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("headline-numbers")).toBeNull();
+    expect(readEventAttendanceSummary).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // UX-32
 // ---------------------------------------------------------------------------
 
@@ -584,7 +847,7 @@ describe("UX-32 — a draft event", () => {
     render(await EventDetailPage(detailProps()));
 
     expect(flatten(screen.getByTestId("no-invitations-note").textContent)).toBe(
-      "A draft or pending event can carry no invitations, responses or attendance. " +
+      "A draft can carry no invitations, responses or attendance. " +
         "Nothing is sent until the designated approver approves it.",
     );
     expect(flatten(screen.getByTestId("distribution-fact").textContent)).toContain(
@@ -605,13 +868,16 @@ describe("UX-32 — a draft event", () => {
     expect(audience).toContain("chosen and confirmed during the approval step");
   });
 
-  it("offers edit, abandon and the way in to approval", async () => {
+  it("offers edit and the way in to approval, and no way to abandon", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps()));
 
     expect(screen.getByRole("link", { name: "Edit draft" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Abandon draft" })).toBeVisible();
+    // **Abandon draft** went with the `withdrawn` status it produced. An
+    // abandoned draft is deleted (D29), and that path is this mission's W4 work
+    // package rather than this screen's.
+    expect(screen.queryByRole("button", { name: "Abandon draft" })).toBeNull();
     expect(screen.getByRole("link", { name: "Choose audience and approve" })).toBeVisible();
 
     // Approval itself is still two deliberate steps away: the audience has to
@@ -632,17 +898,58 @@ describe("UX-32 — a draft event", () => {
     expect(screen.queryByTestId("audience-builder")).toBeNull();
   });
 
-  it("states both flags and the difference between them", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ isMandatory: false }));
+  it("states the record's own fields — where it is, what to bring, what it is", async () => {
+    // REQ-event-record. "Response requested" was one of the two flags this
+    // stated, and D23 removed it; description (D18), required equipment (D17)
+    // and in-person-or-online (D20) are what the record carries now.
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({
+        isMandatory: false,
+        description: "Full contact. Bring everything.",
+        requiredEquipment: "Gumshield, cleats",
+      }),
+    );
 
     const { container } = render(await EventDetailPage(detailProps()));
     const text = flatten(container.textContent);
 
     expect(text).toContain("Optional");
-    expect(text).toContain("Response requested");
-    expect(flatten(screen.getByTestId("solicits-fact").textContent)).toContain(
-      "asks its audience to answer",
+    expect(text).toContain("In person");
+    expect(flatten(screen.getByTestId("venue-fact").textContent)).toContain("Iffley Road Astro");
+    expect(flatten(screen.getByTestId("equipment-fact").textContent)).toContain("Gumshield");
+    expect(flatten(screen.getByTestId("description-fact").textContent)).toContain("Full contact");
+  });
+
+  it("shows an online event's destination and its joining link, on the operator tier", async () => {
+    // REQ-no-joining-url: the link is on the operator's own page and nowhere
+    // public. The label for the venue field follows where the event is (D21).
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({
+        deliveryMode: "online",
+        venue: "Microsoft Teams",
+        joiningUrl: "https://teams.example.invalid/l/meetup-join/chalk",
+      }),
     );
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(flatten(screen.getByTestId("venue-fact").textContent)).toContain("Destination");
+    expect(flatten(screen.getByTestId("venue-fact").textContent)).toContain("Microsoft Teams");
+    expect(flatten(screen.getByTestId("joining-url-fact").textContent)).toContain(
+      "https://teams.example.invalid/l/meetup-join/chalk",
+    );
+    expect(flatten(screen.getByTestId("joining-url-fact").textContent)).toContain(
+      "Never shown on the public calendar",
+    );
+  });
+
+  it("carries no joining link for an in-person event", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    const { container } = render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("joining-url-fact")).toBeNull();
+    expect(container.innerHTML).not.toContain("meetup-join");
   });
 
   it("shows the date, term coordinates, origin and owner", async () => {
@@ -651,6 +958,8 @@ describe("UX-32 — a draft event", () => {
     const { container } = render(await EventDetailPage(detailProps()));
     const text = flatten(container.textContent);
 
+    // A draft carries the stored status alone: the derived state only says
+    // something the stored one does not for an approved event.
     expect(flatten(screen.getByTestId("event-subtitle").textContent)).toBe(
       "Draft · Wednesday, 14 October 2026 · 20:00–22:00",
     );
@@ -663,6 +972,34 @@ describe("UX-32 — a draft event", () => {
     expect(screen.queryByTestId("origin-fact")).toBeNull();
     expect(text).not.toContain("Entered by");
     expect(text).not.toContain("Who sets the date");
+  });
+
+  it("shows the derived state beside the stored one, but only for an approved event", async () => {
+    // D30, on the surface it matters on. "Approved" says what the club decided;
+    // "Upcoming" or "Occurred" says where the date has got to, and the screen
+    // never collapses the two into one word.
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+    const upcoming = render(await EventDetailPage(detailProps()));
+    expect(flatten(screen.getByTestId("event-subtitle").textContent)).toContain(
+      "Approved · Upcoming",
+    );
+    upcoming.unmount();
+
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ status: "approved", scheduledOn: "2020-10-14" }),
+    );
+    const past = render(await EventDetailPage(detailProps()));
+    expect(flatten(screen.getByTestId("event-subtitle").textContent)).toContain(
+      "Approved · Occurred",
+    );
+    past.unmount();
+
+    // And a cancelled event says it once, not twice.
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "cancelled" }));
+    render(await EventDetailPage(detailProps()));
+    const subtitle = flatten(screen.getByTestId("event-subtitle").textContent);
+    expect(subtitle).toContain("Cancelled");
+    expect(subtitle).not.toContain("Cancelled · Cancelled");
   });
 
   it("says so plainly when the event has no date yet", async () => {
@@ -690,41 +1027,57 @@ describe("UX-32 — a draft event", () => {
 // UX-33 and the pending event
 // ---------------------------------------------------------------------------
 
-describe("an event awaiting approval, which nothing here creates", () => {
-  it("reads, and offers no action at all", async () => {
-    // `pending_approval` stays in the enum and seeded rows use it, so the screen
-    // still has to render one. Brian removed the step that produced it.
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "pending_approval" }));
+describe("an approved event, which this screen never edits", () => {
+  it("reads, and offers neither the editor nor a way back", async () => {
+    // This used to be about `pending_approval`, the state Brian removed the
+    // step for and LAN-151 removed from the enum. `approved` is what is left on
+    // the far side of the drafting screens: it reads, and this route changes
+    // nothing about it. Amending one in place is W5's, in this mission.
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.getByTestId("event-detail").dataset.status).toBe("pending_approval");
+    expect(screen.getByTestId("event-detail").dataset.status).toBe("approved");
     expect(screen.queryByRole("button", { name: "Withdraw submission" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Edit draft" })).toBeNull();
-    // Approval accepts a draft and nothing else, so an event stranded in this
-    // state offers no way forward — which is why the seed no longer creates one.
-    expect(screen.queryByRole("link", { name: /approve/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /choose audience/i })).toBeNull();
   });
 
-  it("keeps the no-invitations statement while the event is pending", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "pending_approval" }));
+  it("drops the no-invitations statement once the event is approved", async () => {
+    // It used to be kept for `pending_approval` too. LAN-151 removed that
+    // status from the enum, so `draft` is the only state the rule applies to —
+    // and an approved event has invitations, which is what the note said it
+    // could not have.
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.getByTestId("no-invitations-note")).toBeVisible();
+    expect(screen.queryByTestId("no-invitations-note")).toBeNull();
   });
 });
 
 describe("a saved event is a draft, and there is nothing to submit", () => {
-  it("offers edit and abandon, and no submission", async () => {
+  it("offers edit, and neither submission nor any of the retired actions", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps()));
 
     expect(screen.getByRole("link", { name: "Edit draft" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Abandon draft" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Submit for approval" })).toBeNull();
     expect(screen.queryByRole("button", { name: /submit/i })).toBeNull();
+
+    // REQ-occurrence-retired, on the surface it names: no screen offers any of
+    // these four. **Abandon draft** goes with them, because the status it
+    // produced is gone (D29 deletes an abandoned draft instead).
+    for (const gone of [
+      "Abandon draft",
+      "Mark occurred",
+      "Mark not held",
+      "Confirm what happened",
+      "Correct this to not held",
+    ]) {
+      expect(screen.queryByRole("button", { name: gone }), gone).toBeNull();
+    }
   });
 
   it("says nothing has been sent, to an approver and to an operator who is not one", async () => {
@@ -752,7 +1105,7 @@ describe("a saved event is a draft, and there is nothing to submit", () => {
   });
 
   it("has no confirmation screen for a submission that cannot happen", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "pending_approval" }));
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
 
     render(await EventDetailPage(detailProps({ submitted: "1" })));
 
@@ -781,8 +1134,9 @@ describe("the edit view — UX-31 against an existing draft", () => {
       container.querySelector<HTMLInputElement>('input[name="attendance"][value="mandatory"]')
         ?.checked,
     ).toBe(true);
+    // D20: where the event is, prefilled from the draft.
     expect(
-      container.querySelector<HTMLInputElement>('input[name="solicitsResponse"][value="yes"]')
+      container.querySelector<HTMLInputElement>('input[name="deliveryMode"][value="in_person"]')
         ?.checked,
     ).toBe(true);
   });
@@ -812,12 +1166,12 @@ describe("the edit view — UX-31 against an existing draft", () => {
   });
 
   it("refuses to open an editor for an event that is not a draft", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail({ status: "pending_approval" }));
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
 
     render(await EditEventPage(editProps()));
 
     expect(flatten(screen.getByTestId("edit-refused").textContent)).toBe(
-      "Only a draft can be edited. This event is pending approval.",
+      "Only a draft can be edited. This event is approved.",
     );
     expect(screen.queryByTestId("event-form")).toBeNull();
   });

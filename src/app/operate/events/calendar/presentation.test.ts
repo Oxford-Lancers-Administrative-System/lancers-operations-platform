@@ -105,9 +105,15 @@ describe("colour by event type", () => {
     expect(new Set(tints).size).toBe(tints.length);
   });
 
-  it("falls back to the neutral colour rather than nothing", () => {
+  it("falls back to a neutral colour rather than nothing", () => {
+    // No event type resolves to the fallback any more: LAN-151 narrowed the
+    // enum to seven and all seven are coloured. It exists so that a tile still
+    // renders if a future type reaches this function before somebody chooses
+    // its colour.
     expect(typeColour("practice")).toBe(EVENT_TYPE_COLOURS.practice);
-    expect(typeColour("a_type_nobody_has_defined")).toBe(EVENT_TYPE_COLOURS.other);
+    const fallback = typeColour("a_type_nobody_has_defined");
+    expect(fallback).toBeTruthy();
+    expect(Object.values(EVENT_TYPE_COLOURS)).not.toContain(fallback);
   });
 
   it("keeps every tint light enough for dark text to sit on it", () => {

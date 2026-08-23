@@ -297,13 +297,14 @@ export function extractTimes(text) {
 const EVENT_TYPE_RULES = Object.freeze([
   ["chalk", /\bchalk\b/i],
   ["strength_and_conditioning", /\bS&C\b|strength|conditioning/i],
-  ["camp", /\bcamp\b/i],
-  ["fixture", /\bvs\b|\bversus\b/i],
-  ["varsity", /\bvarsity\b/i],
+  // LAN-151's seven types (D12). `camp` folded into `practice` — a camp is a
+  // practice that runs for longer — and `fixture` and `varsity` both folded
+  // into `game`, which is what each of them was.
+  ["game", /\bvs\b|\bversus\b|\bvarsity\b/i],
   ["recruitment", /taster|freshers|rookie taster|flag football/i],
-  ["social", /curry|dinner|night|social|social/i],
+  ["social", /curry|dinner|night|social/i],
   ["meeting", /\bmeeting\b|committee/i],
-  ["practice", /\bpractice\b|\btraining\b/i],
+  ["practice", /\bpractice\b|\btraining\b|\bcamp\b/i],
 ]);
 
 /** Classifies one entry, returning the type and the rule that decided it. */
@@ -311,7 +312,11 @@ export function classifyEvent(name) {
   for (const [type, pattern] of EVENT_TYPE_RULES) {
     if (pattern.test(name)) return { eventType: type, matchedRule: String(pattern) };
   }
-  return { eventType: "other", matchedRule: "no rule matched" };
+  // `other` left the enum with LAN-151. An unclassified entry lands on
+  // `meeting`, which is the same destination the migration gave every existing
+  // `other`-typed row, and the manifest records that no rule matched so a human
+  // can put it somewhere better.
+  return { eventType: "meeting", matchedRule: "no rule matched" };
 }
 
 /**

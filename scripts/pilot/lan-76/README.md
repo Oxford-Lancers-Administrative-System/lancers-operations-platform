@@ -30,10 +30,10 @@ types into, and `status in (…)` limits the blast radius rather than proving wh
 created the row. What the pair does guarantee is that this file can only ever
 remove an event that carries the sentinel **and** never reached approval:
 
-| Half             | Here                                                   |
-| ---------------- | ------------------------------------------------------ |
-| Sentinel         | `PILOT-LAN-76` in `events.name`                        |
-| Instead of a key | `status in ('draft', 'pending_approval', 'withdrawn')` |
+| Half             | Here                            |
+| ---------------- | ------------------------------- |
+| Sentinel         | `PILOT-LAN-76` in `events.name` |
+| Instead of a key | `status = 'draft'`              |
 
 Both are conjoined in the one delete, and neither is sufficient alone. The
 status restriction means this file cannot delete an approved, occurred,
@@ -87,7 +87,7 @@ result set, at least one active operator account, and
 | 9    | `/operate/events/new`          | Create **PILOT-LAN-76 Second event**, same date as step 7                 | Accepted. Two events on one date is legal — invariant E4.                                                   |
 | 10   | the first event                | Read its actions                                                          | **Edit draft** and **Abandon draft** only. There is no submit step — a saved event is a draft.              |
 | 11   | the second event               | Abandon draft, with a reason                                              | Status **Withdrawn**, the reason shown.                                                                     |
-| 12   | `/operate/events?status=draft` | Filter                                                                    | Only drafts. The withdrawn event is not among them.                                                         |
+| 12   | `/operate/events?status=draft` | Filter                                                                    | Only drafts. An approved event is not among them.                                                           |
 
 **And the authorization half, which needs a second sign-in.** Signed in as an
 operator holding no calendar seat — a Treasurer, a coach, or an operator with no

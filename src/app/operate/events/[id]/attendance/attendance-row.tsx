@@ -237,15 +237,17 @@ export function AttendanceRow({
  *
  * ## Why this is on the screen at all
  *
- * Because without it the product tells an operator to do something the product
- * cannot do. An occurrence assertion cannot be corrected while attendance hangs
- * off the event — invariant P5, enforced by the cascading foreign key
- * underneath the service's own refusal — and that refusal reads "remove them
- * before changing what happened at the event". The service function existed
- * from the start; the control did not, so the instruction was a dead end and an
- * operator who marked the wrong event `occurred` and recorded against it was
- * stuck with it permanently. Independent review found that, and this is the
- * half that was missing.
+ * Because a row recorded against the wrong person, or against the wrong event
+ * in a list, is otherwise permanent. A save corrects an observation — "they
+ * were late, not absent" — and there is no save that means "there is no
+ * observation here at all".
+ *
+ * It also unblocks cancelling an event. Invariant P5's cascading foreign key
+ * refuses to move an event out of `approved` while attendance hangs off it, and
+ * the service's own refusal reads "remove them before changing what happened at
+ * the event". The service function existed from the start; the control did not,
+ * so that instruction was a dead end. Independent review found it, and this is
+ * the half that was missing.
  *
  * ## Why it is not one of the four buttons
  *

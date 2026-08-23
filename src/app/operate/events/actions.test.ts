@@ -36,10 +36,6 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
     ...actual,
     createEventDraft: vi.fn(),
     updateEventDraft: vi.fn(),
-    abandonEventDraft: vi.fn(),
-    markEventOccurred: vi.fn(),
-    markEventNotHeld: vi.fn(),
-    correctOccurrenceAssertion: vi.fn(),
   };
 });
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
@@ -68,21 +64,11 @@ import {
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
-import {
-  abandonEventDraft,
-  correctOccurrenceAssertion,
-  createEventDraft,
-  markEventNotHeld,
-  markEventOccurred,
-  updateEventDraft,
-} from "@/lib/services/events";
+import { createEventDraft, updateEventDraft } from "@/lib/services/events";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import { EMPTY_AUDIENCE_MESSAGE } from "@/lib/services/audience-selection";
 import {
-  abandonEventDraftAction,
   approveEventAction,
-  assertEventOutcomeAction,
-  correctEventOutcomeAction,
   createEventDraftAction,
   saveEventAudienceAction,
   updateEventDraftAction,
@@ -139,17 +125,10 @@ function draftForm(overrides: Record<string, string> = {}): FormData {
     endsAt: "22:00",
     venue: "Iffley Road Astro",
     attendance: "mandatory",
-    solicitsResponse: "yes",
+    deliveryMode: "in_person",
     ...overrides,
   };
   for (const [key, value] of Object.entries(fields)) form.set(key, value);
-  return form;
-}
-
-function transitionForm(overrides: Record<string, string> = {}): FormData {
-  const form = new FormData();
-  form.set("eventId", EVENT_ID);
-  for (const [key, value] of Object.entries(overrides)) form.set(key, value);
   return form;
 }
 
@@ -164,26 +143,6 @@ async function refusalFrom(attempt: () => Promise<unknown>): Promise<ServiceErro
   throw new Error("Expected the action to refuse this, but it returned.");
 }
 
-/**
- * Runs an action expected to succeed, and returns the redirect it threw.
- *
- * A successful action here ends in `redirect()`, which the mock turns into a
- * thrown `REDIRECT:` — so "it worked" and "it threw" are the same observation,
- * and a helper that returns the destination keeps the assertion about the
- * destination rather than about the throw. A returned form state means the
- * action refused, which is a failure the message names.
- */
-async function refusalOrRedirect(attempt: () => Promise<unknown>): Promise<string> {
-  try {
-    const state = await attempt();
-    throw new Error(`Expected the action to redirect, but it returned: ${JSON.stringify(state)}`);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!message.startsWith("REDIRECT:")) throw error;
-    return message;
-  }
-}
-
 /** Every action in this workflow, and a valid call to it. */
 const ACTIONS = [
   {
@@ -195,12 +154,6 @@ const ACTIONS = [
     name: "updateEventDraftAction",
     call: () => updateEventDraftAction(EMPTY_FORM_STATE, draftForm({ eventId: EVENT_ID })),
     service: updateEventDraft,
-  },
-  {
-    name: "abandonEventDraftAction",
-    call: () =>
-      abandonEventDraftAction(EMPTY_TRANSITION_STATE, transitionForm({ reason: "Pitch gone" })),
-    service: abandonEventDraft,
   },
   {
     name: "approveEventAction",
@@ -224,7 +177,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(createEventDraft).mockResolvedValue({ id: EVENT_ID } as never);
   vi.mocked(updateEventDraft).mockResolvedValue({ id: EVENT_ID } as never);
-  vi.mocked(abandonEventDraft).mockResolvedValue({ id: EVENT_ID } as never);
   vi.mocked(approveEvent).mockResolvedValue({ event: { id: EVENT_ID } } as never);
   vi.mocked(saveEventAudience).mockResolvedValue([] as never);
 });
@@ -333,7 +285,7 @@ describe("only the four calendar roles may manage the calendar", () => {
     givenAccess({ state: "active", operator: actor(["head_coach"]) });
 
     const error = await refusalFrom(() =>
-      abandonEventDraftAction(EMPTY_TRANSITION_STATE, transitionForm({ reason: "No" })),
+      updateEventDraftAction(EMPTY_FORM_STATE, draftForm({ eventId: EVENT_ID })),
     );
 
     expect(error.kind).toBe("not_permitted");
@@ -361,25 +313,25 @@ describe("a validation failure comes back as fields, with the entries intact", (
     givenAccess({ state: "active", operator: actor(["secretary"]) });
   });
 
-  it("names the unanswered response-solicited choice and writes nothing", async () => {
-    const state = await createEventDraftAction(
-      EMPTY_FORM_STATE,
-      draftForm({ solicitsResponse: "" }),
-    );
+  it("names the unanswered attendance choice and writes nothing", async () => {
+    // The response-solicited choice was the other unanswerable one, and D23
+    // removed it: mandatory or optional already carries whether the club
+    // expects somebody to be there.
+    const state = await createEventDraftAction(EMPTY_FORM_STATE, draftForm({ attendance: "" }));
 
-    expect(state.issues.map((issue) => issue.field)).toEqual(["solicitsResponse"]);
+    expect(state.issues.map((issue) => issue.field)).toEqual(["attendance"]);
     expect(createEventDraft).not.toHaveBeenCalled();
   });
 
   it("hands every submitted value back so nothing is retyped", async () => {
     const state = await createEventDraftAction(
       EMPTY_FORM_STATE,
-      draftForm({ name: "Wednesday practice, in the rain", solicitsResponse: "" }),
+      draftForm({ name: "Wednesday practice, in the rain", attendance: "" }),
     );
 
     expect(state.values?.name).toBe("Wednesday practice, in the rain");
     expect(state.values?.venue).toBe("Iffley Road Astro");
-    expect(state.values?.attendance).toBe("mandatory");
+    expect(state.values?.deliveryMode).toBe("in_person");
   });
 });
 
@@ -389,16 +341,13 @@ describe("a refusal from the service is shown, and an authorization refusal is n
   });
 
   it("returns an illegal transition as a sentence the operator can act on", async () => {
-    vi.mocked(abandonEventDraft).mockRejectedValue(
-      new InvalidTransition("Only a draft can be abandoned. This event is approved."),
+    vi.mocked(updateEventDraft).mockRejectedValue(
+      new InvalidTransition("Only a draft can be edited. This event is approved."),
     );
 
-    const state = await abandonEventDraftAction(
-      EMPTY_TRANSITION_STATE,
-      transitionForm({ reason: "No longer needed" }),
-    );
+    const state = await updateEventDraftAction(EMPTY_FORM_STATE, draftForm({ eventId: EVENT_ID }));
 
-    expect(state.error).toMatch(/Only a draft can be abandoned/);
+    expect(state.error).toMatch(/Only a draft can be edited/);
   });
 
   it("keeps a form's entries when the service refuses the write", async () => {
@@ -411,10 +360,10 @@ describe("a refusal from the service is shown, and an authorization refusal is n
   });
 
   it("never renders a NotPermitted as a form message", async () => {
-    vi.mocked(abandonEventDraft).mockRejectedValue(new NotPermitted("You may not do that."));
+    vi.mocked(updateEventDraft).mockRejectedValue(new NotPermitted("You may not do that."));
 
     const error = await refusalFrom(() =>
-      abandonEventDraftAction(EMPTY_TRANSITION_STATE, transitionForm({ reason: "No" })),
+      updateEventDraftAction(EMPTY_FORM_STATE, draftForm({ eventId: EVENT_ID })),
     );
 
     expect(error.kind).toBe("not_permitted");
@@ -422,10 +371,10 @@ describe("a refusal from the service is shown, and an authorization refusal is n
 
   it("lets an unexpected failure reach the error boundary as itself", async () => {
     const boom = new TypeError("something entirely different broke");
-    vi.mocked(abandonEventDraft).mockRejectedValue(boom);
+    vi.mocked(updateEventDraft).mockRejectedValue(boom);
 
     await expect(
-      abandonEventDraftAction(EMPTY_TRANSITION_STATE, transitionForm({ reason: "No" })),
+      updateEventDraftAction(EMPTY_FORM_STATE, draftForm({ eventId: EVENT_ID })),
     ).rejects.toBe(boom);
   });
 });
@@ -441,18 +390,26 @@ describe("where each action leaves the operator", () => {
     );
   });
 
-  it("sends an abandoned draft back to the event", async () => {
+  it("sends an edited draft back to the event", async () => {
     await expect(
-      abandonEventDraftAction(EMPTY_TRANSITION_STATE, transitionForm({ reason: "No pitch" })),
+      updateEventDraftAction(EMPTY_FORM_STATE, draftForm({ eventId: EVENT_ID })),
     ).rejects.toThrow(`REDIRECT:/operate/events/${EVENT_ID}`);
   });
 
-  it("exports no action that submits an event for approval", async () => {
-    // The step Brian removed. A module-level assertion, so re-adding it is a
-    // deliberate act rather than something that creeps back with a screen.
+  it("exports no action that submits an event, or asserts what happened to one", async () => {
+    // The step Brian removed, and the three LAN-151 removed. A module-level
+    // assertion, so re-adding any of them is a deliberate act rather than
+    // something that creeps back with a screen.
     const actions = await import("./actions");
-    expect(Object.keys(actions)).not.toContain("submitEventAction");
-    expect(Object.keys(actions)).not.toContain("withdrawEventSubmissionAction");
+    for (const gone of [
+      "submitEventAction",
+      "withdrawEventSubmissionAction",
+      "assertEventOutcomeAction",
+      "correctEventOutcomeAction",
+      "abandonEventDraftAction",
+    ]) {
+      expect(Object.keys(actions), gone).not.toContain(gone);
+    }
   });
 });
 
@@ -712,174 +669,17 @@ describe("saveEventAudienceAction stores the proposal, and guards it the same wa
 // ---------------------------------------------------------------------------
 // LAN-80 — the occurrence assertion
 // ---------------------------------------------------------------------------
+// The occurrence assertion, and why nothing here tests it
+// ---------------------------------------------------------------------------
 
-describe("assertEventOutcomeAction", () => {
-  function outcomeForm(outcome: string): FormData {
-    return transitionForm({ outcome });
-  }
-
-  it("marks an approved event as occurred, naming the operator from the session", async () => {
-    givenAccess({ state: "active", operator: actor(["secretary"]) });
-
-    const redirect = await refusalOrRedirect(() =>
-      assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("occurred")),
-    );
-
-    expect(markEventOccurred).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID);
-    expect(redirect).toBe(`REDIRECT:/operate/events/${EVENT_ID}?outcome=occurred`);
-    expect(revalidatePath).toHaveBeenCalledWith(`/operate/events/${EVENT_ID}/attendance`);
-  });
-
-  it("marks an approved event as not held", async () => {
-    givenAccess({ state: "active", operator: actor(["general_manager"]) });
-
-    await refusalOrRedirect(() =>
-      assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("not_held")),
-    );
-
-    expect(markEventNotHeld).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID);
-  });
-
-  it("permits each of the four calendar roles", async () => {
-    for (const role of CALENDAR_ROLES) {
-      vi.mocked(markEventOccurred).mockClear();
-      givenAccess({ state: "active", operator: actor([role]) });
-
-      await refusalOrRedirect(() =>
-        assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("occurred")),
-      );
-
-      expect(markEventOccurred, `${role} should be able to assert occurrence`).toHaveBeenCalled();
-    }
-  });
-
-  /**
-   * The boundary LAN-110 depends on, tested from the direction that matters.
-   *
-   * `slice-ux.md` § 8: occurrence is "not implied by attendance-recorder
-   * capability". A Head Coach may record who turned up and may not decide that
-   * there was anything to turn up to — so the three coaching seats are refused
-   * here specifically, not merely absent from a list.
-   */
-  it("refuses every seat that is not a calendar role, including the three coaches", async () => {
-    for (const role of NON_CALENDAR_ROLES) {
-      vi.mocked(markEventOccurred).mockClear();
-      givenAccess({ state: "active", operator: actor([role]) });
-
-      const error = await refusalFrom(() =>
-        assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("occurred")),
-      );
-
-      expect(error, `${role} must be refused`).toBeInstanceOf(NotPermitted);
-      expect(markEventOccurred).not.toHaveBeenCalled();
-    }
-  });
-
-  it("refuses an operator holding no role at all", async () => {
-    givenAccess({ state: "active", operator: actor([]) });
-
-    const error = await refusalFrom(() =>
-      assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("occurred")),
-    );
-    expect(error).toBeInstanceOf(NotPermitted);
-    expect(markEventOccurred).not.toHaveBeenCalled();
-  });
-
-  it("refuses an unlinked and an inactive account without saying which", async () => {
-    for (const state of ["unlinked", "inactive"] as const) {
-      vi.mocked(markEventOccurred).mockClear();
-      givenAccess({ state });
-
-      const error = await refusalFrom(() =>
-        assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("occurred")),
-      );
-      expect(error).toBeInstanceOf(NotPermitted);
-      expect(markEventOccurred).not.toHaveBeenCalled();
-    }
-  });
-
-  it("takes no actor from the form, whatever the form says", async () => {
-    givenAccess({ state: "active", operator: actor(["secretary"]) });
-    const form = outcomeForm("occurred");
-    form.set("actorPersonId", "99999999-9999-4999-8999-999999999999");
-    form.set("personId", "99999999-9999-4999-8999-999999999999");
-
-    await refusalOrRedirect(() => assertEventOutcomeAction(EMPTY_TRANSITION_STATE, form));
-
-    expect(markEventOccurred).toHaveBeenCalledWith(OPERATOR_PERSON_ID, EVENT_ID);
-  });
-
-  it("refuses an outcome that is neither of the two the club has words for", async () => {
-    givenAccess({ state: "active", operator: actor(["secretary"]) });
-
-    const state = await assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("cancelled"));
-
-    expect(state.error).toBe("Choose whether this event occurred or was not held.");
-    expect(markEventOccurred).not.toHaveBeenCalled();
-    expect(markEventNotHeld).not.toHaveBeenCalled();
-  });
-
-  it("shows a refused second assertion as a sentence", async () => {
-    givenAccess({ state: "active", operator: actor(["secretary"]) });
-    vi.mocked(markEventOccurred).mockRejectedValue(
-      new InvalidTransition(
-        "Only an approved event can be marked as occurred. This event is recorded as having happened.",
-        { rule: "event_transition:mark_occurred" },
-      ),
-    );
-
-    const state = await assertEventOutcomeAction(EMPTY_TRANSITION_STATE, outcomeForm("occurred"));
-
-    expect(state.error).toContain("recorded as having happened");
-  });
-});
-
-describe("correctEventOutcomeAction", () => {
-  it("passes the reason and never the direction", async () => {
-    givenAccess({ state: "active", operator: actor(["secretary"]) });
-
-    await refusalOrRedirect(() =>
-      correctEventOutcomeAction(
-        EMPTY_TRANSITION_STATE,
-        transitionForm({ reason: "Wrong Wednesday.", outcome: "occurred", status: "occurred" }),
-      ),
-    );
-
-    // The form's `outcome` and `status` are ignored: the service derives the
-    // direction from the event, so this action cannot be used to set a status.
-    expect(correctOccurrenceAssertion).toHaveBeenCalledWith(
-      OPERATOR_PERSON_ID,
-      EVENT_ID,
-      "Wrong Wednesday.",
-    );
-  });
-
-  it("is refused to a coach", async () => {
-    givenAccess({ state: "active", operator: actor(["head_coach"]) });
-
-    const error = await refusalFrom(() =>
-      correctEventOutcomeAction(EMPTY_TRANSITION_STATE, transitionForm({ reason: "No." })),
-    );
-
-    expect(error).toBeInstanceOf(NotPermitted);
-    expect(correctOccurrenceAssertion).not.toHaveBeenCalled();
-  });
-
-  it("shows the attendance refusal as a sentence rather than a crash", async () => {
-    givenAccess({ state: "active", operator: actor(["secretary"]) });
-    vi.mocked(correctOccurrenceAssertion).mockRejectedValue(
-      new InvalidTransition(
-        "This event still has 4 attendance records against it. Remove them before changing " +
-          "what happened at the event.",
-        { rule: "event_occurrence_locked_by_attendance" },
-      ),
-    );
-
-    const state = await correctEventOutcomeAction(
-      EMPTY_TRANSITION_STATE,
-      transitionForm({ reason: "Wrong event." }),
-    );
-
-    expect(state.error).toContain("4 attendance records");
-  });
-});
+/*
+ * `assertEventOutcomeAction` and `correctEventOutcomeAction` had a describe
+ * block each, and both are gone with the actions themselves.
+ *
+ * LAN-151 retired the occurrence assertion (D30, REQ-occurrence-retired): an
+ * event has occurred when its date has passed and it was not cancelled, and no
+ * surface offers *Mark occurred*, *Mark not held*, *Confirm what happened* or
+ * *Correct this to not held*. That the module exports none of them is asserted
+ * above, in "exports no action that submits an event, or asserts what happened
+ * to one" — a module-level check, so their return would be visible in a diff.
+ */

@@ -38,7 +38,7 @@ import {
 } from "./event-audience";
 import { createEventDraft, readEvent, updateEventDraft, type EventDraftInput } from "./events";
 import { responseDeadlineRule, RESPONSE_DEADLINE_RULES } from "./response-deadline";
-import { openObserver, SEEDED_IDENTITY_CREATED_AT } from "../../../tests/helpers/service-layer";
+import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN77ApprovalSuite";
 
@@ -50,7 +50,7 @@ beforeAll(async () => {
   observer = await openObserver();
   const people = await observer.query<{ id: string }>(
     "select id from public.people where created_at = $1::timestamptz order by id",
-    [SEEDED_IDENTITY_CREATED_AT],
+    [await seededIdentityCreatedAt(observer)],
   );
   seededPeople = new Set(people.rows.map((row) => row.id));
 
@@ -96,7 +96,10 @@ function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
     endsAt: "13:00",
     venue: "University Parks",
     isMandatory: true,
-    solicitsResponse: true,
+    deliveryMode: "in_person",
+    description: null,
+    requiredEquipment: null,
+    joiningUrl: null,
     ...overrides,
   };
 }
@@ -126,9 +129,9 @@ async function insertDraftDirectly(input: {
   const inserted = await observer.query<{ id: string }>(
     `insert into public.events
        (season_id, name, event_type, origin, status, scheduled_on, starts_at,
-        is_mandatory, solicits_response, owner_person_id)
+        is_mandatory, owner_person_id)
      values ($1, $2, $3::public.event_type, 'club_controlled', 'draft', $4, $6::time,
-             true, true, $5)
+             true, $5)
      returning id`,
     [
       season.rows[0].id,
@@ -148,7 +151,7 @@ async function insertDraftDirectly(input: {
 
 /**
  * The catalogue an operator would be offered for this event, narrowed to the
- * seeded cohort — see `SEEDED_PEOPLE_CREATED_AT`.
+ * seeded cohort — see `seededIdentityCreatedAt`.
  *
  * The narrowing is this suite's isolation, not a property of the code under
  * test: `listAudienceCatalogueIn` is called exactly as the application calls it,
@@ -582,11 +585,11 @@ describe("approving twice", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Invariant E6 — solicitation decides whether an obligation exists at all
+// D23 — every event asks for an answer, so every approval carries a deadline
 // ---------------------------------------------------------------------------
 
-describe("invariant E6 — deadlines exist only where a response was asked for", () => {
-  it("gives a response-soliciting event's invitations the configured deadline", async () => {
+describe("the deadline every approval computes", () => {
+  it("gives an event's invitations the configured deadline", async () => {
     const event = await newDraft({ eventType: "practice", scheduledOn: "2026-10-18" });
     const keys = await keysFor(event, "player", 2);
 
@@ -612,65 +615,16 @@ describe("invariant E6 — deadlines exist only where a response was asked for",
     expect(rows.rows[0].expires_at?.toISOString()).toBe("2026-10-16T17:00:00.000Z");
   });
 
-  it("gives a non-soliciting event no deadline anywhere, so nothing can expire", async () => {
-    const event = await newDraft({ solicitsResponse: false });
-    const keys = await keysFor(event, "player", 2);
-
-    const outcome = await approve(event.id, keys);
-    expect(outcome.deadline).toBeNull();
-
-    const rows = await observer.query<{ expires_at: Date | null; deadline: Date | null }>(
-      `select i.expires_at, e.response_deadline_at as deadline
-         from public.invitations i join public.events e on e.id = i.event_id
-        where i.event_id = $1`,
-      [event.id],
-    );
-    for (const row of rows.rows) {
-      expect(row.expires_at).toBeNull();
-      expect(row.deadline).toBeNull();
-    }
-
-    // The other half of E6, proved against the database rather than asserted:
-    // such an invitation can never reach `expired`, so it can never enter the
-    // nonresponse escalation stream.
-    const invitationId = (
-      await observer.query<{ id: string }>(
-        "select id from public.invitations where event_id = $1 limit 1",
-        [event.id],
-      )
-    ).rows[0].id;
-
-    await expect(
-      observer.query("update public.invitations set status = 'expired' where id = $1", [
-        invitationId,
-      ]),
-    ).rejects.toThrow(/invitations_expire_only_when_asked/);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// The deadline rules themselves — Brian's decision of 13 August 2026
-// ---------------------------------------------------------------------------
-
-describe("the configured response deadlines", () => {
-  it("gives a fixture seven days rather than a practice's two", async () => {
-    // Inserted rather than drafted: LAN-76's form deliberately cannot create a
-    // fixture, because it has no opponent, side or competition field. The event
-    // type is real, the schema carries it, later issues create it — and the
-    // seven-day rule has to be proved against it rather than assumed from the
-    // configuration table.
-    const event = await insertDraftDirectly({
-      name: `${NAME_MARKER} Away fixture`,
-      eventType: "fixture",
-      scheduledOn: "2026-10-18",
-    });
-    const keys = await keysFor(event, "player", 1);
-
-    const outcome = await approve(event.id, keys);
-
-    expect(outcome.deadline?.rule.daysBefore).toBe(7);
-    expect(outcome.deadline?.at.toISOString()).toBe("2026-10-11T17:00:00.000Z");
-  });
+  /*
+   * "gives a non-soliciting event no deadline anywhere" stood here, with its
+   * companion proving such an invitation could never reach `expired`.
+   *
+   * Both went with `solicits_response`. D23 removed "Response requested"
+   * because it was not a real concept: mandatory or optional already carries
+   * whether the club expects somebody to be there, and everyone sent an event
+   * is expected to answer. There is no event a deadline can be absent from any
+   * more, which the test above now states positively.
+   */
 
   it("clamps a deadline that has already passed to the approval moment", async () => {
     // Approving a practice for tomorrow: the rule puts the deadline yesterday.
@@ -786,8 +740,12 @@ describe("the approval preview", () => {
     expect(preview.deadline?.at.toISOString()).toBe("2026-10-16T17:00:00.000Z");
   });
 
-  it("shows no deadline for an event that solicits no response", async () => {
-    const event = await newDraft({ solicitsResponse: false });
+  it("shows no deadline for an event that has no date yet", async () => {
+    // The only case left in which the preview has no deadline to show. It is
+    // also the case approval refuses, because invariant E1a requires a date.
+    const event = await newDraft({ scheduledOn: "2026-10-18" });
+    await observer.query("update public.events set scheduled_on = null where id = $1", [event.id]);
+
     const preview = await readApprovalPreview(event.id);
     expect(preview.deadline).toBeNull();
   });
@@ -807,19 +765,20 @@ describe("every event type in the enum gets the deadline Brian configured", () =
    * The event date is fixed at 18 October 2026, inside British Summer Time, so
    * every expectation below is 17:00Z for an 18:00 local deadline. A rule that
    * subtracted a fixed offset instead of resolving the wall clock would pass a
-   * winter test and fail all ten of these.
+   * winter test and fail all seven of these.
+   *
+   * Seven, since LAN-151 narrowed the enum. `camp` folded into `practice`,
+   * `fixture` and `varsity` into `game`, and `other` into `meeting`; every
+   * surviving value keeps the duration Brian decided on 13 August 2026.
    */
   const EXPECTED: ReadonlyArray<readonly [type: string, expiresAt: string]> = [
     ["practice", "2026-10-16T17:00:00.000Z"],
     ["strength_and_conditioning", "2026-10-16T17:00:00.000Z"],
     ["chalk", "2026-10-16T17:00:00.000Z"],
-    ["fixture", "2026-10-11T17:00:00.000Z"],
+    ["game", "2026-10-11T17:00:00.000Z"],
     ["social", "2026-10-13T17:00:00.000Z"],
     ["recruitment", "2026-10-16T17:00:00.000Z"],
-    ["camp", "2026-10-11T17:00:00.000Z"],
-    ["varsity", "2026-10-11T17:00:00.000Z"],
     ["meeting", "2026-10-16T17:00:00.000Z"],
-    ["other", "2026-10-16T17:00:00.000Z"],
   ];
 
   it("covers the enum exactly, with no type left untested", async () => {
@@ -1157,8 +1116,8 @@ describe("an event outside the operating season", () => {
     const inserted = await observer.query<{ id: string }>(
       `insert into public.events
          (season_id, name, event_type, origin, status, scheduled_on, is_mandatory,
-          solicits_response, owner_person_id)
-       values ($1, $2, 'practice', 'club_controlled', 'draft', '2026-05-20', true, true, $3)
+          owner_person_id)
+       values ($1, $2, 'practice', 'club_controlled', 'draft', '2026-05-20', true, $3)
        returning id`,
       [archived.rows[0].id, `${NAME_MARKER} Last season's leftover`, actorPersonId],
     );

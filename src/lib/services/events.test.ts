@@ -22,24 +22,25 @@ import type { Client } from "pg";
 
 import { closePool, isServiceError, type ServiceError } from "@/lib/db";
 import {
-  abandonEventDraft,
+  derivedEventState,
+  EVENT_STATUS_FILTERS,
+  EVENT_STATUSES,
   createEventDraft,
   listCurrentSeasonEvents,
   readEvent,
   updateEventDraft,
   validateEventDraft,
-  EVENT_TRANSITIONS,
   type EventDraftInput,
 } from "./events";
 import { readCurrentSeason } from "./seasons";
-import { openObserver, SEEDED_IDENTITY_CREATED_AT } from "../../../tests/helpers/service-layer";
+import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 /** Unique to this file. Two suites sharing one marker delete each other's rows. */
 const NAME_MARKER = "LAN76EventsSuite";
 
 /**
- * The seed stamps every person it creates with one fixed `created_at`, and this
- * suite draws its actor only from that cohort.
+ * The seed stamps every person it creates with one `created_at`, and this suite
+ * draws its actor only from that cohort.
  *
  * `select id from public.people limit 1` returned an arbitrary row, and "the
  * oldest person" returned somebody else's fixture — the seed's people are dated
@@ -53,19 +54,57 @@ const NAME_MARKER = "LAN76EventsSuite";
  * lives. Anchoring here closes the hazard before it is somebody's afternoon.
  * The seeded cohort is the only population no suite ever deletes.
  */
-const SEEDED_PEOPLE_CREATED_AT = SEEDED_IDENTITY_CREATED_AT;
 
 let observer: Client;
 let actorPersonId: string;
+
+/**
+ * Oxford coordinates, read off the seeded term calendar rather than written
+ * down.
+ *
+ * The dates used to be literals — 14 October 2026 for Michaelmas week 1, and so
+ * on — which was only ever shorthand for "the Wednesday of Michaelmas week 1".
+ * The seed now slides its whole calendar onto the day it runs, so the literal
+ * and the term it named parted company; the coordinate is what these tests are
+ * about, so the coordinate is what they ask for.
+ *
+ * Michaelmas's `starts_on` is the first day of week −1, so week 1's Wednesday is
+ * seventeen days later — exactly the arithmetic the old comment spelled out.
+ */
+let michaelmasWeek1Wednesday: string;
+let hilaryWeek0: string;
+let outsideEveryTerm: string;
+
+async function termDate(
+  observer: Client,
+  name: "michaelmas" | "hilary" | "trinity",
+  column: "starts_on" | "ends_on",
+  offsetDays: number,
+): Promise<string> {
+  const row = await observer.query<{ day: string }>(
+    `select to_char(t.${column} + $2::int, 'YYYY-MM-DD') as day
+       from public.terms t
+       join public.seasons s on s.label = t.academic_year
+      where t.name = $1::term_name and s.status = 'active'`,
+    [name, offsetDays],
+  );
+  expect(row.rows.length).toBe(1);
+  return row.rows[0].day;
+}
 
 beforeAll(async () => {
   observer = await openObserver();
   const person = await observer.query<{ id: string }>(
     "select id from public.people where created_at = $1::timestamptz and merged_into_person_id is null order by id limit 1",
-    [SEEDED_PEOPLE_CREATED_AT],
+    [await seededIdentityCreatedAt(observer)],
   );
   expect(person.rows.length).toBe(1);
   actorPersonId = person.rows[0].id;
+
+  michaelmasWeek1Wednesday = await termDate(observer, "michaelmas", "starts_on", 17);
+  hilaryWeek0 = await termDate(observer, "hilary", "starts_on", 0);
+  // Deep in the long vacation, where no term reaches.
+  outsideEveryTerm = await termDate(observer, "trinity", "ends_on", 26);
 });
 
 afterEach(async () => {
@@ -88,12 +127,15 @@ function draft(overrides: Partial<EventDraftInput> = {}): EventDraftInput {
   return {
     name: `${NAME_MARKER} Wednesday practice`,
     eventType: "practice",
-    scheduledOn: "2026-10-14",
+    scheduledOn: michaelmasWeek1Wednesday,
     startsAt: "20:00",
     endsAt: "22:00",
     venue: "Iffley Road Astro",
     isMandatory: true,
-    solicitsResponse: true,
+    deliveryMode: "in_person",
+    description: null,
+    requiredEquipment: null,
+    joiningUrl: null,
     ...overrides,
   };
 }
@@ -150,26 +192,22 @@ async function countDraftedAudits(): Promise<number> {
  * Puts an event into a state this slice cannot reach, the way the schema
  * requires.
  *
- * LAN-76 no longer moves an event out of `draft` except by abandoning it —
- * Brian removed the submission step — so the tests that prove "this is refused
- * once it is not a draft" have to arrange that state directly. Approval is
- * LAN-77's, and invariant E1a requires a date, an approver and a confirmed
- * audience, all of which are set here.
+ * This module moves nothing out of `draft` at all since LAN-151: approval is
+ * `event-approval`'s, and the five status transitions that used to live here
+ * went with the statuses they moved between. So a test that proves "this is
+ * refused once it is not a draft" arranges the state directly. Invariant E1a
+ * requires a date, an approver and a confirmed audience for anything that is
+ * not a draft, and all three are set here.
  */
 async function forceStatus(eventId: string, status: string): Promise<void> {
   await observer.query(
     `update public.events
         set status = $2::public.event_status,
-            approved_at = case when $2 in ('approved', 'occurred', 'not_held', 'cancelled')
-                               then now() end,
-            approved_by_person_id = case when $2 in ('approved', 'occurred', 'not_held', 'cancelled')
-                                         then $3::uuid end,
-            audience_confirmed_at = case when $2 in ('approved', 'occurred', 'not_held', 'cancelled')
-                                         then now() end,
-            audience_confirmed_by_person_id = case
-                                         when $2 in ('approved', 'occurred', 'not_held', 'cancelled')
-                                         then $3::uuid end,
-            decision_reason = case when $2 in ('rejected', 'cancelled', 'withdrawn')
+            approved_at = case when $2 <> 'draft' then now() end,
+            approved_by_person_id = case when $2 <> 'draft' then $3::uuid end,
+            audience_confirmed_at = case when $2 <> 'draft' then now() end,
+            audience_confirmed_by_person_id = case when $2 <> 'draft' then $3::uuid end,
+            decision_reason = case when $2 = 'cancelled'
                                    then 'Arranged by a test' else decision_reason end
       where id = $1`,
     [eventId, status, actorPersonId],
@@ -207,12 +245,12 @@ describe("row 1 — an operator creates the Wednesday practice as a draft", () =
     expect(event.status).toBe("draft");
     expect(event.eventType).toBe("practice");
     expect(event.origin).toBe("club_controlled");
-    expect(event.scheduledOn).toBe("2026-10-14");
+    expect(event.scheduledOn).toBe(michaelmasWeek1Wednesday);
     expect(event.startsAt).toBe("20:00");
     expect(event.endsAt).toBe("22:00");
     expect(event.venue).toBe("Iffley Road Astro");
     expect(event.isMandatory).toBe(true);
-    expect(event.solicitsResponse).toBe(true);
+    expect(event.deliveryMode).toBe("in_person");
     expect(event.seasonId).toBe(season.id);
   });
 
@@ -244,9 +282,9 @@ describe("row 1 — an operator creates the Wednesday practice as a draft", () =
     await expect(
       observer.query(
         `insert into public.invitations
-           (event_id, event_status, solicits_response, season_id, capacity, person_id,
+           (event_id, event_status, season_id, capacity, person_id,
             audience_member_id)
-         values ($1, 'draft', true, $2, 'coach', $3, $4)`,
+         values ($1, 'draft', $2, 'coach', $3, $4)`,
         [event.id, event.seasonId, actorPersonId, member.rows[0].id],
       ),
     ).rejects.toThrow(/invitations_require_an_approved_event/);
@@ -255,13 +293,13 @@ describe("row 1 — an operator creates the Wednesday practice as a draft", () =
     // `event_audience_members.event_id` cascades.
   });
 
-  it("records a non-soliciting event without a deadline — invariant E6", async () => {
-    const event = await createEventDraft(
-      actorPersonId,
-      draft({ solicitsResponse: false, isMandatory: false }),
-    );
-
-    expect(event.solicitsResponse).toBe(false);
+  it("records a draft with no deadline and no reminders — those are approval's", async () => {
+    // Invariant E6 used to be the reason a particular event carried no
+    // deadline. LAN-151 retired it with `solicits_response` (D23): every event
+    // asks for an answer. What is still true, and is what this covers, is that
+    // a *draft* carries neither — the deadline is computed at approval, from
+    // the date, and nothing about it is decided while the event is being typed.
+    const event = await createEventDraft(actorPersonId, draft({ isMandatory: false }));
 
     const stored = await observer.query<{
       response_deadline_at: Date | null;
@@ -271,6 +309,28 @@ describe("row 1 — an operator creates the Wednesday practice as a draft", () =
     ]);
     expect(stored.rows[0].response_deadline_at).toBeNull();
     expect(stored.rows[0].reminder_offsets_hours).toEqual([]);
+  });
+
+  it("records an online event with its destination and its joining link", async () => {
+    // D20 and D21: where the event is, as a property, with the venue field
+    // holding a destination rather than an address. REQ-no-joining-url puts the
+    // link on the record and keeps it off every public surface.
+    const event = await createEventDraft(
+      actorPersonId,
+      draft({
+        deliveryMode: "online",
+        venue: "Microsoft Teams",
+        joiningUrl: "https://teams.example.invalid/l/meetup-join/chalk",
+        requiredEquipment: "A notebook",
+        description: "Reviewing last week's tape.",
+      }),
+    );
+
+    expect(event.deliveryMode).toBe("online");
+    expect(event.venue).toBe("Microsoft Teams");
+    expect(event.joiningUrl).toBe("https://teams.example.invalid/l/meetup-join/chalk");
+    expect(event.requiredEquipment).toBe("A notebook");
+    expect(event.description).toBe("Reviewing last week's tape.");
   });
 
   it("accepts a draft with no date, no time and no venue — invariant E1a", async () => {
@@ -355,7 +415,7 @@ describe("row 3 — a draft can be edited, and only while it is a draft", () => 
         venue: "University Parks",
         startsAt: "19:00",
         endsAt: "21:00",
-        solicitsResponse: false,
+        requiredEquipment: "Gumshield",
         isMandatory: false,
       }),
     );
@@ -363,7 +423,7 @@ describe("row 3 — a draft can be edited, and only while it is a draft", () => 
     expect(edited.name).toBe(`${NAME_MARKER} Wednesday practice, moved`);
     expect(edited.venue).toBe("University Parks");
     expect(edited.startsAt).toBe("19:00");
-    expect(edited.solicitsResponse).toBe(false);
+    expect(edited.requiredEquipment).toBe("Gumshield");
     expect(edited.isMandatory).toBe(false);
     expect(edited.status).toBe("draft");
 
@@ -413,46 +473,16 @@ describe("row 3 — a draft can be edited, and only while it is a draft", () => 
 // Rows 4, 5, 6 — the three transitions
 // ---------------------------------------------------------------------------
 
-describe("row 6 — abandoning a draft ends it, and says why", () => {
-  it("moves draft to withdrawn, stores the reason and audits it", async () => {
-    const event = await createEventDraft(actorPersonId, draft());
-
-    const abandoned = await abandonEventDraft(actorPersonId, event.id, "Pitch unavailable");
-
-    expect(abandoned.status).toBe("withdrawn");
-    expect(abandoned.decisionReason).toBe("Pitch unavailable");
-
-    const audit = await auditFor(event.id);
-    expect(audit[1]).toMatchObject({
-      action: "event.draft_abandoned",
-      from_state: "draft",
-      to_state: "withdrawn",
-      reason: "Pitch unavailable",
-    });
-  });
-
-  it("refuses a blank reason before the database has to", async () => {
-    const event = await createEventDraft(actorPersonId, draft());
-
-    const error = await refusalFrom(() => abandonEventDraft(actorPersonId, event.id, "   "));
-
-    expect(error.rule).toBe("events_negative_decisions_are_explained");
-    expect(await statusOf(event.id)).toBe("draft");
-  });
-
-  it("refuses to abandon an event that has been approved", async () => {
-    const event = await createEventDraft(actorPersonId, draft());
-    await forceStatus(event.id, "approved");
-
-    const error = await refusalFrom(() =>
-      abandonEventDraft(actorPersonId, event.id, "Changed our minds"),
-    );
-
-    expect(error.kind).toBe("invalid_transition");
-    expect(error.message).toMatch(/Only a draft can be abandoned/);
-    expect(await statusOf(event.id)).toBe("approved");
-  });
-});
+/*
+ * Row 6 — abandoning a draft — was tested here and is gone.
+ *
+ * `abandonEventDraft` moved a draft to `withdrawn`, and LAN-151 retired that
+ * status: "withdrawn" meant the event never happened, which is what deleting a
+ * draft now means (D29). The delete path is REQ-delete-draft's and belongs to
+ * this mission's W4 work package, so there is deliberately nothing here to test
+ * — an abandoned draft stays a draft, which is exactly where the approved
+ * legacy mapping put every previously-withdrawn row.
+ */
 
 // ---------------------------------------------------------------------------
 // Brian's clarification — the date decides the term, and the club owns the event
@@ -460,8 +490,6 @@ describe("row 6 — abandoning a draft ends it, and says why", () => {
 
 describe("the term and week are derived from the date, never chosen", () => {
   it("stores the Oxford coordinate the date falls in", async () => {
-    // 14 October 2026 is Michaelmas week 1: term starts 27 September, which is
-    // the first day of week −1, and 14 October is seventeen days later.
     const event = await createEventDraft(actorPersonId, draft());
 
     const term = await observer.query<{ name: string; academic_year: string }>(
@@ -475,7 +503,7 @@ describe("the term and week are derived from the date, never chosen", () => {
   });
 
   it("records no term for a date outside every term", async () => {
-    const event = await createEventDraft(actorPersonId, draft({ scheduledOn: "2027-07-15" }));
+    const event = await createEventDraft(actorPersonId, draft({ scheduledOn: outsideEveryTerm }));
 
     expect(event.termId).toBeNull();
     expect(event.weekNumber).toBeNull();
@@ -489,7 +517,7 @@ describe("the term and week are derived from the date, never chosen", () => {
     const moved = await updateEventDraft(
       actorPersonId,
       event.id,
-      draft({ scheduledOn: "2027-01-10" }),
+      draft({ scheduledOn: hilaryWeek0 }),
     );
 
     const term = await observer.query<{ name: string }>(
@@ -537,7 +565,7 @@ describe("origin is derived on creation and preserved on edit", () => {
 });
 
 describe("the calendar is the club's, not its typist's", () => {
-  it("lets a second operator edit, submit and withdraw a draft they did not create", async () => {
+  it("lets a second operator edit a draft they did not create", async () => {
     // Brian's clarification: the calendar is managed by four roles and is not
     // personally owned by its creator. Who *may* do this is decided by the
     // capability map at the action; the service records the actor and applies
@@ -553,8 +581,8 @@ describe("the calendar is the club's, not its typist's", () => {
     const edited = await updateEventDraft(other, event.id, draft({ venue: "University Parks" }));
     expect(edited.venue).toBe("University Parks");
 
-    const abandoned = await abandonEventDraft(other, event.id, "Superseded");
-    expect(abandoned.status).toBe("withdrawn");
+    const again = await updateEventDraft(other, event.id, draft({ venue: "Iffley Road Gym" }));
+    expect(again.venue).toBe("Iffley Road Gym");
 
     // And every one of those names whoever actually did it.
     const audit = await auditFor(event.id);
@@ -647,31 +675,13 @@ describe("the list can be sorted, and only by columns it knows", () => {
 // ---------------------------------------------------------------------------
 
 describe("there is no submission step, and nothing can create one", () => {
-  it("names no transition that submits an event to anybody", async () => {
+  it("has no status a submission could reach", async () => {
     // Brian removed `draft → pending_approval` on 12 August 2026: only calendar
-    // operators create events, so there is nobody to submit one to. This is
-    // what stops it coming back by accident.
-    //
-    // It used to read `toEqual(["abandon"])`, which was the same guard while
-    // `abandon` was the only transition and became a false one the moment
-    // LAN-80 added the four occurrence transitions — a list that has to be
-    // edited by every legitimate addition is a tripwire against doing correct
-    // work. What it actually protects is that **nothing produces
-    // `pending_approval`**, so that is what it now says, and the assertion no
-    // longer needs touching when a later issue adds cancellation or amendment.
-    for (const [name, rule] of Object.entries(EVENT_TRANSITIONS)) {
-      expect(rule.to, `${name} must not submit an event for approval`).not.toBe("pending_approval");
-    }
-
-    // And the whole set is still small and named, so an accidental addition is
-    // visible in a diff rather than absorbed silently.
-    expect(Object.keys(EVENT_TRANSITIONS).sort()).toEqual([
-      "abandon",
-      "correct_to_not_held",
-      "correct_to_occurred",
-      "mark_not_held",
-      "mark_occurred",
-    ]);
+    // operators create events, so there is nobody to submit one to. This used
+    // to be guarded by asserting over a transition table; LAN-151 removed the
+    // status itself, which is a stronger guarantee than a rule about it, so
+    // that is what the assertion says now.
+    expect(EVENT_STATUSES).toEqual(["draft", "approved", "cancelled"]);
   });
 
   it("leaves a saved event as a draft, and nothing else", async () => {
@@ -684,14 +694,17 @@ describe("there is no submission step, and nothing can create one", () => {
     expect(audit.map((row) => row.action)).toEqual(["event.drafted"]);
   });
 
-  it("keeps reading an event that is already awaiting approval", async () => {
-    // The status stays in the enum and seeded rows use it, so the screens still
-    // have to render one. Nothing in the application produces it.
+  it("keeps reading a cancelled event, which is the only non-draft this file meets", async () => {
+    // There is no longer a status between drafting and approval for a screen to
+    // render — LAN-151 removed `pending_approval` from the enum entirely, which
+    // is why the test above can assert the whole vocabulary. What a screen does
+    // still have to render is an event this module cannot edit, so that is what
+    // is arranged here.
     const event = await createEventDraft(actorPersonId, draft());
-    await forceStatus(event.id, "pending_approval");
+    await forceStatus(event.id, "cancelled");
 
     const read = await readEvent(event.id);
-    expect(read.status).toBe("pending_approval");
+    expect(read.status).toBe("cancelled");
     expect(read.invitationCount).toBe(0);
   });
 });
@@ -721,7 +734,7 @@ describe("row 7 — two events on one date are both accepted (invariant E4)", ()
     const alongside = await createEventDraft(actorPersonId, draft({ name: `${NAME_MARKER} B` }));
 
     expect(alongside.status).toBe("draft");
-    expect(alongside.scheduledOn).toBe("2026-10-14");
+    expect(alongside.scheduledOn).toBe(michaelmasWeek1Wednesday);
   });
 });
 
@@ -733,12 +746,11 @@ describe("row 8 — the form's rules, checked without a database", () => {
   const complete = {
     name: "Wednesday practice",
     eventType: "practice",
-    scheduledOn: "2026-10-14",
+    scheduledOn: michaelmasWeek1Wednesday,
     startsAt: "20:00",
     endsAt: "22:00",
     venue: "Iffley Road Astro",
     attendance: "mandatory",
-    solicitsResponse: "yes",
   };
 
   it("accepts a complete practice", () => {
@@ -747,18 +759,50 @@ describe("row 8 — the form's rules, checked without a database", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.isMandatory).toBe(true);
-    expect(result.value.solicitsResponse).toBe(true);
+    // D20: absent means in person. The only default in this function that is a
+    // fact rather than an assumption about what somebody meant.
+    expect(result.value.deliveryMode).toBe("in_person");
   });
 
-  it("refuses an unanswered response-solicited choice — no silent default", () => {
-    const result = validateEventDraft({ ...complete, solicitsResponse: "" });
+  it("refuses a time that is not a five-minute step — D78", () => {
+    const result = validateEventDraft({ ...complete, startsAt: "20:02" });
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.issues).toContainEqual({
-      field: "solicitsResponse",
-      message: "Say whether this event asks its audience to respond.",
+      field: "startsAt",
+      message: "Enter the time in five-minute steps.",
     });
+  });
+
+  it("refuses a joining link on an in-person event — REQ-no-joining-url", () => {
+    const result = validateEventDraft({
+      ...complete,
+      deliveryMode: "in_person",
+      joiningUrl: "https://teams.example.invalid/x",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issues.map((issue) => issue.field)).toContain("joiningUrl");
+  });
+
+  it("keeps the description, the equipment and the online destination", () => {
+    const result = validateEventDraft({
+      ...complete,
+      deliveryMode: "online",
+      venue: "Microsoft Teams",
+      description: "  Reviewing the tape.  ",
+      requiredEquipment: " A notebook ",
+      joiningUrl: " https://teams.example.invalid/x ",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.deliveryMode).toBe("online");
+    expect(result.value.description).toBe("Reviewing the tape.");
+    expect(result.value.requiredEquipment).toBe("A notebook");
+    expect(result.value.joiningUrl).toBe("https://teams.example.invalid/x");
   });
 
   it("refuses an unanswered attendance choice", () => {
@@ -775,7 +819,7 @@ describe("row 8 — the form's rules, checked without a database", () => {
       name: "  ",
       endsAt: "19:00",
       attendance: "",
-      solicitsResponse: "",
+      joiningUrl: "https://teams.example.invalid/x",
     });
 
     expect(result.ok).toBe(false);
@@ -784,7 +828,7 @@ describe("row 8 — the form's rules, checked without a database", () => {
       "name",
       "endsAt",
       "attendance",
-      "solicitsResponse",
+      "joiningUrl",
     ]);
   });
 
@@ -898,6 +942,157 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
     expect(drafts.events.every((row) => row.status === "draft")).toBe(true);
     expect(drafts.events.map((row) => row.id)).toContain(event.id);
     expect(drafts.totalInSeason).toBeGreaterThan(drafts.events.length - 1);
+  });
+
+  /**
+   * Q-6, answered 2026-08-22, against the real database rather than a mock.
+   *
+   * `occurred` is the one filter value that is not a column, so the assertion
+   * that matters is that the SQL and `derivedEventState` agree: an approved
+   * event whose date has passed is in, and everything else — a past draft, a
+   * past cancellation, an approved event still to come, one with no date at all
+   * — is out. A `where` clause that had drifted from the derivation would put a
+   * cancelled evening in the list of evenings that happened.
+   */
+  describe("filtering by Occurred, which is derived and never stored", () => {
+    const TODAY = "2026-10-20";
+    const BEFORE = "2026-10-14";
+    const AFTER = "2026-11-11";
+
+    async function plant(status: string, scheduledOn: string | null, name: string) {
+      const event = await createEventDraft(
+        actorPersonId,
+        draft({ name: `${NAME_MARKER} ${name}`, scheduledOn: scheduledOn ?? BEFORE }),
+      );
+      if (status !== "draft") await forceStatus(event.id, status);
+      if (scheduledOn === null) {
+        // After the status, never before: invariant E1a refuses an approval
+        // with no date, so an undated event can only be a draft — which is why
+        // the case below plants one.
+        await observer.query("update public.events set scheduled_on = null where id = $1", [
+          event.id,
+        ]);
+      }
+      return event.id;
+    }
+
+    it("lists an approved event whose date has passed, and only that", async () => {
+      const occurred = await plant("approved", BEFORE, "Occurred");
+      const stillToCome = await plant("approved", AFTER, "Still to come");
+      const pastDraft = await plant("draft", BEFORE, "Past draft");
+      const pastCancellation = await plant("cancelled", BEFORE, "Past cancellation");
+      // Invariant E1a refuses an approval without a date, so the undated case
+      // the derivation guards is only ever a draft.
+      const undated = await plant("draft", null, "Undated");
+
+      const list = await listCurrentSeasonEvents({
+        search: NAME_MARKER,
+        status: "occurred",
+        today: TODAY,
+      });
+      const ids = list.events.map((row) => row.id);
+
+      expect(ids).toContain(occurred);
+      for (const excluded of [stillToCome, pastDraft, pastCancellation, undated]) {
+        expect(ids).not.toContain(excluded);
+      }
+      // Every row it did return really is one, by the rule stated in TypeScript.
+      for (const row of list.events) {
+        expect(derivedEventState(row, TODAY), `event ${row.id}`).toBe("occurred");
+        expect(row.status).toBe("approved");
+      }
+    });
+
+    it("moves an event in and out of the answer as the day it is asked about moves", async () => {
+      const event = await plant("approved", BEFORE, "On the boundary");
+
+      const before = await listCurrentSeasonEvents({
+        search: NAME_MARKER,
+        status: "occurred",
+        today: BEFORE,
+      });
+      const after = await listCurrentSeasonEvents({
+        search: NAME_MARKER,
+        status: "occurred",
+        today: AFTER,
+      });
+
+      // Its own date is not yet past on the day itself — the rule is `<`, not
+      // `<=`, and an evening is not over at breakfast.
+      expect(before.events.map((row) => row.id)).not.toContain(event);
+      expect(after.events.map((row) => row.id)).toContain(event);
+    });
+
+    it("keeps Approved and Occurred apart, so the four values partition the season", async () => {
+      // Found in the browser: filtering by Approved returned rows whose Status
+      // column read "Occurred". Two controls answering one question two ways is
+      // what `docs/ux/standards.md` rule 7 stops, and Brian asked to "easily be
+      // able to tell which ones happened versus not" — which two overlapping
+      // filter values do not give him.
+      const occurred = await plant("approved", BEFORE, "Approved and past");
+      const stillToCome = await plant("approved", AFTER, "Approved and ahead");
+
+      const approved = await listCurrentSeasonEvents({
+        search: NAME_MARKER,
+        status: "approved",
+        today: TODAY,
+      });
+      const happened = await listCurrentSeasonEvents({
+        search: NAME_MARKER,
+        status: "occurred",
+        today: TODAY,
+      });
+
+      expect(approved.events.map((row) => row.id)).toContain(stillToCome);
+      expect(approved.events.map((row) => row.id)).not.toContain(occurred);
+      expect(happened.events.map((row) => row.id)).toContain(occurred);
+      expect(happened.events.map((row) => row.id)).not.toContain(stillToCome);
+
+      // Every row under Approved really is still to come, by the same rule the
+      // column applies.
+      for (const row of approved.events) {
+        expect(derivedEventState(row, TODAY), `event ${row.id}`).not.toBe("occurred");
+      }
+    });
+
+    it("does not widen the stored vocabulary to hold it", async () => {
+      // The filter offers four values; the enum still holds three. Asked of the
+      // database rather than of a constant, because that is where widening it
+      // would show.
+      const values = await observer.query<{ label: string }>(
+        `select e.enumlabel as label
+           from pg_enum e
+           join pg_type t on t.oid = e.enumtypid
+          where t.typname = 'event_status'
+          order by e.enumsortorder`,
+      );
+
+      expect(values.rows.map((row) => row.label)).toEqual(["draft", "approved", "cancelled"]);
+      expect(EVENT_STATUS_FILTERS).toContain("occurred");
+    });
+
+    it("still combines with the type filter and the search box", async () => {
+      const practice = await plant("approved", BEFORE, "Occurred practice");
+      const game = await createEventDraft(
+        actorPersonId,
+        draft({
+          name: `${NAME_MARKER} Occurred game`,
+          eventType: "game",
+          scheduledOn: BEFORE,
+        }),
+      );
+      await forceStatus(game.id, "approved");
+
+      const combined = await listCurrentSeasonEvents({
+        search: NAME_MARKER,
+        status: "occurred",
+        eventType: "practice",
+        today: TODAY,
+      });
+
+      expect(combined.events.map((row) => row.id)).toContain(practice);
+      expect(combined.events.map((row) => row.id)).not.toContain(game.id);
+    });
   });
 
   it("filters by free text over the name", async () => {

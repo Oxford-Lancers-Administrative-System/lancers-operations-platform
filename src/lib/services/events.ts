@@ -10,64 +10,63 @@ import {
 import {
   deriveTermCoordinate,
   DRAFTABLE_EVENT_TYPES,
-  EVENT_TRANSITIONS,
+  OCCURRED_FILTER,
   OPERATOR_CREATED_ORIGIN,
   optional,
   toMinutePrecision,
   trimmed,
   UUID_PATTERN,
+  type EventDeliveryMode,
   type EventDraftInput,
   type EventStatus,
-  type EventTransition,
   type TermWindow,
 } from "./event-input";
 import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
 import { readCurrentSeasonIn, type Season } from "./seasons";
 import { escapeLikePattern } from "./sql-text";
+import { todayInClubZone } from "@/lib/club-time";
 
 /**
- * The event aggregate — drafting, editing and the three status changes this
- * slice owns. LAN-76.
+ * The event aggregate — drafting, editing and reading one event. LAN-76, as
+ * narrowed by LAN-151.
  *
  * ## What this module is responsible for, and what it is not
  *
- * `docs/architecture/data-model.md` § _Rules deliberately left to TypeScript_
- * puts **legal state transitions** and **who may trigger them** above the
- * database on purpose: a transition table is workflow, and encoding it in
- * check constraints would make a migration the way club policy changes. So the
- * transitions below are the first implementation of that rule, and they are
- * data — a table of `{ from, to }` — rather than a chain of `if`s.
- *
- * The database still owns what each *state* requires, and none of it is
+ * The database owns what each *state* requires, and none of it is
  * re-implemented here:
  *
  *   * invariant E1a — an approval needs a date, an approver and a confirmed
  *     audience (`events_approval_requires_date_and_audience`). A draft may
  *     legitimately be incomplete, and this module never fills a gap in to make
  *     one look finished.
- *   * invariant P1 — an invitation cannot exist against a `draft` or
- *     `pending_approval` event, held by the cascading composite foreign key
- *     from `invitations`. Nothing here asserts it; `readEvent` *reads* the
- *     counts so a screen can state it as an observed fact.
+ *   * invariant P1 — an invitation cannot exist against a `draft` event, held
+ *     by the cascading composite foreign key from `invitations`. Nothing here
+ *     asserts it; `readEvent` *reads* the counts so a screen can state it as an
+ *     observed fact.
  *   * invariant E4 — two or more events on one date is legal. There is
- *     deliberately no uniqueness check anywhere in this file, and a test
- *     proves two same-date drafts are both accepted.
- *   * invariant E6 — no solicitation means no deadline and no reminders. This
- *     slice records neither, so the constraint is satisfied by never writing
- *     them; the flag is still an explicit operator choice, never a default.
+ *     deliberately no uniqueness check anywhere in this file, and a test proves
+ *     two same-date drafts are both accepted.
  *
- * ## Approval is not here, and neither is submission
+ * ## Why there are no status transitions here any more
  *
- * `approved`, `rejected`, `cancelled`, `occurred` and `not_held` are LAN-77 and
- * later. A transition this module does not name is refused, which is why the
- * table is a whitelist: an unlisted pair is an `InvalidTransition`, not an
- * unhandled case.
+ * There were five, and LAN-151 removed all of them with the statuses they moved
+ * between.
  *
- * `draft → pending_approval` was here and is gone — Brian removed the step on
- * 12 August 2026, because only calendar operators create events, so there is
- * nobody to submit an event *to*. A saved event is a draft; approval takes it
- * from there. See `EVENT_TRANSITIONS` in `./event-input` for the reasoning.
+ *   * `draft → withdrawn` (abandon) went with `withdrawn`. "Withdrawn" meant it
+ *     never became an event, which is what a *deleted* draft means now (D29) —
+ *     and the delete path is REQ-delete-draft's, in this mission's W4 work
+ *     package rather than here. Until it lands, an abandoned draft simply stays
+ *     a draft, which is exactly where the approved legacy mapping puts every
+ *     previously-withdrawn row.
+ *   * `approved → occurred`, `approved → not_held` and the two corrections went
+ *     with the occurrence assertion itself. **Nothing asserts that an event
+ *     occurred** (D30, REQ-occurrence-retired): the date passing without a
+ *     cancellation is the whole of it, and `derivedEventState` in
+ *     `./event-input` is where that is written down.
+ *
+ * Approval is `./event-approval`. Cancellation (W6) and amendment (W5) are this
+ * mission's later work packages and are not here yet.
  */
 
 // ---------------------------------------------------------------------------
@@ -80,16 +79,22 @@ import { escapeLikePattern } from "./sql-text";
  * to know the split exists; see that module's header for why it exists.
  */
 export {
+  derivedEventState,
   deriveTermCoordinate,
   DRAFTABLE_EVENT_TYPES,
+  EVENT_DELIVERY_MODES,
   EVENT_ORIGINS,
-  EVENT_TRANSITIONS,
+  EVENT_STATUS_FILTERS,
+  EVENT_STATUSES,
+  OCCURRED_FILTER,
+  EVENT_TYPES,
   OPERATOR_CREATED_ORIGIN,
   validateEventDraft,
+  type DerivedEventState,
+  type EventDeliveryMode,
   type EventDraftInput,
   type EventDraftValidation,
   type EventStatus,
-  type EventTransition,
   type FieldIssue,
   type RawEventDraft,
   type TermCoordinate,
@@ -109,9 +114,24 @@ export interface EventListEntry {
   scheduledOn: string | null;
   startsAt: string | null;
   endsAt: string | null;
+  deliveryMode: EventDeliveryMode;
+  /** An address when in person, a destination when online (D21). */
   venue: string | null;
   isMandatory: boolean;
-  solicitsResponse: boolean;
+  /**
+   * Whether anything at all has been recorded against this event — D72.
+   *
+   * On the list because the coach's own card has to ask the same question the
+   * register asks, and `isRegisterAvailable` needs it: a register with anything
+   * in it has already been opened, so the buffer cannot take it back. Without
+   * it the card would answer a different question from the two surfaces either
+   * side of it, which is finding W-F1.
+   *
+   * An `exists`, not a count. Nothing displays how many rows there are, and a
+   * count over a table that grows with every session recorded would be read as
+   * though it meant something.
+   */
+  registerSaved: boolean;
   /** Rows in `event_audience_members`. Zero on every draft, by definition. */
   audienceCount: number;
   /** Rows in `invitations`. Structurally zero below `approved` — invariant P1. */
@@ -122,6 +142,15 @@ export interface EventListEntry {
 
 /** The event detail — UX-32 and UX-33. */
 export interface EventDetail extends EventListEntry {
+  /** D18. */
+  description: string | null;
+  /** D17. */
+  requiredEquipment: string | null;
+  /**
+   * REQ-no-joining-url. Present on the operator tier only. Nothing public, no
+   * subscription feed and no payload behind one may ever carry it.
+   */
+  joiningUrl: string | null;
   origin: string;
   termId: string | null;
   termLabel: string | null;
@@ -135,7 +164,12 @@ export interface EventDetail extends EventListEntry {
 export interface EventListFilters {
   /** Free text over name and venue. */
   search?: string | null;
-  /** An `event_status` value, or `null` for all. */
+  /**
+   * One of `EVENT_STATUS_FILTERS`, or `null` for all.
+   *
+   * Three of the four are `event_status` values compared against the column.
+   * The fourth, `occurred`, is derived and never stored (D30) — see the query.
+   */
   status?: string | null;
   /** An `event_type` value, or `null` for all. */
   eventType?: string | null;
@@ -143,6 +177,15 @@ export interface EventListFilters {
   sort?: string | null;
   /** `"asc"` or `"desc"`. Anything else falls back to the column's default. */
   direction?: string | null;
+  /**
+   * Today in the club's zone, `YYYY-MM-DD`. Defaults to the real one.
+   *
+   * An argument so that "has this event occurred?" can be asked at a stated
+   * date, which is what makes the derived filter testable at all: the answer is
+   * a function of the clock, and a test that could only ask it *now* would be
+   * asserting today's weather.
+   */
+  today?: string;
 }
 
 /**
@@ -154,9 +197,9 @@ export interface EventListFilters {
  * error and never the caller's text.
  *
  * `status` sorts by the lifecycle's own order rather than alphabetically —
- * `event_status` is an enum, so PostgreSQL already sorts it draft, pending,
- * approved, occurred, and an operator scanning for what needs attention wants
- * that rather than "approved, cancelled, draft".
+ * `event_status` is an enum, so PostgreSQL already sorts it draft, approved,
+ * cancelled, and an operator scanning for what needs attention wants that
+ * rather than "approved, cancelled, draft".
  */
 export const EVENT_SORT_COLUMNS: Readonly<
   Record<string, { sql: string; default: "asc" | "desc" }>
@@ -192,7 +235,8 @@ const COUNT_COLUMNS = `
   (select count(*)
      from public.invitations i
      join public.current_rsvp r on r.invitation_id = i.id
-    where i.event_id = e.id) as response_count`;
+    where i.event_id = e.id) as response_count,
+  exists (select 1 from public.attendance_records a where a.event_id = e.id) as register_saved`;
 
 interface EventRow {
   id: string;
@@ -202,15 +246,19 @@ interface EventRow {
   scheduled_on: Date | string | null;
   starts_at: string | null;
   ends_at: string | null;
+  delivery_mode: EventDeliveryMode;
   venue: string | null;
   is_mandatory: boolean;
-  solicits_response: boolean;
   audience_count: string;
   invitation_count: string;
   response_count: string;
+  register_saved: boolean;
 }
 
 interface EventDetailRow extends EventRow {
+  description: string | null;
+  required_equipment: string | null;
+  joining_url: string | null;
   origin: string;
   term_id: string | null;
   term_name: string | null;
@@ -243,9 +291,10 @@ function toListEntry(row: EventRow): EventListEntry {
     scheduledOn: asDate(row.scheduled_on),
     startsAt: asTime(row.starts_at),
     endsAt: asTime(row.ends_at),
+    deliveryMode: row.delivery_mode,
     venue: row.venue,
     isMandatory: row.is_mandatory,
-    solicitsResponse: row.solicits_response,
+    registerSaved: row.register_saved,
     audienceCount: Number(row.audience_count),
     invitationCount: Number(row.invitation_count),
     responseCount: Number(row.response_count),
@@ -271,20 +320,46 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
     const search = escapeLikePattern(optional(filters.search));
     const status = optional(filters.status);
     const eventType = optional(filters.eventType);
+    const today = filters.today ?? todayInClubZone();
 
+    /*
+      Q-6. The Status filter selects the rows whose Status column reads the word
+      that was chosen — which is not the same as comparing `e.status`.
+
+      `occurred` is derived and never stored (D30): an approved event whose date
+      has passed. The list shows that word in the column, so the filter has to
+      mean the same thing, or choosing **Approved** returns rows visibly
+      labelled *Occurred* and choosing **Occurred** misses none of them but
+      overlaps the other — two controls answering one question two ways, which
+      is what `docs/ux/standards.md` rule 7 exists to stop. Brian asked to
+      "easily be able to tell which ones happened versus not", and two filter
+      values that both match the same evening do not.
+
+      So the expression below is `statusLabel` in `src/app/operate/events/page.tsx`,
+      in SQL, and the four values partition the season. Today is a parameter
+      rather than `current_date` so the club's zone decides which day it is: at
+      00:30 in Oxford in June, `current_date` at UTC is still yesterday.
+
+      A value that is none of the four matches nothing, which is what an unknown
+      filter should do.
+    */
     const result = await tx.query<EventRow>(
       `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
               e.scheduled_on, e.starts_at::text as starts_at, e.ends_at::text as ends_at,
-              e.venue, e.is_mandatory, e.solicits_response,
+              e.delivery_mode::text as delivery_mode, e.venue, e.is_mandatory,
               ${COUNT_COLUMNS}
          from public.events e
         where e.season_id = $1
           and ($2::text is null or e.name ilike '%' || $2 || '%'
                                 or coalesce(e.venue, '') ilike '%' || $2 || '%')
-          and ($3::text is null or e.status::text = $3)
+          and ($3::text is null
+                or case
+                     when e.status = 'approved' and e.scheduled_on < $6::date then $5
+                     else e.status::text
+                   end = $3)
           and ($4::text is null or e.event_type::text = $4)
         order by ${orderBy(optional(filters.sort), optional(filters.direction))}`,
-      [season.id, search, status, eventType],
+      [season.id, search, status, eventType, OCCURRED_FILTER, today],
     );
 
     const total = await tx.query<{ count: string }>(
@@ -385,7 +460,8 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
   const result = await tx.query<EventDetailRow>(
     `select e.id, e.name, e.event_type::text as event_type, e.status::text as status,
             e.scheduled_on, e.starts_at::text as starts_at, e.ends_at::text as ends_at,
-            e.venue, e.is_mandatory, e.solicits_response, e.origin::text as origin,
+            e.delivery_mode::text as delivery_mode, e.venue, e.is_mandatory,
+            e.description, e.required_equipment, e.joining_url, e.origin::text as origin,
             e.term_id, t.name::text as term_name, t.academic_year as term_academic_year,
             e.week_number, e.decision_reason, e.season_id,
             case
@@ -408,6 +484,9 @@ export async function readEventIn(tx: Tx, eventId: string): Promise<EventDetail>
 
   return {
     ...toListEntry(row),
+    description: row.description,
+    requiredEquipment: row.required_equipment,
+    joiningUrl: row.joining_url,
     origin: row.origin,
     termId: row.term_id,
     termLabel:
@@ -446,9 +525,11 @@ export async function createEventDraft(
     const inserted = await tx.query<{ id: string }>(
       `insert into public.events
          (season_id, name, event_type, origin, status, scheduled_on, starts_at, ends_at,
-          venue, term_id, week_number, is_mandatory, solicits_response, owner_person_id)
+          delivery_mode, venue, description, required_equipment, joining_url,
+          term_id, week_number, is_mandatory, owner_person_id)
        values ($1, $2, $3::public.event_type, $4::public.event_origin, 'draft',
-               $5, $6::time, $7::time, $8, $9, $10, $11, $12, $13)
+               $5, $6::time, $7::time, $8::public.event_delivery_mode, $9, $10, $11, $12,
+               $13, $14, $15, $16)
        returning id`,
       [
         season.id,
@@ -458,11 +539,14 @@ export async function createEventDraft(
         input.scheduledOn,
         input.startsAt,
         input.endsAt,
+        input.deliveryMode,
         input.venue,
+        input.description,
+        input.requiredEquipment,
+        input.joiningUrl,
         term.termId,
         term.weekNumber,
         input.isMandatory,
-        input.solicitsResponse,
         actorPersonId,
       ],
     );
@@ -477,7 +561,7 @@ export async function createEventDraft(
       toState: "draft",
       context: {
         eventType: input.eventType,
-        solicitsResponse: input.solicitsResponse,
+        deliveryMode: input.deliveryMode,
         isMandatory: input.isMandatory,
         origin: OPERATOR_CREATED_ORIGIN,
         weekNumber: term.weekNumber,
@@ -519,8 +603,10 @@ export async function updateEventDraft(
     const updated = await tx.query<{ id: string }>(
       `update public.events
           set name = $2, event_type = $3::public.event_type,
-              scheduled_on = $4, starts_at = $5::time, ends_at = $6::time, venue = $7,
-              term_id = $8, week_number = $9, is_mandatory = $10, solicits_response = $11,
+              scheduled_on = $4, starts_at = $5::time, ends_at = $6::time,
+              delivery_mode = $7::public.event_delivery_mode, venue = $8,
+              description = $9, required_equipment = $10, joining_url = $11,
+              term_id = $12, week_number = $13, is_mandatory = $14,
               updated_at = now()
         where id = $1 and status = 'draft'
        returning id`,
@@ -531,11 +617,14 @@ export async function updateEventDraft(
         input.scheduledOn,
         input.startsAt,
         input.endsAt,
+        input.deliveryMode,
         input.venue,
+        input.description,
+        input.requiredEquipment,
+        input.joiningUrl,
         term.termId,
         term.weekNumber,
         input.isMandatory,
-        input.solicitsResponse,
       ],
     );
 
@@ -554,7 +643,7 @@ export async function updateEventDraft(
       toState: "draft",
       context: {
         eventType: input.eventType,
-        solicitsResponse: input.solicitsResponse,
+        deliveryMode: input.deliveryMode,
         isMandatory: input.isMandatory,
         weekNumber: term.weekNumber,
       },
@@ -564,182 +653,14 @@ export async function updateEventDraft(
   });
 }
 
-/**
- * Moves an event through one of the transitions this slice owns, and writes the
- * audit row in the same transaction.
- *
- * One implementation for all three, because the difference between them is
- * data. The alternative — three near-identical functions — is three places for
- * the audit row to be forgotten in.
- */
-async function applyTransition(
-  actorPersonId: string,
-  eventId: string,
-  transition: EventTransition,
-  reason: string | null,
-): Promise<EventDetail> {
-  requireActor(actorPersonId);
-  const rule = EVENT_TRANSITIONS[transition];
-
-  const trimmedReason = optional(reason);
-  if (rule.requiresReason && trimmedReason === null) {
-    // Refusing here first means the operator gets the sentence rather than the
-    // constraint — and, for a correction, a sentence for a rule the database
-    // does not carry at all.
-    throw new ConstraintViolated(rule.reasonRefusal ?? "Say why this change is being made.", {
-      rule: rule.reasonRule,
-    });
-  }
-
-  return withTransaction(async (tx) => {
-    // Locked, not merely read. Every check below is a read this statement then
-    // acts on, and the one that matters most — "does any attendance exist?" —
-    // is a read of a *different* table, which the guarded `where status = …`
-    // cannot protect on its own. Without the lock, a recorder saving the first
-    // attendance row and an operator correcting the assertion can each be right
-    // about a state the other is leaving.
-    const before = await lockEventIn(tx, eventId);
-
-    // Invariant P5, from the other side. `attendance_records.event_status` is a
-    // cascading copy of this column, so an update that moves the event off
-    // `occurred` rewrites every attendance row and then breaks
-    // `attendance_records_require_an_occurred_event`. That refusal is correct
-    // and is not readable: it names attendance while the operator was looking
-    // at an event. So the count is checked first and the refusal says what is
-    // actually in the way and what to do about it.
-    if (rule.from === "occurred") {
-      const attendance = await tx.query<{ count: string }>(
-        "select count(*)::text as count from public.attendance_records where event_id = $1",
-        [eventId],
-      );
-      const recorded = Number(attendance.rows[0].count);
-      if (recorded > 0) {
-        throw new InvalidTransition(
-          `This event still has ${recorded} attendance ${
-            recorded === 1 ? "record" : "records"
-          } against it. Remove them before changing what happened at the event.`,
-          { rule: "event_occurrence_locked_by_attendance" },
-        );
-      }
-    }
-
-    const updated = await tx.query<{ id: string }>(
-      `update public.events
-          set status = $3::public.event_status,
-              decision_reason = case when $4::text is null then decision_reason else $4 end,
-              outcome_recorded_at = case when $5 then now() else outcome_recorded_at end,
-              outcome_recorded_by_person_id =
-                case when $5 then $6::uuid else outcome_recorded_by_person_id end,
-              updated_at = now()
-        where id = $1 and status = $2::public.event_status
-       returning id`,
-      [
-        eventId,
-        rule.from,
-        rule.to,
-        trimmedReason,
-        rule.recordsOutcome === true,
-        rule.recordsOutcome === true ? actorPersonId : null,
-      ],
-    );
-
-    if (updated.rowCount === 0) {
-      throw new InvalidTransition(`${rule.refusal} ${describeState(before.status)}`, {
-        rule: `event_transition:${transition}`,
-      });
-    }
-
-    await recordAudit(tx, {
-      actorPersonId,
-      action: rule.action,
-      entityTable: "events",
-      entityId: eventId,
-      fromState: rule.from,
-      toState: rule.to,
-      reason: trimmedReason,
-    });
-
-    return readEventIn(tx, eventId);
-  });
-}
-
-/**
- * `draft → withdrawn` — a candidate the club abandons. Needs a reason.
- *
- * Any calendar operator may withdraw any draft, not only whoever typed it in.
- * Brian's LAN-76 clarification: the club calendar is managed by four roles and
- * is not personally owned by its creator, so `owner_person_id` is recorded for
- * accountability and read for display, and never consulted for permission.
- */
-export async function abandonEventDraft(
-  actorPersonId: string,
-  eventId: string,
-  reason: string,
-): Promise<EventDetail> {
-  return applyTransition(actorPersonId, eventId, "abandon", reason);
-}
-
-/**
- * `approved → occurred`. LAN-80, UX-70's **Mark occurred**.
- *
- * The event's own record of what happened, asserted by a named operator. This
- * function is the only path in the repository that produces `occurred`, and it
- * takes no date argument, reads no clock to decide, and has no caller that is
- * not a person pressing a button — invariant E5, which the schema restates as
- * `events_outcome_is_asserted`.
- */
-export async function markEventOccurred(
-  actorPersonId: string,
-  eventId: string,
-): Promise<EventDetail> {
-  return applyTransition(actorPersonId, eventId, "mark_occurred", null);
-}
-
-/** `approved → not_held`. UX-70's **Mark not held**, and UX-75's result. */
-export async function markEventNotHeld(
-  actorPersonId: string,
-  eventId: string,
-): Promise<EventDetail> {
-  return applyTransition(actorPersonId, eventId, "mark_not_held", null);
-}
-
-/**
- * Corrects an occurrence assertion in whichever direction the event needs.
- *
- * The direction is derived from the event's current state rather than asked
- * for, so a caller cannot request a correction that is not a correction. An
- * event that has not been asserted at all is refused by `applyTransition`'s
- * guarded update, naming the state it is really in.
- *
- * Leaving `occurred` is refused while attendance exists. That is not a
- * limitation to work around: attendance is evidence somebody was there, and an
- * assertion that the event did not happen would contradict it. The operator
- * removes the attendance first, deliberately, or leaves the assertion alone.
- */
-export async function correctOccurrenceAssertion(
-  actorPersonId: string,
-  eventId: string,
-  reason: string,
-): Promise<EventDetail> {
-  const current = await readEvent(eventId);
-  const transition: EventTransition =
-    current.status === "not_held" ? "correct_to_occurred" : "correct_to_not_held";
-  return applyTransition(actorPersonId, eventId, transition, reason);
-}
-
 // ---------------------------------------------------------------------------
 // Shared refusals
 // ---------------------------------------------------------------------------
 
 const STATE_NAMES: Readonly<Record<EventStatus, string>> = Object.freeze({
   draft: "a draft",
-  pending_approval: "awaiting approval",
   approved: "approved",
-  occurred: "recorded as having happened",
-  not_held: "recorded as not held",
   cancelled: "cancelled",
-  rejected: "rejected",
-  withdrawn: "withdrawn",
 });
 
 /** "This event is approved." — the half of a refusal that says why. */
