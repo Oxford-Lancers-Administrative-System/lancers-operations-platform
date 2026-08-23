@@ -443,9 +443,120 @@ describe("the public calendar arrangements", () => {
    * restored, and no workaround to keep honest. Removed rather than carried
    * forward, because a test whose mechanism no longer exists passes for no
    * reason. What replaced it is the measurement at five widths on the pull
-   * request, and the two tests below, which are about the anchor rather than
-   * the widget.
+   * request, and the three tests below.
    */
+
+  /**
+   * W153-F1 — the jump control was inert at every width below `md`.
+   *
+   * `YearColumn` draws the year twice and the two presentations carry different
+   * anchors: the week grid has `id={segment.key}`, the stacked week cards have
+   * `id={segment.key + "-stack"}`. The control resolved only the first, which
+   * below `md` sits inside a `display: none` subtree with no geometry at all —
+   * so `scrollIntoView` was a no-op at 375px while the control's own state
+   * changed and `replaceState` rewrote the address bar. The reader was told
+   * they had navigated a nine-thousand-pixel page, and had not.
+   *
+   * ## Why these were away, and are back — R153-B4
+   *
+   * They were written against the select and were deleted with it when
+   * BG-153-2 replaced it with seven buttons. That was wrong: `laidOutAnchor` is
+   * the function W153-F1 broke, and BG-153-2 did not touch it — only the widget
+   * that calls it changed. For one commit the repository contained no test that
+   * pressed the control at all, and both the desktop-only resolution and a jump
+   * that did nothing on any click passed the whole suite. These are the same
+   * three tests, pressing a button where they used to choose an option.
+   *
+   * ## Why they simulate layout rather than just clicking
+   *
+   * They assert the **mechanism** — which element is scrolled — because a test
+   * that only proved the handler ran, or only checked a prop, passed the whole
+   * time the defect was live. **jsdom lays nothing out**: `getClientRects()` is
+   * empty for every element, so `laidOutAnchor`'s last-resort fallback answers
+   * with the desktop id whichever presentation is on screen, and a test that
+   * merely clicks and expects no throw is green with the defect reinstated. The
+   * two regimes are therefore simulated exactly as `display: none` reports
+   * them, and each test names the element that had to move. That `scrollY`
+   * really moves at 375, 768, 899, 900 and 1440 is a browser's measurement and
+   * is recorded on the pull request.
+   */
+  describe("the jump control scrolls the presentation the reader can see", () => {
+    /** Render the year and hand back both anchors for one segment. */
+    async function anchorsForTrinity() {
+      const { container } = render(await PublicCalendarViewPage(viewProps({ mode: "oxford" })));
+
+      const headings = [...container.querySelectorAll('[data-testid="year-segment-heading"]')];
+      const grid = headings.find((h) => flatten(h.textContent) === "Trinity") as HTMLElement;
+      expect(grid, "no Trinity heading in the grid").toBeTruthy();
+
+      const stack = document.getElementById(grid.id + "-stack");
+      expect(stack, "no Trinity heading in the phone stack").toBeTruthy();
+
+      const gridScroll = vi.fn();
+      const stackScroll = vi.fn();
+      grid.scrollIntoView = gridScroll;
+      (stack as HTMLElement).scrollIntoView = stackScroll;
+
+      return { container, grid, stack: stack as HTMLElement, gridScroll, stackScroll };
+    }
+
+    /** What `getClientRects()` reports for a laid-out element, and a hidden one. */
+    const laidOut = () => [{ top: 10, height: 50, width: 900 }] as unknown as DOMRectList;
+    const hidden = () => [] as unknown as DOMRectList;
+
+    /**
+     * Press Trinity's jump button — BG-153-2's replacement for choosing the
+     * option of the same name. It is found by the segment key the grid anchor
+     * already carries, so no key is restated here, and the label is checked so
+     * that a renumbered or reordered row cannot quietly press something else.
+     */
+    function pressTrinity(container: HTMLElement, grid: HTMLElement) {
+      const button = within(container).getByTestId(`year-jump-${grid.id}`);
+      expect(flatten(button.textContent), "a different segment's button").toBe("Trinity");
+      fireEvent.click(button);
+    }
+
+    it("scrolls the stacked cards when the grid is not laid out — 375px", async () => {
+      const { container, grid, stack, gridScroll, stackScroll } = await anchorsForTrinity();
+      // Below `md`: the grid is `display: none` and reports no rects at all.
+      grid.getClientRects = hidden;
+      stack.getClientRects = laidOut;
+
+      pressTrinity(container, grid);
+
+      expect(stackScroll, "the phone stack was never scrolled").toHaveBeenCalled();
+      expect(gridScroll, "a hidden element was scrolled instead").not.toHaveBeenCalled();
+    });
+
+    it("scrolls the week grid when that is the one laid out — desktop", async () => {
+      const { container, grid, stack, gridScroll, stackScroll } = await anchorsForTrinity();
+      grid.getClientRects = laidOut;
+      stack.getClientRects = hidden;
+
+      pressTrinity(container, grid);
+
+      expect(gridScroll, "the week grid was never scrolled").toHaveBeenCalled();
+      expect(stackScroll, "a hidden element was scrolled instead").not.toHaveBeenCalled();
+    });
+
+    it("writes one fragment whichever presentation served the jump", async () => {
+      // The fragment is the segment's own key, so a shared link means the same
+      // segment at either width, even though the element it resolves to differs.
+      const { container, grid, stack, stackScroll } = await anchorsForTrinity();
+      grid.getClientRects = hidden;
+      stack.getClientRects = laidOut;
+      // The tests above jump to this same segment and jsdom carries the hash
+      // between them, so it is moved off the expected value first: otherwise a
+      // control that did nothing at all would still be found holding the right
+      // fragment, and this assertion could never fail.
+      window.history.replaceState(null, "", "#not-yet-jumped");
+
+      pressTrinity(container, grid);
+
+      expect(stackScroll, "the phone stack did not serve the jump").toHaveBeenCalled();
+      expect(window.location.hash).toBe("#" + grid.id);
+    });
+  });
 
   it("warns rather than showing an empty year when no term is configured", async () => {
     vi.mocked(listTermWindows).mockResolvedValue([]);
