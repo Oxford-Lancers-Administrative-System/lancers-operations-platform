@@ -14,9 +14,11 @@
  */
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { execFileSync, spawnSync } from "node:child_process";
 
 import {
   appendEvent,
@@ -30,8 +32,12 @@ import {
 import { promoteRule, readRules } from "./lib/owner-rules.mjs";
 import { evaluateMissionGate, journalConjuncts, loadRules } from "./merge-gate.mjs";
 import { parseNameStatus } from "../fast-lane/classify.mjs";
+import { coordinatorStatus } from "../lib/local-supabase-coordinator.mjs";
 
 const repoPath = process.cwd();
+const finishMissionScript = import.meta.url.startsWith("file:")
+  ? path.join(path.dirname(fileURLToPath(import.meta.url)), "finish-mission.mjs")
+  : path.join(repoPath, "scripts", "mission", "finish-mission.mjs");
 const leadId = process.env.LANCERS_MISSION_LEAD_ID;
 
 function fail(message) {
@@ -81,6 +87,31 @@ async function append(missionId, event) {
 
 function openQuestions(state) {
   return Object.values(state.questions).filter((question) => question.status === "open");
+}
+
+function resourceLine() {
+  const leases = Object.values(coordinatorStatus(repoPath).slots).filter(
+    (record) => !["released", "stale"].includes(record.state),
+  );
+  let worktrees = "unknown";
+  try {
+    worktrees = String(
+      execFileSync("git", ["worktree", "list", "--porcelain"], {
+        cwd: repoPath,
+        encoding: "utf8",
+      })
+        .split("\n")
+        .filter((line) => line.startsWith("worktree ")).length,
+    );
+  } catch {
+    // Reporting remains useful even when this checkout cannot enumerate worktrees.
+  }
+  const load = os
+    .loadavg()
+    .map((value) => value.toFixed(1))
+    .join("/");
+  const slots = leases.map((record) => `${record.slot}:${record.state}`).join(", ") || "none";
+  return `- Active stacks: ${leases.length}; leases: ${slots}; worktrees: ${worktrees}; load (1/5/15m): ${load}`;
 }
 
 /**
@@ -160,6 +191,13 @@ export function renderCheckpoint(state, events, options = {}) {
       "- Unknown — compare git rev-parse origin/main with the commit reported by /api/health, and deploy with: gh workflow run deploy.yml",
     );
   }
+
+  lines.push(
+    "",
+    "## Resources",
+    options.resourceLine ??
+      "- Active stacks: unknown; leases: unknown; worktrees: unknown; load (1/5/15m): unknown",
+  );
 
   return lines.join("\n");
 }
@@ -528,6 +566,18 @@ async function main() {
         route: flags.route,
       });
       console.log(`Merge recorded for ${packageId} (${flags.route}).`);
+      const reclamation = spawnSync(
+        process.execPath,
+        [finishMissionScript, missionId, "--package", packageId, "--reclaim-only"],
+        { cwd: repoPath, env: process.env, encoding: "utf8" },
+      );
+      if (reclamation.stdout.trim()) console.log(reclamation.stdout.trim());
+      if (reclamation.status !== 0) {
+        console.warn(
+          reclamation.stderr.trim() ||
+            `Automatic reclamation for ${packageId} exited ${reclamation.status}; the package was left alone.`,
+        );
+      }
       break;
     }
 
@@ -573,6 +623,7 @@ async function main() {
       const report = renderCheckpoint(state, events, {
         mainCommit: flags["main-commit"],
         deployedCommit: flags["deployed-commit"],
+        resourceLine: resourceLine(),
       });
       await append(missionId, { type: "checkpoint", number: state.checkpoints + 1 });
       console.log(report);

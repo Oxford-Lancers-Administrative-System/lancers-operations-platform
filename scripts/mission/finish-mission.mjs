@@ -26,7 +26,12 @@ import path from "node:path";
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { appendEvent, leadLeaseAvailable, replayState } from "./lib/state.mjs";
-import { coordinatorStatus, detachMissionLease } from "../lib/local-supabase-coordinator.mjs";
+import { mergeProof, worktreeDefects } from "./lib/merge-proof.mjs";
+import {
+  coordinatorStatus,
+  detachMissionLease,
+  releaseLease,
+} from "../lib/local-supabase-coordinator.mjs";
 
 const repoPath = process.cwd();
 const [missionId, ...rest] = process.argv.slice(2);
@@ -36,6 +41,8 @@ const flag = (name) => {
 };
 const present = (name) => rest.includes(name);
 const leadId = process.env.LANCERS_MISSION_LEAD_ID;
+const targetPackageId = flag("--package");
+const reclaimOnly = present("--reclaim-only");
 
 const fail = (message) => {
   console.error(message);
@@ -88,7 +95,9 @@ const io = {
 
 try {
   if (!missionId || !/^M-[A-Za-z0-9][A-Za-z0-9-]*$/.test(missionId)) {
-    fail("Usage: mission:finish M-<id> [--abandon --reason <why> --preserved <what>]");
+    fail(
+      "Usage: mission:finish M-<id> [--abandon --reason <why> --preserved <what>] [--package <WP-id> --reclaim-only]",
+    );
   }
   if (!leadId) fail("LANCERS_MISSION_LEAD_ID must hold this session's stable UUID.");
 
@@ -117,7 +126,9 @@ try {
   }
 
   const abandoning = present("--abandon");
-  const live = Object.values(state.packages).filter((pkg) => pkg.status !== "removed");
+  const allLive = Object.values(state.packages).filter((pkg) => pkg.status !== "removed");
+  const live = targetPackageId ? allLive.filter((pkg) => pkg.id === targetPackageId) : allLive;
+  if (targetPackageId && live.length === 0) fail(`Mission ${missionId} has no ${targetPackageId}.`);
   const blocked = [];
   const reclaimedNow = [];
 
@@ -125,6 +136,10 @@ try {
     if (state.reclaimed.includes(pkg.id)) continue;
     if (pkg.status !== "merged") {
       if (!abandoning) blocked.push(`${pkg.id} is ${pkg.status}, not merged`);
+      continue;
+    }
+    if (state.activeWorkers.some((worker) => worker.package_id === pkg.id)) {
+      blocked.push(`${pkg.id}: an implementation worker is still active`);
       continue;
     }
     const proof = mergeProof(pkg, io);
@@ -168,6 +183,15 @@ try {
   if (blocked.length > 0) {
     console.error(`${blocked.length} package(s) were left alone:`);
     for (const reason of blocked) console.error(`  - ${reason}`);
+  }
+
+  if (reclaimOnly) {
+    if (blocked.length > 0) {
+      console.error(`Automatic reclamation left ${targetPackageId ?? "the package"} alone.`);
+      process.exit(2);
+    }
+    console.log(`Automatic reclamation completed for ${targetPackageId}.`);
+    process.exit(0);
   }
 
   if (abandoning) {
@@ -233,15 +257,14 @@ try {
           { cwd: repoPath, stdio: "ignore" },
         );
         // Hand the ports back as well, or the record holds them until the
-        // heartbeat window expires and someone runs cleanup-stale.
-        try {
-          await releaseLease({ repoPath, token: stack.token, slot: stack.slot });
-        } catch {
-          // The record may already be released; the stack is stopped either way.
-        }
+        // heartbeat window expires and someone runs cleanup-stale. Failure is
+        // loud: a stopped stack with a live lease is still a leaked slot.
+        await releaseLease({ repoPath, token: stack.token, slot: stack.slot });
         disposition = `retired ${stack.slot}`;
       } catch (error) {
-        disposition = `${stack.slot} could not be stopped (${error.message.split("\n")[0]}); it holds no lease and can be stopped by hand`;
+        throw new Error(
+          `${stack.slot} retirement failed: ${error.message.split("\n")[0]}. The mission is not finalized and the lease remains visible for recovery.`,
+        );
       }
     }
   }

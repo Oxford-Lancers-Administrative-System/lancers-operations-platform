@@ -67,6 +67,10 @@ Any defect — dirty tree, unpushed commits, an unmerged package, an active
 worker — and that package is left entirely alone and reported. Absence of
 evidence is never permission.
 
+`merge-record` invokes this same per-package path immediately after recording a
+merge. `/finish-mission` remains the explicit idempotent recovery and final
+closeout path; automatic cleanup never weakens or bypasses any refusal above.
+
 ## 3. Retire the mission stack, once
 
 A mission-owned stack is shared: several workers attach to it and finish at

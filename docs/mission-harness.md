@@ -114,6 +114,14 @@ checkpoint generated from durable state:
   without asking.
 - **Next hour** — what runs after the checkpoint.
 - **Deploy drift** — how far `main` is ahead of production.
+- **Resources** — active stacks, lease states, worktree count, and current
+  1/5/15-minute system load. The Lead runs the guarded `db:cleanup-stale` and
+  prunes repository-proven merged worktrees before reporting it; anything
+  dirty, unpushed, active, or unmerged stays and is named.
+
+For overnight missions, the Lead keeps the machine awake with
+`caffeinate -dims` (or the platform equivalent). Machine sleep stalled a worker
+during the 23 August run and is an operating condition, not a worker failure.
 
 Answer the questions in the session; the Lead persists each answer
 (`npm run mission -- answer …`) before dependent work resumes. When an

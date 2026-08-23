@@ -340,6 +340,13 @@ deploy, so tell Brian how far `main` is ahead and that
 journal, never in the checkpoint. Persist Brian's answers with `answer`
 before dependent execution resumes.
 
+Every checkpoint includes one **Resources** line: active stacks, lease states,
+worktree count, and 1/5/15-minute system load. Before presenting it, run the
+guarded `npm run db:cleanup-stale` command and prune only worktrees whose merges
+the repository proves; dirty, unpushed, active, or unmerged worktrees stay and
+are reported. For an overnight mission, keep the machine awake with
+`caffeinate -dims` (or the platform equivalent) so sleep cannot stall a worker.
+
 Append a concise **Owner actions** section built from the Linear reconciliation,
 separate from the numbered owner-question queue, grouped as:
 
@@ -373,7 +380,11 @@ JSON block into the PR body, apply the `mission-merge` label with
 `mission-merge` workflow re-derive its own verdict and perform the merge. A
 refusal from the workflow is recorded reality — read its reasons, correct,
 and re-ask; never work around it. After the workflow merges, record
-`merge-record` with route `guarded-auto`. Migrations, RLS/auth/security,
+`merge-record` with route `guarded-auto`. Recording any merge automatically
+invokes per-package reclamation for its worktree, branch, and mission-stack
+attachment. The existing repository proof and dirty, stash, unpushed, and
+active-worker refusals remain binding; a refused package is left entirely alone
+and reported. Migrations, RLS/auth/security,
 secrets, deployment, WhatsApp and external configuration, and unapproved
 visual behavior are owner-gated: hand them to Brian as normal draft PRs and
 record his merges with route `owner`. What is owner-gated is decided from the

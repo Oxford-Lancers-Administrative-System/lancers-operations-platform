@@ -769,9 +769,14 @@ describe("zero-command visual acceptance", () => {
 
 describe("mission harness v1", () => {
   const missionBody = flat(missionSkill.body);
+  const finishMissionBody = flat(frontMatter(path.join(skills, "finish-mission", "SKILL.md")).body);
   const workerBody = flat(worker.body);
   const stateSource = readFileSync(
     path.join(root, "scripts", "mission", "lib", "state.mjs"),
+    "utf8",
+  );
+  const finishMissionSource = readFileSync(
+    path.join(root, "scripts", "mission", "finish-mission.mjs"),
     "utf8",
   );
   const gateSource = readFileSync(path.join(root, "scripts", "mission", "merge-gate.mjs"), "utf8");
@@ -940,6 +945,17 @@ describe("mission harness v1", () => {
     expect(missionBody).toMatch(/Never put routine owner questions or scheduled check-in items/i);
   });
 
+  it("reports and reclaims resources at every checkpoint", () => {
+    expect(missionBody).toMatch(/Every checkpoint includes one Resources line/i);
+    expect(missionBody).toMatch(/active stacks, lease states, worktree count/i);
+    expect(missionBody).toContain("npm run db:cleanup-stale");
+    expect(missionBody).toMatch(/prune only worktrees whose merges the repository proves/i);
+    expect(missionBody).toContain("caffeinate -dims");
+    expect(readFileSync(path.join(root, "docs", "mission-harness.md"), "utf8")).toContain(
+      "Machine sleep stalled a worker",
+    );
+  });
+
   it("distinguishes implementation completion from verified acceptance", () => {
     expect(missionBody).toContain("Fully accepted");
     expect(missionBody).toContain("Implementation complete; acceptance pending");
@@ -957,6 +973,19 @@ describe("mission harness v1", () => {
     expect(missionBody).toMatch(/apply the `mission-merge` label/i);
     expect(gateSource).toContain("merge: reasons.length === 0");
     expect(gateSource).not.toMatch(/merge\s*=\s*true/);
+  });
+
+  it("reclaims merged packages automatically through the existing refusal path", () => {
+    expect(missionBody).toMatch(
+      /Recording any merge automatically invokes per-package reclamation/i,
+    );
+    expect(missionBody).toMatch(
+      /dirty, stash, unpushed, and active-worker refusals remain binding/i,
+    );
+    expect(finishMissionBody).toMatch(/merge-record.*same per-package path immediately/i);
+    expect(finishMissionBody).toMatch(/automatic cleanup never weakens or bypasses/i);
+    expect(finishMissionSource).toContain("await releaseLease");
+    expect(finishMissionSource).toMatch(/retirement failed:[\s\S]*lease remains visible/);
   });
 
   it("keeps migration and unapproved visual work with Brian, and gates highest risk on his checkpoint", () => {

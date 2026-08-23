@@ -219,11 +219,15 @@ describe("mission CLI", () => {
       "## Rules learned",
       "## Next hour",
       "## Deploy drift",
+      "## Resources",
     ]) {
       expect(checkpoint.stdout).toContain(section);
     }
     expect(checkpoint.stdout).toMatch(/1\. \[hourly\] Q-1/);
     expect(checkpoint.stdout).toMatch(/gh workflow run deploy\.yml/);
+    expect(checkpoint.stdout).toMatch(
+      /Active stacks: .*leases: .*worktrees: .*load \(1\/5\/15m\):/,
+    );
   });
 
   it("stops with a durable checkpoint and resumes in a completely fresh process", () => {
