@@ -27,7 +27,10 @@ import {
   EVENT_STATUSES,
   createEventDraft,
   listCurrentSeasonEvents,
+  listPublicSeasonEvents,
+  PUBLIC_EVENT_SORT_COLUMNS,
   readEvent,
+  readPublicEvent,
   updateEventDraft,
   validateEventDraft,
   type EventDraftInput,
@@ -1142,6 +1145,179 @@ describe("row 10 — the list is the current season's, and refuses to guess", ()
   it("refuses an event id that is not an identifier at all", async () => {
     const error = await refusalFrom(() => readEvent("not-a-uuid"));
 
+    expect(error.kind).toBe("not_found");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-153 — the public tier's own reads
+// ---------------------------------------------------------------------------
+
+/**
+ * `REQ-public-calendar` and `REQ-three-tiers`, against the real database.
+ *
+ * The narrowing these prove is structural: the public reads select different
+ * columns, so a joining URL or a count is never in memory to be leaked. What
+ * cannot be proved here is that no *page* leaks one, and that reading creates no
+ * record — those are `tests/public-calendar-side-effects.test.ts`, which renders
+ * the real surfaces and counts the rows either side.
+ */
+describe("the public tier reads a narrower event", () => {
+  it("returns the season's events with no status, no counts and no joining URL", async () => {
+    const list = await listPublicSeasonEvents();
+    const [first] = list.events;
+
+    expect(list.events.length).toBeGreaterThan(0);
+    expect(Object.keys(first).sort()).toEqual([
+      "deliveryMode",
+      "endsAt",
+      "eventType",
+      "id",
+      "isCancelled",
+      "isMandatory",
+      "name",
+      "scheduledOn",
+      "startsAt",
+      "venue",
+    ]);
+  });
+
+  it("shows the same events the operator sees — no event is private or hidden", async () => {
+    // D5. The public tier is narrowed in what it says about an event, never in
+    // which events it shows: committee meetings included, drafts included (D4).
+    const operatorList = await listCurrentSeasonEvents();
+    const publicList = await listPublicSeasonEvents();
+
+    expect(publicList.season.id).toBe(operatorList.season.id);
+    expect(publicList.totalInSeason).toBe(operatorList.totalInSeason);
+    expect(new Set(publicList.events.map((event) => event.id))).toEqual(
+      new Set(operatorList.events.map((event) => event.id)),
+    );
+  });
+
+  it("marks a cancelled event without carrying the status column", async () => {
+    // Correction C1 to `W1`: one bit, so a reader learns the event is off (D57)
+    // and nothing about drafts.
+    const operatorList = await listCurrentSeasonEvents();
+    const cancelled = operatorList.events.find((event) => event.status === "cancelled");
+    const draft = operatorList.events.find((event) => event.status === "draft");
+    expect(cancelled, "the seeded season has no cancelled event").toBeDefined();
+    expect(draft, "the seeded season has no draft").toBeDefined();
+
+    const publicList = await listPublicSeasonEvents();
+    const publicCancelled = publicList.events.find((event) => event.id === cancelled!.id);
+    const publicDraft = publicList.events.find((event) => event.id === draft!.id);
+
+    expect(publicCancelled?.isCancelled).toBe(true);
+    expect(publicDraft?.isCancelled).toBe(false);
+  });
+
+  it("narrows by type, and leaves the season's total alone", async () => {
+    const all = await listPublicSeasonEvents();
+    const byType = await listPublicSeasonEvents({ eventType: "chalk" });
+
+    expect(byType.events.length).toBeGreaterThan(0);
+    expect(byType.events.length).toBeLessThan(all.events.length);
+    expect(byType.events.every((event) => event.eventType === "chalk")).toBe(true);
+    // `totalInSeason` is the season's, not the filter's, so the two empty states
+    // stay distinguishable.
+    expect(byType.totalInSeason).toBe(all.totalInSeason);
+  });
+
+  it("sorts Term and week identically to Date, because it is one ordering", async () => {
+    const byDate = await listPublicSeasonEvents({ sort: "date", direction: "asc" });
+    const byTerm = await listPublicSeasonEvents({ sort: "term", direction: "asc" });
+
+    expect(byTerm.events.map((event) => event.id)).toEqual(byDate.events.map((event) => event.id));
+  });
+
+  it("offers the public tier no sort over a column it has no data for", () => {
+    for (const operatorOnly of ["status", "invited", "said_yes", "showed"]) {
+      expect(PUBLIC_EVENT_SORT_COLUMNS).not.toContain(operatorOnly);
+    }
+  });
+
+  it("falls back rather than erroring on a sort the public tier does not offer", async () => {
+    // A hand-typed `?sort=said_yes` neither works nor announces that it might.
+    const fallback = await listPublicSeasonEvents({ sort: "said_yes", direction: "asc" });
+    const byDate = await listPublicSeasonEvents({ sort: "date", direction: "asc" });
+
+    expect(fallback.events.map((event) => event.id)).toEqual(
+      byDate.events.map((event) => event.id),
+    );
+  });
+
+  it("reads one event with its description and equipment, and nothing else", async () => {
+    const list = await listPublicSeasonEvents();
+    const detail = await readPublicEvent(list.events[0].id);
+
+    expect(Object.keys(detail).sort()).toEqual([
+      "deliveryMode",
+      "description",
+      "endsAt",
+      "eventType",
+      "id",
+      "isCancelled",
+      "isMandatory",
+      "name",
+      "requiredEquipment",
+      "scheduledOn",
+      "startsAt",
+      "venue",
+    ]);
+  });
+
+  it("says an online event is online, and never how to join it", async () => {
+    // `REQ-no-joining-url`. The operator's read carries the URL; the public one
+    // has no field for it and never selected the column.
+    const operatorList = await listCurrentSeasonEvents();
+    const online = operatorList.events.find((event) => event.deliveryMode === "online");
+    expect(online, "the seeded season has no online event").toBeDefined();
+
+    const operatorDetail = await readEvent(online!.id);
+    expect(operatorDetail.joiningUrl).toBeTruthy();
+
+    const publicDetail = await readPublicEvent(online!.id);
+    expect(publicDetail.deliveryMode).toBe("online");
+    expect(JSON.stringify(publicDetail)).not.toContain(operatorDetail.joiningUrl!);
+  });
+
+  it("refuses an event from a season the club is not operating", async () => {
+    // `REQ-one-open-season`. A public address that resolved one would be a way
+    // to reach another season, which no surface offers.
+    //
+    // The row is written here rather than found, because the seeded dataset
+    // holds one season's events and nothing else — which is exactly the shape
+    // that would let this rule rot unnoticed. It carries the file's marker, so
+    // `afterEach` removes it.
+    const season = await readCurrentSeason();
+    const archived = await observer.query<{ id: string }>(
+      "select id from public.seasons where id <> $1 order by starts_on desc nulls last limit 1",
+      [season.id],
+    );
+    expect(archived.rows[0], "the seeded database has only one season").toBeDefined();
+
+    const inserted = await observer.query<{ id: string }>(
+      `insert into public.events (season_id, name, event_type, origin, status, scheduled_on,
+                                  delivery_mode, is_mandatory)
+       values ($1, $2, 'practice', 'club_controlled', 'draft', $3, 'in_person', false)
+       returning id`,
+      [archived.rows[0].id, `${NAME_MARKER} last season's practice`, michaelmasWeek1Wednesday],
+    );
+    const elsewhere = inserted.rows[0].id;
+
+    // The operator's read resolves an event by id alone; the public one does not.
+    await expect(readEvent(elsewhere)).resolves.toBeTruthy();
+    const error = await refusalFrom(() => readPublicEvent(elsewhere));
+    expect(error.kind).toBe("not_found");
+
+    // And it never reaches the public list either.
+    const list = await listPublicSeasonEvents();
+    expect(list.events.some((event) => event.id === elsewhere)).toBe(false);
+  });
+
+  it("refuses an event id that is not an identifier at all", async () => {
+    const error = await refusalFrom(() => readPublicEvent("not-a-uuid"));
     expect(error.kind).toBe("not_found");
   });
 });

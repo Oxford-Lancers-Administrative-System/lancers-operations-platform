@@ -35,6 +35,8 @@ import {
 } from "./event-input";
 import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
+import { SHOWED_PRESENCES } from "./attendance-vocabulary";
+import { requireEventOperatorTier } from "@/lib/auth/event-tier";
 import { readCurrentSeasonIn, type Season } from "./seasons";
 import { escapeLikePattern } from "./sql-text";
 import { todayInClubZone } from "@/lib/club-time";
@@ -168,6 +170,18 @@ export interface EventListEntry {
   invitationCount: number;
   /** Invitations carrying a current answer. */
   responseCount: number;
+  /** Invitations whose standing answer is yes. Intent, never observation. */
+  saidYesCount: number;
+  /**
+   * Attendance rows recorded `present` or `late` — the club's "showed".
+   *
+   * Meaningless on its own, and never rendered on its own: it is zero both for
+   * a session nobody attended and for a session nobody has recorded, and D74
+   * requires those to be distinguishable at a glance. `registerSaved` is what
+   * separates them, and `formatShowedAgainstInvited` is the one formatter that
+   * consults both.
+   */
+  showedCount: number;
 }
 
 /** The event detail — UX-32 and UX-33. */
@@ -234,10 +248,44 @@ export interface EventListFilters {
 export const EVENT_SORT_COLUMNS: Readonly<
   Record<string, { sql: string; default: "asc" | "desc" }>
 > = Object.freeze({
-  date: Object.freeze({ sql: "e.scheduled_on", default: "desc" as const }),
+  /**
+   * Soonest first by default, since LAN-153.
+   *
+   * It was newest-first while the list rendered the whole season in one run and
+   * the useful end was the recent past. The list now **opens on what is
+   * upcoming** (D84), and the useful end of an upcoming list is the near future
+   * — an operator scanning before the Monday meeting wants Wednesday's practice
+   * at the top, not last June's.
+   */
+  date: Object.freeze({ sql: "e.scheduled_on", default: "asc" as const }),
+  /**
+   * Term and week — **the same SQL as the date**, which is the requirement
+   * rather than an optimisation.
+   *
+   * `REQ-list-shape`: "Term and week sorting identically to Date". The Oxford
+   * coordinate is derived from the date and nothing else (`./oxford-year`), so
+   * ordering by the coordinate and ordering by the date are the same ordering —
+   * and writing it as the same expression is what makes them provably the same
+   * rather than two orderings that agree today. Sorting by the stored
+   * `week_number` would not: it is null outside term, so a vacation event would
+   * sort to one end of the list instead of into its own week.
+   */
+  term: Object.freeze({ sql: "e.scheduled_on", default: "asc" as const }),
   name: Object.freeze({ sql: "e.name", default: "asc" as const }),
   venue: Object.freeze({ sql: "e.venue", default: "asc" as const }),
   status: Object.freeze({ sql: "e.status", default: "asc" as const }),
+  type: Object.freeze({ sql: "e.event_type", default: "asc" as const }),
+  invited: Object.freeze({ sql: "invitation_count", default: "desc" as const }),
+  said_yes: Object.freeze({ sql: "said_yes_count", default: "desc" as const }),
+  /**
+   * Showed against invited sorts by what was actually recorded.
+   *
+   * An event with no register sorts with the zeroes and not above them: it has
+   * no number, and inventing an ordering for "not recorded" would put the
+   * sessions nobody has assessed either first or last for a reason no operator
+   * asked for. The column still *reads* "—" for them, which is the fact.
+   */
+  showed: Object.freeze({ sql: "showed_count", default: "desc" as const }),
 });
 
 export const DEFAULT_EVENT_SORT = "date";
@@ -259,6 +307,28 @@ export interface EventList {
   totalInSeason: number;
 }
 
+/**
+ * `'present', 'late'` — the presences the club counts as having showed up.
+ *
+ * Built from `SHOWED_PRESENCES` rather than typed into the SQL, because
+ * `attendance-vocabulary.ts` owns which presences mean somebody turned up and
+ * two answers to that question is exactly what `docs/ux/standards.md` rule 7
+ * exists to stop. Interpolated rather than parameterised because `COUNT_COLUMNS`
+ * is spliced into two queries whose placeholders are numbered differently; the
+ * values are a frozen literal array in this repository and never anything a
+ * caller supplied, so there is no user text anywhere near this string.
+ */
+const SHOWED_PRESENCE_LITERALS = SHOWED_PRESENCES.map((presence) => `'${presence}'`).join(", ");
+
+/**
+ * The participation subqueries — the operator tier's, and nobody else's.
+ *
+ * Every one of these reads a table the public tier may not see, which is why
+ * they are one named constant rather than five lines inside a query: the public
+ * reads further down are proved to be free of them by a test that reads this
+ * constant, and a sixth count added here is covered by that test on the day it
+ * is written rather than on the day somebody remembers.
+ */
 const COUNT_COLUMNS = `
   (select count(*) from public.event_audience_members a where a.event_id = e.id) as audience_count,
   (select count(*) from public.invitations i where i.event_id = e.id) as invitation_count,
@@ -266,7 +336,28 @@ const COUNT_COLUMNS = `
      from public.invitations i
      join public.current_rsvp r on r.invitation_id = i.id
     where i.event_id = e.id) as response_count,
+  (select count(*)
+     from public.invitations i
+     join public.current_rsvp r on r.invitation_id = i.id
+    where i.event_id = e.id and r.response = 'yes') as said_yes_count,
+  (select count(*)
+     from public.attendance_records a
+    where a.event_id = e.id and a.presence in (${SHOWED_PRESENCE_LITERALS})) as showed_count,
   exists (select 1 from public.attendance_records a where a.event_id = e.id) as register_saved`;
+
+/**
+ * The tables the public tier must never read from.
+ *
+ * Named here, beside the subqueries that do read them, so the test that proves
+ * `PUBLIC_EVENT_COLUMNS` mentions none of them has one list to check against.
+ */
+export const PARTICIPATION_TABLES: readonly string[] = Object.freeze([
+  "event_audience_members",
+  "invitations",
+  "current_rsvp",
+  "attendance_records",
+  "rsvp_responses",
+]);
 
 interface EventRow {
   id: string;
@@ -282,6 +373,8 @@ interface EventRow {
   audience_count: string;
   invitation_count: string;
   response_count: string;
+  said_yes_count: string;
+  showed_count: string;
   register_saved: boolean;
 }
 
@@ -328,6 +421,8 @@ function toListEntry(row: EventRow): EventListEntry {
     audienceCount: Number(row.audience_count),
     invitationCount: Number(row.invitation_count),
     responseCount: Number(row.response_count),
+    saidYesCount: Number(row.said_yes_count),
+    showedCount: Number(row.showed_count),
   };
 }
 
@@ -401,6 +496,252 @@ export async function listCurrentSeasonEvents(filters: EventListFilters = {}): P
       season,
       events: result.rows.map(toListEntry),
       totalInSeason: Number(total.rows[0].count),
+    };
+  });
+}
+
+/**
+ * The same list, behind the operator tier's own guard. LAN-153.
+ *
+ * `REQ-three-tiers` puts authorisation in the service layer and never in route
+ * visibility, and this is where that is true for the elevated projection: every
+ * operator surface reads events through here, and the guard runs before the
+ * query rather than beside it on a page. A page that forgot its gate would still
+ * be refused; `/operate`'s gate and the layout's check remain, and this is the
+ * third of three independent refusals rather than a replacement for either.
+ *
+ * The floor is a linked, active operator — the floor `/operate/events` has stood
+ * on since LAN-76. Nothing here widens it, and a coaching assignment passes it
+ * exactly as before and then gets its own narrowed list.
+ */
+export async function listEventsForOperator(filters: EventListFilters = {}): Promise<EventList> {
+  await requireEventOperatorTier();
+  return listCurrentSeasonEvents(filters);
+}
+
+// ---------------------------------------------------------------------------
+// The public tier
+// ---------------------------------------------------------------------------
+
+/**
+ * One row of the **public** event list. LAN-153, `REQ-public-calendar`.
+ *
+ * ## What is not here is the point
+ *
+ * There is no `joiningUrl`, no `status`, no count of any kind and no
+ * `registerSaved`. Not withheld — **absent**: this type has no field for one, so
+ * a screen cannot render one by accident and a payload cannot carry one by
+ * accident. The query below reads the same way, so there is nothing in memory to
+ * leak either.
+ *
+ * ## Except `isCancelled`, which is not a status
+ *
+ * Correction C1 to `W1`: a cancelled event stays on the public list, marked
+ * cancelled. D57 keeps it visible with its history, and `W2` keeps it in the
+ * subscription feed marked cancelled — so hiding it here would make two public
+ * surfaces disagree, and an event that silently disappears from somebody's
+ * calendar reads as a sync failure.
+ *
+ * That needs one bit, not the status column. A reader learns whether the event
+ * is off; they do not learn whether it is a draft, which is the operator tier's
+ * (`W1`'s tier table, Brian 20 August 2026).
+ */
+export interface PublicEventListEntry {
+  id: string;
+  name: string;
+  eventType: string;
+  scheduledOn: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  deliveryMode: EventDeliveryMode;
+  /** An address when in person. Online events say "Online" and stop there. */
+  venue: string | null;
+  isMandatory: boolean;
+  /** D57 and correction C1. One bit, and not the status column. */
+  isCancelled: boolean;
+}
+
+/** The public event page — the whole record, and nothing about people. */
+export interface PublicEventDetail extends PublicEventListEntry {
+  /** D18. */
+  description: string | null;
+  /** D17. */
+  requiredEquipment: string | null;
+}
+
+export interface PublicEventList {
+  season: Season;
+  events: PublicEventListEntry[];
+  /** Events in the season before any filter. Tells the two empty states apart. */
+  totalInSeason: number;
+}
+
+/**
+ * Every column the public tier reads, and there are no others.
+ *
+ * Exported so a test can assert on it directly. Reading the columns is the
+ * strongest statement available about what a payload can contain: a test that
+ * only inspected a returned object would pass on a season whose events all
+ * happen to be in person, and this one cannot.
+ *
+ * `joining_url` is absent, which is `REQ-no-joining-url`. Every participation
+ * table in `PARTICIPATION_TABLES` is absent, which is `REQ-public-calendar`'s
+ * "a public event page renders without touching participation data at all" —
+ * not hidden after loading, never read.
+ */
+export const PUBLIC_EVENT_COLUMNS = `e.id, e.name, e.event_type::text as event_type,
+            e.scheduled_on, e.starts_at::text as starts_at, e.ends_at::text as ends_at,
+            e.delivery_mode::text as delivery_mode, e.venue, e.is_mandatory,
+            (e.status = 'cancelled') as is_cancelled`;
+
+interface PublicEventRow {
+  id: string;
+  name: string;
+  event_type: string;
+  scheduled_on: Date | string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  delivery_mode: EventDeliveryMode;
+  venue: string | null;
+  is_mandatory: boolean;
+  is_cancelled: boolean;
+}
+
+function toPublicEntry(row: PublicEventRow): PublicEventListEntry {
+  return {
+    id: row.id,
+    name: row.name,
+    eventType: row.event_type,
+    scheduledOn: asDate(row.scheduled_on),
+    startsAt: asTime(row.starts_at),
+    endsAt: asTime(row.ends_at),
+    deliveryMode: row.delivery_mode,
+    venue: row.venue,
+    isMandatory: row.is_mandatory,
+    isCancelled: row.is_cancelled,
+  };
+}
+
+/** What the public tier may narrow the list by. No status: it has none to show. */
+export interface PublicEventListFilters {
+  /** Free text over name and venue. */
+  search?: string | null;
+  /** An `event_type` value, or `null` for all. */
+  eventType?: string | null;
+  /** One of `EVENT_SORT_COLUMNS` that the public tier offers. */
+  sort?: string | null;
+  direction?: string | null;
+}
+
+/**
+ * The columns the public list may be sorted by — `REQ-list-shape`'s public row.
+ *
+ * The operator's whitelist minus the columns the public tier has no data for. A
+ * public reader asking for `?sort=said_yes` gets the default, which is the same
+ * thing an unrecognised value has always got: never an error, and never a hint
+ * that the column exists.
+ */
+export const PUBLIC_EVENT_SORT_COLUMNS: readonly string[] = Object.freeze([
+  "date",
+  "term",
+  "name",
+  "type",
+  "venue",
+]);
+
+function publicOrderBy(sort: string | null, direction: string | null): string {
+  const key = sort !== null && PUBLIC_EVENT_SORT_COLUMNS.includes(sort) ? sort : DEFAULT_EVENT_SORT;
+  return orderBy(key, direction);
+}
+
+/**
+ * The open season's events, at the public tier. No session, no token, no cookie.
+ *
+ * ## It writes nothing, and cannot
+ *
+ * One `select`, inside the shared read transaction, and no call to anything that
+ * writes. `REQ-public-calendar`: "reading is free of side effects for traffic
+ * carrying no session". LAN-114 already required that no audience, invitation,
+ * RSVP, attendance or automation record is created merely by viewing, and D1
+ * widens it to requests with no session at all —
+ * `tests/public-calendar-side-effects.test.ts` asserts it by counting the rows
+ * in all five tables either side of a render, rather than by inspection.
+ *
+ * ## There are no private or hidden events
+ *
+ * D5. Every event in the season is here, drafts included (D4) and committee
+ * meetings included. The public tier is narrowed in *what it says about* an
+ * event, never in which events it shows — a calendar that quietly omitted rows
+ * would be a second, disagreeing answer to "what is on".
+ */
+export async function listPublicSeasonEvents(
+  filters: PublicEventListFilters = {},
+): Promise<PublicEventList> {
+  return withTransaction(async (tx) => {
+    const season = await readCurrentSeasonIn(tx);
+
+    const search = escapeLikePattern(optional(filters.search));
+    const eventType = optional(filters.eventType);
+
+    const result = await tx.query<PublicEventRow>(
+      `select ${PUBLIC_EVENT_COLUMNS}
+         from public.events e
+        where e.season_id = $1
+          and ($2::text is null or e.name ilike '%' || $2 || '%'
+                                or coalesce(e.venue, '') ilike '%' || $2 || '%')
+          and ($3::text is null or e.event_type::text = $3)
+        order by ${publicOrderBy(optional(filters.sort), optional(filters.direction))}`,
+      [season.id, search, eventType],
+    );
+
+    const total = await tx.query<{ count: string }>(
+      "select count(*)::text as count from public.events where season_id = $1",
+      [season.id],
+    );
+
+    return {
+      season,
+      events: result.rows.map(toPublicEntry),
+      totalInSeason: Number(total.rows[0].count),
+    };
+  });
+}
+
+/**
+ * One event, at the public tier.
+ *
+ * Scoped to the open season, unlike `readEventIn`. `REQ-one-open-season`: one
+ * season is open and the mission knows no other, so a public address that
+ * resolved an event from a season the club is not operating would be a way to
+ * reach a different season — the one thing no surface here offers. An event
+ * outside it reads as gone, in the same words as an id that never existed.
+ */
+export async function readPublicEvent(eventId: string): Promise<PublicEventDetail> {
+  if (!UUID_PATTERN.test(eventId)) {
+    throw new NotFound(EVENT_NOT_FOUND_MESSAGE, { rule: "event_not_found" });
+  }
+
+  return withTransaction(async (tx) => {
+    const season = await readCurrentSeasonIn(tx);
+
+    const result = await tx.query<
+      PublicEventRow & { description: string | null; required_equipment: string | null }
+    >(
+      `select ${PUBLIC_EVENT_COLUMNS}, e.description, e.required_equipment
+         from public.events e
+        where e.id = $1 and e.season_id = $2`,
+      [eventId, season.id],
+    );
+
+    const row = result.rows[0];
+    if (!row) {
+      throw new NotFound(EVENT_NOT_FOUND_MESSAGE, { rule: "event_not_found" });
+    }
+
+    return {
+      ...toPublicEntry(row),
+      description: row.description,
+      requiredEquipment: row.required_equipment,
     };
   });
 }

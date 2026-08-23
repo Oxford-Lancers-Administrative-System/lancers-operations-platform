@@ -78,6 +78,7 @@ export default function ListFilters({
   sort,
   direction,
   directionOptions,
+  carry = {},
 }: {
   /** Where the form lives — `/operate/roster`, `/operate/events`. */
   basePath: string;
@@ -96,6 +97,16 @@ export default function ListFilters({
   directionOptions: readonly { value: string; label: string }[];
   /** What the URL currently carries for the search box. The source of truth. */
   search: string;
+  /**
+   * Other query keys this bar does not own, kept as the reader narrows.
+   *
+   * LAN-153: the event lists put the chosen period in the query string, and it
+   * is not a filter this bar offers — but typing in the search box must not
+   * silently move the reader back to the default period. Every control here
+   * carries these through, and they are mirrored as hidden inputs so a native
+   * form submit does not drop them either.
+   */
+  carry?: Readonly<Record<string, string>>;
 }) {
   const router = useRouter();
   const [showFilters, setShowFilters] = useState(false);
@@ -109,6 +120,7 @@ export default function ListFilters({
     search,
     basePath,
     filters: {
+      ...carry,
       ...Object.fromEntries(fields.map((field) => [field.name, field.value])),
       sort,
       dir: direction,
@@ -129,6 +141,9 @@ export default function ListFilters({
       {/* So a native search submit carries the filters rather than clearing them. */}
       {fields.map((field) => (
         <input key={field.name} type="hidden" name={field.name} value={field.value} />
+      ))}
+      {Object.entries(carry).map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={value} />
       ))}
       <input type="hidden" name="sort" value={sort} />
       <input type="hidden" name="dir" value={direction} />

@@ -1,34 +1,29 @@
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
-import CardActionArea from "@mui/material/CardActionArea";
-import Chip from "@mui/material/Chip";
-import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import TableSortLabel from "@mui/material/TableSortLabel";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { operatorHasCapability } from "@/lib/auth/guards";
 import {
-  DEFAULT_EVENT_SORT,
   derivedEventState,
   DRAFTABLE_EVENT_TYPES,
   EVENT_SORT_COLUMNS,
   EVENT_STATUS_FILTERS,
   listCurrentSeasonEvents,
+  listEventsForOperator,
   type EventList,
   type EventListEntry,
 } from "@/lib/services/events";
+import { bucketedCount, bucketEventsByPeriod, PERIOD_LABELS } from "@/lib/services/event-periods";
 import { todayInClubZone } from "@/lib/club-time";
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
+import PeriodSwitch from "@/app/calendar/period-switch";
+import { first, readListQuery, sortLinkFactory } from "@/app/calendar/query";
+import { OPERATOR_CALENDAR_PATH, OPERATOR_EVENTS_PATH } from "@/app/calendar/routes";
+import ViewSwitch from "@/app/calendar/view-switch";
+import { readEventYear } from "@/app/calendar/year";
 import { gateShellPage } from "../gate";
 import { CoachEligibleEvents } from "./coach-eligible-events";
 import {
@@ -38,56 +33,49 @@ import {
   londonToday,
 } from "./coach-event-buckets";
 import EventFilters from "./event-filters";
-import ViewSwitch from "./view-switch";
-import {
-  AUDIENCE_AND_RESPONSES_COME_LATER,
-  DELIVERY_MODE_LABELS,
-  DERIVED_STATE_LABELS,
-  describeAttendance,
-  describeAudience,
-  formatListWhen,
-  labelFor,
-  STATUS_LABELS,
-  TYPE_LABELS,
-} from "./presentation";
+import OperatorList from "./operator-list";
+import { DERIVED_STATE_LABELS, formatListWhen, labelFor, STATUS_LABELS } from "./presentation";
 
 /**
- * UX-30 — the current season's events.
+ * UX-30 — the open season's events, as the operator reads them. LAN-153.
  *
- * ## Season-scoped, and what that changes
+ * ## It opens on what is upcoming, and it groups
  *
- * LAN-76 scopes this list to "the current season's events". The wireframe's
- * subtitle names a term (`Michaelmas 2026`); the live issue names the season,
- * and live Linear outranks the SVG (`slice-ux.md` § 1), so the line under the
- * heading names the season the club is operating. Which season that is comes
- * from `readCurrentSeason()`, and a club with none gets a refusal rather than
- * last year's events.
+ * D84 and Brian, 20 August 2026. The list no longer renders the whole season in
+ * one flat run: it opens on **This month**, breaks what is in view into discrete
+ * tables by period, and offers **All events** as the widest bucket with every
+ * sort and every filter working there. Past events stay reachable and are never
+ * the default. `@/lib/services/event-periods` owns the buckets, and the public
+ * list is grouped by the same ones.
  *
- * ## What the columns are, after Brian's clarification
+ * ## Season-scoped, and no way to leave it
  *
- * **Occurrence is gone.** It read "Awaiting assertion" for every approved
- * event, which was internal vocabulary for a decision nobody makes any more:
- * LAN-151 retired the assertion entirely, and an event has occurred when its
- * date has passed and it was not cancelled (D30). **Responses is gone too**:
- * RSVP counts are excluded from this list, and the column said "—" for
- * everything a calendar operator can currently create.
+ * The line under the heading names the season the club is operating, and there
+ * is no season selector — `REQ-one-open-season`, and Brian, 21 August 2026: "we
+ * know what calendar we're looking at." Which season that is comes from
+ * `readCurrentSeason()`, and a club with none gets a refusal rather than last
+ * year's events.
  *
- * **Where** replaced the response-solicited column when D23 removed "Response
- * requested". In person or online is a fact about the event that changes what
- * an operator has to do to get to it; whether a response was requested was not
- * a real concept, because everyone sent an event is expected to answer.
+ * ## Term and week comes from the calendar, not from the row
  *
- * **Audience stays, and says when it arrives** rather than that it is missing:
- * the clarification asks the list to make clear that audience and response
- * information does not exist until approval is complete, and "Not resolved"
- * reads like an omission somebody should fix.
+ * `REQ-three-arrangements` requires the list and the Oxford View to agree about
+ * when an event is, so both read one built academic year (`@/app/calendar/year`).
+ * Reading `events.week_number` here instead would say "Outside term" for a
+ * vacation event the calendar happily calls "Christmas Vacation 2" — the stored
+ * column is constrained to −1..8 and cannot hold the second.
  *
- * ## Two empty states, not one
+ * ## Authorisation is in the service layer
  *
- * The shared state contract requires filter-empty and system-empty to be
- * distinguished, because the recovery differs: clear the filter, or create the
- * first event. `totalInSeason` is what tells them apart, and it is counted in
- * the same transaction as the list so the two cannot disagree.
+ * `listEventsForOperator` guards itself (`@/lib/auth/event-tier`). The gate below
+ * and the layout's own check remain, and this is the third of three independent
+ * refusals rather than a replacement for either — which is what `slice-ux.md`
+ * § 4's "routes do not authorize" has to mean now that a public calendar exists.
+ *
+ * ## Three empty states, not one
+ *
+ * Filter-empty, period-empty and season-empty need different recovery, so they
+ * say different things. `totalInSeason` is counted in the same transaction as
+ * the list, so the two cannot disagree.
  */
 
 /**
@@ -95,14 +83,14 @@ import {
  *
  * Brian, at the visual gate: "I want to be able to see the status on the status
  * filter, and I want to see the events that occurred, to easily be able to tell
- * which ones happened versus not." So **Occurred** is a fourth choice beside
- * the three stored states, and a past approved event reads `Occurred` in the
- * column rather than `Approved`.
+ * which ones happened versus not." So **Occurred** is a fourth choice beside the
+ * three stored states, and a past approved event reads `Occurred` in the column
+ * rather than `Approved`.
  *
  * It stays derived. Nothing stores it, nobody asserts it, and the enum is still
- * three values (D30) — `EVENT_STATUS_FILTERS` lives beside `derivedEventState`
- * in the service layer for exactly that reason, so a reader who follows the
- * word arrives at the rule rather than at a column.
+ * three values (D30) — `EVENT_STATUS_FILTERS` lives beside `derivedEventState` in
+ * the service layer for exactly that reason, so a reader who follows the word
+ * arrives at the rule rather than at a column.
  */
 function statusLabel(event: EventListEntry, today: string): string {
   const derived = derivedEventState(event, today);
@@ -111,16 +99,11 @@ function statusLabel(event: EventListEntry, today: string): string {
     : labelFor(STATUS_LABELS, event.status);
 }
 
-function first(value: string | string[] | undefined): string {
-  if (Array.isArray(value)) return value[0] ?? "";
-  return value ?? "";
-}
-
 /**
  * Colour is never the only carrier — every chip states its status in words.
  *
- * Keyed on the word the chip actually shows rather than on the stored status,
- * so an `Occurred` chip cannot be shaded as though it read `Approved`.
+ * Keyed on the word the chip actually shows rather than on the stored status, so
+ * an `Occurred` chip cannot be shaded as though it read `Approved`.
  */
 function statusColour(label: string): "default" | "info" | "success" | "warning" {
   switch (label) {
@@ -140,21 +123,16 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
   // and then renders something else entirely. See `./coach-eligible-events.tsx`
   // for why the coach list lives on the operator's route rather than on a new
   // one, and for what it withholds.
-  const gate = await gateShellPage("/operate/events", undefined, { narrowRecorder: "allow" });
+  const gate = await gateShellPage(OPERATOR_EVENTS_PATH, undefined, { narrowRecorder: "allow" });
   if ("screen" in gate) return gate.screen;
 
   const params = await searchParams;
-  const search = first(params.q);
 
   if (isNarrowAttendanceRecorder(gate.operator.roleCodes)) {
-    return await coachEventList(search);
+    return await coachEventList(first(params.q));
   }
 
-  const status = first(params.status);
-  const eventType = first(params.type);
-  const sort = first(params.sort) || DEFAULT_EVENT_SORT;
-  const direction = first(params.dir) || EVENT_SORT_COLUMNS[sort]?.default || "desc";
-  const filtered = search !== "" || status !== "" || eventType !== "";
+  const query = readListQuery(params, Object.keys(EVENT_SORT_COLUMNS));
 
   // Reading the calendar is open to any linked, active operator — Events is an
   // ordinary operator surface in `slice-ux.md` § 3 and § 8. Changing it is what
@@ -162,18 +140,44 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
   // regardless: a hidden button is a courtesy, never a boundary.
   const mayManage = operatorHasCapability(gate.operator, "event_calendar_management");
 
-  // One reading of the club's clock for the whole page: the filter and every
-  // row's Status column must agree about which day it is, and two calls either
-  // side of midnight would not.
+  // One reading of the club's clock for the whole page: the filter, every row's
+  // Status column and every bucket boundary must agree about which day it is,
+  // and two calls either side of midnight would not.
   const today = todayInClubZone();
 
   let list: EventList;
   try {
-    list = await listCurrentSeasonEvents({ search, status, eventType, sort, direction, today });
+    list = await listEventsForOperator({
+      search: query.search,
+      status: query.status,
+      eventType: query.eventType,
+      sort: query.sort,
+      direction: query.direction,
+      today,
+    });
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return <UnavailableScreen title="Events" message={error.message} testId="events-unavailable" />;
   }
+
+  const year = await readEventYear(list.events, {
+    today,
+    seasonStartsOn: list.season.startsOn,
+    seasonEndsOn: list.season.endsOn,
+  });
+
+  const buckets = bucketEventsByPeriod(list.events, {
+    today,
+    period: query.period,
+    segmentEndsOn: year?.currentSegmentEndsOn ?? null,
+  });
+
+  const sortLinkFor = sortLinkFactory({
+    basePath: OPERATOR_EVENTS_PATH,
+    query,
+    carryKeys: ["q", "status", "type", "period"],
+    params,
+  });
 
   return (
     <Stack spacing={3}>
@@ -217,9 +221,9 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
         label="Events view"
         testId="events-view-switch"
         choices={[
-          { href: "/operate/events", label: "List", active: true, testId: "view-list" },
+          { href: OPERATOR_EVENTS_PATH, label: "List", active: true, testId: "view-list" },
           {
-            href: "/operate/events/calendar",
+            href: OPERATOR_CALENDAR_PATH,
             label: "Calendar",
             active: false,
             testId: "view-calendar",
@@ -227,129 +231,96 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
         ]}
       />
 
+      <PeriodSwitch
+        basePath={OPERATOR_EVENTS_PATH}
+        period={query.period}
+        carry={{
+          q: first(params.q),
+          status: first(params.status),
+          type: first(params.type),
+          sort: query.sort,
+          dir: query.direction,
+        }}
+      />
+
       <EventFilters
         statuses={EVENT_STATUS_FILTERS}
         types={DRAFTABLE_EVENT_TYPES}
         sortColumns={SORT_OPTIONS}
-        search={search}
-        status={status}
-        eventType={eventType}
-        sort={sort}
-        direction={direction}
+        search={query.search}
+        status={query.status}
+        eventType={query.eventType}
+        sort={query.sort}
+        direction={query.direction}
+        period={query.period}
       />
 
-      <Alert severity="info" data-testid="audience-note">
-        {AUDIENCE_AND_RESPONSES_COME_LATER}
-      </Alert>
-
-      {list.events.length === 0 ? (
-        <Alert severity="info" data-testid={filtered ? "events-filter-empty" : "events-empty"}>
-          {filtered
-            ? "No event in this season matches those filters. Clear them to see the season’s events."
-            : mayManage
-              ? "This season has no events yet. Create the first one."
-              : "This season has no events yet."}
+      {bucketedCount(buckets) === 0 ? (
+        <Alert severity="info" data-testid={emptyTestId(list, query.filtered)}>
+          {emptyMessage(list, query.filtered, mayManage, PERIOD_LABELS[query.period])}
         </Alert>
       ) : (
-        <>
-          {/* Desktop: the scannable command view. */}
-          <TableContainer
-            component={Paper}
-            variant="outlined"
-            sx={{ display: { xs: "none", md: "block" } }}
-          >
-            <Table size="small" aria-label="Events">
-              <TableHead>
-                <TableRow>
-                  <SortableHeader
-                    column="name"
-                    label="Event"
-                    sort={sort}
-                    direction={direction}
-                    query={params}
-                  />
-                  <SortableHeader
-                    column="date"
-                    label="Date"
-                    sort={sort}
-                    direction={direction}
-                    query={params}
-                  />
-                  <SortableHeader
-                    column="venue"
-                    label="Venue"
-                    sort={sort}
-                    direction={direction}
-                    query={params}
-                  />
-                  <SortableHeader
-                    column="status"
-                    label="Status"
-                    sort={sort}
-                    direction={direction}
-                    query={params}
-                  />
-                  <TableCell>Where</TableCell>
-                  <TableCell>Audience</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {list.events.map((event) => (
-                  <TableRow key={event.id} hover data-testid="event-row">
-                    <TableCell>
-                      <Button
-                        href={`/operate/events/${event.id}`}
-                        sx={{ textAlign: "left", justifyContent: "flex-start", p: 0 }}
-                      >
-                        {event.name}
-                      </Button>
-                      <Typography variant="caption" component="p" color="text.secondary">
-                        {labelFor(TYPE_LABELS, event.eventType)}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>{formatListWhen(event)}</TableCell>
-                    <TableCell>{event.venue ?? "—"}</TableCell>
-                    <TableCell>
-                      <Chip
-                        size="small"
-                        label={statusLabel(event, today)}
-                        color={statusColour(statusLabel(event, today))}
-                      />
-                    </TableCell>
-                    <TableCell>{labelFor(DELIVERY_MODE_LABELS, event.deliveryMode)}</TableCell>
-                    <TableCell>{describeAudience(event)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          {/* Phone: the same events as cards, with nothing left out. */}
-          <Stack spacing={2} sx={{ display: { xs: "flex", md: "none" } }}>
-            {list.events.map((event) => (
-              <EventCard key={event.id} event={event} today={today} />
-            ))}
-          </Stack>
-        </>
+        <OperatorList
+          buckets={buckets}
+          sortLinkFor={sortLinkFor}
+          sort={query.sort}
+          direction={query.direction}
+          statusLabelOf={(event) => statusLabel(event, today)}
+          statusColourOf={statusColour}
+          coordinateOf={(event) => (year === null ? "—" : year.coordinateLabel(event.scheduledOn))}
+        />
       )}
     </Stack>
   );
 }
 
 /**
+ * Three empty states, distinguished, because the recovery differs.
+ *
+ * `slice-ux.md` § 9, and `W1`'s exception table: "nothing this week" is not
+ * "nothing all season", which is not "nothing matching your filter". Each says
+ * what is true and offers the smallest recovery the reader is authorized to
+ * take — and none of them explains a rule.
+ */
+function emptyTestId(list: EventList, filtered: boolean): string {
+  if (list.totalInSeason === 0) return "events-empty";
+  return filtered ? "events-filter-empty" : "events-period-empty";
+}
+
+function emptyMessage(
+  list: EventList,
+  filtered: boolean,
+  mayManage: boolean,
+  periodLabel: string,
+): string {
+  if (list.totalInSeason === 0) {
+    return mayManage
+      ? "This season has no events yet. Create the first one."
+      : "This season has no events yet.";
+  }
+  if (filtered) {
+    return "No event in this season matches those filters. Clear them to see the season’s events.";
+  }
+  return `Nothing in ${periodLabel.toLowerCase()}. Try a wider period.`;
+}
+
+/**
  * The coaching assignment's event list. LAN-110.
  *
- * It reads through `listCurrentSeasonEvents` — the same service, the same
- * season resolution, the same query — rather than through a second reader of
- * its own, and filters the statuses in `./coach-event-buckets.ts`. LAN-110's own criterion is that "no code
- * path duplicates LAN-80's attendance model", and a private events query for
- * coaches would be the first step towards two answers to "which events are
- * there".
+ * It reads through `listCurrentSeasonEvents` — the same service, the same season
+ * resolution, the same query — rather than through a second reader of its own,
+ * and filters the statuses in `./coach-event-buckets.ts`. LAN-110's own criterion
+ * is that "no code path duplicates LAN-80's attendance model", and a private
+ * events query for coaches would be the first step towards two answers to "which
+ * events are there".
  *
- * No status comes from the query string, so `?status=draft` on this route
- * cannot show a coach a draft. Which statuses they see is decided in
- * `./coach-event-buckets.ts` and applied there — approved and occurred, and
- * nothing else.
+ * It reads the unguarded service call rather than `listEventsForOperator`, and
+ * that is not a gap: the page's own gate has already resolved this coach as a
+ * linked, active operator, and calling the guard again would resolve the same
+ * session a second time to reach the same answer. What the coach may *see* is
+ * narrowed below and in `./coach-event-buckets.ts`, which is where LAN-110 put
+ * it — approved and occurred, no status from the query string, and none of the
+ * counts.
  *
  * A function the page awaits rather than a component it returns. An async
  * component element returned from another async component is resolved by the
@@ -395,98 +366,22 @@ async function coachEventList(search: string) {
   );
 }
 
-/** The sort choices, as the phone control needs them. */
+/**
+ * The sort choices, as the phone control needs them.
+ *
+ * Every column in the table, so the phone has the sorts the desktop headers
+ * have — `REQ-list-shape`: "Every column sorts". **Term and week** is here and
+ * resolves to the same SQL as Date, which is the requirement rather than a
+ * shortcut.
+ */
 const SORT_OPTIONS: readonly { value: string; label: string }[] = Object.freeze([
   { value: "date", label: "Date" },
+  { value: "term", label: "Term and week" },
   { value: "name", label: "Event name" },
-  { value: "venue", label: "Venue" },
+  { value: "type", label: "Type" },
+  { value: "venue", label: "Where" },
   { value: "status", label: "Status" },
+  { value: "invited", label: "Invited" },
+  { value: "said_yes", label: "Said yes" },
+  { value: "showed", label: "Showed" },
 ]);
-
-/**
- * One sortable column header.
- *
- * A link rather than a button: sorting is a different view of the same list, so
- * it belongs in the URL, works with the back button, and survives a page
- * refresh. Clicking the active column flips its direction; clicking another
- * takes that column's own default, because "newest first" and "A to Z" are
- * both the useful starting point for their own column.
- */
-function SortableHeader({
-  column,
-  label,
-  sort,
-  direction,
-  query,
-}: {
-  column: string;
-  label: string;
-  sort: string;
-  direction: string;
-  query: Record<string, string | string[] | undefined>;
-}) {
-  const active = sort === column;
-  const next = active
-    ? direction === "asc"
-      ? "desc"
-      : "asc"
-    : (EVENT_SORT_COLUMNS[column]?.default ?? "desc");
-
-  const params = new URLSearchParams();
-  for (const key of ["q", "status", "type"]) {
-    const value = first(query[key]);
-    if (value !== "") params.set(key, value);
-  }
-  params.set("sort", column);
-  params.set("dir", next);
-
-  return (
-    <TableCell sortDirection={active ? (direction === "asc" ? "asc" : "desc") : false}>
-      <TableSortLabel
-        active={active}
-        direction={active && direction === "asc" ? "asc" : "desc"}
-        href={`/operate/events?${params.toString()}`}
-        component="a"
-      >
-        {label}
-      </TableSortLabel>
-    </TableCell>
-  );
-}
-
-/**
- * The phone presentation of one event.
- *
- * The wireframe's card carries name, date and venue. Status, where the event
- * is and whether attendance is expected are carried too — dropping a status on
- * a narrow screen would leave an operator unable to tell a draft from an
- * approved event, and § 7 forbids reflow that removes data needed for the
- * task.
- */
-function EventCard({ event, today }: { event: EventListEntry; today: string }) {
-  return (
-    <Card variant="outlined" data-testid="event-card">
-      <CardActionArea href={`/operate/events/${event.id}`} sx={{ p: 2 }}>
-        <Stack spacing={1}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-            {event.name}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {formatListWhen(event)}
-          </Typography>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-            <Chip
-              size="small"
-              label={statusLabel(event, today)}
-              color={statusColour(statusLabel(event, today))}
-            />
-            <Chip size="small" label={labelFor(TYPE_LABELS, event.eventType)} />
-            {event.venue ? <Chip size="small" label={event.venue} /> : null}
-            <Chip size="small" label={labelFor(DELIVERY_MODE_LABELS, event.deliveryMode)} />
-            <Chip size="small" label={describeAttendance(event.isMandatory)} />
-          </Stack>
-        </Stack>
-      </CardActionArea>
-    </Card>
-  );
-}

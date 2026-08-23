@@ -92,12 +92,8 @@ import {
 } from "@/lib/services/attendance";
 import { generateWeeklyReport, listReportVersions } from "@/lib/services/weekly-report";
 import { listTermWindows } from "@/lib/services/seasons";
-import {
-  buildMonthGrid,
-  buildTermCard,
-  monthGridEvents,
-  termCardEvents,
-} from "@/lib/services/calendar";
+import { buildMonthGrid, monthGridEvents } from "@/lib/services/calendar";
+import { academicYearEvents, academicYearFor, buildAcademicYear } from "@/lib/services/oxford-year";
 import { openLocalClient } from "./helpers/domain-fixture";
 
 /**
@@ -991,12 +987,12 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
   //
   // Before step 12 rather than after it, because step 12 moves the event's date
   // into the past — the clock is the one part of the slice the application
-  // cannot walk — and the Oxford term card is about where the event was
-  // scheduled. Asserting it here keeps the question "do the three arrangements
-  // agree?" separate from "has it happened yet?".
+  // cannot walk — and the Oxford View is about where the event was scheduled.
+  // Asserting it here keeps the question "do the three arrangements agree?"
+  // separate from "has it happened yet?".
   // -------------------------------------------------------------------------
 
-  it("shows the same event in the list, the Gregorian month and the Oxford term card", async () => {
+  it("shows the same event in the list, Calendar View and Oxford View", async () => {
     const list = await listCurrentSeasonEvents({ search: MARKER });
     const listed = list.events.find((entry) => entry.id === eventId);
     const on = EVENT_ON;
@@ -1007,28 +1003,40 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
 
     const grid = buildMonthGrid(EVENT_MONTH, list.events);
     const inMonth = monthGridEvents(grid).find((entry) => entry.id === eventId);
-    expect(inMonth, "the event is missing from the Gregorian month").toBeTruthy();
+    expect(inMonth, "the event is missing from Calendar View").toBeTruthy();
 
-    const term = terms.find(
-      (window) => window.name === EVENT_TERM && window.academicYear === EVENT_ACADEMIC_YEAR,
-    )!;
-    const card = buildTermCard(term, terms, list.events);
-    const inCard = termCardEvents(card).find((entry) => entry.id === eventId);
-    expect(inCard, "the event is missing from the Oxford term card").toBeTruthy();
+    // LAN-153: one continuous academic year rather than three term cards. The
+    // year is derived from the term dates, never from a heading or a label.
+    const academicYear = academicYearFor(terms, { today: on });
+    expect(academicYear).toBe(EVENT_ACADEMIC_YEAR);
 
-    // Same record, same actual date and time, same status, in all three.
-    expect([listed!.status, inMonth!.status, inCard!.status]).toEqual([
-      "approved",
-      "approved",
-      "approved",
+    const column = buildAcademicYear(academicYear!, terms, list.events);
+    const inColumn = academicYearEvents(column).find((entry) => entry.id === eventId);
+    expect(inColumn, "the event is missing from the Oxford View").toBeTruthy();
+
+    // Same record, same actual date and time, in all three.
+    expect([listed!.scheduledOn, inMonth!.scheduledOn, inColumn!.scheduledOn]).toEqual([
+      on,
+      on,
+      on,
     ]);
-    expect([listed!.scheduledOn, inMonth!.scheduledOn, inCard!.scheduledOn]).toEqual([on, on, on]);
+    expect([listed!.startsAt, inMonth!.startsAt, inColumn!.startsAt]).toEqual([
+      listed!.startsAt,
+      listed!.startsAt,
+      listed!.startsAt,
+    ]);
 
-    // And the week it lands in is the one derived from the date.
-    const week = card.weeks.find((row) =>
-      row.days.some((day) => day.events.some((entry) => entry.id === eventId)),
+    // And it lands in exactly one week of exactly one segment — the term the
+    // date falls in, at the week derived from that date.
+    const placements = column.segments.flatMap((segment) =>
+      segment.weeks
+        .filter((week) => week.days.some((day) => day.events.some((e) => e.id === eventId)))
+        .map((week) => ({ segment, week })),
     );
-    expect(week?.week).toBe(EVENT_WEEK);
+    expect(placements).toHaveLength(1);
+    expect(placements[0].segment.kind).toBe("term");
+    expect(placements[0].segment.name).toBe(EVENT_TERM);
+    expect(placements[0].week.week).toBe(EVENT_WEEK);
   }, 60_000);
 
   // -------------------------------------------------------------------------

@@ -41,6 +41,8 @@ function event(
     audienceCount: 0,
     invitationCount: 0,
     responseCount: 0,
+    saidYesCount: 0,
+    showedCount: 0,
   };
 }
 
