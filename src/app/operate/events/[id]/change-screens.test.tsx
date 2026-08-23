@@ -395,6 +395,26 @@ describe("where the one tick starts", () => {
     );
   });
 
+  it("only says nobody gets two messages when there is more than one change", async () => {
+    render(await AmendEventPage(amendProps()));
+    fireEvent.change(screen.getByLabelText("Venue"), { target: { value: "University Parks" } });
+    fireEvent.click(screen.getByTestId("continue-to-review"));
+    await screen.findByTestId("amend-review-step");
+
+    expect(screen.queryByTestId("one-message-note")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("back-to-edit"));
+    fireEvent.change(screen.getByLabelText("Required equipment"), {
+      target: { value: "Gumshield" },
+    });
+    fireEvent.click(screen.getByTestId("continue-to-review"));
+    await screen.findByTestId("amend-review-step");
+
+    expect(flatten(screen.getByTestId("one-message-note").textContent)).toBe(
+      "Nobody receives two messages because two fields moved.",
+    );
+  });
+
   it("says the messages already queued will be held", async () => {
     await reviewAfterChanging("Venue", "University Parks");
 

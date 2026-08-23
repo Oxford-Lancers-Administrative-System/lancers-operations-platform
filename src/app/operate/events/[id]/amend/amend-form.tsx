@@ -550,9 +550,21 @@ export default function AmendForm({
                         {noAnswerDetail(audience.noAnswer)}
                       </Typography>
                     ) : null}
-                    <Typography variant="body2" color="text.secondary">
-                      {ONE_MESSAGE_NOT_ONE_PER_FIELD}
-                    </Typography>
+                    {/*
+                      Only where there is more than one change to be about. The
+                      first browser pass showed "Nobody receives two messages
+                      because two fields moved" above a list containing one
+                      field, which answers a question nobody asked.
+                    */}
+                    {changes.length > 1 ? (
+                      <Typography
+                        variant="body2"
+                        color="text.secondary"
+                        data-testid="one-message-note"
+                      >
+                        {ONE_MESSAGE_NOT_ONE_PER_FIELD}
+                      </Typography>
+                    ) : null}
                   </Stack>
                 ) : null}
               </Box>
