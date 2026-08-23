@@ -564,12 +564,13 @@ derived from the date rather than entered beside it.
 
 ## 13. What this walk deliberately does not cover
 
-Performance and load. Anything against the hosted project. Amending or cancelling
-an already-approved event — that workflow has no implementation owner yet and is
-a pre-pilot gap rather than something this walk quietly satisfies. Adding a
-recipient after approval, which is unavailable by design; retry and reissue act
-only on an invitation that already exists and cannot change the approved
-audience.
+Performance and load. Anything against the hosted project. Amending and
+cancelling an already-approved event, which LAN-156 built and which
+[`docs/ux/tickets/LAN-156-amend-and-cancel.md`](ux/tickets/LAN-156-amend-and-cancel.md)
+describes — this walk does not step through it. Adding a recipient after
+approval, which is unavailable by design; retry and reissue act only on an
+invitation that already exists and cannot change the approved audience, and an
+amendment does not change it either.
 
 ---
 

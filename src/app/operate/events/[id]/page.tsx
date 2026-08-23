@@ -22,9 +22,13 @@ import {
   readEventAudience,
   type AudienceMember,
 } from "@/lib/services/event-approval";
+import { readEventChangeHistory, type EventChangeEntry } from "@/lib/services/event-amendment";
 import { gateShellPage } from "../../gate";
 import { ApproveEventForm } from "../event-actions";
 import { AudienceBuilder } from "./audience-builder";
+import { ApprovedEventActions, CancelledPanel, ChangeHistoryPanel } from "./change-panels";
+import RenotifyPanel from "./renotify-panel";
+import { silentChangeNotice } from "./change-presentation";
 import {
   APPROVAL_DETAIL,
   APPROVAL_HEADLINE_PREFIX,
@@ -187,6 +191,11 @@ export default async function EventDetailPage({
   // below it the three numbers would be three zeroes describing nothing.
   const summary = event.invitationCount > 0 ? await readEventAttendanceSummary(event.id) : null;
 
+  // W5-05 and W6-02, LAN-156. Read for anything past `draft`, because a draft
+  // has no history worth a panel: it has never been approved, so nothing has
+  // been changed that anybody was told about.
+  const history = event.status === "draft" ? [] : await readEventChangeHistory(event.id);
+
   return (
     <EventDetailView
       event={event}
@@ -196,6 +205,7 @@ export default async function EventDetailPage({
       justApproved={justApproved}
       audience={audience}
       summary={summary}
+      history={history}
     />
   );
 }
@@ -546,6 +556,7 @@ function EventDetailView({
   justApproved,
   audience,
   summary,
+  history,
 }: {
   event: EventDetail;
   mayManage: boolean;
@@ -554,8 +565,20 @@ function EventDetailView({
   justApproved: boolean;
   audience: AudienceMember[];
   summary: AttendanceSummary | null;
+  history: readonly EventChangeEntry[];
 }) {
   const preApproval = isPreApproval(event.status);
+  // W5-04's recovery path is offered exactly where it is needed: the last
+  // amendment went out to nobody, and there is somebody to tell. Offering it
+  // after a change that already notified would be a button whose press means
+  // "send that again", which nobody asked for.
+  const lastAmendment = history.find((entry) => entry.kind === "amended") ?? null;
+  const changeWentOutSilently =
+    event.status === "approved" &&
+    lastAmendment !== null &&
+    lastAmendment.notified === false &&
+    event.invitationCount > 0;
+  const cancellation = history.find((entry) => entry.kind === "cancelled") ?? null;
   const proposed = event.status === "draft" && audience.length > 0;
   // D30, derived and never stored. Shown beside the stored status rather than
   // instead of it: "Approved" and "Occurred" answer different questions.
@@ -596,7 +619,19 @@ function EventDetailView({
         </Alert>
       ) : null}
 
+      {event.status === "cancelled" ? (
+        <CancelledPanel reason={event.decisionReason} entry={cancellation} />
+      ) : null}
+
       {summary ? <HeadlineNumbers summary={summary} /> : null}
+
+      {mayApprove && changeWentOutSilently && lastAmendment ? (
+        <RenotifyPanel
+          eventId={event.id}
+          recipients={event.invitationCount}
+          notice={silentChangeNotice(lastAmendment)}
+        />
+      ) : null}
 
       {preApproval ? (
         <Alert severity="info" data-testid="no-invitations-note">
@@ -646,7 +681,14 @@ function EventDetailView({
               testId="joining-url-fact"
             />
           ) : null}
-          {event.decisionReason ? (
+          {/*
+            A cancelled event's reason is shown by `CancelledPanel`, with the
+            sentence that says it is internal and reaches nobody who was
+            invited. Showing it here as well would be two surfaces answering
+            "why is this off?" — `docs/ux/standards.md` rule 7 — and the one
+            without that sentence is the one that reads as publishable.
+          */}
+          {event.decisionReason && event.status !== "cancelled" ? (
             <Fact label="Reason" value={event.decisionReason} testId="decision-reason" />
           ) : null}
         </Box>
@@ -693,7 +735,17 @@ function EventDetailView({
         </Stack>
       </Paper>
 
+      {/*
+        §4.13. Below the facts and above the actions, because it answers a
+        question about the past and the buttons are about the future.
+      */}
+      {event.status !== "draft" ? <ChangeHistoryPanel entries={history} /> : null}
+
       <Stack spacing={2} sx={{ maxWidth: 420 }}>
+        {mayApprove && event.status === "approved" ? (
+          <ApprovedEventActions eventId={event.id} />
+        ) : null}
+
         {mayAdministerDelivery && !preApproval ? (
           // LAN-78's surface, reachable only once there is something to look
           // at. The route guards itself on `delivery_administration`; this is

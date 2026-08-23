@@ -46,6 +46,13 @@ vi.mock("@/lib/services/attendance", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/attendance")>();
   return { ...actual, readEventAttendanceSummary: vi.fn() };
 });
+// LAN-156. The event detail reads its change history; these screens are about
+// everything else on the page, so the reader is stubbed empty here and proved
+// in `[id]/change-screens.test.tsx` and `src/lib/services/event-amendment.test.ts`.
+vi.mock("@/lib/services/event-amendment", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/event-amendment")>();
+  return { ...actual, readEventChangeHistory: vi.fn(async () => []) };
+});
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-approval")>();
   return {

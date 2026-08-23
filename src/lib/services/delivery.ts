@@ -123,6 +123,10 @@ function dispatchClaim(): string {
 export const JOB_NOT_RETRYABLE_RULE = "delivery_job_not_retryable";
 export const JOB_NOT_FOUND_RULE = "delivery_job_not_found";
 
+/** REQ-amend-hold, LAN-156 — what an operator is told when they retry a held message. */
+export const JOB_HELD_RULE = "delivery_job_held";
+export const JOB_HELD_MESSAGE = "This message is on hold after a change to the event.";
+
 /** The provider-neutral vocabulary LAN-90 fixed. Exactly these five. */
 export type DeliveryState = "queued" | "attempted" | "delivered" | "failed" | "retryable";
 
@@ -184,6 +188,16 @@ async function claimJobIn(
             updated_at = now()
       where id = $1
         and status in ('pending', 'ready', 'failed')
+        -- REQ-amend-hold, LAN-156. The single chokepoint through which every
+        -- delivery in this file passes — dispatch, the operator's Retry, and
+        -- Revoke and reissue all claim here. A held job is one whose event was
+        -- amended after the job was queued, so sending it would deliver a
+        -- superseded venue, date or time; the hold is released by Mission 4,
+        -- which decides whether the message resumes as it was, resumes
+        -- corrected, or is replaced. Putting the condition here rather than in
+        -- each caller is what makes "no held message is dispatched" a property
+        -- of the code rather than of three separate queries agreeing.
+        and held_at is null
         and attempt_count < $3
         and invitation_id is not null
       returning id, invitation_id, attempt_count`,
@@ -568,6 +582,10 @@ export async function dispatchEventInvitations(
         where event_id = $1
           and job_type = 'invitation'
           and status in ('pending', 'ready')
+          -- LAN-156. Held jobs are not due: the claim below refuses them
+          -- anyway, and counting them here would report an attempt against a
+          -- message nothing tried to send.
+          and held_at is null
           and attempt_count < $2
         order by created_at`,
       [eventId, MAX_ATTEMPTS],
@@ -644,8 +662,8 @@ export async function retryDelivery(
     // form, and every job is an invitation today only because nothing else
     // creates one yet — LAN-79's reminders would make an unconstrained retry a
     // way to fire an unrelated job from the delivery screen.
-    const result = await tx.query<{ status: string; attempt_count: number }>(
-      `select status::text as status, attempt_count
+    const result = await tx.query<{ status: string; attempt_count: number; held: boolean }>(
+      `select status::text as status, attempt_count, held_at is not null as held
          from public.notification_jobs
         where id = $1 and job_type = 'invitation'`,
       [jobId],
@@ -653,6 +671,13 @@ export async function retryDelivery(
     const row = result.rows[0];
     if (!row) {
       throw new ConstraintViolated("That delivery no longer exists.", { rule: JOB_NOT_FOUND_RULE });
+    }
+    // LAN-156. `claimJobIn` refuses a held job regardless, and would report it
+    // as "unavailable" — which on this screen reads as "somebody else is
+    // sending it". Said plainly here instead, so the operator who pressed Retry
+    // is told what state the message is actually in.
+    if (row.held) {
+      throw new InvalidTransition(JOB_HELD_MESSAGE, { rule: JOB_HELD_RULE });
     }
     if (row.attempt_count >= MAX_ATTEMPTS) {
       throw new InvalidTransition(

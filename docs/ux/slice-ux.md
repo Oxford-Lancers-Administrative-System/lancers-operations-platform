@@ -75,23 +75,25 @@ RSVP is a direct scoped journey at `/rsvp/[token]`; it never enters `/operate` a
 
 ## 4. Route contract
 
-| Route                             | Purpose                                                                   |
-| --------------------------------- | ------------------------------------------------------------------------- |
-| `/login`                          | Operator authentication                                                   |
-| `/forgot-password`                | Request a password-reset link (LAN-125 amendment below)                   |
-| `/reset-password`                 | Choose a new password from a recovery link (LAN-125 amendment below)      |
-| `/operate`                        | Protected shell/account-state resolution; not a Home page                 |
-| `/operate/roster`                 | Current-season roster                                                     |
-| `/operate/roster/new`             | Operator-entered returning player                                         |
-| `/operate/roster/[membershipId]`  | Membership detail and authorized transitions                              |
-| `/operate/events`                 | Event list                                                                |
-| `/operate/events/calendar`        | The same events as a Gregorian month or an Oxford term card (read-only)   |
-| `/operate/events/new`             | New event draft                                                           |
-| `/operate/events/[id]`            | Event detail, audience, approval and occurrence decisions                 |
-| `/operate/events/[id]/delivery`   | Delivery status and repair                                                |
-| `/operate/events/[id]/attendance` | Shared LAN-80 attendance surface, capability-scoped for operators/coaches |
-| `/operate/report`                 | Report date, preview, stored snapshot and version history                 |
-| `/rsvp/[token]`                   | Private player response and all token/event terminal states               |
+| Route                             | Purpose                                                                    |
+| --------------------------------- | -------------------------------------------------------------------------- |
+| `/login`                          | Operator authentication                                                    |
+| `/forgot-password`                | Request a password-reset link (LAN-125 amendment below)                    |
+| `/reset-password`                 | Choose a new password from a recovery link (LAN-125 amendment below)       |
+| `/operate`                        | Protected shell/account-state resolution; not a Home page                  |
+| `/operate/roster`                 | Current-season roster                                                      |
+| `/operate/roster/new`             | Operator-entered returning player                                          |
+| `/operate/roster/[membershipId]`  | Membership detail and authorized transitions                               |
+| `/operate/events`                 | Event list                                                                 |
+| `/operate/events/calendar`        | The same events as a Gregorian month or an Oxford term card (read-only)    |
+| `/operate/events/new`             | New event draft                                                            |
+| `/operate/events/[id]`            | Event detail, audience, approval and occurrence decisions                  |
+| `/operate/events/[id]/amend`      | Amend an approved event in place, and decide whether it notifies (LAN-156) |
+| `/operate/events/[id]/cancel`     | Cancel an event — one operator, one action, terminal (LAN-156)             |
+| `/operate/events/[id]/delivery`   | Delivery status and repair                                                 |
+| `/operate/events/[id]/attendance` | Shared LAN-80 attendance surface, capability-scoped for operators/coaches  |
+| `/operate/report`                 | Report date, preview, stored snapshot and version history                  |
+| `/rsvp/[token]`                   | Private player response and all token/event terminal states                |
 
 Routes do not authorize. Server/service actions enforce account, role, capability, record scope and transition rules.
 

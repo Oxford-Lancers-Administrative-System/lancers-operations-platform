@@ -149,7 +149,7 @@ assume all rights reserved.
   both. ([ADR 0004](docs/adr/0004-styling-baseline.md))
 - **The slice is one workflow, not the club's whole year** — no reminders or
   escalation, no export, no recruitment intake beyond flagging a walk-up, no
-  season close, no amendment or cancellation of an already-approved event, and
-  nothing schedules delivery: a job left queued waits for a person to retry it.
+  season close, and nothing schedules delivery: a job left queued waits for a
+  person to retry it.
   Each is stated with what it means for an operator in
   [docs/operating-the-slice.md § 14](docs/operating-the-slice.md#14-known-limitations).
