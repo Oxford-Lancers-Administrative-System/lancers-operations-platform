@@ -245,22 +245,38 @@ production data or deploy a hosted migration.
 
 The fresh-context `code-reviewer` contract is unchanged: isolated worktree,
 exact-SHA pinning, independent requirement reconstruction, structured
-receipts, defect injection, and no repair authority. Review grades follow
-`.claude/skills/start-issue/SKILL.md` §4 — reachability and blast radius,
-never diff size — as do the finding dispositions, hard exclusions, reset
-conditions, circuit breaker, and the budget of at most one initial full
-review, two correction reviews, and three total reviewer invocations per
-package. Low risk may accept the Lead's deterministic verification of the
-worker's evidence without a fresh reviewer; Normal risk receives one
-fresh-context review; Highest risk receives the strongest review rules.
+receipts, defect injection, and no repair authority. Grade from reachability
+and blast radius, never diff size. **Low** is non-behavioral or unreachable with
+no schema, dependency, security, privacy, or production impact and needs only
+the Lead's deterministic verification. **Normal** is reachable application
+behavior outside the highest-risk surfaces and receives one fresh-context
+review. **Highest** covers authentication, authorization, migrations,
+grants/RLS, secrets, privileged credentials, production-affecting workflows,
+or the agent harness and receives the strongest review rules. An unspecified
+grade is Normal; re-check the completed diff and raise, never lower, its grade.
+
+Every finding separately records impact severity and gate disposition:
+`block`, `correct-before-handoff`, or `advisory`. Incorrect reachable behavior
+and authentication, authorization, privacy, security, data-integrity,
+migration, RLS, transaction, or unauthorized external-effect findings are hard
+exclusions from the two lower dispositions. Narrow blockers receive correction
+review over the correction delta. Reset to full review only for a material
+requirement, reachable-workflow, trust-boundary, migration/RLS/transaction,
+production-side-effect, or test-strategy change that invalidates prior
+coverage. Two consecutive rounds on the same premise trigger fresh-context
+requirement adjudication, not another code search. The package budget is one
+initial full review, at most two correction reviews, and three total reviewer
+invocations; exhaustion never auto-approves an unresolved blocker.
 
 **A review grade decides review rigour, not the merge route.** Route is decided
 by the protected surface the diff actually touches plus the evidence, which the
 `mission-merge` workflow re-derives from the real diff. Highest-risk work may
 use the guarded lane only when an answered owner checkpoint names the package,
-so Brian hears about it before it merges; migrations, grants and RLS,
-authentication and session boundaries, production scripts, secrets, hosted
-data, deployment and every prohibited path stay owner-merged
+so Brian hears about it before it merges. The checkpoint-approval surfaces
+`src/lib/auth/**` and `src/lib/delivery/**` are lane-mergeable only after that
+answered question names the package. Migrations, grants and RLS, production
+scripts, secrets, hosted data, deployment, and every path classified prohibited
+stay owner-merged
 (`docs/adr/0033-harness-after-the-first-live-mission.md` §4). Routing a
 lane-qualified package to Brian anyway is recorded as a harness defect and
 states why.
@@ -384,9 +400,9 @@ and re-ask; never work around it. After the workflow merges, record
 invokes per-package reclamation for its worktree, branch, and mission-stack
 attachment. The existing repository proof and dirty, stash, unpushed, and
 active-worker refusals remain binding; a refused package is left entirely alone
-and reported. Migrations, RLS/auth/security,
-secrets, deployment, WhatsApp and external configuration, and unapproved
-visual behavior are owner-gated: hand them to Brian as normal draft PRs and
+and reported. Prohibited paths, migrations, grants and RLS, secrets,
+deployment, WhatsApp and external configuration, and unapproved visual
+behavior are owner-gated: hand them to Brian as normal draft PRs and
 record his merges with route `owner`. What is owner-gated is decided from the
 diff by the prohibited-path scan, not from a risk label — and routing a
 lane-qualified package to Brian anyway is recorded as a harness defect.

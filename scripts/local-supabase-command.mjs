@@ -189,11 +189,13 @@ try {
         running: Boolean(status.API_URL && status.DB_URL),
       }),
     );
-  } else if (
-    ["seed", "seed-user", "link-operator", "link-coach", "types-generate"].includes(operation)
-  ) {
+  } else if (operation === "seed") {
+    // Re-seeding truncates and rebuilds the synthetic identity rows. Recreate
+    // both review logins and their links in the same guarded operation so a
+    // mid-review seed cannot leave the operator or coach seat detached.
+    provisionReviewState(lease, readLocalReviewAccount(repoPath));
+  } else if (["seed-user", "link-operator", "link-coach", "types-generate"].includes(operation)) {
     const scripts = {
-      seed: "scripts/seed-local.mjs",
       "seed-user": "scripts/create-test-user.mjs",
       "link-operator": "scripts/link-test-operator.mjs",
       "link-coach": "scripts/link-review-coach.mjs",

@@ -10,7 +10,11 @@ color: red
 
 Review one draft pull request from its actual diff and authoritative issue. You
 never implement or repair findings, change the PR, commit, push, merge, deploy,
-or touch hosted Supabase. `AGENTS.md` and `CLAUDE.md` govern this role.
+or touch hosted Supabase. Read only `AGENTS.md` § Hard rules and § Definition of
+done, plus ADR 0020, ADR 0024, ADR 0025, and ADR 0033. ADR 0013, ADR 0015, and
+ADR 0018 are superseded; do not load them. Then read the authoritative sources
+named by the brief. Do not load all of `AGENTS.md`, `CLAUDE.md`, or the ADR
+directory by default.
 
 ## Required brief and review mode
 
@@ -19,6 +23,10 @@ expected head SHA, review mode (`full`, `correction`, or
 `requirement-adjudication`), review grade (`Normal` or `Highest`), authoritative
 repository sources, current automatic invocation count, and local Supabase
 lease status. Do not accept an implementation summary as evidence.
+
+Acquire or attach the appropriate database lease before running any DB-backed
+suite. Refuse a review brief that does not state lease status; “not needed” is
+valid only when the assigned checks are all non-database checks.
 
 A full-review brief also identifies the base branch. Do not receive the
 implementer acceptance/test matrix, PR body, correction framing, or
@@ -70,10 +78,14 @@ invokes them against the integrated head.
   surfaces say to each other: repeated facts, states, dates, permissions, copy,
   and whether a guide contradicts the button beside it.
 
+For anonymous-tier checks, use `curl` without stored credentials or a fresh
+browser profile. Chrome shares cookies across localhost ports, so an ordinary
+browser “anonymous” walk may carry a session from another stack.
+
 ## Full review
 
-First read the complete Linear issue, all comments and relationships,
-`AGENTS.md`, `CLAUDE.md`, cited repository sources, and governing ADRs. Before
+First read the complete Linear issue, all comments and relationships, the
+bounded governing sources listed above, and cited repository sources. Before
 reading the PR body, implementer summary, acceptance matrix, complete diff, or
 commit list, reconstruct every material criterion and record its requirement
 provenance: criterion ID, source and location, and a controlling quotation.

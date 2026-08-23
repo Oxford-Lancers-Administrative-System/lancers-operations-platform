@@ -894,6 +894,28 @@ describe("mission harness v1", () => {
     expect(missionBody).toMatch(/Review links retain the exact hostname/i);
   });
 
+  it("keeps reviewer context bounded and applies the three-tier merge route", () => {
+    const reviewerBody = flat(reviewer.body);
+    expect(reviewerBody).toMatch(/AGENTS\.md.*Hard rules.*Definition of done/i);
+    for (const adr of ["ADR 0020", "ADR 0024", "ADR 0025", "ADR 0033"])
+      expect(reviewerBody).toContain(adr);
+    expect(reviewerBody).toMatch(/ADR 0013, ADR 0015, and ADR 0018 are superseded; do not load/i);
+    expect(reviewerBody).toMatch(/Acquire or attach.*database lease before running any DB-backed/i);
+    expect(reviewerBody).toMatch(/Refuse a review brief that does not state lease status/i);
+    expect(reviewerBody).toMatch(/anonymous-tier checks.*curl.*fresh browser profile/i);
+
+    expect(missionBody).not.toMatch(/Review grades follow.*start-issue/i);
+    expect(missionBody).toMatch(/Grade from reachability and blast radius, never diff size/i);
+    expect(missionBody).toMatch(/one initial full review.*two correction reviews.*three total/i);
+    expect(missionBody).toMatch(
+      /src\/lib\/auth\/.*src\/lib\/delivery\/.*lane-mergeable only after/i,
+    );
+    expect(missionBody).not.toMatch(/authentication and session boundaries.*owner-merged/i);
+    expect(finishMissionBody).toMatch(
+      /src\/lib\/auth\/.*src\/lib\/delivery\/.*lane-mergeable only after/i,
+    );
+  });
+
   it("checks owner rules before asking, and separates immediate from hourly questions", () => {
     expect(missionBody).toMatch(
       /Before asking Brian any product or visual question, check in order/i,
@@ -1194,7 +1216,7 @@ describe("local Supabase workflow contract", () => {
     );
   });
 
-  it("keeps the fixed review credential in shared protected state and provisions on start/reset", () => {
+  it("keeps the fixed review credential in shared protected state and provisions on start/reset/seed", () => {
     const command = readFileSync(path.join(root, "scripts", "local-supabase-command.mjs"), "utf8");
     const account = readFileSync(
       path.join(root, "scripts", "lib", "local-review-account.mjs"),
@@ -1207,6 +1229,7 @@ describe("local Supabase workflow contract", () => {
     expect(command).toMatch(/ensureLocalReviewAccount/);
     expect(command).toMatch(/operation === "start"[\s\S]*provisionReviewState/);
     expect(command).toMatch(/operation === "reset"[\s\S]*provisionReviewState/);
+    expect(command).toMatch(/operation === "seed"[\s\S]*provisionReviewState/);
     expect(command).not.toMatch(/randomBytes/);
     expect(command).not.toMatch(/review-credentials/);
     expect(command).not.toMatch(/`TEST_USER_PASSWORD=\$\{reviewAccount\.password\}`/);
