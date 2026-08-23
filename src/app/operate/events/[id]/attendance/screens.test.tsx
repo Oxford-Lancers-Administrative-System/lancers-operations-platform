@@ -70,7 +70,7 @@ import {
 import { readEvent, type EventDetail } from "@/lib/services/events";
 import { readEventAudience } from "@/lib/services/event-approval";
 import {
-  ATTENDANCE_LOCKED_DETAIL,
+  describeOperatorLock,
   COACH_BOARD_SUBTITLE,
   describeCoachLock,
   REGISTER_NOT_YET_HEADLINE,
@@ -434,7 +434,7 @@ describe("the register before its buffer lifts", () => {
 // ---------------------------------------------------------------------------
 
 describe("UX-71 — attendance is not available yet", () => {
-  for (const status of ["draft", "approved", "cancelled"] as const) {
+  for (const status of ["draft", "cancelled"] as const) {
     it(`renders the locked screen for a ${status} event`, async () => {
       vi.mocked(readAttendanceBoard).mockResolvedValue(
         board({ event: detail({ status }), isOpen: false, participants: [] }),
@@ -444,8 +444,7 @@ describe("UX-71 — attendance is not available yet", () => {
 
       expect(screen.getByTestId("attendance-locked")).toBeTruthy();
       expect(container.textContent).toContain("Attendance is not available yet");
-      expect(container.textContent).toContain(ATTENDANCE_LOCKED_DETAIL);
-      expect(container.textContent).toContain("The service rejects attendance writes");
+      expect(container.textContent).toContain(describeOperatorLock(status));
       // And it never tells anybody to go and mark it, because nobody can.
       expect(container.textContent).not.toContain("mark this event as occurred");
 
@@ -454,6 +453,77 @@ describe("UX-71 — attendance is not available yet", () => {
       expect(container.textContent).not.toContain("Avery Fielding");
     });
   }
+
+  /**
+   * Finding W9-F1. The operator's two dead ends were byte-identical: one
+   * paragraph reciting the rule for both a draft and a cancellation, leaving
+   * the reader — the only reader who can act — to work out which limb applied.
+   *
+   * The coach's screen was made specific by W-F6 and this one was not, which
+   * inverted the asymmetry rather than removing it.
+   */
+  it("tells an operator a draft is theirs to approve", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({ event: detail({ status: "draft" }), isOpen: false, participants: [] }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("still a draft");
+    // Rule 4: the sentence names the step that lifts it, and this seat can take
+    // it. The coach's equivalent deliberately cannot say this.
+    expect(container.textContent).toContain("Approve it");
+    expect(container.textContent).not.toContain("nothing you can do");
+  });
+
+  it("tells an operator plainly that a cancellation has no step at all", async () => {
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        event: detail({ status: "cancelled", scheduledOn: "2020-10-14" }),
+        isOpen: false,
+        participants: [],
+      }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("was cancelled");
+    expect(container.textContent).toContain("nothing you can do to open one");
+    expect(container.textContent).not.toContain("Approve it");
+  });
+
+  it("says something different for a draft than for a cancellation", async () => {
+    // The finding in one assertion: the two were the same string. A collapse
+    // back to one paragraph fails here whichever wording survives.
+    expect(describeOperatorLock("draft")).not.toBe(describeOperatorLock("cancelled"));
+  });
+
+  it("recites no rule, and names no internal component", async () => {
+    for (const status of ["draft", "cancelled"] as const) {
+      vi.mocked(readAttendanceBoard).mockResolvedValue(
+        board({
+          event: detail({ status, scheduledOn: "2020-10-14" }),
+          isOpen: false,
+          participants: [],
+        }),
+      );
+
+      const { container, unmount } = render(await AttendancePage(attendanceProps()));
+
+      for (const wrong of [
+        // An operator has no "service" in their world.
+        "The service rejects",
+        "attendance writes",
+        // Buffer language, which is false on a cancelled event whose start has
+        // gone and beside the point on a draft nobody has approved.
+        "opens shortly before it starts",
+        "A register belongs to an approved event",
+      ]) {
+        expect(container.textContent, `${status}: ${wrong}`).not.toContain(wrong);
+      }
+      unmount();
+    }
+  });
 
   it("refuses the board to an operator without the capability, and shows no names", async () => {
     // The route is not the boundary — every write guards itself — but a screen

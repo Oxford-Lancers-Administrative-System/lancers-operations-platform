@@ -2099,6 +2099,20 @@ for (const session of recordedSessions) {
 // showed up anyway, plus a walk-up who was never invited at all. Neither is
 // silently reconciled with the RSVP — the mismatch view surfaces both.
 const walkUpSession = recordedSessions[3];
+// A guard clause, and nothing more. This dereference sits about 1,150 lines
+// ahead of the frame self-check at the end of the file, so a frame yielding
+// fewer than four recorded sessions used to die here with a bare `TypeError`
+// rather than with the message that says what to do about it. It still failed
+// closed — the crash is well before `begin`, so nothing was written — but it
+// cost the reader the diagnosis.
+if (!walkUpSession) {
+  throw new Error(
+    `The seeded frame leaves ${recordedSessions.length} recorded sessions; the walk-up ` +
+      `scenario needs at least 4. Frame: shift ${SHIFT_DAYS}d (${FRAME.wraps} wraps + ` +
+      `${FRAME.residual}d${FRAME.clamped ? ", clamped" : ""}), notional now ` +
+      `${NOW.toISOString()}. Re-base the authored constants in scripts/lib/seed-clock.mjs.`,
+  );
+}
 const alreadyRecorded = new Set(
   rows.attendance_records
     .filter((a) => a.event_id === walkUpSession.id)

@@ -21,13 +21,12 @@ import { WalkUpForm } from "./walk-up-form";
 import {
   ADD_WALK_UP,
   ATTENDANCE_HEADLINE_PREFIX,
-  ATTENDANCE_LOCKED_DETAIL,
   ATTENDANCE_LOCKED_HEADLINE,
-  ATTENDANCE_LOCKED_RULE,
   COACH_BOARD_NOTE,
   COACH_BOARD_SUBTITLE,
   COACH_LOCKED_HEADLINE,
   describeCoachLock,
+  describeOperatorLock,
   COACH_RETURN_TO_ELIGIBLE,
   COMPLETE_ATTENDANCE,
   COMPLETE_ATTENDANCE_MEANING,
@@ -373,10 +372,9 @@ function AttendanceLocked({ eventId, status }: { eventId: string; status: string
           {ATTENDANCE_LOCKED_HEADLINE}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          {ATTENDANCE_LOCKED_DETAIL}
+          {describeOperatorLock(status)}
         </Typography>
       </Box>
-      <Alert severity="info">{ATTENDANCE_LOCKED_RULE}</Alert>
       <Box>
         <Button variant="contained" href={`/operate/events/${eventId}`} sx={{ minHeight: 44 }}>
           Return to event

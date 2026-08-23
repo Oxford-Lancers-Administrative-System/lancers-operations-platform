@@ -99,12 +99,33 @@ export const ATTENDANCE_OPEN_DETAIL = "Record who was there, and correct it when
 
 export const ATTENDANCE_LOCKED_HEADLINE = "Attendance is not available yet";
 
-export const ATTENDANCE_LOCKED_DETAIL =
-  "A register belongs to an approved event, and opens shortly before it starts. A draft or a " +
-  "cancelled event never opens one.";
-
-export const ATTENDANCE_LOCKED_RULE =
-  "The service rejects attendance writes until the event is approved and its register has opened.";
+/**
+ * The operator's version of the locked state — corrected by W9-F1.
+ *
+ * `describeCoachLock` below is the same idea in the other seat, and the two are
+ * deliberately parallel. W-F6 made the coach's specific and left this one
+ * generic, which was rule 7 the other way round rather than a fix: one screen
+ * naming what happened to *this* event, the other reciting the design and
+ * leaving the reader to work out which limb applied.
+ *
+ * Three things were wrong with what stood here, and all three arrived with this
+ * package. It stated the rule instead of the event. It said "the service
+ * rejects attendance writes", naming an internal component to a club operator
+ * who has no "service" in their world. And "opens shortly before it starts" was
+ * exactly as false for a cancelled event whose start had passed as it was on
+ * the coach's screen before W-F6.
+ *
+ * The asymmetry that matters is the other one: **the operator is the seat that
+ * can act.** A draft is theirs to approve, so the sentence names that step —
+ * `docs/ux/standards.md` rule 4. A cancellation is not theirs to undo, and rule
+ * 4 is met by saying so plainly rather than by leaving a reader hunting for a
+ * control that does not exist.
+ */
+export function describeOperatorLock(status: string): string {
+  return status === "cancelled"
+    ? "This event was cancelled. It has no register, and there is nothing you can do to open one."
+    : "This event is still a draft, so there is nobody on it to record. Approve it, and it gets a register.";
+}
 
 // ---------------------------------------------------------------------------
 // The register's own window — D71 and D72. LAN-152.

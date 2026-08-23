@@ -412,10 +412,21 @@ export async function readAttendanceBoard(
       deliberately. The view is the durable home for this rule and it should
       carry it, but the view is schema, and this mission's schema belongs to
       the status-and-occurrence migration package; two packages writing
-      migrations at once is what the collision rules exist to prevent. Nothing
-      else over-counts in the meantime: `weekly-report.ts` reads only
-      `attended_without_invitation`, which cannot fire without an attendance
-      row. The pull request records the view as the follow-up.
+      migrations at once is what the collision rules exist to prevent.
+
+      Nothing else over-counts in the meantime, and the reason is now simpler
+      than it was: **no code reads that view at all.** `weekly-report.ts` was
+      its only caller and LAN-151 stopped it reading the view entirely, because
+      the view derives occurrence against `now()` and a report about last March
+      must not depend on today's date — it counts walk-ups straight off
+      `attendance_records`. So the only reader this suppression protects is a
+      future one.
+
+      That makes moving the rule into the view a real follow-up rather than a
+      tidy-up: a direct reader of `rsvp_attendance_mismatches` written after
+      this package, and not looking here, would over-count every session nobody
+      has taken a register for. It is recorded in the residual-risk section of
+      pull request #72, which is the one that merges.
     */
     const registerSaved = rows.rows.some((row) => row.attendance_id !== null);
 
