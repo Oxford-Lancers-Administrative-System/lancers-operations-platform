@@ -73,13 +73,19 @@ import {
  *
  * ## Rate limited, and why it had to be — R157-B4
  *
- * Every request here is a **write**: `resolveClubLinkIn` stamps `use_count` and
- * `last_used_at`, and the read behind it is a full outer join plus a question
- * scan, with `force-dynamic` and `no-store` so nothing caches. One link
- * forwarded past the squad is therefore unbounded write load against the single
- * production database and unbounded Cloud Run instance time — and with no
- * revocation shipped, the only remedy would be rotating `CLUB_LINK_SECRET`,
- * which kills every club link for every event.
+ * Every request here reaches the database: a full outer join plus a question
+ * scan, then a best-effort `use_count` stamp, with `force-dynamic` and
+ * `no-store` so nothing caches. One link forwarded past the squad is therefore
+ * unbounded load against the single production database and unbounded Cloud Run
+ * instance time — and with no revocation shipped, the only remedy would be
+ * rotating `CLUB_LINK_SECRET`, which kills every club link for every event.
+ *
+ * **The limiter is not what keeps this page up under a squad — W157-R1.** Its
+ * allowance is 240 a minute per link, and one link opened by forty people in
+ * the same second is far inside that and is the case the link exists for. What
+ * used to fail there was the `use_count` stamp taking a row lock inside the
+ * read transaction; that is fixed in `@/lib/services/club-link`, not here. The
+ * limiter bounds a link that has escaped the squad, and only that.
  *
  * The counter is `/rsvp`'s, extended rather than rewritten, with its own
  * per-link allowance: one club link serves a whole squad at once, so the RSVP

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -646,15 +646,49 @@ describe("readParticipationFilters", () => {
 // R157-B3 — the derived vocabulary against the stored one
 // ---------------------------------------------------------------------------
 
-const MISMATCH_VIEW_MIGRATION = resolve(
-  import.meta.dirname,
-  "..",
-  "..",
-  "..",
-  "supabase",
-  "migrations",
-  "20260822120000_events_target_state.sql",
-);
+const MIGRATIONS_DIR = resolve(import.meta.dirname, "..", "..", "..", "supabase", "migrations");
+
+/** How the view's definition begins, in every migration that has written one. */
+const VIEW_HEADER = /create\s+(?:or\s+replace\s+)?view\s+public\.rsvp_attendance_mismatches\b/i;
+
+/**
+ * The **current** definition of `public.rsvp_attendance_mismatches`, read out of
+ * whichever migration last wrote it — R157C-A2.
+ *
+ * This used to be one hardcoded filename, `20260822120000_events_target_state.sql`,
+ * and that is a guard that stops firing the moment it matters. Migrations are
+ * forward-only: a change to this view arrives as a **new** file and never as an
+ * edit to that one, and three have already landed since. A fifth mismatch class
+ * added tomorrow would leave these tests reading a stale snapshot and passing,
+ * which is precisely the drift `discrepancy-vocabulary.ts` claims they prevent.
+ *
+ * So the file is resolved rather than named: every migration, in the sort order
+ * the CLI applies them in, and the last one that defines the view wins.
+ *
+ * `./club-link-availability.test.ts` asserts the same thing against
+ * `pg_get_viewdef` on the live database, where no filename is involved at all.
+ * That one is authoritative; this one is what fails in the unit project, with
+ * no database, on the pull request that introduces the drift.
+ */
+function currentMismatchViewBody(): string {
+  const written = readdirSync(MIGRATIONS_DIR)
+    .filter((name) => name.endsWith(".sql"))
+    .sort()
+    .map((name) => readFileSync(resolve(MIGRATIONS_DIR, name), "utf8"))
+    .filter((sql) => VIEW_HEADER.test(sql));
+  expect(written.length, "no migration defines rsvp_attendance_mismatches").toBeGreaterThan(0);
+
+  // Only this view's own statement. The migration around it defines others, and
+  // scanning the whole file would attribute their `then '<literal>'` arms to
+  // this view — which is the reason the old test filtered emitted class names by
+  // spelling, and the reason a class not spelled `*attend*` or `*said*` was
+  // invisible to it even inside the pinned file.
+  const sql = written[written.length - 1];
+  const start = sql.search(VIEW_HEADER);
+  const end = sql.indexOf(";", start);
+  expect(end, "the view definition is not terminated").toBeGreaterThan(start);
+  return sql.slice(start, end);
+}
 
 describe("the discrepancy vocabulary", () => {
   it("spells its shared classes exactly as the stored view spells them", () => {
@@ -663,7 +697,7 @@ describe("the discrepancy vocabulary", () => {
     // would have missed it in silence. Asserted against the class names read
     // out of the shipped migration text rather than against a copy of them, so
     // that renaming one side alone fails here.
-    const migration = readFileSync(MISMATCH_VIEW_MIGRATION, "utf8");
+    const migration = currentMismatchViewBody();
     for (const shared of ["said_yes_marked_absent", "said_no_but_attended"]) {
       expect(DERIVED_DISCREPANCIES as readonly string[], shared).toContain(shared);
       expect(migration, `${shared} is not in the view`).toContain(`'${shared}'`);
@@ -671,15 +705,20 @@ describe("the discrepancy vocabulary", () => {
   });
 
   it("names every class the stored view can emit", () => {
-    const migration = readFileSync(MISMATCH_VIEW_MIGRATION, "utf8");
+    const migration = currentMismatchViewBody();
     for (const stored of STORED_MISMATCH_CLASSES) {
       expect(migration, `${stored} is not in the view`).toContain(`'${stored}'`);
     }
     // And nothing the view emits is missing from the list: a fifth class added
     // to the view without a look at `discrepancy-vocabulary.ts` fails here
     // rather than drifting quietly.
-    const emitted = [...migration.matchAll(/then\s+'([a-z_]+)'/g)].map((match) => match[1]);
-    const classes = emitted.filter((value) => value.includes("attend") || value.includes("said"));
+    //
+    // R157C-A2: unfiltered. This used to keep only the emitted values spelled
+    // `*attend*` or `*said*`, so a fifth class called `no_show_unexplained`
+    // passed straight through the guard that exists to catch it. The scan is
+    // scoped to this view's own statement instead, which is what the spelling
+    // filter was standing in for.
+    const classes = [...migration.matchAll(/then\s+'([a-z_]+)'/g)].map((match) => match[1]);
     expect(classes.length).toBeGreaterThan(0);
     for (const value of classes) {
       expect(STORED_MISMATCH_CLASSES as readonly string[], `the view emits ${value}`).toContain(

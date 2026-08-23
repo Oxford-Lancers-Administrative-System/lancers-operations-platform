@@ -111,14 +111,21 @@ export const RATE_LIMIT_WINDOW_MS = 60_000;
  * The club link's own per-link allowance — R157-B4, LAN-157.
  *
  * `/e/<token>` is the second unauthenticated read surface, and it needed the
- * limiter for the same reason `/rsvp` did and then some: every GET runs
- * `update club_link_tokens set use_count = use_count + 1, last_used_at = now()`
- * plus a full-outer-join participation query and a `question_responses` scan,
- * with `force-dynamic` and `no-store`, so nothing caches and every view is a
- * write against the single production Postgres. Nothing ships that can revoke
- * one link, so without a brake the only remedy for a link that escaped the
- * squad is rotating `CLUB_LINK_SECRET`, which kills every club link for every
- * event.
+ * limiter for the same reason `/rsvp` did and then some: every GET runs a
+ * full-outer-join participation query and a `question_responses` scan, then a
+ * best-effort `use_count` stamp, with `force-dynamic` and `no-store`, so
+ * nothing caches and every view reaches the single production Postgres.
+ * Nothing ships that can revoke one link, so without a brake the only remedy
+ * for a link that escaped the squad is rotating `CLUB_LINK_SECRET`, which kills
+ * every club link for every event.
+ *
+ * **What this number does not do — W157-R1.** It is a volumetric brake on a
+ * link that has escaped, and it is not what keeps the page up when a whole
+ * squad opens one link at once: forty simultaneous readers are far inside this
+ * allowance, and they used to exhaust the connection pool anyway because the
+ * stamp took a row lock inside the read transaction. That is fixed in
+ * `@/lib/services/club-link`. A limiter set low enough to have caught it would
+ * have throttled the ordinary case.
  *
  * **The number is much larger than `RATE_LIMIT_MAX_PER_LINK`, and it has to
  * be.** An RSVP token belongs to one player, so twenty a minute is generous for

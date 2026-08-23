@@ -27,6 +27,7 @@ import {
   deriveClubLinkToken,
   hashClubLinkToken,
   issueClubLinkIn,
+  recordClubLinkUse,
   resolveClubLinkIn,
 } from "./club-link";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
@@ -273,7 +274,7 @@ describe("issuing a club link", () => {
 // ---------------------------------------------------------------------------
 
 describe("resolving a club link", () => {
-  it("opens the event it was issued for, and records the use", async () => {
+  it("opens the event it was issued for, and records nothing doing it", async () => {
     const eventId = await anEvent();
     const issued = await withTransaction((tx) =>
       issueClubLinkIn(tx, eventId, { actorPersonId, env: SECRET }),
@@ -284,6 +285,19 @@ describe("resolving a club link", () => {
     );
     expect(resolved).toEqual({ state: "live", linkId: issued.linkId, eventId });
 
+    // W157-R1. Resolving used to stamp the counters here, in the caller's
+    // transaction, and that took this link's row lock and held it for the whole
+    // of the caller's read — which serialized everybody opening the same link
+    // and exhausted the connection pool. Resolution is a pure read now.
+    const untouched = await observer.query<{ use_count: number; last_used_at: Date | null }>(
+      "select use_count, last_used_at from public.club_link_tokens where id = $1",
+      [issued.linkId],
+    );
+    expect(untouched.rows[0].use_count).toBe(0);
+    expect(untouched.rows[0].last_used_at).toBeNull();
+
+    // The stamp is its own statement, after the read has committed.
+    expect(await recordClubLinkUse(issued.linkId)).toBe(true);
     const used = await observer.query<{ use_count: number; last_used_at: Date | null }>(
       "select use_count, last_used_at from public.club_link_tokens where id = $1",
       [issued.linkId],

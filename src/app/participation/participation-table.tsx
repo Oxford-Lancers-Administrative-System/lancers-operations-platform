@@ -239,6 +239,25 @@ export function ParticipationTable({
           not have. The discrepancy legend is not hidden with it — the `≠` is
           beside the name on the card too, so the legend still explains
           something the reader can see.
+
+          **R157C-A5, two corrections to that.**
+
+          The paragraph above claimed the legend survives because the `≠` is on
+          the card too. True of the *mark*, which `DiscrepancyMark` renders on
+          every row at every tier and every width — and not true of the
+          *legend*, which was gated `operator ? … : null`. So a coach opening
+          `/e/<token>` on a phone met `≠` beside a player's name with nothing on
+          the page saying what it meant. The legend now renders at both tiers,
+          because the thing it defines does.
+
+          That is conformance rather than widening: the ticket contract names
+          the discrepancy marker as a property of the table and names exactly
+          one tier difference, the delivery column.
+
+          And the wrapper no longer renders empty. At club tier below `md` the
+          hidden span held the only content and the legend was `null`, leaving
+          an empty `<p>` still taking its slot in a spaced `Stack`. There is now
+          always content, so there is no empty case left to guard.
         */}
         <Typography variant="body2" color="text.secondary">
           <Box
@@ -246,9 +265,10 @@ export function ParticipationTable({
             data-testid="sortable-note"
             sx={{ display: { xs: "none", md: "inline" } }}
           >
-            {operator ? `${SORTABLE_NOTE} · ` : SORTABLE_NOTE}
+            {SORTABLE_NOTE}
+            {" · "}
           </Box>
-          {operator ? DISCREPANCY_LEGEND : null}
+          {DISCREPANCY_LEGEND}
         </Typography>
       </Stack>
 

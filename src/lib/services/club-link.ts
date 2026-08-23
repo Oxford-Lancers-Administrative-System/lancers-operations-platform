@@ -286,9 +286,26 @@ export type ClubLinkResolution =
  * not privacy-blocking (D81), but which of the two a stranger is holding is
  * still nobody's business.
  *
- * **Use is recorded.** `use_count` and `last_used_at` exist for Q2: settling
- * expiry by testing means knowing whether a link is still being opened. The
- * paired check constraint means both columns move together or neither does.
+ * **Use is recorded, and not from here — W157-R1.** `use_count` and
+ * `last_used_at` exist for Q2: settling expiry by testing means knowing whether
+ * a link is still being opened. This function used to stamp them itself, in the
+ * caller's transaction, and that made every reader of one link take a row lock
+ * on that link's single row and hold it until the read committed.
+ *
+ * Concurrent readers of **one** link therefore serialized on one tuple, each
+ * holding a pooled connection while it waited. Measured on this branch: 40
+ * simultaneous readers of one token produced 29 HTTP 500s, while the same 40
+ * spread over four tokens produced none. The pool (`DATABASE_POOL_MAX`, 10)
+ * filled with waiters, later requests exceeded `connectionTimeoutMillis`, and
+ * Next rendered its own error page rather than this package's unavailable
+ * panel — so a squad opening a link the operator had just pasted into WhatsApp
+ * read "the club's system is broken" instead of a squad list. That is the exact
+ * moment this link exists for, and it is far inside the rate limiter's own
+ * per-link allowance, so `R157-B4`'s brake never sees it.
+ *
+ * So resolution is now a **pure read**, and the stamp is `recordClubLinkUse`
+ * below, after the read has committed. The paired check constraint still means
+ * both columns move together or neither does.
  */
 export async function resolveClubLinkIn(
   tx: Tx,
@@ -324,12 +341,78 @@ export async function resolveClubLinkIn(
     return { state: "unknown" };
   }
 
-  await tx.query(
-    `update public.club_link_tokens
-        set use_count = use_count + 1, last_used_at = now()
-      where id = $1`,
-    [row.id],
-  );
-
   return { state: "live", linkId: row.id, eventId: row.event_id };
+}
+
+/**
+ * Stamp one link's Q2 counters. Best effort, and deliberately unblockable.
+ *
+ * ## Why it never waits
+ *
+ * `for update skip locked` rather than a plain `update`. A plain one queues
+ * behind whoever holds the row, and queuing is the whole defect W157-R1 fixed:
+ * a request that waits on this tuple is a request holding a pooled connection
+ * while it waits, and enough of those exhaust the pool and turn a busy link
+ * into an HTTP 500. Taking the stamp out of the read transaction removes the
+ * long hold; skipping the lock removes the short one too, so there is no path
+ * left where a reader of `/e/<token>` blocks on this row.
+ *
+ * ## What that costs, stated plainly
+ *
+ * **A stamp can be lost.** When two requests for the same link try to stamp in
+ * the same instant, the second finds the row locked, skips, and that view is
+ * never counted. The window is one short transaction — the `update` and its
+ * `commit`, sub-millisecond — rather than the whole participation read, which
+ * is why this shape loses far less than skipping inside the read would. But
+ * `use_count` is now a **floor on** views rather than a count of them, and it
+ * undercounts exactly when a link is busiest.
+ *
+ * Q2 — whether club links need expiry — will be settled from this number, so
+ * the number's meaning matters more than its precision: "was this link opened,
+ * and recently" survives undercounting, and that is the question Q2 asks.
+ * A count that has to be exact needs an append-only row per view, which is a
+ * migration, and this package owns none.
+ *
+ * ## Failure is silence
+ *
+ * A reader must never be shown an error because a telemetry counter did not
+ * move. The caller is expected to swallow what this throws; `use_count` going
+ * stale is a reporting problem, and a coach staring at an error panel instead
+ * of a squad list is an operational one.
+ */
+export async function recordClubLinkUseIn(tx: Tx, linkId: string): Promise<boolean> {
+  // Postgres has no `skip locked` on `update` itself, so the row is taken in a
+  // sub-select that has one and the update is driven from what it returns. A
+  // locked row makes the sub-select empty, the update touch nothing, and the
+  // statement return at once instead of waiting.
+  const stamped = await tx.query(
+    `update public.club_link_tokens as t
+        set use_count = t.use_count + 1, last_used_at = now()
+       from (
+         select id from public.club_link_tokens
+          where id = $1
+          for update skip locked
+       ) as taken
+      where t.id = taken.id`,
+    [linkId],
+  );
+  return (stamped.rowCount ?? 0) > 0;
+}
+
+/**
+ * `recordClubLinkUseIn` in its own transaction, and never a reason to fail.
+ *
+ * Called **after** the read transaction has committed, so the connection this
+ * takes is held for one short statement rather than for a participation read.
+ *
+ * Returns whether the stamp landed. `false` covers both "another request held
+ * the row" and "the write failed" — neither is something a reader is told, and
+ * the distinction belongs to whoever later asks why `use_count` is a floor.
+ */
+export async function recordClubLinkUse(linkId: string): Promise<boolean> {
+  try {
+    return await withTransaction((tx) => recordClubLinkUseIn(tx, linkId));
+  } catch {
+    return false;
+  }
 }

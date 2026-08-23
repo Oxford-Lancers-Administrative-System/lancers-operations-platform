@@ -7,6 +7,7 @@ import { isAttendancePresence, type AttendancePresence } from "./attendance-voca
 import {
   deriveClubLinkToken,
   issueClubLinkIn,
+  recordClubLinkUse,
   resolveClubLinkIn,
   type ClubLinkResolution,
   type EnvSource,
@@ -460,21 +461,46 @@ export async function readClubLinkParticipation(
   token: string,
   options: { env?: EnvSource } = {},
 ): Promise<ClubLinkPage> {
-  return withTransaction(async (tx) => {
+  // W157-R1. Two phases, and the split is the whole fix.
+  //
+  // The read below takes no lock on `club_link_tokens`, so any number of people
+  // may open the *same* link at once without queueing behind each other. That
+  // used not to be true: resolution stamped `use_count` in this transaction, so
+  // every reader of one link took that link's row lock and held it, and its
+  // pooled connection with it, until the participation read committed. Forty
+  // simultaneous readers of one token filled the pool with waiters and were
+  // served Next's own error page — see `./club-link.ts`.
+  //
+  // The stamp then happens on its own, after the commit, and cannot fail this
+  // call: `recordClubLinkUse` swallows its own errors, and its `skip locked`
+  // means it never waits for anybody either.
+  const read = await withTransaction(async (tx) => {
     const resolution: ClubLinkResolution = await resolveClubLinkIn(tx, token, options);
-    if (resolution.state !== "live") return { state: "unavailable" };
+    if (resolution.state !== "live") return { page: { state: "unavailable" } as ClubLinkPage };
 
     let participation: ClubLinkParticipation;
     try {
       participation = await buildClubLinkParticipationIn(tx, resolution.eventId);
     } catch (error) {
-      if (error instanceof NotFound) return { state: "unavailable" };
+      if (error instanceof NotFound) {
+        return { page: { state: "unavailable" } as ClubLinkPage, linkId: resolution.linkId };
+      }
       throw error;
     }
-    if (participation.event.status === "draft") return { state: "unavailable" };
+    const page: ClubLinkPage =
+      participation.event.status === "draft"
+        ? { state: "unavailable" }
+        : { state: "live", participation };
 
-    return { state: "live", participation };
+    return { page, linkId: resolution.linkId };
   });
+
+  // Counted whenever the *token* opened, which is what it counted before: a
+  // live link whose event has since gone back to draft was still presented, and
+  // Q2 is asking whether links are still being reached at all.
+  if (read.linkId !== undefined) await recordClubLinkUse(read.linkId);
+
+  return read.page;
 }
 
 // ---------------------------------------------------------------------------

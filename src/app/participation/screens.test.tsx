@@ -59,6 +59,8 @@ import {
   resetRsvpRateLimit,
 } from "@/lib/rsvp/public-surface";
 
+import { labelFor, TYPE_LABELS } from "@/lib/services/event-vocabulary";
+
 import ClubLinkPage from "../e/[token]/page";
 import { EventFacts, HeadlineNumbers } from "./event-facts";
 import { CopyLinkButton } from "./copy-link";
@@ -896,19 +898,56 @@ describe("the phone presentation", () => {
     }
   });
 
-  it("keeps the discrepancy legend on the phone, because the mark is on the card", () => {
-    // Not hidden with the sort note: the `≠` appears beside the name on the
-    // card too, so the legend still explains something the reader can see.
-    const { container } = render(
-      <ParticipationTable
-        basePath="/operate/events/event-1"
-        participation={OPERATOR}
-        filters={filters()}
-      />,
-    );
-    expect(container.textContent).toContain(DISCREPANCY_LEGEND);
-    const card = container.querySelector('[data-testid="participation-card"] [data-discrepancy]');
-    expect(card).not.toBeNull();
+  it("defines the discrepancy mark at every tier that renders one — R157C-A5", () => {
+    // The finding. `DiscrepancyMark` is not tier-gated and the legend was, so a
+    // coach opening `/e/<token>` met `≠` beside a player's name with nothing on
+    // the page saying what it meant — and the comment beside the gate claimed
+    // the opposite, which is how it survived a round. The rule asserted here is
+    // the one that holds both together: wherever the mark renders, the sentence
+    // that defines it renders too.
+    for (const participation of [OPERATOR, CLUB]) {
+      const { container, unmount } = render(
+        <ParticipationTable
+          basePath="/operate/events/event-1"
+          participation={participation}
+          filters={filters()}
+        />,
+      );
+      const mark = container.querySelector("[data-discrepancy]");
+      expect(mark, `${participation.tier} renders no mark to define`).not.toBeNull();
+      expect(container.textContent, `${participation.tier} defines nothing`).toContain(
+        DISCREPANCY_LEGEND,
+      );
+      // And on the card, which is the tier/width pair the finding was about.
+      const card = container.querySelector('[data-testid="participation-card"] [data-discrepancy]');
+      expect(card, `${participation.tier} renders no mark on the phone`).not.toBeNull();
+      unmount();
+    }
+  });
+
+  it("never renders the note's wrapper empty at the phone width — R157C-A5", () => {
+    // The other half. Below `md` the sort note is hidden by a media rule, so at
+    // club tier the wrapper used to hold a hidden span and a `null` — an empty
+    // `<p>` still taking its slot in a spaced `Stack`. jsdom evaluates no media
+    // queries, so this is asserted structurally: whatever survives hiding the
+    // note has to be text a reader can see.
+    for (const participation of [OPERATOR, CLUB]) {
+      const { container, unmount } = render(
+        <ParticipationTable
+          basePath="/operate/events/event-1"
+          participation={participation}
+          filters={filters()}
+        />,
+      );
+      const note = container.querySelector('[data-testid="sortable-note"]')!;
+      const wrapper = note.parentElement!;
+      const withoutTheNote = (wrapper.textContent ?? "").replace(note.textContent ?? "", "").trim();
+      expect(
+        withoutTheNote,
+        `${participation.tier} renders an empty wrapper on the phone`,
+      ).not.toBe("");
+      unmount();
+    }
   });
 });
 
@@ -938,6 +977,30 @@ describe("the event facts", () => {
     );
     expect(container.textContent).toContain(formatTermAndWeek("michaelmas 2026-27", -1));
     expect(container.textContent).not.toContain("-1th");
+  });
+
+  it("names every event type in the club's own words — R157C-A1", () => {
+    // The second half of the duplication `W157-F2` half-removed. This file kept
+    // a private copy of the seven type names beside the `TERM_LABELS` map that
+    // was deleted; byte-identical then, and one rename or one eighth type away
+    // from falling through `?? event.eventType` and printing a raw
+    // `strength_and_conditioning` to an unauthenticated audience — which is
+    // exactly what the sibling copy did do.
+    //
+    // Asserted against `@/lib/services/event-vocabulary`'s map rather than
+    // against copied strings, for the reason the term-and-week case above gives:
+    // a test holding its own third copy would drift with the second.
+    for (const eventType of Object.keys(TYPE_LABELS)) {
+      const { container, unmount } = render(<EventFacts event={{ ...CLUB.event, eventType }} />);
+      expect(container.textContent, eventType).toContain(labelFor(TYPE_LABELS, eventType));
+      // And the enum value itself is not what a reader is shown. `chalk` and
+      // `game` are their own labels, so the check only means anything for the
+      // ones the club spells differently.
+      if (labelFor(TYPE_LABELS, eventType) !== eventType) {
+        expect(container.textContent, eventType).not.toContain(eventType);
+      }
+      unmount();
+    }
   });
 });
 

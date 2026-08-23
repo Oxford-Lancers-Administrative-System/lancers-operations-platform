@@ -3,6 +3,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
+import { labelFor, TYPE_LABELS } from "@/lib/services/event-vocabulary";
 import type { ClubLinkEvent, ParticipationHeadline } from "@/lib/services/participation-view";
 
 import {
@@ -24,16 +25,17 @@ import {
  * **The joining URL is not here, and cannot be.** `ClubLinkEvent` has no such
  * key (REQ-no-joining-url): there is nothing to leave out, which is a stronger
  * guarantee than remembering to.
+ *
+ * **The type names come from `@/lib/services/event-vocabulary` — R157C-A1.**
+ * This file used to hold a private second copy of the seven. `W157-F2` deleted
+ * the `TERM_LABELS` half of that duplication and left this half, which is the
+ * same defect: byte-identical today, and one renamed or added type away from
+ * printing a raw `strength_and_conditioning` to an unauthenticated audience,
+ * through the `?? event.eventType` fallback. LAN-153 created that module to
+ * stop exactly this, its header says so, and it is pure with no `server-only`,
+ * so a client component may hold it — `src/app/e/[token]/page.tsx` already
+ * imports from it.
  */
-const TYPE_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  practice: "Practice",
-  strength_and_conditioning: "Strength and conditioning",
-  chalk: "Chalk",
-  game: "Game",
-  social: "Social",
-  recruitment: "Recruitment",
-  meeting: "Meeting",
-});
 
 /**
  * `Wednesday, 17 February 2027 · 20:00–22:30`.
@@ -81,7 +83,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 export function EventFacts({ event }: { event: ClubLinkEvent }) {
   const online = event.deliveryMode === "online";
   const facts: { label: string; value: string }[] = [
-    { label: "Type", value: TYPE_LABELS[event.eventType] ?? event.eventType },
+    { label: "Type", value: labelFor(TYPE_LABELS, event.eventType) },
     {
       label: online ? "Destination" : "Where",
       value: event.venue ?? (online ? "Online" : "Not recorded"),
