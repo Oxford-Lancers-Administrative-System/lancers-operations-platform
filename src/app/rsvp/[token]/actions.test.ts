@@ -123,4 +123,18 @@ describe("a genuinely closed window", () => {
     expect(target).toContain(`error=${CLOSED_ERROR}`);
     expect(target).not.toContain(`error=${BUSY_ERROR}`);
   });
+
+  it("refuses an anonymous injected token without exposing a distinct outcome", async () => {
+    const form = formFor();
+    form.set("token", "abc' or '1'='1");
+    vi.mocked(recordSignedLinkResponse).mockRejectedValueOnce(new Error("unknown token"));
+
+    const target = await redirectFrom(() => submitAttending(form));
+
+    expect(recordSignedLinkResponse).toHaveBeenCalledWith("abc' or '1'='1", {
+      response: "yes",
+    });
+    expect(target).toContain(`error=${CLOSED_ERROR}`);
+    expect(target).not.toContain("unknown");
+  });
 });
