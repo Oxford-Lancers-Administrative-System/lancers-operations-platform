@@ -212,9 +212,15 @@ When a worker returns `blocked` or `owner-decision-required`, record the
 question durably before pausing that package; unaffected packages continue.
 When it returns `failed-recoverably`, the package returns to the frontier
 and the same worker contract applies to the retry.
-If a worker crashes or cannot return, record `abandon-worker` with the evidence.
-That clears only its active record so a replacement may be dispatched; it does
-not discard the branch, worktree, issue, or journal history.
+A worker that stopped without returning a receipt is **resumable** by
+re-dispatching under its original worker identity. `abandon-worker` is only for
+a worker that cannot be resumed at all, and requires the evidence of the failed
+resume attempt. It clears only that active record so a replacement may be
+dispatched; it does not discard the branch, worktree, issue, or journal history.
+
+A package's pull request contains only its package. An unrelated fix — seed
+data, tooling, or another issue's defect — ships as its own pull request and is
+never folded in. PR #71 became owner-gated exactly through that contamination.
 
 ### 6a. Mission-owned local database
 
@@ -291,6 +297,16 @@ finding IDs and lineage — record `correction` with the original worker id;
 the CLI refuses a replacement implementer for an ordinary correction. Do not
 create a new implementer because review failed.
 
+All open blocking findings are dispatched as **one** correction
+(`--findings R-001,R-002,…`). One correction review, one walker run when still
+required after machine carry-forward, and one re-approval are allowed per
+cycle. Dispatching findings singly is refused as a Lead defect.
+
+During correction cycles, workers and reviewers verify with targeted runs:
+`npx vitest run <affected files>` plus `npm run typecheck`. Full
+`npm run verify` runs once per package, when it goes to its gate. CI remains the
+full backstop.
+
 ## 8. The visual gate is unchanged
 
 ADR 0020 stands: UI-affecting work receives an agent browser preflight and
@@ -300,6 +316,11 @@ approval with `visual-approve` — the merge gate requires it for any package
 that is not genuinely nonvisual, and the merge workflow independently refuses
 a nonvisual claim whose diff touches a visual surface. Never describe visual
 work as mergeable before that approval exists.
+
+Every review-environment URL uses the exact hostname named by that stack's Auth
+configuration. The Lead never substitutes `localhost` for `127.0.0.1`, or the
+reverse; a hostname mismatch can authenticate one page and leave later controls
+dead.
 
 When a non-rendered carry-forward chain exists, publish it in the receipt's
 `visual_evidence` block (`approved_sha` plus `carry_forward_chain`). The merge
@@ -399,7 +420,8 @@ never touches hosted Supabase, never performs a production or real-data
 action, and never modifies live GitHub settings. Draft PRs stay drafts until
 the mission-merge workflow or Brian merges them. Local database access uses
 only the guarded coordinator commands and respects every existing lease and
-fencing rule. The LAN-90 UX gate and LAN-92 automated-WhatsApp decision gate
-remain binding; manual posting or distribution is never an MVP, pilot,
-fallback, or completion path. Linear recordkeeping stays minimal: issue
+fencing rule. Review links retain the exact hostname from the assigned stack's
+Auth configuration through every handoff and resumption. The LAN-90 UX gate
+and LAN-92 automated-WhatsApp decision gate remain binding; manual posting or
+distribution is never an MVP, pilot, fallback, or completion path. Linear recordkeeping stays minimal: issue
 status, the draft PR link, and one final evidence comment per package.

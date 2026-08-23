@@ -796,7 +796,7 @@ describe("mission harness v1", () => {
   it("fences one stable Lead per mission and recovers abandoned workers", () => {
     expect(missionBody).toContain("LANCERS_MISSION_LEAD_ID");
     expect(missionBody).toMatch(/transient CLI PID is only liveness evidence/i);
-    expect(missionBody).toMatch(/record `abandon-worker`/i);
+    expect(missionBody).toMatch(/`abandon-worker` is only for a worker that cannot be resumed/i);
   });
 
   it("defines the implementation worker as bounded, unable to spawn agents, but able to implement", () => {
@@ -867,6 +867,26 @@ describe("mission harness v1", () => {
     expect(missionBody).toMatch(/resume the original implementation worker/i);
     expect(missionBody).toMatch(/Do not create a new implementer because review failed/i);
     expect(workerBody).toMatch(/re-enter the same worktree and branch/i);
+  });
+
+  it("batches corrections, targets iteration checks, and keeps workers resumable", () => {
+    expect(missionBody).toMatch(/All open blocking findings are dispatched as one correction/i);
+    expect(missionBody).toContain("--findings R-001,R-002,…");
+    expect(missionBody).toMatch(/Dispatching findings singly is refused as a Lead defect/i);
+    expect(missionBody).toMatch(
+      /During correction cycles[\s\S]*npx vitest run <affected files>[\s\S]*npm run typecheck/i,
+    );
+    expect(missionBody).toMatch(/Full[\s`]*npm run verify[\s`]*runs once per package/i);
+    expect(missionBody).toMatch(/stopped without returning a receipt is resumable/i);
+    expect(missionBody).toMatch(/evidence of the failed resume attempt/i);
+  });
+
+  it("keeps package scope isolated and review hostnames canonical", () => {
+    expect(missionBody).toMatch(/A package's pull request contains only its package/i);
+    expect(missionBody).toMatch(/unrelated fix[\s\S]*ships as its own pull request/i);
+    expect(missionBody).toMatch(/exact hostname named by that stack's Auth configuration/i);
+    expect(missionBody).toMatch(/never substitutes `localhost` for `127\.0\.0\.1`/i);
+    expect(missionBody).toMatch(/Review links retain the exact hostname/i);
   });
 
   it("checks owner rules before asking, and separates immediate from hourly questions", () => {
