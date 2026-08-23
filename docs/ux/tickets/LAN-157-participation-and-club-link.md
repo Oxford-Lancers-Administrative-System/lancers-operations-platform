@@ -35,6 +35,10 @@ are defined in [`../slice-ux.md`](../slice-ux.md) and
 | `W7-03` | `/e/[token]`                   | **Anyone holding the club link.** No account |
 | `W7-04` | `/operate/events/[id]?share=1` | An operator with `event_calendar_management` |
 
+The collapsed Questions section lives on `/operate/events/[id]` alongside the
+table; it is not a screen of its own, for the reason Brian gave about question
+authoring — _"it's ingrained in the process"_.
+
 `W7-05` is the mockup's states panel and is not a screen: each of its four
 states is one of the above in a particular condition.
 
@@ -50,6 +54,11 @@ pair, and it carries both presentations side by side:
 - **The participation table.** One row per person: name, capacity, invitation
   sent, delivery (operator only), answer, reason, attendance, and **one column
   per event question** (D68).
+- **A collapsed Questions section on the event page, showing counts** — D68's
+  other reading place. Counted from the rows the table already holds, so the two
+  cannot disagree, and honouring `applies_to_capacities`: a null from somebody a
+  question does not apply to means "not applicable to this invitee", never "no
+  answer", so those people are outside the denominator.
 - **Sortable on every column** (§4.5), including the question columns.
 - **Filterable** by name, capacity, answer, attendance, and — at the operator
   tier — delivery. The filters combine and apply as you type.
@@ -119,6 +128,9 @@ club-link person has no `delivery` field and the club-link event has no
 
 - One row per invited person and per walk-up, carrying capacity, invitation
   time, answer, reason, attendance and one column per question.
+- Answers are read in **two** places: counts in a collapsed Questions section on
+  the event page, and one column per question in the table. The counts exclude
+  anyone the question does not apply to, and exclude walk-ups.
 - Every column sorts, and a sort carries the current filters.
 - Each of the five filters narrows the rendered rows, and they combine.
 - A club-link reader sees the table **without** the delivery column; an operator
