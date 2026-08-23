@@ -15,6 +15,7 @@ function io(overrides: Record<string, unknown> = {}) {
     stashList: () => "",
     hasRemoteBranch: () => true,
     unpushed: () => "",
+    isWorktree: () => true,
     ...overrides,
   };
 }
@@ -82,6 +83,29 @@ describe("whether a worktree is debris yet", () => {
 
   it("reports a worktree that is already gone rather than failing", () => {
     const result = worktreeDefects("/tmp/wt", "feat/x", io({ exists: () => false }));
+    expect(result.gone).toBe(true);
+    expect(result.defects).toEqual([]);
+  });
+
+  /**
+   * The defect this replaces. Removing a worktree leaves its untracked
+   * `.lancers-runtime` behind, so the directory still exists while git has
+   * stopped tracking it. `git status` run inside that shell walks up and
+   * answers for the primary checkout, which reported the Lead's own
+   * uncommitted work as this package's dirt; and `git worktree remove` then
+   * threw, killing the whole reclamation run on its first leftover.
+   */
+  it("treats a directory git no longer tracks as gone, not as a dirty worktree", () => {
+    const result = worktreeDefects(
+      "/tmp/wt",
+      "feat/x",
+      io({
+        exists: () => true,
+        isWorktree: () => false,
+        // What the primary checkout would have answered through the shell.
+        status: () => " M scripts/mission/cli.mjs",
+      }),
+    );
     expect(result.gone).toBe(true);
     expect(result.defects).toEqual([]);
   });
