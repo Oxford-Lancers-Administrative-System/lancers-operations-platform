@@ -268,7 +268,15 @@ describe("row 1 — an operator creates the Wednesday practice as a draft", () =
     const event = await createEventDraft(actorPersonId, draft());
 
     expect(event.invitationCount).toBe(0);
-    expect(event.audienceCount).toBe(0);
+
+    // The audience count is deliberately not asserted here any more. Since D47
+    // a new draft may legitimately arrive with an audience — its type's
+    // template supplies one — so "a fresh draft has nobody in it" is a fact
+    // about an unconfigured template rather than about drafting, and asserting
+    // it here made this test quietly depend on one. What invariant P1 is about
+    // is the *invitation*, which is structurally impossible below `approved`
+    // and is what the rest of this test proves. What audience a draft inherits
+    // is `event-templates.test.ts`'s subject.
 
     // Not an assumption: the database itself refuses the row. An audience
     // member is allowed against a draft — resolving one is what LAN-77 does
