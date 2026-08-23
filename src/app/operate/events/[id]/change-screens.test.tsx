@@ -337,6 +337,20 @@ describe("the amendment editor", () => {
     );
   });
 
+  it("is not opened at all by an operator without the approval capability", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator(["treasurer"]),
+    });
+
+    render(await AmendEventPage(amendProps()));
+
+    // The route refuses before it reads anything about the event, so the form
+    // and the amendment context are both absent rather than hidden.
+    expect(screen.queryByTestId("amend-form")).toBeNull();
+    expect(readAmendmentContext).not.toHaveBeenCalled();
+  });
+
   it("refuses to open on a cancelled event, as a sentence rather than a form", async () => {
     vi.mocked(readAmendmentContext).mockResolvedValue(
       context({ event: detail({ status: "cancelled" }) }),
@@ -725,6 +739,18 @@ describe("the cancellation screen", () => {
       ).not.toBeChecked(),
     );
     expect(screen.queryByTestId("cancel-silence-step")).toBeNull();
+  });
+
+  it("is not opened at all by an operator without the approval capability", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator(["treasurer"]),
+    });
+
+    render(await CancelEventPage(cancelProps()));
+
+    expect(screen.queryByTestId("cancel-form")).toBeNull();
+    expect(readAmendmentContext).not.toHaveBeenCalled();
   });
 
   it("refuses to open on an event that is already cancelled", async () => {
