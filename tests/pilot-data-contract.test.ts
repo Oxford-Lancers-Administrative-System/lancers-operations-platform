@@ -119,9 +119,15 @@ describe("the local-only guard still refuses everything it refused before", () =
   });
 
   it("is the guard the pilot scenario test connects through", () => {
-    const test = read("tests/pilot-scenario-lan-93.test.ts");
-    expect(test).toMatch(/from "\.\.\/scripts\/lib\/local-db\.mjs"/);
-    expect(test).toMatch(/openLocalClient/);
+    for (const issue of ["76", "93"]) {
+      const test = read(`tests/pilot-scenario-lan-${issue}.test.ts`);
+      expect(test).toMatch(/openLocalClient/);
+      expect(test).not.toMatch(/resolveLocalDatabaseUrl/);
+    }
+    const parity = read("tests/service-layer-guard-parity.test.ts");
+    expect(parity).toMatch(/from "\.\.\/scripts\/lib\/local-db\.mjs"/);
+    for (const host of ["db.abcdefghijklmnop.supabase.co", "pooler.supabase.com", "10.0.0.7"])
+      expect(parity).toContain(host);
     // `openLocalClient` is the fixture helper's wrapper around `connectLocal`,
     // which resolves its URL through the guard above.
     const fixture = read("tests/helpers/domain-fixture.ts");

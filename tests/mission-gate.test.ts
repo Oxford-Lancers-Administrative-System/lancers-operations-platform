@@ -170,21 +170,22 @@ describe("the guarded mission merge gate", () => {
   });
 
   it("accepts a mission-security receipt only with integrated coverage evidence", () => {
-    const missionSecurity: any = receipt({
+    const missionReview = {
+      integrated_head_sha: OTHER,
+      package_head_sha: HEAD,
+      result: "clear",
+      sensitive_paths: ["src/lib/auth/session.ts"],
+      report: "reviews/security-tier.json",
+    };
+    const missionSecurity = receipt({
       review_mode: "mission-security",
-      mission_review: {
-        integrated_head_sha: OTHER,
-        package_head_sha: HEAD,
-        result: "clear",
-        sensitive_paths: ["src/lib/auth/session.ts"],
-        report: "reviews/security-tier.json",
-      },
+      mission_review: missionReview,
     });
     expect(receiptDefects(missionSecurity)).toEqual([]);
     expect(
       receiptDefects({
         ...missionSecurity,
-        mission_review: { ...missionSecurity.mission_review, package_head_sha: OTHER },
+        mission_review: { ...missionReview, package_head_sha: OTHER },
       }).join("\n"),
     ).toMatch(/mission-security receipt/);
   });

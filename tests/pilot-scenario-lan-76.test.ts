@@ -35,7 +35,6 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { resolveLocalDatabaseUrl } from "../scripts/lib/local-db.mjs";
 import { expectRejected, one, openLocalClient, type Client } from "./helpers/domain-fixture";
 import { scopedPilotSnapshot } from "./helpers/pilot-snapshot";
 
@@ -303,32 +302,6 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   await client.query("rollback");
-});
-
-// ---------------------------------------------------------------------------
-// The guard the whole suite stands on
-// ---------------------------------------------------------------------------
-
-describe("the local-only guard this suite depends on", () => {
-  it("refuses a hosted target, so these scripts can never reach production from here", () => {
-    expect(() =>
-      resolveLocalDatabaseUrl(
-        "postgresql://postgres:pw@db.abcdefghijklmnop.supabase.co:5432/postgres",
-      ),
-    ).toThrow();
-    expect(() =>
-      resolveLocalDatabaseUrl(
-        "postgresql://postgres.abc:pw@aws-0-eu-west-2.pooler.supabase.com:6543/postgres",
-      ),
-    ).toThrow();
-    expect(() =>
-      resolveLocalDatabaseUrl("postgresql://postgres:pw@10.0.0.7:5432/postgres"),
-    ).toThrow();
-
-    expect(
-      resolveLocalDatabaseUrl("postgresql://postgres:postgres@127.0.0.1:54322/postgres"),
-    ).toContain("127.0.0.1");
-  });
 });
 
 // ---------------------------------------------------------------------------

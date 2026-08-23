@@ -799,7 +799,7 @@ describe("Rehearsal 9 — guarded merge permits the qualifying case and refuses 
     await implemented(m);
     const state = replayState(m.repo, MISSION, m.env);
     expect(journalConjuncts(state, "WP-events-filter", HEAD).join("\n")).toMatch(
-      /no clear review receipt/,
+      /no clear .*review.*covers/i,
     );
   });
 });

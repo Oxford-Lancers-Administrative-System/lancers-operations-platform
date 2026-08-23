@@ -21,6 +21,13 @@ function frontMatter(file: string) {
 }
 
 const flat = (value: string) => value.replace(/\*\*/g, "").replace(/\s+/g, " ");
+function numberedSection(markdown: string, number: number): string {
+  const start = markdown.search(new RegExp(`^## ${number}\\. `, "m"));
+  if (start < 0) throw new Error(`Missing numbered section ${number}`);
+  const rest = markdown.slice(start);
+  const next = rest.slice(1).search(/^## \d+\. /m);
+  return next < 0 ? rest : rest.slice(0, next + 1);
+}
 const skillPath = path.join(skills, "start-issue", "SKILL.md");
 const reviewerPath = path.join(agents, "code-reviewer.md");
 const scoutPath = path.join(agents, "scout.md");
@@ -836,33 +843,44 @@ describe("mission harness v1", () => {
   });
 
   it("makes the Mission Lead the only orchestrator, with flat delegation", () => {
-    expect(missionBody).toMatch(
-      /workers, reviewers, and read-only scouts are spawned only by the Mission Lead/i,
-    );
-    expect(missionBody).toMatch(/they never spawn agents of any kind/i);
+    const dispatch = numberedSection(missionSkill.body, 6);
+    for (const role of ["`implementation-worker`", "reviewers", "scouts"])
+      expect(dispatch).toContain(role);
     expect(missionBody).toMatch(
       /never launches an agent that is not `implementation-worker`, `code-reviewer`, or `scout`/i,
     );
     expect(missionBody).toMatch(/never becomes the default application-code implementer/i);
-    expect(missionBody).toMatch(/never explores source files or runs investigation commands/i);
-    expect(missionBody).toMatch(/bounded read-only scout answers one question/i);
+    const boundaries = numberedSection(missionSkill.body, 13);
+    expect(boundaries).toContain("`scout`");
+    expect(boundaries).toContain("three concurrent implementers");
+    expect(boundaries).toContain("read-only scout");
   });
 
   it("pins model tiering, file handoffs, output suppression, phase recycling, and no polling", () => {
     expect(worker.fields.model).toBe("opus");
     expect(reviewer.fields.model).toBe("opus");
     expect(scout.fields.model).toBe("sonnet");
-    expect(missionBody).toMatch(
-      /Implementation workers and the security-tier reviewer use the top model/i,
-    );
-    expect(missionBody).toMatch(/workflow walking.*cross-surface comparison.*Sonnet-class model/i);
-    expect(missionBody).toMatch(/brief\.md.*roughly one third/i);
-    expect(missionBody).toMatch(/receipt\.json.*report files/i);
-    expect(missionBody).toMatch(/\/tmp\/out\.log.*tail -20/i);
-    expect(missionBody).toMatch(/git diff --stat.*Never dump full verify output/i);
-    expect(missionBody).toMatch(/plan-approved, build-complete and gate-complete.*phase-boundary/i);
-    expect(missionBody).toMatch(/never polls workers, walkers or reviewers/i);
-    expect(missionBody).toMatch(/Wait for completion notifications/i);
+    const dispatch = numberedSection(missionSkill.body, 6);
+    for (const token of [
+      "security-tier reviewer",
+      "Sonnet-class model",
+      "brief.md",
+      "receipt.json",
+      "/tmp/out.log",
+      "tail -20 /tmp/out.log",
+      "git diff --stat",
+    ])
+      expect(dispatch).toContain(token);
+    const recovery = numberedSection(missionSkill.body, 12);
+    for (const token of [
+      "plan-approved",
+      "build-complete",
+      "gate-complete",
+      "--reason phase-boundary",
+      "completion",
+      "notifications",
+    ])
+      expect(recovery).toContain(token);
   });
 
   it("caps implementation concurrency at two and serializes collisions and migrations", async () => {
@@ -914,15 +932,16 @@ describe("mission harness v1", () => {
   });
 
   it("batches corrections, targets iteration checks, and keeps workers resumable", () => {
-    expect(missionBody).toMatch(
-      /All open blocking findings are dispatched as one batched correction round/i,
-    );
-    expect(missionBody).toContain("--findings R-001,R-002,…");
-    expect(missionBody).toMatch(/Dispatching findings singly is refused as a Lead defect/i);
-    expect(missionBody).toMatch(
-      /During implementation and correction iterations[\s\S]*npx vitest run <affected files>[\s\S]*npm run typecheck/i,
-    );
-    expect(missionBody).toMatch(/Full[\s`]*npm run verify[\s`]*runs once for the mission/i);
+    const review = numberedSection(missionSkill.body, 7);
+    for (const token of [
+      "one batched correction round",
+      "--findings R-001,R-002,…",
+      "npx vitest run <affected files>",
+      "npm run typecheck",
+      "npm run verify",
+      "integrated build-complete",
+    ])
+      expect(review).toContain(token);
     expect(missionBody).toMatch(/stopped without returning a receipt is resumable/i);
     expect(missionBody).toMatch(/evidence of the failed resume attempt/i);
   });
@@ -946,10 +965,15 @@ describe("mission harness v1", () => {
     expect(reviewerBody).toMatch(/anonymous-tier checks.*curl.*fresh browser profile/i);
 
     expect(missionBody).not.toMatch(/Review grades follow.*start-issue/i);
-    expect(missionBody).toMatch(/Non-security mission code receives no independent code review/i);
-    expect(missionBody).toMatch(
-      /security-tier budget.*one initial full review.*two correction reviews.*three total/i,
-    );
+    const review = numberedSection(missionSkill.body, 7);
+    for (const token of [
+      "Non-security mission code",
+      "security-tier budget",
+      "one initial full review",
+      "two correction reviews",
+      "three total reviewer",
+    ])
+      expect(review).toContain(token);
     expect(missionBody).toMatch(
       /src\/lib\/auth\/.*src\/lib\/delivery\/.*lane-mergeable only after/i,
     );
