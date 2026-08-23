@@ -1,19 +1,33 @@
-import { TERM_LABELS, labelFor, shortMonthOf } from "../presentation";
+import { labelFor, shortMonthOf, TERM_LABELS } from "@/lib/services/event-vocabulary";
 import type { TermWindow } from "@/lib/services/event-input";
 
 /**
- * How the two calendars read on screen. LAN-114.
+ * How the calendars read on screen — both arrangements, and both tiers.
+ * LAN-114, moved and widened by LAN-153.
  *
- * Presentation only, and pure, for the same reason `../presentation.ts` is: the
- * month grid, the term card and the lists beside them all name the same weeks
- * and the same statuses, and a heading that disagrees with a cell is a defect
- * an operator finds before a test does.
+ * Presentation only, and pure: the month grid, the year column and the lists
+ * beside them all name the same weeks and the same dates, and a heading that
+ * disagrees with a cell is a defect a reader finds before a test does.
  *
- * Dates are formatted at UTC, exactly as `../presentation.ts` explains:
- * `scheduled_on` is a bare `date`, so rendering it in the viewer's zone would
- * move a Wednesday practice to Tuesday for anybody east of Greenwich. Which day
- * is *today* is a different question, and it is answered once in
- * `@/lib/club-time` rather than here.
+ * ## Why this sits in `/calendar` rather than under `/operate`
+ *
+ * Because the public calendar and the operator's are the same two arrangements
+ * of the same query (`REQ-three-arrangements`), and they have to be the same
+ * code or they will eventually disagree about which Sunday a week starts on.
+ * The public surface is the widest and the most constrained, so the shared
+ * components live with it and `/operate/events/calendar` imports them — the
+ * `W1` specification's own framing: "the anonymous reader defines them".
+ *
+ * Nothing here is tiered. Every component in this directory takes what it should
+ * say as props — the destination of a tile, the status word it prints — so that
+ * a tier decision is made by a page that knows the tier, never by a component
+ * that has to guess. `@/lib/auth/event-tier` is where those decisions live.
+ *
+ * Dates are formatted at UTC, exactly as `@/lib/services/event-vocabulary`
+ * explains: `scheduled_on` is a bare `date`, so rendering it in the viewer's
+ * zone would move a Wednesday practice to Tuesday for anybody east of
+ * Greenwich. Which day is *today* is a different question, and it is answered
+ * once in `@/lib/club-time` rather than here.
  */
 
 function part(day: string, options: Intl.DateTimeFormatOptions): string {
@@ -57,49 +71,6 @@ export function formatWeekRange(startsOn: string, endsOn: string): string {
     return `${startDay} ${startMonth} – ${endDay} ${endMonth} ${endYear}`;
   }
   return `${startDay} – ${endDay} ${startMonth} ${startYear}`;
-}
-
-/**
- * "−1st week", "0th week", "1st week" — the row labels the sources use.
- *
- * A real minus sign for week −1, matching `../presentation.ts`'s
- * `describeTermCoordinate`. The ordinal suffixes are spelled out rather than
- * computed from the last digit, because the range is −1 to 8 and a rule that
- * has to be right for eleven values is better written as eleven values.
- */
-const WEEK_ORDINALS: Readonly<Record<string, string>> = Object.freeze({
-  "-1": "−1st",
-  "0": "0th",
-  "1": "1st",
-  "2": "2nd",
-  "3": "3rd",
-  "4": "4th",
-  "5": "5th",
-  "6": "6th",
-  "7": "7th",
-  "8": "8th",
-});
-
-export function formatOxfordWeek(week: number): string {
-  return `${WEEK_ORDINALS[`${week}`] ?? `${week}`} week`;
-}
-
-/**
- * A term-card row's label — an Oxford week, or the fact that it is not one.
- *
- * Context rows say "Before term" and "After term" rather than inventing "−2nd
- * week". The club has no name for the week before −1st week, `week_number` is
- * constrained to −1 through 8, and a made-up ordinal would read as an Oxford
- * week that the rest of the system would refuse to store. The row's date range
- * sits underneath either way, so a context row is never ambiguous about which
- * seven days it covers.
- */
-export function formatWeekLabel(week: {
-  week: number | null;
-  outside: "before" | "after" | null;
-}): string {
-  if (week.week !== null) return formatOxfordWeek(week.week);
-  return week.outside === "before" ? "Before term" : "After term";
 }
 
 /** "Michaelmas 2026-27" — a term named as the club names it. */
@@ -189,48 +160,37 @@ export function typeColour(eventType: string): TypeColour {
   return EVENT_TYPE_COLOURS[eventType] ?? UNKNOWN_TYPE_COLOUR;
 }
 
-/** The heading above each calendar, saying what it is showing and from where. */
-export const CALENDAR_SOURCE_NOTE =
-  "The list, the Gregorian calendar and the Oxford term card show the same events on the " +
-  "same dates. Oxford term, week and day are derived from each event’s actual date; there " +
-  "is no separate term or week to edit.";
-
-/** Read access is not management, said once rather than implied by absence. */
-export const CALENDAR_READ_ONLY_NOTE =
-  "Every linked, active operator can read this calendar, including saved drafts. Creating " +
-  "and changing events stays with the President, Vice President, Secretary and General " +
-  "Manager.";
+// ---------------------------------------------------------------------------
+// Empty and exception states, which must not read alike
+// ---------------------------------------------------------------------------
 
 /**
- * One line under the card, saying where the rest of the season is.
+ * `W1`'s exception table, in the club's words.
  *
- * The card itself now carries the weeks either side of term, so the only events
- * it does not show are the ones another term's card does. Naming that in a
- * sentence is enough — the earlier version listed or counted every other term
- * and offered links to their cards, which Brian's review found both too
- * prominent and redundant with the term selector directly above.
+ * Six situations that all render as "nothing here" if nobody separates them, and
+ * they are separated because the recovery differs: nothing this month is not
+ * nothing all season, which is not nothing matching a filter, which is not a
+ * season nobody has configured terms for. `slice-ux.md` § 9 requires the first
+ * three to be distinguishable; the fourth is a configuration fault rather than
+ * an empty calendar, so it is a warning and not an information note.
+ *
+ * None of these explains a rule or a policy. They say what is on the screen and,
+ * where there is one, the smallest thing the reader can do about it.
  */
-export const OTHER_TERMS_NOTE =
-  "Events in the season’s other Oxford terms appear on those terms’ cards — use the term " +
-  "selector above. Every event in the season is also in the list and in the Gregorian calendar.";
+export const MONTH_EMPTY = "No event in this season falls in this month.";
+
+export const NO_TERMS_CONFIGURED =
+  "No Oxford term is configured for this year, so there is nothing to lay the year out on. " +
+  "The list and Calendar View are unaffected.";
 
 export const UNDATED_HEADLINE = "No date recorded yet";
 
 export const UNDATED_DETAIL =
-  "An event with no date cannot be placed on either calendar. It stays here, and in the list, " +
+  "An event with no date cannot be placed on a calendar. It stays here, and in the list, " +
   "until a date is recorded.";
 
-export const OUTSIDE_ANY_TERM_LABEL = "Too far from any term to show";
+export const OUTSIDE_THE_YEAR_HEADLINE = "Outside this academic year";
 
-export const OUTSIDE_ANY_TERM_DETAIL =
-  "These events are more than six weeks from the nearest Oxford term, so no term card reaches " +
-  "them. They are on their real dates in the Gregorian calendar and in the list.";
-
-/** Empty states — distinguished, because the recovery differs. */
-export const MONTH_EMPTY = "No event in this season falls in this month.";
-
-export const TERM_CARD_EMPTY = "No event in this season falls in this term.";
-
-export const NO_TERMS_CONFIGURED =
-  "No Oxford term is configured, so there is no term card to show. The Gregorian calendar " +
-  "and the list are unaffected.";
+export const OUTSIDE_THE_YEAR_DETAIL =
+  "These events fall before the year this calendar covers. They are on their real dates in " +
+  "the list.";

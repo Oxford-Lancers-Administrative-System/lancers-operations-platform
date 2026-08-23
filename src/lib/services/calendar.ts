@@ -1,25 +1,23 @@
-import { deriveTermCoordinate, type TermWindow } from "./event-input";
+import type { TermWindow } from "./event-input";
 
 /**
- * The two calendar projections — Gregorian month, and the Oxford term card.
- * LAN-114.
+ * The Gregorian month projection, and the week arithmetic the Oxford one stands
+ * on. LAN-114, narrowed by LAN-153.
+ *
+ * The continuous academic year is `./oxford-year`. What is left here is the
+ * month grid — unchanged, by Brian's instruction of 20 August 2026 ("The
+ * Gregorian calendar is fine as it is") — and `oxfordWeekRange`/`termWeeks`,
+ * which both projections and `deriveTermCoordinate` share.
  *
  * ## Projections, not a second scheduling model
  *
  * The event's `scheduled_on` is the only operator-entered scheduling fact, and
  * this module never contradicts it, stores anything, or offers a way to edit a
  * term or a week. Everything below is a *rearrangement* of a list of events:
- * feed it the same events and it will produce a month grid and a term card that
- * name the same records on the same days. That is the whole of the issue's
- * "same event records and actual dates; they differ only in how time is
- * organized and displayed".
- *
- * Placement into an Oxford cell comes from `deriveTermCoordinate` — the
- * function LAN-76 already uses to stamp `events.term_id` and
- * `events.week_number` when a draft is saved. Reusing it rather than
- * re-deriving is what guarantees the card and the stored coordinate agree; a
- * second implementation of the same rule is a defect waiting for a term whose
- * dates are unusual.
+ * feed it the same events and it will produce a month grid and a year column
+ * that name the same records on the same days. That is the whole of
+ * `REQ-three-arrangements` — three arrangements of one query, which "cannot
+ * disagree about which events exist or when they are".
  *
  * ## Pure, and deliberately not `server-only`
  *
@@ -52,13 +50,28 @@ export interface CalendarEvent {
   id: string;
   name: string;
   eventType: string;
-  status: string;
   /** `YYYY-MM-DD`, or `null` for an event whose date is not decided yet. */
   scheduledOn: string | null;
   startsAt: string | null;
   endsAt: string | null;
   venue: string | null;
 }
+
+/*
+ * `status` used to be here and is deliberately gone — LAN-153.
+ *
+ * Nothing in this module or in `./oxford-year` ever read it: placing an event on
+ * a date does not depend on what state the event is in, and D5 means no state
+ * hides an event from a calendar anyway. It was only ever passed through to the
+ * tile, which is now handed the word it should print (`CalendarEntry`'s
+ * `statusWord`) rather than deriving one.
+ *
+ * That is what lets these projections serve both tiers from one implementation.
+ * The public tier has no status to give — `REQ-three-tiers` puts the status
+ * column on the operator's side of the line — so a `CalendarEvent` that required
+ * one would have forced the public list to invent a value, and "approved" for a
+ * draft is exactly the kind of quiet lie a screen reader would then read out.
+ */
 
 // ---------------------------------------------------------------------------
 // Bare-date arithmetic
@@ -331,60 +344,19 @@ export function defaultMonth(events: readonly CalendarEvent[], today: string): s
 }
 
 // ---------------------------------------------------------------------------
-// The Oxford term card
+// Oxford week arithmetic
+//
+// The Oxford *projection* is `./oxford-year`, which arranges a whole academic
+// year as one continuous column. What stays here is the arithmetic that turns
+// a term row into Gregorian weeks, because the month grid, that column and
+// `deriveTermCoordinate` all stand on it and none of them should own it.
+//
+// LAN-114 also built a per-term *card* here — `buildTermCard`, `nearestTerm`,
+// `termOwning`, a six-week reach and a leftover panel. LAN-153 retired all of
+// it along with the surface it drew (D85). Those functions existed to decide
+// which term should borrow a vacation week; a continuous year has no vacation
+// weeks to lend, so the questions they answered no longer arise.
 // ---------------------------------------------------------------------------
-
-export interface TermCardDay {
-  /** `YYYY-MM-DD`. */
-  day: string;
-  /** 0 for Sunday through 6 for Saturday — the column this cell is in. */
-  weekday: number;
-  isToday: boolean;
-  events: CalendarEvent[];
-}
-
-export interface TermCardWeek {
-  /**
-   * The Oxford week, or `null` for a context row outside the term.
-   *
-   * −1 and 0 are real weeks, not placeholders, which is why "no week" has to be
-   * `null` rather than a number outside the range. A context row genuinely has
-   * no Oxford week: the club does not call the week before Michaelmas "−2nd",
-   * and inventing a number the schema refuses would be a worse answer than
-   * saying the row sits outside term and giving its dates.
-   */
-  week: number | null;
-  /** `"before"` or `"after"` on a context row; `null` on a real Oxford week. */
-  outside: "before" | "after" | null;
-  /** The exact Gregorian Sunday this week starts on. */
-  startsOn: string;
-  /** The exact Gregorian Saturday it ends on. */
-  endsOn: string;
-  days: TermCardDay[];
-}
-
-/** Events no term card can hold. */
-export interface TermCardElsewhere {
-  /**
-   * Events with no usable date. They have no week, no term and no cell, and
-   * they are the only thing left over once the card extends to reach the rest.
-   */
-  undated: CalendarEvent[];
-  /**
-   * Dated events too far from any term for a card to reach — beyond
-   * `MAX_CONTEXT_WEEKS` from the nearest one. Normally empty.
-   */
-  farFromAnyTerm: CalendarEvent[];
-  total: number;
-}
-
-export interface TermCard {
-  term: TermWindow;
-  weeks: TermCardWeek[];
-  elsewhere: TermCardElsewhere;
-  /** Events placed on this card, including on its context rows. */
-  placedCount: number;
-}
 
 /**
  * The exact Gregorian week a term's Oxford week occupies, or `null` if the term
@@ -419,262 +391,6 @@ export function termWeeks(term: TermWindow): number[] {
 }
 
 /**
- * How far past its own weeks a card will reach for an event.
- *
- * The longest gap between two consecutive Oxford terms in a real club year is
- * the Christmas vacation — five weeks between Michaelmas ending on 5 December
- * 2026 and Hilary starting on 10 January 2027. Six weeks therefore reaches any
- * event in any real vacation from the term on either side of it, while still
- * bounding a card: an event a year adrift does not drag fifty empty rows onto
- * the screen behind it.
- */
-export const MAX_CONTEXT_WEEKS = 6;
-
-/**
- * The term whose card should carry a date that falls in no term at all.
- *
- * By distance to the nearest end of each term's window, so a mid-December
- * social belongs to Michaelmas and a late-January one to Hilary; a tie goes to
- * the earlier term, which reads as "after Michaelmas" rather than "long before
- * Hilary". `null` when the date is further than `MAX_CONTEXT_WEEKS` from every
- * term, which is what the screen reports as unreachable.
- */
-export function nearestTerm(day: string, terms: readonly TermWindow[]): TermWindow | null {
-  let best: { term: TermWindow; distance: number } | null = null;
-
-  for (const term of terms) {
-    const before = daysBetween(day, term.startsOn);
-    const after = daysBetween(term.endsOn, day);
-    if (before === null || after === null) continue;
-
-    // Inside the window is distance zero; otherwise however many days outside.
-    const distance = Math.max(0, before, after);
-    if (distance > MAX_CONTEXT_WEEKS * 7) continue;
-
-    if (
-      !best ||
-      distance < best.distance ||
-      (distance === best.distance && term.startsOn < best.term.startsOn)
-    ) {
-      best = { term, distance };
-    }
-  }
-
-  return best?.term ?? null;
-}
-
-/**
- * The one term whose card a day belongs on.
- *
- * The term whose Oxford weeks actually contain the day, and otherwise the
- * nearest one. `null` for a day no card can reach.
- *
- * This is what makes "every event is on exactly one card" true rather than
- * merely intended. Independent review found the first implementation placing an
- * event on two cards: growth was decided by ownership, but *placement* was not,
- * so a context row showed everything that fell in its seven days. Two events in
- * the Christmas vacation — one nearer Michaelmas, one nearer Hilary — grew both
- * cards into the same week, and each card then showed both. Asking this
- * question at the cell rather than only at the edge is the fix.
- */
-export function termOwning(day: string, terms: readonly TermWindow[]): TermWindow | null {
-  const coordinate = deriveTermCoordinate(day, terms);
-  if (coordinate.termId !== null) {
-    return terms.find((candidate) => candidate.id === coordinate.termId) ?? null;
-  }
-  return nearestTerm(day, terms);
-}
-
-/** The whole weeks either side of its own that a term's card has to emit. */
-function reachOf(
-  term: TermWindow,
-  days: Iterable<string>,
-  ownerOf: (day: string) => TermWindow | null,
-): { before: number; after: number; from: string; to: string } | null {
-  const firstRange = oxfordWeekRange(term, term.firstWeek);
-  const lastRange = oxfordWeekRange(term, term.lastWeek);
-  if (!firstRange || !lastRange) return null;
-
-  let before = 0;
-  let after = 0;
-
-  for (const day of days) {
-    if (ownerOf(day)?.id !== term.id) continue;
-
-    const toStart = daysBetween(day, firstRange.startsOn);
-    const fromEnd = daysBetween(lastRange.endsOn, day);
-    if (toStart !== null && toStart > 0) before = Math.max(before, Math.ceil(toStart / 7));
-    if (fromEnd !== null && fromEnd > 0) after = Math.max(after, Math.ceil(fromEnd / 7));
-  }
-
-  before = Math.min(before, MAX_CONTEXT_WEEKS);
-  after = Math.min(after, MAX_CONTEXT_WEEKS);
-
-  return {
-    before,
-    after,
-    from: (addDays(firstRange.startsOn, -before * 7) ?? firstRange.startsOn) as string,
-    to: (addDays(lastRange.endsOn, after * 7) ?? lastRange.endsOn) as string,
-  };
-}
-
-/**
- * One term card: the term's Oxford weeks as rows, Sunday–Saturday as columns,
- * and however many dated context rows either side it takes to reach the events
- * around the term.
- *
- * ## Why the card reaches past the term
- *
- * The first version pushed everything outside the configured weeks into a list
- * underneath — other terms, vacation events, undated events, all together.
- * Brian's review on 14 August 2026 was that this is the wrong shape: an event a
- * few days either side of term should be *on the card*, in its real week, and
- * the panel underneath should be small and only for what genuinely has nowhere
- * to go. The links out to other terms' cards went with it; the term selector is
- * how you reach another term.
- *
- * So a card grows. Every dated event in the season attaches to its nearest
- * term (`nearestTerm`), and the card emits whole Sunday–Saturday rows before
- * its first week and after its last until it covers the ones attached to it.
- * Those rows carry `week: null` and an `outside` marker: the club has no name
- * for the week before −1st week, and inventing "−2nd" would assert an Oxford
- * week that does not exist and that the schema would refuse.
- *
- * Rows are emitted only as far as there is something to show. A term with no
- * events around it renders exactly its own weeks, as before.
- *
- * ## Placement
- *
- * Every cell asks `termOwning` whether the day is this term's, and shows the
- * day's events only if it is. That function starts from `deriveTermCoordinate`
- * over the full term list — never from the event's stored `term_id`. Both agree
- * today, because both are that same function; but the issue makes the actual
- * date authoritative and the coordinate derived, and reading the derived column
- * back would quietly make a stored value the source of truth for its own
- * projection.
- */
-export function buildTermCard(
-  term: TermWindow,
-  terms: readonly TermWindow[],
-  events: readonly CalendarEvent[],
-  today: string | null = null,
-): TermCard {
-  const { byDay, undated } = groupByDay(events);
-
-  const firstRange = oxfordWeekRange(term, term.firstWeek);
-  const lastRange = oxfordWeekRange(term, term.lastWeek);
-  if (!firstRange || !lastRange) {
-    return {
-      term,
-      weeks: [],
-      elsewhere: { undated, farFromAnyTerm: [], total: undated.length },
-      placedCount: 0,
-    };
-  }
-
-  // Both answers are asked once per distinct day and once per term, rather
-  // than recomputed at every cell and every accounting step. Independent review
-  // measured the unmemoised version at 944ms for a 400-day season — the season
-  // read has no `LIMIT`, so that grows with the club year rather than staying
-  // small. Caching makes the same work 15ms and changes no result.
-  const ownerCache = new Map<string, TermWindow | null>();
-  const ownerOf = (day: string): TermWindow | null => {
-    const cached = ownerCache.get(day);
-    if (cached !== undefined) return cached;
-    const owner = termOwning(day, terms);
-    ownerCache.set(day, owner);
-    return owner;
-  };
-
-  const reachCache = new Map<string, ReturnType<typeof reachOf>>();
-  const reachFor = (candidate: TermWindow): ReturnType<typeof reachOf> => {
-    const cached = reachCache.get(candidate.id);
-    if (cached !== undefined) return cached;
-    const computed = reachOf(candidate, byDay.keys(), ownerOf);
-    reachCache.set(candidate.id, computed);
-    return computed;
-  };
-
-  const reach = reachFor(term);
-  if (reach === null) {
-    return {
-      term,
-      weeks: [],
-      elsewhere: { undated, farFromAnyTerm: [], total: undated.length },
-      placedCount: 0,
-    };
-  }
-
-  const weeks: TermCardWeek[] = [];
-  const placed = new Set<string>();
-
-  const emit = (startsOn: string, week: number | null, outside: "before" | "after" | null) => {
-    const days: TermCardDay[] = [];
-    for (let column = 0; column < 7; column += 1) {
-      const day = addDays(startsOn, column) as string;
-
-      // Ownership is asked here, at the cell, and not only when deciding how
-      // far to grow. A context row covers seven days that may belong to the
-      // term on the other side of the vacation, and showing them here would
-      // put one event on two cards.
-      const ours = ownerOf(day)?.id === term.id;
-      const dayEvents = ours ? (byDay.get(day) ?? []) : [];
-      for (const event of dayEvents) placed.add(event.id);
-
-      days.push({
-        day,
-        weekday: column,
-        isToday: today !== null && day === today,
-        events: dayEvents,
-      });
-    }
-    weeks.push({ week, outside, startsOn, endsOn: addDays(startsOn, 6) as string, days });
-  };
-
-  for (let offset = reach.before; offset >= 1; offset -= 1) {
-    const startsOn = addDays(firstRange.startsOn, -offset * 7);
-    if (startsOn !== null) emit(startsOn, null, "before");
-  }
-
-  for (const week of termWeeks(term)) {
-    const range = oxfordWeekRange(term, week);
-    if (range !== null) emit(range.startsOn, week, null);
-  }
-
-  for (let offset = 1; offset <= reach.after; offset += 1) {
-    const startsOn = addDays(lastRange.endsOn, (offset - 1) * 7 + 1);
-    if (startsOn !== null) emit(startsOn, null, "after");
-  }
-
-  // What no card in the season can hold, computed from the terms rather than
-  // inferred from this one. A day is unreachable when it has no owning term at
-  // all, or when its owner's card — capped at `MAX_CONTEXT_WEEKS` — does not
-  // stretch to it. Deriving it this way rather than assuming the cap is the
-  // only cause is what keeps a term whose `ends_on` runs past its last week
-  // from dropping an event silently.
-  const farFromAnyTerm: CalendarEvent[] = [];
-  for (const [day, group] of byDay) {
-    const owner = ownerOf(day);
-    const ownerReach = owner === null ? null : reachFor(owner);
-    const covered = ownerReach !== null && ownerReach.from <= day && day <= ownerReach.to;
-    if (!covered) farFromAnyTerm.push(...group);
-  }
-
-  farFromAnyTerm.sort(byDate);
-
-  return {
-    term,
-    weeks,
-    elsewhere: {
-      undated,
-      farFromAnyTerm,
-      total: undated.length + farFromAnyTerm.length,
-    },
-    placedCount: placed.size,
-  };
-}
-
-/**
  * Every event a month grid actually renders — the cells, and the undated list
  * beneath it.
  *
@@ -685,89 +401,4 @@ export function buildTermCard(
  */
 export function monthGridEvents(grid: MonthGrid): CalendarEvent[] {
   return [...grid.weeks.flat().flatMap((day) => day.events), ...grid.undated];
-}
-
-/** The same, for a term card: its cells, plus everything stated beneath it. */
-export function termCardEvents(card: TermCard): CalendarEvent[] {
-  return [
-    ...card.weeks.flatMap((week) => week.days.flatMap((day) => day.events)),
-    ...card.elsewhere.farFromAnyTerm,
-    ...card.elsewhere.undated,
-  ];
-}
-
-/** Date first, then the within-day order. For the lists beside the card. */
-function byDate(left: CalendarEvent, right: CalendarEvent): number {
-  const leftOn = left.scheduledOn ?? "";
-  const rightOn = right.scheduledOn ?? "";
-  if (leftOn !== rightOn) return leftOn < rightOn ? -1 : 1;
-  return byStartTime(left, right);
-}
-
-// ---------------------------------------------------------------------------
-// Choosing a term
-// ---------------------------------------------------------------------------
-
-export interface AcademicYearTerms {
-  academicYear: string;
-  /** Michaelmas, then Hilary, then Trinity — by their real dates, not by name. */
-  terms: TermWindow[];
-}
-
-/**
- * The configured terms, grouped by academic year, newest year first and each
- * year's terms in the order the club lives them.
- *
- * Ordered by `starts_on` rather than by the `term_name` enum on purpose: the
- * order Michaelmas, Hilary, Trinity is a fact about when those terms happen,
- * and reading it off the dates keeps the selector correct for a year whose
- * terms were configured in any order.
- *
- * The academic-year label comes from the `terms` row, never from a heading in a
- * spreadsheet. The supplied HT27 and TT27 cards are headed "HT2026" and
- * "TT2026" while their dates are January and April **2027**; the issue calls
- * that stale source labelling, and the only defence against it is that no code
- * path here reads a year from anything but the configured term.
- */
-export function groupTermsByAcademicYear(terms: readonly TermWindow[]): AcademicYearTerms[] {
-  const years = new Map<string, TermWindow[]>();
-
-  for (const term of terms) {
-    const bucket = years.get(term.academicYear);
-    if (bucket) bucket.push(term);
-    else years.set(term.academicYear, [term]);
-  }
-
-  return [...years.entries()]
-    .map(([academicYear, yearTerms]) => ({
-      academicYear,
-      terms: [...yearTerms].sort((left, right) => (left.startsOn < right.startsOn ? -1 : 1)),
-    }))
-    .sort((left, right) => (left.academicYear < right.academicYear ? 1 : -1));
-}
-
-/**
- * The term the Oxford view opens on.
- *
- * The term containing today, when there is one. Otherwise the next term to
- * start — in August, which is where the club year turns, that is Michaelmas
- * rather than the Trinity that has just finished. Only if there is no future
- * term does it fall back to the most recent one.
- */
-export function defaultTerm(terms: readonly TermWindow[], today: string): TermWindow | null {
-  if (terms.length === 0) return null;
-
-  const byStart = [...terms].sort((left, right) => (left.startsOn < right.startsOn ? -1 : 1));
-
-  const current = byStart.find((term) => term.startsOn <= today && today <= term.endsOn);
-  if (current) return current;
-
-  const next = byStart.find((term) => term.startsOn > today);
-  return next ?? byStart[byStart.length - 1];
-}
-
-/** The configured term with this id, or `null`. */
-export function findTerm(terms: readonly TermWindow[], termId: string | null): TermWindow | null {
-  if (!termId) return null;
-  return terms.find((term) => term.id === termId) ?? null;
 }

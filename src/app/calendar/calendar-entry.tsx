@@ -1,7 +1,7 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import type { CalendarEvent } from "@/lib/services/calendar";
-import { labelFor, STATUS_LABELS, TYPE_LABELS } from "../presentation";
+import { labelFor, TYPE_LABELS } from "@/lib/services/event-vocabulary";
 import { formatCellDate, typeColour } from "./presentation";
 
 /**
@@ -18,11 +18,10 @@ import { formatCellDate, typeColour } from "./presentation";
  * distinguished by hue. The type is also printed in words, so a reader who
  * cannot separate two hues loses nothing.
  *
- * **Status has the words, when it has anything.** "If an event is in draft, I
- * think it's important. If it happened in the past, that's fine, we don't need
- * to see that." A card of sixty occurred practices repeating "Occurred" says
- * nothing. So `approved` and `occurred` — the two states that mean *this is
- * proceeding normally* — are silent, and the rest say so.
+ * **Status has the words, when it has anything** — and *which* words is the
+ * caller's decision since LAN-153, because a status is a tiered fact. The two
+ * predicates below are still here, and `./tile-status.ts` is where each tier
+ * turns them into the word this component prints.
  *
  * The states that mean the event **did not or will not happen** get the one
  * non-colour treatment on the tile: the name is struck through. That reads at a
@@ -35,10 +34,10 @@ import { formatCellDate, typeColour } from "./presentation";
  *
  * ## A link, to the one detail record
  *
- * `/operate/events/<id>` — the same destination the list row and the term card
- * use, so the issue's "same identity, actual date/time, status, and detail
- * destination in all three presentations" is true by construction rather than
- * by three routes that happen to agree.
+ * The destination arrives as `href`, and each tier passes the same one its list
+ * rows use — `/operate/events/<id>` or `/calendar/<id>`. That is what makes
+ * `REQ-three-arrangements`'s "every tile and row leads to the same event page"
+ * true by construction rather than by three routes that happen to agree.
  */
 
 /**
@@ -69,39 +68,61 @@ export function isStruckStatus(status: string): boolean {
 
 export default function CalendarEntry({
   event,
+  href,
+  statusWord = null,
+  announcedStatus,
+  struck = false,
   showDate = false,
 }: {
   event: CalendarEvent;
-  /** True in the lists beside a card, where the cell no longer supplies the date. */
+  /**
+   * Where the tile goes. Supplied by the caller because the two tiers have two
+   * event pages — `/operate/events/<id>` and `/calendar/<id>` — and a tile that
+   * chose for itself would send a public reader to a route they cannot open.
+   */
+  href: string;
+  /**
+   * The word to print, or `null` to say nothing.
+   *
+   * A prop rather than a lookup on the event, because a status is a tiered fact
+   * (`REQ-three-tiers`) and this component serves both tiers. `./tile-status.ts`
+   * is where each tier decides: the operator tier prints everything but
+   * "Approved", and the public tier prints "Cancelled" and nothing else, because
+   * a public reader learns that an event is off (D57) and not that it is a draft.
+   */
+  statusWord?: string | null;
+  /**
+   * The word the accessible name carries, including the quiet one. Defaults to
+   * `statusWord`, so a caller that has only one word does not have to say it
+   * twice.
+   */
+  announcedStatus?: string | null;
+  /** True for an event that did not, or will not, take place. */
+  struck?: boolean;
+  /** True in the lists beside a grid, where the cell no longer supplies the date. */
   showDate?: boolean;
 }) {
-  const status = labelFor(STATUS_LABELS, event.status);
+  const printed = statusWord ?? "";
+  const announced = (announcedStatus === undefined ? statusWord : announcedStatus) ?? "";
   const type = labelFor(TYPE_LABELS, event.eventType);
   const when = event.scheduledOn ? formatCellDate(event.scheduledOn) : "No date yet";
   const time = event.startsAt ?? "";
   const colour = typeColour(event.eventType);
-  const quiet = isQuietStatus(event.status);
-  const struck = isStruckStatus(event.status);
 
   // The accessible name states the status whether or not the tile shows it.
-  const description = [event.name, when, time, status, type, event.venue ?? ""]
+  const description = [event.name, when, time, announced, type, event.venue ?? ""]
     .filter((piece) => piece !== "")
     .join(", ");
 
   // Type is always here, so the colour is never the only thing carrying it.
-  const secondLine = [
-    quiet ? "" : status,
-    showDate && event.scheduledOn ? when : "",
-    type,
-    event.venue ?? "",
-  ]
+  const secondLine = [printed, showDate && event.scheduledOn ? when : "", type, event.venue ?? ""]
     .filter((piece) => piece !== "")
     .join(" · ");
 
   return (
     <Box
       component="a"
-      href={`/operate/events/${event.id}`}
+      href={href}
       aria-label={description}
       data-testid="calendar-entry"
       data-event-id={event.id}
