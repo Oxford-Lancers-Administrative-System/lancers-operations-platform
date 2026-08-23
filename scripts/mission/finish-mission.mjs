@@ -26,6 +26,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { appendEvent, leadLeaseAvailable, replayState } from "./lib/state.mjs";
+import { mergeProof, worktreeDefects } from "./lib/merge-proof.mjs";
 import { coordinatorStatus, detachMissionLease } from "../lib/local-supabase-coordinator.mjs";
 
 const repoPath = process.cwd();
