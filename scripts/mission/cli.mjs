@@ -489,6 +489,25 @@ async function main() {
       break;
     }
 
+    case "annotate": {
+      if (!missionId || flags.event === undefined || !flags.disposition || !flags.reason) {
+        fail(
+          "Usage: mission annotate <mission-id> --event <zero-based-index> --disposition disputed|corrected --reason <why> [--correction <truth>]",
+        );
+      }
+      await append(missionId, {
+        type: "journal-annotation",
+        target_event: Number(flags.event),
+        disposition: flags.disposition,
+        reason: flags.reason,
+        ...(flags.correction ? { correction: flags.correction } : {}),
+      });
+      console.log(
+        `Journal event ${flags.event} annotated ${flags.disposition}; the original entry remains append-only.`,
+      );
+      break;
+    }
+
     case "rules": {
       console.log(JSON.stringify(readRules(repoPath), null, 2));
       break;
@@ -662,7 +681,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
       );
   }
 }

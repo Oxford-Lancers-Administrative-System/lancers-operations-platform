@@ -269,6 +269,15 @@ one cross-surface pass comparing the repeated facts, states, dates, permissions
 and copy across the surfaces they add up to; a mission cannot close as
 delivered without it.
 
+Walker and visual evidence may carry forward across a new head only when the
+mission control plane classifies every link in `previous_head..new_head` as
+**non-rendered** using the same visual-surface rules as the guarded merge gate.
+It records each link as `carried-forward-from <sha>` with the classifier verdict
+and complete file list. The chain must connect the walked and approved SHA to
+the current head; any rendered or unclassifiable link voids the walker and
+approval as before. The machine decides this. The Lead never asserts
+carry-forward by judgment.
+
 **Every substantive fix comes back bound to a test.** A correction's receipt
 carries, for each finding it was dispatched to fix, the named regression test,
 the command, the failing assertion observed after the defect was reintroduced,
@@ -291,6 +300,11 @@ approval with `visual-approve` — the merge gate requires it for any package
 that is not genuinely nonvisual, and the merge workflow independently refuses
 a nonvisual claim whose diff touches a visual surface. Never describe visual
 work as mergeable before that approval exists.
+
+When a non-rendered carry-forward chain exists, publish it in the receipt's
+`visual_evidence` block (`approved_sha` plus `carry_forward_chain`). The merge
+gate validates every link and its file list and refuses a chain that is broken,
+rendered, unclassified, or does not reach the current head.
 
 ## 9. Hourly checkpoints
 

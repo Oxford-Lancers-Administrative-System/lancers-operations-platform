@@ -840,6 +840,16 @@ describe("mission harness v1", () => {
     expect(pkg.scripts.mission).toBe("node scripts/mission/cli.mjs");
   });
 
+  it("carries visual evidence only across machine-proved non-rendered deltas", () => {
+    expect(missionBody).toContain("carried-forward-from <sha>");
+    expect(missionBody).toMatch(/same visual-surface rules as the guarded merge gate/i);
+    expect(missionBody).toMatch(/The machine decides this[\s\S]*never asserts carry-forward/i);
+    expect(missionBody).toMatch(/any rendered or unclassifiable link voids/i);
+    expect(missionBody).toContain("visual_evidence");
+    expect(stateSource).toContain('verdict: "unknown"');
+    expect(gateSource).toContain("visualCarryForwardDefects");
+  });
+
   it("refuses dispatch before Linear synchronization, and keeps sync idempotent", () => {
     expect(missionBody).toMatch(
       /No implementation worker starts until its package has a created or reconciled Linear issue/i,

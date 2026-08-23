@@ -310,6 +310,37 @@ describe("mission packet validation", () => {
   });
 });
 
+describe("append-only journal annotations", () => {
+  it("marks three false worker-incapacity entries corrected without rewriting them", async () => {
+    const m = fixture();
+    await readyMission(m);
+    const before = readJournal(missionPaths(m.repo, MISSION, m.env).journal);
+    const targets = [1, 2, 3];
+    for (const target_event of targets) {
+      await m.append({
+        type: "journal-annotation",
+        target_event,
+        disposition: "corrected",
+        reason: "The worker was resumable; one denied attempt was generalized incorrectly.",
+        correction:
+          "Resume the original worker identity and record the actual refusal if it fails.",
+      });
+    }
+    const after = readJournal(missionPaths(m.repo, MISSION, m.env).journal);
+    expect(after.slice(0, before.length)).toEqual(before);
+    expect(replayState(m.repo, MISSION, m.env).annotations).toHaveLength(3);
+    await expect(
+      m.append({
+        type: "journal-annotation",
+        target_event: 999,
+        disposition: "corrected",
+        reason: "Synthetic missing target",
+        correction: "No correction",
+      }),
+    ).rejects.toThrow(/does not exist/);
+  });
+});
+
 describe("mission initialization", () => {
   it("initializes from a valid approved packet and refuses a second init", async () => {
     const m = fixture();
@@ -1164,7 +1195,7 @@ describe("guarded merge recording", () => {
     expect(state.packages["WP-events-filter"].status).toBe("merged");
   });
 
-  it("clears visual approval on a correction and on a new head — Brian approved what he saw", async () => {
+  it("holds approval pending during correction and voids it when the new head is unclassifiable", async () => {
     const B = "b".repeat(40);
     const m = fixture();
     await readyMission(m);
@@ -1206,19 +1237,22 @@ describe("guarded merge recording", () => {
       worker_id: "worker-1",
       finding_ids: ["R-001"],
     });
-    expect(corrected.packages["WP-events-filter"].visual_approved).toBe(false);
+    expect(corrected.packages["WP-events-filter"].visual_approved).toBe(true);
+    expect(corrected.packages["WP-events-filter"].visual_evidence_pending).toBe(true);
     await m.append({
       type: "worker-receipt",
       package_id: "WP-events-filter",
       worker_id: "worker-1",
       receipt: correctionReceipt(["R-001"], B),
     });
-    await m.append({
+    const moved = await m.append({
       type: "pr-opened",
       package_id: "WP-events-filter",
       pr_number: 42,
       head_sha: B,
     });
+    expect(moved.packages["WP-events-filter"].visual_approved).toBe(false);
+    expect(moved.packages["WP-events-filter"].visual_evidence_pending).toBe(false);
     await m.append({
       type: "review-receipt",
       package_id: "WP-events-filter",

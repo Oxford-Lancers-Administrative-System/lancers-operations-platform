@@ -323,4 +323,12 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
       touchesVisualSurface([{ status: "M", path: "src/lib/events/filters.ts" }], missionRules),
     ).toBe(false);
   });
+
+  it("keeps visual carry-forward machine-classified and fail-closed", () => {
+    const skill = read(".claude/skills/run-mission/SKILL.md").replace(/\s+/g, " ");
+    expect(skill).toMatch(/same visual-surface rules as the guarded merge gate/i);
+    expect(skill).toMatch(/rendered or unclassifiable link voids the walker and approval/i);
+    expect(read("scripts/mission/lib/state.mjs")).toContain("classifyVisualDelta");
+    expect(read("scripts/mission/merge-gate.mjs")).toContain("visualCarryForwardDefects");
+  });
 });

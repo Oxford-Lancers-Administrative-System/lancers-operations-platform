@@ -69,6 +69,67 @@ export function touchesVisualSurface(files, rules) {
 }
 
 /**
+ * The shared visual-surface classifier. Journal carry-forward and the hosted
+ * merge gate both call this function, so a Lead cannot use a looser definition
+ * of "non-rendered" than the workflow uses for its coherence tripwire.
+ */
+export function classifyVisualDelta(files, rules) {
+  return {
+    verdict: touchesVisualSurface(files, rules) ? "rendered" : "non-rendered",
+    files: (files ?? []).map(({ status, path: file, previousPath }) => ({
+      status,
+      path: file,
+      ...(previousPath ? { previousPath } : {}),
+    })),
+  };
+}
+
+export function visualCarryForwardDefects(evidence, currentHead, rules) {
+  if (evidence === undefined) return [];
+  if (evidence === null || typeof evidence !== "object" || Array.isArray(evidence)) {
+    return ["Receipt visual_evidence must be an object when approval is carried forward."];
+  }
+  const defects = [];
+  const approved = evidence.approved_sha;
+  const chain = evidence.carry_forward_chain;
+  if (!/^[0-9a-f]{40}$/.test(approved ?? "")) {
+    defects.push("Receipt visual_evidence.approved_sha must be a full 40-character SHA.");
+  }
+  if (!Array.isArray(chain) || chain.length === 0) {
+    defects.push("Receipt visual_evidence carries a non-empty carry_forward_chain.");
+    return defects;
+  }
+  let expected = approved;
+  for (const [index, link] of chain.entries()) {
+    const label = `Receipt visual carry-forward link ${index + 1}`;
+    if (link?.from_sha !== expected) {
+      defects.push(`${label} starts at ${link?.from_sha ?? "no SHA"}, not ${expected}.`);
+    }
+    if (!/^[0-9a-f]{40}$/.test(link?.to_sha ?? "")) {
+      defects.push(`${label} has no full to_sha.`);
+    }
+    if (link?.verdict !== "non-rendered") {
+      defects.push(`${label} is ${link?.verdict ?? "unclassified"}, not non-rendered.`);
+    }
+    if (!Array.isArray(link?.files)) {
+      defects.push(`${label} has no classifier file list.`);
+    } else if (classifyVisualDelta(link.files, rules).verdict !== "non-rendered") {
+      defects.push(`${label}'s file list touches a rendered surface.`);
+    }
+    if (link?.fact !== `carried-forward-from ${link?.from_sha}`) {
+      defects.push(`${label} does not record its carried-forward-from fact.`);
+    }
+    expected = link?.to_sha;
+  }
+  if (expected !== currentHead) {
+    defects.push(
+      `Receipt visual carry-forward chain ends at ${expected ?? "no SHA"}, not current head ${currentHead}.`,
+    );
+  }
+  return defects;
+}
+
+/**
  * Whether any changed path is a checkpoint-approval surface — the middle
  * tier (Brian, 2026-08-18): auth and delivery code that workers may change
  * and the lane may merge, but never silently. Detection is evidence-derived
@@ -159,6 +220,9 @@ export function receiptDefects(receipt) {
   if (!["approved", "nonvisual"].includes(receipt.visual)) {
     defects.push('Receipt visual must be "approved" or "nonvisual".');
   }
+  if (receipt.visual !== "approved" && receipt.visual_evidence !== undefined) {
+    defects.push("Only an approved visual receipt may carry visual_evidence.");
+  }
   if (receipt.open_owner_questions !== 0) {
     defects.push("Receipt must state open_owner_questions: 0 for the affected package.");
   }
@@ -217,6 +281,9 @@ export function evaluateMissionGate({ pullRequest: pr, checkRuns, files, rules }
       reasons.push(
         "Receipt claims nonvisual work, but the diff touches a visual surface. Visual work merges only with Brian's recorded approval.",
       );
+    }
+    if (receipt.visual === "approved") {
+      reasons.push(...visualCarryForwardDefects(receipt.visual_evidence, pr.headRefOid, rules));
     }
     // The checkpoint-approval tier: an auth or delivery diff is detected from
     // evidence, and merges only with a cited, answered owner question. The
@@ -281,7 +348,7 @@ export function journalConjuncts(state, packageId, headSha, options = {}) {
       `The clear review in mission state covers ${pkg.review.reviewed_head_sha}, not ${headSha}.`,
     );
   }
-  if (pkg.visual !== "nonvisual" && !pkg.visual_approved) {
+  if (pkg.visual !== "nonvisual" && (!pkg.visual_approved || pkg.visual_evidence_pending)) {
     reasons.push(`${packageId} is visual work without Brian's recorded visual approval.`);
   }
   for (const question of Object.values(state.questions ?? {})) {

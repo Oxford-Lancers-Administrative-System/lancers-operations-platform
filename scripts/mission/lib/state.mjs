@@ -25,6 +25,8 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 import { validateDecomposition, validatePacket, validatePackage } from "./packet.mjs";
+import { parseNameStatus } from "../../fast-lane/classify.mjs";
+import { classifyVisualDelta, loadRules } from "../merge-gate.mjs";
 
 export const MAX_ACTIVE_WORKERS = 2;
 export const LEAD_TTL_MS = 120_000;
@@ -49,6 +51,7 @@ export const EVENT_TYPES = [
   "owner-question",
   "owner-answer",
   "rule-applied",
+  "journal-annotation",
   "merge-recorded",
   "checkpoint",
   "scope-drift",
@@ -143,6 +146,35 @@ export function ownerAlive(pid, probe = process.kill) {
 }
 
 const isNonEmptyString = (value) => typeof value === "string" && value.trim() !== "";
+
+function carryForwardCovers(chain, fromSha, toSha) {
+  if (fromSha === toSha) return true;
+  let current = fromSha;
+  for (const link of chain ?? []) {
+    if (link.from_sha !== current || link.verdict !== "non-rendered") continue;
+    current = link.to_sha;
+    if (current === toSha) return true;
+  }
+  return false;
+}
+
+export function visualApprovalCovers(pkg, headSha = pkg?.head_sha) {
+  return Boolean(
+    pkg?.visual_approved &&
+    !pkg.visual_evidence_pending &&
+    pkg.visual_approval?.head_sha &&
+    carryForwardCovers(pkg.visual_carry_forward_chain, pkg.visual_approval.head_sha, headSha),
+  );
+}
+
+function clearWalkerCovers(state, pkg, headSha = pkg?.head_sha) {
+  return state.integratedReviews.some(
+    (review) =>
+      review.mode === "workflow-walker" &&
+      review.result === "clear" &&
+      carryForwardCovers(pkg.visual_carry_forward_chain, review.head_sha, headSha),
+  );
+}
 
 export const WORKER_RESULTS = [
   "completed",
@@ -284,7 +316,7 @@ export function dependencyUsable(state, packageId) {
       why: `${packageId} was reviewed at ${review.reviewed_head_sha ?? "no recorded head"}, but its pull request now carries ${pkg.head_sha ?? "no recorded head"}.`,
     };
   }
-  if (pkg.visual !== "nonvisual" && !pkg.visual_approved) {
+  if (pkg.visual !== "nonvisual" && !visualApprovalCovers(pkg)) {
     return {
       usable: false,
       basis: null,
@@ -368,7 +400,7 @@ export function guardedLaneRefusals(state, packageId, sha) {
       `A guarded merge requires a clear review receipt at exactly ${sha ?? "the merged SHA"}.`,
     );
   }
-  if (pkg.visual !== "nonvisual" && !pkg.visual_approved) {
+  if (pkg.visual !== "nonvisual" && !visualApprovalCovers(pkg, sha)) {
     refusals.push("Visual work merges only after Brian's recorded visual approval.");
   }
   for (const question of openQuestionsAffecting(state, packageId)) {
@@ -838,19 +870,35 @@ export function validateEvent(event, state) {
       }
       // LAN-148 §D: Brian looks at the integrated result, not at one package in
       // isolation. The walker runs first, at the head he will be shown.
-      const walked = state.integratedReviews.find(
-        (review) =>
-          review.mode === "workflow-walker" &&
-          review.result === "clear" &&
-          review.head_sha === pkg.head_sha,
-      );
-      if (!walked) {
+      if (!clearWalkerCovers(state, pkg)) {
         errors.push(
           `No clear workflow-walker review covers ${pkg.head_sha ?? "this package's head"}. The mission's own user jobs are completed end to end before Brian is asked to judge presentation.`,
         );
       }
       if (!isNonEmptyString(event.approved_by) || !isNonEmptyString(event.evidence)) {
         errors.push("A visual approval records who approved and where (the live review).");
+      }
+      break;
+    }
+
+    case "journal-annotation": {
+      if (!Number.isInteger(event.target_event) || event.target_event < 0) {
+        errors.push("A journal annotation names an existing zero-based target_event index.");
+      } else if (event.target_event >= state.eventCount) {
+        errors.push(
+          `Journal event ${event.target_event} does not exist; append-only annotations cannot correct an absent entry.`,
+        );
+      }
+      if (!["disputed", "corrected"].includes(event.disposition)) {
+        errors.push('A journal annotation disposition is "disputed" or "corrected".');
+      }
+      if (!isNonEmptyString(event.reason)) {
+        errors.push(
+          "A journal annotation records why the existing entry is disputed or corrected.",
+        );
+      }
+      if (event.disposition === "corrected" && !isNonEmptyString(event.correction)) {
+        errors.push("A corrected journal entry records the correction without rewriting history.");
       }
       break;
     }
@@ -1149,6 +1197,7 @@ export function validateEvent(event, state) {
  *   dispatchDeferrals: Array<Record<string, any>>,
  *   laneBypasses: Array<Record<string, any>>,
  *   integratedReviews: Array<Record<string, any>>,
+ *   annotations: Array<Record<string, any>>,
  *   closeout: Record<string, any> | null,
  *   reclaimed: string[],
  *   terminal: { at: string, state: "finalized" | "abandoned" } | null,
@@ -1176,6 +1225,7 @@ function emptyState() {
     dispatchDeferrals: [],
     laneBypasses: [],
     integratedReviews: [],
+    annotations: [],
     closeout: null,
     reclaimed: [],
     terminal: null,
@@ -1229,6 +1279,9 @@ export function reduce(events) {
             receipts: existing?.receipts ?? [],
             review: existing?.review ?? null,
             visual_approved: existing?.visual_approved ?? false,
+            visual_approval: existing?.visual_approval ?? null,
+            visual_carry_forward_chain: existing?.visual_carry_forward_chain ?? [],
+            visual_evidence_pending: existing?.visual_evidence_pending ?? false,
             driftStopped: existing?.driftStopped ?? false,
           };
         }
@@ -1278,9 +1331,10 @@ export function reduce(events) {
       case "correction-dispatched": {
         const pkg = state.packages[event.package_id];
         pkg.status = "correction";
-        // The correction will produce a new head; whatever Brian visually
-        // approved is no longer what would merge. Approval is re-earned.
-        pkg.visual_approved = false;
+        // A dispatch has no new head to classify. Keep the evidence but mark it
+        // pending so it cannot satisfy a gate until `pr-opened` records and
+        // classifies the actual old-head..new-head delta.
+        pkg.visual_evidence_pending = true;
         state.activeWorkers.push({
           worker_id: event.worker_id,
           package_id: event.package_id,
@@ -1325,11 +1379,31 @@ export function reduce(events) {
       }
       case "pr-opened": {
         const pkg = state.packages[event.package_id];
-        // A new head invalidates a visual approval given at an older one —
-        // Brian approved what he saw, not whatever came later.
-        if (pkg.visual_approved && pkg.visual_approval?.head_sha !== event.head_sha) {
-          pkg.visual_approved = false;
+        const previousHead = pkg.head_sha;
+        if (previousHead && previousHead !== event.head_sha) {
+          const delta = event.visual_delta;
+          if (
+            delta?.previous_head === previousHead &&
+            delta?.new_head === event.head_sha &&
+            delta?.verdict === "non-rendered" &&
+            delta?.fact === `carried-forward-from ${previousHead}`
+          ) {
+            pkg.visual_carry_forward_chain.push({
+              from_sha: previousHead,
+              to_sha: event.head_sha,
+              verdict: delta.verdict,
+              files: delta.files,
+              fact: delta.fact,
+            });
+          } else {
+            // Unknown and rendered deltas both fail closed. Brian approved what
+            // he saw, not an unclassified or presentation-changing head.
+            pkg.visual_approved = false;
+            pkg.visual_approval = null;
+            pkg.visual_carry_forward_chain = [];
+          }
         }
+        pkg.visual_evidence_pending = false;
         pkg.pr_number = event.pr_number;
         pkg.head_sha = event.head_sha;
         break;
@@ -1400,6 +1474,8 @@ export function reduce(events) {
       case "visual-approval": {
         const pkg = state.packages[event.package_id];
         pkg.visual_approved = true;
+        pkg.visual_evidence_pending = false;
+        pkg.visual_carry_forward_chain = [];
         pkg.visual_approval = {
           at: event.at,
           by: event.approved_by,
@@ -1409,6 +1485,15 @@ export function reduce(events) {
         };
         break;
       }
+      case "journal-annotation":
+        state.annotations.push({
+          at: event.at,
+          target_event: event.target_event,
+          disposition: event.disposition,
+          reason: event.reason,
+          correction: event.correction ?? null,
+        });
+        break;
       case "owner-question":
         state.questions[event.id] = {
           id: event.id,
@@ -1483,6 +1568,48 @@ export function replayState(repoPath, missionId, env = process.env) {
   return reduce(readJournal(paths.journal));
 }
 
+function prepareJournalEvent(repoPath, event, state) {
+  if (event.type !== "pr-opened") return event;
+  const previousHead = state.packages[event.package_id]?.head_sha;
+  if (!previousHead || previousHead === event.head_sha) return event;
+
+  try {
+    const output = execFileSync(
+      "git",
+      ["diff", "--name-status", previousHead, event.head_sha, "--"],
+      {
+        cwd: repoPath,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    );
+    const classified = classifyVisualDelta(parseNameStatus(output), loadRules());
+    return {
+      ...event,
+      visual_delta: {
+        previous_head: previousHead,
+        new_head: event.head_sha,
+        ...classified,
+        ...(classified.verdict === "non-rendered"
+          ? { fact: `carried-forward-from ${previousHead}` }
+          : {}),
+      },
+    };
+  } catch {
+    // A missing commit, invalid repository, or failed diff is not evidence that
+    // presentation stayed unchanged. Record the unknown verdict and invalidate.
+    return {
+      ...event,
+      visual_delta: {
+        previous_head: previousHead,
+        new_head: event.head_sha,
+        verdict: "unknown",
+        files: [],
+      },
+    };
+  }
+}
+
 /**
  * Validate-then-append under the mission lock. Returns the replayed state
  * after the append. Throws with every refusal when the event is invalid —
@@ -1492,10 +1619,13 @@ export async function appendEvent(repoPath, missionId, event, options = {}) {
   const env = options.env ?? process.env;
   const now = options.now ?? Date.now();
   const paths = missionPaths(repoPath, missionId, env);
-  const stamped = { at: new Date(now).toISOString(), ...event };
   return withLock(paths.lock, () => {
     const events = readJournal(paths.journal);
     const state = reduce(events);
+    // Caller-supplied classifier fields are overwritten. Carry-forward is a
+    // machine decision derived from the repository, never a Lead assertion.
+    const prepared = prepareJournalEvent(repoPath, event, state);
+    const stamped = { at: new Date(now).toISOString(), ...prepared };
     const errors = validateEvent(stamped, state);
     if (errors.length > 0) {
       const error = new Error(`Refused ${event.type}:\n- ${errors.join("\n- ")}`);
@@ -1632,14 +1762,9 @@ export function nextActions(state) {
     if (
       pkg.visual !== "nonvisual" &&
       pkg.head_sha &&
-      !pkg.visual_approved &&
+      !visualApprovalCovers(pkg) &&
       ["implemented", "reviewed"].includes(pkg.status) &&
-      !state.integratedReviews.some(
-        (review) =>
-          review.mode === "workflow-walker" &&
-          review.result === "clear" &&
-          review.head_sha === pkg.head_sha,
-      )
+      !clearWalkerCovers(state, pkg)
     ) {
       actions.push({
         action: "workflow-walker",
