@@ -9,77 +9,74 @@ import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import {
   buildMonthGrid,
-  buildTermCard,
   defaultMonth,
-  defaultTerm,
-  findTerm,
-  groupTermsByAcademicYear,
   monthGridEvents,
+  monthOf,
   parseMonth,
   shiftMonth,
-  monthOf,
-  termCardEvents,
   type CalendarEvent,
 } from "@/lib/services/calendar";
-import { listCurrentSeasonEvents, type EventList } from "@/lib/services/events";
-import { listTermWindows } from "@/lib/services/seasons";
-import type { TermWindow } from "@/lib/services/event-input";
-import { gateShellPage } from "../../gate";
-import ViewSwitch from "../view-switch";
-import CalendarEntry from "./calendar-entry";
-import { GregorianControls, OxfordControls, type TermChoice } from "./calendar-controls";
-import GregorianMonth from "./gregorian-month";
-import TermCard from "./term-card";
-import TypeLegend from "./type-legend";
+import { academicYearEvents } from "@/lib/services/oxford-year";
+import { listEventsForOperator, type EventList } from "@/lib/services/events";
+import { GregorianControls, YearJumpControl } from "@/app/calendar/calendar-controls";
+import GregorianMonth from "@/app/calendar/gregorian-month";
 import {
-  CALENDAR_READ_ONLY_NOTE,
-  CALENDAR_SOURCE_NOTE,
-  formatTermName,
   MONTH_EMPTY,
   NO_TERMS_CONFIGURED,
-  OUTSIDE_ANY_TERM_LABEL,
-  OUTSIDE_ANY_TERM_DETAIL,
-  OTHER_TERMS_NOTE,
-  TERM_CARD_EMPTY,
+  OUTSIDE_THE_YEAR_DETAIL,
+  OUTSIDE_THE_YEAR_HEADLINE,
   UNDATED_DETAIL,
   UNDATED_HEADLINE,
-} from "./presentation";
+} from "@/app/calendar/presentation";
+import { first } from "@/app/calendar/query";
+import {
+  operatorEventHref,
+  OPERATOR_CALENDAR_PATH,
+  OPERATOR_EVENTS_PATH,
+} from "@/app/calendar/routes";
+import { operatorTileStatus, type TileStatus } from "@/app/calendar/tile-status";
+import TypeLegend from "@/app/calendar/type-legend";
+import ViewSwitch from "@/app/calendar/view-switch";
+import YearColumn from "@/app/calendar/year-column";
+import { readEventYear } from "@/app/calendar/year";
+import { gateShellPage } from "../../gate";
 
 /**
- * The Events calendar — Gregorian month, and the Oxford term card. LAN-114.
+ * The Events calendar — Calendar View, and the Oxford View. LAN-114, remade by
+ * LAN-153.
  *
  * ## The same events as the list, rearranged
  *
- * This page reads `listCurrentSeasonEvents()` with no filter, which is the same
- * call `/operate/events` makes, so the three presentations cannot show
- * different sets of events or different dates for one event: they are one query
- * and three arrangements of its result. Every tile links to
- * `/operate/events/<id>`, so the detail destination is the same one too.
+ * This page reads `listEventsForOperator()` with no filter, which is the same
+ * call `/operate/events` makes, so the three arrangements cannot show different
+ * sets of events or different dates for one event: they are one query and three
+ * arrangements of its result (`REQ-three-arrangements`). Every tile links to
+ * `/operate/events/<id>`, the same destination the list rows open.
+ *
+ * ## Calendar View is unchanged
+ *
+ * Brian, 20 August 2026: "The Gregorian calendar is fine as it is."
+ *
+ * ## Oxford View is a continuous academic year
+ *
+ * Not three term cards behind two selectors — the exact thing Stewart Humble
+ * asked to replace on 17 August 2026, recorded as D85. One column runs Long
+ * Vacation into Michaelmas into Christmas Vacation into Hilary into Easter
+ * Vacation into Trinity into the next Long Vacation, with a jump control instead
+ * of a calendar switch, vacation weeks numbered forward from 1, and a vacation
+ * belonging to neither adjacent term.
+ *
+ * The academic-year and Oxford-term selectors are gone, and so is any way to
+ * reach another season: one season is open and the mission knows no other
+ * (`REQ-one-open-season`). The page header says which one.
  *
  * ## It reads, and only reads
  *
  * There is no server action on this page and no form that posts anywhere.
- * Opening the calendar, changing month, changing term and switching mode all
- * resolve to `GET`s that call one read. The issue's requirement that
- * "no audience, invitation, RSVP, attendance, or automation record is created
- * or changed merely by viewing or navigating the calendar" is therefore a
- * property of the module's imports rather than a promise — the write paths are
- * not reachable from here, and the screen test asserts none of them is called.
- *
- * ## Who may read it
- *
- * The ordinary operator gate, exactly as the event list uses it: any linked,
- * active operator. `slice-ux.md` § 8 places Events in the first row, and LAN-76
- * already opened the list on that footing. The four calendar-management roles
- * additionally get the Create control, and `mayManage` decides only what is
- * *rendered* — every write behind it guards itself.
- *
- * The issue's "club-wide read surface for everyone the calendar serves" is
- * implemented at that boundary because it is the widest audience this slice
- * has: players hold no account, and reach the application only through the
- * no-login RSVP token. Opening a calendar to unauthenticated visitors would be
- * a change to the security posture rather than a calendar feature, and
- * `AGENTS.md` reserves that for Brian. Recorded in the pull request.
+ * Opening the calendar, changing month and switching mode all resolve to `GET`s
+ * that call one read. The requirement that no audience, invitation, RSVP,
+ * attendance or automation record is created merely by viewing or navigating is
+ * therefore a property of the module's imports rather than a promise.
  *
  * ## Which day is today
  *
@@ -91,31 +88,20 @@ import {
 
 type CalendarMode = "gregorian" | "oxford";
 
-const BASE_PATH = "/operate/events/calendar";
-
-function first(value: string | string[] | undefined): string {
-  if (Array.isArray(value)) return value[0] ?? "";
-  return value ?? "";
-}
+type Tile = (eventId: string) => { href: string; status: TileStatus };
 
 function modeOf(value: string): CalendarMode {
   return value === "oxford" ? "oxford" : "gregorian";
 }
 
 function gregorianHref(month: string): string {
-  return `${BASE_PATH}?mode=gregorian&month=${month}`;
-}
-
-function oxfordHref(termId: string | null): string {
-  return termId
-    ? `${BASE_PATH}?mode=oxford&term=${encodeURIComponent(termId)}`
-    : `${BASE_PATH}?mode=oxford`;
+  return `${OPERATOR_CALENDAR_PATH}?mode=gregorian&month=${month}`;
 }
 
 export default async function EventCalendarPage({
   searchParams,
 }: PageProps<"/operate/events/calendar">) {
-  const gate = await gateShellPage(BASE_PATH);
+  const gate = await gateShellPage(OPERATOR_CALENDAR_PATH);
   if ("screen" in gate) return gate.screen;
 
   const params = await searchParams;
@@ -124,9 +110,8 @@ export default async function EventCalendarPage({
   const today = todayInClubZone();
 
   let list: EventList;
-  let terms: TermWindow[];
   try {
-    [list, terms] = await Promise.all([listCurrentSeasonEvents(), listTermWindows()]);
+    list = await listEventsForOperator();
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return (
@@ -138,7 +123,24 @@ export default async function EventCalendarPage({
     );
   }
 
-  const events: CalendarEvent[] = list.events;
+  // Awaited here rather than inside the arrangement below: an async component
+  // element returned from another async component is resolved by the framework
+  // but not by a direct `render(await Page())`, which is the level these screens
+  // are tested at.
+  const year =
+    mode === "oxford"
+      ? await readEventYear(list.events, {
+          today,
+          seasonStartsOn: list.season.startsOn,
+          seasonEndsOn: list.season.endsOn,
+        })
+      : null;
+
+  const byId = new Map(list.events.map((event) => [event.id, event]));
+  const tile: Tile = (eventId: string) => ({
+    href: operatorEventHref(eventId),
+    status: operatorTileStatus(byId.get(eventId)?.status ?? "approved"),
+  });
 
   return (
     <Stack spacing={3}>
@@ -167,14 +169,16 @@ export default async function EventCalendarPage({
           label="Events view"
           testId="events-view-switch"
           choices={[
-            { href: "/operate/events", label: "List", active: false, testId: "view-list" },
+            { href: OPERATOR_EVENTS_PATH, label: "List", active: false, testId: "view-list" },
             {
               // Carries where you are, so re-clicking the view you are already
-              // in does not quietly send you back to the default month or term.
+              // in does not quietly send you back to the default month.
               href:
                 mode === "oxford"
-                  ? oxfordHref(first(params.term) || null)
-                  : gregorianHref(parseMonth(first(params.month)) ?? defaultMonth(events, today)),
+                  ? `${OPERATOR_CALENDAR_PATH}?mode=oxford`
+                  : gregorianHref(
+                      parseMonth(first(params.month)) ?? defaultMonth(list.events, today),
+                    ),
               label: "Calendar",
               active: true,
               testId: "view-calendar",
@@ -186,14 +190,14 @@ export default async function EventCalendarPage({
           testId="calendar-mode-switch"
           choices={[
             {
-              href: `${BASE_PATH}?mode=gregorian`,
-              label: "Gregorian",
+              href: `${OPERATOR_CALENDAR_PATH}?mode=gregorian`,
+              label: "Calendar View",
               active: mode === "gregorian",
               testId: "mode-gregorian",
             },
             {
-              href: `${BASE_PATH}?mode=oxford`,
-              label: "Oxford term",
+              href: `${OPERATOR_CALENDAR_PATH}?mode=oxford`,
+              label: "Oxford View",
               active: mode === "oxford",
               testId: "mode-oxford",
             },
@@ -201,36 +205,29 @@ export default async function EventCalendarPage({
         />
       </Stack>
 
-      <Alert severity="info" data-testid="calendar-note">
-        {CALENDAR_SOURCE_NOTE}
-      </Alert>
-      {mayManage ? null : (
-        <Alert severity="info" data-testid="calendar-read-only-note">
-          {CALENDAR_READ_ONLY_NOTE}
-        </Alert>
-      )}
-
       {mode === "gregorian" ? (
-        <GregorianView events={events} params={params} today={today} />
+        <GregorianView events={list.events} params={params} today={today} tile={tile} />
       ) : (
-        <OxfordView events={events} terms={terms} params={params} today={today} />
+        <OxfordView year={year} tile={tile} />
       )}
     </Stack>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Gregorian
+// Calendar View
 // ---------------------------------------------------------------------------
 
 function GregorianView({
   events,
   params,
   today,
+  tile,
 }: {
   events: readonly CalendarEvent[];
   params: Record<string, string | string[] | undefined>;
   today: string;
+  tile: Tile;
 }) {
   // An unreadable `month` falls back rather than failing: the parameter arrives
   // from a URL anybody can edit, and a calendar that throws on `?month=banana`
@@ -246,7 +243,7 @@ function GregorianView({
         previousHref={gregorianHref(shiftMonth(month, -1))}
         nextHref={gregorianHref(shiftMonth(month, 1))}
         todayHref={gregorianHref(todayMonth)}
-        basePath={BASE_PATH}
+        basePath={OPERATOR_CALENDAR_PATH}
       />
 
       {grid.placedCount === 0 ? (
@@ -256,37 +253,31 @@ function GregorianView({
       ) : null}
 
       <TypeLegend events={monthGridEvents(grid)} />
-
-      <GregorianMonth grid={grid} />
+      <GregorianMonth grid={grid} tile={tile} />
 
       <LeftOver
         events={grid.undated}
         testId="undated-events"
         headline={UNDATED_HEADLINE}
         detail={UNDATED_DETAIL}
+        tile={tile}
       />
     </Stack>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Oxford term
+// Oxford View
 // ---------------------------------------------------------------------------
 
 function OxfordView({
-  events,
-  terms,
-  params,
-  today,
+  year,
+  tile,
 }: {
-  events: readonly CalendarEvent[];
-  terms: readonly TermWindow[];
-  params: Record<string, string | string[] | undefined>;
-  today: string;
+  year: Awaited<ReturnType<typeof readEventYear>>;
+  tile: Tile;
 }) {
-  const selected = findTerm(terms, first(params.term) || null) ?? defaultTerm(terms, today);
-
-  if (!selected) {
+  if (year === null || year.column.segments.length === 0) {
     return (
       <Stack spacing={2} data-testid="oxford-view">
         <Alert severity="warning" data-testid="no-terms-configured">
@@ -296,78 +287,52 @@ function OxfordView({
     );
   }
 
-  const card = buildTermCard(selected, terms, events, today);
-
-  // Newest academic year first, each year Michaelmas → Hilary → Trinity, so the
-  // two selects are driven by one already-ordered list.
-  const choices: TermChoice[] = groupTermsByAcademicYear(terms).flatMap((year) =>
-    year.terms.map((term) => ({
-      id: term.id,
-      label: formatTermName(term),
-      name: term.name,
-      academicYear: term.academicYear,
-    })),
-  );
-
   return (
     <Stack spacing={2} data-testid="oxford-view">
-      <OxfordControls terms={choices} termId={selected.id} basePath={BASE_PATH} />
-
-      {card.placedCount === 0 ? (
-        <Alert severity="info" data-testid="term-card-empty">
-          {TERM_CARD_EMPTY}
-        </Alert>
-      ) : null}
-
-      <TypeLegend events={termCardEvents(card)} />
-
-      <TermCard card={card} />
-
-      {/*
-        One quiet line, not a panel. The card now reaches past its own weeks for
-        the events around the term, so the only thing left to say is where the
-        rest of the season is — and Brian's review was that this had become far
-        too prominent for that.
-      */}
-      <Typography variant="caption" color="text.secondary" data-testid="other-terms-note">
-        {OTHER_TERMS_NOTE}
-      </Typography>
+      <YearJumpControl segments={year.segments} current={year.currentSegmentKey} />
+      <TypeLegend events={academicYearEvents(year.column)} />
+      <YearColumn column={year.column} tile={tile} />
 
       <LeftOver
-        events={card.elsewhere.farFromAnyTerm}
-        testId="far-from-any-term"
-        headline={OUTSIDE_ANY_TERM_LABEL}
-        detail={OUTSIDE_ANY_TERM_DETAIL}
+        events={year.column.outsideTheYear}
+        testId="outside-the-year"
+        headline={OUTSIDE_THE_YEAR_HEADLINE}
+        detail={OUTSIDE_THE_YEAR_DETAIL}
+        tile={tile}
       />
 
       <LeftOver
-        events={card.elsewhere.undated}
+        events={year.column.undated}
         testId="undated-events"
         headline={UNDATED_HEADLINE}
         detail={UNDATED_DETAIL}
+        tile={tile}
       />
     </Stack>
   );
 }
 
 /**
- * The events no cell can hold — undated ones, and dated ones too far from any
- * term for a card to reach.
+ * The events no cell can hold — undated ones, and the rare dated one outside the
+ * year this column covers.
  *
- * Deliberately understated: a bordered block rather than the heavy panel this
- * started as. It exists so nothing is omitted silently, and on a normal season
- * it renders nothing at all.
+ * Deliberately understated: a bordered block rather than a panel. It exists so
+ * nothing is omitted silently, and on a normal season it renders nothing at all.
+ * The term card's old "too far from any term" list is gone with the card — a
+ * continuous year has a home for every date in it.
  */
 function LeftOver({
   events,
   testId,
   headline,
   detail,
+  tile,
 }: {
   events: readonly CalendarEvent[];
   testId: string;
   headline: string;
   detail: string;
+  tile: Tile;
 }) {
   if (events.length === 0) return null;
 
@@ -381,7 +346,15 @@ function LeftOver({
       </Typography>
       <Stack spacing={0.5} sx={{ mt: 1 }}>
         {events.map((event) => (
-          <CalendarEntry key={event.id} event={event} showDate />
+          <Typography
+            key={event.id}
+            component="a"
+            href={tile(event.id).href}
+            variant="body2"
+            sx={{ color: "text.primary" }}
+          >
+            {event.name}
+          </Typography>
         ))}
       </Stack>
     </Box>

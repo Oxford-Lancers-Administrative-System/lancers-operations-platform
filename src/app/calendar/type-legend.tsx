@@ -2,7 +2,7 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import type { CalendarEvent } from "@/lib/services/calendar";
-import { labelFor, TYPE_LABELS } from "../presentation";
+import { labelFor, TYPE_LABELS } from "@/lib/services/event-vocabulary";
 import { typeColour } from "./presentation";
 
 /**

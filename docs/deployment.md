@@ -16,15 +16,20 @@ pull request  ──▶  CI only (.github/workflows/ci.yml)
                    migrations from empty · RLS gate · type-drift gate
                    container build + health probe
 
-merge to main ──▶  CI only
+merge to main ──▶  CI only. Nothing deploys.
 
-manual dispatch ─▶ deploy (.github/workflows/deploy.yml)
-                   OIDC → GCP · build image · push to Artifact Registry
-                   deploy Cloud Run revision · smoke-test /api/health
+gh workflow run  ──▶  deploy (.github/workflows/deploy.yml)
+   deploy.yml         OIDC → GCP · build image · push to Artifact Registry
+                      deploy Cloud Run revision · smoke-test /api/health
 ```
 
-A pull request and a merge never deploy. Brian dispatches `deploy.yml` manually
-from `main` after the required CI checks pass.
+Nothing deploys on its own. A pull request does not, and neither does a merge —
+deploying is always an explicit `workflow_dispatch`.
+Brian dispatches it from `main` only after the required CI checks pass.
+
+That separation is deliberate. A migration that drops a column has to be applied
+to hosted **before** the revision expecting the new schema goes live, and a
+deploy that fired on merge inverted that ordering.
 
 ## One-time GCP setup
 
@@ -556,8 +561,15 @@ that changes, add a `headers` override to `firebase.json`.
 
 ## Deploying
 
-Merge to `main`. That is the whole procedure. The workflow builds, pushes an
-image tagged with the commit SHA, deploys a new revision, and smoke-tests it.
+```bash
+gh workflow run deploy.yml
+```
+
+Merging does **not** deploy. The workflow builds from `main`, pushes an image
+tagged with the commit SHA, deploys a new revision, and smoke-tests it.
+
+**If the commit being deployed needs a migration, apply it first.** Back up,
+apply, then deploy — never the other way round.
 
 Watch it:
 

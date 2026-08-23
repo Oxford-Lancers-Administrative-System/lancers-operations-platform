@@ -22,6 +22,24 @@ export interface Season {
   id: string;
   label: string;
   status: string;
+  /**
+   * `YYYY-MM-DD`. The season's window opens in the Long Vacation before
+   * Michaelmas, at the AGM (Brian, 17 August 2026).
+   *
+   * Read since LAN-153, because the Oxford View has to know which academic year
+   * the club is operating when today falls outside every term — a calendar
+   * opened in the middle of the Christmas vacation would otherwise have nothing
+   * to anchor on. Nullable because the column is.
+   */
+  startsOn: string | null;
+  /**
+   * `YYYY-MM-DD`, or `null` while the season is still open-ended.
+   *
+   * Bounds the trailing Long Vacation on the Oxford View. When it is null the
+   * column runs as far as the club's own records reach; see
+   * `@/lib/services/oxford-year`.
+   */
+  endsOn: string | null;
 }
 
 /** A term instance — a scheduling coordinate, never a season boundary. */
@@ -65,6 +83,8 @@ interface SeasonRow {
   id: string;
   label: string;
   status: string;
+  starts_on: Date | string | null;
+  ends_on: Date | string | null;
 }
 
 /**
@@ -81,7 +101,7 @@ export async function readCurrentSeason(): Promise<Season> {
 /** The same read, inside a caller's transaction. */
 export async function readCurrentSeasonIn(tx: Tx): Promise<Season> {
   const result = await tx.query<SeasonRow>(
-    `select id, label, status
+    `select id, label, status, starts_on, ends_on
        from public.seasons
       where status = any($1::public.season_status[])
       order by starts_on desc nulls last, created_at desc
@@ -94,7 +114,13 @@ export async function readCurrentSeasonIn(tx: Tx): Promise<Season> {
     throw new NotFound(NO_CURRENT_SEASON_MESSAGE, { rule: "no_current_season" });
   }
 
-  return { id: row.id, label: row.label, status: row.status };
+  return {
+    id: row.id,
+    label: row.label,
+    status: row.status,
+    startsOn: row.starts_on === null ? null : asDate(row.starts_on),
+    endsOn: row.ends_on === null ? null : asDate(row.ends_on),
+  };
 }
 
 interface TermRow {

@@ -45,6 +45,7 @@ export default function EventFilters({
   eventType,
   sort,
   direction,
+  period,
 }: {
   statuses: readonly string[];
   types: readonly string[];
@@ -54,6 +55,8 @@ export default function EventFilters({
   eventType: string;
   sort: string;
   direction: string;
+  /** Kept as the operator narrows, so typing does not reset the period. */
+  period: string;
 }) {
   return (
     <ListFilters
@@ -86,9 +89,10 @@ export default function EventFilters({
       sort={sort}
       direction={direction}
       directionOptions={[
-        { value: "desc", label: "Newest first" },
-        { value: "asc", label: "Oldest first" },
+        { value: "asc", label: "Soonest first" },
+        { value: "desc", label: "Latest first" },
       ]}
+      carry={{ period }}
     />
   );
 }

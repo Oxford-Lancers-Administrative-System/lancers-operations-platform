@@ -106,6 +106,17 @@ Browser
                              a privileged action calls requireCapability() first
 ```
 
+**The public calendar is genuinely public.** `/calendar` and everything under it
+carry no session and no token — the first read surface in this application that
+does not (LAN-153; D1 and D5, owner-approved 14 August 2026). It is not listed in
+`PROTECTED_PREFIXES` and needs no exception to stay out of it. What keeps the
+tiers apart is the **projection**: `listPublicSeasonEvents` and `readPublicEvent`
+in `src/lib/services/events.ts` select different columns, so a joining URL, a
+participation count or a status is never read out of the database rather than
+hidden after loading, and the operator's projection is reached only through a
+service-layer guard (`src/lib/auth/event-tier.ts`). See
+[`ux/tickets/LAN-153-public-calendar-and-tiers.md`](ux/tickets/LAN-153-public-calendar-and-tiers.md).
+
 Route protection in `proxy.ts` is convenience, not the authorization boundary.
 Every protected page re-checks for itself, because a proxy matcher can be changed
 or bypassed and Server Actions are not separate routes in the matcher chain. Under

@@ -65,6 +65,7 @@ function renderEvents() {
       eventType=""
       sort="date"
       direction="desc"
+      period="month"
     />,
   );
 }
