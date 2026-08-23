@@ -22,6 +22,7 @@
  */
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 vi.mock("server-only", () => ({}));
 
@@ -47,6 +48,7 @@ import {
 import { readClubLinkParticipation } from "@/lib/services/participation";
 
 import ClubLinkPage from "../e/[token]/page";
+import { EventFacts, HeadlineNumbers } from "./event-facts";
 import { CopyLinkButton } from "./copy-link";
 import { ParticipationFilterBar } from "./participation-filters";
 import { ParticipationTable } from "./participation-table";
@@ -514,6 +516,77 @@ describe("copy link", () => {
     fireEvent.click(screen.getByTestId("copy-club-link"));
     await waitFor(() => expect(writeText).toHaveBeenCalled());
     expect(screen.getByTestId("copy-club-link").textContent).toBe("Copy link");
+  });
+});
+
+/**
+ * The table is a **server** component, and jsdom is not a server.
+ *
+ * These render it through `react-dom/server` instead, which catches a component
+ * that throws without a DOM, without `act`, and without hydration papering over
+ * it — the class of failure jsdom is worst at noticing.
+ *
+ * **It is not the whole guard, and the reason is worth writing down.**
+ * `<Stack divider={…}>` compiled, passed every jsdom test in this file, passed
+ * `renderToStaticMarkup` here, and survived `next build` — and then threw
+ * "Element type is invalid … got: undefined" inside Next's own server runtime,
+ * so every request for the operator page and the club link returned **500**
+ * while the browser recovered on the client and looked perfect. It was found by
+ * loading the real page and reading the status code, and that is still the only
+ * thing in this repository that would find the next one. The browser preflight
+ * earns its place; this file does not replace it.
+ */
+describe("rendering on the server, which is where it actually runs", () => {
+  it("renders the operator table without throwing", () => {
+    const markup = renderToStaticMarkup(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR}
+        filters={filters()}
+      />,
+    );
+    expect(markup).toContain("Alaric Brindlewood");
+    expect(markup).toContain(TABLE_HEADINGS.delivery);
+  });
+
+  it("renders the club-link table without throwing, and without delivery", () => {
+    const markup = renderToStaticMarkup(
+      <ParticipationTable basePath="/e/token" participation={CLUB} filters={filters()} />,
+    );
+    expect(markup).toContain("Alaric Brindlewood");
+    expect(markup).not.toContain(TABLE_HEADINGS.delivery);
+  });
+
+  it("renders the event facts and the headline without throwing", () => {
+    const markup = renderToStaticMarkup(
+      <>
+        <EventFacts event={CLUB.event} />
+        <HeadlineNumbers headline={CLUB.headline} />
+      </>,
+    );
+    expect(markup).toContain("Iffley Road Astro");
+    expect(markup).toContain("1 / 3");
+  });
+
+  it("renders an empty table and a filtered-empty table without throwing", () => {
+    expect(
+      renderToStaticMarkup(
+        <ParticipationTable
+          basePath="/e/token"
+          participation={{ ...CLUB, people: [] }}
+          filters={filters()}
+        />,
+      ),
+    ).toContain(NOBODY_ASKED);
+    expect(
+      renderToStaticMarkup(
+        <ParticipationTable
+          basePath="/e/token"
+          participation={CLUB}
+          filters={filters({ search: "nobody" })}
+        />,
+      ),
+    ).toContain(NO_MATCHING_PEOPLE);
   });
 });
 

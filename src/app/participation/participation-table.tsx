@@ -236,8 +236,17 @@ export function ParticipationTable({
         </Typography>
       ) : (
         <>
-          {/* Phone: one card per person. */}
-          <Stack sx={{ display: { xs: "flex", md: "none" } }} divider={<Box sx={{ height: 0 }} />}>
+          {/*
+            Phone: one card per person.
+
+            No `divider` prop. MUI v9's `Stack` divider **throws during server
+            rendering** — "Element type is invalid … got: undefined" — and the
+            page then recovers on the client, so it looks fine in a browser and
+            returns 500 to anything that reads the status. `next build` compiled
+            it and every jsdom test rendered it; only loading the real page
+            caught it. The separators are borders on the cards instead.
+          */}
+          <Stack sx={{ display: { xs: "flex", md: "none" } }}>
             {people.map((person) => (
               <Box
                 key={person.key}
