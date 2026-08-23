@@ -12,7 +12,7 @@
  * restate them, because a mocked service cannot write and cannot leak.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 vi.mock("server-only", () => ({}));
 const routerPush = vi.fn();
@@ -432,6 +432,25 @@ describe("the public calendar arrangements", () => {
     );
 
     expect(within(container).getByTestId("gregorian-grid")).toBeTruthy();
+  });
+
+  it("does not let the jump control's menu lock body scroll", async () => {
+    // The defect this pins was invisible on screen. MUI opens a select's menu
+    // inside a `Modal`, which locks body scroll while it is open — and
+    // **restores the previous scroll position when it closes**. Scrolling from
+    // `onChange` therefore happened and was then silently undone, so the
+    // viewport never moved, while the fragment updated and made the control look
+    // live. Found by driving a real browser; pinned here on the mechanism.
+    const { container } = render(await PublicCalendarViewPage(viewProps({ mode: "oxford" })));
+
+    const jump = within(container).getByTestId("year-jump").querySelector('[role="combobox"]');
+    expect(jump).toBeTruthy();
+
+    fireEvent.mouseDown(jump as Element);
+
+    // With the lock on, MUI sets `overflow: hidden` here for as long as the menu
+    // is open. With it off, the body is untouched and nothing is restored.
+    expect(document.body.style.overflow).not.toBe("hidden");
   });
 
   it("warns rather than showing an empty year when no term is configured", async () => {

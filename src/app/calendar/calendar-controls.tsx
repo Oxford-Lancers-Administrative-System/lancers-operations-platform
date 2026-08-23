@@ -140,15 +140,29 @@ export function YearJumpControl({
       size="small"
       label="Jump to"
       defaultValue={current}
+      // `disableScrollLock` is load-bearing, and the reason is worth writing
+      // down because the failure looked exactly like success.
+      //
+      // MUI opens a select's menu inside a `Modal`, which locks body scroll
+      // while it is open **and restores the previous scroll position when it
+      // closes**. Scrolling from `onChange` therefore happened and was then
+      // silently undone by the menu's own restore, so the viewport never moved
+      // — while the fragment updated, which made the control look live. Found by
+      // driving it rather than by photographing it.
+      // Through `slotProps.select`, not the deprecated `SelectProps`: MUI v9
+      // ignores the latter, which is a silent no-op rather than a build error.
+      slotProps={{ select: { MenuProps: { disableScrollLock: true } } }}
       onChange={(event) => {
         const key = event.target.value;
         const target = document.getElementById(key);
         if (!target) return;
         // `scrollIntoView` is absent in jsdom and in anything old enough not to
-        // have it. Setting the hash moves the viewport on its own, so the
-        // control works either way and no test has to stub a browser API.
+        // have it, so the fragment below is both the fallback and the bookmark.
         target.scrollIntoView?.({ behavior: "smooth", block: "start" });
-        window.location.hash = key;
+        // `replaceState` rather than `location.hash`: assigning the hash jumps
+        // instantly, which cancels the smooth scroll above, and it pushes a
+        // history entry so Back becomes "un-jump" rather than "leave the page".
+        window.history.replaceState(null, "", `#${key}`);
       }}
       sx={{ minWidth: 220 }}
       data-testid="year-jump"
