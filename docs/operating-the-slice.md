@@ -3,7 +3,8 @@
 The complete first operational workflow, as a walk somebody who did not build it
 can perform by hand: enter a returning player, put a practice on the calendar,
 confirm who it goes to, approve it, let the automation invite them, collect the
-answers, assert that it happened, take the register, and read the Monday report.
+answers, watch the register open by itself, take it as a coach, and read the
+Monday report.
 
 This is the manual counterpart to `tests/slice-walkthrough.test.ts`, which walks
 the same path through the service layer in one automated run. The test proves the
@@ -23,7 +24,7 @@ code.
 6. [Confirm the audience and approve](#6-confirm-the-audience-and-approve)
 7. [Automated WhatsApp delivery](#7-automated-whatsapp-delivery)
 8. [Answer as a player](#8-answer-as-a-player)
-9. [Assert that it happened](#9-assert-that-it-happened)
+9. [Watch the register open by itself](#9-watch-the-register-open-by-itself)
 10. [Take the register as a coach](#10-take-the-register-as-a-coach)
 11. [Read the Monday report](#11-read-the-monday-report)
 12. [Check the three calendar presentations](#12-check-the-three-calendar-presentations)

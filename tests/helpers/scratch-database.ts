@@ -25,7 +25,7 @@
  *
  * It creates a real database on the same local cluster, replays the migration
  * files in filename order up to and including a named one, and hands back a
- * client. It stubs `auth.users` rather than installing GoTrue: two columns are
+ * client. It stubs `auth.users` rather than installing GoTrue: three columns are
  * everything the migrations reference, and standing up the auth service to test
  * an enum cast would be a far larger dependency than the thing under test.
  *
@@ -127,6 +127,13 @@ export async function createScratchDatabase(
   name: string,
   upToInclusive: string,
 ): Promise<ScratchDatabase> {
+  // Two `drop database` statements run below on a name this function is handed.
+  // The loopback guard proves *which cluster*; this proves *which database*, so
+  // a caller cannot pass `postgres` and have the helper drop the stack it is
+  // running against.
+  if (!/^lancers_[a-z0-9_]+$/.test(name)) {
+    throw new Error(`Refusing to create or drop ${name}: a scratch database is named lancers_*.`);
+  }
   const url = process.env.SUPABASE_DB_URL;
   if (!url) {
     throw new Error(
