@@ -138,9 +138,11 @@ selector** (D85; Stewart Humble and Brian, 17 August 2026; Brian, 21 August).
   neither." `YearSegment.termId` is `null` for one, and there is deliberately no
   field naming the term either side.
 - **Vacation weeks are numbered forward from 1** — "Christmas Vacation 1, 2, 3 …"
-  — and run until the next term's **own first configured week**. That is −1st for
-  Michaelmas and 0th for Hilary and Trinity, because `terms.first_week` decides
-  (LAN-114's contract already required this: "Nothing assumes weeks 1 to 8").
+  — and run until the next term's **own first configured week**, whatever that
+  row declares it to be (LAN-114's contract already required this: "Nothing
+  assumes weeks 1 to 8"). On the seed today that is −1st for Michaelmas and 0th
+  for Hilary and Trinity, which is a fact about the data rather than a decision
+  — see § Where the implementation departs, which does not close it.
 - The **leading Long Vacation** is numbered from the day after the previous
   academic year's last term ends — the only place its week 1 can come from. The
   **trailing** one runs to the next Michaelmas where one is configured, and
