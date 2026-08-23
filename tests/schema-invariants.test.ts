@@ -280,10 +280,16 @@ describe("participation (P1–P8)", () => {
 
   it("P5 — refuses attendance against an event that is not approved", async () => {
     // The database's half of P5, and the only half it can hold: a check
-    // constraint cannot read the clock, so "and its date has passed" lives in
-    // the service layer (`hasOccurred`). A draft was never held and a cancelled
-    // event did not happen, and both are refused here structurally, whatever
-    // any caller believes.
+    // constraint cannot read the clock, so when the register opens lives in the
+    // service layer (`attendance-window.ts`). A draft has nobody on it and a
+    // cancelled event did not happen, and both are refused here structurally,
+    // whatever any caller believes.
+    //
+    // A-5: the rule is named exactly. It had been weakened to the bare
+    // substring "attendance_records", which any of a dozen constraints on that
+    // table would satisfy — including the composite foreign key, which fails
+    // for an entirely different reason and would have hidden the check being
+    // dropped.
     for (const status of ["draft", "cancelled"]) {
       await expectRejected(
         client,
@@ -291,7 +297,7 @@ describe("participation (P1–P8)", () => {
            (event_id, event_status, season_id, capacity, season_membership_id, presence)
          values ($1, $4, $2, 'player', $3, 'present')`,
         [base.approvedEventId, base.seasonId, base.membershipId, status],
-        "attendance_records",
+        "attendance_records_require_an_approved_event",
       );
     }
   });

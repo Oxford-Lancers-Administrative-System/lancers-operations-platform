@@ -88,7 +88,6 @@ export {
   EVENT_STATUSES,
   OCCURRED_FILTER,
   EVENT_TYPES,
-  hasOccurred,
   OPERATOR_CREATED_ORIGIN,
   validateEventDraft,
   type DerivedEventState,

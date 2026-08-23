@@ -515,7 +515,23 @@ export const CAPABILITIES: Readonly<Record<CapabilityKey, Capability>> = Object.
    */
   attendance_recording: capability({
     key: "attendance_recording",
-    action: "record attendance for an event that has occurred",
+    /**
+     * Names what the grant actually permits — W-F7.
+     *
+     * It read "record attendance for an event that has occurred", which the
+     * workflow walker disproved from the coach's seat within minutes: it
+     * recorded attendance for a session starting at 05:00 that had not
+     * occurred, and the write was accepted. It should have been. D71 opens the
+     * register about six hours before the start precisely so that a coach can
+     * fill it in at the pitch, and `requireOpenRegister` accepts exactly that.
+     *
+     * The sentence was left over from the world where the register waited on
+     * somebody asserting occurrence. Telling every coaching seat that its own
+     * permission is narrower than it is, on the panel where they go to find out
+     * what they may do, is the kind of wrong that never gets corrected because
+     * it is never contradicted out loud.
+     */
+    action: "record attendance from the moment an event's register opens",
     roleCodes: [
       "president",
       "vice_president",

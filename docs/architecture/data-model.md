@@ -74,11 +74,18 @@ enforced declaratively, with no trigger and no trust placed in application code.
 Its other half is the **clock**, which a check constraint cannot read. Two
 different questions are asked of it, and they are not the same question:
 
-- **Has the event happened?** Since LAN-151 that is derived rather than stored
-  (D30: the date passed and the event was not cancelled), and it is one service
-  rule — `hasOccurred` in `src/lib/services/event-input.ts` — which every reader
-  asks rather than re-deriving. `public.rsvp_attendance_mismatches` makes the
-  same derivation in SQL, against Europe/London.
+- **Has the event happened?** Since LAN-151 that is derived rather than stored:
+  D30 says the date passed and the event was not cancelled. It is **not** one
+  shared function, and this document said it was until finding CBH-3 checked.
+  Four places derive it independently, in three languages, and they agree:
+  `derivedEventState` in `src/lib/services/event-input.ts` for every screen;
+  the `case` in `listCurrentSeasonEvents` that backs the events list's
+  **Occurred** filter; `public.rsvp_attendance_mismatches` in SQL, against
+  Europe/London; and `scripts/seed-local.mjs`, choosing which sessions get a
+  register. Each is covered by its own test. Consolidating them onto one
+  function is a reasonable future change and is deliberately not one this
+  package made — it would alter executable behaviour on four surfaces to fix a
+  sentence in a document.
 - **May the register be opened?** That is D71's buffer, in
   `src/lib/services/attendance-window.ts`: it opens
   `ATTENDANCE_REGISTER_BUFFER_HOURS` before the event starts and never closes

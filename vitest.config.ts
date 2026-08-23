@@ -80,6 +80,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "tests/schema-event-audience.test.ts",
   "tests/schema-events-target-state.test.ts",
   "tests/schema-invariants.test.ts",
+  "tests/schema-legacy-vocabulary-mapping.test.ts",
   "tests/schema-operator-accounts.test.ts",
   "tests/schema-rsvp-delivery.test.ts",
   "tests/schema-security.test.ts",

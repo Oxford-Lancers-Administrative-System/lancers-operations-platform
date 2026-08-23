@@ -204,17 +204,30 @@ export function formatShowedAgainstInvited(summary: {
 // ---------------------------------------------------------------------------
 
 /**
- * The coach's version of the locked state.
+ * The coach's version of the locked state — corrected by W-F6.
  *
- * Neither sentence is an instruction, because there is nothing for either
- * reader to go and do: what lifts this is the clock. They differ only in voice.
+ * This screen is **not** the buffer's. A coach reaches it only for a draft or a
+ * cancelled session, both of which fail the register's status half; the session
+ * that has not started yet gets `REGISTER_NOT_YET_HEADLINE` and a moment.
+ *
+ * It used to say "This session's register has not opened yet" and then recite
+ * the buffer rule, which was false twice over for a cancelled session in the
+ * past: its start had gone, and no register was ever coming. The operator's
+ * equivalent named the real reason and the coach's did not, so the two seats
+ * were told different things about one event.
+ *
+ * Neither sentence is an instruction. A coach can neither approve a session nor
+ * un-cancel one, so naming the step is naming what somebody else's decision was
+ * — which is the honest thing to say, and the reason the two cases are worded
+ * apart: a cancellation is final, and a draft is not.
  */
 export const COACH_LOCKED_HEADLINE = "Attendance is not open";
 
-export const COACH_LOCKED_DETAIL = "This session's register has not opened yet.";
-
-export const COACH_LOCKED_RULE =
-  "A register opens shortly before the session starts, and stays open afterwards.";
+export function describeCoachLock(status: string): string {
+  return status === "cancelled"
+    ? "This session was cancelled. There is no register for it, and there will not be one."
+    : "This session has not been approved yet. A register appears once it is.";
+}
 
 export const COACH_RETURN_TO_ELIGIBLE = "Return to eligible events";
 

@@ -72,8 +72,7 @@ import { readEventAudience } from "@/lib/services/event-approval";
 import {
   ATTENDANCE_LOCKED_DETAIL,
   COACH_BOARD_SUBTITLE,
-  COACH_LOCKED_DETAIL,
-  COACH_LOCKED_RULE,
+  describeCoachLock,
   REGISTER_NOT_YET_HEADLINE,
 } from "./presentation";
 import AttendancePage, { filterParticipants } from "./page";
@@ -988,7 +987,7 @@ describe("UX-91 — the coach's board", () => {
 });
 
 describe("UX-90 — attendance is not open, told to a coach", () => {
-  for (const status of ["draft", "approved", "cancelled"] as const) {
+  for (const status of ["draft", "cancelled"] as const) {
     it(`refuses the board for a ${status} event, and does not tell a coach to assert it`, async () => {
       givenCoach();
       vi.mocked(readAttendanceBoard).mockResolvedValue(
@@ -999,15 +998,56 @@ describe("UX-90 — attendance is not open, told to a coach", () => {
 
       expect(screen.getByTestId("coach-attendance-locked")).toBeVisible();
       expect(container.textContent).toContain("Attendance is not open");
-      expect(container.textContent).toContain(COACH_LOCKED_DETAIL);
-      expect(container.textContent).toContain(COACH_LOCKED_RULE);
-      // Nobody is waiting on anybody: the sentence names the clock, not a
-      // person, because since LAN-151 that is what it is waiting for.
+      expect(container.textContent).toContain(describeCoachLock(status));
       expect(container.textContent).not.toContain("An authorized operator has not marked");
       expect(container.textContent).not.toContain("Mark occurred");
       expect(screen.queryByTestId("attendance-row")).toBeNull();
     });
   }
+
+  /**
+   * Finding W-F6. A coach reaching a cancelled session by URL was told its
+   * register "has not opened yet" and that one opens shortly before the session
+   * starts. Both false: the start had passed, and no register was coming. The
+   * operator's equivalent named the real reason and the coach's did not, so one
+   * event read two different ways depending on the seat.
+   */
+  it("tells a coach why a cancelled session will never open one", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({
+        event: detail({ status: "cancelled", scheduledOn: "2020-10-14" }),
+        isOpen: false,
+        participants: [],
+      }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("This session was cancelled");
+    expect(container.textContent).toContain("there will not be one");
+    for (const wrong of [
+      "has not opened yet",
+      "opens shortly before the session starts",
+      "stays open afterwards",
+    ]) {
+      expect(container.textContent, wrong).not.toContain(wrong);
+    }
+  });
+
+  it("tells a coach a draft is waiting on an approval, not on the clock", async () => {
+    givenCoach();
+    vi.mocked(readAttendanceBoard).mockResolvedValue(
+      board({ event: detail({ status: "draft" }), isOpen: false, participants: [] }),
+    );
+
+    const { container } = render(await AttendancePage(attendanceProps()));
+
+    expect(container.textContent).toContain("has not been approved yet");
+    expect(container.textContent).not.toContain("has not opened yet");
+    // A draft is not final, so it must not borrow the cancellation's wording.
+    expect(container.textContent).not.toContain("there will not be one");
+  });
 
   it("returns the coach to their own list, never to the event detail", async () => {
     givenCoach();

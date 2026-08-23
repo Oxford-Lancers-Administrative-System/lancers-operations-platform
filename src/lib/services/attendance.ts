@@ -22,7 +22,6 @@ import { isRegisterAvailable, isRegisterOpen, registerOpensAt } from "./attendan
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
 import { type EventStatus } from "./event-input";
 import { personDisplayNameSql as displayName } from "./sql-text";
-import { todayInClubZone } from "@/lib/club-time";
 
 /**
  * Attendance — locked Requirement 7, invariants P5, P6 and P8. LAN-80.

@@ -18,7 +18,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
-import { deriveTermCoordinate, type TermWindow } from "./event-input";
+import { derivedEventState, deriveTermCoordinate, type TermWindow } from "./event-input";
 
 /** The 2026-27 Oxford year, exactly as `scripts/seed-local.mjs` creates it. */
 const MICHAELMAS: TermWindow = {
@@ -173,5 +173,61 @@ describe("the derivation does not depend on the machine's time zone", () => {
     } finally {
       process.env.TZ = original;
     }
+  });
+});
+
+/**
+ * `derivedEventState`, including the branch nothing reached — finding A-3.
+ *
+ * Independent review deleted its cancellation branch and watched 3967 unit
+ * tests and all 50 events database tests stay green. It is unreachable today
+ * because both callers ask about an `approved` event first, but it is an
+ * exported derivation of a club rule, and the public-calendar and subscription
+ * feed packages will call it from surfaces that have no reason to repeat that
+ * guard. A branch nothing covers is a branch the next caller inherits untested.
+ */
+describe("what an event looks like now, as distinct from what is stored", () => {
+  const TODAY = "2026-10-14";
+
+  it("calls a cancellation cancelled, whatever its date says", () => {
+    // The branch review deleted. Both sides of today, because "cancelled" is
+    // about the decision and not about the clock: an evening called off last
+    // month did not occur, and one called off for next month is not upcoming.
+    for (const scheduledOn of ["2026-09-30", TODAY, "2026-12-25", null]) {
+      expect(
+        derivedEventState({ status: "cancelled", scheduledOn }, TODAY),
+        `cancelled on ${scheduledOn}`,
+      ).toBe("cancelled");
+    }
+  });
+
+  it("calls a past approved event occurred, and a future one upcoming", () => {
+    expect(derivedEventState({ status: "approved", scheduledOn: "2026-10-13" }, TODAY)).toBe(
+      "occurred",
+    );
+    // Not on the day itself: the rule is `<`, and an evening is not over at
+    // breakfast.
+    expect(derivedEventState({ status: "approved", scheduledOn: TODAY }, TODAY)).toBe("upcoming");
+    expect(derivedEventState({ status: "approved", scheduledOn: "2026-10-15" }, TODAY)).toBe(
+      "upcoming",
+    );
+  });
+
+  it("never calls an undated event occurred", () => {
+    expect(derivedEventState({ status: "draft", scheduledOn: null }, TODAY)).toBe("upcoming");
+    expect(derivedEventState({ status: "approved", scheduledOn: null }, TODAY)).toBe("upcoming");
+  });
+
+  it("answers about the date alone once the status is not cancelled", () => {
+    // Deliberately pinned rather than left to be discovered: a past *draft*
+    // reads `occurred` from this function, because the function answers "what
+    // does the clock say" for everything that was not called off. It is the
+    // callers that add "and it was approved" — `page.tsx` shows the derived
+    // word only for an approved event, and the Occurred filter's SQL carries
+    // `e.status = 'approved'` in the same predicate. Anything reading this
+    // function for a screen has to do the same.
+    expect(derivedEventState({ status: "draft", scheduledOn: "2020-01-01" }, TODAY)).toBe(
+      "occurred",
+    );
   });
 });

@@ -26,9 +26,8 @@ import {
   ATTENDANCE_LOCKED_RULE,
   COACH_BOARD_NOTE,
   COACH_BOARD_SUBTITLE,
-  COACH_LOCKED_DETAIL,
   COACH_LOCKED_HEADLINE,
-  COACH_LOCKED_RULE,
+  describeCoachLock,
   COACH_RETURN_TO_ELIGIBLE,
   COMPLETE_ATTENDANCE,
   COMPLETE_ATTENDANCE_MEANING,
@@ -353,10 +352,9 @@ function CoachAttendanceLocked({ status }: { status: string }) {
           {COACH_LOCKED_HEADLINE}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          {COACH_LOCKED_DETAIL}
+          {describeCoachLock(status)}
         </Typography>
       </Box>
-      <Alert severity="info">{COACH_LOCKED_RULE}</Alert>
       <Box>
         <Button variant="contained" href="/operate/events" sx={{ minHeight: 44 }}>
           {COACH_RETURN_TO_ELIGIBLE}

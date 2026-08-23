@@ -146,15 +146,6 @@ export function derivedEventState(
 }
 
 /**
- * Has this event happened, in the sense that lets a register be taken?
- *
- * Both halves of invariant P5, in one place. `attendance_records` carries the
- * "the event is approved" half as a check constraint; the "its date has passed"
- * half cannot be one, because a check constraint cannot read the clock. So it
- * is stated here, once, and every caller asks the same question rather than
- * re-deriving it.
- */
-/**
  * The value the events list's Status filter uses for the derived state — Q-6.
  *
  * Brian asked to "see the events that occurred, to easily be able to tell which
@@ -180,13 +171,6 @@ export const EVENT_STATUS_FILTERS: readonly string[] = Object.freeze([
   OCCURRED_FILTER,
   "cancelled",
 ]);
-
-export function hasOccurred(
-  event: { status: EventStatus; scheduledOn: string | null },
-  today: string,
-): boolean {
-  return event.status === "approved" && derivedEventState(event, today) === "occurred";
-}
 
 // ---------------------------------------------------------------------------
 // Input, and the rules it has to satisfy

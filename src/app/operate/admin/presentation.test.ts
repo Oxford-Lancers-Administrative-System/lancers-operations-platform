@@ -608,6 +608,11 @@ describe("permissions", () => {
    * different issues and never read side by side — "record attendance for an
    * occurred event" above "record attendance for an event that has occurred".
    * As sentences they were the same sentence.
+   *
+   * W-F7 then found the survivor was also false: the register opens on D71's
+   * buffer, before the event has occurred, and the walker proved a coach may
+   * record against a session that has not happened. The pair still has to read
+   * apart, and both halves now have to be true.
    */
   it("gives a coach two permission phrases a reader can tell apart", () => {
     const items = permissionsSummary("head_coach").items;

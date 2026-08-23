@@ -399,6 +399,10 @@ describe("the attendance gate", () => {
       ),
     );
     expect(error.kind).toBe("invalid_transition");
+    // A-4: the text, not only the reason code. The import was here and unused
+    // after the merge, which is exactly what an unasserted message looks like —
+    // the sentence a recorder is shown could have changed to anything.
+    expect(error.message).toBe(ATTENDANCE_CLOSED_MESSAGE);
     expect(await attendanceRows(event.id)).toEqual([]);
   });
 

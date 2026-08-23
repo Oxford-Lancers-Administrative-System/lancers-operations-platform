@@ -86,16 +86,22 @@ for a workflow that must not act on a guess: the duplicate check is a separate,
 read-only call; the write takes an explicit operator and an explicit decision
 about who the person is; everything commits in one transaction; and the
 membership's two status transitions go to `season_membership_status_events`
-rather than being duplicated into `audit_events` (register D9). `events.ts` implements
-two of the rules `docs/architecture/data-model.md` § _Rules deliberately left to
+rather than being duplicated into `audit_events` (register D9). `events.ts`
+implements rules `docs/architecture/data-model.md` § _Rules deliberately left to
 TypeScript_ names, and implements them the way that section describes:
 
-- **Legal state transitions** — as a table of `{ from, to }` in
-  `EVENT_TRANSITIONS`, covering the three LAN-76 owns. A pair not in the table
-  is refused, so the whitelist is the rule rather than a fallback. `approved`,
-  `rejected`, `cancelled`, `occurred` and `not_held` belong to LAN-77 and later.
-- **Writing the audit record** (M2) — every transition calls `recordAudit` with
-  the same `Tx` as the status change.
+- **Writing the audit record** (M2) — every write calls `recordAudit` with the
+  same `Tx` as the change it records.
+- **What an event looks like now** — `derivedEventState` in `event-input.ts`.
+  Since LAN-151 nothing asserts occurrence (D30): an event has occurred once its
+  date has passed and it was not cancelled.
+
+There **is no transition table any more**. `events.ts` held one, as a whitelist
+of `{ from, to }` pairs, and LAN-151 removed it along with the five statuses it
+moved between — `pending_approval`, `rejected`, `withdrawn`, `occurred` and
+`not_held` all left `public.event_status`, which holds three values. Approval is
+`event-approval.ts`; a status a caller cannot reach is one the enum does not
+have, which is a stronger guarantee than a rule about it.
 
 `administration-events.ts` and `administration-audit.ts` are LAN-130's half of
 the operator-administration mission, and they are the pattern for **one event
