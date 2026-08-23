@@ -21,10 +21,11 @@
  */
 
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { globToRegExp } from "../fast-lane/classify.mjs";
+import { globToRegExp, parseNameStatus } from "../fast-lane/classify.mjs";
 import { requiredChecksPassed } from "../fast-lane/gate.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -84,7 +85,43 @@ export function classifyVisualDelta(files, rules) {
   };
 }
 
-export function visualCarryForwardDefects(evidence, currentHead, rules) {
+/**
+ * Re-derive one carry-forward link from Git objects without checking out or
+ * executing either commit. Both endpoints must be on the current head's
+ * ancestry chain; a receipt cannot cite an unrelated benign diff.
+ */
+export function deriveGitVisualFiles(repoPath, fromSha, toSha, currentHead) {
+  for (const [label, sha] of Object.entries({ fromSha, toSha, currentHead })) {
+    if (!/^[0-9a-f]{40}$/.test(sha ?? "")) throw new Error(`${label} is not a full SHA.`);
+  }
+  execFileSync("git", ["merge-base", "--is-ancestor", fromSha, toSha], {
+    cwd: repoPath,
+    stdio: "ignore",
+  });
+  execFileSync("git", ["merge-base", "--is-ancestor", toSha, currentHead], {
+    cwd: repoPath,
+    stdio: "ignore",
+  });
+  return parseNameStatus(
+    execFileSync("git", ["diff", "--name-status", fromSha, toSha, "--"], {
+      cwd: repoPath,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }),
+  );
+}
+
+function canonicalFiles(files) {
+  return [...(files ?? [])]
+    .map(({ status, path: file, previousPath }) => ({
+      status,
+      path: file,
+      ...(previousPath ? { previousPath } : {}),
+    }))
+    .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+}
+
+export function visualCarryForwardDefects(evidence, currentHead, rules, deriveVisualFiles) {
   if (evidence === undefined) return [];
   if (evidence === null || typeof evidence !== "object" || Array.isArray(evidence)) {
     return ["Receipt visual_evidence must be an object when approval is carried forward."];
@@ -98,6 +135,11 @@ export function visualCarryForwardDefects(evidence, currentHead, rules) {
   if (!Array.isArray(chain) || chain.length === 0) {
     defects.push("Receipt visual_evidence carries a non-empty carry_forward_chain.");
     return defects;
+  }
+  if (typeof deriveVisualFiles !== "function") {
+    defects.push(
+      "Receipt visual carry-forward requires Git-derived evidence for every link; receipt-supplied file lists are not proof.",
+    );
   }
   let expected = approved;
   for (const [index, link] of chain.entries()) {
@@ -115,6 +157,21 @@ export function visualCarryForwardDefects(evidence, currentHead, rules) {
       defects.push(`${label} has no classifier file list.`);
     } else if (classifyVisualDelta(link.files, rules).verdict !== "non-rendered") {
       defects.push(`${label}'s file list touches a rendered surface.`);
+    }
+    if (typeof deriveVisualFiles === "function") {
+      try {
+        const derived = deriveVisualFiles(link?.from_sha, link?.to_sha, currentHead);
+        if (classifyVisualDelta(derived, rules).verdict !== "non-rendered") {
+          defects.push(`${label}'s Git-derived diff touches a rendered surface.`);
+        }
+        if (
+          JSON.stringify(canonicalFiles(derived)) !== JSON.stringify(canonicalFiles(link?.files))
+        ) {
+          defects.push(`${label}'s file list does not match its Git-derived diff.`);
+        }
+      } catch {
+        defects.push(`${label} could not be derived as an ancestor link to the current head.`);
+      }
     }
     if (link?.fact !== `carried-forward-from ${link?.from_sha}`) {
       defects.push(`${label} does not record its carried-forward-from fact.`);
@@ -233,10 +290,16 @@ export function receiptDefects(receipt) {
  * The server-verifiable gate, run by the mission-merge workflow from the base
  * branch against evidence it gathered itself.
  *
- * @param {{ pullRequest: object|null, checkRuns: object[], files: Array<{status: string, path: string, previousPath?: string}>, rules: object }} input
+ * @param {{ pullRequest: object|null, checkRuns: object[], files: Array<{status: string, path: string, previousPath?: string}>, rules: object, deriveVisualFiles?: (fromSha: string, toSha: string, currentHead: string) => Array<{status: string, path: string, previousPath?: string}> }} input
  * @returns {{ merge: boolean, reasons: string[], receipt: Record<string, any>|null }}
  */
-export function evaluateMissionGate({ pullRequest: pr, checkRuns, files, rules }) {
+export function evaluateMissionGate({
+  pullRequest: pr,
+  checkRuns,
+  files,
+  rules,
+  deriveVisualFiles,
+}) {
   const reasons = [];
   if (!pr) return { merge: false, reasons: ["No pull request was resolved."], receipt: null };
 
@@ -283,7 +346,14 @@ export function evaluateMissionGate({ pullRequest: pr, checkRuns, files, rules }
       );
     }
     if (receipt.visual === "approved") {
-      reasons.push(...visualCarryForwardDefects(receipt.visual_evidence, pr.headRefOid, rules));
+      reasons.push(
+        ...visualCarryForwardDefects(
+          receipt.visual_evidence,
+          pr.headRefOid,
+          rules,
+          deriveVisualFiles,
+        ),
+      );
     }
     // The checkpoint-approval tier: an auth or delivery diff is detected from
     // evidence, and merges only with a cited, answered owner question. The

@@ -15,7 +15,7 @@ import fs from "node:fs";
 import process from "node:process";
 
 import { parseNameStatus } from "../fast-lane/classify.mjs";
-import { evaluateMissionGate, loadRules } from "./merge-gate.mjs";
+import { deriveGitVisualFiles, evaluateMissionGate, loadRules } from "./merge-gate.mjs";
 
 function argument(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -31,7 +31,14 @@ const files = parseNameStatus(fs.readFileSync(argument("files"), "utf8"));
 const checkRuns = JSON.parse(fs.readFileSync(argument("checks"), "utf8"));
 const rules = loadRules();
 
-const verdict = evaluateMissionGate({ pullRequest, checkRuns, files, rules });
+const verdict = evaluateMissionGate({
+  pullRequest,
+  checkRuns,
+  files,
+  rules,
+  deriveVisualFiles: (fromSha, toSha, currentHead) =>
+    deriveGitVisualFiles(process.cwd(), fromSha, toSha, currentHead),
+});
 
 fs.writeFileSync("mission-merge-verdict.json", `${JSON.stringify(verdict, null, 2)}\n`);
 

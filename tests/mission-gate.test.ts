@@ -183,6 +183,43 @@ describe("the guarded mission merge gate", () => {
     expect(touchesVisualSurface([{ status: "M", path: "src/theme.ts" }], rules)).toBe(true);
   });
 
+  it("re-derives every visual carry-forward link instead of trusting its file list", () => {
+    const evidence = {
+      approved_sha: OTHER,
+      carry_forward_chain: [
+        {
+          from_sha: OTHER,
+          to_sha: HEAD,
+          verdict: "non-rendered",
+          files: [{ status: "M", path: "src/lib/events/service.ts" }],
+          fact: `carried-forward-from ${OTHER}`,
+        },
+      ],
+    };
+    const carried = pullRequest({
+      body: bodyWith(receipt({ visual_evidence: evidence })),
+    });
+
+    const unproved = gate({ pullRequest: carried });
+    expect(unproved.merge).toBe(false);
+    expect(unproved.reasons.join("\n")).toMatch(/requires Git-derived evidence/);
+
+    const forged = gate({
+      pullRequest: carried,
+      deriveVisualFiles: () => [{ status: "M", path: "src/app/events/page.tsx" }],
+    });
+    expect(forged.merge).toBe(false);
+    expect(forged.reasons.join("\n")).toMatch(/Git-derived diff touches a rendered surface/);
+    expect(forged.reasons.join("\n")).toMatch(/does not match its Git-derived diff/);
+
+    const proved = gate({
+      pullRequest: carried,
+      deriveVisualFiles: () => [{ status: "M", path: "src/lib/events/service.ts" }],
+    });
+    expect(proved.reasons).toEqual([]);
+    expect(proved.merge).toBe(true);
+  });
+
   it("requires a cited, answered owner decision for checkpoint-approval surfaces — detected from the diff", () => {
     const authFiles = [{ status: "M", path: "src/lib/auth/capabilities.ts" }];
     const deliveryFiles = [{ status: "M", path: "src/lib/delivery/allowlist.ts" }];

@@ -30,7 +30,12 @@ import {
   replayState,
 } from "./lib/state.mjs";
 import { promoteRule, readRules } from "./lib/owner-rules.mjs";
-import { evaluateMissionGate, journalConjuncts, loadRules } from "./merge-gate.mjs";
+import {
+  deriveGitVisualFiles,
+  evaluateMissionGate,
+  journalConjuncts,
+  loadRules,
+} from "./merge-gate.mjs";
 import { parseNameStatus } from "../fast-lane/classify.mjs";
 import { coordinatorStatus } from "../lib/local-supabase-coordinator.mjs";
 
@@ -649,6 +654,8 @@ async function main() {
         checkRuns: readJson(flags["checks-json"]),
         files,
         rules: loadRules(),
+        deriveVisualFiles: (fromSha, toSha, currentHead) =>
+          deriveGitVisualFiles(repoPath, fromSha, toSha, currentHead),
       });
       const verdict = {
         merge: local.length === 0 && server.merge,

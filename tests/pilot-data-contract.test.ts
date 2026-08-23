@@ -312,8 +312,13 @@ describe("the scenario scripts stay inside the conventions", () => {
     return sql
       .replace(/--[^\n]*/g, " ")
       .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/(?:[eE])?'(?:''|\\.|[^'])*'/g, " ");
+      .replace(/[eE]'(?:''|\\.|[^'])*'|'(?:''|[^'])*'/g, " ");
   }
+
+  it("does not let backslashes in standard strings hide a real TRUNCATE", () => {
+    const sql = String.raw`select '\'; truncate public.people; select 'x';`;
+    expect(triggerBlindStatements(sql)).toMatch(/\btruncate\s+public\.people\b/i);
+  });
 
   it.each(ALL_SCRIPTS)(
     "%s contains none of the event-trigger-blind statement classes",

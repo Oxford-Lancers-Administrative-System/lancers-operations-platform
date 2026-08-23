@@ -24,6 +24,7 @@ import {
 import { validatePacket } from "../scripts/mission/lib/packet.mjs";
 import { promoteRule, readRules } from "../scripts/mission/lib/owner-rules.mjs";
 import {
+  deriveGitVisualFiles,
   evaluateMissionGate,
   journalConjuncts,
   loadRules,
@@ -687,6 +688,8 @@ describe("Rehearsal 9 — guarded merge permits the qualifying case and refuses 
       checkRuns: greenChecks(commentSha),
       files: [{ status: "M", path: "src/lib/events/service.ts" }],
       rules,
+      deriveVisualFiles: (fromSha, toSha, currentHead) =>
+        deriveGitVisualFiles(m.repo, fromSha, toSha, currentHead),
     });
     expect(carryVerdict.reasons).toEqual([]);
     expect(carryVerdict.merge).toBe(true);
