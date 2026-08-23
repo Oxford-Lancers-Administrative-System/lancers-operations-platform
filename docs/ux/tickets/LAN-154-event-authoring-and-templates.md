@@ -175,8 +175,9 @@ not and why**, and what will not move at all. The button says what it will do.
 | Questions are authored in the create and edit form, never on their own screen   | W4-A1, Brian 2026-08-21            |
 | Bulk delete is retired and is not built                                         | Brian, 2026-08-21, superseding D35 |
 | **Attendance opens on the template's answer, and on Optional otherwise**        | See below, reversing LAN-76        |
+| **A template's audience is an inherited field, and moves like one**             | See below                          |
 
-### Two interpretations recorded plainly
+### Three interpretations recorded plainly
 
 **Which fields approval requires.** W4 says approval is the completeness gate and
 that every required field must be present, and its exceptions table names only
@@ -194,6 +195,33 @@ package owns no migration, so "unanswered" has no storage. Rather than refuse a
 draft that D15 says must save, an unanswered attendance stores `false` —
 _optional_, which asserts nothing about what the club expects. The control shows
 the template's answer selected, so nothing is hidden from the operator.
+
+**What a template change does to a draft's audience.** D41 governs the fields a
+template gives an event: a change flows into a draft field by field, and only
+into fields nobody has touched. It does not say in as many words whether the
+default **audience** is one of those fields, and audience is the single field
+that decides who receives a WhatsApp message — so the reading is recorded here
+rather than left to be inferred.
+
+The audience is an inherited field and moves exactly like one:
+
+- A draft whose audience is still precisely the people the old default resolved
+  to has not been touched, so it takes the new default. Swapping coaches for the
+  committee on the Social template moved such a draft from 34 people to 32.
+- A draft whose audience was chosen by hand holds it, and the confirmation says
+  why: _Its audience was chosen by hand._
+- An approved event never moves, whatever its audience is. Approval freezes
+  everything, because people were already told.
+
+The alternative reading — that a template's audience seeds a new event and never
+moves again — would leave W8 unable to deliver its own motivating example, that
+socials should stop inviting coaches by default. W8 lists **Audience** first
+among what a template carries, and its handoff says the audience and the
+questions are the ones set here. Treating it as frozen at creation would make
+the operator hunt through every draft by hand, which is the work W8 exists to
+remove. The narrowness of "still precisely the old default" is what keeps that
+safe: a single hand-edit, in either direction, takes the draft out of reach of
+the change and says so on the confirmation before anything is saved.
 
 ## Ticket interaction contract
 

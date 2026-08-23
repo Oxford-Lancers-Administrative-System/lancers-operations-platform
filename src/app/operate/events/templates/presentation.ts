@@ -125,9 +125,42 @@ export function untouchedPast(count: number, eventTypeLabel: string): string | n
   return `${count} past ${noun} ${count === 1 ? "is" : "are"} untouched.`;
 }
 
-/** W8-04's first edge: a change that reaches no draft at all says so. */
+/**
+ * W8-04's first edge: a change that reaches no draft at all says so.
+ *
+ * It says it about the change's reach, which is what the condition behind it
+ * measures, and never about whether drafts exist. The two are different facts:
+ * drafts can be waiting and still take nothing, because a draft that edited the
+ * changed field by hand holds its own (D41). Stating existence here put a false
+ * sentence directly above "3 drafts will not" — the very case W8 was written
+ * for, a template description corrected after every draft's was hand-edited.
+ */
 export function changeTouchesNothing(eventTypeLabel: string): string {
-  return `No drafts of this type are waiting. The change applies to ${eventTypeLabel.toLowerCase()} events created from now on.`;
+  return `No draft takes this change. It applies to ${eventTypeLabel.toLowerCase()} events created from now on.`;
+}
+
+/**
+ * What one draft in the "will take this change" panel actually takes.
+ *
+ * Inheritance is per field, so a partly-edited draft is named in **both**
+ * panels: the fields nobody touched move, the ones edited by hand hold. With
+ * only a name under each heading that reads as two different drafts, and for
+ * the draft named twice it says nothing about what will happen to it — on the
+ * one screen whose whole job is showing that editing a template is safe.
+ *
+ * The holding panel already gives one sentence per held field. This is its
+ * mirror, and a draft only reaches the taking list when at least one of the
+ * three is true, so the list is never empty in practice.
+ */
+export function draftTakes(draft: {
+  fields: readonly string[];
+  audience: boolean;
+  questions: boolean;
+}): string[] {
+  const takes = draft.fields.map((label) => `Its ${label.toLowerCase()} takes the new value.`);
+  if (draft.audience) takes.push("Its audience takes the new default.");
+  if (draft.questions) takes.push("Its questions take the change.");
+  return takes;
 }
 
 /** The button that says what it will do. */

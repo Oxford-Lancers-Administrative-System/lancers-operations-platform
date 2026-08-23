@@ -467,6 +467,31 @@ describe("the confirmation reads as W8-03 specifies", () => {
     expect(panel).toContain("Practice — hilary week 6");
   });
 
+  it("says what each of those drafts takes, not only that it takes something", async () => {
+    // W154-F1. Inheritance is per field, so one partly-edited draft is named in
+    // both panels: some of it moves and some of it holds. A name under each
+    // heading and nothing else reads as two drafts, and says nothing about what
+    // will happen to the one that is actually at stake.
+    await confirmWith({
+      taking: [{ ...TAKING, fields: ["Required equipment"], audience: true, questions: true }],
+      holding: [{ ...HOLDING, id: "a", name: TAKING.name }],
+    });
+
+    const panel = flatten(screen.getByTestId("plan-taking").textContent);
+    expect(panel).toContain("Its required equipment takes the new value.");
+    expect(panel).toContain("Its audience takes the new default.");
+    expect(panel).toContain("Its questions take the change.");
+  });
+
+  it("leaves out what a draft does not take", async () => {
+    await confirmWith({ taking: [TAKING] });
+
+    const panel = flatten(screen.getByTestId("plan-taking").textContent);
+    expect(panel).toContain("Its required equipment takes the new value.");
+    expect(panel).not.toContain("Its audience takes the new default.");
+    expect(panel).not.toContain("Its questions take the change.");
+  });
+
   it("names the drafts that will not, and why", async () => {
     // W8: "the operator is told not only which drafts take a change but which
     // will not, and why."
@@ -492,8 +517,22 @@ describe("the confirmation reads as W8-03 specifies", () => {
     await confirmWith({ taking: [] });
 
     expect(flatten(screen.getByTestId("plan-touches-nothing").textContent)).toContain(
-      "No drafts of this type are waiting",
+      "No draft takes this change",
     );
+  });
+
+  it("does not claim there are no drafts when every draft is holding its own", async () => {
+    // W154-F2, and W8's own motivating case: a template description corrected
+    // after every draft's description was hand-edited. The two panels are
+    // independent, so this pairing is reachable — and a sentence about draft
+    // *existence*, rendered on a condition about the change's *reach*, is
+    // simply false here.
+    await confirmWith({ taking: [], holding: [HOLDING, { ...HOLDING, id: "c", name: "Another" }] });
+
+    const nothing = flatten(screen.getByTestId("plan-touches-nothing").textContent);
+    expect(nothing).not.toContain("No drafts of this type are waiting");
+    expect(nothing).toContain("No draft takes this change");
+    expect(flatten(screen.getByTestId("plan-holding").textContent)).toContain("2 drafts will not");
   });
 
   it("makes the button say what it will do", async () => {

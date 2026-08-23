@@ -26,6 +26,7 @@ import {
   describeDuration,
   draftsHolding,
   draftsTaking,
+  draftTakes,
   TEMPLATE_AUDIENCE_DETAIL,
   TEMPLATE_AUDIENCE_HEADLINE,
   TEMPLATE_CONFIRM_BACK,
@@ -470,10 +471,17 @@ function ChangePlan({
             {draftsTaking(plan.taking.length)}
           </Typography>
           {plan.taking.map((draft) => (
-            <Typography variant="body2" key={draft.id}>
-              {draft.name}
-              {draft.scheduledOn ? ` · ${draft.scheduledOn}` : ""}
-            </Typography>
+            <Box key={draft.id} sx={{ mb: 1 }}>
+              <Typography variant="body2">
+                {draft.name}
+                {draft.scheduledOn ? ` · ${draft.scheduledOn}` : ""}
+              </Typography>
+              {draftTakes(draft).map((takes) => (
+                <Typography variant="body2" color="text.secondary" key={takes}>
+                  {takes}
+                </Typography>
+              ))}
+            </Box>
           ))}
         </Paper>
       ) : (
