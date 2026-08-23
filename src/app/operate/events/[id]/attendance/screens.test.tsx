@@ -136,6 +136,8 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     audienceCount: 5,
     invitationCount: 5,
     responseCount: 3,
+    saidYesCount: 0,
+    showedCount: 0,
     origin: "club_controlled",
     termId: null,
     termLabel: "michaelmas 2026-27",

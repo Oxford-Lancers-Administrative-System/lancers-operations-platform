@@ -32,6 +32,10 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
   return {
     ...actual,
     listCurrentSeasonEvents: vi.fn(),
+    // LAN-153 put the operator tier's own guard in front of the list. Both are
+    // stubbed: `listEventsForOperator` is what the list reads, and the coach's
+    // narrowed list still reads the unguarded call.
+    listEventsForOperator: vi.fn(),
     readEvent: vi.fn(),
     createEventDraft: vi.fn(),
     updateEventDraft: vi.fn(),
@@ -73,10 +77,12 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
 import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
+  EVENT_SORT_COLUMNS,
   EVENT_STATUS_FILTERS,
   EVENT_STATUSES,
   EVENT_TYPES,
   listCurrentSeasonEvents,
+  listEventsForOperator,
   readEvent,
   type EventDetail,
   type EventListEntry,
@@ -145,6 +151,8 @@ function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
     audienceCount: 0,
     invitationCount: 0,
     responseCount: 0,
+    saidYesCount: 0,
+    showedCount: 0,
     ...overrides,
   };
 }
@@ -166,10 +174,20 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
   };
 }
 
+/**
+ * The list, asked for **All events** unless a test says otherwise.
+ *
+ * LAN-153 made the list open on a period, and the period is measured against
+ * the real club clock — which no fixture can pin, because the page reads it
+ * itself. Asking for the widest bucket keeps every assertion below about what
+ * the screen *says* rather than about what today's date happens to be. The
+ * bucketing itself is asserted in `src/lib/services/event-periods.test.ts`,
+ * where today is an argument, and against real dates further down this file.
+ */
 function listProps(query: Record<string, string> = {}) {
   return {
     params: Promise.resolve({}),
-    searchParams: Promise.resolve(query),
+    searchParams: Promise.resolve({ period: "all", ...query }),
   } as unknown as PageProps<"/operate/events">;
 }
 
@@ -316,11 +334,19 @@ function givenAudience(
 }
 
 function givenList(events: EventListEntry[], totalInSeason = events.length) {
-  vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
-    season: { id: "season", label: "2026-27", status: "active" },
+  const list = {
+    season: {
+      id: "season",
+      label: "2026-27",
+      status: "active",
+      startsOn: null,
+      endsOn: null,
+    },
     events,
     totalInSeason,
-  });
+  };
+  vi.mocked(listEventsForOperator).mockResolvedValue(list);
+  vi.mocked(listCurrentSeasonEvents).mockResolvedValue(list);
 }
 
 // ---------------------------------------------------------------------------
@@ -336,22 +362,35 @@ describe("UX-30 — the current season's events", () => {
     expect(screen.getByTestId("season-label").textContent).toBe("Season 2026-27");
   });
 
-  it("shows date, type, status and where the event is", async () => {
+  it("shows date, type, status, term and week, and where the event is", async () => {
     givenList([listEntry()]);
 
     const { container } = render(await EventsPage(listProps()));
     const text = flatten(container.textContent);
 
     expect(text).toContain("Wednesday practice");
-    expect(text).toContain("Wed 14 Oct 2026, 20:00");
+    expect(text).toContain("Wed 14 Oct 2026");
+    expect(text).toContain("20:00");
     expect(text).toContain("Iffley Road Astro");
     expect(text).toContain("Draft");
     expect(text).toContain("Practice");
-    // "Response requested" was a column here and D23 removed it. Where the
-    // event is replaced it: in person or online changes what an operator has to
-    // do to get there, and whether a response was requested was not a real
-    // concept.
-    expect(text).toContain("In person");
+    // LAN-153's Term and week column, derived from the date through the same
+    // academic year the Oxford View draws. 14 October 2026 is Michaelmas 1st
+    // week on the club's own MT26 card, whose weeks 1–8 run from 11 October.
+    expect(text).toContain("MT 1st");
+  });
+
+  it("links the event's name to the event, which is what an operator clicks", async () => {
+    // Brian, 21 August 2026: "the event itself should be a hyperlink that leads
+    // to the event page itself".
+    givenList([listEntry()]);
+
+    render(await EventsPage(listProps()));
+
+    const link = screen
+      .getAllByRole("link")
+      .find((candidate) => candidate.textContent === "Wednesday practice");
+    expect(link?.getAttribute("href")).toBe(`/operate/events/${EVENT_ID}`);
   });
 
   /**
@@ -421,25 +460,87 @@ describe("UX-30 — the current season's events", () => {
     expect(flatten(card.textContent)).toContain("Cancelled");
   });
 
-  it("says when a draft's audience arrives, rather than that it is missing", async () => {
-    givenList([listEntry()]);
+  /**
+   * `REQ-list-shape`, and D73/D74 as LAN-152 established them.
+   *
+   * The Audience column went with LAN-153: it read "Chosen at approval" for
+   * everything a calendar operator can create, which answered nobody's
+   * question. Three counts replaced it, and the third one is the one the club
+   * is most likely to misread.
+   */
+  describe("the three counts an operator asks about", () => {
+    it("carries Invited, Said yes and Showed against invited", async () => {
+      givenList([
+        listEntry({
+          status: "approved",
+          invitationCount: 47,
+          saidYesCount: 31,
+          showedCount: 20,
+          registerSaved: true,
+        }),
+      ]);
 
-    const { container } = render(await EventsPage(listProps()));
-    const text = flatten(container.textContent);
+      const { container } = render(await EventsPage(listProps()));
+      const text = flatten(container.textContent);
 
-    expect(text).toContain("Chosen at approval");
-    expect(text).not.toContain("Not resolved");
-    expect(flatten(screen.getByTestId("audience-note").textContent)).toContain(
-      "chosen and confirmed during approval",
-    );
-  });
+      expect(text).toContain("Invited");
+      expect(text).toContain("Said yes");
+      expect(text).toContain("Showed / Invited");
+      expect(screen.getAllByTestId("showed-against-invited")[0].textContent).toBe("20 / 47");
+    });
 
-  it("counts an approved event's audience", async () => {
-    givenList([listEntry({ status: "approved", audienceCount: 42, invitationCount: 42 })]);
+    it("reads an em dash until a register has been saved", async () => {
+      // D74. An event nobody has got round to must not read as a disaster.
+      givenList([
+        listEntry({
+          status: "approved",
+          invitationCount: 47,
+          saidYesCount: 31,
+          showedCount: 0,
+          registerSaved: false,
+        }),
+      ]);
 
-    const { container } = render(await EventsPage(listProps()));
+      render(await EventsPage(listProps()));
 
-    expect(flatten(container.textContent)).toContain("42 invited");
+      expect(screen.getAllByTestId("showed-against-invited")[0].textContent).toBe("— / 47");
+    });
+
+    it("reads a real zero once a register has been saved with everybody absent", async () => {
+      // The other half of D74: `0 / 47` is a register that was taken, and it is
+      // a different fact from one that was not.
+      givenList([
+        listEntry({
+          status: "approved",
+          invitationCount: 47,
+          saidYesCount: 31,
+          showedCount: 0,
+          registerSaved: true,
+        }),
+      ]);
+
+      render(await EventsPage(listProps()));
+
+      expect(screen.getAllByTestId("showed-against-invited")[0].textContent).toBe("0 / 47");
+    });
+
+    it("states the counts as raw pairs and never as a percentage", async () => {
+      // D62. "43%" is the same fact with the two numbers the club wanted taken
+      // out of it.
+      givenList([
+        listEntry({
+          status: "approved",
+          invitationCount: 47,
+          saidYesCount: 31,
+          showedCount: 20,
+          registerSaved: true,
+        }),
+      ]);
+
+      const { container } = render(await EventsPage(listProps()));
+
+      expect(flatten(container.textContent)).not.toContain("%");
+    });
   });
 
   it("shows neither an occurrence column nor a response count", async () => {
@@ -456,29 +557,49 @@ describe("UX-30 — the current season's events", () => {
     expect(text).not.toContain("34 responses");
   });
 
-  it("offers sorting by date, event, venue and status, in the query string", async () => {
+  it("offers every column as a sort, in the query string", async () => {
+    // `REQ-list-shape`: "Every column sorts."
     givenList([listEntry()]);
 
     render(await EventsPage(listProps()));
 
-    for (const column of ["date", "name", "venue", "status"]) {
-      const header = screen
-        .getAllByRole("link")
-        .find((link) => link.getAttribute("href")?.includes(`sort=${column}`));
+    for (const column of [
+      "name",
+      "type",
+      "date",
+      "term",
+      "status",
+      "invited",
+      "said_yes",
+      "showed",
+    ]) {
+      // By its own test id rather than by searching every link for the sort
+      // key: the period buttons carry the current sort in their hrefs too, and
+      // a `find` over all links picks one of those up instead of the header.
+      const header = screen.getAllByTestId(`sort-${column}`)[0];
       expect(header, `no sortable header for ${column}`).toBeDefined();
+      expect(header.getAttribute("href")).toContain(`sort=${column}`);
     }
+  });
+
+  it("sorts Term and week identically to Date, because it is the same ordering", async () => {
+    // `REQ-list-shape`. Not two orderings that agree — one expression, asked for
+    // two ways. Injecting a different SQL expression for `term` fails this.
+    expect(EVENT_SORT_COLUMNS.term.sql).toBe(EVENT_SORT_COLUMNS.date.sql);
+    expect(EVENT_SORT_COLUMNS.term.default).toBe(EVENT_SORT_COLUMNS.date.default);
   });
 
   it("flips the direction of the column already sorted, and keeps the filter", async () => {
     givenList([listEntry()]);
 
-    render(await EventsPage(listProps({ sort: "date", dir: "desc", q: "practice" })));
+    render(await EventsPage(listProps({ sort: "date", dir: "asc", q: "practice" })));
 
-    const dateHeader = screen
-      .getAllByRole("link")
-      .find((link) => link.getAttribute("href")?.includes("sort=date"));
-    expect(dateHeader?.getAttribute("href")).toContain("dir=asc");
+    const dateHeader = screen.getAllByTestId("sort-date")[0];
+    expect(dateHeader?.getAttribute("href")).toContain("dir=desc");
     expect(dateHeader?.getAttribute("href")).toContain("q=practice");
+    // And the period travels with it, so sorting does not widen or narrow what
+    // is in view.
+    expect(dateHeader?.getAttribute("href")).toContain("period=all");
   });
 
   it("has no Apply button — a filter applies when it changes", async () => {
@@ -663,12 +784,13 @@ describe("UX-30 — the current season's events", () => {
 
     render(await EventsPage(listProps({ q: "practice", status: "draft", type: "practice" })));
 
-    expect(vi.mocked(listCurrentSeasonEvents).mock.calls[0][0]).toEqual({
+    expect(vi.mocked(listEventsForOperator).mock.calls[0][0]).toEqual({
       search: "practice",
       status: "draft",
       eventType: "practice",
       sort: "date",
-      direction: "desc",
+      // Soonest first, because the list opens on what is upcoming (D84).
+      direction: "asc",
       // Q-6. The page reads the club's clock once and hands it down, so the
       // derived `occurred` filter and every row's Status column cannot straddle
       // midnight and disagree.
@@ -677,7 +799,7 @@ describe("UX-30 — the current season's events", () => {
   });
 
   it("explains itself rather than crashing when no season is open", async () => {
-    vi.mocked(listCurrentSeasonEvents).mockRejectedValue(new NotFound("No season is open."));
+    vi.mocked(listEventsForOperator).mockRejectedValue(new NotFound("No season is open."));
 
     render(await EventsPage(listProps()));
 

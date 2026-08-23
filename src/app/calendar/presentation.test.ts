@@ -12,12 +12,16 @@
 import { describe, expect, it } from "vitest";
 
 import type { TermWindow } from "@/lib/services/event-input";
-import { formatShortDate, shortMonthOf, SHORT_MONTHS, TYPE_LABELS } from "../presentation";
+import {
+  formatShortDate,
+  shortMonthOf,
+  SHORT_MONTHS,
+  TYPE_LABELS,
+} from "@/lib/services/event-vocabulary";
 import {
   EVENT_TYPE_COLOURS,
   formatCellDate,
   formatMonthLabel,
-  formatOxfordWeek,
   formatTermName,
   formatWeekRange,
   typeColour,
@@ -74,16 +78,12 @@ describe("formatWeekRange", () => {
   });
 });
 
-describe("formatOxfordWeek", () => {
-  it("uses the row labels the club's term cards use", () => {
-    expect(formatOxfordWeek(-1)).toBe("−1st week");
-    expect(formatOxfordWeek(0)).toBe("0th week");
-    expect(formatOxfordWeek(1)).toBe("1st week");
-    expect(formatOxfordWeek(2)).toBe("2nd week");
-    expect(formatOxfordWeek(3)).toBe("3rd week");
-    expect(formatOxfordWeek(8)).toBe("8th week");
-  });
-});
+/*
+ * `formatOxfordWeek` and `formatWeekLabel` moved to
+ * `@/lib/services/oxford-year`, which owns the whole year's week vocabulary now
+ * — a vacation row's label is not an Oxford week and could not be formatted
+ * here. `src/lib/services/oxford-year.test.ts` asserts the same ordinals.
+ */
 
 describe("colour by event type", () => {
   it("gives every event type in the club's vocabulary its own colour", () => {

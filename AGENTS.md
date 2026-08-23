@@ -172,9 +172,14 @@ harmless and unnecessary.
 ## Deployment
 
 - **Pull request → CI only.** Nothing deploys.
-- **Merge to `main` → deploy.** Builds the image, pushes to Artifact Registry,
-  deploys a Cloud Run revision, and smoke-tests `/api/health`. The deploy fails
-  itself unless the response reports `status: ok` and `secretsLoaded: true`.
+- **Merge to `main` → nothing deploys.** `main` is the reviewed trunk, not the
+  deploy trigger.
+- **Deploying is a deliberate act:** `gh workflow run deploy.yml`. It builds the
+  image, pushes to Artifact Registry, deploys a Cloud Run revision, and
+  smoke-tests `/api/health`, failing itself unless the response reports
+  `status: ok` and `secretsLoaded: true`. Separating it from the merge is what
+  lets a migration be applied to hosted **before** the revision expecting it
+  goes live.
 - **Rollback:** `gh workflow run deploy.yml -f image_tag=<previous-commit-sha>`.
   Every image is tagged with its commit SHA. Full runbook, including the faster
   traffic-shifting route, is in `docs/deployment.md`.
