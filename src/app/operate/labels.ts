@@ -13,7 +13,13 @@
  * has written a label for yet".
  *
  * The maps stay where they are. Only this is shared.
+ *
+ * ## Where it lives now
+ *
+ * The implementation moved to `@/lib/services/event-vocabulary` when LAN-153
+ * opened a public calendar: the vocabulary that calendar needs had to leave
+ * `/operate`, and it needs this lookup, so a module under `src/lib/` could not
+ * go on importing from `src/app/`. This file is the re-export, so the five
+ * `/operate` screens that have always imported `labelFor` from here still do.
  */
-export function labelFor(labels: Readonly<Record<string, string>>, value: string): string {
-  return labels[value] ?? value;
-}
+export { labelFor } from "@/lib/services/event-vocabulary";

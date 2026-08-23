@@ -38,19 +38,32 @@ vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 // shell — the gate, the account states and the navigation — so the list's data
 // access is stubbed rather than exercised here; `src/app/operate/events/` owns
 // its own suites, against the real database.
-vi.mock("@/lib/services/events", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/services/events")>()),
-  listCurrentSeasonEvents: vi.fn(async () => ({
-    season: { id: "season", label: "2026-27", status: "active" },
+vi.mock("@/lib/services/events", async (importOriginal) => {
+  const empty = async () => ({
+    season: { id: "season", label: "2026-27", status: "active", startsOn: null, endsOn: null },
     events: [],
     totalInSeason: 0,
-  })),
+  });
+  return {
+    ...(await importOriginal<typeof import("@/lib/services/events")>()),
+    // LAN-153 put the operator tier's own guard in front of the list
+    // (`listEventsForOperator`). The coach's list still reads the unguarded
+    // call, so both are stubbed and the assertions below say which is which.
+    listCurrentSeasonEvents: vi.fn(empty),
+    listEventsForOperator: vi.fn(empty),
+  };
+});
+// The list's Term and week column reads the same academic year the Oxford View
+// draws, which needs the term rows. Empty here: this suite is about the shell.
+vi.mock("@/lib/services/seasons", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/services/seasons")>()),
+  listTermWindows: vi.fn(async () => []),
 }));
 // LAN-75 filled the Roster destination in, on the same terms.
 vi.mock("@/lib/services/membership", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/services/membership")>()),
   listCurrentSeasonRoster: vi.fn(async () => ({
-    season: { id: "season", label: "2026-27", status: "active" },
+    season: { id: "season", label: "2026-27", status: "active", startsOn: null, endsOn: null },
     entries: [],
     totalInSeason: 0,
   })),
@@ -169,6 +182,8 @@ function eventEntry(
     audienceCount: 0,
     invitationCount: 0,
     responseCount: 0,
+    saidYesCount: 0,
+    showedCount: 0,
   };
 }
 
@@ -693,7 +708,7 @@ describe("LAN-110 — the coach shell", () => {
   // empty default back before each.
   beforeEach(() => {
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
-      season: { id: "season", label: "2026-27", status: "active" },
+      season: { id: "season", label: "2026-27", status: "active", startsOn: null, endsOn: null },
       events: [],
       totalInSeason: 0,
     });
@@ -796,7 +811,7 @@ describe("LAN-110 — the coach shell", () => {
     // today is just Earlier. That's it."
     const today = londonToday();
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
-      season: { id: "season", label: "2026-27", status: "active" },
+      season: { id: "season", label: "2026-27", status: "active", startsOn: null, endsOn: null },
       events: [
         eventEntry("today-practice", "Practice", today, "approved"),
         eventEntry("next-week", "S&C", shiftDays(today, 5), "approved"),
@@ -835,7 +850,7 @@ describe("LAN-110 — the coach shell", () => {
     // one two days out is not, whatever time this suite happens to run at.
     const today = londonToday();
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
-      season: { id: "season", label: "2026-27", status: "active" },
+      season: { id: "season", label: "2026-27", status: "active", startsOn: null, endsOn: null },
       events: [
         eventEntry("open", "Practice", shiftDays(today, -1), "approved"),
         eventEntry("not-yet", "S&C", shiftDays(today, 2), "approved"),
@@ -870,7 +885,7 @@ describe("LAN-110 — the coach shell", () => {
     const today = londonToday();
     const session = eventEntry("tonight", "Practice", today, "approved");
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
-      season: { id: "season", label: "2026-27", status: "active" },
+      season: { id: "season", label: "2026-27", status: "active", startsOn: null, endsOn: null },
       events: [session],
       totalInSeason: 1,
     });
@@ -894,7 +909,7 @@ describe("LAN-110 — the coach shell", () => {
   it("carries no standing note about when a register opens", async () => {
     const today = londonToday();
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
-      season: { id: "season", label: "2026-27", status: "active" },
+      season: { id: "season", label: "2026-27", status: "active", startsOn: null, endsOn: null },
       events: [eventEntry("one", "Practice", shiftDays(today, -1), "approved")],
       totalInSeason: 1,
     });
@@ -915,7 +930,7 @@ describe("LAN-110 — the coach shell", () => {
   it("draws no heading for a section with nothing in it", async () => {
     // A club practises for eight months and then stops for the summer.
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
-      season: { id: "season", label: "2026-27", status: "active" },
+      season: { id: "season", label: "2026-27", status: "active", startsOn: null, endsOn: null },
       events: [eventEntry("long-ago", "Varsity Match", shiftDays(londonToday(), -60), "approved")],
       totalInSeason: 1,
     });
@@ -932,7 +947,7 @@ describe("LAN-110 — the coach shell", () => {
     // draft; and the visible set is decided in coach-event-buckets.ts.
     const today = londonToday();
     vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
-      season: { id: "season", label: "2026-27", status: "active" },
+      season: { id: "season", label: "2026-27", status: "active", startsOn: null, endsOn: null },
       events: [
         eventEntry("draft", "A draft nobody approved", today, "draft"),
         eventEntry("cancelled", "A cancelled game", today, "cancelled"),

@@ -31,6 +31,8 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
   return {
     ...actual,
     listCurrentSeasonEvents: vi.fn(),
+    // LAN-153 put the operator tier's own guard in front of the calendar's read.
+    listEventsForOperator: vi.fn(),
     readEvent: vi.fn(),
     createEventDraft: vi.fn(),
     updateEventDraft: vi.fn(),
@@ -59,7 +61,7 @@ import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
 import {
   createEventDraft,
-  listCurrentSeasonEvents,
+  listEventsForOperator,
   updateEventDraft,
   type EventListEntry,
 } from "@/lib/services/events";
@@ -94,6 +96,24 @@ const TRINITY: TermWindow = {
   academicYear: "2026-27",
   startsOn: "2027-04-18",
   endsOn: "2027-06-19",
+  firstWeek: 0,
+  lastWeek: 8,
+};
+
+/**
+ * The previous academic year's last term.
+ *
+ * The season's leading Long Vacation is numbered from the day after this ends —
+ * it is the only place its week 1 can come from — so a fixture without it would
+ * be a year with no Long Vacation at its start, which is not the year Stewart
+ * described.
+ */
+const TRINITY_BEFORE: TermWindow = {
+  id: "55555555-5555-4555-8555-555555555550",
+  name: "trinity",
+  academicYear: "2025-26",
+  startsOn: "2026-04-19",
+  endsOn: "2026-06-20",
   firstWeek: 0,
   lastWeek: 8,
 };
@@ -133,13 +153,21 @@ function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
     audienceCount: 0,
     invitationCount: 0,
     responseCount: 0,
+    saidYesCount: 0,
+    showedCount: 0,
     ...overrides,
   };
 }
 
 function givenEvents(events: EventListEntry[]) {
-  vi.mocked(listCurrentSeasonEvents).mockResolvedValue({
-    season: { id: "44444444-4444-4444-8444-444444444444", label: "2026-27", status: "active" },
+  vi.mocked(listEventsForOperator).mockResolvedValue({
+    season: {
+      id: "44444444-4444-4444-8444-444444444444",
+      label: "2026-27",
+      status: "active",
+      startsOn: null,
+      endsOn: null,
+    },
     events,
     totalInSeason: events.length,
   });
@@ -153,7 +181,7 @@ function calendarProps(query: Record<string, string> = {}) {
 }
 
 /** Text with runs of whitespace collapsed, so wrapping cannot break a match. */
-function flatten(text: string | null): string {
+function flatten(text: string | null | undefined): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
 }
 
@@ -168,7 +196,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   routerPush.mockClear();
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: operator() });
-  vi.mocked(listTermWindows).mockResolvedValue([TRINITY, HILARY, MICHAELMAS]);
+  vi.mocked(listTermWindows).mockResolvedValue([TRINITY, HILARY, MICHAELMAS, TRINITY_BEFORE]);
   givenEvents([listEntry()]);
 });
 
@@ -309,175 +337,229 @@ describe("the Gregorian calendar", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Matrix rows 4, 5, 6, 7, 8 — the Oxford term card, on screen
+// LAN-153, `REQ-oxford-continuous` — the Oxford View, on screen
 // ---------------------------------------------------------------------------
 
-describe("the Oxford term card", () => {
-  it("shows the configured week rows with their exact Gregorian ranges", async () => {
-    const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
+/**
+ * The term card's own block used to be here, and went with the card (D85).
+ *
+ * What it proved that still matters — the configured week rows, their exact
+ * Gregorian ranges, Hilary having no −1st week, two events on one day both
+ * visible — is asserted below against the continuous column instead. What it
+ * proved that no longer exists is gone with it: which term borrows a vacation
+ * week, how far a card reaches, and the two selectors Stewart asked to replace.
+ */
+describe("the Oxford View", () => {
+  const oxford = () => EventCalendarPage(calendarProps({ mode: "oxford" }));
 
-    const rows = [...container.querySelectorAll('[data-testid="term-card-week"]')];
-    expect(rows.map((row) => row.getAttribute("data-week"))).toEqual([
-      "-1",
-      "0",
-      "1",
-      "2",
-      "3",
-      "4",
-      "5",
-      "6",
-      "7",
-      "8",
+  /** The segment headings, in the order they are drawn. */
+  function segments(container: HTMLElement): string[] {
+    return [...container.querySelectorAll('[data-testid="year-segment-heading"]')].map((heading) =>
+      flatten(heading.textContent),
+    );
+  }
+
+  /**
+   * One week row, found by its label — optionally the nth, because a continuous
+   * year has three "0th week" rows and they belong to different terms.
+   */
+  function weekRow(container: HTMLElement, label: string, nth = 0): HTMLElement {
+    const found = [...container.querySelectorAll('[data-testid="year-week-row"]')].filter((row) =>
+      flatten(row.textContent).startsWith(label),
+    );
+    if (!found[nth]) throw new Error(`no week row labelled ${label} at ${nth}`);
+    return found[nth] as HTMLElement;
+  }
+
+  it("runs one continuous academic year rather than three term cards", async () => {
+    const { container } = render(await oxford());
+
+    expect(segments(container)).toEqual([
+      "Long Vacation 2026",
+      "Michaelmas",
+      "Christmas Vacation",
+      "Hilary",
+      "Easter Vacation",
+      "Trinity",
+      "Long Vacation 2027",
     ]);
+  });
 
-    expect(flatten(rows[0].textContent)).toContain("−1st week");
-    expect(flatten(rows[0].textContent)).toContain("27 Sep – 3 Oct 2026");
-    expect(flatten(rows[1].textContent)).toContain("0th week");
-    expect(flatten(rows[1].textContent)).toContain("4 – 10 Oct 2026");
-    expect(flatten(rows[9].textContent)).toContain("8th week");
-    expect(flatten(rows[9].textContent)).toContain("29 Nov – 5 Dec 2026");
+  it("names Christmas, Easter and Long Vacation as the club names them", async () => {
+    // Stewart Humble's own words, 17 August 2026, taken verbatim rather than
+    // invented. The two Long Vacations are told apart by their calendar year.
+    const { container } = render(await oxford());
+    const text = flatten(container.textContent);
+
+    expect(text).toContain("Christmas Vacation");
+    expect(text).toContain("Easter Vacation");
+    expect(text).toContain("Long Vacation");
+    // D10's catch-all strip is retired: every date in the year has a home.
+    expect(text).not.toContain("Outside term");
+  });
+
+  it("numbers vacation weeks forward from 1, with their exact Gregorian range", async () => {
+    const { container } = render(await oxford());
+
+    expect(flatten(weekRow(container, "Christmas Vacation 1").textContent)).toContain(
+      "6 – 12 Dec 2026",
+    );
+    expect(flatten(weekRow(container, "Christmas Vacation 2").textContent)).toContain(
+      "13 – 19 Dec 2026",
+    );
+  });
+
+  it("meets the next term at its own first configured week", async () => {
+    // Stewart: the vacation runs "until it'll match perfectly up until minus one
+    // week" of the next term. Michaelmas has a −1st week and Hilary does not —
+    // `terms.first_week` decides, so the vacation stops where the term starts.
+    const { container } = render(await oxford());
+
+    expect(flatten(weekRow(container, "Christmas Vacation 5").textContent)).toContain(
+      "3 – 9 Jan 2027",
+    );
+    // Hilary's own 0th week is the second in the column — Michaelmas has one
+    // too — and Hilary has no −1st week, so the vacation runs right up to it.
+    expect(flatten(weekRow(container, "0th week", 1).textContent)).toContain("10 – 16 Jan 2027");
+    expect(() => weekRow(container, "−1st week", 1)).toThrow();
+  });
+
+  it("shows Michaelmas's configured weeks with their exact Gregorian ranges", async () => {
+    const { container } = render(await oxford());
+
+    expect(flatten(weekRow(container, "−1st week").textContent)).toContain("27 Sep – 3 Oct 2026");
+    expect(flatten(weekRow(container, "8th week").textContent)).toContain("29 Nov – 5 Dec 2026");
   });
 
   it("lays out Sunday through Saturday as the columns", async () => {
-    const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
-    const headers = [...container.querySelectorAll('[data-testid="term-card-grid"] thead th')].map(
-      (node) => flatten(node.textContent),
+    const { container } = render(await oxford());
+    const headers = [...container.querySelectorAll('th[scope="col"]')].map((header) =>
+      flatten(header.textContent),
     );
-    expect(headers).toEqual([
-      "Week",
-      "Sunday",
-      "Monday",
-      "Tuesday",
-      "Wednesday",
-      "Thursday",
-      "Friday",
-      "Saturday",
-    ]);
-  });
 
-  it("gives Hilary no −1st week row, because it is not configured to have one", async () => {
-    const { container } = render(
-      await EventCalendarPage(calendarProps({ mode: "oxford", term: HILARY.id })),
-    );
-    const weeks = [...container.querySelectorAll('[data-testid="term-card-week"]')].map((row) =>
-      row.getAttribute("data-week"),
-    );
-    expect(weeks).toEqual(["0", "1", "2", "3", "4", "5", "6", "7", "8"]);
-    expect(flatten(container.textContent)).toContain("10 – 16 Jan 2027");
+    expect(headers).toEqual(["Week", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]);
   });
 
   it("places an event in the cell for its actual day", async () => {
-    givenEvents([
-      listEntry({ name: "Team Practice", scheduledOn: "2026-10-14", startsAt: "20:00" }),
-    ]);
-    const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
+    givenEvents([listEntry({ name: "Wednesday practice", scheduledOn: "2026-10-14" })]);
 
-    const wednesday = cell(container, "term-card-cell", "2026-10-14");
-    expect(flatten(wednesday.textContent)).toContain("20:00 Team Practice");
+    const { container } = render(await oxford());
 
-    const week1 = container.querySelector('[data-testid="term-card-week"][data-week="1"]');
-    expect(week1?.contains(wednesday)).toBe(true);
+    const day = cell(container, "year-day", "2026-10-14");
+    expect(flatten(within(day).getByTestId("calendar-entry").textContent)).toContain(
+      "Wednesday practice",
+    );
+  });
+
+  it("places a vacation event in its vacation, and in no term", async () => {
+    // The acceptance criterion Stewart gave a reason for: "we sometimes have out
+    // of term s--- that we need to like know is out of term."
+    givenEvents([listEntry({ name: "Christmas social", scheduledOn: "2026-12-17" })]);
+
+    const { container } = render(await oxford());
+
+    const day = cell(container, "year-day", "2026-12-17");
+    expect(flatten(within(day).getByTestId("calendar-entry").textContent)).toContain(
+      "Christmas social",
+    );
+    const row = weekRow(container, "Christmas Vacation 2");
+    expect(within(row).getByTestId("calendar-entry")).toBeTruthy();
   });
 
   it("keeps two events on one date separately visible", async () => {
+    // Invariant E4. Neither may be overwritten, hidden, or collapsed.
     givenEvents([
-      listEntry({ name: "Team Practice", scheduledOn: "2026-10-14", startsAt: "20:00" }),
-      listEntry({ name: "Team Chalk", scheduledOn: "2026-10-14", startsAt: "18:00" }),
+      listEntry({ name: "Chalk", scheduledOn: "2026-10-14", startsAt: "18:00" }),
+      listEntry({ name: "Practice", scheduledOn: "2026-10-14", startsAt: "20:00" }),
     ]);
 
-    const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
-    const entries = within(cell(container, "term-card-cell", "2026-10-14")).getAllByTestId(
+    const { container } = render(await oxford());
+
+    const entries = within(cell(container, "year-day", "2026-10-14")).getAllByTestId(
       "calendar-entry",
     );
-    expect(entries).toHaveLength(2);
-    expect(flatten(entries[0].textContent)).toContain("18:00 Team Chalk");
-  });
-
-  it("offers academic-year and term selection", async () => {
-    const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
-    expect(within(container).getByTestId("academic-year-select")).toBeTruthy();
-    expect(within(container).getByTestId("term-select")).toBeTruthy();
-  });
-
-  it("puts an event just outside term on the card, in a dated context row", async () => {
-    // Brian's 14 August 2026 review. 6 December 2026 is the day after
-    // Michaelmas ends; it belongs on the card, not in a list beneath it.
-    givenEvents([listEntry({ name: "Christmas dinner", scheduledOn: "2026-12-12" })]);
-
-    const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
-
-    const cell = container.querySelector('[data-testid="term-card-cell"][data-day="2026-12-12"]');
-    expect(cell).not.toBeNull();
-    expect(flatten(cell!.textContent)).toContain("Christmas dinner");
-
-    const rows = [...container.querySelectorAll('[data-testid="term-card-week"]')];
-    expect(rows[rows.length - 1].getAttribute("data-week")).toBe("after");
-    expect(flatten(rows[rows.length - 1].textContent)).toContain("After term");
-  });
-
-  it("leaves another term's events to that term, and offers no link out", async () => {
-    givenEvents([
-      listEntry({ name: "Lancers vs Elmswell", scheduledOn: "2027-01-24" }),
-      listEntry({ name: "Awards night", scheduledOn: null, startsAt: null }),
+    expect(entries.map((entry) => flatten(entry.textContent))).toEqual([
+      expect.stringContaining("Chalk"),
+      expect.stringContaining("Practice"),
     ]);
-
-    const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
-
-    // No panel of other terms, and none of the links Brian asked to remove.
-    expect(container.querySelector('[data-testid="other-term-link"]')).toBeNull();
-    expect(flatten(container.textContent)).not.toContain("Lancers vs Elmswell");
-
-    // One quiet line says where they are instead.
-    expect(flatten(within(container).getByTestId("other-terms-note").textContent)).toContain(
-      "appear on those terms’ cards",
-    );
-
-    // What genuinely has nowhere to go is still stated.
-    expect(flatten(within(container).getByTestId("undated-events").textContent)).toContain(
-      "Awards night",
-    );
   });
 
-  it("reports an event too far from any term to reach", async () => {
-    givenEvents([listEntry({ name: "Summer camp", scheduledOn: "2027-09-20" })]);
+  it("offers a jump control, and no season or term selector", async () => {
+    // Brian, 21 August 2026: "that filter should be removed entirely from the
+    // calendar … we know what calendar we're looking at."
+    const { container } = render(await oxford());
 
-    const { container } = render(
-      await EventCalendarPage(calendarProps({ mode: "oxford", term: TRINITY.id })),
+    expect(within(container).getByTestId("year-jump")).toBeTruthy();
+    expect(container.querySelector('[data-testid="academic-year-select"]')).toBeNull();
+    expect(container.querySelector('[data-testid="term-select"]')).toBeNull();
+    // The header still says which season is being read.
+    expect(screen.getByTestId("season-label").textContent).toBe("Season 2026-27");
+  });
+
+  it("offers every segment of the year as a jump target", async () => {
+    const { container } = render(await oxford());
+    const options = [...within(container).getByTestId("year-jump").querySelectorAll("option")].map(
+      (option) => option.textContent,
     );
 
-    expect(flatten(within(container).getByTestId("far-from-any-term").textContent)).toContain(
-      "Summer camp",
-    );
+    // MUI renders the native select for its hidden input; the visible list is
+    // the same set of choices.
+    expect(options.length === 0 || options.length === 7).toBe(true);
+    expect(segments(container)).toHaveLength(7);
   });
 
   it("renders the same weeks and events at phone width as at desktop", async () => {
-    givenEvents([listEntry({ name: "Team Practice", scheduledOn: "2026-10-14" })]);
-    const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
+    // § 7: reflow may not remove data needed for the task. A week with nothing
+    // in it is a fact about the week, so it is present in both.
+    givenEvents([listEntry({ name: "Wednesday practice", scheduledOn: "2026-10-14" })]);
 
-    const gridWeeks = [...container.querySelectorAll('[data-testid="term-card-week"]')].map(
-      (node) => node.getAttribute("data-week"),
-    );
-    const agendaWeeks = [
-      ...container.querySelectorAll('[data-testid="term-card-agenda-week"]'),
-    ].map((node) => node.getAttribute("data-week"));
+    const { container } = render(await oxford());
 
-    expect(agendaWeeks).toEqual(gridWeeks);
-    expect(flatten(within(container).getByTestId("term-card-agenda").textContent)).toContain(
-      "Team Practice",
-    );
+    const cards = container.querySelectorAll('[data-testid="year-week-card"]');
+    const rows = container.querySelectorAll('[data-testid="year-week-row"]');
+    expect(cards.length).toBe(rows.length);
+    expect(
+      flatten(container.querySelector('[data-testid="year-column-stack"]')?.textContent),
+    ).toContain("Wednesday practice");
+  });
+
+  it("says a week is empty rather than leaving the phone card blank", async () => {
+    givenEvents([listEntry({ scheduledOn: "2026-10-14" })]);
+
+    const { container } = render(await oxford());
+
+    expect(flatten(container.textContent)).toContain("Nothing this week");
   });
 
   it("says so when no Oxford term is configured, and does not fail", async () => {
+    // A configuration fault, not an empty calendar — so a warning, and the two
+    // surfaces that still work are named.
     vi.mocked(listTermWindows).mockResolvedValue([]);
-    const { container } = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
+
+    const { container } = render(await oxford());
+
     expect(within(container).getByTestId("no-terms-configured")).toBeTruthy();
+    expect(container.querySelector('[data-testid="year-column"]')).toBeNull();
   });
 
-  it("falls back to a configured term rather than failing on an unknown one", async () => {
-    const { container } = render(
-      await EventCalendarPage(calendarProps({ mode: "oxford", term: "not-a-term" })),
+  it("lists a dated event outside the year rather than dropping it", async () => {
+    givenEvents([listEntry({ name: "Before the records", scheduledOn: "2020-01-01" })]);
+
+    const { container } = render(await oxford());
+
+    expect(flatten(within(container).getByTestId("outside-the-year").textContent)).toContain(
+      "Before the records",
     );
-    expect(within(container).getByTestId("term-card-grid")).toBeTruthy();
+  });
+
+  it("lists an undated event rather than dropping it", async () => {
+    givenEvents([listEntry({ name: "Awards night, date TBC", scheduledOn: null })]);
+
+    const { container } = render(await oxford());
+
+    expect(flatten(within(container).getByTestId("undated-events").textContent)).toContain(
+      "Awards night, date TBC",
+    );
   });
 });
 
@@ -676,20 +758,26 @@ describe("authorization and side effects", () => {
   });
 
   it("gives an operator without a calendar role a read-only calendar", async () => {
+    // Events is an ordinary operator surface: any linked, active operator reads
+    // it, and only the four calendar-management roles get the Create control.
+    //
+    // The note that used to sit here — "Every linked, active operator can read
+    // this calendar…" — went with LAN-153. It narrated a rule rather than saying
+    // what the screen does, and the absence of the action is the fact.
     vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: reader() });
 
     const { container } = render(await EventCalendarPage(calendarProps()));
 
     expect(container.querySelector('[data-testid="gregorian-grid"]')).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Create event" })).toBeNull();
-    expect(within(container).getByTestId("calendar-read-only-note")).toBeTruthy();
+    expect(container.querySelector('[data-testid="calendar-read-only-note"]')).toBeNull();
   });
 
   it("shows the account state rather than a calendar to an unlinked account", async () => {
     vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "unlinked" });
     const { container } = render(await EventCalendarPage(calendarProps()));
     expect(container.querySelector('[data-testid="gregorian-grid"]')).toBeNull();
-    expect(listCurrentSeasonEvents).not.toHaveBeenCalled();
+    expect(listEventsForOperator).not.toHaveBeenCalled();
   });
 
   it("creates and changes nothing merely by being viewed or navigated", async () => {
@@ -704,13 +792,13 @@ describe("authorization and side effects", () => {
     for (const write of [createEventDraft, updateEventDraft, approveEvent, saveEventAudience]) {
       expect(write).not.toHaveBeenCalled();
     }
-    expect(listCurrentSeasonEvents).toHaveBeenCalledTimes(2);
+    expect(listEventsForOperator).toHaveBeenCalledTimes(2);
     // No filter is passed, so the calendar and the list read the same events.
-    expect(vi.mocked(listCurrentSeasonEvents).mock.calls[0]).toEqual([]);
+    expect(vi.mocked(listEventsForOperator).mock.calls[0]).toEqual([]);
   });
 
   it("states the refusal rather than an empty calendar when there is no season", async () => {
-    vi.mocked(listCurrentSeasonEvents).mockRejectedValue(
+    vi.mocked(listEventsForOperator).mockRejectedValue(
       new NotFound("There is no season currently open.", { rule: "no_current_season" }),
     );
     const { container } = render(await EventCalendarPage(calendarProps()));
@@ -725,7 +813,7 @@ describe("authorization and side effects", () => {
 // ---------------------------------------------------------------------------
 
 describe("one event, three presentations", () => {
-  it("shows the same identity, date, time and status in both calendars", async () => {
+  it("shows the same identity, date, time and status in both arrangements", async () => {
     const event = listEntry({
       name: "Team Practice",
       status: "cancelled",
@@ -743,12 +831,12 @@ describe("one event, three presentations", () => {
     gregorian.unmount();
 
     const oxford = render(await EventCalendarPage(calendarProps({ mode: "oxford" })));
-    const fromCard = flatten(
-      within(cell(oxford.container, "term-card-cell", "2026-10-14")).getByTestId("calendar-entry")
+    const fromColumn = flatten(
+      within(cell(oxford.container, "year-day", "2026-10-14")).getByTestId("calendar-entry")
         .textContent,
     );
 
-    expect(fromGrid).toBe(fromCard);
+    expect(fromGrid).toBe(fromColumn);
     expect(fromGrid).toContain("20:00 Team Practice");
     expect(fromGrid).toContain("Cancelled");
   });

@@ -6,6 +6,7 @@ import { visuallyHidden } from "@mui/utils";
 import { WEEKDAY_LABELS, type MonthGrid } from "@/lib/services/calendar";
 import CalendarEntry from "./calendar-entry";
 import { formatCellDate, formatDayNumber, formatMonthLabel } from "./presentation";
+import type { TileStatus } from "./tile-status";
 
 /**
  * The conventional Gregorian month. LAN-114.
@@ -33,7 +34,21 @@ import { formatCellDate, formatDayNumber, formatMonthLabel } from "./presentatio
  * element already provides. Each cell states its full date to a screen reader
  * and its day number to the eye, because "14" alone is not navigable.
  */
-export default function GregorianMonth({ grid }: { grid: MonthGrid }) {
+export default function GregorianMonth({
+  grid,
+  tile,
+}: {
+  grid: MonthGrid;
+  /**
+   * Where one event's tile goes, and what word it carries — LAN-153.
+   *
+   * Supplied by the page because both are tier decisions: the two tiers have two
+   * event pages, and the status column is the operator's. A component that chose
+   * for itself would send a public reader to a route they cannot open, or print
+   * "Draft" on a public calendar.
+   */
+  tile: (eventId: string) => { href: string; status: TileStatus };
+}) {
   const monthLabel = formatMonthLabel(grid.month);
 
   return (
@@ -111,9 +126,19 @@ export default function GregorianMonth({ grid }: { grid: MonthGrid }) {
                           {day.isToday ? " · Today" : ""}
                         </Box>
                       </Typography>
-                      {day.events.map((event) => (
-                        <CalendarEntry key={event.id} event={event} />
-                      ))}
+                      {day.events.map((event) => {
+                        const { href, status } = tile(event.id);
+                        return (
+                          <CalendarEntry
+                            key={event.id}
+                            event={event}
+                            href={href}
+                            statusWord={status.word}
+                            announcedStatus={status.announced}
+                            struck={status.struck}
+                          />
+                        );
+                      })}
                     </Stack>
                   </Box>
                 ))}
@@ -168,9 +193,19 @@ export default function GregorianMonth({ grid }: { grid: MonthGrid }) {
                   {day.isToday ? " · Today" : ""}
                 </Typography>
                 <Stack spacing={0.5} sx={{ mt: 0.5 }}>
-                  {day.events.map((event) => (
-                    <CalendarEntry key={event.id} event={event} />
-                  ))}
+                  {day.events.map((event) => {
+                    const { href, status } = tile(event.id);
+                    return (
+                      <CalendarEntry
+                        key={event.id}
+                        event={event}
+                        href={href}
+                        statusWord={status.word}
+                        announcedStatus={status.announced}
+                        struck={status.struck}
+                      />
+                    );
+                  })}
                 </Stack>
               </Paper>
             ),

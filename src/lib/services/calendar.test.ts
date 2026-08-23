@@ -1,5 +1,6 @@
 /**
- * The two calendar projections — LAN-114, matrix rows 1 to 12.
+ * The Gregorian month projection, and the Oxford week arithmetic beneath it —
+ * LAN-114, narrowed by LAN-153.
  *
  * ## The fixtures are the club's real term cards
  *
@@ -30,14 +31,8 @@ import type { TermWindow } from "./event-input";
 import {
   addDays,
   buildMonthGrid,
-  buildTermCard,
   defaultMonth,
-  defaultTerm,
-  findTerm,
-  groupTermsByAcademicYear,
-  MAX_CONTEXT_WEEKS,
   monthOf,
-  nearestTerm,
   oxfordWeekRange,
   parseMonth,
   shiftMonth,
@@ -80,22 +75,13 @@ const TRINITY_2027: TermWindow = Object.freeze({
   lastWeek: 8,
 });
 
-const MICHAELMAS_2025: TermWindow = Object.freeze({
-  id: "term-mt-2025",
-  name: "michaelmas",
-  academicYear: "2025-26",
-  startsOn: "2025-09-28",
-  endsOn: "2025-12-06",
-  firstWeek: -1,
-  lastWeek: 8,
-});
-
-const TERMS: readonly TermWindow[] = Object.freeze([
-  TRINITY_2027,
-  HILARY_2027,
-  MICHAELMAS_2026,
-  MICHAELMAS_2025,
-]);
+/*
+ * The previous academic year, and the term *list* that held it, were fixtures for
+ * `buildTermCard`, `nearestTerm` and the two selectors, and went with them.
+ * `oxfordWeekRange` and `termWeeks` take one term at a time.
+ * `./oxford-year.test.ts` holds the multi-year list the continuous column needs,
+ * and asserts the same reference boundaries against it.
+ */
 
 let nextId = 0;
 
@@ -105,18 +91,12 @@ function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
     id: `event-${nextId}`,
     name: `Event ${nextId}`,
     eventType: "practice",
-    status: "draft",
     scheduledOn: null,
     startsAt: null,
     endsAt: null,
     venue: null,
     ...overrides,
   };
-}
-
-/** Every event on the card, in reading order, so a cell cannot hide one. */
-function placedIds(card: ReturnType<typeof buildTermCard>): string[] {
-  return card.weeks.flatMap((week) => week.days.flatMap((day) => day.events.map((e) => e.id)));
 }
 
 // ---------------------------------------------------------------------------
@@ -276,262 +256,14 @@ describe("termWeeks", () => {
 // Matrix rows 4, 5, 6, 7, 8 — the term card
 // ---------------------------------------------------------------------------
 
-describe("nearestTerm", () => {
-  it("answers with the term a date is inside", () => {
-    expect(nearestTerm("2026-10-14", TERMS)?.id).toBe(MICHAELMAS_2026.id);
-    expect(nearestTerm("2027-01-24", TERMS)?.id).toBe(HILARY_2027.id);
-  });
-
-  it("splits the Christmas vacation between the terms either side of it", () => {
-    // Michaelmas ends 5 Dec 2026, Hilary starts 10 Jan 2027 — 36 days apart.
-    expect(nearestTerm("2026-12-12", TERMS)?.id).toBe(MICHAELMAS_2026.id);
-    expect(nearestTerm("2027-01-05", TERMS)?.id).toBe(HILARY_2027.id);
-  });
-
-  it("gives an exact tie to the earlier term", () => {
-    // 23 December 2026 is eighteen days after Michaelmas and eighteen before
-    // Hilary. "After Michaelmas" reads better than "long before Hilary".
-    expect(nearestTerm("2026-12-23", TERMS)?.id).toBe(MICHAELMAS_2026.id);
-  });
-
-  it("has no answer beyond six weeks from every term", () => {
-    expect(nearestTerm("2027-08-20", TERMS)).toBeNull();
-    expect(nearestTerm("2027-07-31", TERMS)?.id).toBe(TRINITY_2027.id);
-  });
-});
-
-describe("buildTermCard", () => {
-  it("lays out the configured week rows and seven Sunday-to-Saturday columns", () => {
-    const card = buildTermCard(MICHAELMAS_2026, TERMS, []);
-
-    expect(card.weeks.map((week) => week.week)).toEqual([-1, 0, 1, 2, 3, 4, 5, 6, 7, 8]);
-    expect(card.weeks.every((week) => week.days.length === 7)).toBe(true);
-    expect(card.weeks[0].days.map((day) => day.weekday)).toEqual([0, 1, 2, 3, 4, 5, 6]);
-    expect(card.weeks[0].days.map((day) => day.day)).toEqual([
-      "2026-09-27",
-      "2026-09-28",
-      "2026-09-29",
-      "2026-09-30",
-      "2026-10-01",
-      "2026-10-02",
-      "2026-10-03",
-    ]);
-  });
-
-  it("gives a term configured from 0th week no −1st row", () => {
-    const card = buildTermCard(HILARY_2027, TERMS, []);
-    expect(card.weeks.map((week) => week.week)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
-    expect(card.weeks[0].startsOn).toBe("2027-01-10");
-  });
-
-  it("places an event in the cell for its actual day", () => {
-    // Wednesday of 1st week, Michaelmas — the club's regular Iffley practice.
-    const practice = event({ scheduledOn: "2026-10-14", startsAt: "20:00", name: "Team Practice" });
-    const card = buildTermCard(MICHAELMAS_2026, TERMS, [practice]);
-
-    const week1 = card.weeks.find((week) => week.week === 1);
-    expect(week1?.startsOn).toBe("2026-10-11");
-    expect(week1?.days[3].day).toBe("2026-10-14");
-    expect(week1?.days[3].events.map((e) => e.name)).toEqual(["Team Practice"]);
-    expect(card.placedCount).toBe(1);
-    expect(card.elsewhere.total).toBe(0);
-  });
-
-  it("places the first and last days of the term at the corners of the card", () => {
-    const opening = event({ scheduledOn: "2026-09-27", name: "Opening" });
-    const closing = event({ scheduledOn: "2026-12-05", name: "Closing" });
-    const card = buildTermCard(MICHAELMAS_2026, TERMS, [opening, closing]);
-
-    expect(card.weeks[0].days[0].events.map((e) => e.name)).toEqual(["Opening"]);
-    const last = card.weeks[card.weeks.length - 1];
-    expect(last.week).toBe(8);
-    expect(last.days[6].day).toBe("2026-12-05");
-    expect(last.days[6].events.map((e) => e.name)).toEqual(["Closing"]);
-    expect(card.elsewhere.total).toBe(0);
-  });
-
-  it("reaches past the term for an event just outside it, in a dated context row", () => {
-    // Brian's 14 August 2026 review: an event a few days either side of term
-    // belongs on the card, not in a list underneath it.
-    const after = event({ scheduledOn: "2026-12-06", name: "Day after Michaelmas" });
-    const before = event({ scheduledOn: "2026-09-26", name: "Day before Michaelmas" });
-    const card = buildTermCard(MICHAELMAS_2026, TERMS, [after, before]);
-
-    expect(card.weeks).toHaveLength(12);
-    expect(card.placedCount).toBe(2);
-    expect(card.elsewhere.total).toBe(0);
-
-    const first = card.weeks[0];
-    expect(first.week).toBeNull();
-    expect(first.outside).toBe("before");
-    expect(first.startsOn).toBe("2026-09-20");
-    expect(first.endsOn).toBe("2026-09-26");
-    expect(first.days[6].events.map((e) => e.name)).toEqual(["Day before Michaelmas"]);
-
-    const last = card.weeks[card.weeks.length - 1];
-    expect(last.week).toBeNull();
-    expect(last.outside).toBe("after");
-    expect(last.startsOn).toBe("2026-12-06");
-    expect(last.days[0].events.map((e) => e.name)).toEqual(["Day after Michaelmas"]);
-  });
-
-  it("adds no context row when there is nothing outside the term to show", () => {
-    const card = buildTermCard(MICHAELMAS_2026, TERMS, [event({ scheduledOn: "2026-10-14" })]);
-    expect(card.weeks).toHaveLength(10);
-    expect(card.weeks.every((week) => week.week !== null)).toBe(true);
-  });
-
-  it("leaves another term's events to that term's own card", () => {
-    const hilaryFixture = event({ scheduledOn: "2027-01-24", name: "Lancers vs Elmswell" });
-    const undecided = event({ scheduledOn: null, name: "Awards night, date TBC" });
-
-    const michaelmas = buildTermCard(MICHAELMAS_2026, TERMS, [hilaryFixture, undecided]);
-    expect(placedIds(michaelmas)).toEqual([]);
-    expect(michaelmas.elsewhere.undated.map((e) => e.name)).toEqual(["Awards night, date TBC"]);
-    expect(michaelmas.elsewhere.farFromAnyTerm).toEqual([]);
-
-    const hilary = buildTermCard(HILARY_2027, TERMS, [hilaryFixture, undecided]);
-    expect(placedIds(hilary)).toEqual([hilaryFixture.id]);
-  });
-
-  it("gives a vacation event to the nearer of the two terms around it", () => {
-    // Michaelmas ends 5 Dec 2026; Hilary starts 10 Jan 2027. A mid-December
-    // social is Michaelmas's; a January one just before term is Hilary's.
-    const december = event({ scheduledOn: "2026-12-12", name: "Christmas dinner" });
-    const january = event({ scheduledOn: "2027-01-05", name: "New year session" });
-
-    const michaelmas = buildTermCard(MICHAELMAS_2026, TERMS, [december, january]);
-    expect(placedIds(michaelmas)).toEqual([december.id]);
-
-    const hilary = buildTermCard(HILARY_2027, TERMS, [december, january]);
-    expect(placedIds(hilary)).toEqual([january.id]);
-  });
-
-  it("refuses to stretch a card to an event more than six weeks from any term", () => {
-    const summerCamp = event({ scheduledOn: "2027-08-20", name: "Summer camp" });
-    const card = buildTermCard(TRINITY_2027, TERMS, [summerCamp]);
-
-    expect(placedIds(card)).toEqual([]);
-    expect(card.weeks).toHaveLength(9);
-    expect(card.elsewhere.farFromAnyTerm.map((e) => e.name)).toEqual(["Summer camp"]);
-    expect(card.elsewhere.total).toBe(1);
-  });
-
-  it("caps how far a card will stretch", () => {
-    // Six weeks past Trinity's last Saturday, 19 June 2027, is 31 July.
-    const reachable = event({ scheduledOn: "2027-07-28", name: "Reachable" });
-    const card = buildTermCard(TRINITY_2027, TERMS, [reachable]);
-
-    expect(placedIds(card)).toEqual([reachable.id]);
-    expect(card.weeks).toHaveLength(9 + MAX_CONTEXT_WEEKS);
-  });
-
-  it("does not show a vacation event on both of the terms around it", () => {
-    // Independent review found this: growth was decided by ownership but
-    // placement was not, so two events in the week of 20–26 December 2026 — one
-    // nearer Michaelmas, one nearer Hilary — grew both cards into that week and
-    // each card then showed both. 23 December is 18 days from either term, so
-    // the tie-break gives it to Michaelmas; 24 December is 19 from Michaelmas
-    // and 17 from Hilary, so it is Hilary's. They land in the same seven days.
-    const dec23 = event({ scheduledOn: "2026-12-23", name: "Christmas dinner" });
-    const dec24 = event({ scheduledOn: "2026-12-24", name: "Boxing Day eve social" });
-    const events = [dec23, dec24];
-
-    const michaelmas = buildTermCard(MICHAELMAS_2026, TERMS, events);
-    const hilary = buildTermCard(HILARY_2027, TERMS, events);
-
-    expect(placedIds(michaelmas)).toEqual([dec23.id]);
-    expect(placedIds(hilary)).toEqual([dec24.id]);
-
-    // Both cards do reach the same week; only the ownership of each day differs.
-    const inWeek = (card: ReturnType<typeof buildTermCard>) =>
-      card.weeks.find((week) => week.startsOn === "2026-12-20");
-    expect(inWeek(michaelmas)).toBeDefined();
-    expect(inWeek(hilary)).toBeDefined();
-    expect(michaelmas.elsewhere.total).toBe(0);
-    expect(hilary.elsewhere.total).toBe(0);
-  });
-
-  it("reports an event its owning term cannot stretch to, rather than dropping it", () => {
-    // Also from review: `nearestTerm` measures from the term's `ends_on`, and
-    // the card's reach measures from its last week's Saturday. A term whose
-    // `ends_on` runs past that Saturday could keep an event nothing then showed.
-    const longTailed: TermWindow = { ...MICHAELMAS_2026, endsOn: "2026-12-20" };
-    const terms = [longTailed];
-    const stranded = event({ scheduledOn: "2027-01-31", name: "Stranded" });
-
-    const card = buildTermCard(longTailed, terms, [stranded]);
-
-    expect(placedIds(card)).toEqual([]);
-    expect(card.elsewhere.farFromAnyTerm.map((e) => e.name)).toEqual(["Stranded"]);
-    expect(card.elsewhere.total).toBe(1);
-  });
-
-  it("accounts for every event exactly once across the season's cards", () => {
-    // The real invariant, now that a card reaches past its own term: every
-    // event appears on exactly one term card, or is reported as having no
-    // date, or as too far from any term. Never twice, and never nowhere.
-    const events = [
-      event({ scheduledOn: "2026-10-14", name: "Michaelmas week 1" }),
-      event({ scheduledOn: "2026-09-27", name: "Michaelmas week −1" }),
-      event({ scheduledOn: "2026-12-12", name: "Christmas dinner" }),
-      // The overlap week both Michaelmas and Hilary reach into. Without
-      // ownership at the cell, these two are each counted twice.
-      event({ scheduledOn: "2026-12-23", name: "Nearer Michaelmas" }),
-      event({ scheduledOn: "2026-12-24", name: "Nearer Hilary" }),
-      event({ scheduledOn: "2027-01-24", name: "Hilary week 1" }),
-      event({ scheduledOn: "2027-04-25", name: "Trinity week 1" }),
-      event({ scheduledOn: "2027-08-20", name: "Far from any term" }),
-      event({ scheduledOn: null, name: "No date yet" }),
-    ];
-
-    const cards = [MICHAELMAS_2026, HILARY_2027, TRINITY_2027].map((term) =>
-      buildTermCard(term, TERMS, events),
-    );
-
-    const seen = cards.flatMap(placedIds);
-    expect(new Set(seen).size).toBe(seen.length);
-
-    // Each card reports the same leftovers, so counting one card's is enough.
-    const leftOver = [
-      ...cards[0].elsewhere.undated.map((e) => e.id),
-      ...cards[0].elsewhere.farFromAnyTerm.map((e) => e.id),
-    ];
-
-    expect(new Set([...seen, ...leftOver]).size).toBe(events.length);
-    expect(cards[0].elsewhere.farFromAnyTerm.map((e) => e.name)).toEqual(["Far from any term"]);
-    expect(cards[0].elsewhere.undated.map((e) => e.name)).toEqual(["No date yet"]);
-  });
-
-  it("shows two events on one date separately, in start-time order", () => {
-    // Invariant E4: two events on a date is legal, and the card may not
-    // collapse them.
-    const evening = event({ scheduledOn: "2026-10-14", startsAt: "20:00", name: "Practice" });
-    const afternoon = event({ scheduledOn: "2026-10-14", startsAt: "18:00", name: "Chalk" });
-    const untimed = event({ scheduledOn: "2026-10-14", startsAt: null, name: "Kit collection" });
-
-    const card = buildTermCard(MICHAELMAS_2026, TERMS, [evening, untimed, afternoon]);
-    const cell = card.weeks.find((week) => week.week === 1)?.days[3];
-
-    expect(cell?.events.map((e) => e.name)).toEqual(["Chalk", "Practice", "Kit collection"]);
-    expect(card.placedCount).toBe(3);
-  });
-
-  it("marks today, and only today", () => {
-    const card = buildTermCard(MICHAELMAS_2026, TERMS, [], "2026-10-14");
-    const today = card.weeks.flatMap((week) => week.days).filter((day) => day.isToday);
-    expect(today.map((day) => day.day)).toEqual(["2026-10-14"]);
-  });
-
-  it("marks nothing when today falls outside the term", () => {
-    const card = buildTermCard(MICHAELMAS_2026, TERMS, [], "2026-08-14");
-    expect(card.weeks.flatMap((week) => week.days).some((day) => day.isToday)).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Matrix rows 9, 10 — the Gregorian month
-// ---------------------------------------------------------------------------
+/*
+ * `nearestTerm`, `buildTermCard`, `defaultTerm`, `groupTermsByAcademicYear` and
+ * `findTerm` had blocks here, and went with the term card LAN-153 retired (D85).
+ * Everything they proved is either gone with the surface — which term should
+ * borrow a vacation week, how far a card reaches, which term a selector opens on
+ * — or moved to `./oxford-year.test.ts`, where the same reference boundaries are
+ * asserted against the continuous year instead.
+ */
 
 describe("buildMonthGrid", () => {
   it("starts each week on Sunday and covers the whole month", () => {
@@ -631,52 +363,5 @@ describe("defaultMonth", () => {
 
   it("falls back to today when there are no events at all", () => {
     expect(defaultMonth([], "2026-08-14")).toBe("2026-08");
-  });
-});
-
-describe("defaultTerm", () => {
-  it("opens on the term containing today", () => {
-    expect(defaultTerm(TERMS, "2026-10-14")?.id).toBe(MICHAELMAS_2026.id);
-    expect(defaultTerm(TERMS, "2027-01-24")?.id).toBe(HILARY_2027.id);
-  });
-
-  it("opens on the next term when today is between terms", () => {
-    // Mid-August: Trinity is finished, Michaelmas has not begun.
-    expect(defaultTerm(TERMS, "2026-08-14")?.id).toBe(MICHAELMAS_2026.id);
-    expect(defaultTerm(TERMS, "2026-12-20")?.id).toBe(HILARY_2027.id);
-  });
-
-  it("falls back to the most recent term when every term has finished", () => {
-    expect(defaultTerm(TERMS, "2030-01-01")?.id).toBe(TRINITY_2027.id);
-  });
-
-  it("has no answer when no term is configured", () => {
-    expect(defaultTerm([], "2026-10-14")).toBeNull();
-  });
-});
-
-describe("groupTermsByAcademicYear", () => {
-  it("groups by the configured academic year, newest first", () => {
-    const years = groupTermsByAcademicYear(TERMS);
-    expect(years.map((year) => year.academicYear)).toEqual(["2026-27", "2025-26"]);
-  });
-
-  it("orders each year Michaelmas, Hilary, Trinity — by date, not by name", () => {
-    const years = groupTermsByAcademicYear(TERMS);
-    expect(years[0].terms.map((term) => term.name)).toEqual(["michaelmas", "hilary", "trinity"]);
-  });
-
-  it("carries the configured year even where the source spreadsheet was mislabelled", () => {
-    const years = groupTermsByAcademicYear([HILARY_2027, TRINITY_2027]);
-    expect(years).toHaveLength(1);
-    expect(years[0].academicYear).toBe("2026-27");
-  });
-});
-
-describe("findTerm", () => {
-  it("resolves a configured term and refuses anything else", () => {
-    expect(findTerm(TERMS, HILARY_2027.id)?.name).toBe("hilary");
-    expect(findTerm(TERMS, "not-a-term")).toBeNull();
-    expect(findTerm(TERMS, null)).toBeNull();
   });
 });
