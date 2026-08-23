@@ -371,8 +371,11 @@ export async function readAttendanceBoard(
     const rows = await tx.query<ParticipantRow>(PARTICIPANT_QUERY, [eventId]);
 
     // Read rather than recomputed. The view is the club's definition of a
-    // mismatch and it is what the Monday report will read; a second definition
-    // written here would drift from it and the two would disagree in public.
+    // mismatch, and a second definition written here would drift from it. It
+    // was also what the Monday report read, until LAN-151: the view derives
+    // occurrence against `now()`, so a report about last March would have
+    // depended on today's date. `weekly-report.ts` counts walk-ups off
+    // `attendance_records` instead, which leaves this the only reader.
     const mismatches = await tx.query<MismatchRow>(
       `select season_membership_id, person_id, capacity::text as capacity, mismatch
          from public.rsvp_attendance_mismatches
@@ -414,13 +417,16 @@ export async function readAttendanceBoard(
       the status-and-occurrence migration package; two packages writing
       migrations at once is what the collision rules exist to prevent.
 
-      Nothing else over-counts in the meantime, and the reason is now simpler
-      than it was: **no code reads that view at all.** `weekly-report.ts` was
-      its only caller and LAN-151 stopped it reading the view entirely, because
-      the view derives occurrence against `now()` and a report about last March
-      must not depend on today's date — it counts walk-ups straight off
-      `attendance_records`. So the only reader this suppression protects is a
-      future one.
+      Nothing else over-counts in the meantime, and the reason is now narrower
+      than it was: **this function is the view's only reader.** `weekly-report.ts`
+      was the other one, and LAN-151 stopped it reading the view entirely,
+      because the view derives occurrence against `now()` and a report about
+      last March must not depend on today's date — it counts walk-ups straight
+      off `attendance_records`.
+
+      So the rule is applied wherever the view is read today, and what this
+      suppression protects against is a **future** reader: one written after
+      this package, going to the view directly, and not looking here.
 
       That makes moving the rule into the view a real follow-up rather than a
       tidy-up: a direct reader of `rsvp_attendance_mismatches` written after

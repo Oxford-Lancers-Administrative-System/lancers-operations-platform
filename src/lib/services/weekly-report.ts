@@ -40,12 +40,22 @@ import { readCurrentSeasonIn, type Season } from "./seasons";
  *
  * ## Almost none of the query work is here
  *
- * The five views the issue names carry it: `invitation_response_state`
+ * Four of the five views the issue names carry it: `invitation_response_state`
  * (invariant P7's partition, already excluding non-soliciting events per E6),
- * `nonresponse_queue`, `uninvited_audience_members`, `rsvp_attendance_mismatches`
- * and `current_availability`. This module composes them; it re-derives none of
- * them. A second definition of "nonresponse" written here would drift from the
- * one the attendance board reads, and the two would disagree in public.
+ * `nonresponse_queue`, `uninvited_audience_members` and `current_availability`.
+ * This module composes them; it re-derives none of them. A second definition of
+ * "nonresponse" written here would drift from the one the attendance board
+ * reads, and the two would disagree in public.
+ *
+ * The fifth, `rsvp_attendance_mismatches`, was read here until LAN-151 and is
+ * not any more — the one place this module deliberately does derive something
+ * itself. The view answers "has this event occurred?" against `now()`, and it
+ * has no reporting date to work from, so reading it here would have made a
+ * report about last March depend on the day the report was asked for. A walk-up
+ * is an attendance row with no invitation behind it (invariant P6), which needs
+ * no occurrence test at all, so it is stated directly against
+ * `attendance_records` at the point of use. `attendance.ts` still reads the
+ * view, and remains its only reader.
  *
  * ## Privacy
  *
