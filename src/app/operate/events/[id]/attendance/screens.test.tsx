@@ -119,6 +119,7 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
+    registerSaved: false,
     description: null,
     requiredEquipment: null,
     joiningUrl: null,
@@ -354,14 +355,29 @@ describe("the register before its buffer lifts", () => {
     expect(container.textContent).not.toContain("2099-01-01T14:00:00.000Z");
   });
 
-  it("says the rule, including that it never closes afterwards", async () => {
+  /**
+   * Finding W-F3. Brian, on the sentence that used to follow the moment:
+   * "That second line is weird. Why is that in the app?"
+   *
+   * The first sentence has already answered the question. How long a register
+   * stays open afterwards is policy, and it is irrelevant to somebody being
+   * told they cannot open one yet — the same shape he rejected at W4.
+   */
+  it("says when it opens and nothing about the rule", async () => {
     vi.mocked(readAttendanceBoard).mockResolvedValue(notYet());
 
     const { container } = render(await AttendancePage(attendanceProps()));
 
-    expect(container.textContent).toContain(
-      "The register opens about 6 hours before the event starts, and never closes afterwards.",
+    expect(screen.getByTestId("register-opens-at").textContent).toBe(
+      "It opens on 1 Jan 2099, 14:00.",
     );
+    for (const policy of [
+      "never closes afterwards",
+      "hours before the event starts",
+      "The register opens about",
+    ]) {
+      expect(container.textContent, policy).not.toContain(policy);
+    }
   });
 
   it("does not tell anybody to go and mark the event occurred", async () => {

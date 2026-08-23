@@ -122,6 +122,7 @@ function listEntry(overrides: Partial<EventListEntry> = {}): EventListEntry {
     deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
+    registerSaved: false,
     audienceCount: 0,
     invitationCount: 0,
     responseCount: 0,

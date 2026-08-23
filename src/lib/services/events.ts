@@ -119,6 +119,20 @@ export interface EventListEntry {
   /** An address when in person, a destination when online (D21). */
   venue: string | null;
   isMandatory: boolean;
+  /**
+   * Whether anything at all has been recorded against this event — D72.
+   *
+   * On the list because the coach's own card has to ask the same question the
+   * register asks, and `isRegisterAvailable` needs it: a register with anything
+   * in it has already been opened, so the buffer cannot take it back. Without
+   * it the card would answer a different question from the two surfaces either
+   * side of it, which is finding W-F1.
+   *
+   * An `exists`, not a count. Nothing displays how many rows there are, and a
+   * count over a table that grows with every session recorded would be read as
+   * though it meant something.
+   */
+  registerSaved: boolean;
   /** Rows in `event_audience_members`. Zero on every draft, by definition. */
   audienceCount: number;
   /** Rows in `invitations`. Structurally zero below `approved` — invariant P1. */
@@ -222,7 +236,8 @@ const COUNT_COLUMNS = `
   (select count(*)
      from public.invitations i
      join public.current_rsvp r on r.invitation_id = i.id
-    where i.event_id = e.id) as response_count`;
+    where i.event_id = e.id) as response_count,
+  exists (select 1 from public.attendance_records a where a.event_id = e.id) as register_saved`;
 
 interface EventRow {
   id: string;
@@ -238,6 +253,7 @@ interface EventRow {
   audience_count: string;
   invitation_count: string;
   response_count: string;
+  register_saved: boolean;
 }
 
 interface EventDetailRow extends EventRow {
@@ -279,6 +295,7 @@ function toListEntry(row: EventRow): EventListEntry {
     deliveryMode: row.delivery_mode,
     venue: row.venue,
     isMandatory: row.is_mandatory,
+    registerSaved: row.register_saved,
     audienceCount: Number(row.audience_count),
     invitationCount: Number(row.invitation_count),
     responseCount: Number(row.response_count),

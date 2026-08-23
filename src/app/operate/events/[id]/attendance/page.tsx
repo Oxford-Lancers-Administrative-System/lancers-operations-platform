@@ -35,7 +35,6 @@ import {
   describeRegisterOpensAt,
   NOBODY_INVITED,
   NO_MATCHING_PARTICIPANTS,
-  REGISTER_BUFFER_RULE,
   REGISTER_NOT_YET_HEADLINE,
   RSVP_STAYS_SEPARATE,
 } from "./presentation";
@@ -327,7 +326,6 @@ function RegisterNotOpenYet({
           {describeRegisterOpensAt(opensAt)}
         </Typography>
       </Box>
-      <Alert severity="info">{REGISTER_BUFFER_RULE}</Alert>
       <Box>
         <Button
           variant="contained"

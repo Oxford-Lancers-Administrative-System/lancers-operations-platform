@@ -353,6 +353,10 @@ async function coachEventList(search: string) {
   }
 
   const today = londonToday();
+  // The card's open/not-open line is about an instant, not a day — W-F1. The
+  // sections are still bucketed by date; only the register's own question needs
+  // the clock.
+  const now = new Date();
 
   return (
     <CoachEligibleEvents
@@ -368,7 +372,7 @@ async function coachEventList(search: string) {
           when: formatListWhen(event),
           venue: event.venue,
           isToday: isToday(event, today),
-          isOpen: isOpenForAttendance(event, today),
+          isOpen: isOpenForAttendance(event, now),
         })),
       }))}
     />

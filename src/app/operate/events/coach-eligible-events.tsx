@@ -26,7 +26,8 @@ export interface CoachEligibleEvent {
   venue: string | null;
   /** Happening today: badged, outlined, and sorted to the top of Upcoming. */
   isToday: boolean;
-  /** An operator has asserted it occurred, so there is a register to open. */
+  /** Its register has opened — D71's buffer, asked of the same function the
+   * register itself asks. Nobody asserts anything. */
   isOpen: boolean;
 }
 
@@ -40,9 +41,6 @@ export interface CoachEligibleSection {
 
 export const COACH_EVENTS_HEADING = "Attendance";
 export const COACH_EVENTS_DETAIL = "This season's sessions";
-
-export const COACH_EVENTS_NOTE =
-  "A register opens shortly before the session starts, and stays open afterwards.";
 
 export const COACH_EVENTS_EMPTY =
   "This season has no approved sessions yet. They appear here as soon as one is approved.";
@@ -104,10 +102,6 @@ export function CoachEligibleEvents({
           {COACH_EVENTS_DETAIL}
         </Typography>
       </Box>
-
-      <Alert severity="info" data-testid="coach-events-note">
-        {COACH_EVENTS_NOTE}
-      </Alert>
 
       <TextField
         label="Search event"
@@ -192,10 +186,10 @@ export function CoachEligibleEvents({
                         </Typography>
                         {/*
                           Said on the card rather than discovered by pressing it.
-                          A session nobody has asserted yet opens UX-90, and a
-                          coach who taps three of them looking for a register
-                          they can fill in has learned nothing except that the
-                          list is unreliable.
+                          A session whose register has not opened yet gives
+                          UX-90, and a coach who taps three of them looking for
+                          one they can fill in has learned nothing except that
+                          the list is unreliable.
                         */}
                         {event.isOpen ? null : (
                           <Typography

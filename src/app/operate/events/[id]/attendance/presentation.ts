@@ -2,7 +2,6 @@ import type {
   AttendanceParticipant,
   AttendancePresence,
 } from "@/lib/services/attendance-vocabulary";
-import { ATTENDANCE_REGISTER_BUFFER_HOURS } from "@/lib/services/attendance-window";
 
 /**
  * The words the attendance screens use — UX-70 through UX-75, LAN-80.
@@ -111,33 +110,32 @@ export const ATTENDANCE_LOCKED_RULE =
 // The register's own window — D71 and D72. LAN-152.
 // ---------------------------------------------------------------------------
 
-/**
- * The buffer, said once, in the club's words rather than in a number this file
- * repeats.
- *
- * `ATTENDANCE_REGISTER_BUFFER_HOURS` is a tuning value the packet delegated,
- * so the sentence is built from it: change the constant and the screen changes
- * with it, rather than the two disagreeing about what the product does.
- */
-export const REGISTER_BUFFER_RULE =
-  `The register opens about ${ATTENDANCE_REGISTER_BUFFER_HOURS} hours before the event starts, ` +
-  "and never closes afterwards.";
-
 export const REGISTER_NOT_YET_HEADLINE = "The register is not open yet";
 
 /**
- * What lifts it — `docs/ux/standards.md` rule 4.
+ * What lifts it — `docs/ux/standards.md` rule 4, and finding W-F3.
  *
  * A refused control names the step that enables it, and here the step is not
- * something anybody can go and do: it is the clock. Saying which moment is the
- * difference between a rule and a broken page.
+ * something anybody can go and do: it is the clock. Naming the moment is the
+ * whole answer, and it is the whole of what this says.
+ *
+ * There was a second sentence — "The register opens about six hours before the
+ * event starts, and never closes afterwards." Brian cut it: the first sentence
+ * has already answered the question, and how long a register stays open is
+ * irrelevant to somebody being told they cannot open it yet. The buffer is
+ * still one tunable number, `ATTENDANCE_REGISTER_BUFFER_HOURS` in
+ * `services/attendance-window.ts`; no screen repeats it in words.
  */
 export function describeRegisterOpensAt(opensAt: string | null): string {
   if (opensAt === null) {
     return "This event has no date yet, so there is nothing to take a register for.";
   }
   const moment = new Date(opensAt);
-  if (Number.isNaN(moment.getTime())) return REGISTER_BUFFER_RULE;
+  // An unreadable instant is a fact about this event, not an excuse to recite
+  // the policy the sentence above no longer states.
+  if (Number.isNaN(moment.getTime())) {
+    return "This event has no usable start time, so its register has no opening moment yet.";
+  }
   return `It opens on ${formatClubMoment(moment)}.`;
 }
 

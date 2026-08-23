@@ -66,7 +66,6 @@ import {
   HEADLINE_INVITED_LABEL,
   HEADLINE_SAID_YES_LABEL,
   HEADLINE_SHOWED_LABEL,
-  REGISTER_BUFFER_RULE,
   REGISTER_NOT_YET_HEADLINE,
 } from "./attendance/presentation";
 
@@ -518,7 +517,7 @@ function RegisterPanel({ event, registerSaved }: { event: EventDetail; registerS
         <Typography variant="body2" color="text.secondary">
           {available
             ? ATTENDANCE_OPEN_DETAIL
-            : `${describeRegisterOpensAt(registerOpensAt(event)?.toISOString() ?? null)} ${REGISTER_BUFFER_RULE}`}
+            : describeRegisterOpensAt(registerOpensAt(event)?.toISOString() ?? null)}
         </Typography>
 
         {available ? (

@@ -37,6 +37,7 @@ function event(
     deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isMandatory: true,
+    registerSaved: false,
     audienceCount: 0,
     invitationCount: 0,
     responseCount: 0,
@@ -193,21 +194,72 @@ describe("isToday", () => {
   });
 });
 
+/**
+ * Finding W-F1, and the reason these assertions are about instants.
+ *
+ * They used to say the card opens once the session's **date** has passed. That
+ * was faithful to the implementation and wrong about the product: the register
+ * moved to D71's buffer — six hours before the start — and the card did not, so
+ * for the whole of a session's own day the coach's only screen said "Attendance
+ * not open" about a register that was open, working, and reachable from the
+ * operator's event page. It was found in the browser at 05:00 on the day of a
+ * session, with 39 people on the register underneath.
+ *
+ * So the boundary under test is the buffer, and the case that matters most is
+ * the one the old rule got backwards: **the evening of the session itself**.
+ */
 describe("isOpenForAttendance", () => {
-  it("is true once the session's date has passed, and not before", () => {
-    // D30, and the gate LAN-110 exists around. It used to turn on an operator
-    // asserting occurrence; nobody asserts it now, so what it turns on is the
-    // date — which is also why a coach can no longer be waiting on somebody.
-    expect(isOpenForAttendance(event("a", "2026-10-13", "approved"), TODAY)).toBe(true);
-    expect(isOpenForAttendance(event("a", TODAY, "approved"), TODAY)).toBe(false);
-    expect(isOpenForAttendance(event("a", "2026-10-15", "approved"), TODAY)).toBe(false);
+  /** 20:00 on `TODAY`, Oxford — the session every case below is about. */
+  const START = new Date("2026-10-14T19:00:00Z");
+  const OPENS = new Date(START.getTime() - 6 * 60 * 60 * 1000);
+  const minutes = (from: Date, count: number) => new Date(from.getTime() + count * 60_000);
+
+  it("is open from the buffer, hours before the session starts", () => {
+    // The moment the whole mission is for: a coach at the pitch as people
+    // arrive, on the day, before kick-off.
+    expect(isOpenForAttendance(event("a", TODAY, "approved"), OPENS)).toBe(true);
+    expect(isOpenForAttendance(event("a", TODAY, "approved"), minutes(OPENS, 1))).toBe(true);
+    expect(isOpenForAttendance(event("a", TODAY, "approved"), START)).toBe(true);
+    expect(isOpenForAttendance(event("a", TODAY, "approved"), minutes(START, 90))).toBe(true);
+  });
+
+  it("is not open a minute before the buffer lifts", () => {
+    expect(isOpenForAttendance(event("a", TODAY, "approved"), minutes(OPENS, -1))).toBe(false);
+  });
+
+  it("agrees with the register rather than with the calendar day", () => {
+    // The regression in one line. A date comparison answers `false` for every
+    // one of these; the register answers `true`, and so must the card.
+    const sameDay = [OPENS, START, minutes(START, 120)];
+    for (const now of sameDay) {
+      expect(isOpenForAttendance(event("a", TODAY, "approved"), now), now.toISOString()).toBe(true);
+    }
+  });
+
+  it("stays open the next day, and the week after", () => {
+    expect(isOpenForAttendance(event("a", "2026-10-13", "approved"), START)).toBe(true);
+    expect(
+      isOpenForAttendance(event("a", TODAY, "approved"), new Date("2026-10-21T09:00:00Z")),
+    ).toBe(true);
+  });
+
+  it("is not open for a session still days ahead", () => {
+    expect(isOpenForAttendance(event("a", "2026-10-15", "approved"), START)).toBe(false);
+  });
+
+  it("stays open for a register that already has something in it", () => {
+    // D72: a register with anything recorded against it has been opened, so the
+    // buffer cannot take it back. The card has to carry that half too, or it
+    // disagrees with the register again, more quietly.
+    const started = { ...event("a", "2026-10-15", "approved"), registerSaved: true };
+    expect(isOpenForAttendance(started, START)).toBe(true);
   });
 
   it("is false for a cancelled session however long ago it was", () => {
-    expect(isOpenForAttendance(event("a", "2026-10-13", "cancelled"), TODAY)).toBe(false);
+    expect(isOpenForAttendance(event("a", "2026-10-13", "cancelled"), START)).toBe(false);
   });
 
   it("is false for a session with no date at all", () => {
-    expect(isOpenForAttendance(event("a", null, "approved"), TODAY)).toBe(false);
+    expect(isOpenForAttendance(event("a", null, "approved"), START)).toBe(false);
   });
 });
