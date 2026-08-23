@@ -88,6 +88,18 @@ import {
 } from "./attendance/presentation";
 
 /**
+ * Why **Create the link** is not offered, or `null` because it is.
+ *
+ * Both refusals are content rather than an error — `docs/ux/standards.md`
+ * rule 6 — and the service refuses again on its own behalf regardless.
+ */
+function shareBlockedReason(status: string): string | null {
+  if (!clubLinkIsConfigured()) return CLUB_LINK_UNCONFIGURED_MESSAGE;
+  if (status === "draft") return CLUB_LINK_NEEDS_AN_AUDIENCE_MESSAGE;
+  return null;
+}
+
+/**
  * One event, in every presentation this route owns — UX-32, UX-33, and LAN-77's
  * UX-40, UX-41, UX-42 and UX-43.
  *
@@ -121,18 +133,6 @@ import {
  * are still recorded — `events.owner_person_id`, `events.origin`, and every
  * transition's actor in `audit_events`. What went is the display, not the record.
  */
-/**
- * Why **Create the link** is not offered, or `null` because it is.
- *
- * Both refusals are content rather than an error — `docs/ux/standards.md`
- * rule 6 — and the service refuses again on its own behalf regardless.
- */
-function shareBlockedReason(status: string): string | null {
-  if (!clubLinkIsConfigured()) return CLUB_LINK_UNCONFIGURED_MESSAGE;
-  if (status === "draft") return CLUB_LINK_NEEDS_AN_AUDIENCE_MESSAGE;
-  return null;
-}
-
 export default async function EventDetailPage({
   params,
   searchParams,
