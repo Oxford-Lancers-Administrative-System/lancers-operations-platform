@@ -69,6 +69,16 @@ import {
  * and then deleted in TypeScript is one refactor from the DOM, and this is the
  * mission's most sensitive surface.
  *
+ * **And the types are not what enforce it — R157-B5.** The two payload shapes
+ * stop a component printing a column it does not hold, which is worth having.
+ * They do not stop *this* file widening the tier: TypeScript's excess-property
+ * check applies to fresh object literals, and freshness is lost through the
+ * `.map()` in `buildClubLinkParticipationIn`, so adding
+ * `delivery: person.delivery` there type-checks and ships. The query above and
+ * the field-by-field reassembly below are the boundary; the payload assertions
+ * in `./participation.test.ts` are the proof, and are the only thing that
+ * fails when somebody widens the literal.
+ *
  * ## What this module does not do
  *
  * **Write anything about attendance or RSVP.** It reads two authoritative

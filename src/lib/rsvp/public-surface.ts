@@ -107,6 +107,33 @@ export const RATE_LIMIT_MAX_PER_LINK = 20;
 export const RATE_LIMIT_MAX_PER_ADDRESS = 300;
 export const RATE_LIMIT_WINDOW_MS = 60_000;
 
+/**
+ * The club link's own per-link allowance — R157-B4, LAN-157.
+ *
+ * `/e/<token>` is the second unauthenticated read surface, and it needed the
+ * limiter for the same reason `/rsvp` did and then some: every GET runs
+ * `update club_link_tokens set use_count = use_count + 1, last_used_at = now()`
+ * plus a full-outer-join participation query and a `question_responses` scan,
+ * with `force-dynamic` and `no-store`, so nothing caches and every view is a
+ * write against the single production Postgres. Nothing ships that can revoke
+ * one link, so without a brake the only remedy for a link that escaped the
+ * squad is rotating `CLUB_LINK_SECRET`, which kills every club link for every
+ * event.
+ *
+ * **The number is much larger than `RATE_LIMIT_MAX_PER_LINK`, and it has to
+ * be.** An RSVP token belongs to one player, so twenty a minute is generous for
+ * one person. A club link belongs to the *whole squad* — one token, forwarded,
+ * opened by fifty people at once when it is first shared. Twenty a minute would
+ * throttle the ordinary case this link exists for. Four a second sustained is
+ * far above any real group of readers and still a hard ceiling on how much
+ * write load one forwarded link can generate.
+ *
+ * The per-address backstop is shared with `/rsvp` and unchanged: it is what
+ * bounds a single abusive client, and it is already the tighter of the two for
+ * anybody hammering from one place.
+ */
+export const CLUB_LINK_MAX_PER_LINK = 240;
+
 interface Window {
   count: number;
   resetAt: number;
@@ -201,12 +228,48 @@ export function allowRsvpRequest(
   token: string,
   now: number = Date.now(),
 ): RsvpRequestDecision {
+  return allowPublicLinkRequest("rsvp", address, token, now);
+}
+
+/**
+ * Which unauthenticated link surface a request is for.
+ *
+ * The two have different per-link allowances and must not share a per-link
+ * bucket — their tokens come from different derivations, and a collision would
+ * spend one surface's allowance on the other's traffic.
+ */
+export type PublicLinkSurface = "rsvp" | "club_link";
+
+const PER_LINK_ALLOWANCE: Readonly<Record<PublicLinkSurface, number>> = Object.freeze({
+  rsvp: RATE_LIMIT_MAX_PER_LINK,
+  club_link: CLUB_LINK_MAX_PER_LINK,
+});
+
+/**
+ * The same two buckets, for either unauthenticated link surface — R157-B4.
+ *
+ * `allowRsvpRequest` is now a call into this, so `/rsvp` keeps exactly the
+ * behaviour LAN-79 shipped and reviewed. `/e` gets the same mechanism rather
+ * than a second one: one map, one prune, one eviction policy, and one place
+ * where the honest limitations of a per-process counter are written down.
+ *
+ * The per-link bucket is namespaced by surface. The per-address bucket is
+ * deliberately **not** — it is a volumetric backstop against a scanner, and a
+ * scanner spraying both surfaces from one address should meet one allowance,
+ * not two.
+ */
+export function allowPublicLinkRequest(
+  surface: PublicLinkSurface,
+  address: string,
+  token: string,
+  now: number = Date.now(),
+): RsvpRequestDecision {
   prune(now);
 
   // The link first: it is the bucket a real person can reach, and keeping it
   // per-token means one player's reloading cannot spend another player's
   // allowance even when a carrier puts them behind one address.
-  if (!consume(`link:${token}`, RATE_LIMIT_MAX_PER_LINK, now)) {
+  if (!consume(`link:${surface}:${token}`, PER_LINK_ALLOWANCE[surface], now)) {
     return { allowed: false, reason: "link" };
   }
   if (!consume(`addr:${address}`, RATE_LIMIT_MAX_PER_ADDRESS, now)) {
@@ -229,6 +292,22 @@ export function logThrottledRsvpRequest(reason: ThrottleReason): void {
   console.warn(
     `[rsvp] a request was refused by the ${reason} rate limit. ` +
       "If players report that a valid link will not load, this is the first thing to check.",
+  );
+}
+
+/**
+ * The same, for the club link — R157-B4.
+ *
+ * A throttled club-link reader sees the same "this link does not open anything"
+ * panel an unknown or revoked token produces, for the same reason: a distinct
+ * refusal would tell somebody probing that they were being counted. So the only
+ * place a throttle is visible is here. Neither the token nor the address is
+ * logged.
+ */
+export function logThrottledClubLinkRequest(reason: ThrottleReason): void {
+  console.warn(
+    `[club-link] a request was refused by the ${reason} rate limit. ` +
+      "If a squad reports that a shared event link will not load, this is the first thing to check.",
   );
 }
 

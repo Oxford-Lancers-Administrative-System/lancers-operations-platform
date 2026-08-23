@@ -7,6 +7,7 @@ import type { ClubLinkEvent, ParticipationHeadline } from "@/lib/services/partic
 
 import {
   formatShowedAgainstInvited,
+  formatTermAndWeek,
   HEADLINE_INVITED_LABEL,
   HEADLINE_SAID_YES_LABEL,
   HEADLINE_SHOWED_LABEL,
@@ -33,19 +34,6 @@ const TYPE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   recruitment: "Recruitment",
   meeting: "Meeting",
 });
-
-const TERM_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  michaelmas: "Michaelmas",
-  hilary: "Hilary",
-  trinity: "Trinity",
-});
-
-function ordinal(week: number): string {
-  const tens = week % 100;
-  if (tens >= 11 && tens <= 13) return `${week}th`;
-  const ones = week % 10;
-  return `${week}${ones === 1 ? "st" : ones === 2 ? "nd" : ones === 3 ? "rd" : "th"}`;
-}
 
 /**
  * `Wednesday, 17 February 2027 · 20:00–22:30`.
@@ -100,10 +88,11 @@ export function EventFacts({ event }: { event: ClubLinkEvent }) {
     },
   ];
   if (event.termLabel !== null) {
-    const term = TERM_LABELS[event.termLabel] ?? event.termLabel;
+    // W157-F2. The event page's own formatter, so that the two surfaces say the
+    // same words about the same event — `docs/ux/standards.md` rule 7.
     facts.push({
       label: "Term / week",
-      value: event.weekNumber === null ? term : `${term} · ${ordinal(event.weekNumber)} week`,
+      value: formatTermAndWeek(event.termLabel, event.weekNumber),
     });
   }
   facts.push({ label: "Attendance", value: event.isMandatory ? "Mandatory" : "Optional" });

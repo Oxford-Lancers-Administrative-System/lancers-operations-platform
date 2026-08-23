@@ -11,8 +11,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import {
+  allowPublicLinkRequest,
   allowRsvpRequest,
   clientKeyFrom,
+  CLUB_LINK_MAX_PER_LINK,
   RATE_LIMIT_MAX_PER_ADDRESS,
   RATE_LIMIT_MAX_PER_LINK,
   RATE_LIMIT_WINDOW_MS,
@@ -111,6 +113,79 @@ describe("allowRsvpRequest", () => {
       allowRsvpRequest(`10.0.${Math.floor(client / 250)}.${client % 250}`, `t-${client}`, NOW);
     }
     expect(allowRsvpRequest("10.0.0.1", "t-fresh", NOW).allowed).toBe(true);
+  });
+});
+
+describe("allowPublicLinkRequest, for the club link", () => {
+  const NOW = 1_000_000;
+
+  it("allows exactly the club link's own allowance, then refuses", () => {
+    for (let request = 1; request <= CLUB_LINK_MAX_PER_LINK; request += 1) {
+      expect(
+        allowPublicLinkRequest("club_link", "1.1.1.1", "club-token", NOW).allowed,
+        `request ${request}`,
+      ).toBe(true);
+    }
+    const refused = allowPublicLinkRequest("club_link", "1.1.1.1", "club-token", NOW);
+    expect(refused.allowed).toBe(false);
+    expect(refused.reason).toBe("link");
+  });
+
+  it("gives a whole squad room, which the RSVP allowance would not have", () => {
+    // R157-B4. This is the number's justification, asserted rather than only
+    // written down: an RSVP token belongs to one player and a club link belongs
+    // to everybody it was forwarded to, so fifty readers in the same minute is
+    // the ordinary case rather than abuse.
+    expect(CLUB_LINK_MAX_PER_LINK).toBeGreaterThan(RATE_LIMIT_MAX_PER_LINK * 2);
+    for (let reader = 0; reader < 50; reader += 1) {
+      expect(
+        allowPublicLinkRequest("club_link", `198.51.100.${reader}`, "club-token", NOW).allowed,
+        `reader ${reader}`,
+      ).toBe(true);
+    }
+  });
+
+  it("keeps the two surfaces in separate per-link buckets", () => {
+    // The same token value on each surface. Exhausting the RSVP bucket at
+    // twenty must leave the club link's allowance untouched, and vice versa.
+    for (let request = 0; request <= RATE_LIMIT_MAX_PER_LINK; request += 1) {
+      allowPublicLinkRequest("rsvp", "1.1.1.1", "shared-value", NOW);
+    }
+    expect(allowPublicLinkRequest("rsvp", "1.1.1.1", "shared-value", NOW).allowed).toBe(false);
+    expect(allowPublicLinkRequest("club_link", "1.1.1.1", "shared-value", NOW).allowed).toBe(true);
+  });
+
+  it("shares the per-address backstop with the RSVP surface", () => {
+    // Deliberate, and the opposite decision from the per-link bucket: the
+    // address bucket is a volumetric brake on a scanner, and one spraying both
+    // surfaces should meet one allowance rather than two.
+    for (let request = 0; request < RATE_LIMIT_MAX_PER_ADDRESS; request += 1) {
+      allowPublicLinkRequest("rsvp", "203.0.113.9", `guess-${request}`, NOW);
+    }
+    const refused = allowPublicLinkRequest("club_link", "203.0.113.9", "a-fresh-link", NOW);
+    expect(refused.allowed).toBe(false);
+    expect(refused.reason).toBe("address");
+  });
+
+  it("leaves the RSVP surface behaving exactly as LAN-79 shipped it", () => {
+    // `allowRsvpRequest` is now a call into the general function. The property
+    // that matters is that its numbers did not move.
+    for (let request = 1; request <= RATE_LIMIT_MAX_PER_LINK; request += 1) {
+      expect(allowRsvpRequest("1.1.1.1", "token-a", NOW).allowed).toBe(true);
+    }
+    expect(allowRsvpRequest("1.1.1.1", "token-a", NOW).allowed).toBe(false);
+    expect(allowPublicLinkRequest("rsvp", "1.1.1.1", "token-a", NOW).allowed).toBe(false);
+  });
+
+  it("forgets a club link's window when the minute is over", () => {
+    for (let request = 0; request <= CLUB_LINK_MAX_PER_LINK; request += 1) {
+      allowPublicLinkRequest("club_link", "1.1.1.1", "club-token", NOW);
+    }
+    expect(allowPublicLinkRequest("club_link", "1.1.1.1", "club-token", NOW).allowed).toBe(false);
+    expect(
+      allowPublicLinkRequest("club_link", "1.1.1.1", "club-token", NOW + RATE_LIMIT_WINDOW_MS + 1)
+        .allowed,
+    ).toBe(true);
   });
 });
 

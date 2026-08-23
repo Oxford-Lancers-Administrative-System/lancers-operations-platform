@@ -39,14 +39,56 @@ import { resolveOperatorAccess, type ResolvedOperator } from "./operator";
  *      `listEventsForOperator`, which calls `requireEventOperatorTier()` before
  *      it reads anything. Deleting a gate from a page cannot grant it.
  *
- * ## The club-link seam
+ * ## The club-link seam, now that something is standing on it
  *
  * `club_link` is in the vocabulary and in `tierSees` because D2 approved it and
  * because a coach holds no operator account — without the middle tier a coach
- * cannot see who is coming to their own session. `resolveEventReadTier()` never
- * returns it yet: nothing issues a club link. Issuing one, and the participation
- * view behind it, is `WP-participation-club-link`. The seam is written down here
- * so that work adds a resolver rather than inventing a second vocabulary.
+ * cannot see who is coming to their own session. This header used to say
+ * "`resolveEventReadTier()` never returns it yet: nothing issues a club link".
+ * LAN-157 issues one, so that sentence is corrected below rather than left to
+ * mislead the next reader (R157-B7).
+ *
+ * **The club link does not come through `resolveEventReadTier()`, and should
+ * not.** That function resolves a tier from the *session*, and the whole point
+ * of a club link is that there is no session — the signed token is the
+ * authorisation, resolved in `@/lib/services/club-link` and consumed by
+ * `readClubLinkParticipation`. So the middle tier is reached by holding a
+ * token, never by being recognised, and the resolver keeps answering the
+ * question it was written for: what does *this session* read at?
+ *
+ * ## Two names for the same idea, pinned rather than merged
+ *
+ * `@/lib/services/participation-view` declares `ParticipationTier`, which is
+ * this type with `public` removed. They are not collapsed into one, for two
+ * reasons that are worth stating because "just use one type" is the obvious
+ * suggestion:
+ *
+ *   1. This module is `server-only` and `participation-view` is imported by a
+ *      client component, so the import would have to be type-only forever, one
+ *      careless value import away from dragging `server-only` into the bundle.
+ *   2. There is no public participation payload. A `tier: "public"` has nothing
+ *      to discriminate — `Participation` cannot represent it — so widening that
+ *      field to `EventReadTier` would add an impossible branch to every switch
+ *      over it. Narrowing is the true relationship, not sameness.
+ *
+ * `./event-tier.test.ts` asserts at compile time that `ParticipationTier` is
+ * exactly `Exclude<EventReadTier, "public">`, so the two cannot drift into
+ * being two vocabularies without a test failing.
+ *
+ * ## One open disagreement, and it is not this module's to settle
+ *
+ * `TIER_SEES.club_link` lists `joining_url`. LAN-157's own contract —
+ * `docs/ux/tickets/LAN-157-participation-and-club-link.md` — states the
+ * opposite as an acceptance criterion: "No club-link response carries an online
+ * event's joining URL, in the page or in any payload behind it", and puts the
+ * joining URL in the operator row of its tier table. The shipped code follows
+ * the contract: `ClubLinkEvent` has no `joiningUrl` key.
+ *
+ * The row below is left exactly as LAN-153 wrote it rather than quietly flipped
+ * either way. Nothing consults `tierSees` for `club_link` — it is a written
+ * declaration, not a gate — so the disagreement costs no behaviour today, and
+ * resolving it changes what an unauthenticated, forwardable link exposes. That
+ * is Brian's decision, not a refactor. Raised as R157-B6.
  */
 
 export type EventReadTier = "public" | "club_link" | "operator";
@@ -133,7 +175,12 @@ export async function requireEventOperatorTier(): Promise<ResolvedOperator> {
  * stranger as far as the club's events are concerned, and the public calendar is
  * the honest answer for it rather than a refusal.
  *
- * Never `club_link` yet; see this module's header.
+ * **Never `club_link`, and that is now permanent rather than pending.** LAN-157
+ * ships the club link, and it is reached by holding a signed token with no
+ * session at all — `readClubLinkParticipation` consults no cookie and takes no
+ * actor. There is nothing about a *session* that makes it club-link tier, so
+ * this function has no way to return one and no reason to. See this module's
+ * header (R157-B7).
  */
 export async function resolveEventReadTier(): Promise<EventReadTier> {
   const access = await resolveOperatorAccess();

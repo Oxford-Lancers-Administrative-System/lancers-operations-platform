@@ -223,6 +223,38 @@ describe("issuing a club link", () => {
     expect(issued.token).toMatch(CLUB_LINK_TOKEN_PATTERN);
   });
 
+  it("refuses a malformed event id as a refusal, not as a database error", async () => {
+    // R157-B9. `issueClubLinkAction` is a POST endpoint anybody with a session
+    // can call and `eventId` arrives from a form field, so a hand-posted value
+    // reached Postgres as a `uuid` cast and raised 22P02. That is not a
+    // `ServiceError`, so the action's catch did not recognise it and the
+    // operator got an error page instead of the in-panel refusal
+    // `docs/ux/standards.md` rule 6 requires.
+    for (const malformed of ["", "not-a-uuid", "1; drop table events", "../../etc/passwd"]) {
+      const failure = await withTransaction((tx) =>
+        issueClubLinkIn(tx, malformed, { actorPersonId, env: SECRET }).then(
+          () => null,
+          (error: unknown) => error,
+        ),
+      );
+      expect(failure, `${malformed} was accepted`).not.toBeNull();
+      // The rule the absent-event case already uses, so the share panel and
+      // the event page both already know what to say about it.
+      expect(failure, malformed).toMatchObject({ rule: "event_not_found" });
+      // And it is a service error, which is what routes it to the panel.
+      expect(isServiceError(failure), `${malformed} is not a ServiceError`).toBe(true);
+    }
+  });
+
+  it("still refuses a well-formed id for an event that does not exist", async () => {
+    // The positive control: the guard did not replace the real lookup with a
+    // shape check.
+    const absent = "00000000-0000-4000-8000-000000000000";
+    await expect(
+      withTransaction((tx) => issueClubLinkIn(tx, absent, { actorPersonId, env: SECRET })),
+    ).rejects.toMatchObject({ rule: "event_not_found" });
+  });
+
   it("leaves no row behind when the deployment cannot sign", async () => {
     const eventId = await anEvent();
     await expect(

@@ -4,6 +4,8 @@ import crypto from "node:crypto";
 
 import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
 
+import { UUID_PATTERN } from "./event-input";
+
 /**
  * The club link — D2, D81, W7 § "The tiers, and the shareable link". LAN-157.
  *
@@ -198,6 +200,20 @@ export async function issueClubLinkIn(
   // Ask for the secret before touching the database. An unconfigured deployment
   // must not leave a row behind whose token nobody can compute.
   clubLinkSecret(env);
+
+  // R157-B9. A server action is a POST endpoint anybody with a session can
+  // call, and `eventId` arrives from a form field. A malformed one used to
+  // reach Postgres as a `uuid` cast and raise 22P02, which is not a
+  // `ServiceError` — so the operator got a Next.js error page instead of the
+  // in-panel refusal `docs/ux/standards.md` rule 6 requires. Refused here, with
+  // the rule the absent-event case already uses, so every caller of this
+  // function is covered rather than only the one action.
+  //
+  // `readEventIn` guards its own reads the same way and for the same reason;
+  // this is the write path's half of it.
+  if (!UUID_PATTERN.test(eventId)) {
+    throw new ConstraintViolated("That event no longer exists.", { rule: "event_not_found" });
+  }
 
   const event = await tx.query<{ id: string; status: string }>(
     "select id, status::text as status from public.events where id = $1",

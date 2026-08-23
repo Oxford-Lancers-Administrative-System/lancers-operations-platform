@@ -121,7 +121,18 @@ function AttendanceChip({ presence }: { presence: AttendancePresence | null }) {
   return <Chip size="small" label={presenceLabel(presence)} color={PRESENCE_COLOURS[presence]} />;
 }
 
-function DeliveryCell({ state }: { state: string | null }) {
+function DeliveryCell({ state, isWalkUp }: { state: string | null; isWalkUp: boolean }) {
+  // W157-F7. "Nothing queued" is a statement about delivering an invitation,
+  // and a walk-up was never invited — there is no invitation whose delivery
+  // could be queued or not. Every other empty cell in a walk-up's row reads
+  // "—", and the approved mockup gives this one "—" too.
+  if (isWalkUp) {
+    return (
+      <Typography component="span" variant="body2" color="text.secondary">
+        {NOTHING}
+      </Typography>
+    );
+  }
   if (state === null) {
     return (
       <Typography component="span" variant="body2" color="text.secondary">
@@ -221,8 +232,23 @@ export function ParticipationTable({
         <Typography variant="overline" data-testid="participation-total">
           {everyoneAsked(total)}
         </Typography>
+        {/*
+          W157-F6. "Sortable on every column" is desktop-only copy: below `md`
+          this component renders one card per person, with no columns and no
+          sort control, and the sentence described a capability the phone does
+          not have. The discrepancy legend is not hidden with it — the `≠` is
+          beside the name on the card too, so the legend still explains
+          something the reader can see.
+        */}
         <Typography variant="body2" color="text.secondary">
-          {operator ? `${SORTABLE_NOTE} · ${DISCREPANCY_LEGEND}` : SORTABLE_NOTE}
+          <Box
+            component="span"
+            data-testid="sortable-note"
+            sx={{ display: { xs: "none", md: "inline" } }}
+          >
+            {operator ? `${SORTABLE_NOTE} · ` : SORTABLE_NOTE}
+          </Box>
+          {operator ? DISCREPANCY_LEGEND : null}
         </Typography>
       </Stack>
 
@@ -269,6 +295,7 @@ export function ParticipationTable({
                   {operator ? (
                     <DeliveryCell
                       state={(person as OperatorParticipationPerson).delivery ?? null}
+                      isWalkUp={person.isWalkUp}
                     />
                   ) : null}
                 </Stack>
@@ -373,6 +400,7 @@ export function ParticipationTable({
                       <TableCell data-testid="delivery-cell">
                         <DeliveryCell
                           state={(person as OperatorParticipationPerson).delivery ?? null}
+                          isWalkUp={person.isWalkUp}
                         />
                       </TableCell>
                     ) : null}

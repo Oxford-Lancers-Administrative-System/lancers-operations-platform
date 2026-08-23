@@ -226,7 +226,11 @@ export default async function EventDetailPage({
   // the service is the boundary.
   const participation =
     event.invitationCount > 0 ? await readOperatorParticipation(event.id) : null;
-  const participationFilters = readParticipationFilters(query, participation?.questions ?? []);
+  const participationFilters = readParticipationFilters(
+    query,
+    participation?.questions ?? [],
+    "operator",
+  );
 
   // The dialog reads the live link and never creates one; **Create the link**
   // is what creates one. A page render must not write.

@@ -18,14 +18,44 @@
  * no club-link response carries the joining URL or the delivery column "in the
  * page or in any payload behind it" — and a field that is never assigned cannot
  * reach a payload, whereas a field the component chooses not to render is one
- * refactor away from the DOM. The compiler enforces the first; only a reviewer
- * enforces the second.
+ * refactor away from the DOM.
+ *
+ * ## What the two types do and do not buy — R157-B5
+ *
+ * They stop a *rendering* mistake: a component holding `ClubLinkParticipation`
+ * has no `delivery` to print and no `joiningUrl` to leak, and that is real.
+ *
+ * They do **not** make the boundary compiler-enforced, and this file used to
+ * say they did. TypeScript rejects an unknown property only on a *fresh* object
+ * literal, and freshness is lost through `.map()` — so adding
+ * `delivery: person.delivery` to the club-link row literal in
+ * `./participation.ts` type-checks cleanly and ships the column. What holds the
+ * boundary is the separate per-tier query, which never selects the column, plus
+ * the field-by-field reassembly of each row. What proves it is the payload
+ * assertions in `./participation.test.ts`, which are the only thing in this
+ * repository that fails when the literal is widened.
  */
 
 import type { AttendancePresence } from "./attendance-vocabulary";
+import type { DerivedDiscrepancy } from "./discrepancy-vocabulary";
 import type { DeliveryState } from "./delivery";
 
-/** Who may read a participation table. Delivery is the only difference (D3). */
+/**
+ * Who may read a participation table. Delivery is the only difference (D3).
+ *
+ * R157-B7. This is `@/lib/auth/event-tier`'s `EventReadTier` with `public`
+ * removed, and it is a separate declaration rather than an import for one
+ * mundane reason: that module is `server-only`, and this one is imported by the
+ * filter bar, which is a client component. The two are pinned together by a
+ * compile-time assertion in `src/lib/auth/event-tier.test.ts`, so they cannot
+ * drift into being two vocabularies.
+ *
+ * They do not collapse into one type. `EventReadTier` includes `public`, and
+ * there is no public participation payload for a `tier: "public"` to
+ * discriminate — `Participation` could not represent it, and every switch over
+ * the tier would gain a branch that cannot occur. Narrowing is the honest
+ * relationship, and the assertion is what makes it provable.
+ */
 export type ParticipationTier = "operator" | "club_link";
 
 // ---------------------------------------------------------------------------
@@ -63,9 +93,18 @@ export type ParticipationTier = "operator" | "club_link";
  *
  * A column or a stored flag remains available later; nothing here forecloses
  * it, which is what the packet meant by "it can change".
+ *
+ * ## Where the two vocabularies differ, and why they are spelled the same
+ *
+ * R157-B3. The classes are named in `./discrepancy-vocabulary.ts`, which is
+ * also where the divergence from `public.rsvp_attendance_mismatches` is stated
+ * once, for both readers. The shared cases now carry the **stored** spelling —
+ * `said_no_but_attended`, not `said_no_attended` — because the stored one is in
+ * shipped migrations and cannot be renamed without one, and because two
+ * near-identical spellings are what a future join or report mapping misses in
+ * silence.
  */
-export type ParticipationDiscrepancy =
-  "said_yes_marked_absent" | "said_no_attended" | "never_answered_attended";
+export type ParticipationDiscrepancy = DerivedDiscrepancy;
 
 /**
  * The marker for one person, or `null`.
@@ -95,7 +134,7 @@ export function discrepancyFor(input: {
 
   if (input.answer === "yes" && input.presence === "absent") return "said_yes_marked_absent";
   if (input.presence !== "present" && input.presence !== "late") return null;
-  if (input.answer === "no") return "said_no_attended";
+  if (input.answer === "no") return "said_no_but_attended";
   if (input.answer === null) return "never_answered_attended";
   return null;
 }
@@ -275,12 +314,39 @@ export const PARTICIPATION_PARAMS = Object.freeze({
   direction: "dir",
 });
 
+/**
+ * The five delivery states a `?delivery=` value may name, plus `none`.
+ *
+ * Written out here rather than imported from `./delivery`, which is
+ * `server-only` and would reach the browser through the filter bar. The
+ * assertion below is what keeps the two from drifting: a sixth `DeliveryState`
+ * that is not listed here fails compilation rather than becoming a filter value
+ * that silently matches nothing.
+ */
+export const DELIVERY_FILTERS = Object.freeze([
+  "queued",
+  "attempted",
+  "delivered",
+  "failed",
+  "retryable",
+  "none",
+] as const);
+
+type UnlistedDeliveryState = Exclude<DeliveryState, (typeof DELIVERY_FILTERS)[number]>;
+type _EveryDeliveryStateIsFilterable = UnlistedDeliveryState extends never ? true : never;
+const _deliveryFiltersCoverEveryState: _EveryDeliveryStateIsFilterable = true;
+void _deliveryFiltersCoverEveryState;
+
 export interface ParticipationFilters {
   readonly search: string;
   readonly capacity: string;
   readonly answer: string;
   readonly attendance: string;
-  /** Only ever set at the operator tier; ignored for club-link rows. */
+  /**
+   * Only ever set at the operator tier. `readParticipationFilters` drops it at
+   * every other tier, so a club-link reader cannot reach a filter their page
+   * has no control for (R157-F9a).
+   */
   readonly delivery: string;
   readonly sort: string;
   readonly direction: string;
@@ -492,10 +558,24 @@ export function participationSortState(
  * Unrecognised is dropped rather than refused, for the same reason the events
  * list does it: a stale link with a filter that no longer exists should show
  * the table, not an error.
+ *
+ * ## The tier is an argument, and it has no default
+ *
+ * R157-F9a. `?delivery=queued` on a club link used to empty the table: every
+ * club-tier person has no delivery field, so nothing matched, and the reader
+ * was told "No one matches these filters" for a filter their page has no
+ * control for and no data behind. The value is now dropped unless the caller
+ * says it is reading at the operator tier, and validated against
+ * `DELIVERY_FILTERS` even then — an unrecognised state was previously accepted
+ * whole and compared against a column.
+ *
+ * The parameter is required rather than defaulted, and deliberately so: a
+ * default is a fail-open, and the tier is a fact every caller already knows.
  */
 export function readParticipationFilters(
   query: Record<string, string | string[] | undefined>,
-  questions: readonly ParticipationQuestion[] = [],
+  questions: readonly ParticipationQuestion[],
+  tier: ParticipationTier,
 ): ParticipationFilters {
   const one = (key: string): string => {
     const value = query[key];
@@ -515,7 +595,10 @@ export function readParticipationFilters(
     capacity,
     answer: (ANSWER_FILTERS as readonly string[]).includes(answer) ? answer : "",
     attendance: (ATTENDANCE_FILTERS as readonly string[]).includes(attendance) ? attendance : "",
-    delivery,
+    delivery:
+      tier === "operator" && (DELIVERY_FILTERS as readonly string[]).includes(delivery)
+        ? delivery
+        : "",
     sort: isParticipationSort(sort, questions) ? sort : "",
     direction: direction === "desc" ? "desc" : direction === "asc" ? "asc" : "",
   };

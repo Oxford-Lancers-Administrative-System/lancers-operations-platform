@@ -36,6 +36,12 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/services/participation", () => ({
   readClubLinkParticipation: vi.fn(),
 }));
+// R157-B4. The club link is rate limited before its token is resolved, so the
+// page reads request headers. Real limiter, mocked headers — the throttle is a
+// behaviour under test below, not something stubbed out.
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers({ "x-forwarded-for": "203.0.113.7" }),
+}));
 
 import {
   EMPTY_FILTERS,
@@ -46,6 +52,12 @@ import {
   type ParticipationQuestion,
 } from "@/lib/services/participation-view";
 import { readClubLinkParticipation } from "@/lib/services/participation";
+import {
+  allowPublicLinkRequest,
+  CLUB_LINK_MAX_PER_LINK,
+  RATE_LIMIT_MAX_PER_LINK,
+  resetRsvpRateLimit,
+} from "@/lib/rsvp/public-surface";
 
 import ClubLinkPage from "../e/[token]/page";
 import { EventFacts, HeadlineNumbers } from "./event-facts";
@@ -55,9 +67,14 @@ import { ParticipationTable } from "./participation-table";
 import { QuestionCounts } from "./question-counts";
 import {
   CLUB_LINK_UNAVAILABLE_HEADLINE,
+  DELIVERY_NOT_QUEUED,
+  DISCREPANCY_LEGEND,
   DISCREPANCY_MARK,
+  formatTermAndWeek,
   NO_MATCHING_PEOPLE,
   NOBODY_ASKED,
+  NOTHING,
+  SORTABLE_NOTE,
   TABLE_HEADINGS,
 } from "./presentation";
 
@@ -84,7 +101,10 @@ const EVENT = {
   description: "Full contact.",
   requiredEquipment: "Gumshield, boots",
   isMandatory: true,
-  termLabel: "hilary",
+  // As `events.termLabel` is actually built — `<term name> <academic year>`
+  // (`src/lib/services/events.ts`) — not the bare term name the club link used
+  // to key a lookup on. W157-F2.
+  termLabel: "hilary 2026-27",
   weekNumber: 5,
 };
 
@@ -129,6 +149,26 @@ const PEOPLE: OperatorParticipationPerson[] = [
     delivery: "delivered",
   },
 ];
+
+/**
+ * Invariant P6's row: attended, never asked — W157-F7's subject.
+ *
+ * Kept out of `PEOPLE` so that every existing count and order assertion in this
+ * file is unchanged, and added to the payloads that need it below.
+ */
+const WALK_UP: OperatorParticipationPerson = {
+  key: "walkup:4",
+  displayName: "Jorvik Kirkbride",
+  capacity: "",
+  isWalkUp: true,
+  invitedAt: null,
+  answer: null,
+  reason: null,
+  presence: "present",
+  discrepancy: null,
+  answers: {},
+  delivery: null,
+};
 
 const OPERATOR: OperatorParticipation = {
   tier: "operator",
@@ -430,6 +470,13 @@ async function renderClubLink(token: string, query: Record<string, string> = {})
 }
 
 describe("the club-link page", () => {
+  beforeEach(() => {
+    // The limiter is per-process module state. Left alone, the twenty-odd
+    // renders in this file would spend one link's allowance and the later ones
+    // would silently assert against the unavailable panel.
+    resetRsvpRateLimit();
+  });
+
   it("shows the event, the three numbers and the table", async () => {
     readClubLink.mockResolvedValue({ state: "live", participation: CLUB });
     const { container } = await renderClubLink("a-token");
@@ -484,6 +531,117 @@ describe("the club-link page", () => {
       "/e/a-token?",
     );
   });
+
+  // -------------------------------------------------------------------------
+  // W157-F1 — a cancelled event says so, to the people with no other surface
+  // -------------------------------------------------------------------------
+
+  it("says a cancelled event is cancelled", async () => {
+    // The defect this replaces: the whole head of the page for a cancelled
+    // event read `Practice — hilary week 5 / Wednesday … / Mandatory / 31 said
+    // yes`, and the string "cancel" appeared nowhere in the response. Every
+    // reader of this link holds no account and has no other surface, so a
+    // forwarded link for a cancelled session sent somebody to a locked pitch.
+    readClubLink.mockResolvedValue({
+      state: "live",
+      participation: { ...CLUB, event: { ...CLUB.event, status: "cancelled" } },
+    });
+    const { container } = await renderClubLink("a-token");
+
+    expect(container.querySelector('[data-testid="club-link-status"]')!.textContent).toBe(
+      "Cancelled",
+    );
+    expect(container.textContent).toContain("Cancelled");
+    // In the page's own head, beside the name and the date — not buried under
+    // the table where a reader scanning the top would miss it.
+    expect(container.querySelector("h1")!.textContent).toContain("Practice — hilary week 5");
+
+    // And the reason is not disclosed at this tier, structurally: there is no
+    // key on `ClubLinkEvent` to carry one.
+    expect(Object.keys(CLUB.event)).not.toContain("decisionReason");
+  });
+
+  it("says nothing about status for an approved event", async () => {
+    // The positive control for the assertion above: the chip is not simply
+    // always rendered.
+    readClubLink.mockResolvedValue({ state: "live", participation: CLUB });
+    const { container } = await renderClubLink("a-token");
+    expect(container.querySelector('[data-testid="club-link-status"]')).toBeNull();
+    expect(container.textContent).not.toContain("Cancelled");
+    expect(container.textContent).not.toContain("Approved");
+  });
+
+  // -------------------------------------------------------------------------
+  // R157-B4 — the rate limit
+  // -------------------------------------------------------------------------
+
+  it("serves the terminal panel and reads nothing once a link is over its allowance", async () => {
+    // Driven through the limiter directly rather than by rendering the page two
+    // hundred and forty times. The allowance itself is proved in
+    // `src/lib/rsvp/public-surface.test.ts`; what this file is for is that the
+    // **page** consults it, and consults it *before* the read.
+    //
+    // That ordering is the whole point. Every club-link request is a write —
+    // `use_count`, `last_used_at` — plus a full outer join and a question scan,
+    // with `force-dynamic` and `no-store` so nothing caches.
+    for (let request = 0; request <= CLUB_LINK_MAX_PER_LINK; request += 1) {
+      allowPublicLinkRequest("club_link", "203.0.113.7", "a-token");
+    }
+    readClubLink.mockClear();
+    readClubLink.mockResolvedValue({ state: "live", participation: CLUB });
+
+    const { container } = await renderClubLink("a-token");
+
+    expect(container.textContent).toContain(CLUB_LINK_UNAVAILABLE_HEADLINE);
+    expect(container.querySelector('[data-testid="participation-table"]')).toBeNull();
+    expect(
+      readClubLink,
+      "the page read the database for a throttled request",
+    ).not.toHaveBeenCalled();
+  });
+
+  it("counts each link separately, so one hot link does not close another", async () => {
+    // A club link is one token for a whole squad, and two events' links must
+    // not share an allowance — otherwise a link somebody is hammering closes
+    // the link for a different session.
+    for (let request = 0; request <= CLUB_LINK_MAX_PER_LINK; request += 1) {
+      allowPublicLinkRequest("club_link", "203.0.113.7", "hot-token");
+    }
+    readClubLink.mockResolvedValue({ state: "live", participation: CLUB });
+
+    const { container } = await renderClubLink("a-quiet-token");
+    expect(container.querySelector('[data-testid="participation-table"]')).not.toBeNull();
+  });
+
+  it("does not share a bucket with an RSVP token of the same value", async () => {
+    // The two surfaces derive their tokens differently and have very different
+    // allowances, so a shared per-link bucket would spend one on the other. An
+    // RSVP token exhausted at twenty must not close a club link.
+    for (let request = 0; request <= RATE_LIMIT_MAX_PER_LINK; request += 1) {
+      allowPublicLinkRequest("rsvp", "203.0.113.7", "a-token");
+    }
+    readClubLink.mockResolvedValue({ state: "live", participation: CLUB });
+
+    const { container } = await renderClubLink("a-token");
+    expect(container.querySelector('[data-testid="participation-table"]')).not.toBeNull();
+  });
+
+  it("gives a whole squad room to open the same link at once", async () => {
+    // The allowance is deliberately far above the RSVP one: an RSVP token
+    // belongs to one player, and this token belongs to everybody the operator
+    // shared it with. Fifty readers in a minute is the ordinary case, and
+    // twenty a minute — the RSVP number — would have throttled it.
+    expect(CLUB_LINK_MAX_PER_LINK).toBeGreaterThan(50);
+    for (let reader = 0; reader < 50; reader += 1) {
+      expect(
+        allowPublicLinkRequest("club_link", `198.51.100.${reader}`, "a-token").allowed,
+        `reader ${reader} was throttled`,
+      ).toBe(true);
+    }
+    readClubLink.mockResolvedValue({ state: "live", participation: CLUB });
+    const { container } = await renderClubLink("a-token");
+    expect(container.querySelector('[data-testid="participation-table"]')).not.toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -522,23 +680,34 @@ describe("copy link", () => {
 });
 
 /**
- * The table is a **server** component, and jsdom is not a server.
+ * Rendered through `react-dom/server`, which is **not** Next's server runtime.
  *
- * These render it through `react-dom/server` instead, which catches a component
- * that throws without a DOM, without `act`, and without hydration papering over
- * it — the class of failure jsdom is worst at noticing.
+ * Corrected at R157-B1. This block used to be called "rendering on the server,
+ * which is where it actually runs", and it is not where it actually runs. The
+ * claim was tested and disproved: reintroducing `<Stack divider={<Divider
+ * flexItem />}>` at `participation-table.tsx:249` passed all thirty tests in
+ * this file **and** `npm run typecheck`, while the real page returned 500.
  *
- * **It is not the whole guard, and the reason is worth writing down.**
- * `<Stack divider={…}>` compiled, passed every jsdom test in this file, passed
- * `renderToStaticMarkup` here, and survived `next build` — and then threw
- * "Element type is invalid … got: undefined" inside Next's own server runtime,
- * so every request for the operator page and the club link returned **500**
- * while the browser recovered on the client and looked perfect. It was found by
- * loading the real page and reading the status code, and that is still the only
- * thing in this repository that would find the next one. The browser preflight
- * earns its place; this file does not replace it.
+ * So what these four actually buy is narrower than the old name promised, and
+ * still worth having:
+ *
+ *   * they render without a DOM, without `act` and without hydration, so a
+ *     component that throws in that environment is caught here rather than
+ *     being papered over by a client-side recovery;
+ *   * they assert real **content** — the operator table carries the delivery
+ *     heading, the club-link table does not — and one of them is the rendering
+ *     half of the tier boundary.
+ *
+ * What they do **not** buy is any guarantee about Next's own server runtime.
+ * `renderToStaticMarkup` resolves a component reference that Next's renderer
+ * rejects, `next build` compiled it, and every jsdom test passed. The only
+ * thing in this repository that would find the next failure of that class is
+ * loading the real page and reading its status code, which is what the browser
+ * preflight does. A CI smoke job that fetched these routes and asserted 200
+ * would be the automated version; it does not exist, and adding it is a change
+ * to `.github/workflows/` that is not this package's.
  */
-describe("rendering on the server, which is where it actually runs", () => {
+describe("rendering through react-dom/server, without a DOM or hydration", () => {
   it("renders the operator table without throwing", () => {
     const markup = renderToStaticMarkup(
       <ParticipationTable
@@ -679,5 +848,160 @@ describe("the phone presentation", () => {
       expect(card.textContent).not.toContain("Delivered");
       expect(card.textContent).not.toContain("Failed");
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // W157-F6 — copy that describes a capability the phone does not have
+  // -------------------------------------------------------------------------
+
+  it("hides the sort note below md, where there are no columns to sort", () => {
+    // Measured in the browser at 375×812, both tiers printed "Sortable on every
+    // column" above a list with no columns and no sort control.
+    //
+    // **jsdom does not evaluate media queries**, so `getComputedStyle` here
+    // reports the desktop value whatever the breakpoint says — asserting on it
+    // would prove nothing. What can be proved without a browser is that the
+    // sentence is inside its own element and that the rule MUI emitted for that
+    // element hides it at the base breakpoint and restores it at `md`. The
+    // rendered result at 375px belongs to the browser preflight, which measures
+    // the viewport from the browser context rather than believing a claim.
+    for (const participation of [OPERATOR, CLUB]) {
+      const { container, unmount } = render(
+        <ParticipationTable
+          basePath="/operate/events/event-1"
+          participation={participation}
+          filters={filters()}
+        />,
+      );
+      const note = container.querySelector('[data-testid="sortable-note"]')!;
+      expect(note, "the sort note is not in its own element").not.toBeNull();
+      expect(note.textContent).toContain(SORTABLE_NOTE);
+
+      const emitted = Array.from(document.querySelectorAll("style"))
+        .map((element) => element.textContent ?? "")
+        .join("\n");
+      // MUI compiles `{ xs: "none", md: "inline" }` into two media rules for
+      // the element's generated class. Both halves are required: the first
+      // hides it on the phone, and the second is what proves the sentence is
+      // still there for the table it describes rather than simply deleted.
+      const hidden = [...note.classList].some((name) =>
+        emitted.includes(`@media (min-width:0px){.${name}{display:none;}}`),
+      );
+      const shown = [...note.classList].some((name) =>
+        emitted.includes(`@media (min-width:900px){.${name}{display:inline;}}`),
+      );
+      expect(hidden, `nothing hides the sort note on the phone: ${emitted}`).toBe(true);
+      expect(shown, `nothing brings the sort note back for the table: ${emitted}`).toBe(true);
+      unmount();
+    }
+  });
+
+  it("keeps the discrepancy legend on the phone, because the mark is on the card", () => {
+    // Not hidden with the sort note: the `≠` appears beside the name on the
+    // card too, so the legend still explains something the reader can see.
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR}
+        filters={filters()}
+      />,
+    );
+    expect(container.textContent).toContain(DISCREPANCY_LEGEND);
+    const card = container.querySelector('[data-testid="participation-card"] [data-discrepancy]');
+    expect(card).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W157-F2 and W157-F7 — the two surfaces saying the same words
+// ---------------------------------------------------------------------------
+
+describe("the event facts", () => {
+  it("says term and week exactly as the operator's event page says it", () => {
+    // The defect: the club link had its own `TERM_LABELS` map keyed on the bare
+    // term name while `events.termLabel` is `<name> <academic year>`, so the
+    // lookup never matched and the raw lowercase value fell through with an
+    // ordinal appended — `hilary 2026-27 · 5th week` against the operator's
+    // `Hilary 2026-27 · Week 5`. Asserted against the operator page's own
+    // formatter rather than against a copied string, so the two cannot drift.
+    const { container } = render(<EventFacts event={CLUB.event} />);
+    expect(container.textContent).toContain(formatTermAndWeek(EVENT.termLabel, EVENT.weekNumber));
+    expect(container.textContent).toContain("Hilary 2026-27 · Week 5");
+    expect(container.textContent).not.toContain("5th week");
+    expect(container.textContent).not.toContain("hilary 2026-27 ·");
+  });
+
+  it("does not print an ordinal for a pre-season week", () => {
+    // `-1th week` was the copy a pre-season event actually produced.
+    const { container } = render(
+      <EventFacts event={{ ...CLUB.event, termLabel: "michaelmas 2026-27", weekNumber: -1 }} />,
+    );
+    expect(container.textContent).toContain(formatTermAndWeek("michaelmas 2026-27", -1));
+    expect(container.textContent).not.toContain("-1th");
+  });
+});
+
+describe("a walk-up's row", () => {
+  const withWalkUp: OperatorParticipation = {
+    ...OPERATOR,
+    people: [...PEOPLE, WALK_UP],
+  };
+
+  it("reads an em dash under Delivery, not `Nothing queued`", () => {
+    // W157-F7. "Nothing queued" is a statement about delivering an invitation
+    // to somebody who was never invited. Every other empty cell in this row
+    // reads "—" and the approved mockup gives this one "—" too.
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={withWalkUp}
+        filters={filters()}
+      />,
+    );
+    // The row, not the card: both carry `data-person`, and the card comes
+    // first in the DOM.
+    const row = container.querySelector(
+      '[data-testid="participation-row"][data-person="walkup:4"]',
+    )!;
+    expect(row).not.toBeNull();
+    expect(row.querySelector('[data-testid="delivery-cell"]')!.textContent).toBe(NOTHING);
+    expect(row.textContent).not.toContain(DELIVERY_NOT_QUEUED);
+  });
+
+  it("still says `Nothing queued` for somebody who was invited", () => {
+    // The positive control: the cell is not simply always a dash now. A person
+    // with an invitation and no queued job is a real state, and it is the one
+    // that sentence was written for.
+    const invitedNothingQueued: OperatorParticipationPerson = {
+      ...PEOPLE[0],
+      key: "player:9",
+      displayName: "Ines Thornbury",
+      delivery: null,
+    };
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={{ ...OPERATOR, people: [invitedNothingQueued] }}
+        filters={filters()}
+      />,
+    );
+    expect(
+      container.querySelector('[data-testid="participation-row"] [data-testid="delivery-cell"]')!
+        .textContent,
+    ).toBe(DELIVERY_NOT_QUEUED);
+  });
+
+  it("reads the em dash on the phone card too", () => {
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={withWalkUp}
+        filters={filters()}
+      />,
+    );
+    const card = Array.from(container.querySelectorAll('[data-testid="participation-card"]')).find(
+      (element) => element.getAttribute("data-person") === "walkup:4",
+    )!;
+    expect(card.textContent).not.toContain(DELIVERY_NOT_QUEUED);
   });
 });

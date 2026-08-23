@@ -53,6 +53,25 @@ export {
   HEADLINE_SHOWED_LABEL,
 } from "../operate/events/[id]/attendance/presentation";
 
+/**
+ * The event page's own term-and-week sentence, re-exported rather than written
+ * again — W157-F2.
+ *
+ * The club link had its own `TERM_LABELS` map and its own `ordinal()`, and the
+ * two surfaces disagreed in the first screenful: the operator read
+ * `Michaelmas 2026-27 · Week 7` and the club link read
+ * `michaelmas 2026-27 · 7th week` for the same event at the same moment. The
+ * map was dead code — it is keyed on `michaelmas | hilary | trinity` while
+ * `events.termLabel` is built as `<name> <academic year>`, so the lookup never
+ * matched and the raw lowercase value fell through. A pre-season event read
+ * `michaelmas 2026-27 · -1th week`.
+ *
+ * `docs/ux/standards.md` rule 7 is the rule that breaks, and this folder's own
+ * header names that rule as the reason it exists. One definition, then, rather
+ * than two readings pinned together afterwards.
+ */
+export { formatTermAndWeek } from "../operate/events/presentation";
+
 // ---------------------------------------------------------------------------
 // The table
 // ---------------------------------------------------------------------------
@@ -147,7 +166,7 @@ export const DISCREPANCY_MARK = "≠";
 export const DISCREPANCY_LABELS: Readonly<Record<ParticipationDiscrepancy, string>> = Object.freeze(
   {
     said_yes_marked_absent: "Said yes, marked absent",
-    said_no_attended: "Said no, attended",
+    said_no_but_attended: "Said no, attended",
     never_answered_attended: "Never answered, attended",
   },
 );

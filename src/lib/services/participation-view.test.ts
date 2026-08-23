@@ -1,7 +1,17 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
+  DERIVED_DISCREPANCIES,
+  NOT_DERIVED,
+  NOT_STORED,
+  STORED_MISMATCH_CLASSES,
+} from "./discrepancy-vocabulary";
+import {
   applyParticipationView,
+  DELIVERY_FILTERS,
   discrepancyFor,
   EMPTY_FILTERS,
   isParticipationSort,
@@ -77,12 +87,16 @@ describe("discrepancyFor", () => {
     );
   });
 
-  it("marks somebody who said no and came", () => {
+  it("marks somebody who said no and came, in the stored view's own spelling", () => {
+    // R157-B3. `said_no_but_attended`, not `said_no_attended`: the stored view
+    // `public.rsvp_attendance_mismatches` spells this class that way, it is in
+    // shipped migrations, and two near-identical spellings are what a future
+    // join or report mapping misses in silence.
     expect(discrepancyFor({ answer: "no", presence: "present", isWalkUp: false })).toBe(
-      "said_no_attended",
+      "said_no_but_attended",
     );
     expect(discrepancyFor({ answer: "no", presence: "late", isWalkUp: false })).toBe(
-      "said_no_attended",
+      "said_no_but_attended",
     );
   });
 
@@ -539,6 +553,7 @@ describe("readParticipationFilters", () => {
           dir: "desc",
         },
         [LIFT],
+        "operator",
       ),
     ).toEqual({
       search: "wolver",
@@ -555,6 +570,7 @@ describe("readParticipationFilters", () => {
     const filters = readParticipationFilters(
       { answer: "maybe", att: "vanished", sort: "q:someone-elses-question", dir: "sideways" },
       [LIFT],
+      "operator",
     );
     expect(filters.answer).toBe("");
     expect(filters.attendance).toBe("");
@@ -563,6 +579,142 @@ describe("readParticipationFilters", () => {
   });
 
   it("takes the first of a repeated parameter", () => {
-    expect(readParticipationFilters({ q: ["one", "two"] }, []).search).toBe("one");
+    expect(readParticipationFilters({ q: ["one", "two"] }, [], "operator").search).toBe("one");
+  });
+
+  // -------------------------------------------------------------------------
+  // R157-F9a — `?delivery=` is the operator's, and only in its own vocabulary
+  // -------------------------------------------------------------------------
+
+  it("ignores a delivery filter at the club-link tier", () => {
+    // The defect: `?delivery=queued` on a club link emptied the table. No
+    // club-tier person carries a delivery field, so nothing matched, and the
+    // reader was told "No one matches these filters" for a filter their page
+    // has no control for. Every other filter still applies — the tier narrows
+    // this one key, not the whole query string.
+    const filters = readParticipationFilters(
+      { delivery: "queued", q: "wolver", answer: "yes" },
+      [LIFT],
+      "club_link",
+    );
+    expect(filters.delivery).toBe("");
+    expect(filters.search).toBe("wolver");
+    expect(filters.answer).toBe("yes");
+  });
+
+  it("ignores every delivery value at the club-link tier, valid or not", () => {
+    for (const value of [...DELIVERY_FILTERS, "invented", ""]) {
+      expect(
+        readParticipationFilters({ delivery: value }, [LIFT], "club_link").delivery,
+        value,
+      ).toBe("");
+    }
+  });
+
+  it("accepts only the five states and `none` at the operator tier", () => {
+    for (const value of DELIVERY_FILTERS) {
+      expect(
+        readParticipationFilters({ delivery: value }, [LIFT], "operator").delivery,
+        value,
+      ).toBe(value);
+    }
+    // Previously accepted whole and compared against the column, which matched
+    // nothing and emptied the operator's table too.
+    for (const value of ["invented", "DELIVERED", "queued; drop table", "null"]) {
+      expect(
+        readParticipationFilters({ delivery: value }, [LIFT], "operator").delivery,
+        value,
+      ).toBe("");
+    }
+  });
+
+  it("names the same five delivery states the table renders", () => {
+    // So that a sixth state added to `DeliveryState` fails here as well as at
+    // `tsc`, and a filter value that renders no label cannot be introduced.
+    expect([...DELIVERY_FILTERS]).toEqual([
+      "queued",
+      "attempted",
+      "delivered",
+      "failed",
+      "retryable",
+      "none",
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// R157-B3 — the derived vocabulary against the stored one
+// ---------------------------------------------------------------------------
+
+const MISMATCH_VIEW_MIGRATION = resolve(
+  import.meta.dirname,
+  "..",
+  "..",
+  "..",
+  "supabase",
+  "migrations",
+  "20260822120000_events_target_state.sql",
+);
+
+describe("the discrepancy vocabulary", () => {
+  it("spells its shared classes exactly as the stored view spells them", () => {
+    // The finding: `said_no_attended` here against `said_no_but_attended` in
+    // SQL. Near-identical, non-identical, and a future join or report mapping
+    // would have missed it in silence. Asserted against the class names read
+    // out of the shipped migration text rather than against a copy of them, so
+    // that renaming one side alone fails here.
+    const migration = readFileSync(MISMATCH_VIEW_MIGRATION, "utf8");
+    for (const shared of ["said_yes_marked_absent", "said_no_but_attended"]) {
+      expect(DERIVED_DISCREPANCIES as readonly string[], shared).toContain(shared);
+      expect(migration, `${shared} is not in the view`).toContain(`'${shared}'`);
+    }
+  });
+
+  it("names every class the stored view can emit", () => {
+    const migration = readFileSync(MISMATCH_VIEW_MIGRATION, "utf8");
+    for (const stored of STORED_MISMATCH_CLASSES) {
+      expect(migration, `${stored} is not in the view`).toContain(`'${stored}'`);
+    }
+    // And nothing the view emits is missing from the list: a fifth class added
+    // to the view without a look at `discrepancy-vocabulary.ts` fails here
+    // rather than drifting quietly.
+    const emitted = [...migration.matchAll(/then\s+'([a-z_]+)'/g)].map((match) => match[1]);
+    const classes = emitted.filter((value) => value.includes("attend") || value.includes("said"));
+    expect(classes.length).toBeGreaterThan(0);
+    for (const value of classes) {
+      expect(STORED_MISMATCH_CLASSES as readonly string[], `the view emits ${value}`).toContain(
+        value,
+      );
+    }
+  });
+
+  it("states the divergence in both directions, and it is a real divergence", () => {
+    // Neither set contains the other. That is the whole reason the module
+    // exists; a reader who assumed "derived is a subset of stored" would be
+    // wrong in both directions.
+    for (const excluded of NOT_DERIVED) {
+      expect(STORED_MISMATCH_CLASSES as readonly string[]).toContain(excluded);
+      expect(DERIVED_DISCREPANCIES as readonly string[]).not.toContain(excluded);
+    }
+    for (const added of NOT_STORED) {
+      expect(DERIVED_DISCREPANCIES as readonly string[]).toContain(added);
+      expect(STORED_MISMATCH_CLASSES as readonly string[]).not.toContain(added);
+    }
+  });
+
+  it("derives no class it has not named", () => {
+    // Every value `discrepancyFor` can return is in the list, so the module
+    // describes the function rather than running beside it as a second
+    // document.
+    const produced = new Set<string>();
+    for (const answer of ["yes", "no", null] as const) {
+      for (const presence of ["present", "late", "absent", "excused", null] as const) {
+        for (const isWalkUp of [true, false]) {
+          const marker = discrepancyFor({ answer, presence, isWalkUp });
+          if (marker !== null) produced.add(marker);
+        }
+      }
+    }
+    expect([...produced].sort()).toEqual([...DERIVED_DISCREPANCIES].sort());
   });
 });
