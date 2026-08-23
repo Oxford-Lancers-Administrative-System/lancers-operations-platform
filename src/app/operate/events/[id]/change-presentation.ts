@@ -117,6 +117,25 @@ export function notifyDefaultDetail(material: boolean, isFuture: boolean): strin
   return "Off by default. Turn it on to tell everyone invited that this event changed.";
 }
 
+/**
+ * W6-03's version of the same sentence, and it is a different sentence.
+ *
+ * A cancellation's default follows the event's date and nothing else, so the
+ * amendment's "because the date, time or venue moved" would be describing a
+ * reason that does not apply. The first draft of this screen reused
+ * `notifyDefaultDetail` and said exactly that, on a screen where nothing had
+ * moved.
+ */
+export function cancelNotifyDefaultDetail(isFuture: boolean): string {
+  if (!isFuture) {
+    return (
+      "Off by default, because the event has passed. Nobody needs a message about something " +
+      "already gone. This is how the record gets tidied."
+    );
+  }
+  return "On by default. Turning it off will ask you to confirm.";
+}
+
 /** W5-03's queued-message sentence, without the delivery time this mission does not own. */
 export function queuedMessagesDetail(unsent: number): string {
   if (unsent === 0) return "Nothing is waiting to go out for this event.";

@@ -26,7 +26,7 @@ import {
   everyoneWillBeTold,
   expectingToBeThere,
   nobodyWillBeTold,
-  notifyDefaultDetail,
+  cancelNotifyDefaultDetail,
   SILENCE_CANCEL_PROCEED_LABEL,
   SILENCE_RIGHT_AND_WRONG,
   SILENCE_TELL_THEM_LABEL,
@@ -148,7 +148,7 @@ export default function CancelForm({
                 color="text.secondary"
                 data-testid="cancel-notify-default"
               >
-                {notifyDefaultDetail(true, isFuture)}
+                {cancelNotifyDefaultDetail(isFuture)}
               </Typography>
             </Box>
 

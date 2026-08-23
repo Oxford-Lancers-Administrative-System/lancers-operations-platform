@@ -273,6 +273,19 @@ describe("the amendment editor", () => {
     expect(flatten(within(panel).getByTestId("kept-said-no").textContent)).toBe("4 said no — kept");
   });
 
+  it("shrinks the type label, so the chosen type is readable", async () => {
+    render(await AmendEventPage(amendProps()));
+
+    // Without `slotProps.inputLabel.shrink`, a MUI select renders its label on
+    // top of a `defaultValue` — "Kind of event" printed over "Practice", which
+    // is what the first browser preflight of this screen found.
+    const shrunk = screen
+      .getAllByText("Kind of event")
+      .filter((node) => node.className.includes("MuiInputLabel-root"));
+    expect(shrunk).toHaveLength(1);
+    expect(shrunk[0].className).toContain("MuiInputLabel-shrink");
+  });
+
   it("says the event stays approved while it is being edited", async () => {
     render(await AmendEventPage(amendProps()));
 
@@ -606,6 +619,24 @@ describe("the cancellation screen", () => {
 
     expect(flatten(screen.getByTestId("cancel-irreversible").textContent)).toContain(
       "This cannot be undone.",
+    );
+  });
+
+  it("explains its own default, and never the amendment's", async () => {
+    const { unmount } = render(await CancelEventPage(cancelProps()));
+
+    // Nothing moved here — a cancellation's default follows the date alone, and
+    // an earlier draft of this screen borrowed the amendment's sentence and
+    // told the operator the venue had moved.
+    const future = flatten(screen.getByTestId("cancel-notify-default").textContent);
+    expect(future).toBe("On by default. Turning it off will ask you to confirm.");
+    expect(future).not.toContain("moved");
+    unmount();
+
+    vi.mocked(readAmendmentContext).mockResolvedValue(context({ isFuture: false }));
+    render(await CancelEventPage(cancelProps()));
+    expect(flatten(screen.getByTestId("cancel-notify-default").textContent)).toContain(
+      "because the event has passed",
     );
   });
 

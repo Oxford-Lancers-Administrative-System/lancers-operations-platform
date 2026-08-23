@@ -338,6 +338,10 @@ export default function AmendForm({
                   defaultValue={value("eventType")}
                   error={Boolean(issueFor(issues, "eventType"))}
                   helperText={issueFor(issues, "eventType")}
+                  // A MUI select does not shrink its own label from a
+                  // `defaultValue`, so without this the label sits on top of
+                  // the chosen type. The draft editor carries the same line.
+                  slotProps={{ inputLabel: { shrink: true } }}
                   fullWidth
                 >
                   {DRAFTABLE_EVENT_TYPES.map((type) => (
