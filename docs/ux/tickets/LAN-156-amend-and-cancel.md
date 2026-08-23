@@ -196,25 +196,33 @@ information beside current state, and neither searches.
   amendment. OD-1/Q6 names the **chase threshold**, which this package
   recomputes and records; the RSVP deadline is a separate value that no source
   in this mission speaks to.
-- **Cancelling an event that already carries attendance records.** The database
-  refuses it — see below.
 
-## The constraint this package could not clear
+## Cancelling an event that already carries attendance records
+
+This was the one thing the package could not do when it was first delivered, and
+it is now done. It is recorded here because the reasoning is the requirement's,
+not an implementation detail.
 
 `attendance_records` carries a denormalised copy of the event's status, bound by
 a composite foreign key declared `on update cascade`, and
-`attendance_records_require_an_approved_event` says that copy must read
-`approved`. Cancelling therefore cascades `cancelled` onto every attendance row
-and the check refuses it.
+`attendance_records_require_an_approved_event` said that copy must read
+`approved`. Cancelling therefore cascaded `cancelled` onto every attendance row
+and the check refused it — so the cancellation failed outright.
 
 `W6` says the opposite in words — attendance records are untouched, and a
 cancelled event keeps its history — and D31 permits cancelling a past event as
-an administrative correction. The case is live: a coach opens the register at
-14:00 because the buffer lifted, the pitch floods at 18:00, and the operator
-cannot call the event off.
+an administrative correction. `D57` keeps the event visible with its history and
+its responses. The case is live rather than theoretical: a coach opens the
+register at 14:00 because D71's buffer lifted, the pitch floods at 18:00, and
+the operator could not call the event off.
 
-Clearing it means widening that check to `event_status in ('approved',
-'cancelled')`, which is exactly what `invitations` already carries. That is a
-**migration**, and this work package owns none. Today's behaviour is pinned by
-test so the constraint cannot drift unnoticed, and the refusal reaches the
-operator as a sentence rather than a stack trace.
+`20260823090000_attendance_survives_cancellation.sql` widens the check to
+`event_status in ('approved', 'cancelled')`, which is exactly what `invitations`
+already carries for invariant P1 (mission question Q-8, decided). Cancelling now
+succeeds and every attendance record survives it, by count and by identity.
+
+What did **not** change: attendance still cannot be attached to a draft, and a
+cancelled event's register is still closed to new writes. The first is the check
+constraint, unchanged in that half; the second is `closedReasonFor` in
+`src/lib/services/attendance.ts`, which is where the "may the register be
+opened?" question was already answered and remains answered once.

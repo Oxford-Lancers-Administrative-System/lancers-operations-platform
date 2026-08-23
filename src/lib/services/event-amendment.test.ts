@@ -47,7 +47,7 @@ import {
   readEvent,
   type EventDraftInput,
 } from "./events";
-import { readEventAttendanceSummary } from "./attendance";
+import { readAttendanceBoard, readEventAttendanceSummary } from "./attendance";
 import {
   dispatchEventInvitations,
   JOB_HELD_MESSAGE,
@@ -1257,34 +1257,32 @@ describe("readAmendmentContext", () => {
 });
 
 // ---------------------------------------------------------------------------
-// The constraint this work package could not clear
+// Cancelling an event whose register has already been opened
 // ---------------------------------------------------------------------------
 
 describe("cancelling an event that carries attendance records", () => {
   /**
-   * **This test pins a defect rather than a decision.**
+   * The case W6 describes and this branch's second migration cleared.
    *
    * `attendance_records` carries a denormalised copy of the event's status,
    * bound by a composite foreign key declared `on update cascade`, and
-   * `attendance_records_require_an_approved_event` says that copy must read
-   * `approved`. Cancelling the event therefore cascades `cancelled` onto every
-   * attendance row and the check refuses it.
+   * `attendance_records_require_an_approved_event` used to say that copy must
+   * read exactly `approved`. Cancelling the event cascaded `cancelled` onto
+   * every attendance row and the check refused it, so an event whose register
+   * had been opened could not be called off at all.
    *
-   * W6 says the opposite in words — "attendance records, if any, are
-   * untouched", and a cancelled event stays visible with its history and its
-   * responses — and D31 permits cancelling a past event as an administrative
-   * correction. The realistic case is live: a coach opens the register at
-   * 14:00 because the buffer lifted, the pitch floods at 18:00, and the
-   * operator cannot call the event off.
+   * That contradicted W6 — "attendance records, if any, are untouched", and a
+   * cancelled event stays visible with its history and its responses (D57) —
+   * and D31, which permits cancelling a past event as an administrative
+   * correction. It was not an edge case either: D71's buffer opens the register
+   * before the event starts, so a coach opens it at 14:00, the pitch floods at
+   * 18:00, and the operator cannot act.
    *
-   * Clearing it requires widening that check constraint to
+   * `20260823090000_attendance_survives_cancellation.sql` widens the check to
    * `event_status in ('approved', 'cancelled')` — exactly what `invitations`
-   * already carries — which is a **migration**, and this work package owns
-   * none. The test asserts today's behaviour so that the constraint is pinned:
-   * when the migration lands, this test fails and is replaced by the one that
-   * asserts the cancellation succeeds and the attendance rows survive.
+   * already carries for invariant P1. Mission question Q-8, decided.
    */
-  it("is refused by the database today, and the event stays approved", async () => {
+  it("succeeds, and every attendance record survives by count and identity", async () => {
     const fixture = await approvedEvent({ scheduledOn: pastDay() });
 
     // A register saved before the event was called off.
@@ -1300,11 +1298,12 @@ describe("cancelling an event that carries attendance records", () => {
         where i.event_id = $1 order by i.id limit 1`,
       [fixture.eventId],
     );
-    await observer.query(
+    const saved = await observer.query<{ id: string }>(
       `insert into public.attendance_records
          (event_id, event_status, season_id, capacity, presence, person_id,
           season_membership_id, recorded_by_person_id)
-       values ($1, 'approved', $2, $6::public.invitation_capacity, 'present', $3, $4, $5)`,
+       values ($1, 'approved', $2, $6::public.invitation_capacity, 'present', $3, $4, $5)
+       returning id`,
       [
         fixture.eventId,
         fixture.seasonId,
@@ -1315,25 +1314,51 @@ describe("cancelling an event that carries attendance records", () => {
       ],
     );
 
-    const failure = await serviceFailure(() =>
-      cancelEvent(actorPersonId, fixture.eventId, {
-        reason: "Pitch flooded after the register was taken.",
-        notify: false,
-      }),
-    );
+    const outcome = await cancelEvent(actorPersonId, fixture.eventId, {
+      reason: "Pitch flooded after the register was taken.",
+      notify: false,
+    });
 
-    // The refusal reaches the operator as a sentence rather than as a stack
-    // trace — `docs/ux/standards.md` rule 6 — but it is a sentence about a rule
-    // W6 says should not apply here, which is the finding.
-    expect(failure.rule).toBe("attendance_records_require_an_approved_event");
+    expect(outcome.event.status).toBe("cancelled");
+    expect(await statusOf(fixture.eventId)).toBe("cancelled");
 
-    // The transaction rolled back whole: the event is untouched, and so is the
-    // register.
-    expect(await statusOf(fixture.eventId)).toBe("approved");
-    const attendance = await observer.query<{ count: string }>(
-      "select count(*)::text as count from public.attendance_records where event_id = $1",
+    // The same row, not a replacement, and not a second one: W6's "untouched"
+    // is about identity, so counting is not enough on its own. The cascade has
+    // rewritten its copy of the status, which is the whole mechanism — the row
+    // still points at the event it was recorded against.
+    const attendance = await observer.query<{
+      id: string;
+      event_status: string;
+      presence: string;
+    }>(
+      `select id, event_status::text as event_status, presence::text as presence
+         from public.attendance_records where event_id = $1`,
       [fixture.eventId],
     );
-    expect(Number(attendance.rows[0].count)).toBe(1);
+    expect(attendance.rows).toHaveLength(1);
+    expect(attendance.rows[0].id).toBe(saved.rows[0].id);
+    expect(attendance.rows[0].presence).toBe("present");
+    expect(attendance.rows[0].event_status).toBe("cancelled");
+  });
+
+  /**
+   * The half of invariant P5 that did **not** move. Widening the check to admit
+   * `cancelled` must not make attendance attachable to a draft, and the service
+   * refuses it before the database is asked — `closedReasonFor` in
+   * `attendance.ts` returns `not_approved` for any status that is not
+   * `approved`. The database's own refusal of a draft is proved in
+   * `tests/schema-invariants.test.ts`.
+   */
+  it("does not make a cancelled event's register writable again", async () => {
+    const fixture = await approvedEvent({ scheduledOn: pastDay() });
+    await cancelEvent(actorPersonId, fixture.eventId, {
+      reason: "Pitch flooded.",
+      notify: false,
+    });
+
+    const board = await readAttendanceBoard(fixture.eventId);
+
+    expect(board.isOpen).toBe(false);
+    expect(board.closedReason).toBe("not_approved");
   });
 });
