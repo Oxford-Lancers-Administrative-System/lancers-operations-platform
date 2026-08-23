@@ -23,12 +23,14 @@ function frontMatter(file: string) {
 const flat = (value: string) => value.replace(/\*\*/g, "").replace(/\s+/g, " ");
 const skillPath = path.join(skills, "start-issue", "SKILL.md");
 const reviewerPath = path.join(agents, "code-reviewer.md");
+const scoutPath = path.join(agents, "scout.md");
 const finishSkillPath = path.join(skills, "finish-issue", "SKILL.md");
 const missionSkillPath = path.join(skills, "run-mission", "SKILL.md");
 const intakeSkillPath = path.join(skills, "mission-intake", "SKILL.md");
 const workerPath = path.join(agents, "implementation-worker.md");
 const skill = frontMatter(skillPath);
 const reviewer = frontMatter(reviewerPath);
+const scout = frontMatter(scoutPath);
 const finishSkill = frontMatter(finishSkillPath);
 const missionSkill = frontMatter(missionSkillPath);
 const intakeSkill = frontMatter(intakeSkillPath);
@@ -228,6 +230,7 @@ describe("single-issue Claude workflow", () => {
     expect([...readdirSync(agents)].sort()).toEqual([
       "code-reviewer.md",
       "implementation-worker.md",
+      "scout.md",
     ]);
     expect(flat(skill.body)).toMatch(/Do not launch an implementation sub-agent/i);
     expect(flat(skill.body)).toMatch(/launch one fresh-context `code-reviewer`/i);
@@ -456,7 +459,9 @@ describe("issue closeout workflow", () => {
   it("is announced by /start-issue and by the working agreement, and leaves missions alone", () => {
     expect(flat(skill.body)).toMatch(/Closeout is a separate, later invocation/i);
     expect(flat(skill.body)).toMatch(/`\/finish-issue LAN-###`/i);
-    expect(flat(agreement)).toMatch(/five user-invoked workflows and two subagents are approved/i);
+    expect(flat(agreement)).toMatch(
+      /five user-invoked workflows and three subagents are approved/i,
+    );
     expect(flat(agreement)).toMatch(/Under `\/finish-issue`, the top-level session finalizes/i);
     expect(flat(agreement)).toMatch(
       /Linear recordkeeping is limited to In Progress at start, the draft PR link, one final evidence\/handoff comment, and — after the merge, from `\/finish-issue` alone — the Done transition and its single closing comment/i,
@@ -487,7 +492,7 @@ describe("graded review routing", () => {
     expect(body).toMatch(/Full review.*independently reconstructs material requirements/i);
     expect(body).toMatch(/Correction review.*previous_reviewed_sha\.\.current_head_sha/i);
     expect(reviewBody).toMatch(
-      /review mode \(`full`, `correction`, or `requirement-adjudication`\)/i,
+      /review mode \(`full`, `security-tier`, `correction`, or `requirement-adjudication`\)/i,
     );
     expect(reviewBody).toMatch(/Review `previous_reviewed_sha\.\.current_head_sha`/i);
     expect(reviewBody).toMatch(
@@ -715,6 +720,15 @@ describe("graded review routing", () => {
     );
     expect(flat(reviewer.body)).toMatch(/Do not repair anything/i);
   });
+
+  it("keeps the approved scout bounded, read-only, concise, and unable to delegate", () => {
+    expect(scout.fields.name).toBe("scout");
+    for (const tool of ["Write", "Edit", "NotebookEdit", "Agent", "Workflow"])
+      expect(scout.fields.disallowedTools).toContain(tool);
+    expect(flat(scout.body)).toMatch(/Answer exactly one bounded question/i);
+    expect(flat(scout.body)).toMatch(/Return one concise paragraph/i);
+    expect(flat(scout.body)).toMatch(/Never spawn another agent/i);
+  });
 });
 
 describe("zero-command visual acceptance", () => {
@@ -822,10 +836,12 @@ describe("mission harness v1", () => {
   });
 
   it("makes the Mission Lead the only orchestrator, with flat delegation", () => {
-    expect(missionBody).toMatch(/workers and reviewers are spawned only by the Mission Lead/i);
-    expect(missionBody).toMatch(/workers never spawn agents of any kind/i);
     expect(missionBody).toMatch(
-      /never launches an agent that is not `implementation-worker` or `code-reviewer`/i,
+      /workers, reviewers, and read-only scouts are spawned only by the Mission Lead/i,
+    );
+    expect(missionBody).toMatch(/they never spawn agents of any kind/i);
+    expect(missionBody).toMatch(
+      /never launches an agent that is not `implementation-worker`, `code-reviewer`, or `scout`/i,
     );
     expect(missionBody).toMatch(/never becomes the default application-code implementer/i);
   });

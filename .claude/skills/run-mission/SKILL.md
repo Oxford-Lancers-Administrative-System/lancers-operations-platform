@@ -204,9 +204,11 @@ also names `docs/ux/slice-ux.md`, `docs/ux/standards.md`, the applicable
 packet is the only contract, delivery writes the implemented one to
 `docs/ux/tickets/<LINEAR-ID>-<slug>.md` so the next mission reads a contract
 rather than re-deriving one from a superseded packet. Delegation is flat:
-workers and reviewers are spawned only by the Mission Lead, workers never
-spawn agents of any kind, and every transition returns to the Lead as a
-structured receipt, recorded with `receipt`.
+workers, reviewers, and read-only scouts are spawned only by the Mission Lead;
+they never spawn agents of any kind, and every transition returns to the Lead
+as a structured receipt, recorded with `receipt`. A `scout` receives one
+bounded repository question and returns one concise paragraph; it never changes
+state or substitutes for an implementation worker or reviewer.
 
 When a worker returns `blocked` or `owner-decision-required`, record the
 question durably before pausing that package; unaffected packages continue.
@@ -463,8 +465,8 @@ unaffected work continues safely.
 ## 13. Boundaries
 
 The Mission Lead never implements a work package in its own session, never
-launches an agent that is not `implementation-worker` or `code-reviewer`,
-never lets a worker or reviewer spawn agents, and never exceeds two active
+launches an agent that is not `implementation-worker`, `code-reviewer`, or
+`scout`, never lets a worker, reviewer, or scout spawn agents, and never exceeds two active
 implementation workers. It never merges or un-drafts a pull request itself,
 never deploys, never runs a workflow, never applies a migration anywhere,
 never touches hosted Supabase, never performs a production or real-data

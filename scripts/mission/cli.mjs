@@ -469,6 +469,23 @@ async function main() {
       break;
     }
 
+    case "mission-visual-approve": {
+      if (!missionId || !flags.head || !flags["package-heads"] || !flags.by || !flags.evidence) {
+        fail(
+          "Usage: mission mission-visual-approve <mission-id> --head <integrated-sha> --package-heads <file> --by Brian --evidence <where>",
+        );
+      }
+      await append(missionId, {
+        type: "visual-approval",
+        head_sha: flags.head,
+        package_heads: readJson(flags["package-heads"]),
+        approved_by: flags.by,
+        evidence: flags.evidence,
+      });
+      console.log(`Mission visual approval recorded at ${flags.head}.`);
+      break;
+    }
+
     case "question": {
       if (!missionId || !flags.id || !flags.class || !flags.text || !flags.source) {
         fail(
@@ -594,16 +611,21 @@ async function main() {
     case "integrated-review": {
       if (!missionId || !flags.mode || !flags.head || !flags.result) {
         fail(
-          "Usage: mission integrated-review <mission-id> --mode workflow-walker|cross-surface --head <sha> --result clear|blocked [--jobs <what was completed>] [--findings <file>]",
+          "Usage: mission integrated-review <mission-id> --mode workflow-walker|cross-surface|security-tier --head <sha> --package-heads <file> --result clear|blocked [--jobs <what was completed>] [--findings <file>] [--sensitive-paths <file>] [--report <file>]",
         );
       }
       await append(missionId, {
         type: "integrated-review",
         mode: flags.mode,
         head_sha: flags.head,
+        package_heads: flags["package-heads"] ? readJson(flags["package-heads"]) : undefined,
         result: flags.result,
         ...(flags.jobs ? { jobs_completed: flags.jobs } : {}),
         ...(flags.findings ? { findings: readJson(flags.findings) } : {}),
+        ...(flags["sensitive-paths"]
+          ? { sensitive_paths: readJson(flags["sensitive-paths"]) }
+          : {}),
+        ...(flags.report ? { report: flags.report } : {}),
       });
       console.log(`Integrated ${flags.mode} review recorded at ${flags.head}: ${flags.result}.`);
       break;
@@ -744,7 +766,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, mission-visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
       );
   }
 }

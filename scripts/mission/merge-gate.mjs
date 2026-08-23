@@ -262,8 +262,8 @@ export function receiptDefects(receipt) {
       "Receipt risk_class is highest. It may travel this lane only when it cites the answered owner question (owner_decision: question_id, answered_by, date) recorded at Brian's checkpoint.",
     );
   }
-  if (receipt.review_mode !== "full" && receipt.review_mode !== "correction") {
-    defects.push("Receipt review_mode must be full or correction.");
+  if (!["full", "correction", "mission-security"].includes(receipt.review_mode)) {
+    defects.push("Receipt review_mode must be full, correction, or mission-security.");
   }
   if (!/^[0-9a-f]{40}$/.test(receipt.full_review_sha ?? "")) {
     defects.push("Receipt full_review_sha must be a full 40-character SHA.");
@@ -273,6 +273,21 @@ export function receiptDefects(receipt) {
   }
   if (receipt.review_result !== "clear") {
     defects.push(`Receipt review_result is "${receipt.review_result ?? "absent"}", not "clear".`);
+  }
+  if (receipt.review_mode === "mission-security") {
+    const missionReview = receipt.mission_review;
+    if (
+      !missionReview ||
+      !/^[0-9a-f]{40}$/.test(missionReview.integrated_head_sha ?? "") ||
+      missionReview.package_head_sha !== receipt.reviewed_head_sha ||
+      missionReview.result !== "clear" ||
+      !Array.isArray(missionReview.sensitive_paths) ||
+      !isNonEmptyString(missionReview.report)
+    ) {
+      defects.push(
+        "A mission-security receipt must cite the clear integrated-head review, this package's covered head, the sensitive-path intersection, and its report file.",
+      );
+    }
   }
   if (!["approved", "nonvisual"].includes(receipt.visual)) {
     defects.push('Receipt visual must be "approved" or "nonvisual".');
@@ -411,14 +426,27 @@ export function journalConjuncts(state, packageId, headSha, options = {}) {
   if (!pkg.linear_issue_id) {
     reasons.push(`${packageId} has no synchronized Linear issue.`);
   }
-  if (!pkg.review || pkg.review.result !== "clear") {
-    reasons.push(`${packageId} has no clear review receipt in mission state.`);
-  } else if (pkg.review.reviewed_head_sha !== headSha) {
+  const packageReviewCovers =
+    pkg.review?.result === "clear" && pkg.review.reviewed_head_sha === headSha;
+  const missionReviewCovers = (state.integratedReviews ?? []).some(
+    (review) =>
+      review.mode === "security-tier" &&
+      review.result === "clear" &&
+      review.package_heads?.[packageId] === headSha,
+  );
+  if (!packageReviewCovers && !missionReviewCovers) {
     reasons.push(
-      `The clear review in mission state covers ${pkg.review.reviewed_head_sha}, not ${headSha}.`,
+      `${packageId} has no clear package review or mission-level security-tier review that covers ${headSha}.`,
     );
   }
-  if (pkg.visual !== "nonvisual" && (!pkg.visual_approved || pkg.visual_evidence_pending)) {
+  const missionVisualApprovalCovers = (state.missionVisualApprovals ?? []).some(
+    (approval) => approval.package_heads?.[packageId] === headSha,
+  );
+  if (
+    pkg.visual !== "nonvisual" &&
+    (!pkg.visual_approved || pkg.visual_evidence_pending) &&
+    !missionVisualApprovalCovers
+  ) {
     reasons.push(`${packageId} is visual work without Brian's recorded visual approval.`);
   }
   for (const question of Object.values(state.questions ?? {})) {

@@ -6,6 +6,8 @@ import {
   LEAD_TTL_MS,
   MAX_ACTIVE_WORKERS,
   appendEvent,
+  dependencyUsable,
+  guardedLaneRefusals,
   leadLeaseAvailable,
   missionPaths,
   nextActions,
@@ -1731,6 +1733,67 @@ describe("drift, stops, and resumption", () => {
 });
 
 describe("reviewing the thing the packages add up to", () => {
+  it("records one security-tier review and one visual approval at the integrated head", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await reviewedClear(m, "WP-events-filter");
+    const packageHeads = { "WP-events-filter": SHA };
+    const integratedHead = "e".repeat(40);
+    await m.append({
+      type: "integrated-review",
+      mode: "workflow-walker",
+      head_sha: integratedHead,
+      package_heads: packageHeads,
+      result: "clear",
+      jobs_completed: "Completed the mission's end-to-end event workflow.",
+    });
+    await m.append({
+      type: "integrated-review",
+      mode: "security-tier",
+      head_sha: integratedHead,
+      package_heads: packageHeads,
+      sensitive_paths: [],
+      report: "reviews/security-tier.json",
+      result: "clear",
+    });
+    const state = await m.append({
+      type: "visual-approval",
+      head_sha: integratedHead,
+      package_heads: packageHeads,
+      approved_by: "Brian",
+      evidence: "one mission walkthrough",
+    });
+    state.packages["WP-events-filter"].review = null;
+    state.packages["WP-events-filter"].visual_approved = false;
+    expect(state.missionVisualApprovals).toHaveLength(1);
+    expect(dependencyUsable(state, "WP-events-filter")).toMatchObject({
+      usable: true,
+      basis: "mission-reviewed-at-head",
+    });
+    expect(guardedLaneRefusals(state, "WP-events-filter", SHA)).toEqual([]);
+    expect(state.integratedReviews.at(-1)).toMatchObject({
+      mode: "security-tier",
+      head_sha: integratedHead,
+      package_heads: packageHeads,
+      result: "clear",
+    });
+  });
+
+  it("refuses mission review coverage that is not exact or lacks a report", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await expect(
+      m.append({
+        type: "integrated-review",
+        mode: "security-tier",
+        head_sha: SHA,
+        package_heads: { "WP-events-filter": "short" },
+        sensitive_paths: [],
+        result: "clear",
+      }),
+    ).rejects.toThrow(/invalid coverage[\s\S]*report path/);
+  });
+
   /**
    * LAN-148 §D. Package-scoped review caught serious defects in the first live
    * run and missed twelve usability and consistency ones, because nobody
@@ -1796,15 +1859,18 @@ describe("reviewing the thing the packages add up to", () => {
     expect(approved.packages["WP-events-filter"].visual_approved).toBe(true);
   });
 
-  it("asks for a walker on the frontier, and for the jobs rather than the screens", async () => {
+  it("waits for build-complete before one mission walker, and asks for jobs rather than screens", async () => {
     const m = fixture();
     await readyMission(m);
     const state = await reviewedClear(m, "WP-events-filter");
-    expect(
-      nextActions(state).some(
-        (action) => action.action === "workflow-walker" && action.package_id === "WP-events-filter",
-      ),
-    ).toBe(true);
+    expect(nextActions(state).some((action) => action.action === "workflow-walker")).toBe(false);
+    for (const pkg of Object.values(state.packages) as Array<Record<string, unknown>>) {
+      pkg.status = "implemented";
+      pkg.head_sha = SHA;
+    }
+    expect(nextActions(state).filter((action) => action.action === "workflow-walker")).toEqual([
+      expect.objectContaining({ action: "workflow-walker" }),
+    ]);
 
     await expect(
       m.append({

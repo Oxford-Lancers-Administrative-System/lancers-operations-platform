@@ -169,6 +169,26 @@ describe("the guarded mission merge gate", () => {
     );
   });
 
+  it("accepts a mission-security receipt only with integrated coverage evidence", () => {
+    const missionSecurity: any = receipt({
+      review_mode: "mission-security",
+      mission_review: {
+        integrated_head_sha: OTHER,
+        package_head_sha: HEAD,
+        result: "clear",
+        sensitive_paths: ["src/lib/auth/session.ts"],
+        report: "reviews/security-tier.json",
+      },
+    });
+    expect(receiptDefects(missionSecurity)).toEqual([]);
+    expect(
+      receiptDefects({
+        ...missionSecurity,
+        mission_review: { ...missionSecurity.mission_review, package_head_sha: OTHER },
+      }).join("\n"),
+    ).toMatch(/mission-security receipt/);
+  });
+
   it("trips the coherence wire: a nonvisual claim with a visual diff is refused on evidence", () => {
     const verdict = gate({
       pullRequest: pullRequest({ body: bodyWith(receipt({ visual: "nonvisual" })) }),
@@ -376,6 +396,32 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
       { type: "mission-stopped", at: "t", reason: "usage-exhausted", detail: "simulated" },
     ]);
     expect(journalConjuncts(stopped, "WP-events-filter", HEAD).join("\n")).toMatch(/stopped/);
+  });
+
+  it("accepts mission-level security review and visual approval covering the package head", () => {
+    const state = base();
+    state.packages["WP-events-filter"].review = null;
+    state.packages["WP-events-filter"].visual_approved = false;
+    state.integratedReviews.push({
+      mode: "security-tier",
+      result: "clear",
+      head_sha: OTHER,
+      package_heads: { "WP-events-filter": HEAD },
+      sensitive_paths: [],
+      report: "reviews/security-tier.json",
+    });
+    state.missionVisualApprovals = [
+      {
+        head_sha: OTHER,
+        package_heads: { "WP-events-filter": HEAD },
+        by: "Brian",
+        evidence: "mission review",
+      },
+    ];
+    expect(journalConjuncts(state, "WP-events-filter", HEAD)).toEqual([]);
+    expect(journalConjuncts(state, "WP-events-filter", OTHER).join("\n")).toMatch(
+      /no clear package review or mission-level security-tier review/i,
+    );
   });
 
   it("requires an answered owner question on the journal side for checkpoint-approval diffs", () => {

@@ -503,7 +503,7 @@ steps, dependencies, theme contents — proceed and explain in the pull request.
 
 ## Agent tooling
 
-Exactly five user-invoked workflows and two subagents are approved:
+Exactly five user-invoked workflows and three subagents are approved:
 
 | Role                                                          | File                                      | What it does                                                                                                                                                                                                    |
 | ------------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -514,6 +514,7 @@ Exactly five user-invoked workflows and two subagents are approved:
 | Finish mission (`/finish-mission M-<id>`)                     | `.claude/skills/finish-mission/`          | Reclaims a finished or abandoned mission's worktrees, branches and database stack after merges it proves from the repository, and records how the mission ended. Never merges, deploys or writes to production. |
 | Implementation worker                                         | `.claude/agents/implementation-worker.md` | Implements exactly one Mission-Lead-assigned work package under the proven issue execution contract; returns a structured receipt; spawns nothing.                                                              |
 | Code reviewer                                                 | `.claude/agents/code-reviewer.md`         | Fresh-context, independently isolated review; reports findings and never repairs them.                                                                                                                          |
+| Scout                                                         | `.claude/agents/scout.md`                 | Answers one bounded repository question from read-only evidence; returns one concise paragraph and never changes state or spawns another agent.                                                                 |
 
 Under `/start-issue`, the top-level session reads the complete issue, confirms
 dependencies and human gates, enters or safely resumes one issue-specific
@@ -549,9 +550,10 @@ is an append-only journal owned by `scripts/mission/cli.mjs` — every plan,
 dispatch, receipt, question, answer, merge, and stop is recorded through it,
 and a completely fresh Mission Lead reconstructs the mission from that durable
 state alone. The Mission Lead orchestrates and never implements application
-code itself; delegation is flat — only the Mission Lead spawns workers and
-reviewers, workers spawn nothing, at most two implementation workers run
-concurrently per mission, colliding collision domains are serialized within
+code itself; delegation is flat — only the Mission Lead spawns workers,
+reviewers and scouts; they spawn nothing. At most three implementers, reviewers
+and walkers run concurrently per mission, including at most two implementation
+workers; colliding collision domains are serialized within
 that mission, and only one migration-owning package runs at a time within it.
 Missions themselves may run concurrently; Brian decides how many to start.
 Each has one fenced Lead and one disposable mission-owned local Supabase stack,
@@ -568,26 +570,24 @@ is generated from durable state. See
 - **Worktree isolation is mandatory.** One issue has one worktree and one branch.
   The primary checkout remains unchanged and clean. Reviewers use their own
   isolated worktrees.
-- **The implementer writes tests but does not certify them.** Normal and Highest
-  risk changes receive a fresh-context reviewer that independently reconstructs
-  requirements, judges the matrix and challenges critical rules with plausible
-  defect injection. Narrow corrections preserve review lineage and receive
-  correction-only review; material risk-surface changes reset to full review.
-  Review is capped at three automatic invocations, with repeated premises routed
-  to requirement adjudication. Green CI is required but is not approval.
-- **Review is graded before implementation by reachability and blast radius,
-  never diff size.** Low risk is top-level verification only; Normal application
-  work receives one independent review; Highest risk includes auth,
-  authorization, migrations, grants/RLS, secrets, privileged credentials,
-  production-affecting workflows, and the agent harness. An unspecified grade
-  resolves to Normal.
-- **Visual acceptance precedes final correctness review.** After objective
-  verification, UI-affecting work receives agent browser preflight at desktop
-  and 375px, then stops with a live protected `review-ready` environment for
-  Brian's presentation judgment. Mixed work stops only for that visible portion;
-  nonvisual work never introduces a human visual stop. After approval or visual
-  corrections, final verification and graded independent review run at the
-  current commit. The normal pull request remains draft throughout.
+- **The mission is reviewed at its integrated head.** Workers write targeted
+  tests; once every package is built, the mission runs one full verification,
+  one workflow-walker pass and one cross-surface comparison. A fresh-context
+  reviewer then examines only the diff's intersection with migrations and
+  schema, RLS and grants, auth and session boundaries, token and unauthenticated
+  routes, secrets and privileged credentials, PII egress, and production
+  scripts or workflows. Non-security mission code receives no independent code
+  review. The security-tier budget is one full review plus two correction
+  reviews; material sensitive-surface changes reset its lineage. Green CI is
+  required but is not approval. See
+  [ADR 0034](docs/adr/0034-mission-level-review-and-security-tier.md).
+- **Visual acceptance is mission-level.** After the integration checkpoint,
+  Brian receives one three-part brief and one protected `review-ready`
+  environment for the integrated result. His approval is recorded once for the
+  exact package heads. All findings return in one batched correction round; a
+  rendered correction gets one scoped re-walk and re-approval, while a
+  classifier-proven non-rendered delta carries evidence forward. The normal
+  pull requests remain draft throughout.
 - **Brian's visual handoff is zero-command.** The agent installs dependencies,
   starts and repairs local services, resets and seeds the database, provisions
   the fixed local review login through the real auth flow, starts the app, and
@@ -645,6 +645,7 @@ production.**
 `.claude/settings.json` keeps bypass disabled and denies common direct forms of
 merge, un-draft, force push, deploy, hosted Supabase, raw GitHub mutation, and
 guardrail editing. Those patterns supplement protected `main`, human merge,
-restricted credentials, worktree isolation, independent review, and CI; they do
+restricted credentials, worktree isolation, security-tier independent review,
+and CI; they do
 not replace those controls. `tests/agent-harness.test.ts` fails if this posture
 drifts.

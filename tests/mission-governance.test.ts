@@ -251,7 +251,7 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
     }
     const agreement = flat(read("AGENTS.md"));
     expect(agreement).toMatch(
-      /Exactly five user-invoked workflows and two subagents are approved/i,
+      /Exactly five user-invoked workflows and three subagents are approved/i,
     );
     expect(agreement).toMatch(
       /No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to production/i,

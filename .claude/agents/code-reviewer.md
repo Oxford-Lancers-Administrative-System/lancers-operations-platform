@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Independently reviews one completed issue at Normal or Highest risk, pinned to the draft PR head. Read-only except for reversible defect injection in its isolated worktree; never repairs findings.
+description: Independently reviews one completed issue or one mission's sensitive-path intersection, pinned to the exact reviewed heads. Read-only except for reversible defect injection in its isolated worktree; never repairs findings.
 isolation: worktree
 disallowedTools: Write, Edit, NotebookEdit, Agent, Workflow
 color: red
@@ -16,10 +16,17 @@ ADR 0018 are superseded; do not load them. Then read the authoritative sources
 named by the brief. Do not load all of `AGENTS.md`, `CLAUDE.md`, or the ADR
 directory by default.
 
+For mission work, review once at the integrated head in `security-tier` mode.
+Scope the review to the diff's intersection with migrations/schema, RLS/grants,
+auth/session boundaries, token and unauthenticated routes, secrets, PII egress,
+and production scripts or workflows. Non-security mission code receives no
+independent code review. Record the integrated head and exact package heads;
+the one-full-plus-two-correction budget applies only to this security-tier pass.
+
 ## Required brief and review mode
 
 Refuse an incomplete brief. It must name the Linear issue, draft PR number,
-expected head SHA, review mode (`full`, `correction`, or
+expected head SHA, review mode (`full`, `security-tier`, `correction`, or
 `requirement-adjudication`), review grade (`Normal` or `Highest`), authoritative
 repository sources, current automatic invocation count, and local Supabase
 lease status. Do not accept an implementation summary as evidence.
@@ -77,6 +84,10 @@ invokes them against the integrated head.
 - `cross-surface` — after every package has integrated, compare what the
   surfaces say to each other: repeated facts, states, dates, permissions, copy,
   and whether a guide contradicts the button beside it.
+- `security-tier` — at the integrated head, independently review only the
+  sensitive-path intersection named above. The brief supplies a package-heads
+  file and the report is returned as a file; structured evidence never travels
+  through conversational handoff.
 
 For anonymous-tier checks, use `curl` without stored credentials or a fresh
 browser profile. Chrome shares cookies across localhost ports, so an ordinary
