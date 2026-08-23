@@ -46,6 +46,10 @@ const findingDispositionTranscript = readFileSync(
   path.join(root, "tests", "fixtures", "agent-review", "finding-dispositions.md"),
   "utf8",
 );
+const runnerDisciplineTranscript = readFileSync(
+  path.join(root, "tests", "fixtures", "mission", "runner-discipline.md"),
+  "utf8",
+);
 const pullRequestTemplate = readFileSync(
   path.join(root, ".github", "PULL_REQUEST_TEMPLATE.md"),
   "utf8",
@@ -914,6 +918,31 @@ describe("mission harness v1", () => {
     expect(finishMissionBody).toMatch(
       /src\/lib\/auth\/.*src\/lib\/delivery\/.*lane-mergeable only after/i,
     );
+  });
+
+  it("pins all five runner-discipline rules and rehearses both refusals", () => {
+    expect(missionBody).toMatch(/three-part review brief.*Scope.*Fit.*Exact review table/i);
+    expect(missionBody).toMatch(/Your approval means X; it does not yet mean Y/i);
+    expect(missionBody).toMatch(/not ready for owner review.*refuses to hand off/i);
+    expect(missionBody).toMatch(/Expected merge route: guarded-auto \| owner/i);
+    expect(missionBody).toMatch(/re-checked before dispatch, before owner review/i);
+    expect(missionBody).toMatch(
+      /route-changing scope change.*before review, never after approval/i,
+    );
+    expect(flat(worker.body)).toMatch(/read-back command proving the old form is gone/i);
+    expect(flat(worker.body)).toMatch(/nothing still references it/i);
+    for (const body of [missionBody, flat(worker.body)]) {
+      expect(body).toMatch(/“cannot”, “not possible”, or “the harness refuses”/i);
+      expect(body).toMatch(/refusal message quoted verbatim or two distinct attempts/i);
+    }
+    expect(missionBody).toMatch(/From apply until deploy, production is broken/i);
+    expect(missionBody).toMatch(/command that cannot run in Brian's current checkout/i);
+
+    const transcript = flat(runnerDisciplineTranscript);
+    expect(transcript).toMatch(/refused — not ready for owner review/i);
+    expect(transcript).toMatch(/route re-check detects a refused path/i);
+    expect(transcript).toMatch(/stop before owner review/i);
+    expect(transcript).toMatch(/Approval given for `guarded-auto` is not reused/i);
   });
 
   it("checks owner rules before asking, and separates immediate from hourly questions", () => {

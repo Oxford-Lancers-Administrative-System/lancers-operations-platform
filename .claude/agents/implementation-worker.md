@@ -98,6 +98,15 @@ regression test and observe it fail, restore the fix, run it again and observe
 it pass. Record the test, the command, the failing assertion, the restored
 pass, and the exact SHA. Leave no mutation behind.
 
+A correction that changes a name, heading, or factual claim also records the
+read-back command proving the old form is gone and that nothing still references
+it. A successful write command without this read-back is not correction
+evidence.
+
+A claim of “cannot”, “not possible”, or “the harness refuses” includes the
+refusal message quoted verbatim or two distinct attempts. One denied command
+form is evidence about that form only, never about the underlying capability.
+
 ## The structured receipt
 
 Return exactly one receipt to the Mission Lead:

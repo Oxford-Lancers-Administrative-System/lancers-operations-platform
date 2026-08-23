@@ -222,6 +222,11 @@ A package's pull request contains only its package. An unrelated fix — seed
 data, tooling, or another issue's defect — ships as its own pull request and is
 never folded in. PR #71 became owner-gated exactly through that contamination.
 
+The expected merge route is calculated during planning and re-checked before
+dispatch, before owner review, and after every change to the package's file
+scope. Adding any refused path is a route-changing scope change: disclose the
+new owner route and exact path to Brian before review, never after approval.
+
 ### 6a. Mission-owned local database
 
 After fetching current `main`, record its full commit and current migration
@@ -338,6 +343,15 @@ configuration. The Lead never substitutes `localhost` for `127.0.0.1`, or the
 reverse; a hostname mismatch can authenticate one page and leave later controls
 dead.
 
+Before giving Brian any owner-review link, present a three-part review brief:
+(1) **Scope** — purpose, complete outcome, and in/out boundary in plain
+sentences; (2) **Fit** — where this ticket sits in the end-to-end journey and
+what remains elsewhere; (3) an **Exact review table** — every page with URL,
+action, what to verify, and acceptance. End with “Your approval means X; it does
+not yet mean Y.” Include `Expected merge route: guarded-auto | owner — <exact
+reason>`. A package without all three parts and that route line is **not ready
+for owner review**; the Lead refuses to hand off its link.
+
 When a non-rendered carry-forward chain exists, publish it in the receipt's
 `visual_evidence` block (`approved_sha` plus `carry_forward_chain`). The merge
 gate validates every link and its file list and refuses a chain that is broken,
@@ -376,6 +390,12 @@ requirement/criterion/gate, remaining human action (if any), remaining agent
 verification, and next actor. Omit an empty group. Never put routine owner
 questions or scheduled check-in items in this section.
 
+When an owner handoff involves a non-backward-compatible migration, its first
+line is: `From apply until deploy, production is broken; expected duration N
+minutes.` Annotate every command with the checkout or environment where it
+runs. A command that cannot run in Brian's current checkout never appears
+without saying so.
+
 ## 10. Merge only through the guarded mission lane
 
 Never run `gh pr merge`, `gh pr ready`, or any direct merge, and never use
@@ -389,6 +409,10 @@ review at the exact head SHA, visual approval or genuinely nonvisual, no
 open owner question affecting the package, mission not stopped) with the
 evidence conjuncts (base `main`, mergeability, prohibited-surface scan,
 required checks green at the exact head).
+
+Immediately before this gate, re-check the planned merge route against the
+current file scope. If it changed, stop and make the pre-review disclosure
+required by §6; an approval for the old route is not approval for the new one.
 
 Only when the local gate passes: publish the `mission-merge-receipt` fenced
 JSON block into the PR body, apply the `mission-merge` label with
@@ -452,3 +476,7 @@ Auth configuration through every handoff and resumption. The LAN-90 UX gate
 and LAN-92 automated-WhatsApp decision gate remain binding; manual posting or
 distribution is never an MVP, pilot, fallback, or completion path. Linear recordkeeping stays minimal: issue
 status, the draft PR link, and one final evidence comment per package.
+
+A claim of “cannot”, “not possible”, or “the harness refuses” includes the
+refusal message quoted verbatim or two distinct attempts recorded. One denied
+command form proves only that form; it never establishes a general incapacity.
