@@ -56,6 +56,17 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
     readEventAudience: vi.fn(),
   };
 });
+// LAN-157. The event page reads the participation table and the live club
+// link; the table itself is proved in `src/app/participation/screens.test.tsx`
+// and against the database in `src/lib/services/participation.test.ts`.
+vi.mock("@/lib/services/participation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/participation")>();
+  return {
+    ...actual,
+    readOperatorParticipation: vi.fn().mockResolvedValue(null),
+    readEventClubLink: vi.fn().mockResolvedValue(null),
+  };
+});
 
 import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
