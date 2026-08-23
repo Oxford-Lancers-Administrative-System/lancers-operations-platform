@@ -102,6 +102,18 @@ When it notifies, **the whole invited audience** is told, decliners included
 (OD-1/Q9). A yes stands and nobody is asked twice. There is **no reason field** —
 the required description carries any explanation (OD-1/Q7).
 
+**None of that paragraph is on the screen, and that is a rule rather than an
+omission.** Brian, at the visual gate on 2026-08-23: a control says what it does
+and what the consequence is; it never explains the application's design, never
+justifies a default, and never instructs the operator to go and use a different
+field. The notify block had grown to five paragraphs covering why decliners are
+told, what happens to the people who said yes, what happens to the people who
+have not answered, that two changed fields do not make two messages, and that an
+explanation belongs in the description. What survives is two lines: how many
+people get a message, and — only where silencing is guarded — that turning the
+tick off will ask. The reasoning above stays here, in the contract, which is
+where a reader who wants it should find it.
+
 ### Silence is chosen, never defaulted into
 
 Turning the tick off on a change that moved a future event's date, time or venue
@@ -124,8 +136,25 @@ nothing queued arrives describing a superseded value. It is a **hold**, not a
 cancellation: the obligation survives, and Mission 4 decides whether each
 message resumes as it was, resumes corrected, or is replaced.
 
-The review screen says how many are held. It does not say when they were due,
-because when a message goes is Mission 4's.
+The review screen says how many are held, and says nothing at all when none are.
+It does not say when they were due, because when a message goes is Mission 4's.
+
+**That number and the delivery screen's are the same number.** The amend screen
+counts the event's **invitation** jobs that have not gone out; the delivery
+screen sorts those same jobs into states and shows the held ones as **Held**. A
+held message is therefore visible on the surface built to show delivery state,
+and the **Retry** control is not offered on it, because `retryDelivery` refuses
+a held job (`docs/ux/standards.md` rule 4).
+
+Getting this wrong is what produced the finding at the 2026-08-23 gate: the
+amend screen counted every job type — including the change notices a previous
+amendment had itself created — while the delivery screen, correctly for its own
+scope, reported on invitations alone and knew nothing about `held_at`. One event
+read **47 messages have not gone out yet** on one screen and **0 Queued, 0
+Delivered, 0 Failed** on the other. Both numbers were defensible in isolation,
+which is why neither had a failing test. The identity
+`unsent = held + queued + failed + retryable` now binds them, in
+`event-amendment.test.ts`.
 
 ### Re-notify
 

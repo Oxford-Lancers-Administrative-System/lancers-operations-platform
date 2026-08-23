@@ -51,11 +51,7 @@ import {
   AMEND_STAYS_APPROVED,
   AMEND_UNSAVED_BADGE,
   describeChange,
-  EXPLAINING_HEADING,
-  NO_REASON_FIELD_DETAIL,
-  noAnswerDetail,
   notifyDefaultDetail,
-  ONE_MESSAGE_NOT_ONE_PER_FIELD,
   QUEUED_MESSAGES_HEADING,
   queuedMessagesDetail,
   REVIEW_HEADLINE_PREFIX,
@@ -63,12 +59,10 @@ import {
   silenceConsequence,
   SILENCE_NOTIFY_LABEL,
   SILENCE_PROCEED_LABEL,
-  SILENCE_RIGHT_AND_WRONG,
   silenceHeadline,
   TELL_PEOPLE_HEADING,
   WHAT_CHANGED_HEADING,
   whoHearsAboutIt,
-  yesStandsDetail,
 } from "../change-presentation";
 
 /**
@@ -532,60 +526,36 @@ export default function AmendForm({
                     label={notify ? "Notify" : "Silent"}
                   />
                 </Box>
+                {/*
+                  Two lines at most, and the second only where it is true:
+                  how many people get a message, and whether moving the tick
+                  will stop and ask. Brian, 2026-08-23 — a control says what it
+                  does and what the consequence is, and nothing else.
+                */}
                 <Typography variant="body2" data-testid="who-hears">
-                  {whoHearsAboutIt(audience.invited, audience.saidNo)}
+                  {whoHearsAboutIt(audience.invited)}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" data-testid="notify-default">
-                  {notifyDefaultDetail(material, isFuture)}
-                </Typography>
-                {notify ? (
-                  <Stack spacing={0.5} sx={{ mt: 1 }}>
-                    {yesStandsDetail(audience.saidYes) ? (
-                      <Typography variant="body2" color="text.secondary">
-                        {yesStandsDetail(audience.saidYes)}
-                      </Typography>
-                    ) : null}
-                    {noAnswerDetail(audience.noAnswer) ? (
-                      <Typography variant="body2" color="text.secondary">
-                        {noAnswerDetail(audience.noAnswer)}
-                      </Typography>
-                    ) : null}
-                    {/*
-                      Only where there is more than one change to be about. The
-                      first browser pass showed "Nobody receives two messages
-                      because two fields moved" above a list containing one
-                      field, which answers a question nobody asked.
-                    */}
-                    {changes.length > 1 ? (
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        data-testid="one-message-note"
-                      >
-                        {ONE_MESSAGE_NOT_ONE_PER_FIELD}
-                      </Typography>
-                    ) : null}
-                  </Stack>
+                {notifyDefaultDetail(material, isFuture) ? (
+                  <Typography variant="body2" color="text.secondary" data-testid="notify-default">
+                    {notifyDefaultDetail(material, isFuture)}
+                  </Typography>
                 ) : null}
               </Box>
 
-              <Box>
-                <Typography variant="overline" color="text.secondary" component="p">
-                  {QUEUED_MESSAGES_HEADING}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" data-testid="queued-messages">
-                  {queuedMessagesDetail(unsentMessages)}
-                </Typography>
-              </Box>
-
-              <Box>
-                <Typography variant="overline" color="text.secondary" component="p">
-                  {EXPLAINING_HEADING}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {NO_REASON_FIELD_DETAIL}
-                </Typography>
-              </Box>
+              {/*
+                Only where messages are actually held. A heading over a sentence
+                saying nothing is waiting is a fact about nothing.
+              */}
+              {queuedMessagesDetail(unsentMessages) ? (
+                <Box>
+                  <Typography variant="overline" color="text.secondary" component="p">
+                    {QUEUED_MESSAGES_HEADING}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" data-testid="queued-messages">
+                    {queuedMessagesDetail(unsentMessages)}
+                  </Typography>
+                </Box>
+              ) : null}
 
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <Button
@@ -621,9 +591,6 @@ export default function AmendForm({
               <Alert severity="warning" data-testid="silence-consequence">
                 {silenceConsequence(audience.invited, changes)}
               </Alert>
-              <Typography variant="body2" color="text.secondary">
-                {SILENCE_RIGHT_AND_WRONG}
-              </Typography>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <Button
                   type="button"

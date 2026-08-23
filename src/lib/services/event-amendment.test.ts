@@ -52,6 +52,7 @@ import {
   dispatchEventInvitations,
   JOB_HELD_MESSAGE,
   JOB_HELD_RULE,
+  readEventDelivery,
   retryDelivery,
 } from "./delivery";
 import { resolveRsvpToken } from "./rsvp-tokens";
@@ -690,6 +691,150 @@ describe("saving an amendment holds the event's unsent messages", () => {
     );
     expect(notices).toHaveLength(12);
     expect(notices.filter((job) => job.held_at !== null)).toHaveLength(6);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The amend screen and the delivery screen, describing one event
+// ---------------------------------------------------------------------------
+
+/**
+ * **Brian, 2026-08-23, at the visual gate.** The amend screen for S&C — hilary
+ * week 2 said "47 messages have not gone out yet. Saving holds them…" while the
+ * delivery screen for the same event said **0 Queued, 0 Delivered, 0 Failed**
+ * and "Nothing has been sent for this event yet." His words: *"I don't know
+ * what I'm supposed to be seeing here."*
+ *
+ * Both surfaces were wrong, in opposite directions, and each was self-
+ * consistent — which is why neither had a failing test.
+ *
+ *   * `readAmendmentContext` counted **every** job type, so an event amended
+ *     once counted its own `schedule_change_notice` rows back at the operator
+ *     as messages awaiting delivery. It is now scoped to `invitation`.
+ *   * `readEventDelivery` knew nothing about `held_at`, so a held invitation
+ *     rendered as **Queued** — or as **Failed** beside a live **Retry** button
+ *     that then refused it. It now reads **Held**.
+ *
+ * These tests bind the two together at the service layer, which is where both
+ * screens get their numbers. They fail if either side drifts back.
+ */
+describe("the amend screen and the delivery screen agree about one event", () => {
+  /**
+   * The bridge between the two screens, as an identity rather than as two
+   * numbers that happen to match today.
+   *
+   * The amend screen counts invitation jobs that have not gone out. The
+   * delivery screen sorts the same jobs into states. So every job the amend
+   * screen counts appears in exactly one of **Held**, **Queued**, **Failed**
+   * and **Retryable**, and nothing else on the delivery screen is one of them:
+   * `delivered` is `completed` and `attempted` is `processing`, neither of
+   * which is unsent.
+   */
+  const notYetSent = (delivery: Awaited<ReturnType<typeof readEventDelivery>>) =>
+    delivery.counts.held +
+    delivery.counts.queued +
+    delivery.counts.failed +
+    delivery.counts.retryable;
+
+  it("quotes the number the delivery screen then shows as held", async () => {
+    const fixture = await approvedEvent();
+
+    const before = await readAmendmentContext(fixture.eventId);
+    const deliveryBefore = await readEventDelivery(fixture.eventId);
+
+    expect(before.unsentMessages).toBeGreaterThan(0);
+    expect(deliveryBefore.counts.held).toBe(0);
+    expect(before.unsentMessages).toBe(notYetSent(deliveryBefore));
+
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks" },
+      { notify: true },
+    );
+
+    const deliveryAfter = await readEventDelivery(fixture.eventId);
+
+    // The number the operator was shown before saving is the number the
+    // delivery screen now shows as held. This is the assertion Brian's two
+    // screens would have failed: he saw 47 on one and 0 on the other.
+    expect(deliveryAfter.counts.held).toBe(before.unsentMessages);
+    expect(deliveryAfter.counts.queued).toBe(0);
+    expect(notYetSent(deliveryAfter)).toBe(before.unsentMessages);
+  });
+
+  it("counts invitations only, and never the change notices it created itself", async () => {
+    const fixture = await approvedEvent();
+
+    // One amendment, notified: every invitation is held and a change notice per
+    // invitee is created. Those notices are unsent jobs for this event, and on
+    // the operator's next visit to the form the old count reported them as
+    // messages awaiting delivery — against a delivery screen that does not show
+    // them at all, because it reports on invitations.
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks" },
+      { notify: true },
+    );
+
+    const jobs = await jobsFor(fixture.eventId);
+    const unsentNotices = jobs.filter(
+      (job) => job.job_type === "schedule_change_notice" && job.held_at === null,
+    );
+    const unsentOfEveryType = jobs.filter(
+      (job) => job.held_at === null || job.job_type === "invitation",
+    );
+    expect(unsentNotices.length).toBeGreaterThan(0);
+
+    const context = await readAmendmentContext(fixture.eventId);
+    const delivery = await readEventDelivery(fixture.eventId);
+
+    // The identity still holds after the amendment: the held invitations are
+    // counted by both surfaces…
+    expect(context.unsentMessages).toBe(notYetSent(delivery));
+    expect(delivery.counts.held).toBe(context.unsentMessages);
+
+    // …and the notices are counted by neither. The old count returned
+    // `invitations + notices` here, which is what produced two screens
+    // describing one event differently.
+    expect(context.unsentMessages).toBeLessThan(unsentOfEveryType.length);
+    expect(delivery.rows.some((row) => row.state === "queued")).toBe(false);
+  });
+
+  it("shows a held message as Held, and offers no Retry on it", async () => {
+    const fixture = await approvedEvent();
+
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks" },
+      { notify: true },
+    );
+
+    const delivery = await readEventDelivery(fixture.eventId);
+    const held = delivery.rows.filter((row) => row.state === "held");
+
+    expect(held.length).toBeGreaterThan(0);
+    expect(held).toHaveLength(delivery.counts.held);
+
+    // `retryDelivery` throws `JOB_HELD_MESSAGE` at every one of these, so the
+    // button must not be offered — `docs/ux/standards.md` rule 4. Before this
+    // change the row read **Queued** and `retryable` was true.
+    for (const row of held) {
+      expect(row.retryable).toBe(false);
+    }
+
+    // And the refusal is still the refusal, so the screen and the service are
+    // saying the same thing rather than the screen merely hiding a control.
+    const failure = await serviceFailure(() =>
+      retryDelivery(actorPersonId, held[0].jobId, {
+        source: {},
+        transport: async () => new Response("{}", { status: 200 }),
+      }),
+    );
+    expect(failure.rule).toBe(JOB_HELD_RULE);
+    expect(failure.message).toBe(JOB_HELD_MESSAGE);
   });
 });
 

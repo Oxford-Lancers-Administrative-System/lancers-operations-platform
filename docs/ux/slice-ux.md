@@ -147,19 +147,21 @@ register and the running application.
 
 ## 6. Interface vocabulary
 
-| Concept            | Required language                                                        |
-| ------------------ | ------------------------------------------------------------------------ |
-| Positive RSVP      | **Attending**                                                            |
-| Negative RSVP      | **Not attending**                                                        |
-| No received RSVP   | **No response** or **Outstanding**, by context                           |
-| Attendance         | **Present**, **Absent**, **Late**, **Excused**                           |
-| Occurred           | Derived, never asserted — shown as **Occurred** beside the stored status |
-| Delivery result    | **Queued**, **Attempted**, **Delivered**, **Failed**, **Retryable**      |
-| Membership entry   | **Returning**                                                            |
-| Temporary attendee | **Walk-up**                                                              |
-| Weekly artifact    | **Monday exception and action report**                                   |
+| Concept            | Required language                                                             |
+| ------------------ | ----------------------------------------------------------------------------- |
+| Positive RSVP      | **Attending**                                                                 |
+| Negative RSVP      | **Not attending**                                                             |
+| No received RSVP   | **No response** or **Outstanding**, by context                                |
+| Attendance         | **Present**, **Absent**, **Late**, **Excused**                                |
+| Occurred           | Derived, never asserted — shown as **Occurred** beside the stored status      |
+| Delivery result    | **Queued**, **Attempted**, **Delivered**, **Failed**, **Retryable**, **Held** |
+| Membership entry   | **Returning**                                                                 |
+| Temporary attendee | **Walk-up**                                                                   |
+| Weekly artifact    | **Monday exception and action report**                                        |
 
 Delivered never means responded. Attending is intent; Present is observed attendance. A walk-up is not automatically a roster member.
+
+**Held** is LAN-156's and is not a sixth provider status: the other five say what the provider did with a message, and a held message has never been offered to the provider. It is the club stopping its own message after the event was amended. It was previously rendered as **Queued**, which told the operator the opposite of the truth.
 
 The table above fixes the club's words. How those words are arranged when a value is missing, stale, refused or already on the page is [`standards.md`](standards.md) — in particular rule 2 (current state is the headline, scheduled information is context), rule 3 (`27 Aug 2026`, never a raw ISO date) and rule 7 (one answer per fact, across every surface that shows it).
 

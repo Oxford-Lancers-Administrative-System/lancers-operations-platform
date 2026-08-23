@@ -127,8 +127,17 @@ export const JOB_NOT_FOUND_RULE = "delivery_job_not_found";
 export const JOB_HELD_RULE = "delivery_job_held";
 export const JOB_HELD_MESSAGE = "This message is on hold after a change to the event.";
 
-/** The provider-neutral vocabulary LAN-90 fixed. Exactly these five. */
-export type DeliveryState = "queued" | "attempted" | "delivered" | "failed" | "retryable";
+/**
+ * `held` is LAN-156's, and it is a **read** state the write paths already had.
+ *
+ * `claimJobIn` and `retryDelivery` have refused a held job since the amendment
+ * hold landed, but nothing on the delivery screen knew the column existed: a
+ * held job rendered as **Queued** — or as **Failed** with a live **Retry**
+ * button — which is the one state that surface exists to make visible. An
+ * operator who amends an event and then opens Delivery is asking exactly this
+ * question, and was being answered with the state the job had before the hold.
+ */
+export type DeliveryState = "queued" | "attempted" | "delivered" | "failed" | "retryable" | "held";
 
 export interface DispatchSummary {
   readonly attempted: number;
@@ -985,6 +994,8 @@ export interface DeliveryCounts {
   readonly delivered: number;
   readonly failed: number;
   readonly retryable: number;
+  /** LAN-156. Messages an amendment stopped, and the number the amend screen quotes. */
+  readonly held: number;
 }
 
 export interface DeliveryRow {
@@ -1021,6 +1032,11 @@ export interface EventDelivery {
  */
 const STATE_EXPRESSION = `
   case
+    -- LAN-156, and FIRST, because a hold outranks whatever the job was doing
+    -- when it was placed. A completed job is never held — \`amendApprovedEvent\`
+    -- holds only pending, ready and failed — so this arm cannot hide a
+    -- delivery that actually happened.
+    when j.held_at is not null then 'held'
     when j.status = 'completed' then 'delivered'
     when j.status = 'processing' then 'attempted'
     when j.status in ('pending', 'ready') then 'queued'
@@ -1141,10 +1157,16 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         // ever answer "this is already in progress" is worse than offering
         // none — the repair for a send that never concluded is **Revoke and
         // reissue link**, which returns the job to `pending` first.
+        //
+        // `held` is excluded for the same reason and it is the stronger case:
+        // `retryDelivery` throws `JOB_HELD_MESSAGE` at a held job, so the
+        // button was offered, pressed, and refused. `docs/ux/standards.md`
+        // rule 4 says a control that cannot act is not offered.
         retryable:
           row.attempt_count < MAX_ATTEMPTS &&
           row.state !== "delivered" &&
-          row.state !== "attempted",
+          row.state !== "attempted" &&
+          row.state !== "held",
       };
     });
 
@@ -1161,6 +1183,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         delivered: count("delivered"),
         failed: count("failed"),
         retryable: count("retryable"),
+        held: count("held"),
       },
       rows: mapped,
     };

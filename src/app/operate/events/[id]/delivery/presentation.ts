@@ -15,13 +15,22 @@ import type { DeliveryState } from "@/lib/services/delivery";
  * the whole of the screen's copy without reading its layout.
  */
 
-/** § 6's five, and nothing else. */
+/**
+ * § 6's five, plus **Held**.
+ *
+ * Held is LAN-156's and it is not a sixth provider status — it is the club
+ * stopping its own message. § 6's vocabulary describes what the provider did
+ * with a message, and a held message has not been offered to the provider at
+ * all, so no existing word covers it. It was previously rendered as **Queued**,
+ * which told the operator the opposite of the truth: that it was on its way.
+ */
 export const DELIVERY_STATE_LABELS: Readonly<Record<DeliveryState, string>> = Object.freeze({
   queued: "Queued",
   attempted: "Attempted",
   delivered: "Delivered",
   failed: "Failed",
   retryable: "Retryable",
+  held: "Held",
 });
 
 /**
@@ -40,6 +49,9 @@ export const DELIVERY_STATE_COLOURS: Readonly<
   delivered: "success",
   failed: "error",
   retryable: "warning",
+  // Not an error — nothing has gone wrong, and the club did this on purpose.
+  // Warning rather than neutral because it is a message that has stopped.
+  held: "warning",
 });
 
 /** The RSVP column. Response language from § 6, never delivery language. */
@@ -179,6 +191,9 @@ export function describeRetryability(
   if (state === "delivered") return "Delivered — nothing to repair";
   if (state === "attempted") return "Waiting for the provider to confirm delivery";
   if (state === "queued") return "Waiting to be sent";
+  // LAN-156. Says what stopped it and what would release it, because the
+  // operator's next question is "so when does this go?".
+  if (state === "held") return "Held since this event was changed. Re-notify to send the change.";
   if (!retryable) {
     return `${countAttempts(attempts)} used, and no further automatic attempt. Somebody has to fix the cause first.`;
   }
@@ -198,6 +213,7 @@ function countAttempts(attempts: number): string {
  */
 export function describeRetryColumn(state: DeliveryState, retryable: boolean): string {
   if (state === "queued") return "Scheduled";
+  if (state === "held") return "Held";
   return retryable ? "Retryable" : "—";
 }
 

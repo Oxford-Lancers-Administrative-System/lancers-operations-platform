@@ -219,7 +219,11 @@ export async function readNotifyAudienceIn(tx: Tx, eventId: string): Promise<Not
 export interface AmendmentContext {
   event: EventDetail;
   audience: NotifyAudience;
-  /** Messages for this event that have not gone out and would be held by a save. */
+  /**
+   * Invitations for this event that have not gone out and would be held by a
+   * save — the same population the delivery screen reports, so the two screens
+   * cannot describe one event differently. See the query for why it is scoped.
+   */
   unsentMessages: number;
   /** D75, D77 — this event type's threshold, in days. */
   chaseThresholdDays: number;
@@ -235,10 +239,30 @@ export async function readAmendmentContext(eventId: string): Promise<AmendmentCo
   return withTransaction(async (tx) => {
     const event = await readEventIn(tx, eventId);
     const audience = await readNotifyAudienceIn(tx, eventId);
+    // LAN-156, corrected at the visual gate. Scoped to `invitation` jobs, and
+    // the scope is the point rather than a detail: this number is shown to the
+    // operator as "N queued messages are held", and the screen they go to in
+    // order to see those messages is `/operate/events/<id>/delivery`, which
+    // reports on invitation jobs and nothing else.
+    //
+    // Counting every job type made the two screens contradict each other. An
+    // event amended once carries a `schedule_change_notice` per invitee; on the
+    // next visit to this form those were counted back at the operator as
+    // messages awaiting delivery, while the delivery screen — correctly, for
+    // its own scope — showed nothing at all. Brian saw 47 here and 0 there for
+    // one event, and neither number was wrong on its own terms.
+    //
+    // The hold that `amendApprovedEvent` places is deliberately NOT narrowed to
+    // match: REQ-amend-hold holds every unsent job for the event, notices
+    // included, and narrowing that would let a stale change notice go out. What
+    // is narrowed is only the number the operator is shown, to the population
+    // the operator can go and look at.
     const unsent = await tx.query<{ count: string }>(
       `select count(*)::text as count
          from public.notification_jobs
-        where event_id = $1 and status in ('pending', 'ready', 'failed')`,
+        where event_id = $1
+          and job_type = 'invitation'
+          and status in ('pending', 'ready', 'failed')`,
       [eventId],
     );
     const days = await readChaseThresholdDaysIn(tx, event.eventType);

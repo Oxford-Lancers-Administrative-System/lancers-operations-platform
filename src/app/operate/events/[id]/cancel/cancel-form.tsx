@@ -28,7 +28,6 @@ import {
   nobodyWillBeTold,
   cancelNotifyDefaultDetail,
   SILENCE_CANCEL_PROCEED_LABEL,
-  SILENCE_RIGHT_AND_WRONG,
   SILENCE_TELL_THEM_LABEL,
 } from "../change-presentation";
 
@@ -143,13 +142,20 @@ export default function CancelForm({
                   label={CANCEL_TELL_EVERYONE_LABEL}
                 />
               </Box>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                data-testid="cancel-notify-default"
-              >
-                {cancelNotifyDefaultDetail(isFuture)}
-              </Typography>
+              {/*
+                Only where moving the tick will stop and ask. A past event has
+                nothing to warn about, so it says nothing rather than
+                explaining why the tick starts where it does.
+              */}
+              {cancelNotifyDefaultDetail(isFuture) ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  data-testid="cancel-notify-default"
+                >
+                  {cancelNotifyDefaultDetail(isFuture)}
+                </Typography>
+              ) : null}
             </Box>
 
             <Alert severity="warning" data-testid="cancel-irreversible">
@@ -189,9 +195,6 @@ export default function CancelForm({
               <Alert severity="warning" data-testid="cancel-silence-consequence">
                 {cancelSilenceConsequence(saidYes, venue)}
               </Alert>
-              <Typography variant="body2" color="text.secondary">
-                {SILENCE_RIGHT_AND_WRONG}
-              </Typography>
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                 <Button
                   type="button"

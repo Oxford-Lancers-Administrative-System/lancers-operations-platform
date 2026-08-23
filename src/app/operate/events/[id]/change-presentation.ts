@@ -23,12 +23,30 @@ import type { EventChangeKind } from "@/lib/services/event-amendment";
  * because when a message goes is Mission 4's, so the sentence says how many
  * have not gone and stops.
  *
- * ## What the copy does not do
+ * ## What the copy does not do — Brian, 2026-08-23, at the visual gate
  *
- * It does not explain the application's design to the operator. Every sentence
- * here says what the surface does or what will happen to a person — "nobody
- * will be told it has moved", "their yes stands" — and none of them describes a
- * rule, a service, a status model or a constraint.
+ * **A control says what it does and what the consequence is. Nothing else.** It
+ * never explains the application's design, never justifies a default, and never
+ * instructs the operator to go and use a different field.
+ *
+ * That rule arrived because this file had drifted the other way. It carried a
+ * sentence explaining why people who declined are told anyway, one explaining
+ * what happens to the people who said yes, one explaining what happens to the
+ * people who have not answered, one explaining that the record "gets tidied",
+ * one explaining that two changed fields do not produce two messages, and a
+ * whole block explaining that there is no reason field and that the operator
+ * should put an explanation in the description instead. Every one of them
+ * answered a question nobody had asked, and together they buried the two facts
+ * that decide the action: how many people get a message, and whether turning
+ * the tick off will stop and ask.
+ *
+ * **A default does not need a reason on screen.** Where the tick starts is
+ * visible; why it starts there is not the operator's problem. Where a sentence
+ * had nothing left after its justification was removed, the function now
+ * returns `null` and the surface renders nothing rather than a line of filler.
+ *
+ * The mockup's copy is still the source where the mockup says something. This
+ * rule cuts; it does not rewrite approved sentences into different ones.
  */
 
 // ---------------------------------------------------------------------------
@@ -37,15 +55,12 @@ import type { EventChangeKind } from "@/lib/services/event-amendment";
 
 export const AMEND_HEADLINE_PREFIX = "Editing";
 
-/** W5-02, verbatim. */
-export const AMEND_STAYS_APPROVED =
-  "This event stays approved while you edit. Nothing here is live until you save, and " +
-  "nothing is sent. If you close this without saving, nothing at all happens.";
+/** W5-02, cut to the consequence: nothing leaves this screen until you save. */
+export const AMEND_STAYS_APPROVED = "Nothing is saved or sent until you save.";
 
 export const ALREADY_SENT_HEADING = "Already sent about this event";
 
-export const ALREADY_SENT_DETAIL =
-  "Editing never discards an answer. Anything already sent stays sent — it cannot be recalled.";
+export const ALREADY_SENT_DETAIL = "Anything already sent cannot be recalled.";
 
 export const AMEND_DISCARD_LABEL = "Discard changes";
 export const AMEND_CONTINUE_LABEL = "Save changes…";
@@ -58,15 +73,6 @@ export const WHAT_CHANGED_HEADING = "What changed";
 export const TELL_PEOPLE_HEADING = "Tell people about this change";
 
 export const QUEUED_MESSAGES_HEADING = "Messages already queued";
-export const EXPLAINING_HEADING = "Explaining the change";
-
-/** OD-1/Q7, in the mockup's own words. */
-export const NO_REASON_FIELD_DETAIL =
-  "There is no reason field. If people need an explanation, put it in the description — " +
-  "it is already required, and it is what they will read.";
-
-export const ONE_MESSAGE_NOT_ONE_PER_FIELD =
-  "Nobody receives two messages because two fields moved.";
 
 /** W5-01 and W6-01's two ways out of an approved event. */
 export const EDIT_EVENT_LABEL = "Edit event";
@@ -77,72 +83,56 @@ export function saveAndNotifyLabel(notify: boolean, recipients: number): string 
   return notify ? `Save and notify ${recipients}` : "Save without notifying";
 }
 
-/** W5-03's sentence about who hears, counted in people. */
-export function whoHearsAboutIt(recipients: number, saidNo: number): string {
-  const audience = `One message to all ${recipients} invited ${people(recipients)}`;
-  if (saidNo === 0) return `${audience}.`;
-  return (
-    `${audience} — including the ${saidNo} who said no, ` +
-    "because a venue or date change might change their answer."
-  );
-}
-
-/** W5-03, the two sentences under the tick that name what a message means. */
-export function yesStandsDetail(saidYes: number): string | null {
-  if (saidYes === 0) return null;
-  return (
-    `The ${saidYes} who said yes ${saidYes === 1 ? "is" : "are"} told to re-read the details. ` +
-    `Their yes stands — they are not asked again.`
-  );
-}
-
-export function noAnswerDetail(noAnswer: number): string | null {
-  if (noAnswer === 0) return null;
-  return `The ${noAnswer} who ${
-    noAnswer === 1 ? "has" : "have"
-  } not answered get this as an ordinary reminder to answer.`;
-}
-
-/** Where the tick started, and whether moving it will ask. */
-export function notifyDefaultDetail(material: boolean, isFuture: boolean): string {
-  if (!isFuture) {
-    return (
-      "Off by default, because the event has passed. Nobody needs a message about something " +
-      "already gone."
-    );
-  }
-  if (material) {
-    return "On by default because the date, time or venue moved. Turning it off will ask you to confirm.";
-  }
-  return "Off by default. Turn it on to tell everyone invited that this event changed.";
+/**
+ * W5-03's sentence about who hears, counted in people.
+ *
+ * How many people get a message is the consequence of the tick, so it stays.
+ * Which of them declined, and why they are told anyway, was the application
+ * explaining its own audience rule; `all ${recipients} invited` already
+ * includes them.
+ */
+export function whoHearsAboutIt(recipients: number): string {
+  return `One message to all ${recipients} invited ${people(recipients)}.`;
 }
 
 /**
- * W6-03's version of the same sentence, and it is a different sentence.
+ * Whether moving the tick will stop and ask — and nothing else.
  *
- * A cancellation's default follows the event's date and nothing else, so the
- * amendment's "because the date, time or venue moved" would be describing a
- * reason that does not apply. The first draft of this screen reused
- * `notifyDefaultDetail` and said exactly that, on a screen where nothing had
- * moved.
+ * `null` where there is nothing to say, which is every case except the one
+ * where silencing is guarded. Where the tick starts is visible on the tick.
  */
-export function cancelNotifyDefaultDetail(isFuture: boolean): string {
-  if (!isFuture) {
-    return (
-      "Off by default, because the event has passed. Nobody needs a message about something " +
-      "already gone. This is how the record gets tidied."
-    );
-  }
-  return "On by default. Turning it off will ask you to confirm.";
+export function notifyDefaultDetail(material: boolean, isFuture: boolean): string | null {
+  return material && isFuture ? "Turning this off will ask you to confirm." : null;
 }
 
-/** W5-03's queued-message sentence, without the delivery time this mission does not own. */
-export function queuedMessagesDetail(unsent: number): string {
-  if (unsent === 0) return "Nothing is waiting to go out for this event.";
+/**
+ * W6-03's version of the same sentence.
+ *
+ * A cancellation's guard follows the event's date and nothing else, so a past
+ * event has nothing to warn about and says nothing.
+ */
+export function cancelNotifyDefaultDetail(isFuture: boolean): string | null {
+  return isFuture ? "Turning this off will ask you to confirm." : null;
+}
+
+/**
+ * What saving does to messages that have not gone out — LAN-156's hold.
+ *
+ * `null` when there are none: a heading and a line saying nothing is waiting is
+ * a fact about nothing, and the surface renders neither.
+ *
+ * The count is the one the **delivery** screen reports as **Held** after the
+ * save, and `readAmendmentContext` scopes it to invitation jobs for exactly
+ * that reason — see the cross-surface test in `change-screens.test.tsx`. It
+ * previously counted every job type, so an event whose only unsent jobs were
+ * change notices from an earlier amendment announced a number the delivery
+ * screen showed as zero.
+ */
+export function queuedMessagesDetail(unsent: number): string | null {
+  if (unsent === 0) return null;
   return (
-    `${unsent} ${unsent === 1 ? "message has" : "messages have"} not gone out yet. Saving holds ` +
-    `${unsent === 1 ? "it" : "them"} until this change has been taken into account, so nobody ` +
-    "receives a message describing the old details."
+    `${unsent} queued ${unsent === 1 ? "message is" : "messages are"} held until ` +
+    "you tell people about this change."
   );
 }
 
@@ -182,10 +172,6 @@ export function silenceConsequence(
       : "If you save without notifying, nobody will be told it has changed.";
   return `${told} ${consequence}`;
 }
-
-export const SILENCE_RIGHT_AND_WRONG =
-  "This is the right choice for a corrected spelling. It is the wrong one for an event that " +
-  "has actually moved.";
 
 // ---------------------------------------------------------------------------
 // Re-notify — W5-04
@@ -264,7 +250,7 @@ export function describeTold(notified: boolean | null, recipients: number | null
 export const CANCEL_KEEP_LABEL = "Keep it";
 export const CANCEL_REASON_LABEL = "Why is it off?";
 
-export const CANCEL_REASON_HELP = "For the club's record. Recipients never see this.";
+export const CANCEL_REASON_HELP = "Recipients never see this.";
 
 export const CANCEL_TELL_EVERYONE_LABEL = "Tell everyone invited";
 
@@ -311,8 +297,7 @@ export const CANCELLED_REASON_INTERNAL = "Internal. Never shown to anyone who wa
 
 export const CANCELLED_ANSWERS_HEADING = "The answers people gave";
 
-export const CANCELLED_ANSWERS_DETAIL =
-  "Kept as they were. They are a record of what people said, not an obligation to anything.";
+export const CANCELLED_ANSWERS_DETAIL = "Kept as they were.";
 
 /** W6-02's opening line: who, when, and whether people were told. */
 export function cancelledSummary(entry: {

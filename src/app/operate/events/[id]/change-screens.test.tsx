@@ -286,12 +286,15 @@ describe("the amendment editor", () => {
     expect(shrunk[0].className).toContain("MuiInputLabel-shrink");
   });
 
-  it("says the event stays approved while it is being edited", async () => {
+  it("says nothing is saved or sent until the operator saves", async () => {
     render(await AmendEventPage(amendProps()));
 
+    // The status is on the subtitle, where it belongs. The note under it used
+    // to restate that in a sentence and then explain the design twice more;
+    // Brian cut it to the consequence on 2026-08-23.
     expect(flatten(screen.getByTestId("amend-subtitle").textContent)).toContain("Approved");
-    expect(flatten(screen.getByTestId("stays-approved-note").textContent)).toContain(
-      "stays approved while you edit",
+    expect(flatten(screen.getByTestId("stays-approved-note").textContent)).toBe(
+      "Nothing is saved or sent until you save.",
     );
   });
 
@@ -389,51 +392,77 @@ describe("where the one tick starts", () => {
     );
   });
 
-  it("is off on a past event even when the venue moved", async () => {
+  it("is off on a past event even when the venue moved, and explains nothing", async () => {
     vi.mocked(readAmendmentContext).mockResolvedValue(context({ isFuture: false }));
 
     await reviewAfterChanging("Venue", "University Parks");
 
     expect(within(screen.getByTestId("notify-tick")).getByRole("switch")).not.toBeChecked();
-    expect(flatten(screen.getByTestId("notify-default").textContent)).toContain(
-      "because the event has passed",
+
+    // Brian, 2026-08-23: a default does not need a reason on screen. Where the
+    // tick starts is visible on the tick; silencing a past event is not
+    // guarded, so there is nothing to warn about and the line is absent
+    // entirely rather than present and empty.
+    expect(screen.queryByTestId("notify-default")).toBeNull();
+  });
+
+  it("warns that silencing will ask, on the one screen where it will", async () => {
+    await reviewAfterChanging("Venue", "University Parks");
+
+    expect(flatten(screen.getByTestId("notify-default").textContent)).toBe(
+      "Turning this off will ask you to confirm.",
     );
   });
 
-  it("names the decliners when it notifies, because they are told too", async () => {
+  it("says how many people get a message, and nothing about why", async () => {
     await reviewAfterChanging("Venue", "University Parks");
 
+    // One short line. It used to continue "— including the 4 who said no,
+    // because a venue or date change might change their answer", and was
+    // followed by two more sentences about what happens to the people who said
+    // yes and the people who have not answered. All three were the application
+    // explaining its own audience rule; `all 37 invited` already includes them.
     expect(flatten(screen.getByTestId("who-hears").textContent)).toBe(
-      "One message to all 37 invited people — including the 4 who said no, " +
-        "because a venue or date change might change their answer.",
+      "One message to all 37 invited people.",
     );
+
+    const panel = flatten(screen.getByTestId("amend-review-step").textContent);
+    expect(panel).not.toContain("who said no");
+    expect(panel).not.toContain("Their yes stands");
+    expect(panel).not.toContain("not answered");
+    expect(panel).not.toContain("Nobody receives two messages");
   });
 
-  it("only says nobody gets two messages when there is more than one change", async () => {
-    render(await AmendEventPage(amendProps()));
-    fireEvent.change(screen.getByLabelText("Venue"), { target: { value: "University Parks" } });
-    fireEvent.click(screen.getByTestId("continue-to-review"));
-    await screen.findByTestId("amend-review-step");
-
-    expect(screen.queryByTestId("one-message-note")).toBeNull();
-
-    fireEvent.click(screen.getByTestId("back-to-edit"));
-    fireEvent.change(screen.getByLabelText("Required equipment"), {
-      target: { value: "Gumshield" },
-    });
-    fireEvent.click(screen.getByTestId("continue-to-review"));
-    await screen.findByTestId("amend-review-step");
-
-    expect(flatten(screen.getByTestId("one-message-note").textContent)).toBe(
-      "Nobody receives two messages because two fields moved.",
-    );
-  });
-
-  it("says the messages already queued will be held", async () => {
+  it("never tells the operator to put an explanation in the description", async () => {
     await reviewAfterChanging("Venue", "University Parks");
 
-    expect(flatten(screen.getByTestId("queued-messages").textContent)).toContain(
-      "2 messages have not gone out yet",
+    // "There is no reason field. If people need an explanation, put it in the
+    // description…" — Brian, on reading it: "Fuck that. Don't say that." A
+    // control does not instruct the operator on how to use a different field.
+    const panel = flatten(screen.getByTestId("amend-review-step").textContent);
+    expect(panel).not.toContain("Explaining the change");
+    expect(panel).not.toContain("There is no reason field");
+    expect(panel).not.toContain("put it in the description");
+  });
+
+  it("says the messages already queued are held, and only when some are", async () => {
+    await reviewAfterChanging("Venue", "University Parks");
+
+    expect(flatten(screen.getByTestId("queued-messages").textContent)).toBe(
+      "2 queued messages are held until you tell people about this change.",
+    );
+  });
+
+  it("shows no queued-message block at all when nothing is waiting", async () => {
+    vi.mocked(readAmendmentContext).mockResolvedValue(context({ unsentMessages: 0 }));
+
+    await reviewAfterChanging("Venue", "University Parks");
+
+    // Rather than a heading over "Nothing is waiting to go out for this event",
+    // which is a fact about nothing.
+    expect(screen.queryByTestId("queued-messages")).toBeNull();
+    expect(flatten(screen.getByTestId("amend-review-step").textContent)).not.toContain(
+      "Messages already queued",
     );
   });
 });
@@ -641,7 +670,7 @@ describe("the cancellation screen", () => {
     render(await CancelEventPage(cancelProps()));
 
     expect(flatten(screen.getByTestId("cancel-reason").textContent)).toContain(
-      "For the club's record. Recipients never see this.",
+      "Recipients never see this.",
     );
     expect(flatten(screen.getByTestId("who-is-told").textContent)).toBe(
       "All 37 invited will be told it is off. They will not be told why.",
@@ -656,21 +685,28 @@ describe("the cancellation screen", () => {
     );
   });
 
-  it("explains its own default, and never the amendment's", async () => {
+  it("warns that silencing will ask, and never borrows the amendment's sentence", async () => {
     const { unmount } = render(await CancelEventPage(cancelProps()));
 
-    // Nothing moved here — a cancellation's default follows the date alone, and
+    // Nothing moved here — a cancellation's guard follows the date alone, and
     // an earlier draft of this screen borrowed the amendment's sentence and
     // told the operator the venue had moved.
     const future = flatten(screen.getByTestId("cancel-notify-default").textContent);
-    expect(future).toBe("On by default. Turning it off will ask you to confirm.");
+    expect(future).toBe("Turning this off will ask you to confirm.");
     expect(future).not.toContain("moved");
+    expect(future).not.toContain("by default");
     unmount();
 
+    // A past cancellation is not guarded, so there is nothing to warn about.
+    // It used to say "Off by default, because the event has passed. Nobody
+    // needs a message about something already gone. This is how the record
+    // gets tidied." — three sentences justifying a tick position. It now says
+    // nothing at all.
     vi.mocked(readAmendmentContext).mockResolvedValue(context({ isFuture: false }));
     render(await CancelEventPage(cancelProps()));
-    expect(flatten(screen.getByTestId("cancel-notify-default").textContent)).toContain(
-      "because the event has passed",
+    expect(screen.queryByTestId("cancel-notify-default")).toBeNull();
+    expect(flatten(screen.getByTestId("cancel-form").textContent)).not.toContain(
+      "the record gets tidied",
     );
   });
 
