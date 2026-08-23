@@ -1104,14 +1104,16 @@ describe("local Supabase workflow contract", () => {
 
     expect(pkg.scripts["db:seed"]).toMatch(/local-supabase-command/);
     expect(pkg.scripts["db:seed-user"]).toMatch(/local-supabase-command/);
-    expect(pkg.scripts.test).toBe("vitest run");
+    expect(pkg.scripts.test).toBe("vitest run --project unit --project database");
+    expect(pkg.scripts["verify:gate"]).toContain("--project gate");
     expect(pkg.scripts.pretest).toMatch(/require-local-supabase-lease/);
 
-    for (const command of ["db:seed:ci", "db:seed-user:ci", "test:ci"])
+    for (const command of ["db:seed:ci", "db:seed-user:ci", "test:ci", "test:gate:ci"])
       expect(pkg.scripts[command]).toMatch(/ci-local-command/);
     expect(workflow).toContain("npm run db:seed:ci");
     expect(workflow).toContain("npm run db:seed-user:ci");
     expect(workflow).toContain("npm run test:ci");
+    expect(workflow).toContain("npm run test:gate:ci");
     expect(workflow).not.toMatch(/run: npm run (db:seed|db:seed-user|test)$/m);
   });
 

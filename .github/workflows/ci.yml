@@ -103,6 +103,14 @@ jobs:
         # The runner-local stack was created above and has no agent-session lease.
         run: npm run test:ci
 
+      - name: Test gate suites
+        env:
+          REQUIRE_SUPABASE_TESTS: "1"
+          PILOT_GUARD_CHECK: "1"
+          TEST_USER_EMAIL: ci.user@oxfordlancers.local
+          TEST_USER_PASSWORD: ${{ secrets.CI_TEST_USER_PASSWORD || 'CiLocalPassword123!' }}
+        run: npm run test:gate:ci
+
       - name: Build
         run: npm run build
 

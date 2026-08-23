@@ -72,7 +72,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "tests/pilot-scenario-lan-81.test.ts",
   "tests/pilot-scenario-lan-82.test.ts",
   "tests/pilot-scenario-lan-93.test.ts",
-  "tests/production-bootstrap-contract.test.ts",
+  "tests/production-bootstrap-database.test.ts",
   "tests/production-smoke-contract.test.ts",
   "tests/rls-posture.test.ts",
   "tests/role-catalogue.test.ts",
@@ -89,8 +89,34 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "tests/service-layer-transactions.test.ts",
   "tests/showcase-loader.test.ts",
   "tests/slice-walkthrough.test.ts",
+  "tests/synthetic-seed-messiness.test.ts",
   "tests/synthetic-seed.test.ts",
 ];
+
+/**
+ * Expensive, serialized checks that run once at the package gate and in CI,
+ * not during each implementation/correction iteration. Security-perimeter
+ * suites are deliberately absent even when they are database-backed.
+ */
+export const GATE_SUITES: readonly string[] = [
+  "tests/local-supabase-coordinator.test.ts",
+  "tests/pilot-scenario-lan-110.test.ts",
+  "tests/pilot-scenario-lan-74.test.ts",
+  "tests/pilot-scenario-lan-75.test.ts",
+  "tests/pilot-scenario-lan-76.test.ts",
+  "tests/pilot-scenario-lan-77.test.ts",
+  "tests/pilot-scenario-lan-78.test.ts",
+  "tests/pilot-scenario-lan-79.test.ts",
+  "tests/pilot-scenario-lan-80.test.ts",
+  "tests/pilot-scenario-lan-81.test.ts",
+  "tests/pilot-scenario-lan-82.test.ts",
+  "tests/pilot-scenario-lan-93.test.ts",
+  "tests/production-bootstrap-database.test.ts",
+  "tests/showcase-loader.test.ts",
+  "tests/synthetic-seed-messiness.test.ts",
+];
+
+const HOT_DATABASE_SUITES = DATABASE_TEST_SUITES.filter((suite) => !GATE_SUITES.includes(suite));
 
 const ALL_TEST_FILES = ["src/**/*.test.{ts,tsx}", "tests/**/*.test.{ts,tsx}"];
 
@@ -128,7 +154,7 @@ export default defineConfig({
           include: [...ALL_TEST_FILES],
           // Everything Vitest excludes by default, plus every database suite —
           // those belong to the project below and must not also run here.
-          exclude: [...configDefaults.exclude, ...DATABASE_TEST_SUITES],
+          exclude: [...configDefaults.exclude, ...DATABASE_TEST_SUITES, ...GATE_SUITES],
         },
       },
       {
@@ -136,7 +162,7 @@ export default defineConfig({
         test: {
           ...shared.test,
           name: "database",
-          include: [...DATABASE_TEST_SUITES],
+          include: [...HOT_DATABASE_SUITES],
           // One fork, so these files run one at a time against the one local
           // database. `isolate` stays on, so each file still gets a fresh module
           // registry — the serialization is of database access, not of state.
@@ -152,6 +178,20 @@ export default defineConfig({
           // Read by `vitest.setup.ts`: this is the project that is allowed to
           // open a connection.
           env: { LANCERS_TEST_PROJECT: "database" },
+        },
+      },
+      {
+        ...shared,
+        test: {
+          ...shared.test,
+          name: "gate",
+          include: [...GATE_SUITES],
+          pool: "forks" as const,
+          poolOptions: { forks: { singleFork: true } },
+          env: {
+            LANCERS_TEST_PROJECT: "database",
+            PILOT_GUARD_CHECK: "1",
+          },
         },
       },
     ],

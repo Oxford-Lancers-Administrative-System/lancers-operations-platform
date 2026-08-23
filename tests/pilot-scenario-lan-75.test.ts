@@ -42,6 +42,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { one, openLocalClient, type Client } from "./helpers/domain-fixture";
+import { scopedPilotSnapshot } from "./helpers/pilot-snapshot";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const scenarioDir = path.join(repoRoot, "scripts", "pilot", "lan-75");
@@ -105,27 +106,7 @@ const CLEANUP = scriptBody("cleanup.sql", CLEANUP_FILE);
 const HISTORY_KEPT = new Set(["public.audit_events"]);
 
 async function snapshot(client: Client): Promise<Record<string, string>> {
-  const { rows: tables } = await client.query<{ qualified: string }>(
-    `select quote_ident(n.nspname) || '.' || quote_ident(c.relname) as qualified
-       from pg_class c
-       join pg_namespace n on n.oid = c.relnamespace
-      where c.relkind in ('r', 'p')
-        and n.nspname in ('public', 'staging')
-      order by 1`,
-  );
-
-  const digests: Record<string, string> = {};
-  for (const { qualified } of tables) {
-    if (HISTORY_KEPT.has(qualified)) continue;
-    const row = await one<{ digest: string }>(
-      client,
-      `select count(*)::text || ':' ||
-              coalesce(md5(string_agg(row_hash, ',' order by row_hash)), '-') as digest
-         from (select md5(to_jsonb(t)::text) as row_hash from ${qualified} t) hashed`,
-    );
-    digests[qualified] = row.digest;
-  }
-  return digests;
+  return scopedPilotSnapshot(client, CLEANUP, { excludeDigests: HISTORY_KEPT });
 }
 
 async function count(client: Client, sql: string, params: unknown[] = []): Promise<number> {
