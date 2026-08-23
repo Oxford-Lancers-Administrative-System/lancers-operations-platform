@@ -50,6 +50,17 @@ function fail(message) {
   process.exit(1);
 }
 
+function requireNonEmptyFile(file, label) {
+  let contents;
+  try {
+    contents = fs.readFileSync(path.resolve(file), "utf8");
+  } catch (error) {
+    fail(`${label} file could not be read: ${error.message}`);
+  }
+  if (!contents.trim()) fail(`${label} file is empty.`);
+  return contents;
+}
+
 /** `--flag value` pairs and positionals, tiny on purpose. */
 function parseArguments(argv) {
   const flags = {};
@@ -338,11 +349,19 @@ async function main() {
 
     case "dispatch": {
       const [, packageId] = positional;
-      if (!missionId || !packageId || !flags.worker || !flags.worktree || !flags.branch) {
+      if (
+        !missionId ||
+        !packageId ||
+        !flags.worker ||
+        !flags.worktree ||
+        !flags.branch ||
+        !flags.brief
+      ) {
         fail(
-          "Usage: mission dispatch <mission-id> <package-id> --worker <id> --worktree <path> --branch <name>",
+          "Usage: mission dispatch <mission-id> <package-id> --worker <id> --worktree <path> --branch <name> --brief <brief.md>",
         );
       }
+      requireNonEmptyFile(flags.brief, "Worker brief");
       // A dependency that is reviewed clean at exactly its recorded head is a
       // usable base — the whole point of LAN-148 §F. The state machine asks the
       // dispatch to record that basis, pinned to the commit it relies on, and
@@ -364,6 +383,7 @@ async function main() {
         worker_id: flags.worker,
         worktree: flags.worktree,
         branch: flags.branch,
+        brief_file: path.resolve(flags.brief),
         ...(basis.length > 0 ? { dependency_basis: basis } : {}),
       });
       const standing = basis.map((entry) => `${entry.package_id} at ${entry.head_sha}`).join(", ");
@@ -609,11 +629,19 @@ async function main() {
     }
 
     case "integrated-review": {
-      if (!missionId || !flags.mode || !flags.head || !flags.result) {
+      if (
+        !missionId ||
+        !flags.mode ||
+        !flags.head ||
+        !flags["package-heads"] ||
+        !flags.result ||
+        !flags.report
+      ) {
         fail(
           "Usage: mission integrated-review <mission-id> --mode workflow-walker|cross-surface|security-tier --head <sha> --package-heads <file> --result clear|blocked [--jobs <what was completed>] [--findings <file>] [--sensitive-paths <file>] [--report <file>]",
         );
       }
+      requireNonEmptyFile(flags.report, "Integrated review report");
       await append(missionId, {
         type: "integrated-review",
         mode: flags.mode,
@@ -625,7 +653,7 @@ async function main() {
         ...(flags["sensitive-paths"]
           ? { sensitive_paths: readJson(flags["sensitive-paths"]) }
           : {}),
-        ...(flags.report ? { report: flags.report } : {}),
+        report: path.resolve(flags.report),
       });
       console.log(`Integrated ${flags.mode} review recorded at ${flags.head}: ${flags.result}.`);
       break;
@@ -703,7 +731,7 @@ async function main() {
     case "stop": {
       if (!missionId || !flags.reason || !flags.detail) {
         fail(
-          "Usage: mission stop <mission-id> --reason usage-exhausted|owner-stop|blocked --detail <why>",
+          "Usage: mission stop <mission-id> --reason usage-exhausted|owner-stop|blocked|phase-boundary --detail <why> [--phase plan-approved|build-complete|gate-complete]",
         );
       }
       const state = replayState(repoPath, missionId);
@@ -712,6 +740,7 @@ async function main() {
         type: "mission-stopped",
         reason: flags.reason,
         detail: flags.detail,
+        ...(flags.phase ? { phase: flags.phase } : {}),
       });
       console.log(
         "Checkpointed and stopped. A fresh Mission Lead resumes with: mission resume " + missionId,

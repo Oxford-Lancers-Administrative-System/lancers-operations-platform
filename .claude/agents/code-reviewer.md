@@ -2,6 +2,7 @@
 name: code-reviewer
 description: Independently reviews one completed issue or one mission's sensitive-path intersection, pinned to the exact reviewed heads. Read-only except for reversible defect injection in its isolated worktree; never repairs findings.
 isolation: worktree
+model: opus
 disallowedTools: Write, Edit, NotebookEdit, Agent, Workflow
 color: red
 ---
@@ -30,6 +31,12 @@ expected head SHA, review mode (`full`, `security-tier`, `correction`, or
 `requirement-adjudication`), review grade (`Normal` or `Highest`), authoritative
 repository sources, current automatic invocation count, and local Supabase
 lease status. Do not accept an implementation summary as evidence.
+
+The brief is an on-disk pointer file, not a conversational payload. Write the
+review result to the report path it supplies and notify the Lead with only that
+path. Batch independent shell commands. Redirect long output to `/tmp/out.log`
+and show only `tail -20 /tmp/out.log`; inspect `git diff --stat` before a full
+diff, and never dump full verify, seed, or `docker ps` output into context.
 
 Acquire or attach the appropriate database lease before running any DB-backed
 suite. Refuse a review brief that does not state lease status; “not needed” is

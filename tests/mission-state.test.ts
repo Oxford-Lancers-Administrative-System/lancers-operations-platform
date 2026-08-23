@@ -694,6 +694,40 @@ describe("worker dispatch", () => {
         branch: "feat/c",
       }),
     ).rejects.toThrow(/only one migration-owning package runs at a time/);
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-a",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-a",
+      pr_number: 91,
+      head_sha: SHA,
+    });
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-a",
+      receipt: reviewReceipt("blocked"),
+    });
+    await expect(
+      m.append({
+        type: "worker-dispatched",
+        package_id: "WP-events-b",
+        worker_id: "worker-2",
+        worktree: ".claude/worktrees/b",
+        branch: "feat/b",
+      }),
+    ).rejects.toThrow(/queued correction.*outranks a fresh dispatch/);
+    await expect(
+      m.append({
+        type: "correction-dispatched",
+        package_id: "WP-events-a",
+        worker_id: "worker-1",
+        finding_ids: ["R-001"],
+      }),
+    ).resolves.toBeTruthy();
   });
 
   /**
@@ -988,7 +1022,7 @@ describe("worker receipts and correction lineage", () => {
     );
   });
 
-  it("holds a correction resumption to the same scheduling conjuncts as a fresh dispatch", async () => {
+  it("prioritizes a queued correction and still holds its resumption to owner-question gates", async () => {
     const m = fixture();
     await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     const colliding = [
@@ -1014,8 +1048,8 @@ describe("worker receipts and correction lineage", () => {
         issue_id: `LAN-93${index}`,
       });
     }
-    // WP-events-a is implemented and then blocked by review; its slot frees,
-    // and the same-domain sibling takes it.
+    // WP-events-a is implemented and then blocked by review; its correction
+    // outranks a fresh same-domain dispatch.
     await m.append({
       type: "worker-dispatched",
       package_id: "WP-events-a",
@@ -1035,31 +1069,17 @@ describe("worker receipts and correction lineage", () => {
       package_id: "WP-events-a",
       receipt: reviewReceipt("blocked"),
     });
-    await m.append({
-      type: "worker-dispatched",
-      package_id: "WP-events-b",
-      worker_id: "worker-2",
-      worktree: ".claude/worktrees/b",
-      branch: "feat/b",
-    });
-    // The correction must wait: resuming worker-1 now would put two workers
-    // in the "events" collision domain at once.
     await expect(
       m.append({
-        type: "correction-dispatched",
-        package_id: "WP-events-a",
-        worker_id: "worker-1",
-        finding_ids: ["R-001"],
+        type: "worker-dispatched",
+        package_id: "WP-events-b",
+        worker_id: "worker-2",
+        worktree: ".claude/worktrees/b",
+        branch: "feat/b",
       }),
-    ).rejects.toThrow(/collides with WP-events-b on domain "events"/);
-    await m.append({
-      type: "worker-receipt",
-      package_id: "WP-events-b",
-      worker_id: "worker-2",
-      receipt: workerReceipt("completed"),
-    });
-    // The domain is clear, but an unanswered owner question naming the
-    // package still pauses its correction.
+    ).rejects.toThrow(/queued correction.*outranks a fresh dispatch/);
+    // An unanswered owner question naming the package still pauses that
+    // prioritized correction.
     await m.append({
       type: "owner-question",
       id: "Q-correction-scope",
@@ -1648,6 +1668,27 @@ describe("guarded merge recording", () => {
 });
 
 describe("drift, stops, and resumption", () => {
+  it("records each deliberate Lead recycle phase once", async () => {
+    const m = fixture();
+    await readyMission(m);
+    const stopped = await m.append({
+      type: "mission-stopped",
+      reason: "phase-boundary",
+      phase: "plan-approved",
+      detail: "Reset Lead context after plan approval.",
+    });
+    expect(stopped.phaseRecycles).toEqual(["plan-approved"]);
+    await m.append({ type: "mission-resumed", lead_id: "fresh-lead", pid: 4243 });
+    await expect(
+      m.append({
+        type: "mission-stopped",
+        reason: "phase-boundary",
+        phase: "plan-approved",
+        detail: "Duplicate recycle.",
+      }),
+    ).rejects.toThrow(/already recycled at plan-approved/);
+  });
+
   it("clears an abandoned worker without losing package history", async () => {
     const m = fixture();
     await readyMission(m);

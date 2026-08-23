@@ -2,6 +2,7 @@
 name: scout
 description: Answers one bounded repository question for the Mission Lead from read-only evidence. Returns one concise paragraph and never changes state or spawns agents.
 isolation: worktree
+model: sonnet
 disallowedTools: Write, Edit, NotebookEdit, Agent, Workflow
 color: gray
 ---

@@ -64,6 +64,8 @@ export const EVENT_TYPES = [
   "mission-resumed",
 ];
 
+export const PHASE_BOUNDARIES = ["plan-approved", "build-complete", "gate-complete"];
+
 function repositoryIdentity(repoPath) {
   try {
     return execFileSync("git", ["remote", "get-url", "origin"], {
@@ -386,7 +388,7 @@ export function dependencyUsable(state, packageId) {
  * competes for the single migration slot, and still may not resume execution
  * that an unanswered owner question or unresolved source drift has paused.
  */
-function schedulingRefusals(state, pkg, packageId) {
+function schedulingRefusals(state, pkg, packageId, { correction = false } = {}) {
   const errors = [];
   if (state.activeWorkers.length >= MAX_ACTIVE_WORKERS) {
     errors.push(
@@ -415,6 +417,20 @@ function schedulingRefusals(state, pkg, packageId) {
     errors.push(
       `${packageId} is stopped by source drift; it needs a revised approved packet before work resumes.`,
     );
+  }
+  if (!correction) {
+    const queued = Object.values(state.packages).find(
+      (other) =>
+        other.id !== packageId &&
+        other.status === "blocked" &&
+        other.review?.result === "blocked" &&
+        other.collision_domain === pkg.collision_domain,
+    );
+    if (queued) {
+      errors.push(
+        `${queued.id} has a queued correction in collision domain "${pkg.collision_domain}"; correction work outranks a fresh dispatch for that slot.`,
+      );
+    }
   }
   return errors;
 }
@@ -843,7 +859,7 @@ export function validateEvent(event, state) {
         errors.push(`${event.package_id} already has an active worker.`);
       }
       if (pkg.status === "merged") errors.push(`${event.package_id} is already merged.`);
-      errors.push(...schedulingRefusals(state, pkg, event.package_id));
+      errors.push(...schedulingRefusals(state, pkg, event.package_id, { correction: true }));
       break;
     }
 
@@ -1273,10 +1289,19 @@ export function validateEvent(event, state) {
     }
 
     case "mission-stopped": {
-      if (!["usage-exhausted", "owner-stop", "blocked"].includes(event.reason)) {
-        errors.push('A stop reason is "usage-exhausted", "owner-stop" or "blocked".');
+      if (!["usage-exhausted", "owner-stop", "blocked", "phase-boundary"].includes(event.reason)) {
+        errors.push(
+          'A stop reason is "usage-exhausted", "owner-stop", "blocked" or "phase-boundary".',
+        );
       }
       if (!isNonEmptyString(event.detail)) errors.push("A stop records why.");
+      if (event.reason === "phase-boundary") {
+        if (!PHASE_BOUNDARIES.includes(event.phase)) {
+          errors.push(`A phase-boundary stop names one of ${PHASE_BOUNDARIES.join(", ")}.`);
+        } else if (state.phaseRecycles.includes(event.phase)) {
+          errors.push(`The Lead already recycled at ${event.phase}.`);
+        }
+      }
       break;
     }
 
@@ -1318,6 +1343,7 @@ export function validateEvent(event, state) {
  *   laneBypasses: Array<Record<string, any>>,
  *   integratedReviews: Array<Record<string, any>>,
  *   missionVisualApprovals: Array<Record<string, any>>,
+ *   phaseRecycles: string[],
  *   annotations: Array<Record<string, any>>,
  *   closeout: Record<string, any> | null,
  *   reclaimed: string[],
@@ -1347,6 +1373,7 @@ function emptyState() {
     laneBypasses: [],
     integratedReviews: [],
     missionVisualApprovals: [],
+    phaseRecycles: [],
     annotations: [],
     closeout: null,
     reclaimed: [],
@@ -1683,7 +1710,13 @@ export function reduce(events) {
         for (const pkg of Object.values(state.packages)) pkg.driftStopped = false;
         break;
       case "mission-stopped":
-        state.stopped = { at: event.at, reason: event.reason, detail: event.detail };
+        state.stopped = {
+          at: event.at,
+          reason: event.reason,
+          detail: event.detail,
+          phase: event.phase ?? null,
+        };
+        if (event.reason === "phase-boundary") state.phaseRecycles.push(event.phase);
         break;
       case "mission-resumed":
         state.stopped = null;
@@ -1822,6 +1855,13 @@ export function nextActions(state) {
       detail: "Run the non-mutating Linear connectivity check and record it.",
     });
   }
+  if (state.planApproved && !state.phaseRecycles.includes("plan-approved")) {
+    actions.push({
+      action: "recycle-lead",
+      detail:
+        "Plan approved. Stop at the plan-approved phase boundary; a fresh Lead resumes from the journal and reconciles GitHub before dispatch.",
+    });
+  }
   for (const question of Object.values(state.questions)) {
     if (question.status === "open" && question.classification === "immediate") {
       actions.push({
@@ -1897,6 +1937,13 @@ export function nextActions(state) {
             (live.length === 1 && review.head_sha === pkg.head_sha),
         ),
     );
+  if (buildComplete && !state.phaseRecycles.includes("build-complete")) {
+    actions.push({
+      action: "recycle-lead",
+      detail:
+        "Build complete. Stop at the build-complete phase boundary; a fresh Lead resumes before integrated verification and review.",
+    });
+  }
   if (buildComplete && !integratedCovers("workflow-walker")) {
     actions.push({
       action: "workflow-walker",
@@ -1929,6 +1976,19 @@ export function nextActions(state) {
       action: "mission-visual-approval",
       detail:
         "Present one three-part brief and integrated environment for Brian's single mission check-off.",
+    });
+  }
+  const gateComplete =
+    buildComplete &&
+    integratedCovers("workflow-walker") &&
+    integratedCovers("cross-surface") &&
+    integratedCovers("security-tier") &&
+    visualPackages.every((pkg) => approvalCovers(state, pkg));
+  if (gateComplete && !state.phaseRecycles.includes("gate-complete")) {
+    actions.push({
+      action: "recycle-lead",
+      detail:
+        "Gate complete. Stop at the gate-complete phase boundary; a fresh Lead reconciles GitHub before evaluating package merge routes.",
     });
   }
   if (live.length > 0 && live.every((pkg) => pkg.status === "merged")) {

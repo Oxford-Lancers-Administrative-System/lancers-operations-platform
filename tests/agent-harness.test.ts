@@ -844,6 +844,25 @@ describe("mission harness v1", () => {
       /never launches an agent that is not `implementation-worker`, `code-reviewer`, or `scout`/i,
     );
     expect(missionBody).toMatch(/never becomes the default application-code implementer/i);
+    expect(missionBody).toMatch(/never explores source files or runs investigation commands/i);
+    expect(missionBody).toMatch(/bounded read-only scout answers one question/i);
+  });
+
+  it("pins model tiering, file handoffs, output suppression, phase recycling, and no polling", () => {
+    expect(worker.fields.model).toBe("opus");
+    expect(reviewer.fields.model).toBe("opus");
+    expect(scout.fields.model).toBe("sonnet");
+    expect(missionBody).toMatch(
+      /Implementation workers and the security-tier reviewer use the top model/i,
+    );
+    expect(missionBody).toMatch(/workflow walking.*cross-surface comparison.*Sonnet-class model/i);
+    expect(missionBody).toMatch(/brief\.md.*roughly one third/i);
+    expect(missionBody).toMatch(/receipt\.json.*report files/i);
+    expect(missionBody).toMatch(/\/tmp\/out\.log.*tail -20/i);
+    expect(missionBody).toMatch(/git diff --stat.*Never dump full verify output/i);
+    expect(missionBody).toMatch(/plan-approved, build-complete and gate-complete.*phase-boundary/i);
+    expect(missionBody).toMatch(/never polls workers, walkers or reviewers/i);
+    expect(missionBody).toMatch(/Wait for completion notifications/i);
   });
 
   it("caps implementation concurrency at two and serializes collisions and migrations", async () => {
@@ -889,19 +908,21 @@ describe("mission harness v1", () => {
   it("routes ordinary corrections back to the original worker, never a replacement", () => {
     expect(stateSource).toContain("resumes the original implementation worker");
     expect(stateSource).toContain("is refused");
-    expect(missionBody).toMatch(/resume the original implementation worker/i);
+    expect(missionBody).toMatch(/resume the affected original workers/i);
     expect(missionBody).toMatch(/Do not create a new implementer because review failed/i);
     expect(workerBody).toMatch(/re-enter the same worktree and branch/i);
   });
 
   it("batches corrections, targets iteration checks, and keeps workers resumable", () => {
-    expect(missionBody).toMatch(/All open blocking findings are dispatched as one correction/i);
+    expect(missionBody).toMatch(
+      /All open blocking findings are dispatched as one batched correction round/i,
+    );
     expect(missionBody).toContain("--findings R-001,R-002,…");
     expect(missionBody).toMatch(/Dispatching findings singly is refused as a Lead defect/i);
     expect(missionBody).toMatch(
-      /During correction cycles[\s\S]*npx vitest run <affected files>[\s\S]*npm run typecheck/i,
+      /During implementation and correction iterations[\s\S]*npx vitest run <affected files>[\s\S]*npm run typecheck/i,
     );
-    expect(missionBody).toMatch(/Full[\s`]*npm run verify[\s`]*runs once per package/i);
+    expect(missionBody).toMatch(/Full[\s`]*npm run verify[\s`]*runs once for the mission/i);
     expect(missionBody).toMatch(/stopped without returning a receipt is resumable/i);
     expect(missionBody).toMatch(/evidence of the failed resume attempt/i);
   });
@@ -925,8 +946,10 @@ describe("mission harness v1", () => {
     expect(reviewerBody).toMatch(/anonymous-tier checks.*curl.*fresh browser profile/i);
 
     expect(missionBody).not.toMatch(/Review grades follow.*start-issue/i);
-    expect(missionBody).toMatch(/Grade from reachability and blast radius, never diff size/i);
-    expect(missionBody).toMatch(/one initial full review.*two correction reviews.*three total/i);
+    expect(missionBody).toMatch(/Non-security mission code receives no independent code review/i);
+    expect(missionBody).toMatch(
+      /security-tier budget.*one initial full review.*two correction reviews.*three total/i,
+    );
     expect(missionBody).toMatch(
       /src\/lib\/auth\/.*src\/lib\/delivery\/.*lane-mergeable only after/i,
     );
@@ -1064,7 +1087,7 @@ describe("mission harness v1", () => {
     expect(stateSource).toContain("owner-merged, never autonomous");
     expect(gateSource).toContain("only when it cites the answered owner question");
     expect(gateSource).toContain("no answered owner question names it");
-    expect(missionBody).toMatch(/ADR 0020 stands/);
+    expect(missionBody).toMatch(/ADR 0020's protected environment requirements stand/);
     // The review found the skill's operative merge procedure (§10) still
     // forbidding what its own §9 and the gate permit. Pin both, in the files
     // that carry them, so they cannot drift apart again.
