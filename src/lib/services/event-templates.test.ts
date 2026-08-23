@@ -602,6 +602,31 @@ describe("a template change reaches only the fields nobody has edited (D41)", ()
     expect((await eventRow(event.id)).ends_at).toBe("21:00:00");
   });
 
+  it("moves the in-person-or-online property, which is an enum column", async () => {
+    // The one inherited column whose value has to coerce from a JS string into
+    // a PostgreSQL enum on the way in. Every other field is text or boolean, so
+    // this is the one that would fail at runtime rather than in a type check.
+    await saveEventTemplate(
+      actorPersonId,
+      "chalk",
+      templateInput({ defaultDeliveryMode: "in_person" }),
+      [],
+    );
+    const event = await createEventDraft(
+      actorPersonId,
+      draftInput({ eventType: "chalk", deliveryMode: "in_person" }),
+    );
+
+    await saveEventTemplate(
+      actorPersonId,
+      "chalk",
+      templateInput({ defaultDeliveryMode: "online" }),
+      [],
+    );
+
+    expect((await eventRow(event.id)).delivery_mode).toBe("online");
+  });
+
   it("touches no draft of another type", async () => {
     await saveEventTemplate(
       actorPersonId,
