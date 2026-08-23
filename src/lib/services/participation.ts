@@ -189,6 +189,7 @@ interface QuestionRow {
   prompt: string;
   answer_type: string;
   sort_order: number;
+  applies_to_capacities: string[];
 }
 
 interface AnswerRow {
@@ -226,7 +227,8 @@ function participantKey(capacity: string, membershipId: string | null, personId:
 
 async function readQuestionsIn(tx: Tx, eventId: string): Promise<ParticipationQuestion[]> {
   const result = await tx.query<QuestionRow>(
-    `select id, prompt, answer_type::text as answer_type, sort_order
+    `select id, prompt, answer_type::text as answer_type, sort_order,
+            applies_to_capacities::text[] as applies_to_capacities
        from public.event_questions
       where event_id = $1
       order by sort_order, prompt`,
@@ -237,6 +239,7 @@ async function readQuestionsIn(tx: Tx, eventId: string): Promise<ParticipationQu
     prompt: row.prompt,
     answerType: row.answer_type,
     sortOrder: row.sort_order,
+    appliesToCapacities: row.applies_to_capacities,
   }));
 }
 

@@ -36,6 +36,7 @@ import {
 } from "@/lib/services/club-link";
 import { ParticipationFilterBar } from "../../../participation/participation-filters";
 import { ParticipationTable } from "../../../participation/participation-table";
+import { QuestionCounts } from "../../../participation/question-counts";
 import { publicOrigin } from "../../../participation/origin";
 import { SHARE_LINK } from "../../../participation/presentation";
 import { SharePanel } from "./share-panel";
@@ -809,6 +810,8 @@ function EventDetailView({
       */}
       {participation ? (
         <Stack spacing={2}>
+          {/* D68's counts, collapsed. The per-person answers are in the table. */}
+          <QuestionCounts participation={participation} />
           <ParticipationFilterBar
             basePath={`/operate/events/${event.id}`}
             filters={participationFilters}

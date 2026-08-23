@@ -8,6 +8,7 @@ import {
   participationSortHref,
   participationSortState,
   readParticipationFilters,
+  summariseQuestion,
   type OperatorParticipationPerson,
   type ParticipationFilters,
   type ParticipationPerson,
@@ -28,12 +29,14 @@ const LIFT: ParticipationQuestion = {
   prompt: "Lift?",
   answerType: "boolean",
   sortOrder: 0,
+  appliesToCapacities: ["player", "coach", "committee", "guest", "recruit"],
 };
 const SHIRT: ParticipationQuestion = {
   id: "22222222-2222-4222-8222-222222222222",
   prompt: "Shirt",
   answerType: "text",
   sortOrder: 1,
+  appliesToCapacities: ["player", "coach", "committee", "guest", "recruit"],
 };
 
 function person(overrides: Partial<ParticipationPerson> & { displayName: string }) {
@@ -115,6 +118,60 @@ describe("discrepancyFor", () => {
     // the register is open. This function takes no clock, which is the whole
     // reason the marker is derived here.
     expect(discrepancyFor.length).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D68 — the collapsed Questions section's counts
+// ---------------------------------------------------------------------------
+
+describe("summariseQuestion", () => {
+  const players = [
+    person({ displayName: "A", answers: { [LIFT.id]: "Yes" } }),
+    person({ displayName: "B", answers: { [LIFT.id]: "Yes" } }),
+    person({ displayName: "C", answers: { [LIFT.id]: "No" } }),
+    person({ displayName: "D" }),
+  ];
+
+  it("counts each stored answer, commonest first, and the rest as no answer", () => {
+    const summary = summariseQuestion(players, LIFT);
+    expect(summary.applicable).toBe(4);
+    expect(summary.answers).toEqual([
+      { label: "Yes", count: 2 },
+      { label: "No", count: 1 },
+    ]);
+    expect(summary.noAnswer).toBe(1);
+  });
+
+  it("leaves out people the question does not apply to", () => {
+    // Capacity decides which questions apply, and a null from somebody it does
+    // not apply to means "not applicable", never "no answer" — so counting them
+    // as unanswered would invent an exception.
+    const coachOnly: ParticipationQuestion = { ...LIFT, appliesToCapacities: ["coach"] };
+    const summary = summariseQuestion(
+      [...players, person({ displayName: "E", capacity: "coach" })],
+      coachOnly,
+    );
+    expect(summary.applicable).toBe(1);
+    expect(summary.noAnswer).toBe(1);
+    expect(summary.answers).toEqual([]);
+  });
+
+  it("leaves out a walk-up, who was asked nothing", () => {
+    const summary = summariseQuestion(
+      [...players, person({ displayName: "F", key: "player:walk", isWalkUp: true })],
+      LIFT,
+    );
+    expect(summary.applicable).toBe(4);
+  });
+
+  it("agrees with the per-person column it summarises", () => {
+    // `docs/ux/standards.md` rule 7, pinned rather than asserted: the counts
+    // and the table read the same rows through the same field.
+    const summary = summariseQuestion(ROSTER, LIFT);
+    const fromRows = ROSTER.filter((one) => one.answers[LIFT.id] !== undefined).length;
+    expect(summary.answers.reduce((total, answer) => total + answer.count, 0)).toBe(fromRows);
+    expect(summary.applicable).toBe(summary.noAnswer + fromRows);
   });
 });
 

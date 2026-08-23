@@ -52,6 +52,7 @@ import { EventFacts, HeadlineNumbers } from "./event-facts";
 import { CopyLinkButton } from "./copy-link";
 import { ParticipationFilterBar } from "./participation-filters";
 import { ParticipationTable } from "./participation-table";
+import { QuestionCounts } from "./question-counts";
 import {
   CLUB_LINK_UNAVAILABLE_HEADLINE,
   DISCREPANCY_MARK,
@@ -65,6 +66,7 @@ const LIFT: ParticipationQuestion = {
   prompt: "Lift?",
   answerType: "boolean",
   sortOrder: 0,
+  appliesToCapacities: ["player", "coach", "committee", "guest", "recruit"],
 };
 
 const JOINING_URL = "https://teams.example.invalid/l/meetup-join/lan157";
@@ -587,6 +589,57 @@ describe("rendering on the server, which is where it actually runs", () => {
         />,
       ),
     ).toContain(NO_MATCHING_PEOPLE);
+  });
+});
+
+/**
+ * D68's other half — the collapsed Questions section on the event page.
+ *
+ * "Answers are read in two places: a collapsed Questions section on the event
+ * page showing counts, and the full participation view … one row per person and
+ * one column per question."
+ */
+describe("the collapsed Questions section", () => {
+  it("counts each answer, and starts collapsed", () => {
+    const { container } = render(<QuestionCounts participation={OPERATOR} />);
+    const line = container.querySelector('[data-testid="question-count"]')!;
+    expect(line.textContent).toContain("Lift?");
+    // Two people answered — one Yes, one No — and one gave no answer.
+    expect(line.textContent).toContain("Yes 1");
+    expect(line.textContent).toContain("No 1");
+    expect(line.textContent).toContain("No answer 1");
+
+    const details = container.querySelector("details")!;
+    expect(details.hasAttribute("open")).toBe(false);
+  });
+
+  it("renders nothing at all for an event with no questions", () => {
+    // Not an empty panel headed "Questions": there is nothing to collapse.
+    const { container } = render(<QuestionCounts participation={{ ...OPERATOR, questions: [] }} />);
+    expect(container.querySelector('[data-testid="question-counts"]')).toBeNull();
+  });
+
+  it("agrees with the column it summarises", () => {
+    // The counts and the table are two readers of one fact — standards rule 7.
+    const counts = render(<QuestionCounts participation={OPERATOR} />);
+    const table = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR}
+        filters={filters()}
+      />,
+    );
+    const cells = Array.from(
+      table.container.querySelectorAll(`td[data-question="${LIFT.id}"]`),
+    ).map((cell) => cell.textContent);
+    expect(cells.filter((cell) => cell === "Yes")).toHaveLength(1);
+    expect(cells.filter((cell) => cell === "No")).toHaveLength(1);
+    expect(counts.container.textContent).toContain("Yes 1");
+    expect(counts.container.textContent).toContain("No 1");
+  });
+
+  it("renders on the server without throwing", () => {
+    expect(renderToStaticMarkup(<QuestionCounts participation={OPERATOR} />)).toContain("Lift?");
   });
 });
 

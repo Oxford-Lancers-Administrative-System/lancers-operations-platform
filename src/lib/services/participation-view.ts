@@ -109,6 +109,61 @@ export interface ParticipationQuestion {
   readonly prompt: string;
   readonly answerType: string;
   readonly sortOrder: number;
+  /**
+   * `event_questions.applies_to_capacities`. Capacity decides which questions
+   * apply, and a null answer from somebody the question does not apply to means
+   * "not applicable to this invitee", never "no answer" — which is why the
+   * counts below need it.
+   */
+  readonly appliesToCapacities: readonly string[];
+}
+
+/** One line of the collapsed Questions section — D68. */
+export interface QuestionTally {
+  readonly label: string;
+  readonly count: number;
+}
+
+export interface QuestionSummary {
+  readonly question: ParticipationQuestion;
+  /** People this question applies to at all. The denominator. */
+  readonly applicable: number;
+  /** Each stored answer and how many gave it, commonest first. */
+  readonly answers: readonly QuestionTally[];
+  /** Applicable people with nothing stored. */
+  readonly noAnswer: number;
+}
+
+/**
+ * D68's counts, from the rows the table already has.
+ *
+ * Computed here rather than by a second query, so the collapsed section and the
+ * per-person columns cannot disagree — `docs/ux/standards.md` rule 7 is exactly
+ * about two readers of one fact.
+ *
+ * A walk-up is not in the denominator: nobody asked them anything.
+ */
+export function summariseQuestion(
+  people: readonly ParticipationPerson[],
+  question: ParticipationQuestion,
+): QuestionSummary {
+  const applies = people.filter(
+    (person) => !person.isWalkUp && question.appliesToCapacities.includes(person.capacity),
+  );
+
+  const tally = new Map<string, number>();
+  let noAnswer = 0;
+  for (const person of applies) {
+    const answer = person.answers[question.id];
+    if (answer === undefined || answer === "") noAnswer += 1;
+    else tally.set(answer, (tally.get(answer) ?? 0) + 1);
+  }
+
+  const answers = [...tally.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
+
+  return { question, applicable: applies.length, answers, noAnswer };
 }
 
 /**

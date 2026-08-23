@@ -167,6 +167,15 @@ export function everyoneAsked(total: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// The collapsed Questions section — D68
+// ---------------------------------------------------------------------------
+
+export const QUESTIONS_HEADING = "Questions";
+
+/** Applicable people with nothing stored against a question. */
+export const QUESTION_NO_ANSWER = "No answer";
+
+// ---------------------------------------------------------------------------
 // Filters
 // ---------------------------------------------------------------------------
 

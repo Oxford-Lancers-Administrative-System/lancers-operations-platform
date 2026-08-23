@@ -33,6 +33,7 @@ import {
   readClubLinkParticipation,
 } from "./participation";
 import { issueClubLinkIn, deriveClubLinkToken } from "./club-link";
+import { summariseQuestion } from "./participation-view";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN157ParticipationSuite";
@@ -305,6 +306,30 @@ describe("the participation table", () => {
     const answered = view.people.filter((one) => Object.keys(one.answers).length > 0);
     expect(answered).toHaveLength(1);
     expect(Object.values(answered[0].answers).sort()).toEqual(["L", "Yes"]);
+  });
+
+  it("reads which capacities each question applies to, so the counts can exclude the rest", async () => {
+    // D68's collapsed Questions section counts only the people a question
+    // applies to. A null from somebody it does not apply to means "not
+    // applicable", never "no answer", and the column that says which is which
+    // has to be selected for `summariseQuestion` to honour it.
+    const staged = await scenario();
+    await observer.query(
+      `update public.event_questions
+          set applies_to_capacities = '{coach}'::public.invitation_capacity[]
+        where id = $1`,
+      [staged.questionIds[0]],
+    );
+
+    const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const lift = view.questions.find((one) => one.id === staged.questionIds[0])!;
+    expect(lift.appliesToCapacities).toEqual(["coach"]);
+    // And the other question is untouched, so this is not a blanket answer.
+    const shirt = view.questions.find((one) => one.id === staged.questionIds[1])!;
+    expect(shirt.appliesToCapacities.length).toBeGreaterThan(1);
+
+    expect(summariseQuestion(view.people, lift).applicable).toBe(1);
+    expect(summariseQuestion(view.people, shirt).applicable).toBe(5);
   });
 
   it("shows a decline reason against a no, and against nothing else", async () => {
