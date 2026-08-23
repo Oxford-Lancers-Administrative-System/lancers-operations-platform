@@ -134,6 +134,15 @@ Long Vacation → Michaelmas → Christmas Vacation → Hilary → Easter Vacati
 Trinity → Long Vacation, in one scroll, with a **jump control** and **no season
 selector** (D85; Stewart Humble and Brian, 17 August 2026; Brian, 21 August).
 
+The jump control is **a row of buttons, one per segment** — Brian, at the visual
+gate: _"A drop down doesn't really make sense. Maybe some buttons there to 'jump'
+to the right place?"_ They wrap at 375px and carry the 44px touch minimum, because
+on a phone they are the only navigation a very tall page has. Each resolves
+**whichever anchor is actually laid out** — the week grid above `md` and the
+stacked week cards below carry different ids, and resolving only the first left
+the control inert at every width below 900px while the address bar still updated
+(W153-F1).
+
 - **A vacation belongs to neither adjacent term.** Stewart, asked directly: "It's
   neither." `YearSegment.termId` is `null` for one, and there is deliberately no
   field naming the term either side.
@@ -148,6 +157,28 @@ selector** (D85; Stewart Humble and Brian, 17 August 2026; Brian, 21 August).
   **trailing** one runs to the next Michaelmas where one is configured, and
   otherwise to the season's `ends_on`, the last dated event, or one week at
   minimum, so the segment always exists.
+- **The two Long Vacations are drawn only as far as the club's records reach**
+  (Brian, at the visual gate on `2d4fc02`: a full-length leading vacation
+  _"just shows a really dead calendar, and that's not what I want to see."_).
+  The **last five** weeks of the vacation before the year's first term and the
+  **first one** after its last are drawn, each **extended, never shortened**, to
+  include an event further out — his examples: an event seven weeks before term
+  draws seven weeks, one three weeks after the season draws weeks 1, 2 and 3. A
+  vacation shorter than the default is drawn whole; nothing is padded.
+
+  **This does not renumber anything, and the visible consequence is worth
+  expecting.** Vacation weeks are numbered forward from 1 from the vacation's
+  real start (D85, Stewart Humble), so a fourteen-week leading vacation drawn to
+  its last five **opens at "Long Vacation 10"**. That is the correct absolute
+  position, not an off-by-nine. Brian's "7, 6, 5, 4, 3, 2, 1" describes a
+  distance from the term boundary — how far to extend — and is not a request to
+  relabel.
+
+  **Terms are untouched.** Michaelmas, Hilary and Trinity keep every configured
+  week, empty or not: an empty term week is the term card. **Christmas and Easter
+  need no rule of their own** — they sit between terms, so the trim does not
+  reach them, which is the outcome Brian asked for without a special case.
+
 - The academic year is derived from the term dates — the year whose terms span
   today, else the season's start, else the latest configured — and **never** from
   heading text.
