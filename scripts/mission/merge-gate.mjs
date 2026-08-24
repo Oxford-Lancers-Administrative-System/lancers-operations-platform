@@ -262,8 +262,10 @@ export function receiptDefects(receipt) {
       "Receipt risk_class is highest. It may travel this lane only when it cites the answered owner question (owner_decision: question_id, answered_by, date) recorded at Brian's checkpoint.",
     );
   }
-  if (!["full", "correction", "mission-security"].includes(receipt.review_mode)) {
-    defects.push("Receipt review_mode must be full, correction, or mission-security.");
+  if (!["full", "correction", "security-tier", "mission-security"].includes(receipt.review_mode)) {
+    defects.push(
+      "Receipt review_mode must be full, correction, security-tier, or mission-security.",
+    );
   }
   if (!/^[0-9a-f]{40}$/.test(receipt.full_review_sha ?? "")) {
     defects.push("Receipt full_review_sha must be a full 40-character SHA.");
@@ -340,7 +342,11 @@ export function buildMissionReceipt(state, packageId, headSha) {
       review.package_heads?.[packageId] === headSha,
   );
   const packageReview =
-    pkg.review?.result === "clear" && pkg.review.reviewed_head_sha === headSha ? pkg.review : null;
+    pkg.review?.result === "clear" &&
+    pkg.review.ci_state === "green" &&
+    pkg.review.reviewed_head_sha === headSha
+      ? pkg.review
+      : null;
   const review = missionReview
     ? {
         review_mode: "mission-security",
@@ -514,7 +520,9 @@ export function journalConjuncts(state, packageId, headSha, options = {}) {
     reasons.push(`${packageId} has no synchronized Linear issue.`);
   }
   const packageReviewCovers =
-    pkg.review?.result === "clear" && pkg.review.reviewed_head_sha === headSha;
+    pkg.review?.result === "clear" &&
+    pkg.review.ci_state === "green" &&
+    pkg.review.reviewed_head_sha === headSha;
   const missionReviewCovers = (state.integratedReviews ?? []).some(
     (review) =>
       review.mode === "security-tier" &&
@@ -524,23 +532,6 @@ export function journalConjuncts(state, packageId, headSha, options = {}) {
   if (!packageReviewCovers && !missionReviewCovers) {
     reasons.push(
       `${packageId} has no clear package review or mission-level security-tier review that covers ${headSha}.`,
-    );
-  }
-  const finalWalkerCovers = (state.integratedReviews ?? []).some((review) => {
-    if (review.mode !== "workflow-walker" || review.result !== "clear") return false;
-    let covered = review.package_heads?.[packageId];
-    if (!covered) return false;
-    if (covered === headSha) return true;
-    for (const link of pkg.visual_carry_forward_chain ?? []) {
-      if (link.from_sha !== covered || link.verdict !== "non-rendered") continue;
-      covered = link.to_sha;
-      if (covered === headSha) return true;
-    }
-    return false;
-  });
-  if (!finalWalkerCovers) {
-    reasons.push(
-      `${packageId} is not covered by the final integrated workflow smoke at ${headSha}.`,
     );
   }
   const missionVisualApprovalCovers = (state.missionVisualApprovals ?? []).some(

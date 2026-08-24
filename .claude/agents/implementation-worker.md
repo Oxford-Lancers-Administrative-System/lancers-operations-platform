@@ -41,8 +41,9 @@ Build a concise acceptance matrix covering success, failure, boundaries,
 authorization/privacy, test level, criticality, omissions, and residual risk.
 Implement and test the complete package directly.
 
-During iterations run affected tests plus `npm run typecheck`; the Lead runs the
-integrated full verification. A pass means observed success. UI work also runs
+During iterations run affected tests plus `npm run typecheck`; CI verifies each
+PR and the Lead runs one final full verification on merged `main`. A pass means
+observed success. UI work also runs
 the real-login browser preflight for every required state at desktop and 375px,
 writes the ignored visual evidence, and leaves the protected environment ready
 for Brian without claiming his approval.

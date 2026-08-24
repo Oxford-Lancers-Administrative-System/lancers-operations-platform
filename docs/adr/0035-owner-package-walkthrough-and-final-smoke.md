@@ -4,8 +4,8 @@
 ordering and separate cross-surface pass in
 [0034](0034-mission-level-review-and-security-tier.md)
 
-Approved by Brian during LAN-160. The package topology, security-tier review and
-merge protections are unchanged.
+Approved by Brian during LAN-160. This replaces the hold-until-final-smoke
+topology previously recorded in this ADR.
 
 ## Context
 
@@ -17,24 +17,31 @@ can fail even when every package works alone.
 
 ## Decision
 
-Present each visual package to Brian in its prepared zero-command environment as
-soon as it is ready. Record approval at the exact package head and continue
-unrelated work.
+For each issue, finish targeted tests, required security review, exact-head CI,
+and environment preparation before presenting its zero-command environment to
+Brian. An empty sensitive-path intersection launches no reviewer. Batch defects
+found before approval into one correction round, rerun only invalidated machine
+evidence, and present the stable affected surface.
 
-After all packages are built and integrated, run one bounded Sonnet workflow
-walker over predetermined end-to-end journeys and their visible hand-offs. It
-is the final pre-merge smoke test, not open-ended exploration and not a repeat of
-Brian's presentation judgment. Its report absorbs the former separate
-cross-surface pass. After a rendered correction, repeat only affected journeys;
-classifier-proven non-rendered changes carry valid evidence forward.
+Owner approval is the final mutable gate. At an unchanged approved head no
+reviewer or worker runs; the deterministic merge gate runs and the issue merges
+immediately to `main`. Independent issues may still run concurrently, while a
+dependent issue starts only after its dependency has merged to `main`.
 
-The sensitive-path security-tier review remains separate and exact-head. No
-package merges before the final walker covers its head.
+After every issue has merged, run full verification once and one bounded Sonnet
+workflow smoke over predetermined end-to-end journeys and visible hand-offs at
+current `main`. It is not another visual review and never reopens a merged issue
+or its approval. A finding creates one corrective issue/PR cycle; after it
+merges, repeat only the affected journey once. If that targeted re-walk fails,
+stop for owner adjudication instead of starting another correction cycle.
 
 ## Consequences
 
-- Brian sees issues early without paying for an agent walk per issue.
+- Brian sees a stable issue after model-driven checks, so a later model finding
+  cannot start an approval/re-review loop.
+- Each completed issue reaches `main` immediately instead of waiting for the
+  rest of the mission.
 - One integrated walker can catch broken cross-package hand-offs.
 - One cross-surface agent invocation disappears.
-- Ordinary visual defects may reach Brian first; that is an accepted,
-  forward-fixable cost trade-off.
+- Merged issue approvals stay closed; final-smoke findings have new lineage.
+- Final-smoke correction is capped at one cycle and one targeted re-walk.

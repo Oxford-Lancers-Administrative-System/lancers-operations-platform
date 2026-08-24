@@ -89,8 +89,8 @@ Follow the CLI frontier. Dispatch at most two independent implementation
 packages and never exceed three concurrent implementers, reviewers, and walkers.
 Corrections outrank fresh work in the same collision domain. The CLI decides
 dependency usability, collisions, migration ownership, and blocked questions.
-Waiting for a usable reviewed dependency to merge requires a recorded safety or
-integration reason.
+Independent packages may run concurrently. A dependent package waits until its
+dependency has merged, then starts from current `main`.
 
 Allocate one clean, synthetic, mission-owned local stack and attach workers to
 it with the guarded mission database commands. Serialize mutations of shared
@@ -114,25 +114,17 @@ failed resume proves it cannot return. Ordinary corrections always return to the
 original worker. A package PR contains only that package; disclose any
 route-changing path before owner review.
 
-## Build, integrate, and correct once
+## Finish machine checks before owner review
 
-Build all executable packages first. Iterations run affected tests and
-`npm run typecheck`; CI remains the per-PR backstop. At build-complete, reconcile
-current `main`, integrate the mission, run `npm run verify` once, record the
-evidence, and take the `build-complete` phase stop.
-
-At the integrated head, concurrently obtain:
-
-- one bounded workflow-walker smoke report completing the predetermined mission
-  journeys end to end and checking their visible hand-offs; and
-- one security-tier review of only the sensitive-path intersection.
-
-Record each through `integrated-review` with its report path and exact package
-heads. Non-security mission code receives no independent review. Security review
-allows one full pass and at most two correction passes. Authentication,
-authorization, privacy, security, integrity, migration, RLS, transaction, and
-unauthorized external-effect findings block; an unresolved blocker never ages
-into approval.
+For each package, run affected tests and `npm run typecheck`; exact-head CI is
+the per-PR backstop. Before owner handoff, derive the PR diff's sensitive-path
+intersection. An empty intersection is recorded directly and launches no
+reviewer. A non-empty intersection receives one bounded Sonnet security-tier
+review at that package head. Non-security code receives no independent review.
+Security review allows one full pass and at most two correction passes.
+Authentication, authorization, privacy, security, integrity, migration, RLS,
+transaction, and unauthorized external-effect findings block; an unresolved
+blocker never ages into approval.
 
 Collect all open blockers into one correction round grouped by original worker.
 Every substantive correction records a regression test that fails with the
@@ -140,16 +132,19 @@ defect restored and passes after the fix. Re-run only affected evidence unless a
 rendered or sensitive-boundary change invalidates prior coverage. Two rounds on
 the same premise trigger fresh requirement adjudication, not another code scan.
 
-The classifier alone carries walker or visual evidence across a non-rendered
-head change. After a rendered correction, re-run only affected journeys. A
-broken or unclassifiable link invalidates the evidence.
+Only after targeted checks, required security review, exact-head CI, and the
+prepared environment are clear may the package enter owner walkthrough. A head
+change returns to these machine checks. The classifier alone carries owner
+approval across a proven non-rendered delta; a rendered or unclassifiable delta
+requires one new walkthrough of only the affected surface.
 
 ## Brian's issue walkthroughs
 
-As each visual package becomes ready, give Brian its protected `review-ready`
-environment. Preserve the configured hostname; `localhost` and `127.0.0.1` are
-not interchangeable for Auth. This is Brian's normal product and presentation
-check, not an agent walk and not a reason to pause unrelated packages.
+After its machine checks are clear, give Brian each visual package's protected
+`review-ready` environment. Preserve the configured hostname; `localhost` and
+`127.0.0.1` are not interchangeable for Auth. This is Brian's normal product
+and presentation check, not an agent walk and not a reason to pause unrelated
+packages.
 
 Before sharing the link, give Brian:
 
@@ -160,8 +155,8 @@ Before sharing the link, give Brian:
 End with what approval means and does not mean and the package's expected merge
 route. Record `visual-approve` at the exact package head Brian saw. A rendered
 head change voids that approval; a classifier-proven non-rendered change carries
-it forward. The final mission walker is a single pre-merge smoke test of the
-integrated journeys, not a repeat of Brian's per-issue visual judgment.
+it forward. At an unchanged approved head, no model review or correction may run:
+only the deterministic merge gate remains.
 
 ## Checkpoint, merge, and acceptance
 
@@ -174,20 +169,29 @@ mission awake.
 For qualifying work, run `mission gate` with current PR, checks, and diff
 evidence. A pass records `gate-passed` at the exact head. Only its receipt may
 be published in the PR and followed by the `mission-merge` label. The workflow
-re-derives the result and merges; the
-Lead never runs a merge or un-drafts. Record the resulting merge and route.
+re-derives the result and merges immediately; the Lead never runs a merge or
+un-drafts. Record the resulting merge and route, reclaim it, and let dependent
+work start from the updated `main`.
 Prohibited paths remain owner-merged. Highest-risk, auth, and delivery work use
 the guarded lane only after an answered owner checkpoint names the package.
 Mission merges never deploy.
+
+After every live package has merged, run `npm run verify` once on current
+`main`, then one bounded Sonnet workflow smoke over the predetermined mission
+journeys and visible hand-offs. This is not another issue review. A blocker
+creates one corrective issue/PR cycle and never reopens a merged package or its
+owner approval; after that correction merges, repeat only the affected journey
+once. If that targeted re-walk still fails, stop and ask Brian to adjudicate;
+never launch a second correction cycle.
 
 Report exactly one outcome: `Fully accepted`, `Implementation complete;
 acceptance pending`, or `Incomplete`. Merged code or a completed owner action is
 not acceptance without the linked verification. Name every pending criterion,
 owner action, remaining verification, and next actor.
 
-Take the `gate-complete` phase stop before merge routing. For usage exhaustion,
-owner stop, or blocking drift, record `mission stop`; a fresh Lead resumes from
-the journal. Wait for agent completion notifications—never poll.
+For usage exhaustion, owner stop, or blocking drift, record `mission stop`; a
+fresh Lead resumes from the journal. Wait for agent completion notifications—
+never poll.
 
 ## Boundaries
 

@@ -459,10 +459,14 @@ async function main() {
       if (!missionId || !packageId || !flags.receipt) {
         fail("Usage: mission review <mission-id> <package-id> --receipt <file>");
       }
+      const receipt = readJson(flags.receipt);
+      if (receipt.review_mode === "security-tier") {
+        requireNonEmptyFile(receipt.report, "Security-tier review report");
+      }
       await append(missionId, {
         type: "review-receipt",
         package_id: packageId,
-        receipt: readJson(flags.receipt),
+        receipt,
       });
       console.log(`Review receipt recorded for ${packageId}.`);
       break;
@@ -482,23 +486,6 @@ async function main() {
         evidence: flags.evidence,
       });
       console.log(`Visual approval recorded for ${packageId}.`);
-      break;
-    }
-
-    case "mission-visual-approve": {
-      if (!missionId || !flags.head || !flags["package-heads"] || !flags.by || !flags.evidence) {
-        fail(
-          "Usage: mission mission-visual-approve <mission-id> --head <integrated-sha> --package-heads <file> --by Brian --evidence <where>",
-        );
-      }
-      await append(missionId, {
-        type: "visual-approval",
-        head_sha: flags.head,
-        package_heads: readJson(flags["package-heads"]),
-        approved_by: flags.by,
-        evidence: flags.evidence,
-      });
-      console.log(`Mission visual approval recorded at ${flags.head}.`);
       break;
     }
 
@@ -625,16 +612,9 @@ async function main() {
     }
 
     case "integrated-review": {
-      if (
-        !missionId ||
-        !flags.mode ||
-        !flags.head ||
-        !flags["package-heads"] ||
-        !flags.result ||
-        !flags.report
-      ) {
+      if (!missionId || !flags.mode || !flags.head || !flags.result || !flags.report) {
         fail(
-          "Usage: mission integrated-review <mission-id> --mode workflow-walker|security-tier --head <sha> --package-heads <file> --result clear|blocked [--jobs <what was completed>] [--findings <file>] [--sensitive-paths <file>] [--report <file>]",
+          "Usage: mission integrated-review <mission-id> --mode workflow-walker --head <sha> --result clear|blocked --report <file> --jobs <completed jobs> [--findings <file>]",
         );
       }
       requireNonEmptyFile(flags.report, "Integrated review report");
@@ -741,7 +721,7 @@ async function main() {
     case "stop": {
       if (!missionId || !flags.reason || !flags.detail) {
         fail(
-          "Usage: mission stop <mission-id> --reason usage-exhausted|owner-stop|blocked|phase-boundary --detail <why> [--phase plan-approved|build-complete|gate-complete]",
+          "Usage: mission stop <mission-id> --reason usage-exhausted|owner-stop|blocked|phase-boundary --detail <why> [--phase plan-approved]",
         );
       }
       const state = replayState(repoPath, missionId);
@@ -821,7 +801,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, mission-visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
       );
   }
 }

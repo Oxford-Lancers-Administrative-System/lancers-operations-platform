@@ -358,6 +358,7 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
           reviewed_head_sha: HEAD,
           round: 1,
           result: "clear",
+          ci_state: "green",
         },
       },
       {
@@ -366,15 +367,6 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
         package_id: "WP-events-filter",
         approved_by: "Brian",
         evidence: "live review",
-      },
-      {
-        type: "integrated-review",
-        at: "t",
-        mode: "workflow-walker",
-        head_sha: HEAD,
-        package_heads: { "WP-events-filter": HEAD },
-        result: "clear",
-        jobs_completed: "Completed the final integrated smoke.",
       },
       ...extra,
     ]);

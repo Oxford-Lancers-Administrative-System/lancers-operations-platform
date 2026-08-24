@@ -129,15 +129,8 @@ async function reviewedAndApproved(m: ReturnType<typeof mission>, head: string, 
       reviewed_head_sha: head,
       round,
       result: "clear",
+      ci_state: "green",
     },
-  });
-  await m.append({
-    type: "integrated-review",
-    mode: "workflow-walker",
-    head_sha: head,
-    package_heads: { [PACKAGE]: head },
-    result: "clear",
-    jobs_completed: "Completed the synthetic event workflow end to end.",
   });
   await m.append({
     type: "visual-approval",
@@ -235,6 +228,7 @@ describe("representative mission rehearsals", () => {
         reviewed_head_sha: comment,
         round: 2,
         result: "clear",
+        ci_state: "green",
       },
     });
     expect(carried.packages[PACKAGE].visual_approved).toBe(true);

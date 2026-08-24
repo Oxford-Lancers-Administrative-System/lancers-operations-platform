@@ -67,7 +67,7 @@ describe("mission CLI", () => {
     expect(refused.stderr).toMatch(/--brief <brief\.md>/);
   });
 
-  it("reads integrated package coverage and reports from files", () => {
+  it("requires a report and refuses the final walker before every package merges", () => {
     const m = fixture();
     readyMission(m);
     const head = "a".repeat(40);
@@ -98,24 +98,22 @@ describe("mission CLI", () => {
     );
     expect(missing.status).toBe(1);
     expect(missing.stderr).toMatch(/--report <file>/);
-    expect(
-      m.run(
-        "integrated-review",
-        MISSION,
-        "--mode",
-        "workflow-walker",
-        "--head",
-        head,
-        "--package-heads",
-        packageHeads,
-        "--result",
-        "clear",
-        "--jobs",
-        "Synthetic jobs",
-        "--report",
-        report,
-      ).status,
-    ).toBe(0);
+    const tooEarly = m.run(
+      "integrated-review",
+      MISSION,
+      "--mode",
+      "workflow-walker",
+      "--head",
+      head,
+      "--result",
+      "clear",
+      "--jobs",
+      "Synthetic jobs",
+      "--report",
+      report,
+    );
+    expect(tooEarly.status).toBe(1);
+    expect(tooEarly.stderr).toMatch(/only after every live package has merged to main/);
     expect(
       m.run(
         "question",
@@ -134,14 +132,7 @@ describe("mission CLI", () => {
     ).toBe(0);
   });
 
-  /**
-   * The rule said a dependency reviewed clean at its exact head is a usable
-   * base; the dispatch command had no way to say so, so the Lead's only
-   * interface refused every such dispatch and waited on Brian's merge anyway.
-   * Proved through the CLI, because asserting appendEvent directly is how the
-   * gap survived.
-   */
-  it("dispatches on a reviewed dependency through the CLI, recording the head it stands on", () => {
+  it("dispatches dependent work through the CLI only after its dependency merges", () => {
     const m = fixture();
     readyMission(m);
     const HEAD = "a".repeat(40);
@@ -201,8 +192,29 @@ describe("mission CLI", () => {
           reviewed_head_sha: HEAD,
           round: 1,
           result: "clear",
+          ci_state: "green",
         }),
       ).status,
+    ).toBe(0);
+
+    const beforeMerge = m.run(
+      "dispatch",
+      MISSION,
+      "WP-report-footer",
+      "--worker",
+      "worker-2",
+      "--worktree",
+      ".claude/worktrees/wp-report",
+      "--branch",
+      "feat/wp-report",
+      "--brief",
+      PACKET,
+    );
+    expect(beforeMerge.status).toBe(1);
+    expect(beforeMerge.stderr).toMatch(/has not merged to main/);
+    expect(
+      m.run("merge-record", MISSION, "WP-attendance-export", "41", HEAD, "--route", "guarded-auto")
+        .status,
     ).toBe(0);
 
     const dispatched = m.run(
@@ -219,7 +231,7 @@ describe("mission CLI", () => {
       PACKET,
     );
     expect(dispatched.status).toBe(0);
-    expect(dispatched.stdout).toContain(`standing on reviewed WP-attendance-export at ${HEAD}`);
+    expect(dispatched.stdout).toContain("Worker worker-2 dispatched on WP-report-footer");
   });
 
   it("initializes only from a matching approved packet and exits 1 on refusal", () => {

@@ -32,9 +32,11 @@ Modes:
 - `full`: independently reconstruct requirements, then review one issue.
 - `correction`: inspect the named findings and prior-reviewed..current delta.
 - `requirement-adjudication`: resolve a repeated premise from authority only.
-- `security-tier`: review an integrated mission's sensitive-path intersection.
+- `security-tier`: review one issue's non-empty sensitive-path intersection
+  before owner handoff.
 - `workflow-walker`: smoke-test predetermined user jobs and their visible
-  hand-offs once at the final integrated candidate.
+  hand-offs after every mission issue has merged to `main`; at most one targeted
+  re-walk follows one correction, then failure returns to Brian.
 
 Pin and detach the exact PR/integrated head before reading implementation; require
 a clean worktree and re-check the head before verdict. If it moved, report stale
@@ -50,11 +52,12 @@ commits. Then review the actual diff and exact-head CI for correctness,
 authorization, privacy/security, integrity, regression risk, test sensitivity,
 documentation, scope, draft/base state, and Production handoff.
 
-In `security-tier`, inspect only the real diff's intersection with
+In `security-tier`, inspect only the issue diff's intersection with
 migrations/schema, RLS/grants, auth/session, token and anonymous routes, secrets,
-PII egress, and production scripts/workflows. Record integrated and package
-heads, sensitive paths, and report path. Non-security mission code receives no
-independent review.
+PII egress, and production scripts/workflows. Record the exact package head,
+sensitive paths, and report path. An empty intersection launches no reviewer;
+the Lead records that deterministic result. Non-security mission code receives
+no independent review.
 
 In `correction`, reuse valid prior evidence. Inspect the named blockers,
 correction delta, affected behavior, and regression proof. A new blocker in
@@ -67,8 +70,9 @@ correction framing, prior reasoning, or proposed answer. Return the authoritativ
 resolution or one precise owner decision; do not add code findings.
 
 Walkers report completed jobs, dead ends, and contradictions encountered across
-the named journeys, not screen visits or open-ended exploration. They remain
-exact-head evidence.
+the named journeys on current `main`, not screen visits or open-ended
+exploration. They remain exact-head evidence and never gate or reopen an
+already-merged issue.
 
 ## Findings and challenge
 
@@ -102,6 +106,7 @@ never approves an unresolved blocker.
 Write the supplied report file and notify the orchestrator with only its path.
 Include issue/PR, mode, full-review SHA, correction base, reviewed/integrated and
 package heads, round/budget, requirement provenance, findings grouped by
-disposition, resolved IDs, result, exact-head CI, lease/release state, clean-tree
+disposition, resolved IDs, result, `ci_state: green` only after exact-head CI,
+lease/release state, clean-tree
 proof, injection evidence, untested areas, residual risk, and remaining human
 review. State exactly which SHA and delta are covered. Never repair a finding.

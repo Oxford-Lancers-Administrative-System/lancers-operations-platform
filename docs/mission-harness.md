@@ -154,23 +154,29 @@ and agent work, and next actor. Questions Brian can answer in the conversation
 remain in **Need from Brian** and never enter the owner-action section.
 
 **Visual review keeps ADR 0020's protected environment and follows ADR 0035.**
-Brian opens each visual package's live `review-ready` environment as it becomes
-ready, with one URL, the fixed login and zero commands. `visual-approve` records
-the exact package head he checked without pausing unrelated work. After every
-package is built, one bounded Sonnet walker smoke-tests the predetermined
-end-to-end journeys and their visible hand-offs at the integrated candidate.
-That final smoke is not another visual review. A rendered correction repeats
-only affected owner or walker evidence; a classifier-proven non-rendered delta
-may carry it forward.
+Targeted checks, exact-head CI, and any triggered security review finish before
+Brian opens a visual package's live `review-ready` environment, with one URL,
+the fixed login and zero commands. `visual-approve` records the exact package
+head he checked. At that unchanged head no reviewer or worker runs afterwards;
+the deterministic merge gate is next. A rendered head change returns through
+machine checks and one affected-surface walkthrough, while a classifier-proven
+non-rendered delta carries the owner evidence forward.
+
+Each approved issue merges immediately. After all mission issues are on `main`,
+one bounded Sonnet walker smoke-tests the predetermined end-to-end journeys and
+visible hand-offs. That final smoke is not another visual review and does not
+reopen merged issues. Its findings become new corrective issue/PR work; only the
+affected journey repeats once after that correction merges. A second failure
+stops automated correction and returns to Brian for adjudication.
 
 ## What merges by itself, and what never does
 
 There are three tiers, decided by Brian on 2026-08-18:
 
-**Merges by itself.** Standard application work whose exact package head is
-covered by the clear integrated security-tier review, the mission visual
-approval (or genuinely nonvisual), no open owner question, and green required checks
-at that exact commit, merges through the checked-in `mission-merge` workflow
+**Merges by itself.** Standard application work whose exact package head has
+clear required security coverage, Brian's issue approval (or is genuinely
+nonvisual), no open owner question, and green required checks at that exact
+commit merges through the checked-in `mission-merge` workflow
 after the Mission Lead publishes its receipt and applies the `mission-merge`
 label. The workflow re-derives everything server-verifiable from evidence
 and fails closed; a refusal is posted on the pull request. A review-blocked
@@ -319,7 +325,7 @@ the scout defaults to Haiku. Handoffs are on-disk pointers (`brief.md`,
 Independent commands are batched; long output goes to `/tmp/out.log` with only
 its last 20 lines shown, and a diff stat precedes a full diff.
 
-The Lead stops and a fresh Lead resumes at plan-approved, build-complete and
-gate-complete. Every resume reconciles the journal against GitHub first. The
+The Lead stops and a fresh Lead resumes after plan approval, before durable
+execution begins. Every resume reconciles the journal against GitHub first. The
 Lead delegates repository investigation to the bounded read-only scout and
 waits for completion notifications instead of polling.
