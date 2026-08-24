@@ -105,6 +105,27 @@ function issueFor(state: EventFormState, field: keyof RawEventDraft): string | u
   return state.issues.find((issue) => issue.field === field)?.message;
 }
 
+const SCHEDULED_ON_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Whether `scheduledOn` is a `YYYY-MM-DD` that `formatLongDate` can safely
+ * turn into a sentence.
+ *
+ * W154C-F1: the date `TextField` renders in the browser's locale (D86), and
+ * Chrome's segmented date editor lets an operator land on a value like
+ * `20261-12-11` mid-edit — a five-digit year that is neither empty nor a
+ * parseable date. `scheduledOn === ""` let everything else through to
+ * `formatLongDate`, which only guards falsy input, so `Intl.DateTimeFormat`
+ * threw on the resulting `Invalid Date` and took the whole form with it. This
+ * checks the shape the derivation and the formatter both need, so the
+ * derived-term alert falls back to its placeholder for any in-progress or
+ * malformed value rather than only an empty one.
+ */
+function isFormattableScheduledOn(candidate: string): boolean {
+  if (!SCHEDULED_ON_PATTERN.test(candidate)) return false;
+  return !Number.isNaN(Date.parse(`${candidate}T00:00:00Z`));
+}
+
 /** The inherited text fields, and how each is read out of a form value bag. */
 const INHERITED_TEXT = ["venue", "description", "requiredEquipment"] as const;
 
@@ -288,7 +309,10 @@ export default function EventForm({
               data-field="name"
               defaultValue={value("name")}
               error={Boolean(issueFor(state, "name"))}
-              helperText={issueFor(state, "name") ?? "The opponent goes in the name."}
+              helperText={
+                issueFor(state, "name") ??
+                (eventType === "game" ? "The opponent goes in the name." : undefined)
+              }
               fullWidth
             />
 
@@ -388,7 +412,7 @@ export default function EventForm({
               in response to the date rather than to anything they focused.
             */}
             <Alert severity="info" icon={false} data-testid="derived-term" aria-live="polite">
-              {scheduledOn === "" ? (
+              {!isFormattableScheduledOn(scheduledOn) ? (
                 "Choose a date and the Oxford term and week are worked out from it."
               ) : (
                 <>

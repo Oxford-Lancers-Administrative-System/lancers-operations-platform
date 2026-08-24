@@ -1,5 +1,4 @@
 import type { TermCoordinate, TermWindow } from "@/lib/services/event-input";
-import type { EventListEntry } from "@/lib/services/events";
 import { labelFor, TERM_LABELS } from "@/lib/services/event-vocabulary";
 
 /**
@@ -48,23 +47,6 @@ export {
 } from "@/lib/services/event-vocabulary";
 
 /**
- * What the Audience column says.
- *
- * Brian's LAN-76 clarification asks the list to "make it clear that response
- * and audience information will not exist until the approval workflow is
- * completed". "Not resolved" did not say that — it reads as an omission
- * somebody should go and fix, when in fact there is nothing to fix and nothing
- * to do until approval. So a pre-approval event says when the audience
- * arrives, rather than that it is missing.
- */
-export function describeAudience(event: EventListEntry): string {
-  if (event.invitationCount > 0) return `${event.invitationCount} invited`;
-  if (event.audienceCount > 0) return `${event.audienceCount} selected`;
-  if (isPreApproval(event.status)) return NO_AUDIENCE_YET;
-  return "None recorded";
-}
-
-/**
  * What a draft with nobody in its audience says — D47.
  *
  * It used to read "Chosen at approval", which is no longer true of most events:
@@ -73,14 +55,6 @@ export function describeAudience(event: EventListEntry): string {
  * what is the case rather than what is about to happen.
  */
 export const NO_AUDIENCE_YET = "Not chosen yet";
-
-/**
- * The sentence above the list, saying the same thing once rather than in every
- * row.
- */
-export const AUDIENCE_AND_RESPONSES_COME_LATER =
-  "A draft has no invitations and no responses, and cannot have any. Nothing is sent " +
-  "until an approver has approved it.";
 
 /**
  * The sentence a draft or pending event carries, stated as the structural fact

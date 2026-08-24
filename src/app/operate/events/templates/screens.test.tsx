@@ -215,6 +215,21 @@ describe("W8-01 — seven types, seven templates", () => {
     expect(card).toContain("1 question");
   });
 
+  it("W154C-F2: labels its values on a phone, so two 'Not set' facts are told apart", async () => {
+    // At 375px an unconfigured template used to read "Practice / Not set / Not
+    // set / None" — three unlabelled values, with nothing saying which "Not
+    // set" is the default audience and which is the venue. The desktop table
+    // carries a header row for the same reason; the card must say it inline.
+    vi.mocked(listEventTemplates).mockResolvedValue([summary({ eventType: "meeting" })]);
+
+    render(await EventTemplatesPage());
+
+    const card = flatten(screen.getAllByTestId("template-card")[0].textContent);
+    expect(card).toContain("Invites by default Not set");
+    expect(card).toContain("Where Not set");
+    expect(card).toContain("Questions None");
+  });
+
   it("is closed to an operator without the calendar capability", async () => {
     vi.mocked(resolveOperatorAccess).mockResolvedValue({
       state: "active",

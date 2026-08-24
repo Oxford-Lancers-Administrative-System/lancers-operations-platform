@@ -101,14 +101,12 @@ export default async function EventTemplatesPage() {
               >
                 {labelFor(TYPE_LABELS, template.eventType)}
               </Button>
-              <Typography variant="body2" color="text.secondary">
-                {describeTemplateAudience(groupLabels(template))}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {describeTemplateWhere(template.defaultDeliveryMode, template.defaultVenue)}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {describeQuestionCount(template.questionCount)}
+              <Typography variant="body2" color="text.secondary" data-testid="template-card-facts">
+                {[
+                  `${TEMPLATE_COLUMN_LABELS.audience} ${describeTemplateAudience(groupLabels(template))}`,
+                  `${TEMPLATE_COLUMN_LABELS.where} ${describeTemplateWhere(template.defaultDeliveryMode, template.defaultVenue)}`,
+                  `${TEMPLATE_COLUMN_LABELS.questions} ${describeQuestionCount(template.questionCount)}`,
+                ].join(" · ")}
               </Typography>
             </Box>
           ))}

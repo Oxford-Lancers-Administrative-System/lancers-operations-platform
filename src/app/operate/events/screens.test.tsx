@@ -978,6 +978,91 @@ describe("UX-31 — creating an event", () => {
 });
 
 // ---------------------------------------------------------------------------
+// W154C-F1 — a date the browser's segmented editor can leave mid-edit must
+// not crash the form.
+// ---------------------------------------------------------------------------
+
+describe("W154C-F1 — a malformed date does not crash the derived-term alert", () => {
+  // Chrome's segmented `type="date"` editor lets an operator land on a value
+  // like `20261-12-11` — a five-digit year, mid-edit — which is neither empty
+  // nor a parseable date. `formatLongDate` only guards falsy input, so handing
+  // it a value like this threw `RangeError: Invalid time value` and took the
+  // whole form down with it. `scheduledOn === ""` was not a narrow enough
+  // guard; this is the input value the walker used to reproduce the crash.
+  const MALFORMED_DATE = "20261-12-11";
+
+  it("on the create form: falls back to the placeholder instead of throwing", async () => {
+    const { container } = render(await NewEventPage(newProps()));
+
+    const dateField = container.querySelector<HTMLInputElement>('input[name="scheduledOn"]');
+    expect(dateField).not.toBeNull();
+
+    // If the guard regresses to `scheduledOn === ""`, this line throws inside
+    // React's render and the test fails with the RangeError itself, not an
+    // assertion mismatch.
+    fireEvent.change(dateField!, { target: { value: MALFORMED_DATE } });
+
+    expect(flatten(screen.getByTestId("derived-term").textContent)).toBe(
+      "Choose a date and the Oxford term and week are worked out from it.",
+    );
+  });
+
+  it("on the edit form: falls back to the placeholder instead of throwing", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    const { container } = render(await EditEventPage(editProps()));
+
+    const dateField = container.querySelector<HTMLInputElement>('input[name="scheduledOn"]');
+    expect(dateField).not.toBeNull();
+
+    fireEvent.change(dateField!, { target: { value: MALFORMED_DATE } });
+
+    expect(flatten(screen.getByTestId("derived-term").textContent)).toBe(
+      "Choose a date and the Oxford term and week are worked out from it.",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W154C-F3 — the opponent helper text only fits a Game.
+// ---------------------------------------------------------------------------
+
+describe("W154C-F3 — the Name field only mentions an opponent for a Game", () => {
+  it("says nothing about an opponent for the default type, Practice", async () => {
+    const { container } = render(await NewEventPage(newProps()));
+
+    expect(container.querySelector('input[name="eventType"]')?.getAttribute("value")).toBe(
+      "practice",
+    );
+    expect(
+      flatten(container.querySelector('[data-field="name"]')?.textContent ?? ""),
+    ).not.toContain("opponent");
+  });
+
+  it("says nothing about an opponent for Social, Meeting or any other non-Game type", async () => {
+    const { container } = render(await NewEventPage(newProps()));
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Type" }));
+    fireEvent.click(screen.getByRole("option", { name: "Social" }));
+
+    expect(
+      flatten(container.querySelector('[data-field="name"]')?.textContent ?? ""),
+    ).not.toContain("opponent");
+  });
+
+  it("names the opponent only once the type is Game", async () => {
+    const { container } = render(await NewEventPage(newProps()));
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Type" }));
+    fireEvent.click(screen.getByRole("option", { name: "Game" }));
+
+    expect(flatten(container.querySelector('[data-field="name"]')?.textContent ?? "")).toContain(
+      "The opponent goes in the name.",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // The three headline numbers — REQ-headline-numbers, D62, D73, D74. LAN-152.
 // ---------------------------------------------------------------------------
 
