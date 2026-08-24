@@ -24,15 +24,23 @@
     {
       "id": "W1",
       "name": "Approve an event knowing what it will send",
-      "state": "mock_draft",
+      "state": "spec_draft",
       "stale": false,
-      "feedback": [],
-      "approvals": {
-        "spec": {
-          "words": "Then it's approved. Go make the mockup.",
-          "date": "2026-08-24"
+      "feedback": [
+        {
+          "screen_id": "W1-01",
+          "text": "Show the whole current event page: event details first, invited audience next, and the messaging plan last as an expandable dropdown. The default sequence is WhatsApp message 1, WhatsApp message 2, email, then follow-up escalation to the President."
+        },
+        {
+          "screen_id": "W1-02",
+          "text": "Remove the explanatory error copy. Show only that one user has an error and a compact 'See 1 user with error' disclosure."
+        },
+        {
+          "screen_id": "W1-03",
+          "text": "Show the approved messaging plan in the context of the whole event page rather than as an isolated card."
         }
-      }
+      ],
+      "approvals": {}
     },
     {
       "id": "W2",
@@ -196,7 +204,12 @@
         "id": "SRC-owner-2026-08-24",
         "ref": "missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/workflows/W1-approve-an-event-knowing-what-it-will-send.md",
         "version": "Brian W1 review, 2026-08-24",
-        "decision_ids": ["OWN-no-quiet-hours", "OWN-message-sequence", "OWN-missing-whatsapp-error"]
+        "decision_ids": [
+          "OWN-no-quiet-hours",
+          "OWN-message-sequence",
+          "OWN-default-sequence-v2",
+          "OWN-missing-whatsapp-error"
+        ]
       }
     ],
     "decisions": [
@@ -790,9 +803,20 @@
       {
         "id": "OWN-message-sequence",
         "source_id": "SRC-owner-2026-08-24",
+        "disposition": "superseded",
+        "superseded_by": "SRC-owner-2026-08-24:OWN-default-sequence-v2",
+        "reason": "Brian added a second WhatsApp message while reviewing the first W1 mockup.",
+        "approval": {
+          "words": "I think the default should be: WhatsApp message, WhatsApp message 2, email, follow-up escalation.",
+          "date": "2026-08-24"
+        }
+      },
+      {
+        "id": "OWN-default-sequence-v2",
+        "source_id": "SRC-owner-2026-08-24",
         "disposition": "workflow",
         "workflow": "W5",
-        "reason": "The nonresponse sequence is WhatsApp message, email, follow-up escalation, then notification to the President. W7 owns the offsets and compression; W1 shows the resulting plan.",
+        "reason": "The default nonresponse sequence is two WhatsApp messages, then email, then follow-up escalation to the President. W7 owns timing and compression; W1 shows the resulting plan.",
         "also_referenced_by": ["W1", "W6", "W7"]
       },
       {
@@ -805,5 +829,5 @@
       }
     ]
   },
-  "next_action": "Review and approve the W1 mockup (Stage 3)"
+  "next_action": "Review the revised W1 specification and full-page mockup (Stage 3)"
 }

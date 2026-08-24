@@ -17,8 +17,8 @@ without becoming additional owners.
 | `delegated_to_mission_lead` | 1         |
 | `other_mission`             | 3         |
 | `shared_cross_mission`      | 3         |
-| `superseded`                | 4         |
-| **Total**                   | **79**    |
+| `superseded`                | 5         |
+| **Total**                   | **80**    |
 
 ## SRC-task-02-brief
 
@@ -163,10 +163,11 @@ without becoming additional owners.
 
 - Reference: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/workflows/W1-approve-an-event-knowing-what-it-will-send.md
 - Version read: Brian W1 review, 2026-08-24
-- Controlling decisions: 3
+- Controlling decisions: 4
 
-| Decision                     | Disposition | Authoritative home                 | Reason and evidence                                                                                                                                                                  |
-| ---------------------------- | ----------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `OWN-no-quiet-hours`         | `workflow`  | W7 (also referenced by W1, W2, W5) | There is no quiet-hours send window. Scheduling and compression must not delay or drop a message on that basis.                                                                      |
-| `OWN-message-sequence`       | `workflow`  | W5 (also referenced by W1, W6, W7) | The nonresponse sequence is WhatsApp message, email, follow-up escalation, then notification to the President. W7 owns the offsets and compression; W1 shows the resulting plan.     |
-| `OWN-missing-whatsapp-error` | `workflow`  | W6 (also referenced by W1)         | Every user is expected to have WhatsApp. A missing or unusable WhatsApp route is an error surfaced before approval; W6 owns its handling rather than W1 inventing a recovery action. |
+| Decision                     | Disposition  | Authoritative home                                         | Reason and evidence                                                                                                                                                                              |
+| ---------------------------- | ------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `OWN-no-quiet-hours`         | `workflow`   | W7 (also referenced by W1, W2, W5)                         | There is no quiet-hours send window. Scheduling and compression must not delay or drop a message on that basis.                                                                                  |
+| `OWN-message-sequence`       | `superseded` | superseded by SRC-owner-2026-08-24:OWN-default-sequence-v2 | Brian added a second WhatsApp message while reviewing the first W1 mockup. Brian 2026-08-24: "I think the default should be: WhatsApp message, WhatsApp message 2, email, follow-up escalation." |
+| `OWN-default-sequence-v2`    | `workflow`   | W5 (also referenced by W1, W6, W7)                         | The default nonresponse sequence is two WhatsApp messages, then email, then follow-up escalation to the President. W7 owns timing and compression; W1 shows the resulting plan.                  |
+| `OWN-missing-whatsapp-error` | `workflow`   | W6 (also referenced by W1)                                 | Every user is expected to have WhatsApp. A missing or unusable WhatsApp route is an error surfaced before approval; W6 owns its handling rather than W1 inventing a recovery action.             |

@@ -349,9 +349,10 @@ each belongs to the workflow that owns it, after that workflow has been walked.
   event type, and the compression rules when the runway is short. Brought as one
   concrete proposed rule set with a recommendation per rung, not as a list of
   questions.
-- **The message sequence is fixed; its timing is not.** Brian set the order on
-  2026-08-24 as WhatsApp message, email, follow-up escalation, then notification
-  to the President. W7 still owns the offsets and the revised compression rule.
+- **The default message sequence is fixed; its timing is not.** Brian revised
+  the order during W1 mockup review on 2026-08-24: WhatsApp message 1, WhatsApp
+  message 2, email, then follow-up escalation to the President. W7 still owns
+  the offsets and the revised compression rule.
 - **Whether the two outbound email paths are reconciled**, and by whom.
 
 ## Split decision

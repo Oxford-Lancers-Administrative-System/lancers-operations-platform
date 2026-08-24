@@ -483,6 +483,44 @@
         padding: 14px 16px;
         background: var(--grey50);
       }
+      details.disclosure {
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        background: white;
+      }
+      details.disclosure > summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px;
+        cursor: pointer;
+        font-weight: 700;
+        list-style: none;
+      }
+      details.disclosure > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.disclosure > summary::after {
+        content: "⌄";
+        color: var(--secondary);
+      }
+      details.disclosure[open] > summary::after {
+        content: "⌃";
+      }
+      .disclosure-body {
+        padding: 0 16px 16px;
+      }
+      .audience-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0 20px;
+      }
+      .audience-more {
+        margin: 10px 0 0;
+        color: var(--secondary);
+        font-size: 14px;
+      }
       .person {
         display: flex;
         justify-content: space-between;
@@ -569,6 +607,9 @@
         grid-template-columns: 1fr 1fr;
         gap: 12px;
       }
+      .phone .audience-list {
+        grid-template-columns: 1fr;
+      }
       .phone .plan-row {
         grid-template-columns: 24px minmax(0, 1fr);
       }
@@ -646,24 +687,32 @@
 
       const normalPlan = () => `
         <div class="plan">
-          ${planRow({ when: "Saturday 10 October · 18:00", title: "WhatsApp message", note: "Automated 1:1 message to all 38 people. Every recipient has a usable WhatsApp route.", side: chip("38 people") })}
-          ${planRow({ when: "Configured after WhatsApp", title: "Email", note: "Sent to whoever has not answered. The exact offset is governed in W7.", side: chip("Unanswered only") })}
-          ${planRow({ when: "Configured after email", title: "Follow-up escalation", note: "The next nonresponse step. W7 owns its timing and compressed form.", side: chip("Central rule") })}
-          ${planRow({ when: "Final escalation step", title: "Send to the President", note: "The President receives event, count and a secure operator link—no player personal data in the message body.", side: chip("Office holder") })}
+          ${planRow({ when: "Saturday 10 October · 18:00", title: "WhatsApp message 1", note: "Automated 1:1 message to all 38 people.", side: chip("38 people") })}
+          ${planRow({ when: "Sunday 11 October · 18:00", title: "WhatsApp message 2", note: "Only to people who have not answered.", side: chip("Unanswered") })}
+          ${planRow({ when: "Monday 12 October · 12:00", title: "Email", note: "Only to people who still have not answered.", side: chip("Still unanswered") })}
+          ${planRow({ when: "Monday 12 October · 18:00", title: "Follow-up escalation", note: "Send the event and unanswered count to the President.", side: chip("President") })}
         </div>`;
 
       const recovery = `
-        <div class="recovery"><p class="fact-value">Recovery is part of the plan</p><p class="body2">A failed delivery retries automatically. Exhausted retries and missing routes remain visible in Delivery for W6 recovery. Nothing started by the app silently disappears.</p></div>`;
+        <div class="recovery"><p class="fact-value">Recovery</p><p class="body2">Failed sends retry automatically. Remaining errors appear in Delivery.</p></div>`;
+
+      const eventDetails = `
+        <section class="paper"><div class="stack"><h2>Event details</h2><div class="grid">${fact("Type", "Practice")}${fact("Where", "In person")}${fact("Venue", "Iffley Road")}${fact("Term / week", "Michaelmas 2026–27 · Week 1")}${fact("Attendance", "Optional")}${fact("Required equipment", "Mouthguard and boots")}</div></div></section>`;
+
+      const audience = (error = false) => `
+        <section class="paper"><div class="stack"><div>${fact("Audience", "38 chosen, not yet approved", "Saved against this draft")}</div><hr class="divider"><div>${fact("Distribution", "Nothing distributed", "No invitations or responses")}</div>${error ? `${alert("error", "1 user has an error.")}<details class="disclosure"><summary>See 1 user with error</summary><div class="disclosure-body"><div class="person"><div><strong>Juno Wenlock</strong><p class="body2">WhatsApp error</p></div>${chip("Error", "error")}</div></div></details>` : ""}<div><p class="fact-label">Who is invited</p><div class="audience-list"><div class="person"><strong>Alaric Ashcombe</strong>${chip("Player")}</div><div class="person"><strong>Beatrix Ravensworth</strong>${chip("Player")}</div><div class="person"><strong>Caspian Caldicott</strong>${chip("Player")}</div><div class="person"><strong>Delphine Ottershaw</strong>${chip("Player")}</div><div class="person"><strong>Emrys Elverton</strong>${chip("Coach")}</div><div class="person"><strong>Fenella Braemar</strong>${chip("Player")}</div></div><p class="audience-more">32 more, all named on the real page.</p></div></div></section>`;
+
+      const messagingPlan = (approved = false) => `
+        <details class="disclosure" open><summary><span>Messaging plan · 4 steps${approved ? " · approved" : ""}</span>${chip("Proposed", "proposed")}</summary><div class="disclosure-body stack"><p class="body2">${approved ? "Frozen at approval." : "Approval commits this plan."} No quiet-hours adjustment.</p>${normalPlan()}${recovery}</div></details>`;
 
       const reviewBody = `
-        <section class="paper"><div class="stack"><div class="row"><h2>Approve ${EVENT.name}</h2>${chip("Proposed", "proposed")}</div><p class="body2">Read the event, audience and complete messaging consequence before approval.</p><div class="grid">${fact("Audience", "38 confirmed")}${fact("WhatsApp ready", "38 of 38")}${fact("Response deadline", "Monday 12 October · 18:00", "Late answers remain accepted")}</div><hr class="divider"><div><p class="fact-label">Messaging plan</p><p class="body2">Approval commits this plan; it does not necessarily send immediately. There are no quiet hours.</p></div>${normalPlan()}${recovery}<div class="btn-row"><button class="btn primary">Approve event</button><button class="btn outline">Back to audience</button></div></div></section>`;
+        ${eventDetails}${audience()}${messagingPlan()}<div class="btn-row"><button class="btn primary">Review audience and approve</button><button class="btn outline">Edit draft</button></div>`;
 
       const errorBody = `
-        <section class="paper"><div class="stack"><div class="row"><h2>Approve ${EVENT.name}</h2>${chip("Proposed", "proposed")}${chip("WhatsApp error", "error")}</div>${alert("error", "One person has no usable WhatsApp route. Every user is expected to have WhatsApp; this is an error, not a normal alternate path.")}<div class="grid">${fact("Audience", "38 confirmed")}${fact("WhatsApp ready", "37 of 38")}${fact("Errors", "1", "Handled in W6")}</div><div class="person"><div><strong>Juno Wenlock</strong><p class="body2">No usable WhatsApp route</p></div>${chip("Error", "error")}</div><p class="body2">W1 names the error before approval. W6 owns correction and recovery; this screen does not invent a manual-send action.</p>${recovery}<div class="btn-row"><button class="btn primary">Approve with 1 error</button><button class="btn outline">Back to audience</button></div></div></section>`;
+        ${eventDetails}${audience(true)}${messagingPlan()}<div class="btn-row"><button class="btn primary">Review audience and approve</button><button class="btn outline">Edit draft</button></div>`;
 
       const approvedBody = `
-        ${alert("info", "Event approved — the audience and messaging plan are frozen. 38 WhatsApp jobs were created; nothing failed immediately.")}
-        <section class="paper"><div class="stack"><div class="row"><h2>Messaging plan</h2>${chip("Proposed", "proposed")}${chip("Frozen at approval")}</div><p class="body2">Next step: Saturday 10 October at 18:00. No quiet-hours adjustment applies.</p>${normalPlan()}${recovery}<hr class="divider"><div class="grid">${fact("Created", "38 jobs")}${fact("Failed now", "0")}${fact("Recovery", "Automatic + visible")}</div><div class="btn-row"><button class="btn outline">Open delivery</button><button class="btn text">Back to events</button></div></div></section>`;
+        ${alert("info", "Event approved · 38 invitations created.")}${eventDetails}${audience()}${messagingPlan(true)}<div class="btn-row"><button class="btn outline">Delivery</button><button class="btn text">Back to events</button></div>`;
 
       const SCREENS = [
         {
@@ -672,11 +721,11 @@
           disposition: "Modified",
           now: "Friday 9 October 2026 · 20:18",
           deltas: [
-            "Adds the read-only WhatsApp → email → follow-up escalation → President sequence",
-            "States that approval commits the plan and that there are no quiet hours",
-            "Explains automatic retry and visible W6 recovery before approval",
+            "Keeps the current event details and named audience above the new plan",
+            "Adds a bottom-of-page dropdown for WhatsApp 1 → WhatsApp 2 → email → President escalation",
+            "Keeps recovery copy to one concise line",
           ],
-          current: ["approval-review-desktop.png", "approval-review-phone.png"],
+          current: ["event-detail-draft-desktop.png", "event-detail-draft-phone.png"],
           body: reviewBody,
         },
         {
@@ -685,9 +734,9 @@
           disposition: "New",
           now: "Friday 9 October 2026 · 20:19",
           deltas: [
-            "Names the affected synthetic user and treats missing WhatsApp as an error",
-            "Leaves correction and recovery to W6",
-            "Offers no manual WhatsApp or email workaround",
+            "Says only that one user has an error",
+            "Reveals the affected user through a compact disclosure",
+            "Keeps the rest of the full event page unchanged",
           ],
           current: null,
           body: errorBody,
@@ -698,9 +747,9 @@
           disposition: "Modified",
           now: "Friday 9 October 2026 · 20:21",
           deltas: [
-            "Confirms jobs created and immediate failures",
-            "Restates the frozen plan and next step",
-            "Links to the existing Delivery surface for recovery",
+            "Keeps event details and the invited audience visible",
+            "Places the approved plan in the same bottom-of-page dropdown",
+            "Keeps Delivery as the recovery destination",
           ],
           current: ["event-detail-approved-desktop.png", "event-detail-approved-phone.png"],
           body: approvedBody,
@@ -709,7 +758,7 @@
       ];
 
       const frame = (screen, kind) =>
-        `<div class="frame ${kind}"><div class="chrome">${kind === "desktop" ? `<span class="dots"><i></i><i></i><i></i></span>` : ""}<span class="url">localhost:3000/operate/events/8f2c1a4e${screen.id === "W1-01" || screen.id === "W1-02" ? "?step=review" : ""}</span><span class="badge">${screen.id} · ${kind === "desktop" ? "DESKTOP 1280" : "375"}</span></div><div class="viewport ${kind}-vp ${kind}">${shell(screen.body, screen.approved)}</div></div>`;
+        `<div class="frame ${kind}"><div class="chrome">${kind === "desktop" ? `<span class="dots"><i></i><i></i><i></i></span>` : ""}<span class="url">localhost:3000/operate/events/8f2c1a4e</span><span class="badge">${screen.id} · ${kind === "desktop" ? "DESKTOP 1280" : "375"}</span></div><div class="viewport ${kind}-vp ${kind}">${shell(screen.body, screen.approved)}</div></div>`;
 
       const currentSide = (screen) =>
         screen.current

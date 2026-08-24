@@ -61,19 +61,20 @@ needs to go out now, right? It should say that."
 
 ### The ladder
 
-The sequence is fixed; W7 still owns its offsets and compression:
+The default sequence is fixed; W7 still owns its offsets and compression:
 
-| Step                  | Recipient and route                             |
-| --------------------- | ----------------------------------------------- |
-| WhatsApp message      | The user, through their expected WhatsApp route |
-| Email                 | The user, after the WhatsApp step               |
-| Follow-up escalation  | The next configured nonresponse step            |
-| Send to the President | The President as the responsible office holder  |
+| Step                 | Recipient and route                             |
+| -------------------- | ----------------------------------------------- |
+| WhatsApp message 1   | The user, through their expected WhatsApp route |
+| WhatsApp message 2   | The user, if they have not answered             |
+| Email                | The user, if they still have not answered       |
+| Follow-up escalation | The President as the responsible office holder  |
 
 This is a nonresponse sequence, not merely a transport retry chain. Delivery
-failures still retry and enter W6 recovery, but email also follows WhatsApp in
-the chase sequence when the user has not answered. Every job started by the app
-must reach a recorded terminal outcome or a visible recovery state.
+failures still retry and enter W6 recovery, but the two WhatsApp messages and
+email are also successive chase steps when the user has not answered. Every job
+started by the app must reach a recorded terminal outcome or a visible recovery
+state.
 
 ### Compression, when there is not enough runway
 
@@ -98,8 +99,8 @@ silently abandoned.
    states, in the club's language and not in job records:
    - how many people will be messaged, and on which channel;
    - **when** the first message goes — now, or a stated date;
-   - when the WhatsApp message, email, follow-up escalation and President step
-     each occur;
+   - when WhatsApp message 1, WhatsApp message 2, email and the follow-up
+     escalation to the President each occur;
    - **who cannot be reached at all**, by name and count — no accepted channel,
      no usable number, no recorded consent basis. These are D8's "Not dispatched"
      people, and approval is the last moment before they are silently absent;
@@ -171,37 +172,41 @@ silently abandoned.
 - A person with no usable number, no accepted channel, or no consent basis appears
   in the unreachable list before approval and in `W6` afterwards, and the two
   agree.
-- The plan shows the ordered WhatsApp, email, follow-up escalation and President
-  steps, and every started job reaches a terminal outcome or visible recovery
-  state.
+- The plan shows the ordered WhatsApp message 1, WhatsApp message 2, email and
+  follow-up escalation to the President, and every started job reaches a
+  terminal outcome or visible recovery state.
 - A missing WhatsApp route is shown as an error and handed to W6; W1 offers no
   invented manual-send control.
 - The panel renders at 375px with the plan legible and no horizontal scroll.
-- Grounding: Mission 2's approved `W4` mockup. Screenshots of a live page are
-  impossible because Mission 2 has not built it.
+- Grounding: current `main` at `80e9616d396336a7b575a975ecb012548b4ed611`, where
+  Mission 2's event details and audience surfaces now exist. The mockup extends
+  that complete page rather than redrawing an isolated approval card.
 
 ## Core decisions
 
-| Decision                                                                                       | Classification                | Governing evidence or recommended default                                                                                                                                                      | Status                 |
-| ---------------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| An approver sees the messaging plan before approving                                           | `locked`                      | Brian, 2026-08-22                                                                                                                                                                              | Settled                |
-| **Approval commits the plan rather than performing the send**                                  | `locked`                      | Brian, 2026-08-22: "Yes, approval commits the plan rather than sending." The audience freeze R4 protects is unchanged; only the moment of dispatch moves                                       | **Settled 2026-08-22** |
-| **An event closer than its own invitation lead dispatches immediately, and the panel says so** | `locked`                      | Brian, 2026-08-22: "if practice happens in 2 days and we're approving and we're sending it out, that needs to go out now, right? It should say that"                                           | **Settled 2026-08-22** |
-| **Invitation lead per event type**                                                             | `locked`                      | Brian, 2026-08-22: "invitation per thing is fine for now." Game 14 days · Social 10 · Practice, S&C, Chalk, Recruitment, Meeting 5. "For now" is recorded — the values are revisitable at `W7` | **Settled 2026-08-22** |
-| **Minimum gap between rungs**                                                                  | `proposed for owner approval` | Brian preferred 24 hours on 2026-08-22, then reopened the compression timeline on 2026-08-24. W7 must settle the revised rule                                                                  | **Deferred to `W7`**   |
-| **The unreachable are named before approval, not discovered after**                            | `locked`                      | Brian, 2026-08-22: "if somebody is truly unreachable, their WhatsApp is not working, or it's something that should be alerted"                                                                 | **Settled 2026-08-22** |
-| **An unreachable person is alerted, not merely listed**                                        | `proposed for owner approval` | Raised by Brian at `W1` and belonging to `W6`, which owns delivery health. `W1` names them at the moment of approval; the standing alert is specified where failures are handled               | **Deferred to `W6`**   |
-| **The ladder** — how many reminders and at what offsets                                        | `proposed for owner approval` | Recommended: two reminders, at 48 and 24 hours before the deadline. Task 03 permits 0–3. It is the same policy question as compression, so it travels with it                                  | **Deferred to `W7`**   |
-| **Compression rules**                                                                          | `proposed for owner approval` | The earlier drop-and-gap shape is not approved. Brian, 2026-08-24: "If it's compressed, the compression timeline should be done a little bit differently. We'll just have to work that out"    | **Deferred to `W7`**   |
-| **The RSVP response deadline per type**                                                        | `proposed for owner approval` | Values exist and are owner-set (2026-08-13). Brian, 2026-08-22, wants them revisited with more detail alongside the rest of the schedule                                                       | **Deferred to `W7`**   |
-| The plan is read-only at approval; values are per type, not per event                          | `proposed for owner approval` | LAN-77 explicitly withholds a per-event override. Brian has asked for more customisation, which is the same question as `W7`'s configurability                                                 | **Deferred to `W7`**   |
-| **The sequence is WhatsApp message → email → follow-up escalation → President**                | `locked`                      | Brian, 2026-08-24                                                                                                                                                                              | **Settled 2026-08-24** |
-| **There are no quiet hours**                                                                   | `locked`                      | Brian, 2026-08-24: "There is no such thing as quiet hours"                                                                                                                                     | **Settled 2026-08-24** |
-| **A missing WhatsApp route is an error whose handling belongs to W6**                          | `locked`                      | Brian, 2026-08-24: "Every user should have WhatsApp. That should be treated as an error, though. That's not handled here"                                                                      | **Settled 2026-08-24** |
-| An unconfigured event type refuses rather than inheriting a default                            | `locked`                      | ADR 0021's pattern, restated in Task 03 §4.2 — "no default arm"                                                                                                                                | Settled                |
-| Exact panel layout, wording and how the plan condenses at 375px                                | `delegated to Mission Lead`   | Presentation within the approved content and the mockup standards                                                                                                                              | Delegated              |
+| Decision                                                                                                   | Classification                | Governing evidence or recommended default                                                                                                                                                      | Status                 |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| An approver sees the messaging plan before approving                                                       | `locked`                      | Brian, 2026-08-22                                                                                                                                                                              | Settled                |
+| **Approval commits the plan rather than performing the send**                                              | `locked`                      | Brian, 2026-08-22: "Yes, approval commits the plan rather than sending." The audience freeze R4 protects is unchanged; only the moment of dispatch moves                                       | **Settled 2026-08-22** |
+| **An event closer than its own invitation lead dispatches immediately, and the panel says so**             | `locked`                      | Brian, 2026-08-22: "if practice happens in 2 days and we're approving and we're sending it out, that needs to go out now, right? It should say that"                                           | **Settled 2026-08-22** |
+| **Invitation lead per event type**                                                                         | `locked`                      | Brian, 2026-08-22: "invitation per thing is fine for now." Game 14 days · Social 10 · Practice, S&C, Chalk, Recruitment, Meeting 5. "For now" is recorded — the values are revisitable at `W7` | **Settled 2026-08-22** |
+| **Minimum gap between rungs**                                                                              | `proposed for owner approval` | Brian preferred 24 hours on 2026-08-22, then reopened the compression timeline on 2026-08-24. W7 must settle the revised rule                                                                  | **Deferred to `W7`**   |
+| **The unreachable are named before approval, not discovered after**                                        | `locked`                      | Brian, 2026-08-22: "if somebody is truly unreachable, their WhatsApp is not working, or it's something that should be alerted"                                                                 | **Settled 2026-08-22** |
+| **An unreachable person is alerted, not merely listed**                                                    | `proposed for owner approval` | Raised by Brian at `W1` and belonging to `W6`, which owns delivery health. `W1` names them at the moment of approval; the standing alert is specified where failures are handled               | **Deferred to `W6`**   |
+| **The ladder** — how many reminders and at what offsets                                                    | `proposed for owner approval` | Recommended: two reminders, at 48 and 24 hours before the deadline. Task 03 permits 0–3. It is the same policy question as compression, so it travels with it                                  | **Deferred to `W7`**   |
+| **Compression rules**                                                                                      | `proposed for owner approval` | The earlier drop-and-gap shape is not approved. Brian, 2026-08-24: "If it's compressed, the compression timeline should be done a little bit differently. We'll just have to work that out"    | **Deferred to `W7`**   |
+| **The RSVP response deadline per type**                                                                    | `proposed for owner approval` | Values exist and are owner-set (2026-08-13). Brian, 2026-08-22, wants them revisited with more detail alongside the rest of the schedule                                                       | **Deferred to `W7`**   |
+| The plan is read-only at approval; values are per type, not per event                                      | `proposed for owner approval` | LAN-77 explicitly withholds a per-event override. Brian has asked for more customisation, which is the same question as `W7`'s configurability                                                 | **Deferred to `W7`**   |
+| **The default is WhatsApp message 1 → WhatsApp message 2 → email → follow-up escalation to the President** | `locked`                      | Brian, 2026-08-24, revising the first W1 mockup                                                                                                                                                | **Settled 2026-08-24** |
+| **There are no quiet hours**                                                                               | `locked`                      | Brian, 2026-08-24: "There is no such thing as quiet hours"                                                                                                                                     | **Settled 2026-08-24** |
+| **A missing WhatsApp route is an error whose handling belongs to W6**                                      | `locked`                      | Brian, 2026-08-24: "Every user should have WhatsApp. That should be treated as an error, though. That's not handled here"                                                                      | **Settled 2026-08-24** |
+| An unconfigured event type refuses rather than inheriting a default                                        | `locked`                      | ADR 0021's pattern, restated in Task 03 §4.2 — "no default arm"                                                                                                                                | Settled                |
+| Exact panel layout, wording and how the plan condenses at 375px                                            | `delegated to Mission Lead`   | Presentation within the approved content and the mockup standards                                                                                                                              | Delegated              |
 
 ## Brian approval
 
-- **Exact words:** "Then it's approved. Go make the mockup."
-- **Date:** 2026-08-24
+- **Prior approval, now reopened:** "Then it's approved. Go make the mockup."
+  (2026-08-24)
+- **Reopened because:** Brian added a second WhatsApp message and moved the plan
+  into a full-page dropdown during mockup review.
+- **Current approval:** Pending review of this narrow revision.
