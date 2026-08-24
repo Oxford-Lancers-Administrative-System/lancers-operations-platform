@@ -1,6 +1,5 @@
 "use client";
 
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -19,7 +18,6 @@ import {
 import {
   fromTemplateChip,
   labelFor,
-  NO_QUESTIONS_YET,
   QUESTIONS_FORM_DETAIL,
   QUESTIONS_HEADLINE,
 } from "./presentation";
@@ -140,11 +138,12 @@ export default function QuestionEditor({
           </Typography>
         </Box>
 
-        {questions.length === 0 ? (
-          <Alert severity="info" icon={false} data-testid="no-questions">
-            {NO_QUESTIONS_YET}
-          </Alert>
-        ) : null}
+        {/*
+          C4. There was filler here — "Nothing extra is asked. Add a
+          question if this event needs one." — and Brian's reaction was
+          "I hate extra text like this." The Add a question control below
+          already says what to do; an empty list needs nothing above it.
+        */}
 
         <Stack component="ol" spacing={2} sx={{ listStyle: "none", p: 0, m: 0 }}>
           {questions.map((question, index) => {

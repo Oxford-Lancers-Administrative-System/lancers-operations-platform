@@ -1,4 +1,4 @@
-import { addDays } from "./calendar";
+import { addDays, weekdayOf } from "./calendar";
 
 /**
  * How the event list breaks the season up. LAN-153, `REQ-list-shape`.
@@ -103,15 +103,25 @@ const BUCKET_LABELS: Readonly<Record<BucketKey, string>> = Object.freeze({
  * The buckets partition what is in view — an event lands in the first one it
  * qualifies for — so a period is expressed as *which of them are open* rather
  * than as a second set of date arithmetic that could disagree with the first.
+ * `periodBounds` decides *which events reach this step at all*; this decides
+ * only how the ones that do are grouped, so a table this period does not open
+ * never receives an event even if that event's forward-distance category
+ * would otherwise match it.
  *
- * `soon` is fourteen days wide on every period including **This week**, which is
- * what the approved mockup draws: its caption is "This week and next", and a
- * seven-day bucket labelled that way would be worse than a fourteen-day one.
+ * `soon` is fourteen days wide on every period that reaches that far forward,
+ * which is what the approved mockup draws: its caption is "This week and
+ * next", and a seven-day bucket labelled that way would be worse than a
+ * fourteen-day one.
+ *
+ * C7/Q-18 opened `already_happened` on **This week**, **This month** and
+ * **This term** too, each bounded by that period's own `periodBounds` start —
+ * a period now shows the part of itself already past, and this is where it is
+ * grouped, in the same trailing position **All events** already used.
  */
 const PERIOD_BUCKETS: Readonly<Record<EventPeriod, readonly BucketKey[]>> = Object.freeze({
-  week: Object.freeze(["soon"] as const),
-  month: Object.freeze(["soon", "later_this_month"] as const),
-  term: Object.freeze(["soon", "later_this_month", "later_this_term"] as const),
+  week: Object.freeze(["soon", "already_happened"] as const),
+  month: Object.freeze(["soon", "later_this_month", "already_happened"] as const),
+  term: Object.freeze(["soon", "later_this_month", "later_this_term", "already_happened"] as const),
   upcoming: Object.freeze([
     "soon",
     "later_this_month",
@@ -138,6 +148,69 @@ function endOfMonth(day: string): string {
   return `${day.slice(0, 7)}-${`${last}`.padStart(2, "0")}`;
 }
 
+/** The first day of the calendar month `day` falls in. */
+function startOfMonth(day: string): string {
+  return `${day.slice(0, 7)}-01`;
+}
+
+/** The Monday of the calendar week `day` falls in, or `day` unchanged if it will not parse. */
+function startOfWeek(day: string): string {
+  const weekday = weekdayOf(day);
+  if (weekday === null) return day;
+  // `weekdayOf` is 0 (Sunday) through 6 (Saturday); Monday is the 1 that this
+  // maps to a 0-length step back, and Sunday is the 6-day step this club's
+  // week — Monday to Sunday — treats as its own last day, not its first.
+  const daysSinceMonday = (weekday + 6) % 7;
+  return addDays(day, -daysSinceMonday) ?? day;
+}
+
+/**
+ * C7 and mission question Q-18: the calendar boundaries each period names,
+ * `null` standing for "no boundary on this side".
+ *
+ * This is the whole of the fix. The old bucketing anchored every period at
+ * today and only ever looked forward — "This week" was `addDays(today, 13)`,
+ * a rolling fortnight with no Monday in it anywhere, and every period
+ * silently dropped the part of itself that had already happened. Q-18 is
+ * explicit that each period is its own fixed stretch of the calendar,
+ * including the days in it that are already past:
+ *
+ *   - **This week** — Monday to Sunday of the week containing today.
+ *   - **This month** — the 1st to the last day of the current calendar month.
+ *   - **This term** — the Oxford segment's (term's) own first to last day.
+ *   - **All upcoming** — today forward, no end.
+ *   - **All events** — every event the club has, no boundary at all.
+ *
+ * `segmentStartsOn`/`segmentEndsOn` come from the same built academic year the
+ * Oxford View draws, so "This term" here and "this term" there cannot drift —
+ * the same reasoning `BucketOptions.segmentEndsOn` already gives for the end.
+ */
+export function periodBounds(
+  period: EventPeriod,
+  today: string,
+  segment: { startsOn: string | null; endsOn: string | null },
+): { startsOn: string | null; endsOn: string | null } {
+  switch (period) {
+    case "week":
+      return { startsOn: startOfWeek(today), endsOn: addDays(startOfWeek(today), 6) ?? today };
+    case "month":
+      return { startsOn: startOfMonth(today), endsOn: endOfMonth(today) };
+    case "term":
+      // Deep in a vacation with no term configured for it, "This term" has
+      // nothing to mean — the old bucketing left `later_this_term` empty for
+      // exactly this case, by the same `segmentEndsOn === null` gate this
+      // mirrors. An inverted range (`endsOn` the day before `startsOn`)
+      // matches no `day` at all, on either side of the two checks below.
+      return segment.startsOn === null || segment.endsOn === null
+        ? { startsOn: today, endsOn: addDays(today, -1) ?? today }
+        : { startsOn: segment.startsOn, endsOn: segment.endsOn };
+    case "upcoming":
+      return { startsOn: today, endsOn: null };
+    case "all":
+      return { startsOn: null, endsOn: null };
+  }
+}
+
 /** What a bucketed event has to carry. Both tiers' list entries satisfy it. */
 export interface DatedEvent {
   scheduledOn: string | null;
@@ -147,6 +220,11 @@ export interface BucketOptions {
   /** Today in the club's zone, `YYYY-MM-DD`. */
   today: string;
   period: EventPeriod;
+  /**
+   * The first day of the Oxford segment today falls in, or `null` when today
+   * is in no configured segment. Paired with `segmentEndsOn` below.
+   */
+  segmentStartsOn: string | null;
   /**
    * The last day of the Oxford segment today falls in, or `null` when today is
    * in no configured segment.
@@ -166,13 +244,29 @@ export interface BucketOptions {
  * not render an empty table above a full one — the page distinguishes "nothing
  * this period" from "nothing this season" itself, which `slice-ux.md` § 9
  * requires and an empty table would blur.
+ *
+ * ## Two separate questions, in two separate passes
+ *
+ * `periodBounds` decides *whether* an event is in view at all — the fixed
+ * calendar stretch Q-18 names, past included. Once an event has passed that
+ * gate, a second and unrelated question decides *which table* it renders
+ * in: how far its date sits from today, forward or back, on the same
+ * fourteen-day/calendar-month/term scale every period shares. Collapsing
+ * these into one pass — as the pre-C7 code did, testing `day < today` as
+ * both the inclusion rule and the grouping rule at once — is exactly how a
+ * period came to mean "today forward" everywhere rather than only on
+ * **All upcoming**, where Q-18 says it should.
  */
 export function bucketEventsByPeriod<T extends DatedEvent>(
   events: readonly T[],
   options: BucketOptions,
 ): PeriodBucket<T>[] {
-  const { today, period, segmentEndsOn } = options;
+  const { today, period, segmentStartsOn, segmentEndsOn } = options;
   const open = PERIOD_BUCKETS[period];
+  const bounds = periodBounds(period, today, {
+    startsOn: segmentStartsOn,
+    endsOn: segmentEndsOn,
+  });
 
   const soonEnds = addDays(today, SOON_DAYS - 1) ?? today;
   const monthEnds = endOfMonth(today);
@@ -197,12 +291,23 @@ export function bucketEventsByPeriod<T extends DatedEvent>(
       continue;
     }
 
+    // Pass one: is this date inside the period's own calendar stretch at
+    // all? A period with no boundary on a side (`null`) never excludes on
+    // that side.
+    if (bounds.startsOn !== null && day < bounds.startsOn) continue;
+    if (bounds.endsOn !== null && day > bounds.endsOn) continue;
+
     if (day < today) {
-      if (open.includes("already_happened")) put("already_happened", event);
+      // Pass two, past branch: in view, and already happened. Every period
+      // that reaches into the past — which is every period except **All
+      // upcoming**, whose own `periodBounds.startsOn` is today — opens this
+      // table, grouped the same way **All events** always grouped it.
+      put("already_happened", event);
       continue;
     }
 
-    // First match wins, so the buckets partition rather than overlap.
+    // Pass two, forward branch: first match wins, so the buckets partition
+    // rather than overlap.
     let key: BucketKey;
     if (day <= soonEnds) key = "soon";
     else if (day <= monthEnds) key = "later_this_month";

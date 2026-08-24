@@ -34,6 +34,7 @@ import {
   TEMPLATE_DISCARD_ACTION,
   TEMPLATE_DURATION_HELP,
   TEMPLATE_DURATION_LABEL,
+  TEMPLATE_DURATION_OPTIONS,
   TEMPLATE_EVENT_HEADLINE,
   TEMPLATE_QUESTIONS_DETAIL,
   TEMPLATE_QUESTIONS_HEADLINE,
@@ -138,6 +139,19 @@ export default function TemplateEditor({
   const confirming =
     state.phase === "confirming" && state.plan !== null && state.plan !== dismissed;
   const busy = previewing || saving;
+
+  /**
+   * C6's off-grid case: a template saved before the eight-option grid existed
+   * can hold a duration that is not one of them. A `select` refuses to show a
+   * value that is not one of its own options, and snapping it to the nearest
+   * one would silently change what the template means, so this becomes a
+   * ninth `MenuItem`, truthfully labelled, only while it is what is selected
+   * — choosing any of the eight makes it disappear.
+   */
+  const offGridDuration =
+    duration !== "" && !TEMPLATE_DURATION_OPTIONS.includes(Number(duration))
+      ? Number(duration)
+      : null;
 
   function toggleGroup(key: AudienceGroupKey) {
     setSelected((current) =>
@@ -271,24 +285,39 @@ export default function TemplateEditor({
                 D78. A duration, not a start time — "the name is always going to
                 be unique ... Usual time doesn't make any sense to me" (Brian,
                 2026-08-21). A type recurs; a particular Wednesday does not.
+
+                C6. Brian: "In the template, the default times should be done
+                in 30-minute increments between 30 minutes and 4 hours ... It
+                shouldn't be freeform text." Eight options, each labelled by
+                the same `describeDuration` the template list and the
+                confirmation dialog already use — see `offGridDuration` above
+                for the one existing-template case a fixed grid has to answer.
               */}
               <TextField
+                select
                 label={TEMPLATE_DURATION_LABEL}
                 name="defaultDurationMinutes"
                 data-field="defaultDurationMinutes"
                 value={duration}
                 onChange={(event) => setDuration(event.target.value)}
                 error={Boolean(issueFor(state, "defaultDurationMinutes"))}
-                helperText={
-                  issueFor(state, "defaultDurationMinutes") ??
-                  (duration === ""
-                    ? TEMPLATE_DURATION_HELP
-                    : `${describeDuration(Number(duration))} — ${TEMPLATE_DURATION_HELP}`)
-                }
+                helperText={issueFor(state, "defaultDurationMinutes") ?? TEMPLATE_DURATION_HELP}
                 disabled={busy}
-                slotProps={{ inputLabel: { shrink: true }, htmlInput: { inputMode: "numeric" } }}
+                slotProps={{ inputLabel: { shrink: true } }}
                 fullWidth
-              />
+              >
+                <MenuItem value="">Not set</MenuItem>
+                {offGridDuration !== null ? (
+                  <MenuItem value={String(offGridDuration)}>
+                    {describeDuration(offGridDuration)}
+                  </MenuItem>
+                ) : null}
+                {TEMPLATE_DURATION_OPTIONS.map((minutes) => (
+                  <MenuItem key={minutes} value={String(minutes)}>
+                    {describeDuration(minutes)}
+                  </MenuItem>
+                ))}
+              </TextField>
 
               <TextField
                 label="Required equipment"

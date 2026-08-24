@@ -311,14 +311,14 @@ describe("W8-02 — one template", () => {
     expect(text).not.toContain("reminder");
   });
 
-  it("asks for a default length in minutes, not a start time", async () => {
+  it("asks for a default length as a fixed field, not a start time", async () => {
     const { container } = render(await EventTemplatePage(typeProps()));
 
     expect(container.querySelector('input[name="defaultDurationMinutes"]')).not.toBeNull();
     expect(flatten(container.textContent)).toContain("Default length");
   });
 
-  it("reads back a length in the club's words as it is typed", async () => {
+  it("reads back a saved length in the club's words", async () => {
     render(
       <TemplateEditor
         eventType="practice"
@@ -330,6 +330,107 @@ describe("W8-02 — one template", () => {
     );
 
     expect(flatten(document.body.textContent)).toContain("2 hours");
+  });
+
+  // C6: "the default times should be done in 30-minute increments between 30
+  // minutes and 4 hours ... It shouldn't be freeform text."
+  describe("C6 — the default length is a fixed choice, not freeform text", () => {
+    function openDurationMenu() {
+      fireEvent.mouseDown(screen.getByRole("combobox", { name: "Default length" }));
+    }
+
+    it("offers exactly the eight 30-minute-to-4-hour options, worded in hours and minutes", async () => {
+      render(
+        <TemplateEditor
+          eventType="practice"
+          eventTypeLabel="Practice"
+          initial={{}}
+          initialQuestions={[]}
+          groups={groupsForEventType("practice")}
+        />,
+      );
+
+      openDurationMenu();
+
+      const labels = screen.getAllByRole("option").map((option) => flatten(option.textContent));
+      expect(labels).toEqual([
+        "Not set",
+        "30 minutes",
+        "1 hour",
+        "1 hour 30 minutes",
+        "2 hours",
+        "2 hours 30 minutes",
+        "3 hours",
+        "3 hours 30 minutes",
+        "4 hours",
+      ]);
+    });
+
+    it("posts the minutes the chosen words mean", async () => {
+      const { container } = render(
+        <TemplateEditor
+          eventType="practice"
+          eventTypeLabel="Practice"
+          initial={{}}
+          initialQuestions={[]}
+          groups={groupsForEventType("practice")}
+        />,
+      );
+
+      openDurationMenu();
+      fireEvent.click(screen.getByRole("option", { name: "1 hour 30 minutes" }));
+
+      expect(
+        container.querySelector<HTMLInputElement>('input[name="defaultDurationMinutes"]')?.value,
+      ).toBe("90");
+    });
+
+    // A template saved before this eight-option grid existed can hold a
+    // value that is not on it. Snapping it to the nearest option would
+    // silently change what the template means, so it must still be there,
+    // truthfully labelled, rather than blank or rounded off.
+    it("keeps and truthfully labels an existing off-grid value, rather than snapping it", async () => {
+      const { container } = render(
+        <TemplateEditor
+          eventType="practice"
+          eventTypeLabel="Practice"
+          initial={{ defaultDurationMinutes: "75" }}
+          initialQuestions={[]}
+          groups={groupsForEventType("practice")}
+        />,
+      );
+
+      expect(
+        container.querySelector<HTMLInputElement>('input[name="defaultDurationMinutes"]')?.value,
+      ).toBe("75");
+      expect(flatten(document.body.textContent)).toContain("1 hour 15 minutes");
+
+      // And it is offered as a ninth choice rather than hidden.
+      openDurationMenu();
+      const labels = screen.getAllByRole("option").map((option) => flatten(option.textContent));
+      expect(labels).toContain("1 hour 15 minutes");
+      expect(labels).toHaveLength(10);
+    });
+
+    it("drops the off-grid option once the operator picks one of the eight", async () => {
+      const { container } = render(
+        <TemplateEditor
+          eventType="practice"
+          eventTypeLabel="Practice"
+          initial={{ defaultDurationMinutes: "75" }}
+          initialQuestions={[]}
+          groups={groupsForEventType("practice")}
+        />,
+      );
+
+      openDurationMenu();
+      fireEvent.click(screen.getByRole("option", { name: "1 hour" }));
+
+      expect(
+        container.querySelector<HTMLInputElement>('input[name="defaultDurationMinutes"]')?.value,
+      ).toBe("60");
+      expect(screen.queryByText("1 hour 15 minutes")).not.toBeInTheDocument();
+    });
   });
 });
 

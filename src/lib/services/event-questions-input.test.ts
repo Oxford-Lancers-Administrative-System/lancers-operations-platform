@@ -187,7 +187,7 @@ describe("how a question reads to the person being asked it", () => {
   });
 
   it("names the type for the other two", () => {
-    expect(describeQuestionAnswer({ answerType: "boolean", choices: null })).toBe("Yes / no");
+    expect(describeQuestionAnswer({ answerType: "boolean", choices: null })).toBe("Yes / No");
     expect(describeQuestionAnswer({ answerType: "text", choices: null })).toBe("Free text");
   });
 

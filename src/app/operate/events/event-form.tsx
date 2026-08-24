@@ -15,6 +15,11 @@ import RadioGroup from "@mui/material/RadioGroup";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { TimePicker } from "@mui/x-date-pickers/TimePicker";
+import { enGB } from "date-fns/locale/en-GB";
 import {
   deriveTermCoordinate,
   DRAFTABLE_EVENT_TYPES,
@@ -25,6 +30,12 @@ import { endTimeFromStart } from "@/lib/services/event-template-input";
 import type { RawEventQuestion } from "@/lib/services/event-questions-input";
 import type { EventTypeFormDefaults } from "@/lib/services/event-template-input";
 import { createEventDraftAction, updateEventDraftAction } from "./actions";
+import {
+  dateFromScheduledOn,
+  dateFromTimeString,
+  scheduledOnFromDate,
+  timeStringFromDate,
+} from "./date-time-controls";
 import { EMPTY_FORM_STATE, type EventFormState } from "./form-state";
 import QuestionEditor from "./question-editor";
 import VenueField from "./venue-field";
@@ -111,15 +122,22 @@ const SCHEDULED_ON_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
  * Whether `scheduledOn` is a `YYYY-MM-DD` that `formatLongDate` can safely
  * turn into a sentence.
  *
- * W154C-F1: the date `TextField` renders in the browser's locale (D86), and
- * Chrome's segmented date editor lets an operator land on a value like
- * `20261-12-11` mid-edit — a five-digit year that is neither empty nor a
- * parseable date. `scheduledOn === ""` let everything else through to
- * `formatLongDate`, which only guards falsy input, so `Intl.DateTimeFormat`
- * threw on the resulting `Invalid Date` and took the whole form with it. This
- * checks the shape the derivation and the formatter both need, so the
- * derived-term alert falls back to its placeholder for any in-progress or
- * malformed value rather than only an empty one.
+ * W154C-F1: the date field used to be a native `<input type="date">`, which
+ * renders in the browser's locale (D86) and let Chrome's segmented editor
+ * land on a value like `20261-12-11` mid-edit — a five-digit year that is
+ * neither empty nor a parseable date. `scheduledOn === ""` let everything
+ * else through to `formatLongDate`, which only guards falsy input, so
+ * `Intl.DateTimeFormat` threw on the resulting `Invalid Date` and took the
+ * whole form with it.
+ *
+ * C1 replaced that native control with MUI X's `DatePicker`, whose field
+ * validates its own sections and only ever calls back with a complete,
+ * in-range `Date` or `null` — so the five-digit-year shape this guards
+ * against can no longer reach `scheduledOn` from the picker itself. The guard
+ * stays anyway: `scheduledOn` also arrives from a rejected submission's
+ * `state.values`, a path this function does not control, and the derived-term
+ * alert should fall back to its placeholder for any in-progress or malformed
+ * value on that path too rather than only an empty one.
  */
 function isFormattableScheduledOn(candidate: string): boolean {
   if (!SCHEDULED_ON_PATTERN.test(candidate)) return false;
@@ -191,7 +209,23 @@ export default function EventForm({
   };
 
   const [eventType, setEventType] = useState(startingType);
-  const [scheduledOn, setScheduledOn] = useState(value("scheduledOn"));
+  /**
+   * C1. `scheduledOn` (the `YYYY-MM-DD` the server action and the rest of
+   * this component read) is *derived* from this Date, never the other way
+   * round. `DatePicker` is controlled, and its field fires `onChange` with a
+   * genuine, if provisional, `Date` the instant the year section holds even
+   * one digit — a day and month already typed plus a year of "2" is a real
+   * 0002-08-24. Round-tripping that through `scheduledOn` and back on every
+   * keystroke works until the field's own display keeps building a year the
+   * string briefly could not represent consistently; keeping the `Date`
+   * itself as the source of truth and only ever handing the field back
+   * exactly what it just gave us sidesteps the mismatch entirely, at the
+   * cost of one extra piece of state.
+   */
+  const [scheduledOnDate, setScheduledOnDate] = useState<Date | null>(() =>
+    dateFromScheduledOn(value("scheduledOn")),
+  );
+  const scheduledOn = scheduledOnFromDate(scheduledOnDate);
   const [startsAt, setStartsAt] = useState(value("startsAt"));
   const [endsAt, setEndsAt] = useState(value("endsAt"));
   const [endTouched, setEndTouched] = useState(value("endsAt") !== "");
@@ -343,64 +377,95 @@ export default function EventForm({
               ))}
             </TextField>
 
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <TextField
-                label="Date"
-                name="scheduledOn"
-                data-field="scheduledOn"
-                type="date"
-                value={scheduledOn}
-                onChange={(event) => setScheduledOn(event.target.value)}
-                error={Boolean(issueFor(state, "scheduledOn"))}
-                helperText={
-                  issueFor(state, "scheduledOn") ??
-                  "A draft may have no date yet. Approval will require one."
-                }
-                slotProps={{ inputLabel: { shrink: true } }}
-                fullWidth
-              />
-              <TextField
-                label="Start"
-                name="startsAt"
-                data-field="startsAt"
-                type="time"
-                value={startsAt}
-                onChange={(event) => changeStart(event.target.value)}
-                error={Boolean(issueFor(state, "startsAt"))}
-                helperText={
-                  issueFor(state, "startsAt") ?? `24-hour clock, five-minute steps, e.g. 20:00.`
-                }
-                slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }}
-                fullWidth
-              />
-              <TextField
-                label="End"
-                name="endsAt"
-                data-field="endsAt"
-                type="time"
-                value={endsAt}
-                onChange={(event) => {
-                  setEndTouched(true);
-                  setEndsAt(event.target.value);
-                }}
-                error={Boolean(issueFor(state, "endsAt"))}
-                helperText={
-                  issueFor(state, "endsAt") ??
-                  (template?.durationMinutes !== null && template !== undefined
-                    ? "Follows the start; adjust it."
-                    : "Must be after the start.")
-                }
-                slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }}
-                fullWidth
-              />
-            </Stack>
+            {/*
+              C1 + C2. A native `<input type="date">`/`<input type="time">`
+              renders in the browser/OS locale and ignores the page — that is
+              what put an American mm/dd/yyyy date picker and a 12-hour clock
+              in front of an operator who typed a British one, and is the root
+              cause of W154C-F1's crash. MUI X's `DatePicker`/`TimePicker`
+              draw their own field rather than delegating to the OS, so
+              `format`, `ampm={false}` and the five-minute step hold no matter
+              what the browser or OS thinks a date or time looks like. Each
+              carries a hidden input for the form post — the visible field
+              shows "24/08/2026"; the value the server action reads is still
+              plain `scheduledOn`/`startsAt`/`endsAt`, exactly as before.
+            */}
+            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={enGB}>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                <Box data-field="scheduledOn" sx={{ flex: 1 }}>
+                  <DatePicker
+                    label="Date"
+                    value={scheduledOnDate}
+                    onChange={(next) => setScheduledOnDate(next)}
+                    format="dd/MM/yyyy"
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        error: Boolean(issueFor(state, "scheduledOn")),
+                        helperText:
+                          issueFor(state, "scheduledOn") ??
+                          "Day, month, year — e.g. 24/08/2026. A draft may have no date yet.",
+                      },
+                    }}
+                  />
+                  <input type="hidden" name="scheduledOn" value={scheduledOn} />
+                </Box>
+                <Box data-field="startsAt" sx={{ flex: 1 }}>
+                  <TimePicker
+                    label="Start"
+                    value={dateFromTimeString(startsAt)}
+                    onChange={(next) => changeStart(timeStringFromDate(next))}
+                    ampm={false}
+                    format="HH:mm"
+                    minutesStep={5}
+                    timeSteps={{ minutes: 5 }}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        error: Boolean(issueFor(state, "startsAt")),
+                        helperText:
+                          issueFor(state, "startsAt") ??
+                          "24-hour clock, five-minute steps, e.g. 20:00.",
+                      },
+                    }}
+                  />
+                  <input type="hidden" name="startsAt" value={startsAt} />
+                </Box>
+                <Box data-field="endsAt" sx={{ flex: 1 }}>
+                  <TimePicker
+                    label="End"
+                    value={dateFromTimeString(endsAt)}
+                    onChange={(next) => {
+                      setEndTouched(true);
+                      setEndsAt(timeStringFromDate(next));
+                    }}
+                    ampm={false}
+                    format="HH:mm"
+                    minutesStep={5}
+                    timeSteps={{ minutes: 5 }}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        error: Boolean(issueFor(state, "endsAt")),
+                        helperText:
+                          issueFor(state, "endsAt") ??
+                          (template?.durationMinutes !== null && template !== undefined
+                            ? "Follows the start; adjust it."
+                            : "Must be after the start."),
+                      },
+                    }}
+                  />
+                  <input type="hidden" name="endsAt" value={endsAt} />
+                </Box>
+              </Stack>
+            </LocalizationProvider>
 
             {/*
-              D86. The date input renders in the browser's locale, so an
-              operator in Oxford can be looking at `mm/dd/yyyy`, and the times
-              carry no zone of their own. Saying which zone these are is the
-              whole of D86 and it is said once, here, beside the three fields it
-              is about.
+              D86. C1/C2 fixed the date and time *format*; neither field says
+              what time zone it is in, and the club has exactly one — none of
+              this trio carries a zone of its own. Saying which zone these are
+              is the whole of D86 and it is said once, here, beside the three
+              fields it is about.
             */}
             <Typography variant="body2" color="text.secondary" data-testid="club-time-zone-note">
               {CLUB_TIME_ZONE_NOTE}

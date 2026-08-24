@@ -14,6 +14,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 vi.mock("server-only", () => ({}));
 const routerPush = vi.fn();
@@ -229,6 +230,33 @@ function editProps() {
 /** Text with runs of whitespace collapsed, so wrapping cannot break a match. */
 function flatten(text: string | null): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * C1/C2 — types digits into one section of a MUI X `DatePicker`/`TimePicker`
+ * field, the way an operator does: click the section, then type.
+ *
+ * The field renders as an accessible `role="group"` (named by its label —
+ * "Date", "Start", "End") holding one `role="spinbutton"` span per section
+ * ("Day", "Hours", …), so `groupLabel` disambiguates the Start and End
+ * TimePickers, which would otherwise both answer to "Hours". Digits fill the
+ * focused section and the field auto-advances, exactly as typing
+ * "24082026" fills Day, Month then Year in that order — which is itself
+ * part of what these tests are proving: a day-first sequence lands as a
+ * day-first date, not a month-first one.
+ */
+async function typeIntoField(groupLabel: string, firstSection: string, digits: string) {
+  const user = userEvent.setup();
+  const group = screen.getByRole("group", { name: groupLabel });
+  within(group).getByRole("spinbutton", { name: firstSection }).focus();
+  await user.keyboard(digits);
+}
+
+/** The raw string a named form control would post — including a hidden one. */
+function valueOf(name: string): string {
+  return (
+    document.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${name}"]`)?.value ?? ""
+  );
 }
 
 /**
@@ -1002,39 +1030,29 @@ describe("UX-31 — creating an event", () => {
 // ---------------------------------------------------------------------------
 
 describe("W154C-F1 — a malformed date does not crash the derived-term alert", () => {
-  // Chrome's segmented `type="date"` editor lets an operator land on a value
-  // like `20261-12-11` — a five-digit year, mid-edit — which is neither empty
-  // nor a parseable date. `formatLongDate` only guards falsy input, so handing
-  // it a value like this threw `RangeError: Invalid time value` and took the
+  // Before C1, the date field was a native `<input type="date">`, and
+  // Chrome's segmented editor let an operator land on a value like
+  // `20261-12-11` — a five-digit year, mid-edit — which is neither empty nor
+  // a parseable date. `formatLongDate` only guards falsy input, so handing it
+  // a value like this threw `RangeError: Invalid time value` and took the
   // whole form down with it. `scheduledOn === ""` was not a narrow enough
-  // guard; this is the input value the walker used to reproduce the crash.
+  // guard; this is the value the walker used to reproduce the crash.
+  //
+  // C1 replaced that control with MUI X's `DatePicker`, whose field validates
+  // each section itself and can no longer be typed into this exact shape —
+  // there is no create-form reproduction of this any more, by construction.
+  // The guard this describes stays in place for the path that remains: a
+  // malformed `scheduledOn` already sitting in stored data, read back on the
+  // edit form.
   const MALFORMED_DATE = "20261-12-11";
 
-  it("on the create form: falls back to the placeholder instead of throwing", async () => {
-    const { container } = render(await NewEventPage(newProps()));
-
-    const dateField = container.querySelector<HTMLInputElement>('input[name="scheduledOn"]');
-    expect(dateField).not.toBeNull();
+  it("on the edit form: falls back to the placeholder instead of throwing", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ scheduledOn: MALFORMED_DATE }));
 
     // If the guard regresses to `scheduledOn === ""`, this line throws inside
     // React's render and the test fails with the RangeError itself, not an
     // assertion mismatch.
-    fireEvent.change(dateField!, { target: { value: MALFORMED_DATE } });
-
-    expect(flatten(screen.getByTestId("derived-term").textContent)).toBe(
-      "Choose a date and the Oxford term and week are worked out from it.",
-    );
-  });
-
-  it("on the edit form: falls back to the placeholder instead of throwing", async () => {
-    vi.mocked(readEvent).mockResolvedValue(detail());
-
-    const { container } = render(await EditEventPage(editProps()));
-
-    const dateField = container.querySelector<HTMLInputElement>('input[name="scheduledOn"]');
-    expect(dateField).not.toBeNull();
-
-    fireEvent.change(dateField!, { target: { value: MALFORMED_DATE } });
+    render(await EditEventPage(editProps()));
 
     expect(flatten(screen.getByTestId("derived-term").textContent)).toBe(
       "Choose a date and the Oxford term and week are worked out from it.",
@@ -2329,12 +2347,18 @@ describe("the questions an event asks are read on its page (amendment W4-A1)", (
     expect(panel).toContain("S · M · L");
   });
 
-  it("says an event asks nothing extra, rather than showing an empty list", async () => {
+  // C4: "Nothing extra is asked. Add a question if this event needs one."
+  // was filler Brian named directly — "I hate extra text like this." The
+  // panel's own heading already says what it is; an event with nothing
+  // extra to ask shows nothing beneath it.
+  it("shows no filler copy for an event that asks nothing extra", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps()));
 
-    expect(screen.getByTestId("no-event-questions")).toBeVisible();
+    expect(screen.queryByTestId("no-event-questions")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nothing extra is asked/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("event-questions")).toBeVisible();
   });
 });
 
@@ -2387,13 +2411,6 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
   function chooseType(label: string) {
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "Type" }));
     fireEvent.click(screen.getByRole("option", { name: label }));
-  }
-
-  function valueOf(name: string): string {
-    return (
-      document.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${name}"]`)?.value ??
-      ""
-    );
   }
 
   it("opens a blank create form on its type's template", async () => {
@@ -2457,9 +2474,7 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
     );
     render(await NewEventPage(newProps()));
 
-    fireEvent.change(document.querySelector('input[name="startsAt"]')!, {
-      target: { value: "20:00" },
-    });
+    await typeIntoField("Start", "Hours", "2000");
 
     expect(valueOf("endsAt")).toBe("22:00");
   });
@@ -2470,14 +2485,48 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
     );
     render(await NewEventPage(newProps()));
 
-    fireEvent.change(document.querySelector('input[name="endsAt"]')!, {
-      target: { value: "21:00" },
-    });
-    fireEvent.change(document.querySelector('input[name="startsAt"]')!, {
-      target: { value: "20:00" },
-    });
+    await typeIntoField("End", "Hours", "2100");
+    await typeIntoField("Start", "Hours", "2000");
 
     expect(valueOf("endsAt")).toBe("21:00");
+  });
+});
+
+describe("C1 + C2 — the date and time controls are day-month-year and 24-hour, not the browser's (D86)", () => {
+  /**
+   * W154C-F1's crash and Brian's C1/C2 findings share one root cause: a
+   * native `<input type="date">`/`<input type="time">` renders in the
+   * browser/OS locale and ignores the page entirely. These prove the
+   * replacement `DatePicker`/`TimePicker` do not — typing a day-first date
+   * and a 24-hour time the way an operator would produces exactly the value
+   * the server action expects, regardless of what locale this machine runs.
+   */
+  it("accepts a day-month-year typed date intact — 24/08/2026 becomes 2026-08-24", async () => {
+    render(await NewEventPage(newProps()));
+
+    // Typed exactly as an operator reading a British date would say it: day,
+    // then month, then year. A month-first control would reject "24" as
+    // month 24 or silently misread the sequence; this one does neither.
+    await typeIntoField("Date", "Day", "24082026");
+
+    expect(valueOf("scheduledOn")).toBe("2026-08-24");
+    // The group's accessible name (its own label, "Date") is a descendant
+    // MUI renders for assistive tech, so this checks the sections read the
+    // day-first sequence back rather than pinning the whole node's text.
+    expect(flatten(screen.getByRole("group", { name: "Date" }).textContent)).toContain(
+      "24/08/2026",
+    );
+  });
+
+  it("accepts a 24-hour time in a five-minute step intact — 20:05 stays 20:05", async () => {
+    render(await NewEventPage(newProps()));
+
+    await typeIntoField("Start", "Hours", "2005");
+
+    expect(valueOf("startsAt")).toBe("20:05");
+    // Not "8:05 PM" and not rounded off the step — the clock the helper text
+    // promises.
+    expect(flatten(screen.getByRole("group", { name: "Start" }).textContent)).toContain("20:05");
   });
 });
 

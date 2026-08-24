@@ -169,6 +169,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
   const buckets = bucketEventsByPeriod(list.events, {
     today,
     period: query.period,
+    segmentStartsOn: year?.currentSegmentStartsOn ?? null,
     segmentEndsOn: year?.currentSegmentEndsOn ?? null,
   });
 

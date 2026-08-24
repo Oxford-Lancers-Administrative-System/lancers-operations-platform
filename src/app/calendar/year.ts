@@ -37,6 +37,13 @@ export interface EventYear {
   /** The segment holding today, for the jump control's initial value. */
   currentSegmentKey: string;
   /**
+   * The first day of the segment holding today, or `null` when today is in
+   * none. Paired with `currentSegmentEndsOn`; together, what the list's
+   * **This term** period means (C7/Q-18) — the segment's own start, not
+   * today.
+   */
+  currentSegmentStartsOn: string | null;
+  /**
    * The last day of the segment holding today, or `null` when today is in none.
    * What the list's **This term** bucket means.
    */
@@ -106,6 +113,7 @@ export async function readEventYear(
     column,
     segments: column.segments.map((segment) => ({ key: segment.key, label: segment.jumpLabel })),
     currentSegmentKey: today?.key ?? column.segments[0]?.key ?? "",
+    currentSegmentStartsOn: today?.startsOn ?? null,
     currentSegmentEndsOn: today?.endsOn ?? null,
     coordinateLabel: (scheduledOn: string | null) => {
       const coordinate = yearCoordinateOf(column, scheduledOn);

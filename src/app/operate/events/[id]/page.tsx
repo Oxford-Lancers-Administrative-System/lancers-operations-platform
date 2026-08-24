@@ -90,7 +90,6 @@ import {
   INCOMPLETE_EVENT_HEADLINE,
   joinWithAnd,
   NO_AUDIENCE_YET,
-  NO_QUESTIONS_YET,
   QUESTIONS_HEADLINE,
   QUESTIONS_REVIEW_DETAIL,
   RSVP_FIRST_QUESTION,
@@ -990,11 +989,14 @@ function EventDetailView({
           <Typography variant="h6" component="h2">
             {QUESTIONS_HEADLINE}
           </Typography>
-          {questions.length === 0 ? (
-            <Typography variant="body2" color="text.secondary" data-testid="no-event-questions">
-              {NO_QUESTIONS_YET}
-            </Typography>
-          ) : (
+          {/*
+            C4. There was filler here — "Nothing extra is asked. Add a
+            question if this event needs one." — and Brian's reaction was
+            "I hate extra text like this." The heading above already says
+            what this panel is; an event with nothing extra to ask says so by
+            showing nothing.
+          */}
+          {questions.length === 0 ? null : (
             <QuestionList questions={questions} leadWithRsvp={false} testId="event-question-list" />
           )}
         </Stack>

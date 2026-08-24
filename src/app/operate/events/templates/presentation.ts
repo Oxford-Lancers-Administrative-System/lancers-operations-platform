@@ -1,5 +1,5 @@
 import { describeQuestionCount } from "@/lib/services/event-questions-input";
-import { describeDuration } from "@/lib/services/event-template-input";
+import { describeDuration, TEMPLATE_DURATION_OPTIONS } from "@/lib/services/event-template-input";
 import { DELIVERY_MODE_LABELS, labelFor, TYPE_LABELS } from "../presentation";
 
 /**
@@ -11,7 +11,13 @@ import { DELIVERY_MODE_LABELS, labelFor, TYPE_LABELS } from "../presentation";
  * test does.
  */
 
-export { describeDuration, describeQuestionCount, labelFor, TYPE_LABELS };
+export {
+  describeDuration,
+  describeQuestionCount,
+  labelFor,
+  TEMPLATE_DURATION_OPTIONS,
+  TYPE_LABELS,
+};
 
 export const TEMPLATES_HEADLINE = "Event templates";
 
@@ -80,8 +86,7 @@ export const TEMPLATE_DISCARD_ACTION = "Discard";
 /** The default-length field, which is a duration and never a start time. */
 export const TEMPLATE_DURATION_LABEL = "Default length";
 
-export const TEMPLATE_DURATION_HELP =
-  "In minutes. Entering a start on an event fills the end in from this.";
+export const TEMPLATE_DURATION_HELP = "Entering a start on an event fills the end in from this.";
 
 // ---------------------------------------------------------------------------
 // W8-03 — what the change will touch, before it touches it

@@ -39,10 +39,16 @@ export const QUESTION_ANSWER_TYPES: readonly QuestionAnswerType[] = Object.freez
   "choice",
 ]);
 
-/** D66, in the club's words rather than the schema's. */
+/**
+ * D66, in the club's words rather than the schema's.
+ *
+ * C5, Brian on the screenshot: "the 'no' and 'yes' or 'no' need to be
+ * capitalized." "Yes / No" reads as one label with two options, each
+ * capitalised the same way "Free text" and "Pick from a list" already are.
+ */
 export const QUESTION_ANSWER_TYPE_LABELS: Readonly<Record<string, string>> = Object.freeze({
   text: "Free text",
-  boolean: "Yes / no",
+  boolean: "Yes / No",
   choice: "Pick from a list",
 });
 

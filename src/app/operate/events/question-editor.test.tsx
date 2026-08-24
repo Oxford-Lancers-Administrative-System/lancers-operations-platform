@@ -81,10 +81,15 @@ describe("adding a question", () => {
     expect(posted("questionPrompt")).toEqual(["Need a lift?"]);
   });
 
-  it("says what an event with no questions is, rather than showing an empty list", () => {
+  // C4: "Nothing extra is asked. Add a question if this event needs one."
+  // was filler Brian named directly — "I hate extra text like this." — and
+  // "Add a question" already says what to do.
+  it("shows no filler copy for an empty list — the Add a question control already says what to do", () => {
     render(<Harness />);
 
-    expect(screen.getByTestId("no-questions")).toBeVisible();
+    expect(screen.queryByTestId("no-questions")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nothing extra is asked/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("add-question")).toBeVisible();
   });
 });
 
@@ -198,7 +203,7 @@ describe("the three answer types (D66)", () => {
     render(<Harness initial={[question({ answerType: "choice", choices: "S, M" })]} />);
 
     fireEvent.mouseDown(within(cards()[0]).getByRole("combobox", { name: "Answer" }));
-    fireEvent.click(screen.getByRole("option", { name: "Yes / no" }));
+    fireEvent.click(screen.getByRole("option", { name: "Yes / No" }));
 
     expect(screen.queryByRole("textbox", { name: /Options/ })).toBeNull();
     expect(posted("questionAnswerType")).toEqual(["boolean"]);

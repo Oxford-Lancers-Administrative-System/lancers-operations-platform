@@ -314,9 +314,6 @@ export function fromTemplateChip(eventTypeLabel: string): string {
   return `${FROM_TEMPLATE_CHIP_PREFIX} ${eventTypeLabel} template`;
 }
 
-/** The empty state, which says what to do rather than what is absent. */
-export const NO_QUESTIONS_YET = "Nothing extra is asked. Add a question if this event needs one.";
-
 // ---------------------------------------------------------------------------
 // Deleting a draft — REQ-delete-draft, D29
 // ---------------------------------------------------------------------------

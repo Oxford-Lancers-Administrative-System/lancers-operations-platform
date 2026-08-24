@@ -189,6 +189,24 @@ export function describeDuration(minutes: number | null): string {
 }
 
 /**
+ * C6. Brian: "the default times should be done in 30-minute increments
+ * between 30 minutes and 4 hours ... It shouldn't be freeform text." Eight
+ * options, each a multiple of 30 minutes; `describeDuration` is what labels
+ * each one in the editor's select, so the wording can never drift from what
+ * the template list and the confirmation dialog already say for the same
+ * number.
+ *
+ * This is the editor's offered grid, not the model's limit — validation
+ * still accepts any five-minute step from `MIN_TEMPLATE_DURATION_MINUTES` to
+ * `MAX_TEMPLATE_DURATION_MINUTES`, unchanged, because a template saved before
+ * this grid existed may hold a value that is not on it, and must go on
+ * meaning exactly what it always meant.
+ */
+export const TEMPLATE_DURATION_OPTIONS: readonly number[] = Object.freeze([
+  30, 60, 90, 120, 150, 180, 210, 240,
+]);
+
+/**
  * The end time a start implies, given a default length (D78).
  *
  * Pure and string-in/string-out, so the browser can fill the End field as the
