@@ -115,15 +115,45 @@ a notice and skips cleanly rather than failing red.
 
 ## Secrets
 
-Two server-only values, and they are **different credentials with different
-reach**. Both live in **Secret Manager** and are injected into the Cloud Run
-revision at runtime (`--set-secrets`). Neither is baked into the image, present
-in the workflow environment, or in the repository.
+Three server-only values, and the first two are **different credentials with
+different reach**. All live in **Secret Manager** and are injected into the
+Cloud Run revision at runtime (`--set-secrets`). None is baked into the image,
+present in the workflow environment, or in the repository.
 
 | Variable              | Secret Manager id     | What it is                                                                                                                                                                                                 | Status                            |
 | --------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | `SUPABASE_SECRET_KEY` | `supabase-secret-key` | Presented to the Data API. PostgREST connects as `authenticator`, switches to `service_role`. Bypasses RLS.                                                                                                | **Provisioned**                   |
 | `DATABASE_URL`        | `database-url`        | Direct PostgreSQL connection for the service layer's transactions. A PostgreSQL login in its own right — a **second** privileged credential, scoped by ADR 0026 to reach exactly as far as `service_role`. | **Owner-provisioned. See below.** |
+| `CLUB_LINK_SECRET`    | `club-link-secret`    | Signs the club link (LAN-157, D81). Not a database credential and reaches no data: it can only produce and verify one event's share token.                                                                 | **Owner-provisioned. See below.** |
+
+### `CLUB_LINK_SECRET`
+
+An operator issues one link per event and shares it with the squad; anybody
+holding it sees who was asked, what they said and who turned up, without an
+account. The link is **signed rather than guessable**: the token is
+`HMAC-SHA256(CLUB_LINK_SECRET, "club-link:v1:<event>:<link row>")`, and
+`club_link_tokens` stores only its SHA-256 digest, so this value is the only
+thing that can produce a valid one.
+
+**A missing value is a refusal, not a default.** Without it the share control
+says the deployment cannot issue a link and names the setting; nothing is
+created, and no link is signed with a fallback. Everything else on the event
+page works. Provision it with:
+
+```bash
+printf '%s' "$(openssl rand -hex 32)" | gcloud secrets create club-link-secret --data-file=- --replication-policy=automatic
+gcloud secrets add-iam-policy-binding club-link-secret --member="serviceAccount:$(gcloud run services describe lancers-operations-platform --region europe-west2 --format='value(spec.template.spec.serviceAccountName)')" --role=roles/secretmanager.secretAccessor
+```
+
+then add `CLUB_LINK_SECRET=club-link-secret:latest` to the revision's
+`--set-secrets`.
+
+**Rotating it invalidates every club link already shared**, because the tokens
+are derived from it rather than stored. That is a deliberate act — the way to
+withdraw every link at once — and not a routine one.
+
+Locally there is nothing to do: `npm run db:start` generates a machine-local key
+outside the repository and writes it into `.env.local`.
 
 **`DATABASE_URL` is required.** The service layer is the only path to domain
 data, so a revision without it serves pages and fails on the first write. The

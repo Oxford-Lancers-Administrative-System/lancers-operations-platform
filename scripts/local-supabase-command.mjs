@@ -10,6 +10,7 @@ import {
   updateLease,
 } from "./lib/local-supabase-coordinator.mjs";
 import { ensureLocalReviewAccount, readLocalReviewAccount } from "./lib/local-review-account.mjs";
+import { ensureLocalClubLinkSecret } from "./lib/local-club-link-secret.mjs";
 
 const repoPath = process.cwd();
 const operation = process.argv[2];
@@ -162,6 +163,11 @@ try {
       `SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:${lease.ports.db}/postgres`,
       `PORT=${lease.applicationPort}`,
       `TEST_USER_EMAIL=${reviewAccount.email}`,
+      // LAN-157. Generated once per machine and kept outside the repository.
+      // Without it the club link cannot be signed and the share control says
+      // so — which is the right answer for a deployment and the wrong one for
+      // a review environment Brian is asked to run no commands against.
+      `CLUB_LINK_SECRET=${ensureLocalClubLinkSecret(repoPath)}`,
       "",
     ].join("\n");
     fs.writeFileSync(path.join(repoPath, ".env.local"), envFile, { mode: 0o600 });

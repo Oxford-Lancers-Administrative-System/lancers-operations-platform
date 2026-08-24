@@ -993,8 +993,13 @@ export interface EventDelivery {
  * whole of the provider neutrality on this screen: `processing` is
  * **Attempted** because we asked and do not yet know, and `failed` splits on
  * the attempt ceiling into **Retryable** and **Failed**.
+ *
+ * Exported for LAN-157, whose participation table carries the same **Delivery**
+ * column at the operator tier. UX standard 7: two surfaces answering "did it
+ * reach them?" answer it identically, and the surest way is one definition
+ * rather than two readings pinned together after the fact.
  */
-const STATE_EXPRESSION = `
+export const DELIVERY_STATE_EXPRESSION = `
   case
     when j.status = 'completed' then 'delivered'
     when j.status = 'processing' then 'attempted'
@@ -1017,7 +1022,7 @@ const STATE_EXPRESSION = `
  * definition, and so \`delivery_results\` stays the authority on what happened —
  * invariant M4 — rather than the job's status becoming a second copy of it.
  */
-const LATEST_RESULT_JOIN = `
+export const DELIVERY_LATEST_RESULT_JOIN = `
   left join lateral (
     select r.outcome::text as outcome
       from public.delivery_results r
@@ -1065,7 +1070,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
               j.invitation_id,
               p.given_name, p.family_name, p.known_as,
               j.channel::text as channel,
-              ${STATE_EXPRESSION} as state,
+              ${DELIVERY_STATE_EXPRESSION} as state,
               j.attempt_count,
               (select max(a.requested_at) from public.delivery_attempts a
                 where a.notification_job_id = j.id) as last_attempt_at,
@@ -1083,7 +1088,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
               end as token_state,
               s.response_state
          from public.notification_jobs j
-         ${LATEST_RESULT_JOIN}
+         ${DELIVERY_LATEST_RESULT_JOIN}
          join public.invitations i on i.id = j.invitation_id
          left join public.season_memberships m on m.id = i.season_membership_id
          join public.people p on p.id = coalesce(i.person_id, m.person_id)
