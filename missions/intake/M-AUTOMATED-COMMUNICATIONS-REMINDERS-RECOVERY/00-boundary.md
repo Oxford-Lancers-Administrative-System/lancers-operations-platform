@@ -143,9 +143,9 @@ this mission's, and none of it was in the first inventory.
 - **`contact_points`** — the deliberately unvalidated store this mission reads
   numbers and addresses from. The data is Mission 5's; every consequence of it
   being wrong is this mission's.
-- **`club-time.ts`** — Europe/London. Quiet hours, the 18:00 deadline anchor and
-  every "N days before" offset resolve through it, and British Summer Time is a
-  real edge on a schedule built from offsets.
+- **`club-time.ts`** — Europe/London. The 18:00 deadline anchor and every "N days
+  before" offset resolve through it, and British Summer Time is a real edge on a
+  schedule built from offsets. There is no quiet-hours send window.
 - **Audit coverage** of delivery and response actions — retry, revoke-and-reissue
   and an operator-recorded response are all a person acting, and are recorded as
   such.
@@ -339,13 +339,19 @@ each belongs to the workflow that owns it, after that workflow has been walked.
   asked to have restated at ticketing. If a genuine escalation ladder is wanted —
   more than one step, ending somewhere other than the President — that is a
   change to what was approved and is asked here.
-- **The quiet-hours window** — proposed 08:00–21:00, accepted but never fixed.
+- **Quiet hours are not part of the mission.** Brian rejected the proposed
+  window during W1 review on 2026-08-24: "There is no such thing as quiet
+  hours." Scheduling and compression do not delay or drop a message on that
+  basis.
 - **The inbound reply path**, which was deferred pending Stuart's review and is
   entangled with the deferred in-chat buttons (D9).
 - **The whole schedule model** — the anchor a schedule hangs from, the ladder per
   event type, and the compression rules when the runway is short. Brought as one
   concrete proposed rule set with a recommendation per rung, not as a list of
   questions.
+- **The message sequence is fixed; its timing is not.** Brian set the order on
+  2026-08-24 as WhatsApp message, email, follow-up escalation, then notification
+  to the President. W7 still owns the offsets and the revised compression rule.
 - **Whether the two outbound email paths are reconciled**, and by whom.
 
 ## Split decision

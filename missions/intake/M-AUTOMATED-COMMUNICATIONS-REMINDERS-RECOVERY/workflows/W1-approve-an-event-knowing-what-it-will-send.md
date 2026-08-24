@@ -61,20 +61,19 @@ needs to go out now, right? It should say that."
 
 ### The ladder
 
-Anchored to the response deadline, which already exists per type:
+The sequence is fixed; W7 still owns its offsets and compression:
 
-| Rung       | When                                                 |
-| ---------- | ---------------------------------------------------- |
-| Invitation | At the anchor                                        |
-| Reminder 1 | A configured offset before the deadline              |
-| Reminder 2 | A shorter configured offset before the deadline      |
-| Deadline   | Not a cutoff — a late answer is still accepted (D24) |
-| Escalation | N hours after the deadline, to the President         |
+| Step                  | Recipient and route                             |
+| --------------------- | ----------------------------------------------- |
+| WhatsApp message      | The user, through their expected WhatsApp route |
+| Email                 | The user, after the WhatsApp step               |
+| Follow-up escalation  | The next configured nonresponse step            |
+| Send to the President | The President as the responsible office holder  |
 
-Email is **not** a rung. It fires when a message cannot be _delivered_, never
-when somebody will not _reply_ — those are the two streams `F4` joins into one
-chase list, and the panel must say which is which or an operator will read it
-wrong.
+This is a nonresponse sequence, not merely a transport retry chain. Delivery
+failures still retry and enter W6 recovery, but email also follows WhatsApp in
+the chase sequence when the user has not answered. Every job started by the app
+must reach a recorded terminal outcome or a visible recovery state.
 
 ### Compression, when there is not enough runway
 
@@ -83,29 +82,15 @@ like that compression, but we aren't talking about that workflow yet." What is
 settled here is `W1`'s obligation — whatever `W7` decides, this panel displays the
 compressed plan and says plainly that it is compressed.
 
-The shape under discussion, carried forward to `W7` rather than approved here:
+The prior drop-and-gap proposal is not approved. Brian reopened the compression
+timeline on 2026-08-24 because it needs a different shape. W7 must work out how
+the four-step sequence behaves when there is not enough runway; W1 only requires
+the approval panel to show the resulting compressed plan plainly.
 
-1. Compute the full ladder from the event date.
-2. Drop any rung that falls in the past.
-3. Enforce a **minimum gap** between consecutive rungs; where two would collide,
-   drop the earlier one. **The gap is 24 hours** — settled by Brian, 2026-08-22,
-   raised from the proposed 12.
-4. **Never drop the invitation, and never drop the escalation.** A short-notice
-   event still gets asked and still gets chased. This replaces "clamped-deadline
-   events skip reminders entirely", which leaves the commonest case unchased.
-5. Respect quiet hours, rolling anything outside the window to its next opening —
-   except that a rung rolled past the event start is dropped rather than sent.
-
-Worked, for a practice with a two-day deadline and reminders at 24 and 4 hours
-before it — illustrative of what the panel must show, not an approved schedule:
-
-| Approved                      | What the approver is shown                                                               |
-| ----------------------------- | ---------------------------------------------------------------------------------------- |
-| Four weeks out                | Invitations on the anchor date · both reminders · escalation the evening of the deadline |
-| Two weeks out                 | The same, unchanged                                                                      |
-| Three days out                | Invitations now · both reminders · escalation as normal                                  |
-| Tomorrow                      | Invitations now · one reminder only, the other collides · escalation the same evening    |
-| After the deadline has passed | Invitations now · no reminders · escalation after the full N-hour grace                  |
+There are **no quiet hours**. Compression must not delay or discard a step on
+that basis. The revised rule must also preserve a visible terminal outcome: a
+message is completed, fails into recovery, or remains visibly pending—never
+silently abandoned.
 
 ## Required actions
 
@@ -113,8 +98,8 @@ before it — illustrative of what the panel must show, not an approved schedule
    states, in the club's language and not in job records:
    - how many people will be messaged, and on which channel;
    - **when** the first message goes — now, or a stated date;
-   - each reminder and when it fires;
-   - when a nonresponder is escalated, and to which office;
+   - when the WhatsApp message, email, follow-up escalation and President step
+     each occur;
    - **who cannot be reached at all**, by name and count — no accepted channel,
      no usable number, no recorded consent basis. These are D8's "Not dispatched"
      people, and approval is the last moment before they are silently absent;
@@ -157,13 +142,14 @@ before it — illustrative of what the panel must show, not an approved schedule
 
 ## Exceptions and recovery
 
-| Exception                                                       | Behaviour                                                                                                                                                         |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nobody in the audience is reachable                             | The panel says so prominently. Approval is still permitted — the event is real either way — and every person appears in `W6`'s "Not dispatched" state             |
-| The event is informational and solicits no response             | The panel says no messages will be sent, rather than showing an empty plan                                                                                        |
-| The event type has no configured policy                         | **Refusal, not a default.** ADR 0021's pattern has no default arm; an unconfigured type is a refusal that names itself                                            |
-| Approval happens after the response deadline has already passed | Invitations go immediately, no reminders, and the full N-hour grace still applies before any flag — a late-evening approval never wakes the President at midnight |
-| The event is amended after approval                             | `W8`                                                                                                                                                              |
+| Exception                                                       | Behaviour                                                                                                                                                            |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A user has no usable WhatsApp route                             | The panel treats this as an error and names the user. Every user is expected to have WhatsApp; W6 owns handling the error rather than W1 inventing a fallback action |
+| Nobody in the audience is reachable                             | The panel says so prominently. Approval is still permitted — the event is real either way — and every person appears in `W6`'s "Not dispatched" state                |
+| The event is informational and solicits no response             | The panel says no messages will be sent, rather than showing an empty plan                                                                                           |
+| The event type has no configured policy                         | **Refusal, not a default.** ADR 0021's pattern has no default arm; an unconfigured type is a refusal that names itself                                               |
+| Approval happens after the response deadline has already passed | The first step goes immediately and the panel shows the compressed sequence selected by W7; no quiet-hours rule delays it                                            |
+| The event is amended after approval                             | `W8`                                                                                                                                                                 |
 
 ## Safety, privacy, consent, and authority boundaries
 
@@ -185,6 +171,11 @@ before it — illustrative of what the panel must show, not an approved schedule
 - A person with no usable number, no accepted channel, or no consent basis appears
   in the unreachable list before approval and in `W6` afterwards, and the two
   agree.
+- The plan shows the ordered WhatsApp, email, follow-up escalation and President
+  steps, and every started job reaches a terminal outcome or visible recovery
+  state.
+- A missing WhatsApp route is shown as an error and handed to W6; W1 offers no
+  invented manual-send control.
 - The panel renders at 375px with the plan legible and no horizontal scroll.
 - Grounding: Mission 2's approved `W4` mockup. Screenshots of a live page are
   impossible because Mission 2 has not built it.
@@ -197,14 +188,16 @@ before it — illustrative of what the panel must show, not an approved schedule
 | **Approval commits the plan rather than performing the send**                                  | `locked`                      | Brian, 2026-08-22: "Yes, approval commits the plan rather than sending." The audience freeze R4 protects is unchanged; only the moment of dispatch moves                                       | **Settled 2026-08-22** |
 | **An event closer than its own invitation lead dispatches immediately, and the panel says so** | `locked`                      | Brian, 2026-08-22: "if practice happens in 2 days and we're approving and we're sending it out, that needs to go out now, right? It should say that"                                           | **Settled 2026-08-22** |
 | **Invitation lead per event type**                                                             | `locked`                      | Brian, 2026-08-22: "invitation per thing is fine for now." Game 14 days · Social 10 · Practice, S&C, Chalk, Recruitment, Meeting 5. "For now" is recorded — the values are revisitable at `W7` | **Settled 2026-08-22** |
-| **Minimum gap between rungs**                                                                  | `locked`                      | Brian, 2026-08-22: "24 hours is probably better instead of 12"                                                                                                                                 | **Settled 2026-08-22** |
+| **Minimum gap between rungs**                                                                  | `proposed for owner approval` | Brian preferred 24 hours on 2026-08-22, then reopened the compression timeline on 2026-08-24. W7 must settle the revised rule                                                                  | **Deferred to `W7`**   |
 | **The unreachable are named before approval, not discovered after**                            | `locked`                      | Brian, 2026-08-22: "if somebody is truly unreachable, their WhatsApp is not working, or it's something that should be alerted"                                                                 | **Settled 2026-08-22** |
 | **An unreachable person is alerted, not merely listed**                                        | `proposed for owner approval` | Raised by Brian at `W1` and belonging to `W6`, which owns delivery health. `W1` names them at the moment of approval; the standing alert is specified where failures are handled               | **Deferred to `W6`**   |
 | **The ladder** — how many reminders and at what offsets                                        | `proposed for owner approval` | Recommended: two reminders, at 48 and 24 hours before the deadline. Task 03 permits 0–3. It is the same policy question as compression, so it travels with it                                  | **Deferred to `W7`**   |
-| **Compression rules**                                                                          | `proposed for owner approval` | Shape recommended above and liked by Brian; the rule itself is policy. Brian, 2026-08-22: "we aren't talking about that workflow yet"                                                          | **Deferred to `W7`**   |
+| **Compression rules**                                                                          | `proposed for owner approval` | The earlier drop-and-gap shape is not approved. Brian, 2026-08-24: "If it's compressed, the compression timeline should be done a little bit differently. We'll just have to work that out"    | **Deferred to `W7`**   |
 | **The RSVP response deadline per type**                                                        | `proposed for owner approval` | Values exist and are owner-set (2026-08-13). Brian, 2026-08-22, wants them revisited with more detail alongside the rest of the schedule                                                       | **Deferred to `W7`**   |
 | The plan is read-only at approval; values are per type, not per event                          | `proposed for owner approval` | LAN-77 explicitly withholds a per-event override. Brian has asked for more customisation, which is the same question as `W7`'s configurability                                                 | **Deferred to `W7`**   |
-| Email is a delivery-failure route and not a rung of the chase                                  | `locked`                      | Task 02 §6 Shape B and `F4` — one list, two streams                                                                                                                                            | Settled                |
+| **The sequence is WhatsApp message → email → follow-up escalation → President**                | `locked`                      | Brian, 2026-08-24                                                                                                                                                                              | **Settled 2026-08-24** |
+| **There are no quiet hours**                                                                   | `locked`                      | Brian, 2026-08-24: "There is no such thing as quiet hours"                                                                                                                                     | **Settled 2026-08-24** |
+| **A missing WhatsApp route is an error whose handling belongs to W6**                          | `locked`                      | Brian, 2026-08-24: "Every user should have WhatsApp. That should be treated as an error, though. That's not handled here"                                                                      | **Settled 2026-08-24** |
 | An unconfigured event type refuses rather than inheriting a default                            | `locked`                      | ADR 0021's pattern, restated in Task 03 §4.2 — "no default arm"                                                                                                                                | Settled                |
 | Exact panel layout, wording and how the plan condenses at 375px                                | `delegated to Mission Lead`   | Presentation within the approved content and the mockup standards                                                                                                                              | Delegated              |
 

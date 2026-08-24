@@ -24,9 +24,14 @@
     {
       "id": "W1",
       "name": "Approve an event knowing what it will send",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W1-01",
+          "text": "Brian review, 2026-08-24: there are no quiet hours. The sequence is WhatsApp message, email, follow-up escalation, then send to the President. Every user should have WhatsApp; absence is an error, but its handling is outside W1. Compression needs a different timeline and remains to be worked out in W7. Recovery fallback must be visible."
+        }
+      ],
       "approvals": {}
     },
     {
@@ -186,6 +191,12 @@
           "OWN-response-surface",
           "OWN-schedule-model"
         ]
+      },
+      {
+        "id": "SRC-owner-2026-08-24",
+        "ref": "missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/workflows/W1-approve-an-event-knowing-what-it-will-send.md",
+        "version": "Brian W1 review, 2026-08-24",
+        "decision_ids": ["OWN-no-quiet-hours", "OWN-message-sequence", "OWN-missing-whatsapp-error"]
       }
     ],
     "decisions": [
@@ -474,10 +485,13 @@
       {
         "id": "T03-quiet-hours",
         "source_id": "SRC-task-03-brief",
-        "disposition": "workflow",
-        "workflow": "W7",
-        "reason": "The quiet-hours send window and the clamped-deadline grace are policy values.",
-        "also_referenced_by": ["W2", "W5"]
+        "disposition": "superseded",
+        "superseded_by": "SRC-owner-2026-08-24:OWN-no-quiet-hours",
+        "reason": "Brian rejected the proposed quiet-hours policy during W1 review: the club has no quiet hours and this mission must not introduce them.",
+        "approval": {
+          "words": "There is no such thing as quiet hours. We have no such thing as quiet hours. We're not going to buy into it or anything.",
+          "date": "2026-08-24"
+        }
       },
       {
         "id": "T03-flag-lifecycle",
@@ -764,8 +778,32 @@
         "workflow": "W7",
         "reason": "Anchors, the ladder and compression when the runway is short. W7 owns the values; W1 owns the plan an approver reads.",
         "also_referenced_by": ["W1", "W2", "W5"]
+      },
+      {
+        "id": "OWN-no-quiet-hours",
+        "source_id": "SRC-owner-2026-08-24",
+        "disposition": "workflow",
+        "workflow": "W7",
+        "reason": "There is no quiet-hours send window. Scheduling and compression must not delay or drop a message on that basis.",
+        "also_referenced_by": ["W1", "W2", "W5"]
+      },
+      {
+        "id": "OWN-message-sequence",
+        "source_id": "SRC-owner-2026-08-24",
+        "disposition": "workflow",
+        "workflow": "W5",
+        "reason": "The nonresponse sequence is WhatsApp message, email, follow-up escalation, then notification to the President. W7 owns the offsets and compression; W1 shows the resulting plan.",
+        "also_referenced_by": ["W1", "W6", "W7"]
+      },
+      {
+        "id": "OWN-missing-whatsapp-error",
+        "source_id": "SRC-owner-2026-08-24",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "Every user is expected to have WhatsApp. A missing or unusable WhatsApp route is an error surfaced before approval; W6 owns its handling rather than W1 inventing a recovery action.",
+        "also_referenced_by": ["W1"]
       }
     ]
   },
-  "next_action": "Draft, walk and approve W1 (Stage 3)"
+  "next_action": "Review the revised W1 specification, then draft and walk its mockup (Stage 3)"
 }

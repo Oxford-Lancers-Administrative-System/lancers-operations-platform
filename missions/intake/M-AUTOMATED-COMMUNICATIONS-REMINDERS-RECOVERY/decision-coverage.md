@@ -12,13 +12,13 @@ without becoming additional owners.
 
 | Disposition                 | Decisions |
 | --------------------------- | --------- |
-| `workflow`                  | 58        |
+| `workflow`                  | 60        |
 | `excluded`                  | 8         |
 | `delegated_to_mission_lead` | 1         |
 | `other_mission`             | 3         |
 | `shared_cross_mission`      | 3         |
-| `superseded`                | 3         |
-| **Total**                   | **76**    |
+| `superseded`                | 4         |
+| **Total**                   | **79**    |
 
 ## SRC-task-02-brief
 
@@ -74,7 +74,7 @@ without becoming additional owners.
 | `T03-escalation-office`       | `workflow`             | W5                                                                               | The escalation target is an office resolving to its current holder, so committee turnover changes the recipient with no configuration change.                                                                                                                                                                                                                            |
 | `T03-flag-surfaces`           | `workflow`             | W5 (also referenced by W4)                                                       | Three surfaces for a flag: the proactive message, the in-app queue, and the Monday report.                                                                                                                                                                                                                                                                               |
 | `T03-no-personal-data`        | `workflow`             | W5                                                                               | No player personal data in an escalation message body; names stay behind the operator login.                                                                                                                                                                                                                                                                             |
-| `T03-quiet-hours`             | `workflow`             | W7 (also referenced by W2, W5)                                                   | The quiet-hours send window and the clamped-deadline grace are policy values.                                                                                                                                                                                                                                                                                            |
+| `T03-quiet-hours`             | `superseded`           | superseded by SRC-owner-2026-08-24:OWN-no-quiet-hours                            | Brian rejected the proposed quiet-hours policy during W1 review: the club has no quiet hours and this mission must not introduce them. Brian 2026-08-24: "There is no such thing as quiet hours. We have no such thing as quiet hours. We're not going to buy into it or anything."                                                                                      |
 | `T03-flag-lifecycle`          | `workflow`             | W5                                                                               | One flag per invitation per threshold, idempotent under reruns. Approved provisionally and explicitly owed a restatement here.                                                                                                                                                                                                                                           |
 | `T03-config-model`            | `workflow`             | W7                                                                               | Central repository configuration on the ADR 0021 pattern, with no admin UI in Release One.                                                                                                                                                                                                                                                                               |
 | `T03-config-location`         | `workflow`             | W7                                                                               | One sibling policy file plus the operator-readable pointer answering where a change is requested.                                                                                                                                                                                                                                                                        |
@@ -158,3 +158,15 @@ without becoming additional owners.
 | `OWN-comms-plan`       | `workflow`  | W1                                 | An approver sees the messaging plan before the irreversible action that sets it off.                                                                               |
 | `OWN-response-surface` | `workflow`  | W2 (also referenced by W3, W4)     | The response surface belongs to this mission whether or not it is already built, because no other mission touches responses.                                       |
 | `OWN-schedule-model`   | `workflow`  | W7 (also referenced by W1, W2, W5) | Anchors, the ladder and compression when the runway is short. W7 owns the values; W1 owns the plan an approver reads.                                              |
+
+## SRC-owner-2026-08-24
+
+- Reference: missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/workflows/W1-approve-an-event-knowing-what-it-will-send.md
+- Version read: Brian W1 review, 2026-08-24
+- Controlling decisions: 3
+
+| Decision                     | Disposition | Authoritative home                 | Reason and evidence                                                                                                                                                                  |
+| ---------------------------- | ----------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `OWN-no-quiet-hours`         | `workflow`  | W7 (also referenced by W1, W2, W5) | There is no quiet-hours send window. Scheduling and compression must not delay or drop a message on that basis.                                                                      |
+| `OWN-message-sequence`       | `workflow`  | W5 (also referenced by W1, W6, W7) | The nonresponse sequence is WhatsApp message, email, follow-up escalation, then notification to the President. W7 owns the offsets and compression; W1 shows the resulting plan.     |
+| `OWN-missing-whatsapp-error` | `workflow`  | W6 (also referenced by W1)         | Every user is expected to have WhatsApp. A missing or unusable WhatsApp route is an error surfaced before approval; W6 owns its handling rather than W1 inventing a recovery action. |
