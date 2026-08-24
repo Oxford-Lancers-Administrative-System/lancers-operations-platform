@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   ENVIRONMENT_DISPOSITIONS,
@@ -12,6 +13,7 @@ import {
   supervisorAlive,
   writeEnvironment,
 } from "../scripts/lib/visual-environment.mjs";
+import { coordinatorPaths } from "../scripts/lib/local-supabase-coordinator.mjs";
 
 const roots: string[] = [];
 const SHA = "a".repeat(40);
@@ -74,6 +76,59 @@ describe("the pending visual environment record", () => {
     const raw = fs.readFileSync(environmentRecordPath(root), "utf8");
     expect(raw).not.toMatch(/password|secret|key|token/i);
   });
+});
+
+describe("visual environment disposition cleanup", () => {
+  it.each(["approved", "rejected", "obsolete", "abandoned"])(
+    "releases the database lease when disposition becomes %s",
+    (disposition) => {
+      const root = fixture();
+      const coordinatorRoot = path.join(root, "coordinator");
+      const token = "fixture-token";
+      writeEnvironment(root, pending({ supervisorPid: null }));
+      fs.writeFileSync(
+        path.join(root, ".lancers-runtime", "lease.json"),
+        `${JSON.stringify({ token, slot: "primary" })}\n`,
+      );
+      const env = { ...process.env, LANCERS_COORDINATOR_ROOT: coordinatorRoot };
+      const paths = coordinatorPaths(root, env);
+      fs.mkdirSync(path.dirname(paths.registry), { recursive: true });
+      fs.writeFileSync(
+        paths.registry,
+        `${JSON.stringify({
+          version: 1,
+          slots: {
+            primary: {
+              slot: "primary",
+              token,
+              repoPath: fs.realpathSync(root),
+              attachedRepoPaths: [],
+              state: "review-ready",
+            },
+          },
+        })}\n`,
+      );
+
+      const result = spawnSync(
+        process.execPath,
+        [
+          path.join(__dirname, "..", "scripts", "visual-environment.mjs"),
+          "disposition",
+          "--set",
+          disposition,
+        ],
+        { cwd: root, env, encoding: "utf8" },
+      );
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout).toMatch(new RegExp(`is now ${disposition}; released primary`));
+      expect(readEnvironment(root)).toEqual(
+        expect.objectContaining({ disposition, releasedAt: expect.any(String) }),
+      );
+      expect(JSON.parse(fs.readFileSync(paths.registry, "utf8")).slots.primary.state).toBe(
+        "released",
+      );
+    },
+  );
 });
 
 describe("whether Brian can be told an environment is ready", () => {

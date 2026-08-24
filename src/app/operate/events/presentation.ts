@@ -1,9 +1,9 @@
 import type { TermCoordinate, TermWindow } from "@/lib/services/event-input";
 import type { EventListEntry } from "@/lib/services/events";
-import { labelFor } from "../labels";
+import { labelFor, TERM_LABELS } from "@/lib/services/event-vocabulary";
 
 /**
- * How an event reads on screen — UX-30, UX-31, UX-32 and UX-33.
+ * How an event reads on the **operator's** screens — UX-30, UX-31, UX-32, UX-33.
  *
  * Presentation only: every function here is pure, takes what the service
  * returned, and decides nothing. It is a separate module from the screens
@@ -11,230 +11,41 @@ import { labelFor } from "../labels";
  * flags, and a label that differs between the list and the detail is a defect
  * an operator finds before a test does.
  *
- * Dates and times are formatted in `en-GB` at UTC, deliberately. `scheduled_on`
- * is a `date` and `starts_at`/`ends_at` are `time` — none of the three carries a
- * zone, so rendering them in the viewer's zone would shift a Wednesday practice
- * into Tuesday for anybody east of Greenwich. There is one club, it is in
- * Oxford, and these values mean what they say.
+ * The club's shared vocabulary — the type names, the status words, the date
+ * formatters — moved to `@/lib/services/event-vocabulary` when LAN-153 opened a
+ * public calendar, and is re-exported below. What is left in this file is what
+ * only an operator ever reads: the audience column, the approval copy, the
+ * origin of an event, and the sentence beside the joining URL.
  */
 
 /**
- * The parts are formatted individually and joined here rather than handed to
- * one formatter, because the separators between them are not ICU's to choose:
- * `en-GB` emits "Wednesday 14 October" on one Node build and
- * "Wednesday, 14 October" on another, and the wireframes show the comma. This
- * way the punctuation is the repository's, and a CI runner with a different
- * ICU build cannot change what an operator reads.
- */
-function part(scheduledOn: string, options: Intl.DateTimeFormatOptions): string {
-  return new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" }).format(
-    new Date(`${scheduledOn}T00:00:00Z`),
-  );
-}
-
-/**
- * Month abbreviations, owned by this repository rather than asked of ICU.
+ * The club's words for an event, and how its dates read, now live in
+ * `@/lib/services/event-vocabulary` — LAN-153 opened a public calendar, and a
+ * practice is a **Practice** whoever is reading. They are re-exported here so
+ * that the operator screens, which have imported them from this module since
+ * LAN-76, keep one import each and the move is not a diff across twenty files.
  *
- * The same reasoning as `part()` above, and found the same way. `en-GB` with
- * `month: "short"` renders September as **"Sept"** on some ICU builds and
- * "Sep" on others, so the abbreviation an operator reads would depend on which
- * Node the container happened to be built with — and the Oxford term card,
- * whose whole job is to state exact dates, would disagree with itself between a
- * developer's machine and Cloud Run.
- *
- * Twelve strings settle it. The month index is read straight off the
- * `YYYY-MM-DD`, which needs no formatter at all.
+ * Anything **tiered** stayed out of the shared module. What a screen may show is
+ * `@/lib/auth/event-tier`'s question, and nothing in the vocabulary answers it.
  */
-export const SHORT_MONTHS: readonly string[] = Object.freeze([
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-]);
-
-/** "Oct" for any `YYYY-MM-DD`. Empty for anything that is not one. */
-export function shortMonthOf(day: string): string {
-  return SHORT_MONTHS[Number(day.slice(5, 7)) - 1] ?? "";
-}
-
-/**
- * "Wed 14 Oct 2026" — the list's date column.
- *
- * The year is not decoration. A season runs from September to June, so a list
- * of one season's events spans two calendar years, and "Wed 16 Jun" does not
- * say which one — which is exactly what Brian hit reading the list.
- */
-export function formatShortDate(scheduledOn: string | null): string {
-  if (!scheduledOn) return "No date yet";
-  const weekday = part(scheduledOn, { weekday: "short" });
-  const day = part(scheduledOn, { day: "numeric" });
-  const month = shortMonthOf(scheduledOn);
-  const year = part(scheduledOn, { year: "numeric" });
-  return `${weekday} ${day} ${month} ${year}`;
-}
-
-/** "Sunday, 18 October 2026" — the detail heading. Year, for the same reason. */
-export function formatLongDate(scheduledOn: string | null): string {
-  if (!scheduledOn) return "No date yet";
-  const weekday = part(scheduledOn, { weekday: "long" });
-  const day = part(scheduledOn, { day: "numeric" });
-  const month = part(scheduledOn, { month: "long" });
-  const year = part(scheduledOn, { year: "numeric" });
-  return `${weekday}, ${day} ${month} ${year}`;
-}
-
-/** "20:00–22:00", "from 20:00", "until 22:00", or nothing at all. */
-export function formatTimes(startsAt: string | null, endsAt: string | null): string {
-  if (startsAt && endsAt) return `${startsAt}–${endsAt}`;
-  if (startsAt) return `from ${startsAt}`;
-  if (endsAt) return `until ${endsAt}`;
-  return "";
-}
-
-/** "Wed 14 Oct, 20:00" — date and start, as the list wireframe shows them. */
-export function formatListWhen(event: EventListEntry): string {
-  const date = formatShortDate(event.scheduledOn);
-  return event.startsAt ? `${date}, ${event.startsAt}` : date;
-}
-
-/** "Sunday, 18 October · 10:00–13:00" — the detail subtitle. */
-export function formatDetailWhen(event: {
-  scheduledOn: string | null;
-  startsAt: string | null;
-  endsAt: string | null;
-}): string {
-  const times = formatTimes(event.startsAt, event.endsAt);
-  const date = formatLongDate(event.scheduledOn);
-  return times ? `${date} · ${times}` : date;
-}
-
-/**
- * `event_status` in the club's words. The list, the detail and the chips agree.
- *
- * Three, since LAN-151. `Occurred` is not here because it is not a stored
- * status: it is derived from the date passing, and `DERIVED_STATE_LABELS`
- * below is where a screen gets the word for it.
- */
-export const STATUS_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  draft: "Draft",
-  approved: "Approved",
-  cancelled: "Cancelled",
-});
-
-/**
- * What the event looks like now, in the club's words (D30).
- *
- * A screen shows this beside the stored status, never instead of it: "Approved"
- * and "Occurred" are answers to two different questions, and collapsing them
- * would put the club back where the assertion was.
- */
-export const DERIVED_STATE_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  upcoming: "Upcoming",
-  occurred: "Occurred",
-  cancelled: "Cancelled",
-});
-
-/** `event_type` in the club's words — the seven approved types (D12). */
-export const TYPE_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  practice: "Practice",
-  strength_and_conditioning: "Strength and conditioning",
-  chalk: "Chalk",
-  game: "Game",
-  social: "Social",
-  recruitment: "Recruitment",
-  meeting: "Meeting",
-});
-
-/** `event_delivery_mode` in the club's words (D20). */
-export const DELIVERY_MODE_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  in_person: "In person",
-  online: "Online",
-});
-
-/** What the venue field is called, which depends on where the event is (D21). */
-export function venueLabel(deliveryMode: string): string {
-  return deliveryMode === "online" ? "Destination" : "Venue";
-}
-
-/**
- * D86. The zone every event time is in, said on the form rather than assumed.
- *
- * The recorded defect this closes: the date input renders in the browser's
- * locale, so an operator in Oxford could be reading `mm/dd/yyyy`, and the two
- * time fields carried no zone at all. Per-user timezones are a later release
- * (DEC-timezone); this is the club's, fixed, and stated.
- */
-export const CLUB_TIME_ZONE_NOTE =
-  "Dates and times are Europe/London — the club's own clock — and times are entered in " +
-  "five-minute steps.";
-
-/**
- * REQ-no-joining-url, said to the operator entering one.
- *
- * The rule is real and enforced elsewhere; this is the sentence that stops
- * somebody assuming the link will reach people because they typed it in.
- */
-export const JOINING_URL_IS_NEVER_PUBLIC =
-  "Never shown on the public calendar or in a subscription feed. How an invited person " +
-  "receives it is not yet built.";
-
-/** `event_origin` in the club's words — Source Data Analysis §5.6. */
-export const ORIGIN_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  club_controlled: "Club",
-  externally_assigned: "Assigned externally",
-  externally_scheduled: "Scheduled externally",
-  negotiated: "Negotiated",
-});
-
-export const TERM_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  michaelmas: "Michaelmas",
-  hilary: "Hilary",
-  trinity: "Trinity",
-});
-
-export { labelFor };
-
-/**
- * The derived coordinate in the club's words — "Michaelmas 2026-27, Week 1", or
- * "Outside term" for a date no Oxford term contains.
- *
- * Takes the terms rather than a label because it is fed by `deriveTermCoordinate`,
- * which returns ids: the same function runs in the browser as the operator
- * picks a date and on the server when the draft is saved, and both need to say
- * the same sentence.
- */
-export function describeTermCoordinate(
-  coordinate: TermCoordinate,
-  terms: readonly TermWindow[],
-): string {
-  if (coordinate.termId === null) {
-    return "Outside Oxford term — no term or week is recorded.";
-  }
-  const term = terms.find((candidate) => candidate.id === coordinate.termId);
-  if (!term) return "Outside Oxford term — no term or week is recorded.";
-
-  const name = labelFor(TERM_LABELS, term.name);
-  const week = coordinate.weekNumber === -1 ? "Week −1" : `Week ${coordinate.weekNumber}`;
-  return `${name} ${term.academicYear}, ${week}`;
-}
-
-/** "Michaelmas 2026-27 · Week 2", or the part of it that is known. */
-export function formatTermAndWeek(termLabel: string | null, weekNumber: number | null): string {
-  const term = termLabel
-    ? termLabel.replace(/^(\w+)/, (name) => labelFor(TERM_LABELS, name.toLowerCase()))
-    : null;
-  const week = weekNumber === null ? null : `Week ${weekNumber}`;
-  if (term && week) return `${term} · ${week}`;
-  return term ?? week ?? "Outside term";
-}
+export {
+  CLUB_TIME_ZONE,
+  DELIVERY_MODE_LABELS,
+  DERIVED_STATE_LABELS,
+  describeAttendance,
+  formatDetailWhen,
+  formatListWhen,
+  formatLongDate,
+  formatShortDate,
+  formatTimes,
+  labelFor,
+  SHORT_MONTHS,
+  shortMonthOf,
+  STATUS_LABELS,
+  TERM_LABELS,
+  TYPE_LABELS,
+  venueLabel,
+} from "@/lib/services/event-vocabulary";
 
 /**
  * What the Audience column says.
@@ -290,8 +101,80 @@ export function isPreApproval(status: string): boolean {
   return status === "draft";
 }
 
-export function describeAttendance(isMandatory: boolean): string {
-  return isMandatory ? "Mandatory" : "Optional";
+// ---------------------------------------------------------------------------
+// What only the operator reads
+// ---------------------------------------------------------------------------
+
+/**
+ * D86. The zone every event time is in, said on the **form** rather than
+ * assumed.
+ *
+ * The recorded defect this closes: the date input renders in the browser's
+ * locale, so an operator in Oxford could be reading `mm/dd/yyyy`, and the two
+ * time fields carried no zone at all. Per-user timezones are a later release
+ * (DEC-timezone); this is the club's, fixed, and stated.
+ */
+export const CLUB_TIME_ZONE_NOTE =
+  "Dates and times are Europe/London — the club's own clock — and times are entered in " +
+  "five-minute steps.";
+
+/**
+ * `REQ-no-joining-url`, said to the operator entering one.
+ *
+ * The rule is real and enforced in the service layer — the public projection has
+ * no column for a joining URL and no field to put one in
+ * (`listPublicSeasonEvents`) — and this is the sentence that stops somebody
+ * assuming the link will reach people because they typed it in.
+ */
+export const JOINING_URL_IS_NEVER_PUBLIC =
+  "Never shown on the public calendar or in a subscription feed. How an invited person " +
+  "receives it is not yet built.";
+
+/** `event_origin` in the club's words — Source Data Analysis §5.6. */
+export const ORIGIN_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  club_controlled: "Club",
+  externally_assigned: "Assigned externally",
+  externally_scheduled: "Scheduled externally",
+  negotiated: "Negotiated",
+});
+
+/**
+ * The derived coordinate in the club's words — "Michaelmas 2026-27, Week 1", or
+ * "Outside term" for a date no Oxford term contains.
+ *
+ * Takes the terms rather than a label because it is fed by
+ * `deriveTermCoordinate`, which returns ids: the same function runs in the
+ * browser as the operator picks a date and on the server when the draft is
+ * saved, and both need to say the same sentence.
+ *
+ * This is the **form's** sentence, about the coordinate that will be stored. The
+ * calendar's own answer is `@/lib/services/oxford-year`, which is a wider one:
+ * it names the vacation a date falls in, and the stored coordinate has no way to
+ * hold that (`events.week_number` is constrained to −1..8).
+ */
+export function describeTermCoordinate(
+  coordinate: TermCoordinate,
+  terms: readonly TermWindow[],
+): string {
+  if (coordinate.termId === null) {
+    return "Outside Oxford term — no term or week is recorded.";
+  }
+  const term = terms.find((candidate) => candidate.id === coordinate.termId);
+  if (!term) return "Outside Oxford term — no term or week is recorded.";
+
+  const name = labelFor(TERM_LABELS, term.name);
+  const week = coordinate.weekNumber === -1 ? "Week −1" : `Week ${coordinate.weekNumber}`;
+  return `${name} ${term.academicYear}, ${week}`;
+}
+
+/** "Michaelmas 2026-27 · Week 2", or the part of it that is known. */
+export function formatTermAndWeek(termLabel: string | null, weekNumber: number | null): string {
+  const term = termLabel
+    ? termLabel.replace(/^(\w+)/, (name) => labelFor(TERM_LABELS, name.toLowerCase()))
+    : null;
+  const week = weekNumber === null ? null : `Week ${weekNumber}`;
+  if (term && week) return `${term} · ${week}`;
+  return term ?? week ?? "Outside term";
 }
 
 // ---------------------------------------------------------------------------

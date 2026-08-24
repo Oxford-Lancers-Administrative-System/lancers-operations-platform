@@ -76,7 +76,7 @@ RSVP is a direct scoped journey at `/rsvp/[token]`; it never enters `/operate` a
 ## 4. Route contract
 
 | Route                             | Purpose                                                                    |
-| --------------------------------- | -------------------------------------------------------------------------- |
+| --------------------------------- | --------------------------------------------------------------------------- |
 | `/login`                          | Operator authentication                                                    |
 | `/forgot-password`                | Request a password-reset link (LAN-125 amendment below)                    |
 | `/reset-password`                 | Choose a new password from a recovery link (LAN-125 amendment below)       |
@@ -84,8 +84,11 @@ RSVP is a direct scoped journey at `/rsvp/[token]`; it never enters `/operate` a
 | `/operate/roster`                 | Current-season roster                                                      |
 | `/operate/roster/new`             | Operator-entered returning player                                          |
 | `/operate/roster/[membershipId]`  | Membership detail and authorized transitions                               |
+| `/calendar`                       | **Public** — the club's events, readable by anyone with no account         |
+| `/calendar/view`                  | The same events as Calendar View or Oxford View, at the public tier        |
+| `/calendar/[id]`                  | **Public** — one event's record, and nothing about people                  |
 | `/operate/events`                 | Event list                                                                 |
-| `/operate/events/calendar`        | The same events as a Gregorian month or an Oxford term card (read-only)    |
+| `/operate/events/calendar`        | The same events as Calendar View or Oxford View (read-only)                |
 | `/operate/events/new`             | New event draft                                                            |
 | `/operate/events/[id]`            | Event detail, audience, approval and occurrence decisions                  |
 | `/operate/events/[id]/amend`      | Amend an approved event in place, and decide whether it notifies (LAN-156) |
@@ -96,6 +99,25 @@ RSVP is a direct scoped journey at `/rsvp/[token]`; it never enters `/operate` a
 | `/rsvp/[token]`                   | Private player response and all token/event terminal states                |
 
 Routes do not authorize. Server/service actions enforce account, role, capability, record scope and transition rules.
+
+### LAN-153 amendment — 22 August 2026
+
+The three `/calendar` routes above are the first genuinely anonymous read surface
+this application has, and they are where "routes do not authorize" stops being an
+approximation: every other route needs an operator session or a signed token, so
+until now the route prefix at least correlated with the reader. It no longer
+does.
+
+What carries the boundary instead is the **projection**: the public reads select
+different columns, so a joining URL, a participation count or a status is never
+read out of the database rather than withheld after loading. The elevated
+projection is reached only through a service-layer guard. Both are recorded in
+[`tickets/LAN-153-public-calendar-and-tiers.md`](tickets/LAN-153-public-calendar-and-tiers.md),
+with the three tiers D2 and D3 approved.
+
+The player row of § 3 is unchanged: RSVP is still a scoped journey at
+`/rsvp/[token]` and still never exposes peer responses. The public calendar names
+nobody at all.
 
 `/auth/recovery` exists as well and is deliberately not in this table: it is not
 a screen. It is the internal one-time exchange the emailed link enters through,

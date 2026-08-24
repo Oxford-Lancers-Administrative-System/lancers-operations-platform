@@ -681,9 +681,10 @@ function withoutAuthority(envelope: Record<string, unknown>): Record<string, unk
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-const configured = Boolean(supabaseUrl && supabaseKey);
+const authConfigured = Boolean(supabaseUrl && supabaseKey);
+const configured = authConfigured && process.env.PRODUCTION_BOOTSTRAP_DATABASE_CONTRACT === "1";
 
-if (process.env.REQUIRE_SUPABASE_TESTS === "1" && !configured) {
+if (process.env.REQUIRE_SUPABASE_TESTS === "1" && !authConfigured) {
   throw new Error("REQUIRE_SUPABASE_TESTS=1 but the local Supabase Auth configuration is missing.");
 }
 

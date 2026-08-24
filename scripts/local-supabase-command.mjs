@@ -10,6 +10,7 @@ import {
   updateLease,
 } from "./lib/local-supabase-coordinator.mjs";
 import { ensureLocalReviewAccount, readLocalReviewAccount } from "./lib/local-review-account.mjs";
+import { ensureLocalClubLinkSecret } from "./lib/local-club-link-secret.mjs";
 
 const repoPath = process.cwd();
 const operation = process.argv[2];
@@ -162,6 +163,11 @@ try {
       `SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:${lease.ports.db}/postgres`,
       `PORT=${lease.applicationPort}`,
       `TEST_USER_EMAIL=${reviewAccount.email}`,
+      // LAN-157. Generated once per machine and kept outside the repository.
+      // Without it the club link cannot be signed and the share control says
+      // so — which is the right answer for a deployment and the wrong one for
+      // a review environment Brian is asked to run no commands against.
+      `CLUB_LINK_SECRET=${ensureLocalClubLinkSecret(repoPath)}`,
       "",
     ].join("\n");
     fs.writeFileSync(path.join(repoPath, ".env.local"), envFile, { mode: 0o600 });
@@ -189,11 +195,13 @@ try {
         running: Boolean(status.API_URL && status.DB_URL),
       }),
     );
-  } else if (
-    ["seed", "seed-user", "link-operator", "link-coach", "types-generate"].includes(operation)
-  ) {
+  } else if (operation === "seed") {
+    // Re-seeding truncates and rebuilds the synthetic identity rows. Recreate
+    // both review logins and their links in the same guarded operation so a
+    // mid-review seed cannot leave the operator or coach seat detached.
+    provisionReviewState(lease, readLocalReviewAccount(repoPath));
+  } else if (["seed-user", "link-operator", "link-coach", "types-generate"].includes(operation)) {
     const scripts = {
-      seed: "scripts/seed-local.mjs",
       "seed-user": "scripts/create-test-user.mjs",
       "link-operator": "scripts/link-test-operator.mjs",
       "link-coach": "scripts/link-review-coach.mjs",

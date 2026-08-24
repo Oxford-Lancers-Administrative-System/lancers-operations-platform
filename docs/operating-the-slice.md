@@ -542,23 +542,44 @@ Long event names wrap to several lines, which makes rows tall.
 ## 12. Check the three calendar presentations
 
 **Events** shows a **List / Calendar** switch, and inside Calendar a
-**Gregorian / Oxford term** switch. All three show the same event records on the
-same actual dates.
+**Calendar View / Oxford View** switch. All three show the same event records on
+the same actual dates — they are three arrangements of one query.
 
-**Gregorian**, October 2026: a conventional month grid with previous/next and a
-go-to-month control, each event on its real date, a status and type key, and days
-carrying more than one event showing all of them.
+**Calendar View**, October 2026: a conventional month grid with previous/next and
+a go-to-month control, each event on its real date, a type key, and days carrying
+more than one event showing all of them.
 
-**Oxford term**, Michaelmas 2026-27: the club's term card. Week rows down the
-side with their exact Gregorian ranges — `−1st week 27 Sep – 3 Oct 2026`,
-`0th week 4 – 10 Oct 2026`, `1st week 11 – 17 Oct 2026` — and Sunday to Saturday
-across. The practice you created sits in **1st week, Wednesday 14 October**,
-alongside the seeded 20:00 practice on the same day. An event recorded as not
-held appears struck through.
+**Oxford View**: one continuous academic year rather than three term cards. It
+runs Long Vacation into Michaelmas into Christmas Vacation into Hilary into
+Easter Vacation into Trinity into the next Long Vacation, in one scroll, with a
+**Jump to** control at the top and no season selector. Week rows down the side
+carry their exact Gregorian ranges — `−1st week 27 Sep – 3 Oct 2026`,
+`0th week 4 – 10 Oct 2026`, `1st week 11 – 17 Oct 2026`, then
+`Christmas Vacation 1 6 – 12 Dec 2026` — and Sunday to Saturday across. The
+practice you created sits in **1st week, Wednesday 14 October**, alongside the
+seeded 20:00 practice on the same day. A cancelled event appears struck through.
 
-Nothing in either calendar creates an audience, an invitation, an RSVP or a
+Vacation weeks are numbered forward from 1 and a vacation belongs to neither
+adjacent term, which is the club's own way of reading its year.
+
+Nothing in either arrangement creates an audience, an invitation, an RSVP or a
 delivery record; they are projections of the same events, and term and week are
 derived from the date rather than entered beside it.
+
+---
+
+## 12b. Read the same calendar with no account at all
+
+Sign out, or open a private window, and go to **`/calendar`**.
+
+The same events, at the public tier: name, type, date, term and week, and where.
+No status column, no invited count, no said-yes count, no attendance — and, on an
+online event, no joining link. Open one from the list and the event page states
+the whole record — type, when, where, term and week, mandatory or optional,
+required equipment, description — and nothing about people.
+
+`/calendar/view` gives the same two calendar arrangements. Nothing on any of these
+pages asks you to sign in, and reading them creates no record of any kind.
 
 ---
 

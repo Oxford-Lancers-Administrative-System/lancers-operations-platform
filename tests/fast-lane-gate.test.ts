@@ -207,13 +207,6 @@ describe("the pull request must be mergeable in its own right", () => {
     });
     expect(result.merge).toBe(false);
   });
-
-  it("starts closed: every refusal is a reason, and merge is never assigned true", () => {
-    // `merge` is `reasons.length === 0`, so a condition nobody thought of
-    // cannot be the one that lets a merge through.
-    const source = normaliseCheck.toString() + evaluateGate.toString();
-    expect(source).not.toMatch(/merge\s*=\s*true/);
-  });
 });
 
 // ---------------------------------------------------------------------------

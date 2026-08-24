@@ -23,6 +23,24 @@ import {
   type AudienceMember,
 } from "@/lib/services/event-approval";
 import { readEventChangeHistory, type EventChangeEntry } from "@/lib/services/event-amendment";
+import { readEventClubLink, readOperatorParticipation } from "@/lib/services/participation";
+import {
+  readParticipationFilters,
+  type OperatorParticipation,
+  type ParticipationFilters,
+} from "@/lib/services/participation-view";
+import {
+  CLUB_LINK_NEEDS_AN_AUDIENCE_MESSAGE,
+  CLUB_LINK_UNCONFIGURED_MESSAGE,
+  clubLinkIsConfigured,
+  clubLinkUrl,
+} from "@/lib/services/club-link";
+import { ParticipationFilterBar } from "../../../participation/participation-filters";
+import { ParticipationTable } from "../../../participation/participation-table";
+import { QuestionCounts } from "../../../participation/question-counts";
+import { publicOrigin } from "../../../participation/origin";
+import { SHARE_LINK } from "../../../participation/presentation";
+import { SharePanel } from "./share-panel";
 import { gateShellPage } from "../../gate";
 import { ApproveEventForm } from "../event-actions";
 import { AudienceBuilder } from "./audience-builder";
@@ -74,6 +92,18 @@ import {
 } from "./attendance/presentation";
 
 /**
+ * Why **Create the link** is not offered, or `null` because it is.
+ *
+ * Both refusals are content rather than an error — `docs/ux/standards.md`
+ * rule 6 — and the service refuses again on its own behalf regardless.
+ */
+function shareBlockedReason(status: string): string | null {
+  if (!clubLinkIsConfigured()) return CLUB_LINK_UNCONFIGURED_MESSAGE;
+  if (status === "draft") return CLUB_LINK_NEEDS_AN_AUDIENCE_MESSAGE;
+  return null;
+}
+
+/**
  * One event, in every presentation this route owns — UX-32, UX-33, and LAN-77's
  * UX-40, UX-41, UX-42 and UX-43.
  *
@@ -118,6 +148,8 @@ export default async function EventDetailPage({
   const query = await searchParams;
   const step = typeof query.step === "string" ? query.step : "";
   const justApproved = query.approved === "1";
+  const shareOpen = query.share === "1";
+  const shareError = typeof query.shareError === "string" ? query.shareError : null;
 
   let event: EventDetail;
   try {
@@ -196,6 +228,23 @@ export default async function EventDetailPage({
   // been changed that anybody was told about.
   const history = event.status === "draft" ? [] : await readEventChangeHistory(event.id);
 
+  // REQ-participation-table, LAN-157. Read from approval onward, for the same
+  // reason the headline is: a draft has no invitations (invariant P1), so the
+  // table would be a heading over nothing. `readOperatorParticipation` resolves
+  // the operator from the session itself — this page's gate is the courtesy,
+  // the service is the boundary.
+  const participation =
+    event.invitationCount > 0 ? await readOperatorParticipation(event.id) : null;
+  const participationFilters = readParticipationFilters(
+    query,
+    participation?.questions ?? [],
+    "operator",
+  );
+
+  // The dialog reads the live link and never creates one; **Create the link**
+  // is what creates one. A page render must not write.
+  const clubLink = shareOpen && mayManage ? await readEventClubLink(event.id) : null;
+
   return (
     <EventDetailView
       event={event}
@@ -206,6 +255,17 @@ export default async function EventDetailPage({
       audience={audience}
       summary={summary}
       history={history}
+      participation={participation}
+      participationFilters={participationFilters}
+      share={
+        shareOpen && mayManage
+          ? {
+              url: clubLink === null ? null : clubLinkUrl(await publicOrigin(), clubLink.token),
+              blockedReason: shareBlockedReason(event.status),
+              errorRule: shareError,
+            }
+          : null
+      }
     />
   );
 }
@@ -557,6 +617,9 @@ function EventDetailView({
   audience,
   summary,
   history,
+  participation,
+  participationFilters,
+  share,
 }: {
   event: EventDetail;
   mayManage: boolean;
@@ -566,6 +629,11 @@ function EventDetailView({
   audience: AudienceMember[];
   summary: AttendanceSummary | null;
   history: readonly EventChangeEntry[];
+  /** `null` until approval creates invitations — invariant P1. */
+  participation: OperatorParticipation | null;
+  participationFilters: ParticipationFilters;
+  /** `null` unless the operator opened **Share link**. */
+  share: { url: string | null; blockedReason: string | null; errorRule: string | null } | null;
 }) {
   const preApproval = isPreApproval(event.status);
   // W5-04's recovery path is offered exactly where it is needed: the last
@@ -585,11 +653,41 @@ function EventDetailView({
   const derived = derivedEventState(event, todayInClubZone());
 
   return (
-    <Stack spacing={3} sx={{ maxWidth: 900 }} data-testid="event-detail" data-status={event.status}>
+    <Stack
+      spacing={3}
+      sx={{ maxWidth: 1200 }}
+      data-testid="event-detail"
+      data-status={event.status}
+    >
       <Box>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-          {event.name}
-        </Typography>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          sx={{
+            justifyContent: "space-between",
+            alignItems: { xs: "flex-start", sm: "center" },
+          }}
+        >
+          <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+            {event.name}
+          </Typography>
+          {/*
+            §4.15: issuing and sharing the club link is this workflow's, and it
+            is offered beside the event's name because that is where the
+            approved mockup puts it. `mayManage` decides whether it is drawn;
+            the action and the service both refuse on their own behalf.
+          */}
+          {mayManage && event.status !== "draft" ? (
+            <Button
+              variant="outlined"
+              size="small"
+              href={`/operate/events/${event.id}?share=1`}
+              data-testid="share-link-button"
+            >
+              {SHARE_LINK}
+            </Button>
+          ) : null}
+        </Stack>
         {/*
           The derived state sits beside the stored one only where it says
           something the stored one does not — which is an approved event, and
@@ -607,6 +705,16 @@ function EventDetailView({
             .join(" · ")}
         </Typography>
       </Box>
+
+      {share ? (
+        <SharePanel
+          eventId={event.id}
+          url={share.url}
+          blockedReason={share.blockedReason}
+          errorRule={share.errorRule}
+          closeHref={`/operate/events/${event.id}`}
+        />
+      ) : null}
 
       {justApproved && event.status === "approved" ? (
         <Alert severity="success" data-testid="event-approved-note">
@@ -725,7 +833,13 @@ function EventDetailView({
             }
             testId="distribution-fact"
           />
-          {audience.length > 0 ? (
+          {/*
+            W7: the audience list "becomes the full table". It survives for the
+            one state the table cannot describe — a draft whose audience is
+            chosen but not yet approved, which has no invitations, no answers
+            and no attendance to put in columns (invariant P1).
+          */}
+          {audience.length > 0 && participation === null ? (
             <AudienceList
               audience={audience}
               heading={proposed ? "Who this is for" : "Who was invited"}
@@ -740,6 +854,28 @@ function EventDetailView({
         question about the past and the buttons are about the future.
       */}
       {event.status !== "draft" ? <ChangeHistoryPanel entries={history} /> : null}
+
+      {/*
+        REQ-participation-table — W7's centre. One row per person: who was
+        asked, what they said, and whether they came, with delivery at this
+        tier and one column per question.
+      */}
+      {participation ? (
+        <Stack spacing={2}>
+          {/* D68's counts, collapsed. The per-person answers are in the table. */}
+          <QuestionCounts participation={participation} />
+          <ParticipationFilterBar
+            basePath={`/operate/events/${event.id}`}
+            filters={participationFilters}
+            showDelivery
+          />
+          <ParticipationTable
+            basePath={`/operate/events/${event.id}`}
+            participation={participation}
+            filters={participationFilters}
+          />
+        </Stack>
+      ) : null}
 
       <Stack spacing={2} sx={{ maxWidth: 420 }}>
         {mayApprove && event.status === "approved" ? (

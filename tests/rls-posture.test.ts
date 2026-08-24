@@ -14,8 +14,9 @@
  *
  * Runs against LOCAL Supabase only. Never point it at production.
  */
-import { describe, expect, it, beforeAll } from "vitest";
+import { afterAll, describe, expect, it, beforeAll } from "vitest";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { openLocalClient, type Client } from "./helpers/domain-fixture";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const publishableKey =
@@ -40,12 +41,16 @@ if (configured && !isLocal) {
 
 describe.runIf(configured)("anonymous access to the exposed schema", () => {
   let anon: SupabaseClient;
+  let catalogue: Client;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     anon = createClient(url!, publishableKey!, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
+    catalogue = await openLocalClient();
   });
+
+  afterAll(async () => catalogue?.end());
 
   it("exposes no readable tables to a browser-safe key", async () => {
     // PostgREST's root endpoint is the authoritative list of what the Data API
@@ -73,25 +78,18 @@ describe.runIf(configured)("anonymous access to the exposed schema", () => {
   });
 
   it("rejects reads of every domain table that DOES exist", async () => {
-    // The tables below all hold real club data once the system is live. Each is
-    // named explicitly rather than looped from the catalogue, so that adding a
-    // table does not silently widen or narrow what this test covers.
-    const tables = [
-      "people",
-      "contact_points",
-      "season_memberships",
-      "availability_statuses",
-      "events",
-      "invitations",
-      "rsvp_responses",
-      "attendance_records",
-      "notification_jobs",
-      "rsvp_access_tokens",
-      "delivery_attempts",
-      "delivery_callbacks",
-      "weekly_reports",
-      "audit_events",
-    ];
+    // Read the catalogue with the local owner connection, then attack every
+    // table through the anonymous Data API client. A newly migrated table is
+    // covered automatically in the same CI run; absence from a hand list can
+    // never become accidental permission.
+    const { rows } = await catalogue.query<{ table_name: string }>(
+      `select table_name
+         from information_schema.tables
+        where table_schema = 'public' and table_type = 'BASE TABLE'
+        order by table_name`,
+    );
+    const tables = rows.map((row) => row.table_name);
+    expect(tables.length).toBeGreaterThan(0);
 
     for (const table of tables) {
       const { data, error } = await anon.from(table).select("*").limit(1);
@@ -104,7 +102,13 @@ describe.runIf(configured)("anonymous access to the exposed schema", () => {
     // A view runs with its owner's rights unless it is `security_invoker`, and
     // its owner here is postgres, which bypasses RLS. Views are therefore the
     // likeliest accidental hole in the backstop.
-    for (const view of ["current_availability", "constitutional_membership", "nonresponse_queue"]) {
+    const { rows } = await catalogue.query<{ table_name: string }>(
+      `select table_name
+         from information_schema.views
+        where table_schema = 'public'
+        order by table_name`,
+    );
+    for (const view of rows.map((row) => row.table_name)) {
       const { data, error } = await anon.from(view).select("*").limit(1);
       expect(data, `anon read rows from the view ${view}`).toBeNull();
       expect(error, `anon was permitted to read the view ${view}`).not.toBeNull();

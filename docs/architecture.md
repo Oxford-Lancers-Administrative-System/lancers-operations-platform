@@ -33,7 +33,7 @@ src/
     login/                email/password sign-in (Server Action)
     operate/              the operator shell — the protected area (LAN-73)
     dashboard/            LAN-71's session-protected wiring proof, superseded by operate/
-    api/health/route.ts   dependency-free health endpoint
+    api/health/route.ts   deploy-readiness and current-schema probe
     layout.tsx            MUI providers + CssBaseline
   lib/auth/
     operator.ts           session → club Person and currently-effective role codes
@@ -105,6 +105,17 @@ Browser
   └─▶ Server Action         sign in / sign out; sets auth cookies
                              a privileged action calls requireCapability() first
 ```
+
+**The public calendar is genuinely public.** `/calendar` and everything under it
+carry no session and no token — the first read surface in this application that
+does not (LAN-153; D1 and D5, owner-approved 14 August 2026). It is not listed in
+`PROTECTED_PREFIXES` and needs no exception to stay out of it. What keeps the
+tiers apart is the **projection**: `listPublicSeasonEvents` and `readPublicEvent`
+in `src/lib/services/events.ts` select different columns, so a joining URL, a
+participation count or a status is never read out of the database rather than
+hidden after loading, and the operator's projection is reached only through a
+service-layer guard (`src/lib/auth/event-tier.ts`). See
+[`ux/tickets/LAN-153-public-calendar-and-tiers.md`](ux/tickets/LAN-153-public-calendar-and-tiers.md).
 
 Route protection in `proxy.ts` is convenience, not the authorization boundary.
 Every protected page re-checks for itself, because a proxy matcher can be changed

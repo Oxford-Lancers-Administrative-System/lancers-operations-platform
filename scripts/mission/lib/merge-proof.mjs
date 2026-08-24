@@ -73,7 +73,15 @@ export function mergeProof(pkg, io) {
  * the remote branch exists.
  */
 export function worktreeDefects(worktree, branch, io) {
+  // "Gone" means git has stopped tracking it, not that the directory has
+  // vanished. A removed worktree routinely leaves its untracked `.lancers-runtime`
+  // behind, and that empty shell is not a working tree: `git status` run inside
+  // it walks up and answers for the primary checkout instead, which reports the
+  // Lead's own uncommitted work as this package's dirt, and `git worktree
+  // remove` then fails outright. Ask git what it tracks; do not ask the
+  // filesystem what still exists.
   if (!io.exists(worktree)) return { defects: [], gone: true };
+  if (io.isWorktree && !io.isWorktree(worktree)) return { defects: [], gone: true };
   const defects = [];
   if (io.status(worktree) !== "") defects.push("its working tree is dirty");
   if (io.stashList(worktree) !== "") defects.push("it has stash entries");

@@ -4,6 +4,23 @@
 **Route:** `/operate/events/calendar`
 **Shared contract:** [`../slice-ux.md`](../slice-ux.md)
 
+> **Partly superseded by
+> [`LAN-153-public-calendar-and-tiers.md`](LAN-153-public-calendar-and-tiers.md).**
+>
+> Two sections below are no longer what the repository does:
+>
+> - **§ Authorization.** It reserved a public calendar for Brian as a security
+>   posture change. He took that decision — D1 and D5, owner-approved 14 August
+>   2026 — and `/calendar` is now readable by anyone with no account. The
+>   reservation was satisfied, not overridden.
+> - **§ UX-35 — Oxford term card.** The three term cards behind an academic-year
+>   and an Oxford-term selector are retired (D85). The Oxford View is one
+>   continuous academic year with a jump control, and `buildTermCard` and the
+>   machinery around it went with the surface they drew.
+>
+> Everything else here still holds, § UX-34 included: the Gregorian month is
+> unchanged, by Brian's instruction of 20 August 2026.
+
 ## Why this contract exists instead of a wireframe
 
 LAN-90's approved UX package predates this work. Its post-approval owner

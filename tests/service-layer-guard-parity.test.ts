@@ -50,6 +50,8 @@ const APPROVED_HOSTED = `postgresql://${APPROVED_HOSTED_TARGET.username}:pw@${AP
  * approved production target, which is the newest way to get this wrong.
  */
 const CASES: readonly string[] = [
+  // Centralized from the LAN-76 and LAN-93 pilot suites. Pilot scenarios rely
+  // on this shared guard; they do not each carry a copy of its behavior table.
   "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
   "postgresql://postgres:postgres@localhost:54322/postgres",
   "postgresql://postgres:postgres@[::1]:54322/postgres",

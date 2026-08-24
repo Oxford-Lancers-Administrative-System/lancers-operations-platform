@@ -63,6 +63,17 @@ vi.mock("@/lib/services/event-amendment", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-amendment")>();
   return { ...actual, readEventChangeHistory: vi.fn(async () => []) };
 });
+// LAN-157. The event page reads the participation table and the live club
+// link; the table itself is proved in `src/app/participation/screens.test.tsx`
+// and against the database in `src/lib/services/participation.test.ts`.
+vi.mock("@/lib/services/participation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/participation")>();
+  return {
+    ...actual,
+    readOperatorParticipation: vi.fn().mockResolvedValue(null),
+    readEventClubLink: vi.fn().mockResolvedValue(null),
+  };
+});
 
 import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
@@ -132,6 +143,8 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     audienceCount: 5,
     invitationCount: 5,
     responseCount: 3,
+    saidYesCount: 0,
+    showedCount: 0,
     origin: "club_controlled",
     termId: null,
     termLabel: "michaelmas 2026-27",
