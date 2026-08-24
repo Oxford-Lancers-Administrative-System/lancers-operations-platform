@@ -168,7 +168,9 @@ const TYPE_ALIASES: Readonly<Record<string, string>> = Object.freeze({
 });
 
 /** The seven, as the refusal sentence lists them. */
-export const TYPE_TOKEN_LIST = DRAFTABLE_EVENT_TYPES.map((type) => CSV_TYPE_TOKENS[type]).join(", ");
+export const TYPE_TOKEN_LIST = DRAFTABLE_EVENT_TYPES.map((type) => CSV_TYPE_TOKENS[type]).join(
+  ", ",
+);
 
 /** `yes` and `no`, and the spellings a spreadsheet substitutes for them. */
 const YES = new Set(["yes", "y", "true", "1"]);
@@ -335,7 +337,6 @@ export interface ImportPlan {
   digest: string;
 }
 
-
 /** The totals an applied import produced, as the screen reports them. */
 export interface ImportApplied {
   created: number;
@@ -436,9 +437,7 @@ export function plannedWrites(plan: ImportPlan): readonly PlannedWrite[] {
 
 type HeaderIndex = Partial<Record<ImportColumn, number>>;
 
-type HeaderRead =
-  | { ok: true; index: HeaderIndex }
-  | { ok: false; reason: string };
+type HeaderRead = { ok: true; index: HeaderIndex } | { ok: false; reason: string };
 
 const NO_HEADER_REASON =
   "The file has no header row this importer recognises. Download the template and compare the first line.";
@@ -462,7 +461,8 @@ function readHeader(rows: CsvTable): HeaderRead {
   }
 
   const missing = REQUIRED_HEADER_COLUMNS.filter((column) => index[column] === undefined);
-  if (missing.length === REQUIRED_HEADER_COLUMNS.length) return { ok: false, reason: NO_HEADER_REASON };
+  if (missing.length === REQUIRED_HEADER_COLUMNS.length)
+    return { ok: false, reason: NO_HEADER_REASON };
   if (missing.length > 0) {
     return {
       ok: false,
@@ -475,7 +475,10 @@ function readHeader(rows: CsvTable): HeaderRead {
 
 /** `" Required Equipment "` and `"required_equipment"` are the same column. */
 function normaliseHeaderCell(value: string): string {
-  return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
 }
 
 function isImportColumn(value: string): value is ImportColumn {
@@ -546,9 +549,7 @@ function planRow(
   if (said(cells.type)) {
     const alias = TYPE_ALIASES[trimmed(cells.type).toLowerCase().replace(/\s+/g, " ")];
     if (alias === undefined) {
-      reasons.push(
-        `“type” reads “${trimmed(cells.type)}”. It must be one of ${TYPE_TOKEN_LIST}.`,
-      );
+      reasons.push(`“type” reads “${trimmed(cells.type)}”. It must be one of ${TYPE_TOKEN_LIST}.`);
     } else {
       parsedType = alias;
     }
@@ -571,9 +572,7 @@ function planRow(
 
   const parsedVenue = said(cells.venue) ? trimmed(cells.venue) : null;
   const parsedDescription = said(cells.description) ? trimmed(cells.description) : null;
-  const parsedEquipment = said(cells.required_equipment)
-    ? trimmed(cells.required_equipment)
-    : null;
+  const parsedEquipment = said(cells.required_equipment) ? trimmed(cells.required_equipment) : null;
 
   // --- identity ------------------------------------------------------------
   if (rawId !== "" && duplicated.has(rawId.toLowerCase())) {
@@ -603,9 +602,7 @@ function planRow(
       reasons.push(`A new row needs a type. It must be one of ${TYPE_TOKEN_LIST}.`);
     }
     if (parsedStart !== null && parsedEnd !== null && parsedEnd <= parsedStart) {
-      reasons.push(
-        `“end” (${parsedEnd}) is not after “start” (${parsedStart}).`,
-      );
+      reasons.push(`“end” (${parsedEnd}) is not after “start” (${parsedStart}).`);
     }
     if (reasons.length > 0) return refused(line, displayName, null, cells, reasons);
 
@@ -738,25 +735,17 @@ function refused(
 
 const TIME_CELL = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-function parseTimeCell(
-  column: "start" | "end",
-  cell: string,
-  reasons: string[],
-): string | null {
+function parseTimeCell(column: "start" | "end", cell: string, reasons: string[]): string | null {
   if (!said(cell)) return null;
   const value = trimmed(cell);
   // A spreadsheet writes 20:00:00 as readily as 20:00. Both mean eight o'clock.
   const candidate = /^\d{2}:\d{2}:\d{2}$/.test(value) ? value.slice(0, 5) : value;
   if (!TIME_CELL.test(candidate)) {
-    reasons.push(
-      `“${column}” reads “${value}”. Times are HH:MM on the 24-hour clock.`,
-    );
+    reasons.push(`“${column}” reads “${value}”. Times are HH:MM on the 24-hour clock.`);
     return null;
   }
   if (!isFiveMinuteIncrement(candidate)) {
-    reasons.push(
-      `“${column}” reads “${value}”. Times go in five-minute steps.`,
-    );
+    reasons.push(`“${column}” reads “${value}”. Times go in five-minute steps.`);
     return null;
   }
   return candidate;
@@ -771,9 +760,7 @@ function parseBooleanCell(
   const value = trimmed(cell).toLowerCase();
   if (YES.has(value)) return true;
   if (NO.has(value)) return false;
-  reasons.push(
-    `“${column}” reads “${trimmed(cell)}”. It must be yes or no.`,
-  );
+  reasons.push(`“${column}” reads “${trimmed(cell)}”. It must be yes or no.`);
   return null;
 }
 
@@ -865,14 +852,16 @@ function blankCells(): Record<ImportColumn, PlanCell> {
 
 function newCells(input: EventDraftInput): Record<ImportColumn, PlanCell> {
   const cells = blankCells();
-  for (const column of COMPARED_COLUMNS) cells[column] = { value: valueOf(input, column), previous: null };
+  for (const column of COMPARED_COLUMNS)
+    cells[column] = { value: valueOf(input, column), previous: null };
   return cells;
 }
 
 function currentCells(event: ImportableEvent): Record<ImportColumn, PlanCell> {
   const cells = blankCells();
   cells.id = { value: event.id, previous: null };
-  for (const column of COMPARED_COLUMNS) cells[column] = { value: valueOf(event, column), previous: null };
+  for (const column of COMPARED_COLUMNS)
+    cells[column] = { value: valueOf(event, column), previous: null };
   return cells;
 }
 
@@ -895,7 +884,8 @@ function updatedCells(
 
 function rawCells(cells: Record<ImportColumn, string>): Record<ImportColumn, PlanCell> {
   const shown = blankCells();
-  for (const column of IMPORT_COLUMNS) shown[column] = { value: trimmed(cells[column]), previous: null };
+  for (const column of IMPORT_COLUMNS)
+    shown[column] = { value: trimmed(cells[column]), previous: null };
   return shown;
 }
 

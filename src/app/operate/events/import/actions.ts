@@ -9,11 +9,7 @@ import {
   IMPORT_TOO_LARGE_MESSAGE,
   planSeasonImport,
 } from "@/lib/services/event-import";
-import {
-  EMPTY_IMPORT_STATE,
-  NO_FILE_CHOSEN_MESSAGE,
-  type ImportScreenState,
-} from "./import-state";
+import { EMPTY_IMPORT_STATE, NO_FILE_CHOSEN_MESSAGE, type ImportScreenState } from "./import-state";
 
 /**
  * The bulk import's two writes — one of which writes nothing. LAN-155.

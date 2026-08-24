@@ -61,7 +61,7 @@ describe("parseCsv", () => {
   it("keeps a quote that opens no field", () => {
     // A spreadsheet that wrote `5" nails` without quoting the field meant a
     // literal quotation mark, and refusing the row would refuse the truth.
-    expect(rowsOf("equipment\n5\" nails\n")[1]).toEqual(['5" nails']);
+    expect(rowsOf('equipment\n5" nails\n')[1]).toEqual(['5" nails']);
   });
 
   it("returns a ragged row rather than refusing it", () => {

@@ -343,15 +343,15 @@ describe("a row that cannot be read", () => {
   });
 
   it("refuses a new row with no name", () => {
-    expect(only(plan(file(row({ type: "Practice", date: "2026-10-14" })))).reasons.join(" ")).toContain(
-      "A new row needs a name",
-    );
+    expect(
+      only(plan(file(row({ type: "Practice", date: "2026-10-14" })))).reasons.join(" "),
+    ).toContain("A new row needs a name");
   });
 
   it("refuses a new row with no type", () => {
-    expect(only(plan(file(row({ name: "Something", date: "2026-10-14" })))).reasons.join(" ")).toContain(
-      "A new row needs a type",
-    );
+    expect(
+      only(plan(file(row({ name: "Something", date: "2026-10-14" })))).reasons.join(" "),
+    ).toContain("A new row needs a type");
   });
 
   it("refuses a row whose end would not follow its start", () => {
@@ -514,7 +514,9 @@ describe("the copyable prompt", () => {
 
 describe("the export", () => {
   it("is the import template, populated, with the two read-only columns", () => {
-    const csv = formatSeasonExport(SEASON.map((event) => ({ ...event, termWeek: "Michaelmas 3rd week" })));
+    const csv = formatSeasonExport(
+      SEASON.map((event) => ({ ...event, termWeek: "Michaelmas 3rd week" })),
+    );
     expect(csv.split("\r\n")[0]).toBe(EXPORT_COLUMNS.join(","));
     expect(csv).toContain("Michaelmas 3rd week");
   });
@@ -535,7 +537,9 @@ describe("the export", () => {
     // The acceptance criterion this whole design turns on: "a CSV exported from
     // a season and imported back unchanged produces zero writes and reports
     // every row as unchanged".
-    const csv = formatSeasonExport(SEASON.map((event) => ({ ...event, termWeek: "Michaelmas 3rd week" })));
+    const csv = formatSeasonExport(
+      SEASON.map((event) => ({ ...event, termWeek: "Michaelmas 3rd week" })),
+    );
     const planned = plan(csv);
     expect(planned.totals).toEqual({ new: 0, updated: 0, unchanged: 3, refused: 0 });
     expect(plannedWrites(planned)).toHaveLength(0);
@@ -562,8 +566,6 @@ describe("the export", () => {
   it("survives a column order the operator rearranged", () => {
     const planned = plan(`name,type,date,id\nRenamed,Practice,2026-10-28,${DRAFT.id}\n`);
     expect(planned.rows[0].outcome).toBe("updated");
-    expect(planned.rows[0].changes).toEqual([
-      { column: "name", from: DRAFT.name, to: "Renamed" },
-    ]);
+    expect(planned.rows[0].changes).toEqual([{ column: "name", from: DRAFT.name, to: "Renamed" }]);
   });
 });

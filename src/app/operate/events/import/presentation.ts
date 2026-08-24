@@ -124,8 +124,10 @@ export function describeApplied(applied: {
   refused: number;
 }): string {
   const parts: string[] = [];
-  if (applied.created > 0) parts.push(`${applied.created} draft${applied.created > 1 ? "s" : ""} created`);
-  if (applied.updated > 0) parts.push(`${applied.updated} draft${applied.updated > 1 ? "s" : ""} updated`);
+  if (applied.created > 0)
+    parts.push(`${applied.created} draft${applied.created > 1 ? "s" : ""} created`);
+  if (applied.updated > 0)
+    parts.push(`${applied.updated} draft${applied.updated > 1 ? "s" : ""} updated`);
   const done = parts.length === 0 ? "Nothing was changed" : parts.join(" and ");
   const left =
     applied.refused > 0

@@ -63,8 +63,7 @@ const NUL = "\u0000";
 export type CsvTable = readonly (readonly string[])[];
 
 export type CsvParse =
-  | { readonly ok: true; readonly rows: CsvTable }
-  | { readonly ok: false; readonly reason: string };
+  { readonly ok: true; readonly rows: CsvTable } | { readonly ok: false; readonly reason: string };
 
 /**
  * The whole file, as a table of raw cells.

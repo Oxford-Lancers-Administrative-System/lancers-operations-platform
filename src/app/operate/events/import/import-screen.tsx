@@ -132,8 +132,8 @@ function Boundaries() {
           is left exactly as it was.
         </Typography>
         <Typography component="li" variant="body2" sx={{ mb: 0.5 }}>
-          <strong>Change an approved event.</strong> Those rows are refused by name; amend the
-          event on its own page.
+          <strong>Change an approved event.</strong> Those rows are refused by name; amend the event
+          on its own page.
         </Typography>
         <Typography component="li" variant="body2">
           <strong>Approve, cancel, or send.</strong> An import produces drafts, and nothing leaves
@@ -417,7 +417,10 @@ function Confirmation({
                   })}
                   <TableCell>{row.status}</TableCell>
                   <TableCell
-                    sx={{ minWidth: 230, color: row.outcome === "refused" ? "error.main" : undefined }}
+                    sx={{
+                      minWidth: 230,
+                      color: row.outcome === "refused" ? "error.main" : undefined,
+                    }}
                   >
                     {changeSummary(row)}
                   </TableCell>
@@ -487,7 +490,9 @@ function RowCard({ row }: { row: PlannedRow }) {
         {row.name}
       </Typography>
       <Typography variant="body2" color="text.secondary">
-        {[cellText(row.cells.type), cellText(row.cells.date), cellText(row.cells.venue)].join(" · ")}
+        {[cellText(row.cells.type), cellText(row.cells.date), cellText(row.cells.venue)].join(
+          " · ",
+        )}
       </Typography>
 
       {row.outcome === "refused" ? (
