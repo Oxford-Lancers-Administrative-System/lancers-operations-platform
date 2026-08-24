@@ -150,6 +150,30 @@ function DeliveryCell({ state, isWalkUp }: { state: string | null; isWalkUp: boo
   );
 }
 
+/**
+ * R157C-B5. A label in front of a mobile-card value, so a bare "Nothing
+ * queued" or "Not recorded" says which fact it is answering.
+ *
+ * The desktop table gets this for free from its column headers; the card has
+ * no headers, so each value that is not already self-evident from its
+ * position (name, capacity, the dated "Invitation sent" line) carries its
+ * `TABLE_HEADINGS` string instead — the same word the desktop column uses,
+ * never a second vocabulary invented for the card. Follows the events list's
+ * "Invited 47 · Said yes 33 · Showed — / 47" pattern
+ * (`src/app/operate/events/operator-list.tsx`): a small secondary-coloured
+ * label immediately before the value.
+ */
+function LabeledField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+      <Typography component="span" variant="caption" color="text.secondary">
+        {label}
+      </Typography>
+      {children}
+    </Stack>
+  );
+}
+
 /** The `≠` beside a name, carrying what the two records actually say. */
 function DiscrepancyMark({ person }: { person: ParticipationPerson }) {
   const label = discrepancyLabel(person.discrepancy);
@@ -185,6 +209,12 @@ function SortableHeading({
         href={participationSortHref(basePath, filters, column)}
         data-sort={column}
         style={{ color: "inherit", textDecoration: "none" }}
+        // R157C-B1. Sorting re-orders the rows already on screen; it must not
+        // bounce the reader to the top of a table they are part-way down.
+        // `scroll={false}` is Next.js's own scroll-restoration control for
+        // `<Link>`, and the href above still carries every filter, so the URL
+        // stays the source of truth for the view.
+        scroll={false}
       >
         {/* `component="span"`: TableSortLabel renders a button by default, and a
             button inside an anchor is invalid HTML that browsers repair
@@ -309,14 +339,20 @@ export function ParticipationTable({
                     {capacityLabel(person)}
                   </Typography>
                 </Stack>
-                <Stack direction="row" spacing={0.75} sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.75 }}>
-                  <AnswerChip person={person} />
-                  <AttendanceChip presence={person.presence} />
+                <Stack direction="row" spacing={1.25} sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.75 }}>
+                  <LabeledField label={TABLE_HEADINGS.answer}>
+                    <AnswerChip person={person} />
+                  </LabeledField>
+                  <LabeledField label={TABLE_HEADINGS.attendance}>
+                    <AttendanceChip presence={person.presence} />
+                  </LabeledField>
                   {operator ? (
-                    <DeliveryCell
-                      state={(person as OperatorParticipationPerson).delivery ?? null}
-                      isWalkUp={person.isWalkUp}
-                    />
+                    <LabeledField label={TABLE_HEADINGS.delivery}>
+                      <DeliveryCell
+                        state={(person as OperatorParticipationPerson).delivery ?? null}
+                        isWalkUp={person.isWalkUp}
+                      />
+                    </LabeledField>
                   ) : null}
                 </Stack>
                 {person.reason ? (

@@ -123,7 +123,13 @@ export function ParticipationFilterBar({
   showDelivery: boolean;
 }) {
   const router = useRouter();
-  const push = useCallback((href: string) => router.push(href), [router]);
+  // R157C-B2. A filter change re-orders what is already on screen; it is not a
+  // fresh page, so it must not fling an operator part-way down the table back
+  // to the top. `scroll: false` is Next.js's own control for this
+  // (`node_modules/next/dist/docs/01-app/03-api-reference/02-components/link.md`
+  // § Disable scrolling to the top of the page) — the URL still carries every
+  // filter and sort key, which stays the single source of truth for the view.
+  const push = useCallback((href: string) => router.push(href, { scroll: false }), [router]);
 
   const carried: Record<string, string> = {
     [PARTICIPATION_PARAMS.capacity]: filters.capacity,
@@ -141,7 +147,7 @@ export function ParticipationFilterBar({
     push,
   });
 
-  const apply = (patch: Record<string, string>) => router.push(hrefFor(patch));
+  const apply = (patch: Record<string, string>) => router.push(hrefFor(patch), { scroll: false });
 
   const anyFilter =
     filters.search !== "" ||

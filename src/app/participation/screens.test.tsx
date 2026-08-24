@@ -33,6 +33,30 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
   notFound: vi.fn(),
 }));
+// R157C-B1. `next/link`'s own scroll-restoration control (`scroll={false}`) is
+// a prop `<Link>` consumes internally — it never lands on the rendered `<a>`,
+// so a DOM assertion on the real component cannot see it. This stand-in keeps
+// every other prop (href, data-sort, style, children) exactly as the real
+// `<Link>` renders them, and additionally surfaces `scroll` as `data-scroll`
+// so the sort-links test below can prove the prop was actually passed rather
+// than merely believing the source read correctly.
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    scroll,
+    children,
+    ...rest
+  }: {
+    href: string;
+    scroll?: boolean;
+    children?: React.ReactNode;
+    [key: string]: unknown;
+  }) => (
+    <a href={href} data-scroll={String(scroll)} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 vi.mock("@/lib/services/participation", () => ({
   readClubLinkParticipation: vi.fn(),
 }));
@@ -75,6 +99,7 @@ import {
   formatTermAndWeek,
   NO_MATCHING_PEOPLE,
   NOBODY_ASKED,
+  NOT_RECORDED,
   NOTHING,
   SORTABLE_NOTE,
   TABLE_HEADINGS,
@@ -364,6 +389,26 @@ describe("the participation table", () => {
     expect(container.querySelector(`a[data-sort="q:${LIFT.id}"]`)).not.toBeNull();
   });
 
+  it("R157C-B1: does not scroll to the top when a column is sorted", () => {
+    // Brian: "Whenever I go on this page and I sort it, it bounces me to the
+    // top of the screen." Sorting re-orders rows already on screen; it must
+    // not act like a fresh page load. Revert `scroll={false}` on the
+    // `SortableHeading` `<Link>` and this fails, because the mocked `<Link>`
+    // above reports `data-scroll="undefined"` — Next.js's own default.
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR}
+        filters={filters()}
+      />,
+    );
+    const columns = ["name", "capacity", "invited", "delivery", "answer", "reason", "attendance"];
+    for (const column of columns) {
+      const link = container.querySelector(`a[data-sort="${column}"]`)!;
+      expect(link.getAttribute("data-scroll"), column).toBe("false");
+    }
+  });
+
   it("offers no delivery heading to sort by at the club-link tier", () => {
     const { container } = render(
       <ParticipationTable basePath="/e/token" participation={CLUB} filters={filters()} />,
@@ -398,7 +443,22 @@ describe("the filter bar", () => {
       expect(routerPush, testId).toHaveBeenCalledTimes(1);
       const href = routerPush.mock.calls[0][0] as string;
       expect(href, testId).toContain(key);
+      // R157C-B2. Brian: "Whenever I add the filter, too, it also jumps me to
+      // the top of the page." Revert `{ scroll: false }` on `apply` and this
+      // fails — `router.push` is called with no second argument.
+      expect(routerPush.mock.calls[0][1], testId).toEqual({ scroll: false });
     }
+  });
+
+  it("R157C-B2: does not scroll to the top when the search box changes", async () => {
+    // The search box goes through the shared `push` callback rather than
+    // `apply`, and the two were fixed at different call sites — this proves
+    // the callback the debounced box actually uses, not just the select
+    // controls above.
+    render(<ParticipationFilterBar basePath="/e/token" filters={filters()} showDelivery={false} />);
+    fireEvent.change(screen.getByTestId("filter-search"), { target: { value: "sedge" } });
+    await waitFor(() => expect(routerPush).toHaveBeenCalled(), { timeout: 2000 });
+    expect(routerPush.mock.calls[0][1]).toEqual({ scroll: false });
   });
 
   it("carries the half-typed search with a filter chosen inside the debounce", async () => {
@@ -838,6 +898,42 @@ describe("the phone presentation", () => {
 
     const bar = cards.find((card) => card.textContent?.includes("Bar Sedgewick"))!;
     expect(bar.textContent).toContain("Away with the course all week");
+  });
+
+  it("R157C-B5: labels each value with the desktop column that names it", () => {
+    // Brian: "what I see is that nothing is recorded, nothing is queued,
+    // without any labels or anything like that." Bar Sedgewick's attendance
+    // is unrecorded and a second, otherwise-normal invitee's delivery is
+    // nothing-queued — both bare values the finding named — plus an ordinary
+    // Answer value, to prove the label is not special-cased to the empty
+    // states alone.
+    const nothingQueued: OperatorParticipationPerson = {
+      ...PEOPLE[0],
+      key: "player:9",
+      displayName: "Ines Thornbury",
+      delivery: null,
+    };
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={{ ...OPERATOR, people: [PEOPLE[0], PEOPLE[1], nothingQueued] }}
+        filters={filters()}
+      />,
+    );
+    const cards = Array.from(container.querySelectorAll('[data-testid="participation-card"]'));
+
+    const alaric = cards.find((card) => card.textContent?.includes("Alaric Brindlewood"))!;
+    // The label sits immediately in front of its value — no space in
+    // `textContent` because the gap between them is layout (Stack spacing),
+    // not a text node. Revert the `LabeledField` wrapper and this fails: the
+    // card would read a bare "Yes" with no "Answer" in front of it.
+    expect(alaric.textContent).toContain(`${TABLE_HEADINGS.answer}Yes`);
+
+    const bar = cards.find((card) => card.textContent?.includes("Bar Sedgewick"))!;
+    expect(bar.textContent).toContain(`${TABLE_HEADINGS.attendance}${NOT_RECORDED}`);
+
+    const ines = cards.find((card) => card.textContent?.includes("Ines Thornbury"))!;
+    expect(ines.textContent).toContain(`${TABLE_HEADINGS.delivery}${DELIVERY_NOT_QUEUED}`);
   });
 
   it("drops the delivery chip at the club-link tier", () => {
