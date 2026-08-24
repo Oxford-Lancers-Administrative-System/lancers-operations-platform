@@ -415,3 +415,62 @@ describe("the signed RSVP page is public, unauthenticated, and carries its own h
     expect(createServerClient).toHaveBeenCalled();
   });
 });
+
+/**
+ * The club link — LAN-157, D2, D81.
+ *
+ * The same three headers as `/rsvp`, for the same three reasons: the signed
+ * token is in the URL, the page names people and says what they answered, and a
+ * squad list is not a public document however un-secret it is from the squad.
+ *
+ * D81 settles who may read it. It settles nothing about who may keep a copy,
+ * and these assertions are the difference.
+ */
+describe("the club link is public, unauthenticated, and carries its own headers", () => {
+  const CLUB_LINK = "/e/abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM0123";
+
+  it("is matched by the proxy, or none of the below would run at all", () => {
+    expect(matcherRuns("/e")).toBe(true);
+    expect(matcherRuns(CLUB_LINK)).toBe(true);
+  });
+
+  it("stops the token leaving in a Referer header", async () => {
+    givenSignedIn(false);
+    const response = await proxy(requestFor(CLUB_LINK));
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  it("lets nothing keep a copy of a page that names the squad", async () => {
+    givenSignedIn(false);
+    const response = await proxy(requestFor(CLUB_LINK));
+    const cacheControl = response.headers.get("cache-control") ?? "";
+    expect(cacheControl).toContain("no-store");
+    expect(cacheControl).toContain("private");
+  });
+
+  it("keeps a shared link out of search results", async () => {
+    givenSignedIn(false);
+    const response = await proxy(requestFor(CLUB_LINK));
+    expect(response.headers.get("x-robots-tag")).toContain("noindex");
+  });
+
+  it("never redirects a coach to sign in — they have no account", async () => {
+    givenSignedIn(false);
+    const response = await proxy(requestFor(CLUB_LINK));
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("does no Supabase work, so a coach's page load cannot rotate an operator's cookie", async () => {
+    givenSignedIn(true);
+    await proxy(requestFor(CLUB_LINK));
+    expect(createServerClient).not.toHaveBeenCalled();
+  });
+
+  it("does not swallow a path that merely starts with the same letter", async () => {
+    // `/e` is a one-character prefix, and a naive `startsWith` would take
+    // `/events` — and, worse, `/edit` — out of session handling entirely.
+    givenSignedIn(true);
+    await proxy(requestFor("/events/something"));
+    expect(createServerClient).toHaveBeenCalled();
+  });
+});

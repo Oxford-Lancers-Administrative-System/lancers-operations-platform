@@ -114,6 +114,14 @@ checkpoint generated from durable state:
   without asking.
 - **Next hour** — what runs after the checkpoint.
 - **Deploy drift** — how far `main` is ahead of production.
+- **Resources** — active stacks, lease states, worktree count, and current
+  1/5/15-minute system load. The Lead runs the guarded `db:cleanup-stale` and
+  prunes repository-proven merged worktrees before reporting it; anything
+  dirty, unpushed, active, or unmerged stays and is named.
+
+For overnight missions, the Lead keeps the machine awake with
+`caffeinate -dims` (or the platform equivalent). Machine sleep stalled a worker
+during the 23 August run and is an operating condition, not a worker failure.
 
 Answer the questions in the session; the Lead persists each answer
 (`npm run mission -- answer …`) before dependent work resumes. When an
@@ -145,26 +153,35 @@ the Linear issue, required outcome, linked criterion or gate, remaining human
 and agent work, and next actor. Questions Brian can answer in the conversation
 remain in **Need from Brian** and never enter the owner-action section.
 
-**Visual review is unchanged from ADR 0020.** UI-affecting packages wait
-for Brian to open a live, protected `review-ready` environment — normally at
-a checkpoint — with one URL, the fixed login, and zero commands. His
-approval is recorded (`visual-approve`) and the merge gate requires it; the
-merge workflow independently refuses a "nonvisual" claim whose diff touches
-a visual surface.
+**Visual review keeps ADR 0020's protected environment and follows ADR 0035.**
+Targeted checks, exact-head CI, and any triggered security review finish before
+Brian opens a visual package's live `review-ready` environment, with one URL,
+the fixed login and zero commands. `visual-approve` records the exact package
+head he checked. At that unchanged head no reviewer or worker runs afterwards;
+the deterministic merge gate is next. A rendered head change returns through
+machine checks and one affected-surface walkthrough, while a classifier-proven
+non-rendered delta carries the owner evidence forward.
+
+Each approved issue merges immediately. After all mission issues are on `main`,
+one bounded Sonnet walker smoke-tests the predetermined end-to-end journeys and
+visible hand-offs. That final smoke is not another visual review and does not
+reopen merged issues. Its findings become new corrective issue/PR work; only the
+affected journey repeats once after that correction merges. A second failure
+stops automated correction and returns to Brian for adjudication.
 
 ## What merges by itself, and what never does
 
 There are three tiers, decided by Brian on 2026-08-18:
 
-**Merges by itself.** Standard application work at low or normal risk, with
-a clear independent review at the exact head SHA, recorded visual approval
-(or genuinely nonvisual), no open owner question, and green required checks
-at that exact commit, merges through the checked-in `mission-merge` workflow
+**Merges by itself.** Standard application work whose exact package head has
+clear required security coverage, Brian's issue approval (or is genuinely
+nonvisual), no open owner question, and green required checks at that exact
+commit merges through the checked-in `mission-merge` workflow
 after the Mission Lead publishes its receipt and applies the `mission-merge`
 label. The workflow re-derives everything server-verifiable from evidence
 and fails closed; a refusal is posted on the pull request. A review-blocked
-correction or any new head clears a previously recorded visual approval —
-Brian approved what he saw, not whatever came later.
+rendered correction clears the applicable visual evidence — Brian approved
+what he saw, not whatever came later.
 
 Merging is where a package's lifecycle ends. A worker or review receipt that
 arrives after the merge is refused, and a journal that somehow contains one
@@ -229,9 +246,14 @@ every read.
 - **A worker died mid-package:** its lease expires and its package returns
   to the frontier; the worktree and branch are never deleted while dirty or
   unmerged, and re-dispatch reuses them.
-- **Something looks wrong:** `npm run mission -- status M-<id>` prints the
-  package states, open questions, and executable frontier without changing
-  anything. The journal itself is plain NDJSON and safe to read.
+- **Something looks wrong:** `npm run mission -- status M-<id>` projects every
+  package onto the canonical lifecycle, then prints open questions and the
+  executable frontier without changing anything. Detailed journal mechanics
+  remain in plain NDJSON and are safe to read.
+
+A passing `mission gate` records `gate-passed` at the exact head. Re-running a
+now-failing gate invalidates that milestone, so volatile GitHub evidence cannot
+leave status falsely green.
 
 ## One-time owner actions before the first live mission
 
@@ -276,7 +298,8 @@ with the missing work named; a package blocks rather than pretends.
 
 ## Known limitations in v1
 
-- One Lead per mission; at most two implementation workers per mission. There
+- One Lead per mission; at most two implementation workers and at most three
+  concurrent implementers, reviewers and walkers per mission. There
   is no harness-level mission count. Each active mission owns a uniquely ported
   disposable local database; the standing non-mission stack remains available.
 - The workflow trusts the Lead's published receipt for facts whose ground
@@ -290,3 +313,19 @@ with the missing work named; a package blocks rather than pretends.
   fresh session.
 - Mission state is machine-local: a different machine starts from the
   repository's durable artifacts (PRs, branches, Linear), not the journal.
+
+## Context and turn economy
+
+Brian selects Sonnet or Opus for the Mission Lead. The Lead assigns Haiku only
+to mechanically bounded, low-risk implementation with a complete contract and
+mechanical acceptance; complex implementation and every correction use Sonnet,
+which is the implementation cap. Every reviewer is Sonnet, also capped there;
+the scout defaults to Haiku. Handoffs are on-disk pointers (`brief.md`,
+`receipt.json`, and walker/review reports), not conversational payloads.
+Independent commands are batched; long output goes to `/tmp/out.log` with only
+its last 20 lines shown, and a diff stat precedes a full diff.
+
+The Lead stops and a fresh Lead resumes after plan approval, before durable
+execution begins. Every resume reconciles the journal against GitHub first. The
+Lead delegates repository investigation to the bounded read-only scout and
+waits for completion notifications instead of polling.

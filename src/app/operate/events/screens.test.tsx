@@ -61,6 +61,19 @@ vi.mock("@/lib/services/event-templates", async (importOriginal) => {
     listEventTemplates: vi.fn(),
   };
 });
+// LAN-157. The event page reads the participation table and the live club
+// link. Both are proved elsewhere — `src/app/participation/screens.test.tsx`
+// for the rendering, `src/lib/services/participation.test.ts` for the payload —
+// and this file's subject is the rest of the page.
+vi.mock("@/lib/services/participation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/participation")>();
+  return {
+    ...actual,
+    readOperatorParticipation: vi.fn().mockResolvedValue(null),
+    readEventClubLink: vi.fn().mockResolvedValue(null),
+    issueEventClubLink: vi.fn(),
+  };
+});
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-approval")>();
   return {
@@ -100,6 +113,12 @@ import {
   summariseAttendance,
   type AttendanceSummary,
 } from "@/lib/services/attendance";
+import {
+  issueEventClubLink,
+  readEventClubLink,
+  readOperatorParticipation,
+} from "@/lib/services/participation";
+import type { OperatorParticipation } from "@/lib/services/participation-view";
 import { todayInClubZone } from "@/lib/club-time";
 import { DERIVED_STATE_LABELS, labelFor, STATUS_LABELS, TYPE_LABELS } from "./presentation";
 import EventsPage from "./page";
@@ -2089,6 +2108,173 @@ describe("UX-43 — the event is approved", () => {
     render(await EventDetailPage(detailProps()));
 
     expect(screen.queryByTestId("event-approved-note")).toBeNull();
+  });
+});
+
+/**
+ * W7-01, W7-02 and W7-04 on the operator's own event page — LAN-157.
+ *
+ * The table's own behaviour is proved in `src/app/participation/screens.test.tsx`
+ * and its payload against the database in
+ * `src/lib/services/participation.test.ts`. What is under test here is the
+ * **wiring**: that the page reads it, renders it in place of the audience list
+ * once there are invitations, and offers the share control.
+ */
+describe("the participation table on the event page", () => {
+  const PARTICIPATION: OperatorParticipation = {
+    tier: "operator",
+    event: {
+      id: EVENT_ID,
+      name: "Team practice",
+      status: "approved",
+      eventType: "practice",
+      scheduledOn: "2027-02-17",
+      startsAt: "20:00:00",
+      endsAt: "22:30:00",
+      venue: "Iffley Road Astro",
+      deliveryMode: "in_person",
+      description: null,
+      requiredEquipment: null,
+      isMandatory: true,
+      termLabel: null,
+      weekNumber: null,
+      joiningUrl: null,
+    },
+    questions: [],
+    people: [
+      {
+        key: "player:1",
+        displayName: "Avery Fielding",
+        capacity: "player",
+        isWalkUp: false,
+        invitedAt: "2027-02-15T18:00:00.000Z",
+        answer: "yes",
+        reason: null,
+        presence: "absent",
+        discrepancy: "said_yes_marked_absent",
+        answers: {},
+        delivery: "delivered",
+      },
+    ],
+    headline: { invited: 1, saidYes: 1, showed: 0, registerSaved: true },
+  };
+
+  function approvedWithInvitations() {
+    return detail({ status: "approved", audienceCount: 3, invitationCount: 3 });
+  }
+
+  it("replaces the audience list once there are invitations to describe", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approvedWithInvitations());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readOperatorParticipation).mockResolvedValue(PARTICIPATION);
+
+    render(await EventDetailPage(detailProps()));
+
+    // W7: "the audience list becomes the full table."
+    expect(screen.getByTestId("participation-table")).toBeVisible();
+    expect(screen.queryByTestId("event-audience")).toBeNull();
+    expect(screen.getByTestId("participation-table").getAttribute("data-tier")).toBe("operator");
+    expect(screen.getAllByText("Delivered").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the audience list for a draft, which has no table to show", async () => {
+    // The counterweight: a draft carries an audience and no invitations, so
+    // there is nothing to put in the answer and attendance columns.
+    vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readOperatorParticipation).mockResolvedValue(null as never);
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.getByTestId("event-audience")).toBeVisible();
+    expect(screen.queryByTestId("participation-table")).toBeNull();
+    expect(readOperatorParticipation).not.toHaveBeenCalled();
+  });
+});
+
+describe("sharing the club link — W7-04", () => {
+  function approvedEvent() {
+    return detail({ status: "approved", audienceCount: 3, invitationCount: 0 });
+  }
+
+  it("offers Share link on an approved event and not on a draft", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approvedEvent());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    const approved = render(await EventDetailPage(detailProps()));
+    expect(approved.getByTestId("share-link-button")).toBeVisible();
+    approved.unmount();
+
+    // A draft has no participation table to share.
+    vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
+    const draft = render(await EventDetailPage(detailProps()));
+    expect(draft.queryByTestId("share-link-button")).toBeNull();
+  });
+
+  it("shows the link, and creates nothing by being opened", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approvedEvent());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readEventClubLink).mockResolvedValue({ linkId: "link-1", token: "a-token" });
+    vi.stubEnv("APP_BASE_URL", "https://club.example");
+    vi.stubEnv("CLUB_LINK_SECRET", "a-signing-key-long-enough-to-be-accepted");
+
+    render(await EventDetailPage(detailProps({ share: "1" })));
+
+    expect(screen.getByTestId("club-link-url").textContent).toBe("https://club.example/e/a-token");
+    // Reading is reading: opening the dialog must not mint a token.
+    expect(issueEventClubLink).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("issue-club-link")).toBeNull();
+    vi.unstubAllEnvs();
+  });
+
+  it("offers to create one when there is none, rather than showing an empty box", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approvedEvent());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readEventClubLink).mockResolvedValue(null);
+    vi.stubEnv("CLUB_LINK_SECRET", "a-signing-key-long-enough-to-be-accepted");
+
+    render(await EventDetailPage(detailProps({ share: "1" })));
+
+    expect(screen.getByTestId("issue-club-link")).toBeVisible();
+    expect(screen.queryByTestId("club-link-url")).toBeNull();
+    vi.unstubAllEnvs();
+  });
+
+  it("says a deployment that cannot sign cannot sign, as content and not an error", async () => {
+    // `docs/ux/standards.md` rule 6: a guard firing correctly is not an error
+    // page. And the control that would fail is not offered.
+    vi.mocked(readEvent).mockResolvedValue(approvedEvent());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readEventClubLink).mockResolvedValue(null);
+    vi.stubEnv("CLUB_LINK_SECRET", "");
+
+    render(await EventDetailPage(detailProps({ share: "1" })));
+
+    expect(flatten(screen.getByTestId("share-blocked").textContent)).toContain(
+      "CLUB_LINK_SECRET is not set",
+    );
+    expect(screen.queryByTestId("issue-club-link")).toBeNull();
+    vi.unstubAllEnvs();
+  });
+
+  it("says what a holder of the link can do, and does not justify the design", async () => {
+    vi.mocked(readEvent).mockResolvedValue(approvedEvent());
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readEventClubLink).mockResolvedValue({ linkId: "link-1", token: "a-token" });
+    vi.stubEnv("APP_BASE_URL", "https://club.example");
+    vi.stubEnv("CLUB_LINK_SECRET", "a-signing-key-long-enough-to-be-accepted");
+
+    render(await EventDetailPage(detailProps({ share: "1" })));
+
+    const panel = flatten(screen.getByTestId("share-panel").textContent);
+    expect(panel).toContain("Anyone with this link can see who was asked");
+    expect(panel).toContain("cannot change anything and do not need an account");
+    // The mockup's second paragraph is D81's reasoning, and Brian has rejected
+    // that copy shape five times on this mission.
+    expect(panel).not.toMatch(/not a secret/i);
+    expect(panel).not.toMatch(/prerogative/i);
+    // There is no send-to-WhatsApp: the club cannot message groups.
+    expect(panel).not.toMatch(/whatsapp/i);
+    vi.unstubAllEnvs();
   });
 });
 

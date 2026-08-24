@@ -25,6 +25,7 @@ gh workflow run  ──▶  deploy (.github/workflows/deploy.yml)
 
 Nothing deploys on its own. A pull request does not, and neither does a merge —
 deploying is always an explicit `workflow_dispatch`.
+Brian dispatches it from `main` only after the required CI checks pass.
 
 That separation is deliberate. A migration that drops a column has to be applied
 to hosted **before** the revision expecting the new schema goes live, and a
@@ -114,15 +115,45 @@ a notice and skips cleanly rather than failing red.
 
 ## Secrets
 
-Two server-only values, and they are **different credentials with different
-reach**. Both live in **Secret Manager** and are injected into the Cloud Run
-revision at runtime (`--set-secrets`). Neither is baked into the image, present
-in the workflow environment, or in the repository.
+Three server-only values, and the first two are **different credentials with
+different reach**. All live in **Secret Manager** and are injected into the
+Cloud Run revision at runtime (`--set-secrets`). None is baked into the image,
+present in the workflow environment, or in the repository.
 
 | Variable              | Secret Manager id     | What it is                                                                                                                                                                                                 | Status                            |
 | --------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | `SUPABASE_SECRET_KEY` | `supabase-secret-key` | Presented to the Data API. PostgREST connects as `authenticator`, switches to `service_role`. Bypasses RLS.                                                                                                | **Provisioned**                   |
 | `DATABASE_URL`        | `database-url`        | Direct PostgreSQL connection for the service layer's transactions. A PostgreSQL login in its own right — a **second** privileged credential, scoped by ADR 0026 to reach exactly as far as `service_role`. | **Owner-provisioned. See below.** |
+| `CLUB_LINK_SECRET`    | `club-link-secret`    | Signs the club link (LAN-157, D81). Not a database credential and reaches no data: it can only produce and verify one event's share token.                                                                 | **Owner-provisioned. See below.** |
+
+### `CLUB_LINK_SECRET`
+
+An operator issues one link per event and shares it with the squad; anybody
+holding it sees who was asked, what they said and who turned up, without an
+account. The link is **signed rather than guessable**: the token is
+`HMAC-SHA256(CLUB_LINK_SECRET, "club-link:v1:<event>:<link row>")`, and
+`club_link_tokens` stores only its SHA-256 digest, so this value is the only
+thing that can produce a valid one.
+
+**A missing value is a refusal, not a default.** Without it the share control
+says the deployment cannot issue a link and names the setting; nothing is
+created, and no link is signed with a fallback. Everything else on the event
+page works. Provision it with:
+
+```bash
+printf '%s' "$(openssl rand -hex 32)" | gcloud secrets create club-link-secret --data-file=- --replication-policy=automatic
+gcloud secrets add-iam-policy-binding club-link-secret --member="serviceAccount:$(gcloud run services describe lancers-operations-platform --region europe-west2 --format='value(spec.template.spec.serviceAccountName)')" --role=roles/secretmanager.secretAccessor
+```
+
+then add `CLUB_LINK_SECRET=club-link-secret:latest` to the revision's
+`--set-secrets`.
+
+**Rotating it invalidates every club link already shared**, because the tokens
+are derived from it rather than stored. That is a deliberate act — the way to
+withdraw every link at once — and not a routine one.
+
+Locally there is nothing to do: `npm run db:start` generates a machine-local key
+outside the repository and writes it into `.env.local`.
 
 **`DATABASE_URL` is required.** The service layer is the only path to domain
 data, so a revision without it serves pages and fails on the first write. The
@@ -145,10 +176,11 @@ gcloud run services update lancers-operations-platform --region europe-west2
 ```
 
 `/api/health` reports `secretsLoaded: true|false` and
-`databaseConfigured: true|false` — presence only, never the value — so a deploy
-can be verified without anyone reading a secret. The deploy workflow fails if
-either is `false`. Neither field reveals the host, port, connection mode, role
-or any error, and the endpoint never connects to the database.
+`databaseConfigured: true|false` and `schemaCompatible: true|false` — never a
+value or error — so a deploy can be verified without anyone reading a secret.
+The deploy workflow fails if any required field is `false`. The schema probe
+selects one row from `public.events`; neither it nor the response reveals the
+host, port, connection mode, role, credential, or failure reason.
 
 ## Activating the runtime database connection
 
@@ -215,9 +247,10 @@ printf '%s' 'PASTE-THE-CONNECTION-STRING-HERE' | gcloud secrets create database-
 gcloud secrets add-iam-policy-binding database-url --member="serviceAccount:$(gcloud run services describe lancers-operations-platform --region europe-west2 --format='value(spec.template.spec.serviceAccountName)')" --role=roles/secretmanager.secretAccessor
 ```
 
-**4 — Merge the pull request.** The deploy workflow injects the secret and fails
-the revision unless `/api/health` reports both `secretsLoaded` and
-`databaseConfigured` as true.
+**4 — Merge the pull request, wait for CI, then manually dispatch `deploy.yml`.**
+The deploy workflow injects the secret and fails the revision unless
+`/api/health` reports `secretsLoaded`, `databaseConfigured`, and
+`schemaCompatible` as true.
 
 **5 — Prove the credential actually works.** Presence is not correctness: a wrong
 password, a role without `BYPASSRLS`, or a pooler refusing the login all pass the
@@ -304,7 +337,7 @@ worked locally, and no deployed revision had ever been told to enable it.
 it for password recovery, and the sender still refuses without the other three,
 so setting it enables no delivery. It is in the workflow rather than typed into
 the Cloud Run console because `--set-env-vars` replaces the environment: a value
-set by hand would be erased by the next merge to `main`, and recovery would stop
+set by hand would be erased by the next manual deploy, and recovery would stop
 sending without any error appearing anywhere.
 
 **It also decides where an email link lands after the token is spent** — LAN-141.
@@ -448,9 +481,10 @@ limits.
 
 ## Health check and logging
 
-- `GET /api/health` → `{ status, service, revision, commit, secretsLoaded, databaseConfigured, timestamp }`.
-- It touches no dependency on purpose: a health check that fails when the
-  database blips turns a blip into an outage.
+- `GET /api/health` → `{ status, service, revision, commit, secretsLoaded, databaseConfigured, schemaCompatible, timestamp }`.
+- When `DATABASE_URL` is configured, it selects from `public.events` and returns
+  503 unless the current schema is readable. It is a deploy-readiness check, not
+  a Cloud Run liveness probe.
 - `commit` is the Git SHA baked into the image at build time, so a running
   revision can always be tied back to a commit.
 
@@ -596,7 +630,7 @@ gcloud run services update-traffic lancers-operations-platform \
 ```
 
 Use this when the site is down and minutes matter. Follow it with a revert
-pull request, otherwise the next merge to `main` re-deploys the bad code.
+pull request, otherwise a later manual deploy could re-deploy the bad code.
 
 **Verify either way:**
 

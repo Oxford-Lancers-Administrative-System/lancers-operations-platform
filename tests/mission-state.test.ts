@@ -6,13 +6,16 @@ import {
   LEAD_TTL_MS,
   MAX_ACTIVE_WORKERS,
   appendEvent,
+  guardedLaneRefusals,
   leadLeaseAvailable,
   missionPaths,
   nextActions,
+  packageLifecycle,
   readJournal,
   reduce,
   replayState,
 } from "../scripts/mission/lib/state.mjs";
+import { buildMissionReceipt } from "../scripts/mission/merge-gate.mjs";
 import {
   AUTO_MERGE_CLASSES,
   COLLISION_DOMAINS,
@@ -111,6 +114,7 @@ const reviewReceipt = (result: string, sha = SHA) => ({
   reviewed_head_sha: sha,
   round: 1,
   result,
+  ci_state: "green",
   blocking_finding_ids: result === "blocked" ? ["R-001"] : [],
 });
 
@@ -142,15 +146,20 @@ async function readyMission(m: ReturnType<typeof fixture>) {
   }
 }
 
-/** LAN-148 §D: Brian is asked to judge the integrated result, so the walker
- * runs against the head he will be shown before any visual approval. */
-const walked = (m: ReturnType<typeof fixture>, sha = SHA) =>
+/** The one final mission smoke covers every package head. */
+const walked = (
+  m: ReturnType<typeof fixture>,
+  sha = SHA,
+  packageHeads = Object.fromEntries(plan.packages.map((pkg: { id: string }) => [pkg.id, sha])),
+) =>
   m.append({
     type: "integrated-review",
     mode: "workflow-walker",
     head_sha: sha,
+    package_heads: packageHeads,
     result: "clear",
     jobs_completed: "Signed in, drafted a practice, confirmed its audience and took the register.",
+    report: "reviews/final-smoke.json",
   });
 
 async function reviewedClear(m: ReturnType<typeof fixture>, packageId: string) {
@@ -307,6 +316,37 @@ describe("mission packet validation", () => {
     expect(OWNER_GATED_CLASSES).toContain("schema-migration");
     expect(OWNER_GATED_CLASSES).toContain("rls-auth-security");
     expect(OWNER_GATED_CLASSES).toContain("highest-risk");
+  });
+});
+
+describe("append-only journal annotations", () => {
+  it("marks three false worker-incapacity entries corrected without rewriting them", async () => {
+    const m = fixture();
+    await readyMission(m);
+    const before = readJournal(missionPaths(m.repo, MISSION, m.env).journal);
+    const targets = [1, 2, 3];
+    for (const target_event of targets) {
+      await m.append({
+        type: "journal-annotation",
+        target_event,
+        disposition: "corrected",
+        reason: "The worker was resumable; one denied attempt was generalized incorrectly.",
+        correction:
+          "Resume the original worker identity and record the actual refusal if it fails.",
+      });
+    }
+    const after = readJournal(missionPaths(m.repo, MISSION, m.env).journal);
+    expect(after.slice(0, before.length)).toEqual(before);
+    expect(replayState(m.repo, MISSION, m.env).annotations).toHaveLength(3);
+    await expect(
+      m.append({
+        type: "journal-annotation",
+        target_event: 999,
+        disposition: "corrected",
+        reason: "Synthetic missing target",
+        correction: "No correction",
+      }),
+    ).rejects.toThrow(/does not exist/);
   });
 });
 
@@ -661,16 +701,43 @@ describe("worker dispatch", () => {
         branch: "feat/c",
       }),
     ).rejects.toThrow(/only one migration-owning package runs at a time/);
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-a",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-a",
+      pr_number: 91,
+      head_sha: SHA,
+    });
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-a",
+      receipt: reviewReceipt("blocked"),
+    });
+    await expect(
+      m.append({
+        type: "worker-dispatched",
+        package_id: "WP-events-b",
+        worker_id: "worker-2",
+        worktree: ".claude/worktrees/b",
+        branch: "feat/b",
+      }),
+    ).rejects.toThrow(/queued correction.*outranks a fresh dispatch/);
+    await expect(
+      m.append({
+        type: "correction-dispatched",
+        package_id: "WP-events-a",
+        worker_id: "worker-1",
+        finding_ids: ["R-001"],
+      }),
+    ).resolves.toBeTruthy();
   });
 
-  /**
-   * LAN-148 §F. In the first live run a downstream package sat idle for hours
-   * because its dependency's pull request was reviewed, green and correct but
-   * unmerged — Brian's merge timing had become a scheduling dependency. A
-   * dependency reviewed clean at exactly the head its pull request carries is a
-   * deterministic base; his merge authority is untouched.
-   */
-  it("dispatches on a dependency reviewed clean at its exact head, without waiting for the merge", async () => {
+  it("dispatches dependent work only after its dependency merges to main", async () => {
     const m = fixture();
     await readyMission(m);
     await m.append({
@@ -698,15 +765,13 @@ describe("worker dispatch", () => {
       receipt: reviewReceipt("clear"),
     });
 
-    // The frontier now offers the downstream package, and says what it is
-    // standing on.
+    // A reviewed branch is not the trunk that dependent work must start from.
     const reviewed = replayState(m.repo, MISSION, m.env);
-    const offer = nextActions(reviewed).find(
-      (action) => action.action === "dispatch" && action.package_id === "WP-report-footer",
-    );
-    expect(offer?.detail).toMatch(/recording the reviewed head of WP-attendance-export/);
-
-    // Building on it without recording that basis is refused.
+    expect(
+      nextActions(reviewed).some(
+        (action) => action.action === "dispatch" && action.package_id === "WP-report-footer",
+      ),
+    ).toBe(false);
     await expect(
       m.append({
         type: "worker-dispatched",
@@ -715,19 +780,15 @@ describe("worker dispatch", () => {
         worktree: ".claude/worktrees/wp-report",
         branch: "feat/wp-report",
       }),
-    ).rejects.toThrow(/builds on unmerged WP-attendance-export; the dispatch records that basis/);
+    ).rejects.toThrow(/has not merged to main/);
 
-    // A basis pinned to the wrong commit is refused too.
-    await expect(
-      m.append({
-        type: "worker-dispatched",
-        package_id: "WP-report-footer",
-        worker_id: "worker-2",
-        worktree: ".claude/worktrees/wp-report",
-        branch: "feat/wp-report",
-        dependency_basis: [{ package_id: "WP-attendance-export", head_sha: "b".repeat(40) }],
-      }),
-    ).rejects.toThrow(/but the reviewed head is/);
+    await m.append({
+      type: "merge-recorded",
+      package_id: "WP-attendance-export",
+      pr_number: 41,
+      sha: SHA,
+      route: "guarded-auto",
+    });
 
     const dispatched = await m.append({
       type: "worker-dispatched",
@@ -735,12 +796,11 @@ describe("worker dispatch", () => {
       worker_id: "worker-2",
       worktree: ".claude/worktrees/wp-report",
       branch: "feat/wp-report",
-      dependency_basis: [{ package_id: "WP-attendance-export", head_sha: SHA }],
     });
     expect(dispatched.packages["WP-report-footer"].status).toBe("active");
   });
 
-  it("refuses a dependency whose head moved after its review, and records a deliberate wait", async () => {
+  it("still waits for main when a reviewed dependency head moves", async () => {
     const m = fixture();
     await readyMission(m);
     await m.append({
@@ -784,10 +844,8 @@ describe("worker dispatch", () => {
         branch: "feat/wp-report",
         dependency_basis: [{ package_id: "WP-attendance-export", head_sha: SHA }],
       }),
-    ).rejects.toThrow(/but its pull request now carries/);
+    ).rejects.toThrow(/has not merged to main/);
 
-    // Choosing to wait for a merge the evidence does not require is a decision
-    // the journal has to be able to show.
     const deferred = await m.append({
       type: "dispatch-deferred",
       package_id: "WP-report-footer",
@@ -812,7 +870,7 @@ describe("worker dispatch", () => {
         branch: "feat/wp-report",
       }),
     ).rejects.toThrow(
-      /cannot start on WP-attendance-export: WP-attendance-export has no clear independent review/,
+      /cannot start on WP-attendance-export: WP-attendance-export has not merged to main/,
     );
     await m.append({
       type: "owner-question",
@@ -955,7 +1013,7 @@ describe("worker receipts and correction lineage", () => {
     );
   });
 
-  it("holds a correction resumption to the same scheduling conjuncts as a fresh dispatch", async () => {
+  it("prioritizes a queued correction and still holds its resumption to owner-question gates", async () => {
     const m = fixture();
     await m.append({ type: "mission-init", packet, lead_id: "lead-fixture", pid: 4242 });
     const colliding = [
@@ -981,8 +1039,8 @@ describe("worker receipts and correction lineage", () => {
         issue_id: `LAN-93${index}`,
       });
     }
-    // WP-events-a is implemented and then blocked by review; its slot frees,
-    // and the same-domain sibling takes it.
+    // WP-events-a is implemented and then blocked by review; its correction
+    // outranks a fresh same-domain dispatch.
     await m.append({
       type: "worker-dispatched",
       package_id: "WP-events-a",
@@ -1002,31 +1060,17 @@ describe("worker receipts and correction lineage", () => {
       package_id: "WP-events-a",
       receipt: reviewReceipt("blocked"),
     });
-    await m.append({
-      type: "worker-dispatched",
-      package_id: "WP-events-b",
-      worker_id: "worker-2",
-      worktree: ".claude/worktrees/b",
-      branch: "feat/b",
-    });
-    // The correction must wait: resuming worker-1 now would put two workers
-    // in the "events" collision domain at once.
     await expect(
       m.append({
-        type: "correction-dispatched",
-        package_id: "WP-events-a",
-        worker_id: "worker-1",
-        finding_ids: ["R-001"],
+        type: "worker-dispatched",
+        package_id: "WP-events-b",
+        worker_id: "worker-2",
+        worktree: ".claude/worktrees/b",
+        branch: "feat/b",
       }),
-    ).rejects.toThrow(/collides with WP-events-b on domain "events"/);
-    await m.append({
-      type: "worker-receipt",
-      package_id: "WP-events-b",
-      worker_id: "worker-2",
-      receipt: workerReceipt("completed"),
-    });
-    // The domain is clear, but an unanswered owner question naming the
-    // package still pauses its correction.
+    ).rejects.toThrow(/queued correction.*outranks a fresh dispatch/);
+    // An unanswered owner question naming the package still pauses that
+    // prioritized correction.
     await m.append({
       type: "owner-question",
       id: "Q-correction-scope",
@@ -1138,12 +1182,44 @@ describe("guarded merge recording", () => {
         route: "guarded-auto",
       }),
     ).rejects.toThrow(/recorded visual approval/);
-    await walked(m);
     await m.append({
       type: "visual-approval",
       package_id: "WP-events-filter",
       approved_by: "Brian",
       evidence: "live review at checkpoint 1",
+    });
+    const built = replayState(m.repo, MISSION, m.env);
+    expect(packageLifecycle(built, built.packages["WP-events-filter"])).toBe("built");
+    await expect(
+      m.append({
+        type: "package-gate-passed",
+        package_id: "WP-events-filter",
+        head_sha: SHA,
+        receipt: { invented: true },
+      }),
+    ).rejects.toThrow(/exact receipt/);
+    const gated = await m.append({
+      type: "package-gate-passed",
+      package_id: "WP-events-filter",
+      head_sha: SHA,
+      receipt: buildMissionReceipt(built, "WP-events-filter", SHA),
+    });
+    expect(packageLifecycle(gated, gated.packages["WP-events-filter"])).toBe("gate-passed");
+    expect(nextActions(gated)).toContainEqual(
+      expect.objectContaining({ action: "request-merge", package_id: "WP-events-filter" }),
+    );
+    const invalidated = await m.append({
+      type: "package-gate-invalidated",
+      package_id: "WP-events-filter",
+      head_sha: SHA,
+      reasons: ["Required check rerun failed."],
+    });
+    expect(packageLifecycle(invalidated, invalidated.packages["WP-events-filter"])).toBe("built");
+    await m.append({
+      type: "package-gate-passed",
+      package_id: "WP-events-filter",
+      head_sha: SHA,
+      receipt: buildMissionReceipt(invalidated, "WP-events-filter", SHA),
     });
     await expect(
       m.append({
@@ -1162,10 +1238,10 @@ describe("guarded merge recording", () => {
       route: "guarded-auto",
     });
     expect(state.packages["WP-events-filter"].status).toBe("merged");
+    expect(packageLifecycle(state, state.packages["WP-events-filter"])).toBe("merged");
   });
 
-  it("clears visual approval on a correction and on a new head — Brian approved what he saw", async () => {
-    const B = "b".repeat(40);
+  it("allows no model review or correction after owner approval at an unchanged head", async () => {
     const m = fixture();
     await readyMission(m);
     await m.append({
@@ -1187,7 +1263,11 @@ describe("guarded merge recording", () => {
       pr_number: 42,
       head_sha: SHA,
     });
-    await walked(m);
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: reviewReceipt("clear"),
+    });
     const approved = await m.append({
       type: "visual-approval",
       package_id: "WP-events-filter",
@@ -1195,60 +1275,26 @@ describe("guarded merge recording", () => {
       evidence: "live review at checkpoint 1",
     });
     expect(approved.packages["WP-events-filter"].visual_approval.head_sha).toBe(SHA);
-    await m.append({
-      type: "review-receipt",
-      package_id: "WP-events-filter",
-      receipt: reviewReceipt("blocked"),
-    });
-    const corrected = await m.append({
-      type: "correction-dispatched",
-      package_id: "WP-events-filter",
-      worker_id: "worker-1",
-      finding_ids: ["R-001"],
-    });
-    expect(corrected.packages["WP-events-filter"].visual_approved).toBe(false);
-    await m.append({
-      type: "worker-receipt",
-      package_id: "WP-events-filter",
-      worker_id: "worker-1",
-      receipt: correctionReceipt(["R-001"], B),
-    });
-    await m.append({
-      type: "pr-opened",
-      package_id: "WP-events-filter",
-      pr_number: 42,
-      head_sha: B,
-    });
-    await m.append({
-      type: "review-receipt",
-      package_id: "WP-events-filter",
-      receipt: reviewReceipt("clear", B),
-    });
     await expect(
       m.append({
-        type: "merge-recorded",
+        type: "review-receipt",
         package_id: "WP-events-filter",
-        pr_number: 42,
-        sha: B,
-        route: "guarded-auto",
+        receipt: reviewReceipt("blocked"),
       }),
-    ).rejects.toThrow(/recorded visual approval/);
-    // The corrected head is a different integrated result, so it is walked again.
-    await walked(m, B);
-    await m.append({
-      type: "visual-approval",
-      package_id: "WP-events-filter",
-      approved_by: "Brian",
-      evidence: "live review at checkpoint 2, corrected head",
-    });
-    const merged = await m.append({
-      type: "merge-recorded",
-      package_id: "WP-events-filter",
-      pr_number: 42,
-      sha: B,
-      route: "guarded-auto",
-    });
-    expect(merged.packages["WP-events-filter"].status).toBe("merged");
+    ).rejects.toThrow(/no model review runs after approval/);
+    await expect(
+      m.append({
+        type: "correction-dispatched",
+        package_id: "WP-events-filter",
+        worker_id: "worker-1",
+        finding_ids: ["R-001"],
+      }),
+    ).rejects.toThrow(/Corrections happen before approval/);
+    expect(
+      nextActions(approved)
+        .filter((action) => action.package_id === "WP-events-filter")
+        .map((action) => action.action),
+    ).toEqual(["merge-gate"]);
   });
 
   it("clears visual approval when a new head appears with no correction in between", async () => {
@@ -1278,7 +1324,11 @@ describe("guarded merge recording", () => {
       pr_number: 42,
       head_sha: SHA,
     });
-    await walked(m);
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: reviewReceipt("clear"),
+    });
     const approved = await m.append({
       type: "visual-approval",
       package_id: "WP-events-filter",
@@ -1308,7 +1358,6 @@ describe("guarded merge recording", () => {
       }),
     ).rejects.toThrow(/recorded visual approval/);
     // A repeat of the SAME head does not clear a live approval.
-    await walked(m, B);
     await m.append({
       type: "visual-approval",
       package_id: "WP-events-filter",
@@ -1409,7 +1458,6 @@ describe("guarded merge recording", () => {
     const m = fixture();
     await readyMission(m);
     await reviewedClear(m, "WP-events-filter");
-    await walked(m);
     await m.append({
       type: "visual-approval",
       package_id: "WP-events-filter",
@@ -1587,7 +1635,6 @@ describe("guarded merge recording", () => {
     const m = fixture();
     await readyMission(m);
     await reviewedClear(m, "WP-attendance-export");
-
     // It qualifies: normal risk, nonvisual, clear review at the exact head.
     await expect(
       m.append({
@@ -1612,6 +1659,27 @@ describe("guarded merge recording", () => {
 });
 
 describe("drift, stops, and resumption", () => {
+  it("records each deliberate Lead recycle phase once", async () => {
+    const m = fixture();
+    await readyMission(m);
+    const stopped = await m.append({
+      type: "mission-stopped",
+      reason: "phase-boundary",
+      phase: "plan-approved",
+      detail: "Reset Lead context after plan approval.",
+    });
+    expect(stopped.phaseRecycles).toEqual(["plan-approved"]);
+    await m.append({ type: "mission-resumed", lead_id: "fresh-lead", pid: 4243 });
+    await expect(
+      m.append({
+        type: "mission-stopped",
+        reason: "phase-boundary",
+        phase: "plan-approved",
+        detail: "Duplicate recycle.",
+      }),
+    ).rejects.toThrow(/already recycled at plan-approved/);
+  });
+
   it("clears an abandoned worker without losing package history", async () => {
     const m = fixture();
     await readyMission(m);
@@ -1696,103 +1764,232 @@ describe("drift, stops, and resumption", () => {
   });
 });
 
-describe("reviewing the thing the packages add up to", () => {
-  /**
-   * LAN-148 §D. Package-scoped review caught serious defects in the first live
-   * run and missed twelve usability and consistency ones, because nobody
-   * reviewed what the packages add up to. Brian is asked to judge the
-   * integrated result, so the walker runs against the head he will be shown.
-   */
-  it("refuses a visual approval that no walker covers, and accepts one that is walked", async () => {
+describe("owner-last review and the final mission smoke", () => {
+  it("withholds owner walkthrough until exact-head security coverage exists", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/wp-events",
+      branch: "feat/wp-events",
+    });
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    const implemented = await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 42,
+      head_sha: SHA,
+    });
+    expect(nextActions(implemented)).toContainEqual(
+      expect.objectContaining({
+        action: "security-clearance",
+        package_id: "WP-events-filter",
+      }),
+    );
+    expect(nextActions(implemented).some((action) => action.action === "owner-walkthrough")).toBe(
+      false,
+    );
+    await expect(
+      m.append({
+        type: "visual-approval",
+        package_id: "WP-events-filter",
+        approved_by: "Brian",
+        evidence: "too early",
+      }),
+    ).rejects.toThrow(/not owner-ready/);
+
+    const reviewed = await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: {
+        review_mode: "security-tier",
+        full_review_sha: SHA,
+        reviewed_head_sha: SHA,
+        round: 1,
+        result: "clear",
+        ci_state: "green",
+        sensitive_paths: [],
+        report: "reviews/security-tier.json",
+      },
+    });
+    expect(nextActions(reviewed)).toContainEqual(
+      expect.objectContaining({
+        action: "owner-walkthrough",
+        package_id: "WP-events-filter",
+      }),
+    );
+  });
+
+  it("merges an approved issue without waiting for the mission walker", async () => {
     const m = fixture();
     await readyMission(m);
     await reviewedClear(m, "WP-events-filter");
+    const approved = await m.append({
+      type: "visual-approval",
+      package_id: "WP-events-filter",
+      approved_by: "Brian",
+      evidence: "live issue review",
+    });
+    expect(guardedLaneRefusals(approved, "WP-events-filter", SHA)).toEqual([]);
+    expect(nextActions(approved)).toContainEqual(
+      expect.objectContaining({ action: "merge-gate", package_id: "WP-events-filter" }),
+    );
+    expect(nextActions(approved).some((action) => action.action === "workflow-walker")).toBe(false);
+  });
 
-    await expect(
-      m.append({
-        type: "visual-approval",
-        package_id: "WP-events-filter",
-        approved_by: "Brian",
-        evidence: "live review",
-      }),
-    ).rejects.toThrow(/No clear workflow-walker review covers/);
+  it("refuses the one workflow smoke until every issue is merged", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await expect(walked(m)).rejects.toThrow(/only after every live package has merged to main/);
 
-    // A walker at a different head is not a walker at this one.
-    await m.append({
+    for (const pkg of plan.packages) {
+      await m.append({
+        type: "merge-recorded",
+        package_id: pkg.id,
+        sha: SHA,
+        route: "owner",
+      });
+    }
+    const merged = replayState(m.repo, MISSION, m.env);
+    expect(nextActions(merged)).toContainEqual(
+      expect.objectContaining({ action: "workflow-walker" }),
+    );
+    const smoked = await walked(m);
+    expect(nextActions(smoked).some((action) => action.action === "workflow-walker")).toBe(false);
+    expect(nextActions(smoked)).toContainEqual(expect.objectContaining({ action: "closeout" }));
+  });
+
+  it("keeps merged issues closed when the final smoke finds a defect", async () => {
+    const m = fixture();
+    await readyMission(m);
+    for (const pkg of plan.packages) {
+      await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+    }
+    const blocked = await m.append({
       type: "integrated-review",
       mode: "workflow-walker",
-      head_sha: "d".repeat(40),
-      result: "clear",
-      jobs_completed: "Walked a different head entirely.",
+      head_sha: SHA,
+      result: "blocked",
+      jobs_completed: "The attendance-to-report hand-off failed.",
+      findings: ["W-001"],
+      report: "reviews/final-smoke.json",
     });
-    await expect(
-      m.append({
-        type: "visual-approval",
-        package_id: "WP-events-filter",
-        approved_by: "Brian",
-        evidence: "live review",
-      }),
-    ).rejects.toThrow(/No clear workflow-walker review covers/);
+    expect(
+      (Object.values(blocked.packages) as Array<{ status: string }>).every(
+        (pkg) => pkg.status === "merged",
+      ),
+    ).toBe(true);
+    expect(nextActions(blocked)).toContainEqual(
+      expect.objectContaining({ action: "mission-smoke-correction" }),
+    );
+    expect(nextActions(blocked).some((action) => action.action === "owner-walkthrough")).toBe(
+      false,
+    );
+  });
 
-    // Nor is a blocked one.
+  it("caps final-smoke repair at one correction and one targeted re-walk", async () => {
+    const m = fixture();
+    await readyMission(m);
+    for (const pkg of plan.packages) {
+      await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+    }
     await m.append({
       type: "integrated-review",
       mode: "workflow-walker",
       head_sha: SHA,
       result: "blocked",
-      jobs_completed: "The register could not be reached from the event.",
-      findings: [{ id: "W-001", summary: "dead end" }],
+      jobs_completed: "The attendance-to-report hand-off failed.",
+      findings: ["W-001"],
+      report: "reviews/final-smoke.json",
     });
-    await expect(
-      m.append({
-        type: "visual-approval",
-        package_id: "WP-events-filter",
-        approved_by: "Brian",
-        evidence: "live review",
-      }),
-    ).rejects.toThrow(/No clear workflow-walker review covers/);
-
-    await walked(m);
-    const approved = await m.append({
-      type: "visual-approval",
-      package_id: "WP-events-filter",
-      approved_by: "Brian",
-      evidence: "live review",
-    });
-    expect(approved.packages["WP-events-filter"].visual_approved).toBe(true);
-  });
-
-  it("asks for a walker on the frontier, and for the jobs rather than the screens", async () => {
-    const m = fixture();
-    await readyMission(m);
-    const state = await reviewedClear(m, "WP-events-filter");
-    expect(
-      nextActions(state).some(
-        (action) => action.action === "workflow-walker" && action.package_id === "WP-events-filter",
-      ),
-    ).toBe(true);
-
     await expect(
       m.append({
         type: "integrated-review",
         mode: "workflow-walker",
         head_sha: SHA,
-        result: "clear",
+        result: "blocked",
+        jobs_completed: "Repeated the affected hand-off.",
+        findings: ["W-001"],
+        report: "reviews/targeted-rewalk.json",
       }),
-    ).rejects.toThrow(/records the user jobs it completed end to end, not the screens it visited/);
+    ).rejects.toThrow(/only after .* corrective work merged/);
 
-    await expect(
-      m.append({ type: "integrated-review", mode: "eyeballed-it", head_sha: SHA, result: "clear" }),
-    ).rejects.toThrow(/mode is one of workflow-walker, cross-surface/);
+    const correction = {
+      ...plan.packages[1],
+      id: "WP-smoke-correction",
+      title: "Correct final-smoke finding W-001",
+      depends_on: [],
+    };
+    await m.append(planEvent([...plan.packages, correction]));
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "approved the single smoke correction",
+    });
+    await m.append({
+      type: "merge-recorded",
+      package_id: correction.id,
+      sha: "b".repeat(40),
+      route: "owner",
+    });
+    const corrected = replayState(m.repo, MISSION, m.env);
+    expect(nextActions(corrected)).toContainEqual(
+      expect.objectContaining({ action: "workflow-walker" }),
+    );
 
+    const failedAgain = await m.append({
+      type: "integrated-review",
+      mode: "workflow-walker",
+      head_sha: "b".repeat(40),
+      result: "blocked",
+      jobs_completed: "Repeated only the attendance-to-report hand-off.",
+      findings: ["W-001"],
+      report: "reviews/targeted-rewalk.json",
+    });
+    expect(nextActions(failedAgain)).toContainEqual(
+      expect.objectContaining({ action: "owner-adjudication" }),
+    );
+    expect(
+      nextActions(failedAgain).some((action) => action.action === "mission-smoke-correction"),
+    ).toBe(false);
     await expect(
       m.append({
         type: "integrated-review",
-        mode: "cross-surface",
-        head_sha: SHA,
-        result: "blocked",
+        mode: "workflow-walker",
+        head_sha: "b".repeat(40),
+        result: "clear",
+        jobs_completed: "Tried a third walk.",
+        report: "reviews/third-walk.json",
       }),
-    ).rejects.toThrow(/blocked integrated review names its findings/);
+    ).rejects.toThrow(/capped at the initial run and one targeted re-walk/);
+  });
+
+  it("refuses security coverage that is stale or lacks a report", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await reviewedClear(m, "WP-events-filter");
+    await expect(
+      m.append({
+        type: "review-receipt",
+        package_id: "WP-events-filter",
+        receipt: {
+          review_mode: "security-tier",
+          full_review_sha: SHA,
+          reviewed_head_sha: "b".repeat(40),
+          round: 1,
+          result: "clear",
+          ci_state: "green",
+          sensitive_paths: [],
+        },
+      }),
+    ).rejects.toThrow(/not current package head[\s\S]*report path/);
   });
 });
 
@@ -1859,6 +2056,18 @@ describe("binding a fix to the test that would catch it again", () => {
       }),
     ).rejects.toThrow(/R-001: injection evidence is missing/);
 
+    // The worker cannot read state.mjs and its own instructions do not carry
+    // the field list, so a refusal that only names the missing key sends it
+    // back to guess. Every one of these refusals states the whole shape.
+    await expect(
+      m.append({
+        type: "worker-receipt",
+        package_id: "WP-events-filter",
+        worker_id: "worker-1",
+        receipt: evidence,
+      }),
+    ).rejects.toThrow(/"finding_id", "test", "command", "failing_output", "restored_pass", "sha"/);
+
     const unpinned = correctionReceipt(["R-001", "R-002"]);
     unpinned.injection_evidence[1].sha = "abc";
     await expect(
@@ -1916,21 +2125,11 @@ describe("closing the mission where Brian will find it", () => {
 
   async function crossed(m: ReturnType<typeof fixture>) {
     await readyMission(m);
-    await m.append({
-      type: "integrated-review",
-      mode: "cross-surface",
-      head_sha: SHA,
-      result: "clear",
-    });
+    for (const pkg of plan.packages) {
+      await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+    }
+    await walked(m);
   }
-
-  it("refuses a closeout with no cross-surface review of the integrated result", async () => {
-    const m = fixture();
-    await readyMission(m);
-    await expect(m.append({ type: "mission-closeout", ...payload() })).rejects.toThrow(
-      /No clear cross-surface review covers the integrated result/,
-    );
-  });
 
   it("refuses an outcome that is not one of the three that can be true", async () => {
     const m = fixture();
@@ -2121,7 +2320,6 @@ describe("giving back what the mission took out", () => {
   async function merged(m: ReturnType<typeof fixture>, packageId = "WP-events-filter") {
     await readyMission(m);
     await reviewedClear(m, packageId);
-    await walked(m);
     await m.append({
       type: "visual-approval",
       package_id: packageId,
@@ -2196,26 +2394,19 @@ describe("giving back what the mission took out", () => {
     ).rejects.toThrow(/reclaiming resources is not the same act/);
   });
 
-  it("will not finalize while a package is unmerged or unreclaimed", async () => {
+  it("will not close out while packages are unmerged and the final smoke is absent", async () => {
     const m = fixture();
     await merged(m);
-    await m.append({
-      type: "integrated-review",
-      mode: "cross-surface",
-      head_sha: SHA,
-      result: "clear",
-    });
-    await m.append({
-      type: "mission-closeout",
-      outcome: "delivered",
-      notion_record: "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
-      shipped: [{ linear_issue_id: "LAN-900", pr_number: 42, sha: SHA }],
-      owner_actions: "None.",
-      next_action: "None.",
-    });
     await expect(
-      m.append({ type: "mission-finalized", stack_disposition: "retired" }),
-    ).rejects.toThrow(/has not merged/);
+      m.append({
+        type: "mission-closeout",
+        outcome: "delivered",
+        notion_record: "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+        shipped: [{ linear_issue_id: "LAN-900", pr_number: 42, sha: SHA }],
+        owner_actions: "None.",
+        next_action: "None.",
+      }),
+    ).rejects.toThrow(/only after every package has merged and the final workflow smoke is clear/);
   });
 
   /**

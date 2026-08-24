@@ -47,6 +47,21 @@ const PROTECTED_PREFIXES = ["/dashboard", "/operate"];
 const RSVP_PREFIX = "/rsvp";
 
 /**
+ * The club link (LAN-157) — public, and handled exactly like `/rsvp`.
+ *
+ * The same three facts apply. Its authorization is the signed token in the URL
+ * and never a session, so refreshing one buys nothing and would rotate an
+ * operator's cookies on a page a coach opened. It names people and says what
+ * they answered, so nothing may keep a copy. And the token is in the URL, so no
+ * referrer may leave.
+ *
+ * D81 says the club link is not privacy-blocking. That settles who may read it,
+ * not who may cache it: a squad list is not a secret from the squad, and it is
+ * still not a public document for a CDN to hold or a crawler to index.
+ */
+const CLUB_LINK_PREFIX = "/e";
+
+/**
  * The three headers a page reached by a private link must carry. Named for what
  * they do rather than for the first route that needed them: `/rsvp` (LAN-79)
  * and the recovery surfaces (LAN-125) both hold a one-time secret in a URL or a
@@ -105,10 +120,10 @@ function matchesPrefix(pathname: string, prefixes: readonly string[]): boolean {
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  if (path === RSVP_PREFIX || path.startsWith(`${RSVP_PREFIX}/`)) {
-    const rsvp = NextResponse.next({ request });
-    for (const [key, value] of PRIVATE_LINK_HEADERS) rsvp.headers.set(key, value);
-    return rsvp;
+  if (matchesPrefix(path, [RSVP_PREFIX, CLUB_LINK_PREFIX])) {
+    const privateLink = NextResponse.next({ request });
+    for (const [key, value] of PRIVATE_LINK_HEADERS) privateLink.headers.set(key, value);
+    return privateLink;
   }
 
   let response = NextResponse.next({ request });
@@ -178,10 +193,10 @@ export const config = {
     // Everything except Next.js internals, the health check, the provider
     // webhook, and static assets.
     //
-    // `/rsvp` stays matched deliberately, even though it is public: the proxy
-    // returns early for it above, before any Supabase work, and sets the
-    // headers that route depends on. Excluding it from the matcher would skip
-    // the early return too, and with it `no-store`.
+    // `/rsvp` and `/e` stay matched deliberately, even though both are public:
+    // the proxy returns early for them above, before any Supabase work, and
+    // sets the headers those routes depend on. Excluding them from the matcher
+    // would skip the early return too, and with it `no-store`.
     //
     // The WhatsApp webhook — that one route, not the `api/webhooks` namespace —
     // is excluded because it is the one route an unauthenticated
