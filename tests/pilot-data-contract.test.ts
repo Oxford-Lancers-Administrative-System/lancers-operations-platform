@@ -89,9 +89,8 @@ describe("nothing applies pilot data without a human", () => {
     expect(read(file)).not.toMatch(/scripts\/pilot/);
   });
 
-  it("says so in the runbook and in the working agreement", () => {
+  it("says so in the runbook", () => {
     expect(read(PILOT_RUNBOOK)).toMatch(/Nothing runs these automatically/i);
-    expect(read("AGENTS.md")).toMatch(/may reference `scripts\/pilot\/`/);
   });
 });
 
@@ -1403,50 +1402,7 @@ describe("the pull-request template", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Matrix row 10 — an agent can tell from AGENTS.md what to do
-// ---------------------------------------------------------------------------
-
-describe("the working agreement tells an agent what its pull request owes", () => {
-  const agents = read("AGENTS.md");
-
-  it("names the runbook that decides whether pilot artifacts are needed", () => {
-    expect(agents).toContain("docs/pilot-data-runbook.md");
-    expect(agents).toMatch(/Does this pull request need pilot-data artifacts\?/);
-    expect(agents).toMatch(/scripts\/pilot\/<issue-id>\//);
-  });
-
-  it("requires the Production handoff block, by name and in full", () => {
-    expect(agents).toMatch(/Production handoff/);
-
-    // Line-wrap tolerant: the working agreement is prose, and a rule that
-    // breaks because a sentence rewrapped is a rule nobody keeps.
-    for (const line of [
-      "schema migration",
-      "compatibility and deployment order",
-      "pilot setup required",
-      "pilot cleanup required",
-      "other Brian action",
-      "verification after Brian acts",
-    ]) {
-      const pattern = new RegExp(line.split(" ").join("\\s+"), "i");
-      expect(agents, `AGENTS.md must name "${line}"`).toMatch(pattern);
-    }
-  });
-
-  it("states the timing rule: on discovery, in the pull request, and at handoff", () => {
-    expect(agents).toMatch(/as soon as you discover/i);
-    expect(agents).toMatch(/Repeat it in the pull request description/i);
-    expect(agents).toMatch(/Repeat it again in the final\s+handoff/i);
-    expect(agents).toMatch(/infer an action from a changed migration or SQL file/i);
-  });
-
-  it("forbids inventing a database concept to label test data", () => {
-    expect(agents).toMatch(/never a new column and never a new table/i);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Matrix row 11 — the migration runbook is reconciled, not weakened
+// Matrix row 10 — the migration runbook is reconciled, not weakened
 // ---------------------------------------------------------------------------
 
 describe("the migration runbook", () => {

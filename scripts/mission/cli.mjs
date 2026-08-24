@@ -26,16 +26,12 @@ import {
   leadLeaseAvailable,
   missionPaths,
   nextActions,
+  packageLifecycle,
   readJournal,
   replayState,
 } from "./lib/state.mjs";
 import { promoteRule, readRules } from "./lib/owner-rules.mjs";
-import {
-  deriveGitVisualFiles,
-  evaluateMissionGate,
-  journalConjuncts,
-  loadRules,
-} from "./merge-gate.mjs";
+import { deriveGitVisualFiles, evaluateProspectiveMissionGate, loadRules } from "./merge-gate.mjs";
 import { parseNameStatus } from "../fast-lane/classify.mjs";
 import { coordinatorStatus } from "../lib/local-supabase-coordinator.mjs";
 
@@ -463,10 +459,14 @@ async function main() {
       if (!missionId || !packageId || !flags.receipt) {
         fail("Usage: mission review <mission-id> <package-id> --receipt <file>");
       }
+      const receipt = readJson(flags.receipt);
+      if (receipt.review_mode === "security-tier") {
+        requireNonEmptyFile(receipt.report, "Security-tier review report");
+      }
       await append(missionId, {
         type: "review-receipt",
         package_id: packageId,
-        receipt: readJson(flags.receipt),
+        receipt,
       });
       console.log(`Review receipt recorded for ${packageId}.`);
       break;
@@ -486,23 +486,6 @@ async function main() {
         evidence: flags.evidence,
       });
       console.log(`Visual approval recorded for ${packageId}.`);
-      break;
-    }
-
-    case "mission-visual-approve": {
-      if (!missionId || !flags.head || !flags["package-heads"] || !flags.by || !flags.evidence) {
-        fail(
-          "Usage: mission mission-visual-approve <mission-id> --head <integrated-sha> --package-heads <file> --by Brian --evidence <where>",
-        );
-      }
-      await append(missionId, {
-        type: "visual-approval",
-        head_sha: flags.head,
-        package_heads: readJson(flags["package-heads"]),
-        approved_by: flags.by,
-        evidence: flags.evidence,
-      });
-      console.log(`Mission visual approval recorded at ${flags.head}.`);
       break;
     }
 
@@ -629,16 +612,9 @@ async function main() {
     }
 
     case "integrated-review": {
-      if (
-        !missionId ||
-        !flags.mode ||
-        !flags.head ||
-        !flags["package-heads"] ||
-        !flags.result ||
-        !flags.report
-      ) {
+      if (!missionId || !flags.mode || !flags.head || !flags.result || !flags.report) {
         fail(
-          "Usage: mission integrated-review <mission-id> --mode workflow-walker|cross-surface|security-tier --head <sha> --package-heads <file> --result clear|blocked [--jobs <what was completed>] [--findings <file>] [--sensitive-paths <file>] [--report <file>]",
+          "Usage: mission integrated-review <mission-id> --mode workflow-walker --head <sha> --result clear|blocked --report <file> --jobs <completed jobs> [--findings <file>]",
         );
       }
       requireNonEmptyFile(flags.report, "Integrated review report");
@@ -700,11 +676,9 @@ async function main() {
       const state = replayState(repoPath, missionId);
       const pullRequest = readJson(flags["pr-json"]);
       const files = parseNameStatus(fs.readFileSync(flags.files, "utf8"));
-      const local = journalConjuncts(state, packageId, pullRequest.headRefOid, {
-        files,
-        rules: loadRules(),
-      });
-      const server = evaluateMissionGate({
+      const verdict = evaluateProspectiveMissionGate({
+        state,
+        packageId,
         pullRequest,
         checkRuns: readJson(flags["checks-json"]),
         files,
@@ -712,11 +686,27 @@ async function main() {
         deriveVisualFiles: (fromSha, toSha, currentHead) =>
           deriveGitVisualFiles(repoPath, fromSha, toSha, currentHead),
       });
-      const verdict = {
-        merge: local.length === 0 && server.merge,
-        journal_reasons: local,
-        evidence_reasons: server.reasons,
-      };
+      if (
+        verdict.merge &&
+        state.packages[packageId]?.gate_passed?.head_sha !== pullRequest.headRefOid
+      ) {
+        await append(missionId, {
+          type: "package-gate-passed",
+          package_id: packageId,
+          head_sha: pullRequest.headRefOid,
+          receipt: verdict.receipt,
+        });
+      } else if (
+        !verdict.merge &&
+        state.packages[packageId]?.gate_passed?.head_sha === pullRequest.headRefOid
+      ) {
+        await append(missionId, {
+          type: "package-gate-invalidated",
+          package_id: packageId,
+          head_sha: pullRequest.headRefOid,
+          reasons: [...verdict.journal_reasons, ...verdict.evidence_reasons],
+        });
+      }
       console.log(JSON.stringify(verdict, null, 2));
       break;
     }
@@ -731,7 +721,7 @@ async function main() {
     case "stop": {
       if (!missionId || !flags.reason || !flags.detail) {
         fail(
-          "Usage: mission stop <mission-id> --reason usage-exhausted|owner-stop|blocked|phase-boundary --detail <why> [--phase plan-approved|build-complete|gate-complete]",
+          "Usage: mission stop <mission-id> --reason usage-exhausted|owner-stop|blocked|phase-boundary --detail <why> [--phase plan-approved]",
         );
       }
       const state = replayState(repoPath, missionId);
@@ -765,21 +755,37 @@ async function main() {
             pid: process.pid,
           })
         : await append(missionId, { type: "lead-heartbeat", lead_id: leadId, pid: process.pid });
-      console.log(JSON.stringify({ state: resumed, next_actions: nextActions(resumed) }, null, 2));
+      const lifecycle = Object.fromEntries(
+        Object.values(resumed.packages)
+          .map((pkg) => [pkg.id, packageLifecycle(resumed, pkg)])
+          .filter(([, status]) => status !== null),
+      );
+      console.log(
+        JSON.stringify({ lifecycle, state: resumed, next_actions: nextActions(resumed) }, null, 2),
+      );
       break;
     }
 
     case "status": {
       if (!missionId) fail("Usage: mission status <mission-id> [--json]");
       const state = replayState(repoPath, missionId);
+      const lifecycle = Object.fromEntries(
+        Object.values(state.packages)
+          .map((pkg) => [pkg.id, packageLifecycle(state, pkg)])
+          .filter(([, status]) => status !== null),
+      );
       if (flags.json === true) {
-        console.log(JSON.stringify({ state, next_actions: nextActions(state) }, null, 2));
+        console.log(
+          JSON.stringify({ lifecycle, state, next_actions: nextActions(state) }, null, 2),
+        );
         break;
       }
       console.log(`Mission ${missionId}: ${state.initialized ? "initialized" : "absent"}`);
-      for (const pkg of Object.values(state.packages)) {
+      for (const pkg of Object.values(state.packages).filter(
+        (candidate) => lifecycle[candidate.id],
+      )) {
         console.log(
-          `- ${pkg.id}: ${pkg.status}${pkg.linear_issue_id ? ` (${pkg.linear_issue_id})` : ""}`,
+          `- ${pkg.id}: ${lifecycle[pkg.id]}${pkg.linear_issue_id ? ` (${pkg.linear_issue_id})` : ""}`,
         );
       }
       console.log(
@@ -795,7 +801,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, mission-visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
       );
   }
 }

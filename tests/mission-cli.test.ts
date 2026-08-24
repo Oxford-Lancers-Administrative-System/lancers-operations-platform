@@ -3,7 +3,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { renderCheckpoint } from "../scripts/mission/cli.mjs";
 import { readJournal, reduce, missionPaths, nextActions } from "../scripts/mission/lib/state.mjs";
 
 const CLI = path.join(__dirname, "..", "scripts", "mission", "cli.mjs");
@@ -68,7 +67,7 @@ describe("mission CLI", () => {
     expect(refused.stderr).toMatch(/--brief <brief\.md>/);
   });
 
-  it("reads integrated package coverage and reports from files", () => {
+  it("requires a report and refuses the final walker before every package merges", () => {
     const m = fixture();
     readyMission(m);
     const head = "a".repeat(40);
@@ -99,34 +98,41 @@ describe("mission CLI", () => {
     );
     expect(missing.status).toBe(1);
     expect(missing.stderr).toMatch(/--report <file>/);
+    const tooEarly = m.run(
+      "integrated-review",
+      MISSION,
+      "--mode",
+      "workflow-walker",
+      "--head",
+      head,
+      "--result",
+      "clear",
+      "--jobs",
+      "Synthetic jobs",
+      "--report",
+      report,
+    );
+    expect(tooEarly.status).toBe(1);
+    expect(tooEarly.stderr).toMatch(/only after every live package has merged to main/);
     expect(
       m.run(
-        "integrated-review",
+        "question",
         MISSION,
-        "--mode",
-        "workflow-walker",
-        "--head",
-        head,
-        "--package-heads",
-        packageHeads,
-        "--result",
-        "clear",
-        "--jobs",
-        "Synthetic jobs",
-        "--report",
-        report,
+        "--id",
+        "Q-now",
+        "--class",
+        "immediate",
+        "--text",
+        "Blocking question",
+        "--source",
+        "security boundary",
+        "--affects",
+        "WP-events-filter",
       ).status,
     ).toBe(0);
   });
 
-  /**
-   * The rule said a dependency reviewed clean at its exact head is a usable
-   * base; the dispatch command had no way to say so, so the Lead's only
-   * interface refused every such dispatch and waited on Brian's merge anyway.
-   * Proved through the CLI, because asserting appendEvent directly is how the
-   * gap survived.
-   */
-  it("dispatches on a reviewed dependency through the CLI, recording the head it stands on", () => {
+  it("dispatches dependent work through the CLI only after its dependency merges", () => {
     const m = fixture();
     readyMission(m);
     const HEAD = "a".repeat(40);
@@ -186,8 +192,29 @@ describe("mission CLI", () => {
           reviewed_head_sha: HEAD,
           round: 1,
           result: "clear",
+          ci_state: "green",
         }),
       ).status,
+    ).toBe(0);
+
+    const beforeMerge = m.run(
+      "dispatch",
+      MISSION,
+      "WP-report-footer",
+      "--worker",
+      "worker-2",
+      "--worktree",
+      ".claude/worktrees/wp-report",
+      "--branch",
+      "feat/wp-report",
+      "--brief",
+      PACKET,
+    );
+    expect(beforeMerge.status).toBe(1);
+    expect(beforeMerge.stderr).toMatch(/has not merged to main/);
+    expect(
+      m.run("merge-record", MISSION, "WP-attendance-export", "41", HEAD, "--route", "guarded-auto")
+        .status,
     ).toBe(0);
 
     const dispatched = m.run(
@@ -204,7 +231,7 @@ describe("mission CLI", () => {
       PACKET,
     );
     expect(dispatched.status).toBe(0);
-    expect(dispatched.stdout).toContain(`standing on reviewed WP-attendance-export at ${HEAD}`);
+    expect(dispatched.stdout).toContain("Worker worker-2 dispatched on WP-report-footer");
   });
 
   it("initializes only from a matching approved packet and exits 1 on refusal", () => {
@@ -298,7 +325,7 @@ describe("mission CLI", () => {
     ]) {
       expect(checkpoint.stdout).toContain(section);
     }
-    expect(checkpoint.stdout).toMatch(/1\. \[hourly\] Q-1/);
+    expect(checkpoint.stdout.indexOf("Q-now")).toBeLessThan(checkpoint.stdout.indexOf("Q-1"));
     expect(checkpoint.stdout).toMatch(/gh workflow run deploy\.yml/);
     expect(checkpoint.stdout).toMatch(
       /Active stacks: .*leases: .*worktrees: .*load \(1\/5\/15m\):/,
@@ -408,57 +435,5 @@ describe("mission CLI", () => {
     expect(
       m.run("apply-rule", MISSION, "RULE-UI-007", "--context", "pagination question").status,
     ).toBe(0);
-  });
-});
-
-describe("checkpoint rendering", () => {
-  it("orders immediate questions before hourly ones and reports deploy drift", () => {
-    const packet = JSON.parse(fs.readFileSync(PACKET, "utf8"));
-    const plan = JSON.parse(fs.readFileSync(PLAN, "utf8"));
-    const events = [
-      {
-        type: "mission-init",
-        at: "2026-08-18T10:00:00.000Z",
-        packet,
-        lead_id: "lead-fixture",
-        pid: 4242,
-      },
-      {
-        type: "plan-recorded",
-        at: "2026-08-18T10:01:00.000Z",
-        packages: plan.packages,
-        decomposition: plan.decomposition,
-      },
-      {
-        type: "plan-approved",
-        at: "2026-08-18T10:01:30.000Z",
-        approved_by: "Brian",
-        evidence: "checkpoint 1",
-      },
-      {
-        type: "owner-question",
-        at: "2026-08-18T10:02:00.000Z",
-        id: "Q-hourly",
-        classification: "hourly",
-        text: "Nonurgent",
-        source: "s",
-        affected_packages: [],
-      },
-      {
-        type: "owner-question",
-        at: "2026-08-18T10:03:00.000Z",
-        id: "Q-now",
-        classification: "immediate",
-        text: "Blocking",
-        source: "s",
-        affected_packages: [],
-      },
-    ];
-    const report = renderCheckpoint(reduce(events), events, {
-      mainCommit: "a".repeat(40),
-      deployedCommit: "a".repeat(40),
-    });
-    expect(report.indexOf("Q-now")).toBeLessThan(report.indexOf("Q-hourly"));
-    expect(report).toMatch(/Production serves main/);
   });
 });

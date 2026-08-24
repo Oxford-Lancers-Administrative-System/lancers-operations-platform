@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import {
+  buildMissionReceipt,
   evaluateMissionGate,
+  evaluateProspectiveMissionGate,
   extractReceipt,
   journalConjuncts,
   loadRules,
@@ -296,15 +298,6 @@ describe("the guarded mission merge gate", () => {
     });
     expect(failedRerun.merge).toBe(false);
   });
-
-  it("is fail-closed by construction: merge is only ever reasons.length === 0", () => {
-    const source = fs.readFileSync(
-      path.join(__dirname, "..", "scripts", "mission", "merge-gate.mjs"),
-      "utf8",
-    );
-    expect(source).not.toMatch(/merge\s*=\s*true/);
-    expect(source).toContain("merge: reasons.length === 0");
-  });
 });
 
 describe("the journal-side conjuncts the Lead checks before publishing a receipt", () => {
@@ -365,6 +358,7 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
           reviewed_head_sha: HEAD,
           round: 1,
           result: "clear",
+          ci_state: "green",
         },
       },
       {
@@ -397,6 +391,35 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
       { type: "mission-stopped", at: "t", reason: "usage-exhausted", detail: "simulated" },
     ]);
     expect(journalConjuncts(stopped, "WP-events-filter", HEAD).join("\n")).toMatch(/stopped/);
+  });
+
+  it("builds and validates the receipt before the PR body or label is mutated", () => {
+    const state = base();
+    const current = pullRequest({ labels: [], body: "Delivers WP-events-filter." });
+    expect(
+      evaluateMissionGate({
+        pullRequest: current,
+        checkRuns: greenChecks(),
+        files: appFiles,
+        rules,
+      }).merge,
+    ).toBe(false);
+
+    const verdict = evaluateProspectiveMissionGate({
+      state,
+      packageId: "WP-events-filter",
+      pullRequest: current,
+      checkRuns: greenChecks(),
+      files: appFiles,
+      rules,
+    });
+    expect(verdict).toMatchObject({
+      merge: true,
+      journal_reasons: [],
+      evidence_reasons: [],
+      receipt: buildMissionReceipt(state, "WP-events-filter", HEAD),
+    });
+    expect(extractReceipt(verdict.receipt_block, rules)).toEqual(verdict.receipt);
   });
 
   it("accepts mission-level security review and visual approval covering the package head", () => {

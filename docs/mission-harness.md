@@ -153,22 +153,30 @@ the Linear issue, required outcome, linked criterion or gate, remaining human
 and agent work, and next actor. Questions Brian can answer in the conversation
 remain in **Need from Brian** and never enter the owner-action section.
 
-**Visual review keeps ADR 0020's protected environment and moves to mission
-level under ADR 0034.** After all packages are built, one workflow walker and
-one cross-surface pass run at the integrated head. Brian opens one live
-`review-ready` environment with one URL, the fixed login, and zero commands.
-His approval is recorded once (`mission-visual-approve`) with the exact package
-heads it covers. A rendered batched correction requires a scoped re-walk and
-re-approval; a classifier-proven non-rendered delta may carry them forward.
+**Visual review keeps ADR 0020's protected environment and follows ADR 0035.**
+Targeted checks, exact-head CI, and any triggered security review finish before
+Brian opens a visual package's live `review-ready` environment, with one URL,
+the fixed login and zero commands. `visual-approve` records the exact package
+head he checked. At that unchanged head no reviewer or worker runs afterwards;
+the deterministic merge gate is next. A rendered head change returns through
+machine checks and one affected-surface walkthrough, while a classifier-proven
+non-rendered delta carries the owner evidence forward.
+
+Each approved issue merges immediately. After all mission issues are on `main`,
+one bounded Sonnet walker smoke-tests the predetermined end-to-end journeys and
+visible hand-offs. That final smoke is not another visual review and does not
+reopen merged issues. Its findings become new corrective issue/PR work; only the
+affected journey repeats once after that correction merges. A second failure
+stops automated correction and returns to Brian for adjudication.
 
 ## What merges by itself, and what never does
 
 There are three tiers, decided by Brian on 2026-08-18:
 
-**Merges by itself.** Standard application work whose exact package head is
-covered by the clear integrated security-tier review, the mission visual
-approval (or genuinely nonvisual), no open owner question, and green required checks
-at that exact commit, merges through the checked-in `mission-merge` workflow
+**Merges by itself.** Standard application work whose exact package head has
+clear required security coverage, Brian's issue approval (or is genuinely
+nonvisual), no open owner question, and green required checks at that exact
+commit merges through the checked-in `mission-merge` workflow
 after the Mission Lead publishes its receipt and applies the `mission-merge`
 label. The workflow re-derives everything server-verifiable from evidence
 and fails closed; a refusal is posted on the pull request. A review-blocked
@@ -238,9 +246,14 @@ every read.
 - **A worker died mid-package:** its lease expires and its package returns
   to the frontier; the worktree and branch are never deleted while dirty or
   unmerged, and re-dispatch reuses them.
-- **Something looks wrong:** `npm run mission -- status M-<id>` prints the
-  package states, open questions, and executable frontier without changing
-  anything. The journal itself is plain NDJSON and safe to read.
+- **Something looks wrong:** `npm run mission -- status M-<id>` projects every
+  package onto the canonical lifecycle, then prints open questions and the
+  executable frontier without changing anything. Detailed journal mechanics
+  remain in plain NDJSON and are safe to read.
+
+A passing `mission gate` records `gate-passed` at the exact head. Re-running a
+now-failing gate invalidates that milestone, so volatile GitHub evidence cannot
+leave status falsely green.
 
 ## One-time owner actions before the first live mission
 
@@ -303,15 +316,16 @@ with the missing work named; a package blocks rather than pretends.
 
 ## Context and turn economy
 
-The top model is reserved for the Mission Lead's judgment, implementation and
-the integrated security-tier review. Walkers, browser preflight, cross-surface
-comparison, Linear sync, cleanup, scouts and mechanical corrections use a
-Sonnet-class model. Handoffs are on-disk pointers (`brief.md`, `receipt.json`
-and walker/review reports), not conversational payloads. Independent commands
-are batched; long output goes to `/tmp/out.log` with only its last 20 lines
-shown, and a diff stat precedes a full diff.
+Brian selects Sonnet or Opus for the Mission Lead. The Lead assigns Haiku only
+to mechanically bounded, low-risk implementation with a complete contract and
+mechanical acceptance; complex implementation and every correction use Sonnet,
+which is the implementation cap. Every reviewer is Sonnet, also capped there;
+the scout defaults to Haiku. Handoffs are on-disk pointers (`brief.md`,
+`receipt.json`, and walker/review reports), not conversational payloads.
+Independent commands are batched; long output goes to `/tmp/out.log` with only
+its last 20 lines shown, and a diff stat precedes a full diff.
 
-The Lead stops and a fresh Lead resumes at plan-approved, build-complete and
-gate-complete. Every resume reconciles the journal against GitHub first. The
+The Lead stops and a fresh Lead resumes after plan approval, before durable
+execution begins. Every resume reconciles the journal against GitHub first. The
 Lead delegates repository investigation to the bounded read-only scout and
 waits for completion notifications instead of polling.

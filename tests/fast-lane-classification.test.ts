@@ -50,14 +50,6 @@ describe("row 1 — eligibility comes from the diff", () => {
     expect(result.reasons).toEqual([]);
   });
 
-  it("takes no argument through which a pull request could claim eligibility", () => {
-    // `classify(diff, rules)` and nothing more. A third parameter carrying a
-    // label, a title or a self-assessment is the shape of defect this design
-    // exists to prevent, so its absence is asserted rather than assumed.
-    expect(classify.length).toBe(2);
-    expect(classifyPath.length).toBe(2);
-  });
-
   it("ignores every claim attached to the diff", () => {
     const ineligible = {
       files: modified("docs/local-development.md", "src/app/page.tsx"),

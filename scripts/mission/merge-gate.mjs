@@ -262,8 +262,10 @@ export function receiptDefects(receipt) {
       "Receipt risk_class is highest. It may travel this lane only when it cites the answered owner question (owner_decision: question_id, answered_by, date) recorded at Brian's checkpoint.",
     );
   }
-  if (!["full", "correction", "mission-security"].includes(receipt.review_mode)) {
-    defects.push("Receipt review_mode must be full, correction, or mission-security.");
+  if (!["full", "correction", "security-tier", "mission-security"].includes(receipt.review_mode)) {
+    defects.push(
+      "Receipt review_mode must be full, correction, security-tier, or mission-security.",
+    );
   }
   if (!/^[0-9a-f]{40}$/.test(receipt.full_review_sha ?? "")) {
     defects.push("Receipt full_review_sha must be a full 40-character SHA.");
@@ -301,6 +303,97 @@ export function receiptDefects(receipt) {
   return defects;
 }
 
+function ownerDecisionFor(state, packageId) {
+  const question = Object.values(state?.questions ?? {}).find(
+    (candidate) =>
+      candidate.status === "answered" && candidate.affected_packages.includes(packageId),
+  );
+  if (!question) return undefined;
+  return {
+    question_id: question.id,
+    answered_by: question.answer.by,
+    date: question.answer.at.slice(0, 10),
+  };
+}
+
+function carryForwardEvidence(pkg, approvedSha, currentHead) {
+  if (!approvedSha || approvedSha === currentHead) return undefined;
+  const chain = [];
+  let cursor = approvedSha;
+  for (const link of pkg.visual_carry_forward_chain ?? []) {
+    if (link.from_sha !== cursor) continue;
+    chain.push(link);
+    cursor = link.to_sha;
+    if (cursor === currentHead) break;
+  }
+  return cursor === currentHead
+    ? { approved_sha: approvedSha, carry_forward_chain: chain }
+    : undefined;
+}
+
+/** Build the only receipt the local journal can honestly support. */
+export function buildMissionReceipt(state, packageId, headSha) {
+  const pkg = state.packages?.[packageId];
+  if (!pkg) return null;
+  const missionReview = (state.integratedReviews ?? []).find(
+    (review) =>
+      review.mode === "security-tier" &&
+      review.result === "clear" &&
+      review.package_heads?.[packageId] === headSha,
+  );
+  const packageReview =
+    pkg.review?.result === "clear" &&
+    pkg.review.ci_state === "green" &&
+    pkg.review.reviewed_head_sha === headSha
+      ? pkg.review
+      : null;
+  const review = missionReview
+    ? {
+        review_mode: "mission-security",
+        full_review_sha: missionReview.head_sha,
+        reviewed_head_sha: headSha,
+        review_result: "clear",
+        mission_review: {
+          integrated_head_sha: missionReview.head_sha,
+          package_head_sha: headSha,
+          result: missionReview.result,
+          sensitive_paths: missionReview.sensitive_paths,
+          report: missionReview.report,
+        },
+      }
+    : {
+        review_mode: packageReview?.review_mode,
+        full_review_sha: packageReview?.full_review_sha ?? packageReview?.reviewed_head_sha,
+        reviewed_head_sha: packageReview?.reviewed_head_sha,
+        review_result: packageReview?.result,
+      };
+  const missionApproval = (state.missionVisualApprovals ?? []).find(
+    (approval) => approval.package_heads?.[packageId],
+  );
+  const approvedSha = missionApproval?.package_heads?.[packageId] ?? pkg.visual_approval?.head_sha;
+  const visualEvidence =
+    pkg.visual === "nonvisual" ? undefined : carryForwardEvidence(pkg, approvedSha, headSha);
+  const openOwnerQuestions = Object.values(state.questions ?? {}).filter(
+    (question) => question.status === "open" && question.affected_packages.includes(packageId),
+  ).length;
+  const ownerDecision = ownerDecisionFor(state, packageId);
+  return {
+    mission_id: state.packet?.mission_id,
+    package_id: packageId,
+    linear_issue_id: pkg.linear_issue_id,
+    risk_class: pkg.risk_class,
+    ...review,
+    visual: pkg.visual === "nonvisual" ? "nonvisual" : "approved",
+    ...(visualEvidence ? { visual_evidence: visualEvidence } : {}),
+    open_owner_questions: openOwnerQuestions,
+    ...(ownerDecision ? { owner_decision: ownerDecision } : {}),
+  };
+}
+
+export function renderReceiptBlock(receipt, rules) {
+  return `\`\`\`${rules.receiptBlockInfo}\n${JSON.stringify(receipt, null, 2)}\n\`\`\``;
+}
+
 /**
  * The server-verifiable gate, run by the mission-merge workflow from the base
  * branch against evidence it gathered itself.
@@ -313,7 +406,7 @@ export function evaluateMissionGate({
   checkRuns,
   files,
   rules,
-  deriveVisualFiles,
+  deriveVisualFiles = undefined,
 }) {
   const reasons = [];
   if (!pr) return { merge: false, reasons: ["No pull request was resolved."], receipt: null };
@@ -427,7 +520,9 @@ export function journalConjuncts(state, packageId, headSha, options = {}) {
     reasons.push(`${packageId} has no synchronized Linear issue.`);
   }
   const packageReviewCovers =
-    pkg.review?.result === "clear" && pkg.review.reviewed_head_sha === headSha;
+    pkg.review?.result === "clear" &&
+    pkg.review.ci_state === "green" &&
+    pkg.review.reviewed_head_sha === headSha;
   const missionReviewCovers = (state.integratedReviews ?? []).some(
     (review) =>
       review.mode === "security-tier" &&
@@ -455,4 +550,52 @@ export function journalConjuncts(state, packageId, headSha, options = {}) {
     }
   }
   return reasons;
+}
+
+/**
+ * Evaluate the exact PR state that publishing the generated receipt and adding
+ * the opt-in label would create. This breaks the old circular prerequisite:
+ * the local gate no longer requires those mutations before it can authorize
+ * them, while the hosted workflow still requires and re-derives both.
+ * @param {{ state: any, packageId: string, pullRequest: any, checkRuns: any[], files: Array<{status: string, path: string, previousPath?: string}>, rules: any, deriveVisualFiles?: (fromSha: string, toSha: string, currentHead: string) => Array<{status: string, path: string, previousPath?: string}> }} input
+ */
+export function evaluateProspectiveMissionGate({
+  state,
+  packageId,
+  pullRequest,
+  checkRuns,
+  files,
+  rules,
+  deriveVisualFiles = undefined,
+}) {
+  const receipt = buildMissionReceipt(state, packageId, pullRequest?.headRefOid);
+  const block = receipt ? renderReceiptBlock(receipt, rules) : null;
+  const labels = (pullRequest?.labels ?? []).map((label) =>
+    typeof label === "string" ? label : label.name,
+  );
+  const prospective = pullRequest
+    ? {
+        ...pullRequest,
+        labels: [...new Set([...labels, rules.optInLabel])],
+        body: `${pullRequest.body ?? ""}\n\n${block ?? ""}\n`,
+      }
+    : null;
+  const journalReasons = journalConjuncts(state, packageId, pullRequest?.headRefOid, {
+    files,
+    rules,
+  });
+  const server = evaluateMissionGate({
+    pullRequest: prospective,
+    checkRuns,
+    files,
+    rules,
+    deriveVisualFiles,
+  });
+  return {
+    merge: journalReasons.length === 0 && server.merge,
+    journal_reasons: journalReasons,
+    evidence_reasons: server.reasons,
+    receipt,
+    receipt_block: block,
+  };
 }
