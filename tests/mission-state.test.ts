@@ -11,10 +11,12 @@ import {
   leadLeaseAvailable,
   missionPaths,
   nextActions,
+  packageLifecycle,
   readJournal,
   reduce,
   replayState,
 } from "../scripts/mission/lib/state.mjs";
+import { buildMissionReceipt } from "../scripts/mission/merge-gate.mjs";
 import {
   AUTO_MERGE_CLASSES,
   COLLISION_DOMAINS,
@@ -1198,6 +1200,39 @@ describe("guarded merge recording", () => {
       approved_by: "Brian",
       evidence: "live review at checkpoint 1",
     });
+    const built = replayState(m.repo, MISSION, m.env);
+    expect(packageLifecycle(built, built.packages["WP-events-filter"])).toBe("built");
+    await expect(
+      m.append({
+        type: "package-gate-passed",
+        package_id: "WP-events-filter",
+        head_sha: SHA,
+        receipt: { invented: true },
+      }),
+    ).rejects.toThrow(/exact receipt/);
+    const gated = await m.append({
+      type: "package-gate-passed",
+      package_id: "WP-events-filter",
+      head_sha: SHA,
+      receipt: buildMissionReceipt(built, "WP-events-filter", SHA),
+    });
+    expect(packageLifecycle(gated, gated.packages["WP-events-filter"])).toBe("gate-passed");
+    expect(nextActions(gated)).toContainEqual(
+      expect.objectContaining({ action: "request-merge", package_id: "WP-events-filter" }),
+    );
+    const invalidated = await m.append({
+      type: "package-gate-invalidated",
+      package_id: "WP-events-filter",
+      head_sha: SHA,
+      reasons: ["Required check rerun failed."],
+    });
+    expect(packageLifecycle(invalidated, invalidated.packages["WP-events-filter"])).toBe("built");
+    await m.append({
+      type: "package-gate-passed",
+      package_id: "WP-events-filter",
+      head_sha: SHA,
+      receipt: buildMissionReceipt(invalidated, "WP-events-filter", SHA),
+    });
     await expect(
       m.append({
         type: "merge-recorded",
@@ -1215,6 +1250,7 @@ describe("guarded merge recording", () => {
       route: "guarded-auto",
     });
     expect(state.packages["WP-events-filter"].status).toBe("merged");
+    expect(packageLifecycle(state, state.packages["WP-events-filter"])).toBe("merged");
   });
 
   it("holds approval pending during correction and voids it when the new head is unclassifiable", async () => {

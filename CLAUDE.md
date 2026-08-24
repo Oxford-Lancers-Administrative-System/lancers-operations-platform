@@ -2,40 +2,13 @@
 
 # Claude Code notes
 
-`AGENTS.md`, imported above, is the canonical working agreement: purpose and
-scaffold boundary, tooling, every command, directory conventions, the workflow,
-the definition of done, the hard rules, and when to stop and ask. Read it first.
-Nothing from it is repeated here, so that the two cannot drift apart.
+`AGENTS.md` is the canonical working agreement. Shared policy belongs there;
+keep this file limited to Claude-specific routing.
 
-Only genuinely Claude-specific notes belong in this file.
-
-- **Five workflows and two subagents.** Brian invokes `/start-issue LAN-###`
-  to implement exactly one issue in the top-level session,
-  `/finish-issue LAN-###` to finalize one whose work has already reached a
-  terminal state, `/mission-intake <n>` to prepare a mission packet,
-  `/run-mission M-<id>` to execute one approved packet as the Mission Lead, or
-  `/finish-mission M-<id>` to reclaim a finished or abandoned mission's
-  worktrees, branches and database stack. `code-reviewer` performs graded
-  independent review;
-  `implementation-worker` implements one Mission-Lead-assigned work package
-  and spawns nothing. See `docs/adr/0027-mission-harness.md`, the preserved
-  single-issue model in `docs/adr/0018-single-issue-agent-development.md`, and
-  closeout in `docs/adr/0032-explicit-issue-closeout.md`.
-- **Every workflow is user-invoked.** None is model-invocable. `/start-issue`
-  never selects a second issue and never delegates implementation;
-  `/finish-issue` implements nothing, launches nothing, and acts only on an
-  issue it has proved is merged, canceled, or explicitly abandoned;
-  `/run-mission` never implements in its own session, keeps delegation flat,
-  and records every material transition in durable mission state
-  (`npm run mission`).
-- **Concurrency is per mission.** Brian may start concurrent missions. Each has
-  one fenced Lead, at most two implementation workers, and its own disposable
-  local Supabase stack; the merge workflow remains repository-serialized.
-- **Visual acceptance is a mid-workflow gate.** UI-affecting work stops only
-  after a complete agent browser preflight and before final correctness review;
-  nonvisual work does not stop. Brian receives a live, protected environment and
-  runs no setup commands.
-- **Keep shared guidance in `AGENTS.md`.** If a rule would apply equally to
-  Codex or any other coding agent, it belongs there, not here. The role
-  definitions under `.claude/` are the exception only because the file format
-  is Claude Code's.
+- The five skills under `.claude/skills/` are user-invoked
+  (`disable-model-invocation: true`).
+- `implementation-worker`, `code-reviewer`, and `scout` are the only
+  subagents. Their frontmatter supplies isolation, model default, and tool caps.
+- Delegation is flat: only the Mission Lead launches subagents; they launch none.
+- `.claude/settings.json` supplements protected branches, checked-in gates,
+  local-only database guards, and owner authority; it never replaces them.

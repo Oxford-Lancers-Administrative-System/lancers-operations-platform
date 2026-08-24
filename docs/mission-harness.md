@@ -238,9 +238,14 @@ every read.
 - **A worker died mid-package:** its lease expires and its package returns
   to the frontier; the worktree and branch are never deleted while dirty or
   unmerged, and re-dispatch reuses them.
-- **Something looks wrong:** `npm run mission -- status M-<id>` prints the
-  package states, open questions, and executable frontier without changing
-  anything. The journal itself is plain NDJSON and safe to read.
+- **Something looks wrong:** `npm run mission -- status M-<id>` projects every
+  package onto the canonical lifecycle, then prints open questions and the
+  executable frontier without changing anything. Detailed journal mechanics
+  remain in plain NDJSON and are safe to read.
+
+A passing `mission gate` records `gate-passed` at the exact head. Re-running a
+now-failing gate invalidates that milestone, so volatile GitHub evidence cannot
+leave status falsely green.
 
 ## One-time owner actions before the first live mission
 
@@ -303,13 +308,14 @@ with the missing work named; a package blocks rather than pretends.
 
 ## Context and turn economy
 
-The top model is reserved for the Mission Lead's judgment, implementation and
-the integrated security-tier review. Walkers, browser preflight, cross-surface
-comparison, Linear sync, cleanup, scouts and mechanical corrections use a
-Sonnet-class model. Handoffs are on-disk pointers (`brief.md`, `receipt.json`
-and walker/review reports), not conversational payloads. Independent commands
-are batched; long output goes to `/tmp/out.log` with only its last 20 lines
-shown, and a diff stat precedes a full diff.
+Brian selects Sonnet or Opus for the Mission Lead. The Lead assigns Haiku only
+to mechanically bounded, low-risk implementation with a complete contract and
+mechanical acceptance; complex implementation and every correction use Sonnet,
+which is the implementation cap. Every reviewer is Sonnet, also capped there;
+the scout defaults to Haiku. Handoffs are on-disk pointers (`brief.md`,
+`receipt.json`, and walker/review reports), not conversational payloads.
+Independent commands are batched; long output goes to `/tmp/out.log` with only
+its last 20 lines shown, and a diff stat precedes a full diff.
 
 The Lead stops and a fresh Lead resumes at plan-approved, build-complete and
 gate-complete. Every resume reconciles the journal against GitHub first. The

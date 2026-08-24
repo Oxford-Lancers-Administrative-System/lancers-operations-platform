@@ -20,6 +20,8 @@ const eslintConfig = defineConfig([
     // Scratch space written by the Supabase CLI; contains vendored bundles.
     "supabase/.temp/**",
     "supabase/.branches/**",
+    // Separate repository checkouts; lint them only from inside that worktree.
+    ".claude/worktrees/**",
     ".lancers-runtime/**",
   ]),
 ]);

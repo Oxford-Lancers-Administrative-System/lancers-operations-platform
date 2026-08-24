@@ -3,7 +3,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { renderCheckpoint } from "../scripts/mission/cli.mjs";
 import { readJournal, reduce, missionPaths, nextActions } from "../scripts/mission/lib/state.mjs";
 
 const CLI = path.join(__dirname, "..", "scripts", "mission", "cli.mjs");
@@ -115,6 +114,22 @@ describe("mission CLI", () => {
         "Synthetic jobs",
         "--report",
         report,
+      ).status,
+    ).toBe(0);
+    expect(
+      m.run(
+        "question",
+        MISSION,
+        "--id",
+        "Q-now",
+        "--class",
+        "immediate",
+        "--text",
+        "Blocking question",
+        "--source",
+        "security boundary",
+        "--affects",
+        "WP-events-filter",
       ).status,
     ).toBe(0);
   });
@@ -298,7 +313,7 @@ describe("mission CLI", () => {
     ]) {
       expect(checkpoint.stdout).toContain(section);
     }
-    expect(checkpoint.stdout).toMatch(/1\. \[hourly\] Q-1/);
+    expect(checkpoint.stdout.indexOf("Q-now")).toBeLessThan(checkpoint.stdout.indexOf("Q-1"));
     expect(checkpoint.stdout).toMatch(/gh workflow run deploy\.yml/);
     expect(checkpoint.stdout).toMatch(
       /Active stacks: .*leases: .*worktrees: .*load \(1\/5\/15m\):/,
@@ -408,57 +423,5 @@ describe("mission CLI", () => {
     expect(
       m.run("apply-rule", MISSION, "RULE-UI-007", "--context", "pagination question").status,
     ).toBe(0);
-  });
-});
-
-describe("checkpoint rendering", () => {
-  it("orders immediate questions before hourly ones and reports deploy drift", () => {
-    const packet = JSON.parse(fs.readFileSync(PACKET, "utf8"));
-    const plan = JSON.parse(fs.readFileSync(PLAN, "utf8"));
-    const events = [
-      {
-        type: "mission-init",
-        at: "2026-08-18T10:00:00.000Z",
-        packet,
-        lead_id: "lead-fixture",
-        pid: 4242,
-      },
-      {
-        type: "plan-recorded",
-        at: "2026-08-18T10:01:00.000Z",
-        packages: plan.packages,
-        decomposition: plan.decomposition,
-      },
-      {
-        type: "plan-approved",
-        at: "2026-08-18T10:01:30.000Z",
-        approved_by: "Brian",
-        evidence: "checkpoint 1",
-      },
-      {
-        type: "owner-question",
-        at: "2026-08-18T10:02:00.000Z",
-        id: "Q-hourly",
-        classification: "hourly",
-        text: "Nonurgent",
-        source: "s",
-        affected_packages: [],
-      },
-      {
-        type: "owner-question",
-        at: "2026-08-18T10:03:00.000Z",
-        id: "Q-now",
-        classification: "immediate",
-        text: "Blocking",
-        source: "s",
-        affected_packages: [],
-      },
-    ];
-    const report = renderCheckpoint(reduce(events), events, {
-      mainCommit: "a".repeat(40),
-      deployedCommit: "a".repeat(40),
-    });
-    expect(report.indexOf("Q-now")).toBeLessThan(report.indexOf("Q-hourly"));
-    expect(report).toMatch(/Production serves main/);
   });
 });

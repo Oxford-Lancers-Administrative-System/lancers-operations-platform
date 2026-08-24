@@ -26,16 +26,12 @@ import {
   leadLeaseAvailable,
   missionPaths,
   nextActions,
+  packageLifecycle,
   readJournal,
   replayState,
 } from "./lib/state.mjs";
 import { promoteRule, readRules } from "./lib/owner-rules.mjs";
-import {
-  deriveGitVisualFiles,
-  evaluateMissionGate,
-  journalConjuncts,
-  loadRules,
-} from "./merge-gate.mjs";
+import { deriveGitVisualFiles, evaluateProspectiveMissionGate, loadRules } from "./merge-gate.mjs";
 import { parseNameStatus } from "../fast-lane/classify.mjs";
 import { coordinatorStatus } from "../lib/local-supabase-coordinator.mjs";
 
@@ -700,11 +696,9 @@ async function main() {
       const state = replayState(repoPath, missionId);
       const pullRequest = readJson(flags["pr-json"]);
       const files = parseNameStatus(fs.readFileSync(flags.files, "utf8"));
-      const local = journalConjuncts(state, packageId, pullRequest.headRefOid, {
-        files,
-        rules: loadRules(),
-      });
-      const server = evaluateMissionGate({
+      const verdict = evaluateProspectiveMissionGate({
+        state,
+        packageId,
         pullRequest,
         checkRuns: readJson(flags["checks-json"]),
         files,
@@ -712,11 +706,27 @@ async function main() {
         deriveVisualFiles: (fromSha, toSha, currentHead) =>
           deriveGitVisualFiles(repoPath, fromSha, toSha, currentHead),
       });
-      const verdict = {
-        merge: local.length === 0 && server.merge,
-        journal_reasons: local,
-        evidence_reasons: server.reasons,
-      };
+      if (
+        verdict.merge &&
+        state.packages[packageId]?.gate_passed?.head_sha !== pullRequest.headRefOid
+      ) {
+        await append(missionId, {
+          type: "package-gate-passed",
+          package_id: packageId,
+          head_sha: pullRequest.headRefOid,
+          receipt: verdict.receipt,
+        });
+      } else if (
+        !verdict.merge &&
+        state.packages[packageId]?.gate_passed?.head_sha === pullRequest.headRefOid
+      ) {
+        await append(missionId, {
+          type: "package-gate-invalidated",
+          package_id: packageId,
+          head_sha: pullRequest.headRefOid,
+          reasons: [...verdict.journal_reasons, ...verdict.evidence_reasons],
+        });
+      }
       console.log(JSON.stringify(verdict, null, 2));
       break;
     }
@@ -765,21 +775,37 @@ async function main() {
             pid: process.pid,
           })
         : await append(missionId, { type: "lead-heartbeat", lead_id: leadId, pid: process.pid });
-      console.log(JSON.stringify({ state: resumed, next_actions: nextActions(resumed) }, null, 2));
+      const lifecycle = Object.fromEntries(
+        Object.values(resumed.packages)
+          .map((pkg) => [pkg.id, packageLifecycle(resumed, pkg)])
+          .filter(([, status]) => status !== null),
+      );
+      console.log(
+        JSON.stringify({ lifecycle, state: resumed, next_actions: nextActions(resumed) }, null, 2),
+      );
       break;
     }
 
     case "status": {
       if (!missionId) fail("Usage: mission status <mission-id> [--json]");
       const state = replayState(repoPath, missionId);
+      const lifecycle = Object.fromEntries(
+        Object.values(state.packages)
+          .map((pkg) => [pkg.id, packageLifecycle(state, pkg)])
+          .filter(([, status]) => status !== null),
+      );
       if (flags.json === true) {
-        console.log(JSON.stringify({ state, next_actions: nextActions(state) }, null, 2));
+        console.log(
+          JSON.stringify({ lifecycle, state, next_actions: nextActions(state) }, null, 2),
+        );
         break;
       }
       console.log(`Mission ${missionId}: ${state.initialized ? "initialized" : "absent"}`);
-      for (const pkg of Object.values(state.packages)) {
+      for (const pkg of Object.values(state.packages).filter(
+        (candidate) => lifecycle[candidate.id],
+      )) {
         console.log(
-          `- ${pkg.id}: ${pkg.status}${pkg.linear_issue_id ? ` (${pkg.linear_issue_id})` : ""}`,
+          `- ${pkg.id}: ${lifecycle[pkg.id]}${pkg.linear_issue_id ? ` (${pkg.linear_issue_id})` : ""}`,
         );
       }
       console.log(

@@ -26,7 +26,7 @@ import { execFileSync } from "node:child_process";
 
 import { validateDecomposition, validatePacket, validatePackage } from "./packet.mjs";
 import { parseNameStatus } from "../../fast-lane/classify.mjs";
-import { classifyVisualDelta, loadRules } from "../merge-gate.mjs";
+import { buildMissionReceipt, classifyVisualDelta, loadRules } from "../merge-gate.mjs";
 
 export const MAX_ACTIVE_WORKERS = 2;
 export const LEAD_TTL_MS = 120_000;
@@ -52,6 +52,8 @@ export const EVENT_TYPES = [
   "owner-answer",
   "rule-applied",
   "journal-annotation",
+  "package-gate-passed",
+  "package-gate-invalidated",
   "merge-recorded",
   "checkpoint",
   "scope-drift",
@@ -1088,6 +1090,37 @@ export function validateEvent(event, state) {
       break;
     }
 
+    case "package-gate-passed": {
+      const pkg = state.packages[event.package_id];
+      if (!pkg) {
+        errors.push(`No planned package ${event.package_id}.`);
+        break;
+      }
+      if (!/^[0-9a-f]{40}$/.test(event.head_sha ?? "") || event.head_sha !== pkg.head_sha) {
+        errors.push("A gate pass records the package's exact current 40-character head SHA.");
+      }
+      const expected = buildMissionReceipt(state, event.package_id, event.head_sha);
+      if (JSON.stringify(event.receipt) !== JSON.stringify(expected)) {
+        errors.push("A gate pass records the exact receipt derived from current mission state.");
+      }
+      break;
+    }
+
+    case "package-gate-invalidated": {
+      const pkg = state.packages[event.package_id];
+      if (!pkg) {
+        errors.push(`No planned package ${event.package_id}.`);
+        break;
+      }
+      if (pkg.gate_passed?.head_sha !== event.head_sha) {
+        errors.push("Only the gate pass recorded at this exact head may be invalidated.");
+      }
+      if (!Array.isArray(event.reasons) || event.reasons.length === 0) {
+        errors.push("Gate invalidation records at least one current refusal reason.");
+      }
+      break;
+    }
+
     case "merge-recorded": {
       const pkg = state.packages[event.package_id];
       if (!pkg) {
@@ -1427,6 +1460,7 @@ export function reduce(events) {
             head_sha: existing?.head_sha ?? null,
             receipts: existing?.receipts ?? [],
             review: existing?.review ?? null,
+            gate_passed: existing?.gate_passed ?? null,
             visual_approved: existing?.visual_approved ?? false,
             visual_approval: existing?.visual_approval ?? null,
             visual_carry_forward_chain: existing?.visual_carry_forward_chain ?? [],
@@ -1480,6 +1514,7 @@ export function reduce(events) {
       case "correction-dispatched": {
         const pkg = state.packages[event.package_id];
         pkg.status = "correction";
+        pkg.gate_passed = null;
         // A dispatch has no new head to classify. Keep the evidence but mark it
         // pending so it cannot satisfy a gate until `pr-opened` records and
         // classifies the actual old-head..new-head delta.
@@ -1503,6 +1538,7 @@ export function reduce(events) {
         // receipt that arrives after the merge keeps its place in the evidence
         // above, but never regresses the package's lifecycle.
         if (pkg.status !== "merged") {
+          pkg.gate_passed = null;
           pkg.status =
             {
               completed: "implemented",
@@ -1555,10 +1591,12 @@ export function reduce(events) {
         pkg.visual_evidence_pending = false;
         pkg.pr_number = event.pr_number;
         pkg.head_sha = event.head_sha;
+        if (previousHead !== event.head_sha) pkg.gate_passed = null;
         break;
       }
       case "review-receipt": {
         const pkg = state.packages[event.package_id];
+        pkg.gate_passed = null;
         pkg.review = { at: event.at, ...event.receipt };
         if (event.receipt.result === "clear" && pkg.status === "implemented") {
           pkg.status = "reviewed";
@@ -1625,6 +1663,9 @@ export function reduce(events) {
         break;
       case "visual-approval": {
         if (event.package_heads !== undefined || event.head_sha !== undefined) {
+          for (const id of Object.keys(event.package_heads ?? {})) {
+            state.packages[id].gate_passed = null;
+          }
           state.missionVisualApprovals.push({
             at: event.at,
             by: event.approved_by,
@@ -1635,6 +1676,7 @@ export function reduce(events) {
           break;
         }
         const pkg = state.packages[event.package_id];
+        pkg.gate_passed = null;
         pkg.visual_approved = true;
         pkg.visual_evidence_pending = false;
         pkg.visual_carry_forward_chain = [];
@@ -1668,6 +1710,7 @@ export function reduce(events) {
           status: "open",
           answer: null,
         };
+        for (const id of event.affected_packages) state.packages[id].gate_passed = null;
         break;
       case "owner-answer": {
         const question = state.questions[event.question_id];
@@ -1682,6 +1725,18 @@ export function reduce(events) {
       }
       case "rule-applied":
         state.rulesApplied.push({ at: event.at, rule_id: event.rule_id, context: event.context });
+        break;
+      case "package-gate-passed": {
+        const pkg = state.packages[event.package_id];
+        pkg.gate_passed = {
+          at: event.at,
+          head_sha: event.head_sha,
+          receipt: event.receipt,
+        };
+        break;
+      }
+      case "package-gate-invalidated":
+        state.packages[event.package_id].gate_passed = null;
         break;
       case "merge-recorded": {
         const pkg = state.packages[event.package_id];
@@ -1703,6 +1758,7 @@ export function reduce(events) {
       case "scope-drift":
         for (const id of event.affected_packages) {
           state.packages[id].driftStopped = true;
+          state.packages[id].gate_passed = null;
         }
         break;
       case "packet-revised":
@@ -1734,6 +1790,20 @@ export function reduce(events) {
 export function replayState(repoPath, missionId, env = process.env) {
   const paths = missionPaths(repoPath, missionId, env);
   return reduce(readJournal(paths.journal));
+}
+
+/** Project detailed journal state onto the one owner-facing package lifecycle. */
+export function packageLifecycle(state, pkg) {
+  if (!pkg || pkg.status === "removed") return null;
+  if (state.reclaimed.includes(pkg.id)) return "reclaimed";
+  if (pkg.status === "merged") return "merged";
+  if (pkg.gate_passed?.head_sha === pkg.head_sha) return "gate-passed";
+  if (["implemented", "reviewed", "blocked", "owner-decision"].includes(pkg.status)) {
+    return "built";
+  }
+  if (["active", "correction"].includes(pkg.status)) return "dispatched";
+  if (state.planApproved) return "approved";
+  return "planned";
 }
 
 function prepareJournalEvent(repoPath, event, state) {
@@ -1914,11 +1984,19 @@ export function nextActions(state) {
       reviewCovers(state, pkg) &&
       approvalCovers(state, pkg)
     ) {
-      actions.push({
-        action: "merge-gate",
-        package_id: pkg.id,
-        detail: "Evaluate the guarded merge gate.",
-      });
+      actions.push(
+        pkg.gate_passed?.head_sha === pkg.head_sha
+          ? {
+              action: "request-merge",
+              package_id: pkg.id,
+              detail: "Publish the recorded receipt and add the mission-merge label.",
+            }
+          : {
+              action: "merge-gate",
+              package_id: pkg.id,
+              detail: "Evaluate the guarded merge gate.",
+            },
+      );
     }
   }
 
