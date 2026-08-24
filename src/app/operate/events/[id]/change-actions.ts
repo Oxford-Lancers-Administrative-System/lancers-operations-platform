@@ -30,15 +30,24 @@ import type { CancelFormState } from "./change-state";
  * courtesy; `event-amendment.ts` refuses regardless of which button was
  * rendered.
  *
- * ## Why the silence confirmation is checked twice
+ * ## Why the silence confirmation is checked twice — R156-A3
  *
  * The screen shows the confirmation and posts `silenceConfirmed` only after the
  * operator has passed it. That is what the operator experiences, and it is not
- * a guarantee: a server action is a POST endpoint the browser can call
- * directly, so a client could post `notify=off` with no confirmation at all.
- * `amendApprovedEvent` and `cancelEvent` therefore refuse it themselves, and
- * the acceptance evidence — "cannot be done without passing a confirmation" —
- * is asserted against the service rather than against the screen.
+ * the whole guarantee: a server action is a POST endpoint the browser can
+ * call directly, so a client that skips the screen entirely and posts
+ * `notify=off` with no `silenceConfirmed` field at all is refused —
+ * `amendApprovedEvent` and `cancelEvent` require the flag, rather than
+ * defaulting a missing one to `false` and silencing by accident.
+ *
+ * What this does **not** guarantee: `silenceConfirmed` is itself a
+ * client-asserted boolean, indistinguishable on the wire from a screen an
+ * operator actually clicked through and a raw POST that simply sets it to
+ * `true`. The service can refuse an omitted confirmation; it cannot tell a
+ * confirmed dialog from a forged one, because nothing about the request ties
+ * it to having been shown. The acceptance evidence — "cannot be done without
+ * passing a confirmation" — is asserted against the service, and is true in
+ * exactly that narrower sense.
  *
  * ## Why a refusal is never a form message
  *

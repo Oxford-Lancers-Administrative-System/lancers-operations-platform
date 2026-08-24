@@ -137,7 +137,8 @@ export const JOB_HELD_MESSAGE = "This message is on hold after a change to the e
  * operator who amends an event and then opens Delivery is asking exactly this
  * question, and was being answered with the state the job had before the hold.
  */
-export type DeliveryState = "queued" | "attempted" | "delivered" | "failed" | "retryable" | "held";
+export type DeliveryState =
+  "queued" | "attempted" | "delivered" | "failed" | "retryable" | "held" | "cancelled";
 
 export interface DispatchSummary {
   readonly attempted: number;
@@ -732,10 +733,8 @@ export async function revokeAndReissue(
   options: { source?: EnvironmentSource; transport?: Transport } = {},
 ): Promise<"accepted" | "refused"> {
   const jobId = await withTransaction(async (tx) => {
-    const revoked = await revokeTokensIn(tx, invitationId, reason);
-
-    const job = await tx.query<{ id: string; attempt_count: number }>(
-      `select id, attempt_count
+    const job = await tx.query<{ id: string; attempt_count: number; held: boolean }>(
+      `select id, attempt_count, held_at is not null as held
          from public.notification_jobs
         where invitation_id = $1 and job_type = 'invitation'
         order by created_at
@@ -749,6 +748,16 @@ export async function revokeAndReissue(
         rule: JOB_NOT_FOUND_RULE,
       });
     }
+    // LAN-156 (R156-B1). Checked, and the reason a live token still exists to
+    // revoke, before anything is revoked. A held job's link is the one still
+    // reaching the invitee's last confirmed state; revoking it first and then
+    // finding `claimJobIn` refuses the held row left the invitee with a dead
+    // link, no message, and no `last_error` naming the cause. The message this
+    // throws matches `retryDelivery`'s, so both controls tell the operator the
+    // same true thing about a held row.
+    if (row.held) {
+      throw new InvalidTransition(JOB_HELD_MESSAGE, { rule: JOB_HELD_RULE });
+    }
     if (row.attempt_count >= MAX_ATTEMPTS) {
       throw new InvalidTransition(
         `This invitation has already been attempted ${MAX_ATTEMPTS} times. Reissuing the link ` +
@@ -756,6 +765,8 @@ export async function revokeAndReissue(
         { rule: JOB_NOT_RETRYABLE_RULE },
       );
     }
+
+    const revoked = await revokeTokensIn(tx, invitationId, reason);
 
     // The job has to become sendable again, or the reissued link would never
     // leave the building. Guarded on the same states a retry accepts.
@@ -1042,6 +1053,14 @@ export const DELIVERY_STATE_EXPRESSION = `
     -- holds only pending, ready and failed — so this arm cannot hide a
     -- delivery that actually happened.
     when j.held_at is not null then 'held'
+    -- LAN-156 (R156-B2). \`cancelEvent\` moves every unsent job straight to
+    -- 'cancelled', a status none of the arms below matched, so it fell to the
+    -- \`else\` and read as the club's own stand-down having failed to send —
+    -- with a Retry button that then refused it, because \`retryDelivery\` only
+    -- accepts 'pending', 'ready' or 'failed'. A cancelled job is never
+    -- completed or processing, so this arm cannot hide a delivery that
+    -- actually happened either.
+    when j.status = 'cancelled' then 'cancelled'
     when j.status = 'completed' then 'delivered'
     when j.status = 'processing' then 'attempted'
     when j.status in ('pending', 'ready') then 'queued'
@@ -1167,11 +1186,18 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         // `retryDelivery` throws `JOB_HELD_MESSAGE` at a held job, so the
         // button was offered, pressed, and refused. `docs/ux/standards.md`
         // rule 4 says a control that cannot act is not offered.
+        //
+        // `cancelled` (R156-B2) is excluded for the identical reason: the
+        // event is terminal, `retryDelivery` only accepts a job that is
+        // 'pending', 'ready' or 'failed', and a 'cancelled' job is none of
+        // those — so a Retry button here would be offered, pressed and
+        // refused, exactly like a held one.
         retryable:
           row.attempt_count < MAX_ATTEMPTS &&
           row.state !== "delivered" &&
           row.state !== "attempted" &&
-          row.state !== "held",
+          row.state !== "held" &&
+          row.state !== "cancelled",
       };
     });
 

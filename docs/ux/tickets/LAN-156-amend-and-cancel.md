@@ -44,9 +44,15 @@ equivalent; `event_approval` is the one whose action is releasing messages to
 real people, which is what an amendment that notifies, a re-notify and a
 cancellation each do. When Brian narrows one list, these follow the right one.
 
-Routes do not authorize. Every action re-resolves the operator from the verified
-session and every refusal is thrown by the service, so a control rendered a
-minute ago cannot become permission.
+Every action re-resolves the operator from the verified session. R156-A2: this
+used to say every refusal is thrown by the service — it is not.
+`event_approval` is enforced at the route guard (`gateShellPage`, in
+`amend/page.tsx` and `cancel/page.tsx`) and again at each server action
+(`requireCapability`, in `change-actions.ts`). The service layer
+(`event-amendment.ts`) calls `requireActor`, which confirms the actor exists;
+it does not check the capability. A control rendered a minute ago is
+re-checked at the route and at the action before anything happens, not
+trusted because it rendered.
 
 ## The amendment — `W5`
 

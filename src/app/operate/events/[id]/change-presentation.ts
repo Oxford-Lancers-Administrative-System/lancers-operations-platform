@@ -1,5 +1,5 @@
 import { UNREADABLE_DATE } from "@/lib/club-time";
-import type { AmendmentChange } from "@/lib/services/event-amendment-rules";
+import type { AmendableField, AmendmentChange } from "@/lib/services/event-amendment-rules";
 import type { EventChangeKind } from "@/lib/services/event-amendment";
 
 /**
@@ -127,13 +127,18 @@ export function cancelNotifyDefaultDetail(isFuture: boolean): string | null {
  * previously counted every job type, so an event whose only unsent jobs were
  * change notices from an earlier amendment announced a number the delivery
  * screen showed as zero.
+ *
+ * R156-B3. This used to end "… held until you tell people about this
+ * change", which promised that notifying — now or later, at Save or at
+ * Re-notify — released the hold. Nothing in the repository ever clears
+ * `held_at`: whether a held job resumes as it was, resumes corrected, or is
+ * replaced is Mission 4's decision, not this one's, and the module header on
+ * `event-amendment.ts` says so. The sentence now says only what this build
+ * actually does to these messages, and stops.
  */
 export function queuedMessagesDetail(unsent: number): string | null {
   if (unsent === 0) return null;
-  return (
-    `${unsent} queued ${unsent === 1 ? "message is" : "messages are"} held until ` +
-    "you tell people about this change."
-  );
+  return `Saving holds ${unsent} queued ${unsent === 1 ? "message" : "messages"}.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +160,32 @@ export function silenceHeadline(changes: readonly AmendmentChange[]): string {
   return "Change the date, time or venue without telling anyone?";
 }
 
+/**
+ * R156-B4. The mockup's one worked example is a venue — "told this is at
+ * **Iffley Road Astro**" — and the build applied that same "at" to every
+ * material field, including a delivery-mode change, which read "told this is
+ * at In person": a stored value printed as though the sentence around it did
+ * not matter. `MATERIAL_FIELDS` is five fields, not one, and each needs the
+ * preposition that makes the sentence a sentence rather than a template with a
+ * value dropped in. `scheduledOn`'s value already arrives formatted — see
+ * `renderValue` in `event-amendment-rules.ts` — so this is about grammar
+ * only, never about the value itself.
+ */
+function telling(field: AmendableField, value: string): string {
+  switch (field) {
+    case "venue":
+    case "startsAt":
+    case "endsAt":
+      return `at ${value}`;
+    case "scheduledOn":
+      return `on ${value}`;
+    case "deliveryMode":
+      return value.toLowerCase();
+    default:
+      return value;
+  }
+}
+
 /** W5-03b, verbatim in shape: what they were told, and what happens if nobody is told. */
 export function silenceConsequence(
   recipients: number,
@@ -164,7 +195,7 @@ export function silenceConsequence(
   const first = material[0];
   const told =
     first && first.previous
-      ? `${recipients} ${people(recipients)} were told this is at ${first.previous}.`
+      ? `${recipients} ${people(recipients)} were told this is ${telling(first.field, first.previous)}.`
       : `${recipients} ${people(recipients)} were told about this event as it stands.`;
   const consequence =
     first && first.next

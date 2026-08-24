@@ -1,4 +1,4 @@
-import { addClubDays } from "@/lib/club-time";
+import { addClubDays, formatClubDay } from "@/lib/club-time";
 import { optional, trimmed, type EventDeliveryMode, type EventStatus } from "./event-input";
 
 /**
@@ -155,6 +155,17 @@ function renderValue(event: AmendableEvent, field: AmendableField): string | nul
       return trimmed(event.name) === "" ? null : trimmed(event.name);
     case "eventType":
       return optional(event.eventType);
+    // R156-B4. `scheduledOn` is a stored calendar date ("2026-11-11"), and this
+    // is the one place that value becomes the string the review screen and the
+    // change history print. Left raw, it read as `2026-11-11` on both —
+    // `docs/ux/standards.md` rule 3 — while every other date in the
+    // application read `11 Nov 2026`. `startsAt`/`endsAt` need no equivalent
+    // pass: a stored time of day is already the club's display form, "20:00",
+    // not an instant with a shape rule 3 is about.
+    case "scheduledOn": {
+      const value = optional(event.scheduledOn);
+      return value === null ? null : formatClubDay(value);
+    }
     default:
       return optional(event[field] as string | null);
   }

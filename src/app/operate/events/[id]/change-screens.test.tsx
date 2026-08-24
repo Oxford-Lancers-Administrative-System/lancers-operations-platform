@@ -58,6 +58,18 @@ vi.mock("@/lib/services/event-amendment", async (importOriginal) => {
     readEventChangeHistory: vi.fn(async () => []),
   };
 });
+// LAN-157. The event page reads the participation table and the live club
+// link; this file's subject is the amend/cancel screens, so both are stubbed
+// empty here and proved in `src/app/participation/screens.test.tsx` and
+// `src/lib/services/participation.test.ts`.
+vi.mock("@/lib/services/participation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/participation")>();
+  return {
+    ...actual,
+    readOperatorParticipation: vi.fn().mockResolvedValue(null),
+    readEventClubLink: vi.fn().mockResolvedValue(null),
+  };
+});
 vi.mock("./change-actions", () => ({
   amendEventAction: vi.fn(async () => ({ issues: [], error: null, values: null })),
   cancelEventAction: vi.fn(async () => ({ error: null, reason: "" })),
@@ -105,6 +117,8 @@ function detail(overrides: Partial<EventDetail> = {}): EventDetail {
     audienceCount: 37,
     invitationCount: 37,
     responseCount: 29,
+    saidYesCount: 25,
+    showedCount: 0,
     description: "Full contact.",
     requiredEquipment: "Gumshield, boots",
     joiningUrl: null,
@@ -449,7 +463,7 @@ describe("where the one tick starts", () => {
     await reviewAfterChanging("Venue", "University Parks");
 
     expect(flatten(screen.getByTestId("queued-messages").textContent)).toBe(
-      "2 queued messages are held until you tell people about this change.",
+      "Saving holds 2 queued messages.",
     );
   });
 

@@ -76,7 +76,7 @@ RSVP is a direct scoped journey at `/rsvp/[token]`; it never enters `/operate` a
 ## 4. Route contract
 
 | Route                             | Purpose                                                                    |
-| --------------------------------- | --------------------------------------------------------------------------- |
+| --------------------------------- | -------------------------------------------------------------------------- |
 | `/login`                          | Operator authentication                                                    |
 | `/forgot-password`                | Request a password-reset link (LAN-125 amendment below)                    |
 | `/reset-password`                 | Choose a new password from a recovery link (LAN-125 amendment below)       |

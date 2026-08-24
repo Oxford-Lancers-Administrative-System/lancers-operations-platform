@@ -154,6 +154,19 @@ export const NOTHING_TO_RENOTIFY_MESSAGE =
   "Nothing has changed about this event since it was approved.";
 export const NOTHING_TO_RENOTIFY_RULE = "event_renotify_requires_a_change";
 
+/**
+ * R156-A5. The rule W5-04 states — re-notify exists for a change that "went
+ * out to nobody" — used to live only in `page.tsx`, as the condition that
+ * decided whether to render the button. A second caller reaching
+ * `renotifyEvent` directly skipped it entirely and could send a duplicate
+ * notice for a change everyone had already been told about. The service is
+ * now where this is enforced; the page's own check becomes the courtesy of
+ * not offering a control that would refuse.
+ */
+export const RENOTIFY_ALREADY_SENT_MESSAGE =
+  "The last change to this event has already been sent to everyone invited.";
+export const RENOTIFY_ALREADY_SENT_RULE = "event_renotify_requires_a_silent_change";
+
 /** Recorded on a job the amendment held, so Mission 4 knows what it is holding. */
 function holdReason(changes: readonly AmendmentChange[]): string {
   return `Event amended: ${changes.map((change) => change.label).join(", ")}.`;
@@ -622,9 +635,20 @@ export async function renotifyEvent(
     }
 
     const history = await readEventChangeHistoryIn(tx, eventId);
-    if (!history.some((entry) => entry.kind === "amended")) {
+    const lastAmendment = history.find((entry) => entry.kind === "amended") ?? null;
+    if (lastAmendment === null) {
       throw new ConstraintViolated(NOTHING_TO_RENOTIFY_MESSAGE, {
         rule: NOTHING_TO_RENOTIFY_RULE,
+      });
+    }
+    // R156-A5. `page.tsx` only ever renders the Re-notify control where the
+    // most recent amendment went out silently — a second, later amendment
+    // that *did* notify makes the button disappear again. Refused here too,
+    // so a caller that reaches this function some other way cannot double-
+    // notify a change everybody was already told about.
+    if (lastAmendment.notified !== false) {
+      throw new ConstraintViolated(RENOTIFY_ALREADY_SENT_MESSAGE, {
+        rule: RENOTIFY_ALREADY_SENT_RULE,
       });
     }
 

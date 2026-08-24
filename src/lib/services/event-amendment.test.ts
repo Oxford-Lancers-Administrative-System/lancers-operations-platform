@@ -34,6 +34,7 @@ import {
   readAmendmentContext,
   readEventChangeHistory,
   readNotifyAudienceIn,
+  RENOTIFY_ALREADY_SENT_RULE,
   renotifyEvent,
   SILENCE_NEEDS_CONFIRMATION_RULE,
   AMENDMENT_NEEDS_A_DATE_RULE,
@@ -664,6 +665,68 @@ describe("saving an amendment holds the event's unsent messages", () => {
     }
   });
 
+  /**
+   * R156-B3, the reproduction the reviewer handed to this round. Three
+   * strings on the amend and delivery screens said that notifying, or
+   * pressing Re-notify, releases the hold — `queuedMessagesDetail`,
+   * `describeRetryability` and the delivery held banner. Nothing in the
+   * repository ever clears `held_at`; only Mission 4 decides whether a held
+   * job resumes. Proved here directly: the same job's `held_at`, unmoved,
+   * across a second amendment that *does* notify.
+   */
+  it("held_at is unchanged by an amendment that notifies", async () => {
+    const fixture = await approvedEvent();
+
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks" },
+      { notify: false, silenceConfirmed: true },
+    );
+    const heldAt = (await jobsFor(fixture.eventId)).find(
+      (job) => job.job_type === "invitation",
+    )?.held_at;
+    expect(heldAt).not.toBeNull();
+
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks", description: "Bring boots — pitch is wet." },
+      { notify: true },
+    );
+
+    const after = (await jobsFor(fixture.eventId)).filter((job) => job.job_type === "invitation");
+    for (const job of after) {
+      expect(job.held_at).toEqual(heldAt);
+      // Still held, not queued to send — notifying created a fresh notice
+      // job; it did not touch this one.
+      expect(job.status).toBe("pending");
+    }
+  });
+
+  it("held_at is unchanged by re-notify", async () => {
+    const fixture = await approvedEvent();
+
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks" },
+      { notify: false, silenceConfirmed: true },
+    );
+    const heldAt = (await jobsFor(fixture.eventId)).find(
+      (job) => job.job_type === "invitation",
+    )?.held_at;
+    expect(heldAt).not.toBeNull();
+
+    await renotifyEvent(actorPersonId, fixture.eventId);
+
+    const after = (await jobsFor(fixture.eventId)).filter((job) => job.job_type === "invitation");
+    for (const job of after) {
+      expect(job.held_at).toEqual(heldAt);
+      expect(job.status).toBe("pending");
+    }
+  });
+
   it("holds the change notices an earlier amendment made owing", async () => {
     const fixture = await approvedEvent();
 
@@ -887,6 +950,48 @@ describe("re-notify", () => {
     expect(failure.rule).toBe(NOTHING_TO_RENOTIFY_RULE);
   });
 
+  /**
+   * R156-A5. `page.tsx` only renders the Re-notify control where the most
+   * recent amendment went out silently, and until now that was the *only*
+   * place the rule lived — a caller reaching `renotifyEvent` some other way
+   * could double-notify a change everyone had already been told about. The
+   * rule is asserted at the service directly here, with the page's own gate
+   * uninvolved.
+   */
+  it("refuses when the last amendment already notified", async () => {
+    const fixture = await approvedEvent();
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks" },
+      { notify: true },
+    );
+
+    const failure = await serviceFailure(() => renotifyEvent(actorPersonId, fixture.eventId));
+
+    expect(failure.rule).toBe(RENOTIFY_ALREADY_SENT_RULE);
+  });
+
+  it("refuses after a later amendment notified, even though an earlier one was silent", async () => {
+    const fixture = await approvedEvent();
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks" },
+      { notify: false, silenceConfirmed: true },
+    );
+    await amendApprovedEvent(
+      actorPersonId,
+      fixture.eventId,
+      { ...draft(), venue: "University Parks", description: "Bring boots — pitch is wet." },
+      { notify: true },
+    );
+
+    const failure = await serviceFailure(() => renotifyEvent(actorPersonId, fixture.eventId));
+
+    expect(failure.rule).toBe(RENOTIFY_ALREADY_SENT_RULE);
+  });
+
   it("appears in the history as its own entry", async () => {
     const fixture = await approvedEvent();
     await amendApprovedEvent(
@@ -1006,24 +1111,73 @@ describe("cancelling an event", () => {
     }
   });
 
+  /**
+   * R156-A4. Previously asserted 0 rows before and 0 rows after, on an event
+   * with no attendance ever recorded — which passes identically whether
+   * `cancelEvent` leaves attendance alone or deletes it outright, so it
+   * proved nothing about the migration this describes
+   * (`20260823090000_attendance_survives_cancellation.sql`). This records a
+   * real row first, against a real membership, so the assertion can actually
+   * fail against a cancellation that recalled or altered it.
+   */
   it("leaves attendance records untouched where the database lets it cancel at all", async () => {
     const fixture = await approvedEvent({ scheduledOn: pastDay() });
-    const attendance = await observer.query<{ count: string }>(
+
+    // A register entry recorded before the event was called off. The insert
+    // shape matches "cancelling an event that carries attendance records"
+    // below, which proves the same fact against the migration's own
+    // description; this one asserts it as an ordinary property of an
+    // ordinary cancellation.
+    const invitee = await observer.query<{
+      person_id: string;
+      season_membership_id: string | null;
+      capacity: string;
+    }>(
+      `select coalesce(i.person_id, m.person_id) as person_id, i.season_membership_id,
+              i.capacity::text as capacity
+         from public.invitations i
+         left join public.season_memberships m on m.id = i.season_membership_id
+        where i.event_id = $1 order by i.id limit 1`,
+      [fixture.eventId],
+    );
+    const saved = await observer.query<{ id: string }>(
+      `insert into public.attendance_records
+         (event_id, event_status, season_id, capacity, presence, person_id,
+          season_membership_id, recorded_by_person_id)
+       values ($1, 'approved', $2, $6::public.invitation_capacity, 'present', $3, $4, $5)
+       returning id`,
+      [
+        fixture.eventId,
+        fixture.seasonId,
+        invitee.rows[0].season_membership_id ? null : invitee.rows[0].person_id,
+        invitee.rows[0].season_membership_id,
+        actorPersonId,
+        invitee.rows[0].capacity,
+      ],
+    );
+
+    const before = await observer.query<{ count: string }>(
       "select count(*)::text as count from public.attendance_records where event_id = $1",
       [fixture.eventId],
     );
-    expect(Number(attendance.rows[0].count)).toBe(0);
+    expect(Number(before.rows[0].count)).toBe(1);
 
     await cancelEvent(actorPersonId, fixture.eventId, {
       reason: "Never happened.",
       notify: false,
     });
 
-    const after = await observer.query<{ count: string }>(
-      "select count(*)::text as count from public.attendance_records where event_id = $1",
+    // The same row, by identity, not merely the same count — a cancellation
+    // that deleted this row and left some other row behind would pass a bare
+    // count check.
+    const after = await observer.query<{ id: string; presence: string; event_status: string }>(
+      "select id, presence::text as presence, event_status::text as event_status " +
+        "from public.attendance_records where event_id = $1",
       [fixture.eventId],
     );
-    expect(Number(after.rows[0].count)).toBe(0);
+    expect(after.rows).toEqual([
+      { id: saved.rows[0].id, presence: "present", event_status: "cancelled" },
+    ]);
   });
 });
 

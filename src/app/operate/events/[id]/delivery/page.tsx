@@ -202,12 +202,18 @@ function Overview({ delivery, basePath }: { delivery: EventDelivery; basePath: s
         were held and this screen showed them as Queued. The tile appears only
         when there are held messages, so an event nobody has amended is
         unchanged.
+
+        R156-B3. This used to add "Re-notify to send the change", which told
+        the operator that Re-notify sends the held message itself. Re-notify
+        writes a separate notice job and nothing in the repository ever
+        clears `held_at`, so that was a release condition this build does not
+        implement. Says only what happened, and stops.
       */}
       {counts.held > 0 ? (
         <Alert severity="warning" data-testid="delivery-held">
           {counts.held === 1
-            ? "1 message is held after a change to this event. Re-notify to send the change."
-            : `${counts.held} messages are held after a change to this event. Re-notify to send the change.`}
+            ? "1 message is held after a change to this event."
+            : `${counts.held} messages are held after a change to this event.`}
         </Alert>
       ) : null}
 
