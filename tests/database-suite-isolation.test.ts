@@ -28,7 +28,7 @@ import path from "node:path";
 import pg from "pg";
 import { describe, expect, it } from "vitest";
 
-import config, { DATABASE_TEST_SUITES } from "../vitest.config";
+import config, { DATABASE_TEST_SUITES, GATE_SUITES } from "../vitest.config";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 
@@ -74,6 +74,7 @@ function project(name: string): ProjectShape["test"] {
 
 const unit = project("unit");
 const database = project("database");
+const gate = project("gate");
 
 // ---------------------------------------------------------------------------
 // The list itself
@@ -94,13 +95,20 @@ describe("the declared database suites", () => {
     expect([...DATABASE_TEST_SUITES]).toEqual([...DATABASE_TEST_SUITES].sort());
     expect(new Set(DATABASE_TEST_SUITES).size).toBe(DATABASE_TEST_SUITES.length);
   });
+
+  it("names gate files that exist and keeps the list deterministic", () => {
+    const onDisk = new Set(allTestFiles());
+    expect(GATE_SUITES.filter((suite) => !onDisk.has(suite))).toEqual([]);
+    expect([...GATE_SUITES]).toEqual([...GATE_SUITES].sort());
+    expect(new Set(GATE_SUITES).size).toBe(GATE_SUITES.length);
+  });
 });
 
 // ---------------------------------------------------------------------------
 // The split
 // ---------------------------------------------------------------------------
 
-describe("the two projects", () => {
+describe("the hot and gate projects", () => {
   it("between them run every test file, and none of them twice", () => {
     // The parallel project takes everything under src/ and tests/ and then
     // subtracts the declared suites; the database project takes exactly the
@@ -108,10 +116,19 @@ describe("the two projects", () => {
     // re-implementing glob matching, because it is the configuration that
     // decides.
     expect(unit.include).toEqual(["src/**/*.test.{ts,tsx}", "tests/**/*.test.{ts,tsx}"]);
-    expect(database.include).toEqual([...DATABASE_TEST_SUITES]);
+    const hotDatabase = DATABASE_TEST_SUITES.filter((suite) => !GATE_SUITES.includes(suite));
+    expect(database.include).toEqual(hotDatabase);
+    expect(gate.include).toEqual([...GATE_SUITES]);
 
     for (const suite of DATABASE_TEST_SUITES) {
       expect(unit.exclude, `${suite} would run in both projects`).toContain(suite);
+    }
+    for (const suite of GATE_SUITES) {
+      expect(unit.exclude, `${suite} would run in both hot and gate projects`).toContain(suite);
+      expect(
+        database.include,
+        `${suite} would run in both database and gate projects`,
+      ).not.toContain(suite);
     }
 
     // Vitest's own defaults have to survive alongside them, or node_modules is
@@ -140,16 +157,44 @@ describe("the two projects", () => {
     // fail here.
     expect(database.pool ?? "forks").toBe("forks");
     expect(database.poolOptions?.forks?.singleFork).toBe(true);
+    expect(gate.pool ?? "forks").toBe("forks");
+    expect(gate.poolOptions?.forks?.singleFork).toBe(true);
   });
 
   it("tell only the database project that it may connect", () => {
     expect(database.env?.LANCERS_TEST_PROJECT).toBe("database");
+    expect(gate.env?.LANCERS_TEST_PROJECT).toBe("database");
+    expect(gate.env?.PILOT_GUARD_CHECK).toBe("1");
     expect(unit.env?.LANCERS_TEST_PROJECT).toBeUndefined();
   });
 
   it("install the shared setup file in both", () => {
     expect(unit.setupFiles).toContain("./vitest.setup.ts");
     expect(database.setupFiles).toContain("./vitest.setup.ts");
+    expect(gate.setupFiles).toContain("./vitest.setup.ts");
+  });
+
+  it("keeps the security perimeter hot and runs the gate explicitly in CI", () => {
+    for (const suite of [
+      "tests/schema-invariants.test.ts",
+      "tests/slice-walkthrough.test.ts",
+      "tests/local-only-guard-source.test.ts",
+      "tests/operate-route-protection.test.ts",
+      "tests/coach-attendance-boundary.test.ts",
+      "tests/pilot-data-contract.test.ts",
+    ]) {
+      expect(GATE_SUITES, `${suite} must never be demoted`).not.toContain(suite);
+    }
+
+    const scripts = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"))
+      .scripts as Record<string, string>;
+    expect(scripts.test).toContain("--project unit --project database");
+    expect(scripts.test).not.toContain("--project gate");
+    expect(scripts["verify:gate"]).toContain("--project gate");
+
+    const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/ci.yml"), "utf8");
+    expect(workflow).toContain("npm run test:ci");
+    expect(workflow).toContain("npm run test:gate:ci");
   });
 });
 

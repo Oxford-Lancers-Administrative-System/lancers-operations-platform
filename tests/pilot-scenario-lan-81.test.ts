@@ -40,6 +40,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 vi.mock("server-only", () => ({}));
 
 import { one, openLocalClient, type Client } from "./helpers/domain-fixture";
+import { scopedPilotSnapshot } from "./helpers/pilot-snapshot";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const scenarioDir = path.join(repoRoot, "scripts", "pilot", "lan-81");
@@ -182,26 +183,7 @@ afterAll(async () => {
 
 /** A digest of every base table in `public` and `staging`. */
 async function snapshot(): Promise<Record<string, string>> {
-  const { rows: tables } = await client.query<{ qualified: string }>(
-    `select quote_ident(n.nspname) || '.' || quote_ident(c.relname) as qualified
-       from pg_class c
-       join pg_namespace n on n.oid = c.relnamespace
-      where c.relkind in ('r', 'p')
-        and n.nspname in ('public', 'staging')
-      order by 1`,
-  );
-
-  const digests: Record<string, string> = {};
-  for (const { qualified } of tables) {
-    const row = await one<{ digest: string }>(
-      client,
-      `select count(*)::text || ':' ||
-              coalesce(md5(string_agg(row_hash, ',' order by row_hash)), '-') as digest
-         from (select md5(to_jsonb(t)::text) as row_hash from ${qualified} t) hashed`,
-    );
-    digests[qualified] = row.digest;
-  }
-  return digests;
+  return scopedPilotSnapshot(client, CLEANUP);
 }
 
 async function count(sql: string, params: unknown[] = []): Promise<number> {

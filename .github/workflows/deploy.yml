@@ -214,9 +214,13 @@ jobs:
               if [ -z "${{ inputs.image_tag }}" ]; then
                 echo "$BODY" | grep -q '"databaseConfigured":true' \
                   || { echo "DATABASE_URL was not injected at runtime — see docs/deployment.md"; exit 1; }
+                echo "$BODY" | grep -q '"schemaCompatible":true' \
+                  || { echo "The deployed database does not satisfy the current schema — see docs/deployment.md"; exit 1; }
               else
                 echo "$BODY" | grep -q '"databaseConfigured":true' \
                   || echo "::warning title=Database not configured::Rolled-back image does not report databaseConfigured. Expected for images built before LAN-94."
+                echo "$BODY" | grep -q '"schemaCompatible":true' \
+                  || echo "::warning title=Schema compatibility not reported::Rolled-back image does not report schemaCompatible. Expected for images built before LAN-159."
               fi
               exit 0
             fi

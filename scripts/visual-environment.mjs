@@ -45,6 +45,25 @@ async function proveLive(url) {
   return Boolean(response && response.status < 500);
 }
 
+async function releaseEnvironment(record, disposition) {
+  if (record?.supervisorPid && supervisorAlive(record)) {
+    try {
+      process.kill(record.supervisorPid, "SIGTERM");
+    } catch {
+      // Already gone; releasing the lease below is still the right thing.
+    }
+  }
+  if (record) {
+    writeEnvironment(repoPath, {
+      ...record,
+      disposition,
+      releasedAt: new Date().toISOString(),
+    });
+  }
+  const session = readSession(repoPath);
+  return releaseLease({ repoPath, token: session.token, slot: session.slot });
+}
+
 try {
   if (operation === "start") {
     const session = readSession(repoPath);
@@ -155,31 +174,23 @@ try {
     }
     const record = readEnvironment(repoPath);
     if (!record) throw new Error("No visual environment is recorded.");
-    writeEnvironment(repoPath, {
+    const disposed = {
       ...record,
       disposition: value,
       dispositionAt: new Date().toISOString(),
       dispositionNote: option("--note") ?? null,
-    });
-    console.log(`${record.environmentId} is now ${value}.`);
+    };
+    writeEnvironment(repoPath, disposed);
+    if (value === "pending") {
+      console.log(`${record.environmentId} is now ${value}.`);
+    } else {
+      const lease = await releaseEnvironment(disposed, value);
+      console.log(`${record.environmentId} is now ${value}; released ${lease.slot}.`);
+    }
   } else if (operation === "release") {
     const record = readEnvironment(repoPath);
-    if (record?.supervisorPid && supervisorAlive(record)) {
-      try {
-        process.kill(record.supervisorPid, "SIGTERM");
-      } catch {
-        // Already gone; releasing the lease below is still the right thing.
-      }
-    }
-    if (record) {
-      writeEnvironment(repoPath, {
-        ...record,
-        disposition: record.disposition === "pending" ? "abandoned" : record.disposition,
-        releasedAt: new Date().toISOString(),
-      });
-    }
-    const session = readSession(repoPath);
-    const lease = await releaseLease({ repoPath, token: session.token, slot: session.slot });
+    const disposition = record?.disposition === "pending" ? "abandoned" : record?.disposition;
+    const lease = await releaseEnvironment(record, disposition);
     console.log(`Released ${lease.slot}.`);
   } else {
     throw new Error(

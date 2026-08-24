@@ -3,7 +3,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { renderCheckpoint } from "../scripts/mission/cli.mjs";
 import { readJournal, reduce, missionPaths, nextActions } from "../scripts/mission/lib/state.mjs";
 
 const CLI = path.join(__dirname, "..", "scripts", "mission", "cli.mjs");
@@ -50,14 +49,90 @@ function readyMission(m: ReturnType<typeof fixture>) {
 }
 
 describe("mission CLI", () => {
-  /**
-   * The rule said a dependency reviewed clean at its exact head is a usable
-   * base; the dispatch command had no way to say so, so the Lead's only
-   * interface refused every such dispatch and waited on Brian's merge anyway.
-   * Proved through the CLI, because asserting appendEvent directly is how the
-   * gap survived.
-   */
-  it("dispatches on a reviewed dependency through the CLI, recording the head it stands on", () => {
+  it("refuses a live dispatch without an on-disk brief", () => {
+    const m = fixture();
+    readyMission(m);
+    const refused = m.run(
+      "dispatch",
+      MISSION,
+      "WP-events-filter",
+      "--worker",
+      "worker-1",
+      "--worktree",
+      ".claude/worktrees/wp-events",
+      "--branch",
+      "feat/wp-events",
+    );
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toMatch(/--brief <brief\.md>/);
+  });
+
+  it("requires a report and refuses the final walker before every package merges", () => {
+    const m = fixture();
+    readyMission(m);
+    const head = "a".repeat(40);
+    const packageHeads = path.join(m.repo, "package-heads.json");
+    const report = path.join(m.repo, "walker-report.md");
+    fs.writeFileSync(
+      packageHeads,
+      JSON.stringify(
+        Object.fromEntries(
+          ["WP-events-filter", "WP-attendance-export", "WP-report-footer"].map((id) => [id, head]),
+        ),
+      ),
+    );
+    fs.writeFileSync(report, "Completed every synthetic user job.\n");
+    const missing = m.run(
+      "integrated-review",
+      MISSION,
+      "--mode",
+      "workflow-walker",
+      "--head",
+      head,
+      "--package-heads",
+      packageHeads,
+      "--result",
+      "clear",
+      "--jobs",
+      "Synthetic jobs",
+    );
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toMatch(/--report <file>/);
+    const tooEarly = m.run(
+      "integrated-review",
+      MISSION,
+      "--mode",
+      "workflow-walker",
+      "--head",
+      head,
+      "--result",
+      "clear",
+      "--jobs",
+      "Synthetic jobs",
+      "--report",
+      report,
+    );
+    expect(tooEarly.status).toBe(1);
+    expect(tooEarly.stderr).toMatch(/only after every live package has merged to main/);
+    expect(
+      m.run(
+        "question",
+        MISSION,
+        "--id",
+        "Q-now",
+        "--class",
+        "immediate",
+        "--text",
+        "Blocking question",
+        "--source",
+        "security boundary",
+        "--affects",
+        "WP-events-filter",
+      ).status,
+    ).toBe(0);
+  });
+
+  it("dispatches dependent work through the CLI only after its dependency merges", () => {
     const m = fixture();
     readyMission(m);
     const HEAD = "a".repeat(40);
@@ -78,6 +153,8 @@ describe("mission CLI", () => {
         ".claude/worktrees/wp-attendance",
         "--branch",
         "feat/wp-attendance",
+        "--brief",
+        PACKET,
       ).status,
     ).toBe(0);
     expect(
@@ -115,8 +192,29 @@ describe("mission CLI", () => {
           reviewed_head_sha: HEAD,
           round: 1,
           result: "clear",
+          ci_state: "green",
         }),
       ).status,
+    ).toBe(0);
+
+    const beforeMerge = m.run(
+      "dispatch",
+      MISSION,
+      "WP-report-footer",
+      "--worker",
+      "worker-2",
+      "--worktree",
+      ".claude/worktrees/wp-report",
+      "--branch",
+      "feat/wp-report",
+      "--brief",
+      PACKET,
+    );
+    expect(beforeMerge.status).toBe(1);
+    expect(beforeMerge.stderr).toMatch(/has not merged to main/);
+    expect(
+      m.run("merge-record", MISSION, "WP-attendance-export", "41", HEAD, "--route", "guarded-auto")
+        .status,
     ).toBe(0);
 
     const dispatched = m.run(
@@ -129,9 +227,11 @@ describe("mission CLI", () => {
       ".claude/worktrees/wp-report",
       "--branch",
       "feat/wp-report",
+      "--brief",
+      PACKET,
     );
     expect(dispatched.status).toBe(0);
-    expect(dispatched.stdout).toContain(`standing on reviewed WP-attendance-export at ${HEAD}`);
+    expect(dispatched.stdout).toContain("Worker worker-2 dispatched on WP-report-footer");
   });
 
   it("initializes only from a matching approved packet and exits 1 on refusal", () => {
@@ -178,6 +278,8 @@ describe("mission CLI", () => {
       ".claude/worktrees/wp-events",
       "--branch",
       "feat/wp-events",
+      "--brief",
+      PACKET,
     );
     expect(refused.status).toBe(1);
     expect(refused.stderr).toMatch(/No Linear connectivity preflight/);
@@ -219,11 +321,15 @@ describe("mission CLI", () => {
       "## Rules learned",
       "## Next hour",
       "## Deploy drift",
+      "## Resources",
     ]) {
       expect(checkpoint.stdout).toContain(section);
     }
-    expect(checkpoint.stdout).toMatch(/1\. \[hourly\] Q-1/);
+    expect(checkpoint.stdout.indexOf("Q-now")).toBeLessThan(checkpoint.stdout.indexOf("Q-1"));
     expect(checkpoint.stdout).toMatch(/gh workflow run deploy\.yml/);
+    expect(checkpoint.stdout).toMatch(
+      /Active stacks: .*leases: .*worktrees: .*load \(1\/5\/15m\):/,
+    );
   });
 
   it("stops with a durable checkpoint and resumes in a completely fresh process", () => {
@@ -243,6 +349,60 @@ describe("mission CLI", () => {
     const replayed = reduce(events);
     expect(parsed.state.packages).toEqual(replayed.packages);
     expect(parsed.next_actions).toEqual(nextActions(replayed));
+  });
+
+  // Regression: the validator refuses an owner merge the guarded lane could have
+  // taken unless the reason is recorded, and no CLI path set that field — so
+  // every such merge was unrecordable and its package stayed open in state
+  // forever. The reason has to survive into the journal, not just be accepted.
+  it("carries the owner-route reason into the journal entry", () => {
+    const m = fixture();
+    readyMission(m);
+    const sha = "c".repeat(40);
+    expect(
+      m.run("merge-record", MISSION, "WP-events-filter", "12", sha, "--route", "owner").status,
+    ).toBe(0);
+    const withoutReason = readJournal(missionPaths(m.repo, MISSION, m.env).journal).filter(
+      (event) => event.type === "merge-recorded",
+    );
+    expect(withoutReason.at(-1)?.owner_route_reason).toBeUndefined();
+
+    expect(
+      m.run(
+        "merge-record",
+        MISSION,
+        "WP-events-filter",
+        "12",
+        sha,
+        "--route",
+        "owner",
+        "--reason",
+        "Its pull request also carried a prohibited path.",
+      ).status,
+    ).toBe(0);
+    const recorded = readJournal(missionPaths(m.repo, MISSION, m.env).journal).filter(
+      (event) => event.type === "merge-recorded",
+    );
+    expect(recorded.at(-1)?.owner_route_reason).toBe(
+      "Its pull request also carried a prohibited path.",
+    );
+  });
+
+  // Regression: finish-mission.mjs used mergeProof and worktreeDefects without
+  // importing them. Every invocation died with a ReferenceError before it could
+  // prove a single merge, and the unit tests for those helpers passed the whole
+  // time because they import the library directly. Loading the real entry point
+  // is the only thing that catches it.
+  it("loads the reclamation entry point with every symbol it uses", () => {
+    const m = fixture();
+    const finish = path.join(__dirname, "..", "scripts", "mission", "finish-mission.mjs");
+    const result = spawnSync(process.execPath, [finish, "M-NO-SUCH-MISSION"], {
+      cwd: m.repo,
+      env: m.env,
+      encoding: "utf8",
+    });
+    expect(result.stderr).not.toMatch(/is not defined/);
+    expect(result.stderr).toMatch(/no durable state to finish/);
   });
 
   it("promotes rules through the registry and applies them to answer without asking", () => {
@@ -275,57 +435,5 @@ describe("mission CLI", () => {
     expect(
       m.run("apply-rule", MISSION, "RULE-UI-007", "--context", "pagination question").status,
     ).toBe(0);
-  });
-});
-
-describe("checkpoint rendering", () => {
-  it("orders immediate questions before hourly ones and reports deploy drift", () => {
-    const packet = JSON.parse(fs.readFileSync(PACKET, "utf8"));
-    const plan = JSON.parse(fs.readFileSync(PLAN, "utf8"));
-    const events = [
-      {
-        type: "mission-init",
-        at: "2026-08-18T10:00:00.000Z",
-        packet,
-        lead_id: "lead-fixture",
-        pid: 4242,
-      },
-      {
-        type: "plan-recorded",
-        at: "2026-08-18T10:01:00.000Z",
-        packages: plan.packages,
-        decomposition: plan.decomposition,
-      },
-      {
-        type: "plan-approved",
-        at: "2026-08-18T10:01:30.000Z",
-        approved_by: "Brian",
-        evidence: "checkpoint 1",
-      },
-      {
-        type: "owner-question",
-        at: "2026-08-18T10:02:00.000Z",
-        id: "Q-hourly",
-        classification: "hourly",
-        text: "Nonurgent",
-        source: "s",
-        affected_packages: [],
-      },
-      {
-        type: "owner-question",
-        at: "2026-08-18T10:03:00.000Z",
-        id: "Q-now",
-        classification: "immediate",
-        text: "Blocking",
-        source: "s",
-        affected_packages: [],
-      },
-    ];
-    const report = renderCheckpoint(reduce(events), events, {
-      mainCommit: "a".repeat(40),
-      deployedCommit: "a".repeat(40),
-    });
-    expect(report.indexOf("Q-now")).toBeLessThan(report.indexOf("Q-hourly"));
-    expect(report).toMatch(/Production serves main/);
   });
 });

@@ -29,7 +29,31 @@ import {
   resolveEventReadTier,
   tierSees,
   type EventElement,
+  type EventReadTier,
 } from "./event-tier";
+import type { ParticipationTier } from "@/lib/services/participation-view";
+
+/**
+ * The two tier vocabularies are one vocabulary — R157-B7.
+ *
+ * `@/lib/services/participation-view` cannot import this module: it is
+ * `server-only` and that one is imported by a client component. So the types are
+ * declared twice and pinned here instead, at compile time, in both directions.
+ * A fourth `EventReadTier`, or a third `ParticipationTier`, or a rename of
+ * either, fails `npm run typecheck` rather than quietly becoming a second
+ * vocabulary.
+ *
+ * They are pinned as a **narrowing**, not as equality: `ParticipationTier` is
+ * `EventReadTier` without `public`, because there is no public participation
+ * payload for a `tier: "public"` to discriminate.
+ */
+type ParticipationTierIsEventReadTierWithoutPublic =
+  Exclude<EventReadTier, "public"> extends ParticipationTier
+    ? ParticipationTier extends Exclude<EventReadTier, "public">
+      ? true
+      : never
+    : never;
+const tiersAreOneVocabulary: ParticipationTierIsEventReadTierWithoutPublic = true;
 
 /** The three ways `resolveOperatorAccess` says "not an active operator". */
 const UNRESOLVED: OperatorAccess[] = [
@@ -55,6 +79,14 @@ beforeEach(() => {
 describe("the tiers themselves", () => {
   it("names exactly the three D2 and D3 approved", () => {
     expect(EVENT_READ_TIERS).toEqual(["public", "club_link", "operator"]);
+  });
+
+  it("shares one vocabulary with the participation table's tier", () => {
+    // The assertion that matters is the type-level one above, which `tsc`
+    // checks. This runtime line exists so the constant is used and so the
+    // property has a name a reader searching for "tier vocabulary" will find.
+    expect(tiersAreOneVocabulary).toBe(true);
+    expect(EVENT_READ_TIERS.filter((tier) => tier !== "public")).toEqual(["club_link", "operator"]);
   });
 
   it("gives the public tier the event record and nothing else", () => {

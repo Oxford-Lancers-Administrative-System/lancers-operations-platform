@@ -1,40 +1,55 @@
 import { NextResponse } from "next/server";
 
+import { getPool } from "@/lib/db";
+
 /**
- * Liveness/readiness endpoint for Cloud Run and uptime checks.
+ * Deploy-readiness endpoint for Cloud Run releases and uptime checks.
  *
- * Deliberately dependency-free: it must not touch Supabase. A health check that
- * fails when the database is briefly unavailable causes Cloud Run to recycle
- * healthy instances and turns a database blip into an outage.
+ * This is a deploy-readiness check, not a Cloud Run liveness probe. When a
+ * database is configured it reads one row from a current-schema table, so a
+ * revision cannot report healthy against a database that is missing the schema
+ * it was built to use.
  *
  * `secretsLoaded` reports only whether the runtime secret injected from Secret
  * Manager is present — never its value, length, or prefix. It exists so a deploy
  * can be verified without anyone reading a secret.
  *
  * `databaseConfigured` does the same for the service layer's PostgreSQL
- * credential, and is deliberately just as coarse. It answers "does this revision
- * have a DATABASE_URL at all" and nothing else: not the host, not the port, not
- * the connection mode, not the role, not whether a connection succeeds. The
- * deploy gate reads it so a revision that would fail on its first transaction
- * fails at deploy time instead — see docs/deployment.md.
- *
- * It stays presence-only for the reason the whole endpoint is dependency-free:
- * probing the database here would turn a database blip into an outage, and
- * reporting *why* a connection failed would publish the target to anyone who
- * can curl the service.
+ * credential. `schemaCompatible` reports only whether the current-schema probe
+ * succeeded. Neither field reports a host, role, credential detail, or failure
+ * reason.
  */
 export const dynamic = "force-dynamic";
 
-export function GET() {
-  return NextResponse.json({
-    status: "ok",
-    service: "lancers-operations-platform",
-    revision: process.env.K_REVISION ?? "local",
-    commit: process.env.GIT_COMMIT_SHA ?? "unknown",
-    secretsLoaded: Boolean(
-      process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
-    ),
-    databaseConfigured: Boolean(process.env.DATABASE_URL?.trim()),
-    timestamp: new Date().toISOString(),
-  });
+export async function GET() {
+  const databaseConfigured = Boolean(process.env.DATABASE_URL?.trim());
+  let schemaCompatible = false;
+
+  if (databaseConfigured) {
+    try {
+      await getPool().query("select id from public.events limit 1");
+      schemaCompatible = true;
+    } catch {
+      // This endpoint is public. Report the failed capability, never the target
+      // or the database error that explains it.
+    }
+  }
+
+  const status = databaseConfigured && !schemaCompatible ? "error" : "ok";
+
+  return NextResponse.json(
+    {
+      status,
+      service: "lancers-operations-platform",
+      revision: process.env.K_REVISION ?? "local",
+      commit: process.env.GIT_COMMIT_SHA ?? "unknown",
+      secretsLoaded: Boolean(
+        process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY,
+      ),
+      databaseConfigured,
+      schemaCompatible,
+      timestamp: new Date().toISOString(),
+    },
+    { status: status === "ok" ? 200 : 503 },
+  );
 }

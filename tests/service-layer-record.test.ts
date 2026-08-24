@@ -30,6 +30,12 @@ describe("the deployed revision matches what the documents claim about it", () =
   // number no deployment sets is worse than no document.
   const deploy = read(".github/workflows/deploy.yml");
 
+  it("deploys only when a human dispatches the workflow", () => {
+    const triggers = /\non:\n([\s\S]*?)\nconcurrency:/.exec(deploy)?.[1] ?? "";
+    expect(triggers).toMatch(/^ {2}workflow_dispatch:/m);
+    expect(triggers).not.toMatch(/^ {2}push:/m);
+  });
+
   it("sets DATABASE_POOL_MAX on the revision", () => {
     expect(deploy).toMatch(/--set-env-vars=DATABASE_POOL_MAX=5/);
   });
@@ -91,8 +97,14 @@ describe("the deployed revision matches what the documents claim about it", () =
     expect(buildBranch, "the build path must not merely warn").not.toMatch(
       /::warning title=Database not configured::/,
     );
+    expect(buildBranch, "the build path must prove the current schema").toMatch(
+      /grep -q '"schemaCompatible":true'[\s\S]*?exit 1/,
+    );
     expect(rollbackBranch, "the rollback path must only warn").toMatch(
       /::warning title=Database not configured::/,
+    );
+    expect(rollbackBranch, "an old rollback image may lack the new field").toMatch(
+      /::warning title=Schema compatibility not reported::/,
     );
     expect(rollbackBranch, "the rollback path must not fail the workflow").not.toMatch(/exit 1/);
   });

@@ -39,12 +39,14 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
+import { withTransaction } from "@/lib/db";
 import {
   listPublicSeasonEvents,
   PARTICIPATION_TABLES,
   PUBLIC_EVENT_COLUMNS,
   readPublicEvent,
 } from "@/lib/services/events";
+import { buildClubLinkParticipationIn } from "@/lib/services/participation";
 import PublicCalendarPage from "@/app/calendar/page";
 import PublicCalendarViewPage from "@/app/calendar/view/page";
 import PublicEventPage from "@/app/calendar/[id]/page";
@@ -96,6 +98,66 @@ async function anOnlineEvent(): Promise<{ id: string; joiningUrl: string; name: 
   const row = result.rows[0];
   if (!row) throw new Error("the seeded season has no online event with a joining URL");
   return { id: row.id, joiningUrl: row.joining_url, name: row.name };
+}
+
+/**
+ * An event that actually has participation behind it — LAN-157's half of this.
+ *
+ * The existing assertions below pick whichever online event has a joining URL,
+ * and that event may have nobody invited to it. "The public payload carries no
+ * person" is trivially true of an event nobody was invited to, which is the
+ * shape of false pass this whole file exists to avoid. So the club-link tier's
+ * arrival needs its own subject: an event with invitations, answers, a register
+ * and question responses, all at once.
+ */
+async function anEventWithParticipation(): Promise<{
+  id: string;
+  surname: string;
+  presence: string;
+  answer: string;
+  prompts: string[];
+}> {
+  const result = await client.query<{
+    id: string;
+    family_name: string;
+    presence: string;
+    response: string;
+  }>(
+    `select e.id,
+            p.family_name,
+            rec.presence::text as presence,
+            r.response::text as response
+       from public.events e
+       join public.seasons s on s.id = e.season_id
+       join public.invitations i on i.event_id = e.id
+       join public.people p on p.id = i.person_id
+       join public.current_rsvp r on r.invitation_id = i.id
+       join public.attendance_records rec on rec.event_id = e.id and rec.person_id = p.id
+       join public.question_responses qr on qr.invitation_id = i.id
+      where s.status = any(array['open','active','closing']::public.season_status[])
+        and p.family_name is not null
+        and length(p.family_name) > 3
+      limit 1`,
+  );
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error(
+      "the seeded season has no event carrying an invitation, an answer, an attendance record and a question response at once",
+    );
+  }
+
+  const questions = await client.query<{ prompt: string }>(
+    "select prompt from public.event_questions where event_id = $1",
+    [row.id],
+  );
+
+  return {
+    id: row.id,
+    surname: row.family_name,
+    presence: row.presence,
+    answer: row.response,
+    prompts: questions.rows.map((question) => question.prompt),
+  };
 }
 
 /** Somebody the club has actually invited to something in the open season. */
@@ -343,6 +405,85 @@ describe("what an anonymous response carries", () => {
     expect(payload).not.toContain('"draft"');
     expect(payload).not.toContain('"approved"');
     expect(JSON.parse(payload)).toHaveProperty("isCancelled");
+  }, 120_000);
+});
+
+/**
+ * The check that could not be run until the club link and the public calendar
+ * were in one tree — LAN-157's W7 criterion, "an anonymous request for the
+ * event returns no person, no answer, no attendance and no question response".
+ *
+ * It was unrunnable on the club-link branch alone because `/calendar/<id>` did
+ * not exist there — the route 404s before LAN-153 merges — and it is worth more
+ * than the assertion above it because it has a **positive control from the tier
+ * next door**. `buildClubLinkParticipationIn` reads the same event and does
+ * carry all four, so "the public payload contains no answer" is proved to be a
+ * statement about the public projection rather than about an event nobody was
+ * invited to.
+ */
+describe("the public tier, against an event that really has participation", () => {
+  it("carries no participant, answer, attendance or question response", async () => {
+    const staged = await anEventWithParticipation();
+
+    // The positive control first. Everything asserted absent below is present
+    // one tier up, for this same event, at this same moment.
+    const club = await withTransaction((tx) => buildClubLinkParticipationIn(tx, staged.id));
+    const clubPayload = JSON.stringify(club);
+    expect(club.people.length, "the staged event has nobody in its table").toBeGreaterThan(0);
+    expect(clubPayload).toContain(staged.surname);
+    expect(clubPayload).toContain(`"${staged.answer}"`);
+    expect(clubPayload).toContain(`"${staged.presence}"`);
+    expect(club.questions.length, "the staged event has no questions").toBeGreaterThan(0);
+    for (const prompt of staged.prompts) {
+      expect(clubPayload, `the club tier is missing "${prompt}"`).toContain(prompt);
+    }
+
+    // And now the public tier's own answer, on the payload rather than on the
+    // rendered DOM — a value reaches the browser inside serialised props
+    // without ever being rendered.
+    const publicPayload = JSON.stringify(await readPublicEvent(staged.id));
+
+    expect(publicPayload, "the public payload names a participant").not.toContain(staged.surname);
+    for (const answer of ["yes", "no"]) {
+      expect(publicPayload, `the public payload carries the answer "${answer}"`).not.toContain(
+        `"${answer}"`,
+      );
+    }
+    for (const presence of ["present", "late", "absent", "excused"]) {
+      expect(
+        publicPayload,
+        `the public payload carries the attendance "${presence}"`,
+      ).not.toContain(`"${presence}"`);
+    }
+    for (const prompt of staged.prompts) {
+      expect(publicPayload, `the public payload carries the question "${prompt}"`).not.toContain(
+        prompt,
+      );
+    }
+    // No key for any of them either, so a future null-valued field is caught
+    // as well as a populated one.
+    for (const key of ["people", "questions", "answers", "answer", "presence", "attendance"]) {
+      expect(publicPayload, `the public payload has a "${key}" key`).not.toContain(`"${key}"`);
+    }
+  }, 120_000);
+
+  it("says the same on the rendered page, which is the response body", async () => {
+    const staged = await anEventWithParticipation();
+    const { container } = render(await PublicEventPage(eventProps(staged.id)));
+    const markup = container.innerHTML;
+    cleanup();
+
+    // Proved to have rendered, so that every "not contain" below means
+    // something. A refused page passes all of them trivially.
+    expect(markup, "the public event page refused instead of rendering").not.toContain(
+      'data-testid="public-event-missing"',
+    );
+    expect(markup).toContain('data-testid="public-event-name"');
+
+    expect(markup).not.toContain(staged.surname);
+    for (const prompt of staged.prompts) {
+      expect(markup, `the public page renders the question "${prompt}"`).not.toContain(prompt);
+    }
   }, 120_000);
 });
 

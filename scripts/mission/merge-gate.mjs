@@ -21,10 +21,11 @@
  */
 
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { globToRegExp } from "../fast-lane/classify.mjs";
+import { globToRegExp, parseNameStatus } from "../fast-lane/classify.mjs";
 import { requiredChecksPassed } from "../fast-lane/gate.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -66,6 +67,123 @@ export function touchesVisualSurface(files, rules) {
       .filter(Boolean)
       .some((candidate) => rules.visualSurfaces.some((glob) => matches(glob, candidate))),
   );
+}
+
+/**
+ * The shared visual-surface classifier. Journal carry-forward and the hosted
+ * merge gate both call this function, so a Lead cannot use a looser definition
+ * of "non-rendered" than the workflow uses for its coherence tripwire.
+ */
+export function classifyVisualDelta(files, rules) {
+  return {
+    verdict: touchesVisualSurface(files, rules) ? "rendered" : "non-rendered",
+    files: (files ?? []).map(({ status, path: file, previousPath }) => ({
+      status,
+      path: file,
+      ...(previousPath ? { previousPath } : {}),
+    })),
+  };
+}
+
+/**
+ * Re-derive one carry-forward link from Git objects without checking out or
+ * executing either commit. Both endpoints must be on the current head's
+ * ancestry chain; a receipt cannot cite an unrelated benign diff.
+ */
+export function deriveGitVisualFiles(repoPath, fromSha, toSha, currentHead) {
+  for (const [label, sha] of Object.entries({ fromSha, toSha, currentHead })) {
+    if (!/^[0-9a-f]{40}$/.test(sha ?? "")) throw new Error(`${label} is not a full SHA.`);
+  }
+  execFileSync("git", ["merge-base", "--is-ancestor", fromSha, toSha], {
+    cwd: repoPath,
+    stdio: "ignore",
+  });
+  execFileSync("git", ["merge-base", "--is-ancestor", toSha, currentHead], {
+    cwd: repoPath,
+    stdio: "ignore",
+  });
+  return parseNameStatus(
+    execFileSync("git", ["diff", "--name-status", fromSha, toSha, "--"], {
+      cwd: repoPath,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }),
+  );
+}
+
+function canonicalFiles(files) {
+  return [...(files ?? [])]
+    .map(({ status, path: file, previousPath }) => ({
+      status,
+      path: file,
+      ...(previousPath ? { previousPath } : {}),
+    }))
+    .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+}
+
+export function visualCarryForwardDefects(evidence, currentHead, rules, deriveVisualFiles) {
+  if (evidence === undefined) return [];
+  if (evidence === null || typeof evidence !== "object" || Array.isArray(evidence)) {
+    return ["Receipt visual_evidence must be an object when approval is carried forward."];
+  }
+  const defects = [];
+  const approved = evidence.approved_sha;
+  const chain = evidence.carry_forward_chain;
+  if (!/^[0-9a-f]{40}$/.test(approved ?? "")) {
+    defects.push("Receipt visual_evidence.approved_sha must be a full 40-character SHA.");
+  }
+  if (!Array.isArray(chain) || chain.length === 0) {
+    defects.push("Receipt visual_evidence carries a non-empty carry_forward_chain.");
+    return defects;
+  }
+  if (typeof deriveVisualFiles !== "function") {
+    defects.push(
+      "Receipt visual carry-forward requires Git-derived evidence for every link; receipt-supplied file lists are not proof.",
+    );
+  }
+  let expected = approved;
+  for (const [index, link] of chain.entries()) {
+    const label = `Receipt visual carry-forward link ${index + 1}`;
+    if (link?.from_sha !== expected) {
+      defects.push(`${label} starts at ${link?.from_sha ?? "no SHA"}, not ${expected}.`);
+    }
+    if (!/^[0-9a-f]{40}$/.test(link?.to_sha ?? "")) {
+      defects.push(`${label} has no full to_sha.`);
+    }
+    if (link?.verdict !== "non-rendered") {
+      defects.push(`${label} is ${link?.verdict ?? "unclassified"}, not non-rendered.`);
+    }
+    if (!Array.isArray(link?.files)) {
+      defects.push(`${label} has no classifier file list.`);
+    } else if (classifyVisualDelta(link.files, rules).verdict !== "non-rendered") {
+      defects.push(`${label}'s file list touches a rendered surface.`);
+    }
+    if (typeof deriveVisualFiles === "function") {
+      try {
+        const derived = deriveVisualFiles(link?.from_sha, link?.to_sha, currentHead);
+        if (classifyVisualDelta(derived, rules).verdict !== "non-rendered") {
+          defects.push(`${label}'s Git-derived diff touches a rendered surface.`);
+        }
+        if (
+          JSON.stringify(canonicalFiles(derived)) !== JSON.stringify(canonicalFiles(link?.files))
+        ) {
+          defects.push(`${label}'s file list does not match its Git-derived diff.`);
+        }
+      } catch {
+        defects.push(`${label} could not be derived as an ancestor link to the current head.`);
+      }
+    }
+    if (link?.fact !== `carried-forward-from ${link?.from_sha}`) {
+      defects.push(`${label} does not record its carried-forward-from fact.`);
+    }
+    expected = link?.to_sha;
+  }
+  if (expected !== currentHead) {
+    defects.push(
+      `Receipt visual carry-forward chain ends at ${expected ?? "no SHA"}, not current head ${currentHead}.`,
+    );
+  }
+  return defects;
 }
 
 /**
@@ -144,8 +262,10 @@ export function receiptDefects(receipt) {
       "Receipt risk_class is highest. It may travel this lane only when it cites the answered owner question (owner_decision: question_id, answered_by, date) recorded at Brian's checkpoint.",
     );
   }
-  if (receipt.review_mode !== "full" && receipt.review_mode !== "correction") {
-    defects.push("Receipt review_mode must be full or correction.");
+  if (!["full", "correction", "security-tier", "mission-security"].includes(receipt.review_mode)) {
+    defects.push(
+      "Receipt review_mode must be full, correction, security-tier, or mission-security.",
+    );
   }
   if (!/^[0-9a-f]{40}$/.test(receipt.full_review_sha ?? "")) {
     defects.push("Receipt full_review_sha must be a full 40-character SHA.");
@@ -156,8 +276,26 @@ export function receiptDefects(receipt) {
   if (receipt.review_result !== "clear") {
     defects.push(`Receipt review_result is "${receipt.review_result ?? "absent"}", not "clear".`);
   }
+  if (receipt.review_mode === "mission-security") {
+    const missionReview = receipt.mission_review;
+    if (
+      !missionReview ||
+      !/^[0-9a-f]{40}$/.test(missionReview.integrated_head_sha ?? "") ||
+      missionReview.package_head_sha !== receipt.reviewed_head_sha ||
+      missionReview.result !== "clear" ||
+      !Array.isArray(missionReview.sensitive_paths) ||
+      !isNonEmptyString(missionReview.report)
+    ) {
+      defects.push(
+        "A mission-security receipt must cite the clear integrated-head review, this package's covered head, the sensitive-path intersection, and its report file.",
+      );
+    }
+  }
   if (!["approved", "nonvisual"].includes(receipt.visual)) {
     defects.push('Receipt visual must be "approved" or "nonvisual".');
+  }
+  if (receipt.visual !== "approved" && receipt.visual_evidence !== undefined) {
+    defects.push("Only an approved visual receipt may carry visual_evidence.");
   }
   if (receipt.open_owner_questions !== 0) {
     defects.push("Receipt must state open_owner_questions: 0 for the affected package.");
@@ -165,14 +303,111 @@ export function receiptDefects(receipt) {
   return defects;
 }
 
+function ownerDecisionFor(state, packageId) {
+  const question = Object.values(state?.questions ?? {}).find(
+    (candidate) =>
+      candidate.status === "answered" && candidate.affected_packages.includes(packageId),
+  );
+  if (!question) return undefined;
+  return {
+    question_id: question.id,
+    answered_by: question.answer.by,
+    date: question.answer.at.slice(0, 10),
+  };
+}
+
+function carryForwardEvidence(pkg, approvedSha, currentHead) {
+  if (!approvedSha || approvedSha === currentHead) return undefined;
+  const chain = [];
+  let cursor = approvedSha;
+  for (const link of pkg.visual_carry_forward_chain ?? []) {
+    if (link.from_sha !== cursor) continue;
+    chain.push(link);
+    cursor = link.to_sha;
+    if (cursor === currentHead) break;
+  }
+  return cursor === currentHead
+    ? { approved_sha: approvedSha, carry_forward_chain: chain }
+    : undefined;
+}
+
+/** Build the only receipt the local journal can honestly support. */
+export function buildMissionReceipt(state, packageId, headSha) {
+  const pkg = state.packages?.[packageId];
+  if (!pkg) return null;
+  const missionReview = (state.integratedReviews ?? []).find(
+    (review) =>
+      review.mode === "security-tier" &&
+      review.result === "clear" &&
+      review.package_heads?.[packageId] === headSha,
+  );
+  const packageReview =
+    pkg.review?.result === "clear" &&
+    pkg.review.ci_state === "green" &&
+    pkg.review.reviewed_head_sha === headSha
+      ? pkg.review
+      : null;
+  const review = missionReview
+    ? {
+        review_mode: "mission-security",
+        full_review_sha: missionReview.head_sha,
+        reviewed_head_sha: headSha,
+        review_result: "clear",
+        mission_review: {
+          integrated_head_sha: missionReview.head_sha,
+          package_head_sha: headSha,
+          result: missionReview.result,
+          sensitive_paths: missionReview.sensitive_paths,
+          report: missionReview.report,
+        },
+      }
+    : {
+        review_mode: packageReview?.review_mode,
+        full_review_sha: packageReview?.full_review_sha ?? packageReview?.reviewed_head_sha,
+        reviewed_head_sha: packageReview?.reviewed_head_sha,
+        review_result: packageReview?.result,
+      };
+  const missionApproval = (state.missionVisualApprovals ?? []).find(
+    (approval) => approval.package_heads?.[packageId],
+  );
+  const approvedSha = missionApproval?.package_heads?.[packageId] ?? pkg.visual_approval?.head_sha;
+  const visualEvidence =
+    pkg.visual === "nonvisual" ? undefined : carryForwardEvidence(pkg, approvedSha, headSha);
+  const openOwnerQuestions = Object.values(state.questions ?? {}).filter(
+    (question) => question.status === "open" && question.affected_packages.includes(packageId),
+  ).length;
+  const ownerDecision = ownerDecisionFor(state, packageId);
+  return {
+    mission_id: state.packet?.mission_id,
+    package_id: packageId,
+    linear_issue_id: pkg.linear_issue_id,
+    risk_class: pkg.risk_class,
+    ...review,
+    visual: pkg.visual === "nonvisual" ? "nonvisual" : "approved",
+    ...(visualEvidence ? { visual_evidence: visualEvidence } : {}),
+    open_owner_questions: openOwnerQuestions,
+    ...(ownerDecision ? { owner_decision: ownerDecision } : {}),
+  };
+}
+
+export function renderReceiptBlock(receipt, rules) {
+  return `\`\`\`${rules.receiptBlockInfo}\n${JSON.stringify(receipt, null, 2)}\n\`\`\``;
+}
+
 /**
  * The server-verifiable gate, run by the mission-merge workflow from the base
  * branch against evidence it gathered itself.
  *
- * @param {{ pullRequest: object|null, checkRuns: object[], files: Array<{status: string, path: string, previousPath?: string}>, rules: object }} input
+ * @param {{ pullRequest: object|null, checkRuns: object[], files: Array<{status: string, path: string, previousPath?: string}>, rules: object, deriveVisualFiles?: (fromSha: string, toSha: string, currentHead: string) => Array<{status: string, path: string, previousPath?: string}> }} input
  * @returns {{ merge: boolean, reasons: string[], receipt: Record<string, any>|null }}
  */
-export function evaluateMissionGate({ pullRequest: pr, checkRuns, files, rules }) {
+export function evaluateMissionGate({
+  pullRequest: pr,
+  checkRuns,
+  files,
+  rules,
+  deriveVisualFiles = undefined,
+}) {
   const reasons = [];
   if (!pr) return { merge: false, reasons: ["No pull request was resolved."], receipt: null };
 
@@ -216,6 +451,16 @@ export function evaluateMissionGate({ pullRequest: pr, checkRuns, files, rules }
     if (receipt.visual === "nonvisual" && touchesVisualSurface(files, rules)) {
       reasons.push(
         "Receipt claims nonvisual work, but the diff touches a visual surface. Visual work merges only with Brian's recorded approval.",
+      );
+    }
+    if (receipt.visual === "approved") {
+      reasons.push(
+        ...visualCarryForwardDefects(
+          receipt.visual_evidence,
+          pr.headRefOid,
+          rules,
+          deriveVisualFiles,
+        ),
       );
     }
     // The checkpoint-approval tier: an auth or delivery diff is detected from
@@ -274,14 +519,29 @@ export function journalConjuncts(state, packageId, headSha, options = {}) {
   if (!pkg.linear_issue_id) {
     reasons.push(`${packageId} has no synchronized Linear issue.`);
   }
-  if (!pkg.review || pkg.review.result !== "clear") {
-    reasons.push(`${packageId} has no clear review receipt in mission state.`);
-  } else if (pkg.review.reviewed_head_sha !== headSha) {
+  const packageReviewCovers =
+    pkg.review?.result === "clear" &&
+    pkg.review.ci_state === "green" &&
+    pkg.review.reviewed_head_sha === headSha;
+  const missionReviewCovers = (state.integratedReviews ?? []).some(
+    (review) =>
+      review.mode === "security-tier" &&
+      review.result === "clear" &&
+      review.package_heads?.[packageId] === headSha,
+  );
+  if (!packageReviewCovers && !missionReviewCovers) {
     reasons.push(
-      `The clear review in mission state covers ${pkg.review.reviewed_head_sha}, not ${headSha}.`,
+      `${packageId} has no clear package review or mission-level security-tier review that covers ${headSha}.`,
     );
   }
-  if (pkg.visual !== "nonvisual" && !pkg.visual_approved) {
+  const missionVisualApprovalCovers = (state.missionVisualApprovals ?? []).some(
+    (approval) => approval.package_heads?.[packageId] === headSha,
+  );
+  if (
+    pkg.visual !== "nonvisual" &&
+    (!pkg.visual_approved || pkg.visual_evidence_pending) &&
+    !missionVisualApprovalCovers
+  ) {
     reasons.push(`${packageId} is visual work without Brian's recorded visual approval.`);
   }
   for (const question of Object.values(state.questions ?? {})) {
@@ -290,4 +550,52 @@ export function journalConjuncts(state, packageId, headSha, options = {}) {
     }
   }
   return reasons;
+}
+
+/**
+ * Evaluate the exact PR state that publishing the generated receipt and adding
+ * the opt-in label would create. This breaks the old circular prerequisite:
+ * the local gate no longer requires those mutations before it can authorize
+ * them, while the hosted workflow still requires and re-derives both.
+ * @param {{ state: any, packageId: string, pullRequest: any, checkRuns: any[], files: Array<{status: string, path: string, previousPath?: string}>, rules: any, deriveVisualFiles?: (fromSha: string, toSha: string, currentHead: string) => Array<{status: string, path: string, previousPath?: string}> }} input
+ */
+export function evaluateProspectiveMissionGate({
+  state,
+  packageId,
+  pullRequest,
+  checkRuns,
+  files,
+  rules,
+  deriveVisualFiles = undefined,
+}) {
+  const receipt = buildMissionReceipt(state, packageId, pullRequest?.headRefOid);
+  const block = receipt ? renderReceiptBlock(receipt, rules) : null;
+  const labels = (pullRequest?.labels ?? []).map((label) =>
+    typeof label === "string" ? label : label.name,
+  );
+  const prospective = pullRequest
+    ? {
+        ...pullRequest,
+        labels: [...new Set([...labels, rules.optInLabel])],
+        body: `${pullRequest.body ?? ""}\n\n${block ?? ""}\n`,
+      }
+    : null;
+  const journalReasons = journalConjuncts(state, packageId, pullRequest?.headRefOid, {
+    files,
+    rules,
+  });
+  const server = evaluateMissionGate({
+    pullRequest: prospective,
+    checkRuns,
+    files,
+    rules,
+    deriveVisualFiles,
+  });
+  return {
+    merge: journalReasons.length === 0 && server.merge,
+    journal_reasons: journalReasons,
+    evidence_reasons: server.reasons,
+    receipt,
+    receipt_block: block,
+  };
 }
