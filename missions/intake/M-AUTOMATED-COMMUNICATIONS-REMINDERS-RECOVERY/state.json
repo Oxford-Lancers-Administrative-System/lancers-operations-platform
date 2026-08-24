@@ -24,7 +24,7 @@
     {
       "id": "W1",
       "name": "Approve an event knowing what it will send",
-      "state": "mock_approved",
+      "state": "done",
       "stale": false,
       "feedback": [],
       "approvals": {
@@ -825,5 +825,5 @@
       }
     ]
   },
-  "next_action": "Draft and approve the W1 acceptance record (Stage 3)"
+  "next_action": "Draft, walk and approve W2 (Stage 3)"
 }
