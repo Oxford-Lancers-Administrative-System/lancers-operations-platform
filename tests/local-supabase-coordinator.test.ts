@@ -13,6 +13,7 @@ import {
   attachMissionLease,
   cleanupStale as cleanupStaleRaw,
   detachMissionLease,
+  coordinatorPaths,
   coordinatorStatus,
   findOwningSessionPid,
   markConfigApplied,
@@ -404,20 +405,76 @@ describe("two-slot local Supabase coordinator", () => {
     const { repo, env } = fixture();
     const lease = await acquireLease({ issueId: "LAN-1", repoPath: repo, pid: 101, env });
     let stateWhileStopping: string | undefined;
-    const released = await releaseLeaseRaw({
+    let signalStopStarted!: () => void;
+    let finishStop!: () => void;
+    const stopStarted = new Promise<void>((resolve) => {
+      signalStopStarted = resolve;
+    });
+    const stopFinished = new Promise<void>((resolve) => {
+      finishStop = resolve;
+    });
+    const release = releaseLeaseRaw({
       repoPath: repo,
       token: lease!.token,
       slot: lease!.slot,
       now: 2_000,
       env,
-      stopProject: (_repoPath, record) => {
+      stopProject: async (_repoPath, record) => {
         stateWhileStopping = coordinatorStatus(repo, env).slots[lease!.slot].state;
         expect((record as { projectId: string }).projectId).toBe(lease!.projectId);
+        signalStopStarted();
+        await stopFinished;
       },
     });
 
+    await stopStarted;
+    let cleanupFinished = false;
+    const cleanup = cleanupStale({ repoPath: repo, now: 2_000, env }).then(() => {
+      cleanupFinished = true;
+    });
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(cleanupFinished).toBe(true);
+    } finally {
+      finishStop();
+    }
+    const [released] = await Promise.all([release, cleanup]);
+
     expect(stateWhileStopping).toBe("retiring");
     expect(released).toMatchObject({ state: "released", stoppedAt: new Date(2_000).toISOString() });
+  });
+
+  it("recovers an expired retirement but leaves a fresh one fenced", async () => {
+    const { repo, env } = fixture();
+    const lease = await acquireLease({
+      issueId: "LAN-1",
+      repoPath: repo,
+      pid: 101,
+      now: 1_000,
+      env,
+    });
+    const registryPath = coordinatorPaths(repo, env).registry;
+    const registry = JSON.parse(fs.readFileSync(registryPath, "utf8"));
+    registry.slots[lease!.slot].state = "retiring";
+    fs.writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`);
+    const stopped: string[] = [];
+    const stopProject = (_repoPath: string, record: object) => {
+      stopped.push((record as { projectId: string }).projectId);
+    };
+
+    expect(
+      await cleanupStaleRaw({ repoPath: repo, now: 1_000 + LEASE_TTL_MS, env, stopProject }),
+    ).toEqual([]);
+    expect(stopped).toEqual([]);
+
+    expect(
+      await cleanupStaleRaw({ repoPath: repo, now: 1_000 + LEASE_TTL_MS + 1, env, stopProject }),
+    ).toEqual([lease!.slot]);
+    expect(stopped).toEqual([lease!.projectId]);
+    expect(coordinatorStatus(repo, env).slots[lease!.slot]).toMatchObject({
+      state: "released",
+      stoppedAt: new Date(1_000 + LEASE_TTL_MS + 1).toISOString(),
+    });
   });
 
   it("keeps a failed retirement fenced and retryable", async () => {

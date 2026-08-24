@@ -102,8 +102,9 @@ the transition; it needs its own decision.
 
 ## Consequences
 
-- A finished issue reliably returns its slot, and `review-ready` can stay
-  strictly non-reclaimable, because there is now a legitimate way to end it.
+- A finished issue reliably returns its slot, and `review-ready` stays protected
+  from timer-based reclamation while any holding worktree exists. Conclusive
+  absence of every holding path remains the cleanup exception.
 - The board tells the truth: shipped issues reach Done, with the merge commit
   and the reclaimed resources recorded in one comment.
 - Closeout is a deliberate act by Brian, not a side effect. An issue whose
