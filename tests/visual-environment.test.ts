@@ -80,7 +80,7 @@ describe("the pending visual environment record", () => {
 
 describe("visual environment disposition cleanup", () => {
   it.each(["approved", "rejected", "obsolete", "abandoned"])(
-    "releases the database lease when disposition becomes %s",
+    "retires the database stack when disposition becomes %s",
     (disposition) => {
       const root = fixture();
       const coordinatorRoot = path.join(root, "coordinator");
@@ -104,10 +104,14 @@ describe("visual environment disposition cleanup", () => {
               repoPath: fs.realpathSync(root),
               attachedRepoPaths: [],
               state: "review-ready",
+              projectId: "lancers-visual-test",
             },
           },
         })}\n`,
       );
+      const bin = path.join(root, "node_modules", ".bin");
+      fs.mkdirSync(bin, { recursive: true });
+      fs.writeFileSync(path.join(bin, "supabase"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
 
       const result = spawnSync(
         process.execPath,
@@ -124,9 +128,10 @@ describe("visual environment disposition cleanup", () => {
       expect(readEnvironment(root)).toEqual(
         expect.objectContaining({ disposition, releasedAt: expect.any(String) }),
       );
-      expect(JSON.parse(fs.readFileSync(paths.registry, "utf8")).slots.primary.state).toBe(
-        "released",
-      );
+      expect(JSON.parse(fs.readFileSync(paths.registry, "utf8")).slots.primary).toMatchObject({
+        state: "released",
+        stoppedAt: expect.any(String),
+      });
     },
   );
 });

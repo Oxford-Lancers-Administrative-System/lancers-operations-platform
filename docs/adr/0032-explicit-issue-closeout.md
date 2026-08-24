@@ -22,9 +22,9 @@ lease is half the machine's capacity.
 
 Two shapes were rejected. Automatic cleanup at the end of `/start-issue` cannot
 work, because the merge happens later and by someone else; the session would
-have to guess. Widening `db:cleanup-stale` to reclaim `review-ready` records
-would delete the one protection that keeps a second session from resetting the
-database Brian is looking at.
+have to guess. Timer-based cleanup of `review-ready` records would delete the
+one protection that keeps a second session from resetting the database Brian is
+looking at; a missing owner path is now the conclusive exception.
 
 ## Decision
 
@@ -62,26 +62,23 @@ pending visual gate, or a lease whose record no longer matches this issue all
 mean it releases nothing, deletes nothing, changes no Linear state, and reports
 the blocker. Absence of evidence is not permission.
 
-The four steps run in a fixed order, and the order is the substance of the
+The three steps run in a fixed order, and the order is the substance of the
 decision:
 
-1. **Stop the services**, including `npm run db:stop` from inside the worktree.
-2. **Release the lease** with `npm run db:release`, also from inside the
-   worktree. The evidence that decides all of this comes from the read-only
+1. **Retire the database stack** with `npm run db:release` from inside the
+   worktree. It validates the fence, stops the Supabase project, and only then
+   releases the lease. The evidence comes from the read-only
    `npm run db:coordinator status`, which reports every slot's issue, worktree,
    state and application port with tokens stripped; `db:status` is a different
    command that validates this worktree's own token and writes a heartbeat, so
    it cannot be used while the run is still deciding whether it may act.
-3. **Remove the worktree and the local branch** from the primary checkout,
+2. **Remove the worktree and the local branch** from the primary checkout,
    with `git branch -d`, never `-D`.
-4. **Close the ticket**: Done, plus exactly one closing comment.
+3. **Close the ticket**: Done, plus exactly one closing comment.
 
-Stopping precedes releasing because `db:stop` validates the fencing token
-through `updateLease`, which refuses any lease that is not `active` or
-`review-ready`; a released lease can no longer stop its own stack through the
-guarded command. Releasing precedes removal because the token lives in the
-worktree's ignored `.lancers-runtime/lease.json`, and removing the worktree
-destroys the only proof of ownership the coordinator accepts.
+Retirement precedes removal because the token lives in the worktree's ignored
+`.lancers-runtime/lease.json`. The coordinator stops by recorded project ID, so
+`cleanup-stale` can recover a fully orphaned stack without that directory.
 
 `/finish-issue` implements nothing, reviews nothing, launches no subagent, opens
 and edits no pull request, and selects no further work. Every step is

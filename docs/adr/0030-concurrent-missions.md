@@ -35,5 +35,7 @@ Supabase authority remains with Brian.
 - A transient CLI process does not define the Lead identity.
 - Mission stacks can be destroyed without affecting another mission or the
   standing stack and are reproducible from Git migrations and synthetic seed.
+  Retirement removes their allocator record so the lowest free port index is
+  reused instead of growing with mission history.
 - ADR 0027's one-mission and two-slot topology is superseded. Its flat
   delegation, review, merge, production, and owner-authority decisions remain.

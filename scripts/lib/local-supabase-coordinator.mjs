@@ -18,8 +18,8 @@ import { execFileSync } from "node:child_process";
  * spends an hour on a build or waiting for Brian is genuinely working and must
  * not lose its stack. A conclusively dead owning process is reclaimed at once
  * and does not wait this out; the window only covers the case the pid cannot
- * decide. A `review-ready` stack is never reclaimed on a timer at all, and
- * `cleanup-stale` is the deliberate route for a slot known to be finished.
+ * decide. A `review-ready` stack is never reclaimed on a timer; only the
+ * conclusive absence of every holding worktree lets cleanup retire it.
  *
  * Shorten this once a supervisor heartbeats continuously rather than a command
  * doing it in passing.
@@ -236,7 +236,7 @@ export function leaseLive(record, now) {
  */
 function reclaimable(record, now, probe) {
   if (!record || record.state === "released" || record.state === "stale") return true;
-  if (record.state === "review-ready") return false;
+  if (["review-ready", "retiring"].includes(record.state)) return false;
   if (!ownerAlive(record.owner?.pid, probe)) return true;
   return !leaseLive(record, now);
 }
@@ -277,6 +277,78 @@ async function withAllocatorLock(paths, action) {
   } finally {
     fs.rmdirSync(paths.lock);
   }
+}
+
+function stopSupabaseProject(repoPath, record) {
+  const configRoot = path.join(repoPath, ".lancers-runtime", "xdg");
+  fs.mkdirSync(configRoot, { recursive: true, mode: 0o700 });
+  execFileSync(
+    path.join(repoPath, "node_modules", ".bin", "supabase"),
+    ["stop", "--no-backup", "--project-id", record.projectId],
+    {
+      cwd: repoPath,
+      env: { ...process.env, XDG_CONFIG_HOME: configRoot, SUPABASE_TELEMETRY_DISABLED: "1" },
+      stdio: "ignore",
+    },
+  );
+}
+
+async function retireRecord({
+  repoPath,
+  select,
+  authorize,
+  now,
+  env,
+  stopProject = stopSupabaseProject,
+}) {
+  const resolvedRepo = fs.realpathSync(repoPath);
+  const paths = coordinatorPaths(resolvedRepo, env);
+  const claimed = await withAllocatorLock(paths, () => {
+    const registry = readRegistry(paths.registry);
+    const record = Object.values(registry.slots).find(select);
+    if (!record) throw new Error("Missing, invalid, or stale local Supabase ownership token.");
+    authorize(record, resolvedRepo);
+    if (record.state === "retiring" && leaseLive(record, now)) {
+      throw new Error(`${record.slot} retirement is already in progress.`);
+    }
+    const previousState = record.state;
+    record.state = "retiring";
+    record.lastHeartbeat = new Date(now).toISOString();
+    writeRegistry(paths.registry, registry);
+    return { ...record, previousState };
+  });
+
+  try {
+    await stopProject(resolvedRepo, claimed);
+  } catch (error) {
+    await withAllocatorLock(paths, () => {
+      const registry = readRegistry(paths.registry);
+      const record = registry.slots[claimed.slot];
+      if (record?.token === claimed.token && record.state === "retiring") {
+        record.state = claimed.previousState;
+        writeRegistry(paths.registry, registry);
+      }
+    });
+    throw error;
+  }
+
+  return withAllocatorLock(paths, () => {
+    const registry = readRegistry(paths.registry);
+    const record = registry.slots[claimed.slot];
+    if (record?.token !== claimed.token || record.state !== "retiring") {
+      throw new Error(`${claimed.slot} changed owners while it was retiring.`);
+    }
+    const retired = {
+      ...record,
+      state: "released",
+      stoppedAt: new Date(now).toISOString(),
+      appliedConfig: null,
+    };
+    if (record.missionId) delete registry.slots[record.slot];
+    else registry.slots[record.slot] = retired;
+    writeRegistry(paths.registry, registry);
+    return retired;
+  });
 }
 
 /**
@@ -423,9 +495,8 @@ export async function acquireLease({
     for (const candidate of SLOT_DEFINITIONS) {
       const previous = registry.slots[candidate.name];
       if (!reclaimable(previous, now, probe)) continue;
-      // A slot this coordinator has already allocated may deliberately leave
-      // its known local containers running — a released stack kept warm, or an
-      // abandoned one whose owner died without stopping it. Those ports belong
+      // An interrupted holder may leave its known local containers running.
+      // Those ports belong
       // to this slot's own project id, so re-fence it to the next owner, who
       // restarts it under their own configuration before use. Only a
       // never-allocated slot is genuinely ambiguous, and it still fails closed
@@ -506,10 +577,8 @@ export async function acquireMissionLease({
         return { record: { ...existing, resumed: true } };
       }
       if (existing) {
-        // The same mission taking its own released stack back. Re-fence it in
-        // place: a fresh token, a fresh session, and no applied configuration,
-        // because the containers still hold the previous holder's. Allocating a
-        // new index instead is what spun forever before LAN-148.
+        // Compatibility for records written before retirement began deleting
+        // disposable mission entries. Re-fence it in place rather than loop.
         existing.token = crypto.randomBytes(32).toString("hex");
         existing.owner = {
           pid,
@@ -772,41 +841,69 @@ export function assertConfigApplied(repoPath, record) {
  * releasing, a record that was not the one it held. The session's own slot must
  * agree with the record the token selects.
  */
-/** @param {{repoPath: string, token: string, slot?: string, now?: number, env?: NodeJS.ProcessEnv}} input */
+/** @param {{repoPath: string, token: string, slot?: string, now?: number, env?: NodeJS.ProcessEnv, stopProject?: (repoPath: string, record: object) => unknown}} input */
 export async function releaseLease({
   repoPath,
   token,
   slot = undefined,
   now = Date.now(),
   env = process.env,
+  stopProject = stopSupabaseProject,
 }) {
-  const resolvedRepo = fs.realpathSync(repoPath);
-  const paths = coordinatorPaths(resolvedRepo, env);
-  return withAllocatorLock(paths, () => {
-    const registry = readRegistry(paths.registry);
-    const record = Object.values(registry.slots).find((candidate) => candidate.token === token);
-    if (!record) throw new Error("Missing, invalid, or stale local Supabase ownership token.");
-    // Using a shared stack and retiring one are different rights. A mission
-    // stack is attached to by several workers, and a worker running
-    // `db:release` or `visual:release` must not drop the whole mission's
-    // lease — least of all a protected `review-ready` one, which would lock
-    // out every sibling and the Lead. An attached worktree lets go with
-    // `detachMissionLease`; only the worktree that acquired the record may
-    // release it.
-    if (record.repoPath !== resolvedRepo) {
-      throw new Error(
-        `${record.slot} was acquired by another worktree; this one is attached to it, not its owner. Detach instead of releasing.`,
+  return retireRecord({
+    repoPath,
+    select: (record) => record.token === token,
+    authorize(record, resolvedRepo) {
+      // Using a shared stack and retiring one are different rights. A mission
+      // stack is attached to by several workers, and a worker running
+      // `db:release` or `visual:release` must not drop the whole mission's
+      // lease — least of all a protected `review-ready` one, which would lock
+      // out every sibling and the Lead. An attached worktree lets go with
+      // `detachMissionLease`; only the worktree that acquired the record may
+      // release it.
+      if (record.repoPath !== resolvedRepo) {
+        throw new Error(
+          `${record.slot} was acquired by another worktree; this one is attached to it, not its owner. Detach instead of releasing.`,
+        );
+      }
+      if (slot !== undefined && slot !== record.slot) {
+        throw new Error(
+          `This session records slot ${slot}, but its token belongs to ${record.slot}; refusing to release a slot this session does not hold.`,
+        );
+      }
+      const otherAttachments = (record.attachedRepoPaths ?? []).filter(
+        (candidate) => candidate !== resolvedRepo,
       );
-    }
-    if (slot !== undefined && slot !== record.slot) {
-      throw new Error(
-        `This session records slot ${slot}, but its token belongs to ${record.slot}; refusing to release a slot this session does not hold.`,
-      );
-    }
-    record.state = "released";
-    record.lastHeartbeat = new Date(now).toISOString();
-    writeRegistry(paths.registry, registry);
-    return record;
+      if (record.missionId && otherAttachments.length > 0) {
+        throw new Error(
+          `${record.slot} still has ${otherAttachments.length} attached worktree(s); detaching one holder may not retire their shared stack.`,
+        );
+      }
+    },
+    now,
+    env,
+    stopProject,
+  });
+}
+
+export async function retireMissionLease({
+  missionId,
+  repoPath,
+  now = Date.now(),
+  env = process.env,
+  stopProject = stopSupabaseProject,
+}) {
+  return retireRecord({
+    repoPath,
+    select: (record) => record.missionId === missionId,
+    authorize(record) {
+      if ((record.attachedRepoPaths ?? []).length > 0) {
+        throw new Error(`${record.slot} still has attached worktrees; refusing to retire it.`);
+      }
+    },
+    now,
+    env,
+    stopProject,
   });
 }
 
@@ -815,20 +912,44 @@ export async function cleanupStale({
   now = Date.now(),
   env = process.env,
   probe = process.kill,
+  stopProject = stopSupabaseProject,
 }) {
   const paths = coordinatorPaths(repoPath, env);
-  return withAllocatorLock(paths, () => {
+  const eligible = (record) => {
+    const holderPaths = [record.repoPath, ...(record.attachedRepoPaths ?? [])].filter(Boolean);
+    const orphaned = holderPaths.length > 0 && holderPaths.every((entry) => !fs.existsSync(entry));
+    const liveAttachment = (record.attachedRepoPaths ?? []).some(
+      (entry) => fs.existsSync(entry) && leaseLive(record, now),
+    );
+    return (
+      orphaned ||
+      record.state === "stale" ||
+      (record.state === "released" && !record.stoppedAt) ||
+      (record.state === "active" && !liveAttachment && reclaimable(record, now, probe)) ||
+      (record.state === "retiring" && !leaseLive(record, now))
+    );
+  };
+  const tokens = await withAllocatorLock(paths, () => {
     const registry = readRegistry(paths.registry);
-    const changed = [];
-    for (const record of Object.values(registry.slots)) {
-      if (record.state === "active" && reclaimable(record, now, probe)) {
-        record.state = "stale";
-        changed.push(record.slot);
-      }
-    }
-    writeRegistry(paths.registry, registry);
-    return changed;
+    return Object.values(registry.slots)
+      .filter(eligible)
+      .map((record) => record.token);
   });
+  const changed = [];
+  for (const token of tokens) {
+    const retired = await retireRecord({
+      repoPath,
+      select: (record) => record.token === token,
+      authorize(record) {
+        if (!eligible(record)) throw new Error(`${record.slot} is no longer eligible for cleanup.`);
+      },
+      now,
+      env,
+      stopProject,
+    });
+    changed.push(retired.slot);
+  }
+  return changed;
 }
 
 export function coordinatorStatus(repoPath, env = process.env) {

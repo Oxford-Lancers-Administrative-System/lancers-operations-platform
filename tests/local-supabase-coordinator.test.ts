@@ -11,13 +11,14 @@ import {
   acquireMissionLease,
   assertConfigApplied,
   attachMissionLease,
-  cleanupStale,
+  cleanupStale as cleanupStaleRaw,
   detachMissionLease,
   coordinatorStatus,
   findOwningSessionPid,
   markConfigApplied,
   missionSlot,
-  releaseLease,
+  releaseLease as releaseLeaseRaw,
+  retireMissionLease,
   renderedConfigFingerprint,
   updateLease,
 } from "../scripts/lib/local-supabase-coordinator.mjs";
@@ -32,8 +33,31 @@ type AcquireInput = {
   probe?: (pid: number, signal: number) => unknown;
   portProbe?: (port: number) => Promise<boolean>;
 };
+type ReleaseInput = {
+  repoPath: string;
+  token: string;
+  slot?: string;
+  now?: number;
+  env?: NodeJS.ProcessEnv;
+  stopProject?: (repoPath: string, record: object) => unknown;
+};
+type CleanupInput = {
+  repoPath: string;
+  now?: number;
+  env?: NodeJS.ProcessEnv;
+  probe?: (pid: number, signal: number) => unknown;
+  stopProject?: (repoPath: string, record: object) => unknown;
+};
 const acquireLease = (input: AcquireInput) =>
   acquireLeaseRaw({ portProbe: async () => false, ...input });
+const releaseLeaseTyped = releaseLeaseRaw as (
+  input: ReleaseInput,
+) => Promise<Record<string, unknown>>;
+const cleanupStaleTyped = cleanupStaleRaw as (input: CleanupInput) => Promise<string[]>;
+const releaseLease = (input: ReleaseInput) =>
+  releaseLeaseTyped({ stopProject: () => {}, ...input });
+const cleanupStale = (input: CleanupInput) =>
+  cleanupStaleTyped({ stopProject: () => {}, ...input });
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "lancers-coordinator-"));
@@ -253,7 +277,7 @@ describe("two-slot local Supabase coordinator", () => {
     );
   });
 
-  it("marks an abandoned lease stale and leaves live and review-ready ones alone", async () => {
+  it("retires an abandoned lease and leaves live and review-ready ones alone", async () => {
     const { repo, env } = fixture();
     const abandoned = await acquireLease({
       issueId: "LAN-1",
@@ -288,7 +312,8 @@ describe("two-slot local Supabase coordinator", () => {
 
     expect(changed).toEqual([abandoned!.slot]);
     const slots = coordinatorStatus(repo, env).slots;
-    expect(slots[abandoned!.slot].state).toBe("stale");
+    expect(slots[abandoned!.slot].state).toBe("released");
+    expect(slots[abandoned!.slot].stoppedAt).toBeDefined();
     expect(slots[protectedLease!.slot].state).toBe("review-ready");
   });
 
@@ -375,6 +400,67 @@ describe("two-slot local Supabase coordinator", () => {
     expect(coordinatorStatus(repo, env).slots[second!.slot].state).toBe("active");
   });
 
+  it("stops a project outside the allocator lock before making its slot reusable", async () => {
+    const { repo, env } = fixture();
+    const lease = await acquireLease({ issueId: "LAN-1", repoPath: repo, pid: 101, env });
+    let stateWhileStopping: string | undefined;
+    const released = await releaseLeaseRaw({
+      repoPath: repo,
+      token: lease!.token,
+      slot: lease!.slot,
+      now: 2_000,
+      env,
+      stopProject: (_repoPath, record) => {
+        stateWhileStopping = coordinatorStatus(repo, env).slots[lease!.slot].state;
+        expect((record as { projectId: string }).projectId).toBe(lease!.projectId);
+      },
+    });
+
+    expect(stateWhileStopping).toBe("retiring");
+    expect(released).toMatchObject({ state: "released", stoppedAt: new Date(2_000).toISOString() });
+  });
+
+  it("keeps a failed retirement fenced and retryable", async () => {
+    const { repo, env } = fixture();
+    const lease = await acquireLease({ issueId: "LAN-1", repoPath: repo, pid: 101, env });
+    await updateLease({ repoPath: repo, token: lease!.token, state: "review-ready", env });
+
+    await expect(
+      releaseLeaseRaw({
+        repoPath: repo,
+        token: lease!.token,
+        env,
+        stopProject: () => {
+          throw new Error("stop failed");
+        },
+      }),
+    ).rejects.toThrow(/stop failed/);
+    expect(coordinatorStatus(repo, env).slots[lease!.slot].state).toBe("review-ready");
+  });
+
+  it("stops and reclaims an orphaned review-ready stack", async () => {
+    const { repo, env } = fixture();
+    const owner = path.join(path.dirname(repo), "orphaned-owner");
+    fs.cpSync(repo, owner, { recursive: true });
+    const lease = await acquireLease({ issueId: "LAN-1", repoPath: owner, pid: 101, env });
+    await updateLease({ repoPath: owner, token: lease!.token, state: "review-ready", env });
+    fs.rmSync(owner, { recursive: true, force: true });
+    const stopped: string[] = [];
+
+    const changed = await cleanupStaleRaw({
+      repoPath: repo,
+      env,
+      stopProject: (_repoPath, record) => stopped.push(record.projectId),
+    });
+
+    expect(changed).toEqual([lease!.slot]);
+    expect(stopped).toEqual([lease!.projectId]);
+    expect(coordinatorStatus(repo, env).slots[lease!.slot]).toMatchObject({
+      state: "released",
+      stoppedAt: expect.any(String),
+    });
+  });
+
   it("refuses readiness until the running stack holds this holder's rendered configuration", async () => {
     const { repo, env } = fixture();
     const lease = await acquireLease({ issueId: "LAN-1", repoPath: repo, pid: 101, env });
@@ -456,7 +542,7 @@ describe("two-slot local Supabase coordinator", () => {
    * ports. Failing closed on those ports made the whole recovery path
    * unreachable — the slot could be marked stale and still never retaken.
    */
-  it("re-fences a stale slot whose abandoned containers still hold its ports", async () => {
+  it("re-fences a retired slot after cleanup stopped its abandoned containers", async () => {
     const { repo, env } = fixture();
     const abandoned = await acquireLease({
       issueId: "LAN-1",
@@ -467,7 +553,7 @@ describe("two-slot local Supabase coordinator", () => {
       probe: () => true,
     });
     await cleanupStale({ repoPath: repo, now: 1_000 + LEASE_TTL_MS + 1, env, probe: () => true });
-    expect(coordinatorStatus(repo, env).slots[abandoned!.slot].state).toBe("stale");
+    expect(coordinatorStatus(repo, env).slots[abandoned!.slot].state).toBe("released");
 
     const replacement = await acquireLeaseRaw({
       issueId: "LAN-2",
@@ -713,6 +799,72 @@ describe("mission-owned local Supabase stacks", () => {
     expect(last.remaining).toEqual([]);
   });
 
+  it("retires the last mission attachment and reuses its lowest port index", async () => {
+    const { repo, env } = fixture();
+    const first = await acquireMissionLease({
+      missionId: "M-FIRST",
+      repoPath: repo,
+      baseCommit: "a".repeat(40),
+      migrationHead: 20260819000000,
+      pid: 4242,
+      env,
+      portProbe: async () => false,
+    });
+    await detachMissionLease({ missionId: "M-FIRST", repoPath: repo, env });
+    await retireMissionLease({
+      missionId: "M-FIRST",
+      repoPath: repo,
+      env,
+      stopProject: (_repoPath, record) => expect(record.projectId).toBe(first.projectId),
+    });
+    expect(coordinatorStatus(repo, env).slots[first.slot]).toBeUndefined();
+
+    const second = await acquireMissionLease({
+      missionId: "M-SECOND",
+      repoPath: repo,
+      baseCommit: "b".repeat(40),
+      migrationHead: 20260819000000,
+      pid: 4242,
+      env,
+      portProbe: async () => false,
+    });
+    expect(second.applicationPort).toBe(first.applicationPort);
+    expect(Object.keys(coordinatorStatus(repo, env).slots)).toHaveLength(1);
+  });
+
+  it("does not treat a mission as orphaned while an attached worktree exists", async () => {
+    const { repo, env } = fixture();
+    const lease = await acquireMissionLease({
+      missionId: "M-ATTACHED",
+      repoPath: repo,
+      baseCommit: "a".repeat(40),
+      migrationHead: 20260819000000,
+      pid: 4242,
+      env,
+      portProbe: async () => false,
+    });
+    const worker = path.join(path.dirname(repo), "living-worker");
+    fs.cpSync(repo, worker, { recursive: true });
+    await attachMissionLease({
+      missionId: "M-ATTACHED",
+      repoPath: worker,
+      token: lease.token,
+      env,
+    });
+    fs.rmSync(repo, { recursive: true, force: true });
+    const stopped: string[] = [];
+
+    expect(
+      await cleanupStaleTyped({
+        repoPath: worker,
+        env,
+        stopProject: (_repoPath, record) =>
+          stopped.push((record as { projectId: string }).projectId),
+      }),
+    ).toEqual([]);
+    expect(stopped).toEqual([]);
+  });
+
   it("is idempotent, and refuses a mission it has no stack for", async () => {
     const { repo, env } = fixture();
     await acquireMissionLease({
@@ -837,10 +989,16 @@ describe("mission-owned local Supabase stacks", () => {
       },
     );
 
-    // The acquiring worktree still may.
+    // The acquiring worktree may not stop a sibling's shared stack either.
     await expect(
       releaseLease({ repoPath: repo, token: lease.token, slot: lease.slot, env }),
-    ).resolves.toMatchObject({ state: "released" });
+    ).rejects.toThrow(/still has 1 attached worktree/);
+
+    await detachMissionLease({ missionId: "M-SHARED", repoPath: worker, env });
+    await expect(
+      releaseLease({ repoPath: repo, token: lease.token, slot: lease.slot, env }),
+    ).resolves.toMatchObject({ state: "released", stoppedAt: expect.any(String) });
+    expect(coordinatorStatus(repo, env).slots[lease.slot]).toBeUndefined();
   });
 
   it("refuses an owning pid that is not a real process id", async () => {
