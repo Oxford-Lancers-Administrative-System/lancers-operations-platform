@@ -24,7 +24,7 @@
     {
       "id": "W1",
       "name": "Approve an event knowing what it will send",
-      "state": "spec_approved",
+      "state": "mock_draft",
       "stale": false,
       "feedback": [],
       "approvals": {
@@ -805,5 +805,5 @@
       }
     ]
   },
-  "next_action": "Draft and walk the W1 mockup (Stage 3)"
+  "next_action": "Review and approve the W1 mockup (Stage 3)"
 }
