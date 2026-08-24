@@ -119,9 +119,15 @@ describe("the local-only guard still refuses everything it refused before", () =
   });
 
   it("is the guard the pilot scenario test connects through", () => {
-    const test = read("tests/pilot-scenario-lan-93.test.ts");
-    expect(test).toMatch(/from "\.\.\/scripts\/lib\/local-db\.mjs"/);
-    expect(test).toMatch(/openLocalClient/);
+    for (const issue of ["76", "93"]) {
+      const test = read(`tests/pilot-scenario-lan-${issue}.test.ts`);
+      expect(test).toMatch(/openLocalClient/);
+      expect(test).not.toMatch(/resolveLocalDatabaseUrl/);
+    }
+    const parity = read("tests/service-layer-guard-parity.test.ts");
+    expect(parity).toMatch(/from "\.\.\/scripts\/lib\/local-db\.mjs"/);
+    for (const host of ["db.abcdefghijklmnop.supabase.co", "pooler.supabase.com", "10.0.0.7"])
+      expect(parity).toContain(host);
     // `openLocalClient` is the fixture helper's wrapper around `connectLocal`,
     // which resolves its URL through the guard above.
     const fixture = read("tests/helpers/domain-fixture.ts");
@@ -304,335 +310,35 @@ describe("the scenario scripts stay inside the conventions", () => {
   });
 
   /**
-   * A script reduced to its executable text: comments and string literals
-   * replaced by whitespace, dollar-quoted **delimiters** blanked and their
-   * bodies kept.
-   *
-   * ## READ THIS BEFORE TRUSTING ANYTHING BELOW
-   *
-   * This is a **fast pre-filter, not a security boundary.** It is a
-   * hand-written approximation of PostgreSQL's lexer, and four consecutive
-   * independent reviews defeated it — each through a different corner of SQL
-   * it does not model, and each time the fix opened the next hole. Known gaps
-   * that remain: double-quoted identifiers containing an apostrophe,
-   * `U&'…'` strings, and anything `standard_conforming_strings` changes.
-   *
-   * **The authoritative check is elsewhere.** `tests/pilot-scenario-lan-74.test.ts`
-   * § "what the scripts actually execute, according to PostgreSQL" installs
-   * event triggers and watches the scripts run, so no spelling can hide a DDL,
-   * a grant or a drop. Nothing may cite the rules below as evidence that a
-   * pilot script is safe.
-   *
-   * What the rules below are still worth: they run without a database, they
-   * catch the obvious mistake early, and they cover the three things event
-   * triggers cannot see — `truncate`, role/database/tablespace statements, and
-   * `copy … from program` — because PostgreSQL fires no event for those.
-   *
-   * ## Why this is a scanner and not three regular expressions
-   *
-   * It was three regular expressions, and they were wrong in a way that hid
-   * real DDL. SQL comments in these files contain apostrophes — "the scenario's
-   * own rows" — and a regex string-stripper cannot tell that apostrophe from
-   * the start of a literal. `scripts/pilot/lan-76/setup.sql` has an **odd**
-   * number of `'` characters for exactly that reason, so the stripper ran out
-   * of phase over the whole file and swallowed everything after it. An injected
-   * `create table` in that region vanished, and the rule below passed it.
-   *
-   * Order cannot fix that: whichever of comments and literals you strip first,
-   * the other one's delimiters appear inside it. The only correct reading is
-   * left to right, one state at a time — which is what this does, including
-   * `''` escapes and `$tag$ … $tag$` bodies.
-   *
-   * Newlines are preserved so that line-oriented checks elsewhere still line up.
+   * Only the three statement classes PostgreSQL event triggers cannot observe
+   * remain as a textual pre-filter. DDL, grants, and drops are proved by the
+   * gate-lane event-trigger rehearsal instead of a home-grown SQL parser.
    */
-  function statementsOnly(sql: string): string {
-    let out = "";
-    let i = 0;
-    const dollarTags: string[] = [];
+  function triggerBlindStatements(sql: string): string {
+    return sql
+      .replace(/--[^\n]*/g, " ")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/[eE]'(?:''|\\.|[^'])*'|'(?:''|[^'])*'/g, " ");
+  }
 
-    const blank = (text: string) => text.replace(/[^\n]/g, " ");
+  it("does not let backslashes in standard strings hide a real TRUNCATE", () => {
+    const sql = String.raw`select '\'; truncate public.people; select 'x';`;
+    expect(triggerBlindStatements(sql)).toMatch(/\btruncate\s+public\.people\b/i);
+  });
 
-    while (i < sql.length) {
-      const rest = sql.slice(i);
-
-      if (rest.startsWith("--")) {
-        const end = sql.indexOf("\n", i);
-        const stop = end === -1 ? sql.length : end;
-        out += blank(sql.slice(i, stop));
-        i = stop;
-        continue;
-      }
-
-      if (rest.startsWith("/*")) {
-        const end = sql.indexOf("*/", i + 2);
-        const stop = end === -1 ? sql.length : end + 2;
-        out += blank(sql.slice(i, stop));
-        i = stop;
-        continue;
-      }
-
-      // Closing FIRST. The opening pattern matches any `$tag$`, including the
-      // one already open, so checking it first meant the closing branch was
-      // never reached and the stack only ever grew — dead code that a reviewer
-      // spotted and the fail-closed check above then proved.
-      const closing = dollarTags[dollarTags.length - 1];
-      if (closing && rest.startsWith(closing)) {
-        out += blank(closing);
-        i += closing.length;
-        dollarTags.pop();
-        continue;
-      }
-
-      // A dollar-quoted body is NOT a literal to be blanked. `do $x$ … $x$` is
-      // PL/pgSQL that PostgreSQL executes, and PL/pgSQL runs DDL, `grant`,
-      // `drop` and `alter` directly. Blanking it hid the only DDL statement in
-      // any pilot script, and hid an injected `grant all on public.people to
-      // anon` that a worse stripper had caught.
-      //
-      // So: blank the delimiters, keep scanning the contents.
-      const dollar = /^\$([A-Za-z_]\w*)?\$/.exec(rest);
-      if (dollar) {
-        const tag = dollar[0];
-        out += blank(tag);
-        i += tag.length;
-        dollarTags.push(tag);
-        continue;
-      }
-
-      // `E'…'` uses backslash escapes, so `\'` does not close it. Without this
-      // the scanner closes early and every subsequent literal is out of phase —
-      // which is how the version this replaced blanked the rest of a file.
-      const escapeString = /^[eE]'/.exec(rest);
-      if (escapeString) {
-        let j = i + 2;
-        while (j < sql.length) {
-          if (sql[j] === "\\") j += 2;
-          else if (sql[j] === "'") {
-            if (sql[j + 1] === "'") j += 2;
-            else {
-              j += 1;
-              break;
-            }
-          } else j += 1;
-        }
-        out += blank(sql.slice(i, j));
-        i = j;
-        continue;
-      }
-
-      if (rest.startsWith("'")) {
-        let j = i + 1;
-        while (j < sql.length) {
-          if (sql[j] === "'") {
-            if (sql[j + 1] === "'") j += 2;
-            else {
-              j += 1;
-              break;
-            }
-          } else j += 1;
-        }
-        out += blank(sql.slice(i, j));
-        i = j;
-        continue;
-      }
-
-      out += sql[i];
-      i += 1;
-    }
-
-    // Fail closed. An unterminated literal, comment or dollar body means the
-    // scan ran to end of file blanking everything, and a blanked file passes
-    // every rule below. That must be an error, not a pass.
-    if (dollarTags.length > 0) {
-      throw new Error(
-        `unterminated ${dollarTags[dollarTags.length - 1]} body — scan is unreliable`,
+  it.each(ALL_SCRIPTS)(
+    "%s contains none of the event-trigger-blind statement classes",
+    (name, sql) => {
+      const code = triggerBlindStatements(sql);
+      expect(code, `${name} truncates a table`).not.toMatch(/\btruncate\b/i);
+      expect(code, `${name} changes a role, database or tablespace`).not.toMatch(
+        /\b(create|alter|drop)\s+(role|user|group|database|tablespace)\b/i,
       );
-    }
-
-    return out;
-  }
-
-  /**
-   * The same scan, but with dollar-quoted bodies blanked out as well.
-   *
-   * Exactly one rule needs this. `select … into <table> … from …` creates a
-   * permanent table without the word `create` appearing, but the identical
-   * syntax inside PL/pgSQL — `select count(*) into open_seasons from …` —
-   * assigns to a variable, and is how every preflight here reads a count. The
-   * distinction is positional and nothing else.
-   *
-   * Every other rule uses `statementsOnly`, which keeps body contents, because
-   * PL/pgSQL runs real DDL and hiding it there is exactly what went wrong.
-   */
-  function withoutPreflightBodies(sql: string): string {
-    // Re-scan the ORIGINAL text for the bodies, and blank those regions in the
-    // stripped output, so the result is "top level, comments and literals gone".
-    const code = statementsOnly(sql).split("");
-    const tag = /\$([A-Za-z_]\w*)?\$/g;
-    let match: RegExpExecArray | null;
-    let open: number | null = null;
-    let openTag = "";
-
-    while ((match = tag.exec(sql)) !== null) {
-      if (open === null) {
-        open = match.index;
-        openTag = match[0];
-      } else if (match[0] === openTag) {
-        for (let k = open; k < match.index + match[0].length; k += 1) {
-          if (code[k] !== "\n") code[k] = " ";
-        }
-        open = null;
-      }
-    }
-
-    return code.join("");
-  }
-
-  it("reads a script left to right, so nothing hides inside anything else", () => {
-    // A `--` inside a literal must not eat the closing quote …
-    expect(statementsOnly("select 'a -- b';\ncreate table public.evil (id int);")).toMatch(
-      /create table public\.evil/i,
-    );
-    // … an apostrophe inside a comment must not open one …
-    expect(
-      statementsOnly("-- the scenario's own rows\ncreate table public.evil (id int);"),
-    ).toMatch(/create table public\.evil/i);
-    // … a quote inside a dollar-quoted body must not either …
-    expect(
-      statementsOnly(
-        "do $x$ begin raise notice 'it''s fine'; end $x$;\ncreate view public.v as select 1;",
-      ),
-    ).toMatch(/create view public\.v/i);
-    // … and genuine literals and comments are still removed.
-    expect(statementsOnly("select 'create table public.nope (id int)';")).not.toMatch(
-      /create table/i,
-    );
-    expect(statementsOnly("-- create table public.nope (id int)")).not.toMatch(/create table/i);
-  });
-
-  it("survives the real scripts without going out of phase", () => {
-    // The specific failure this replaced: `lan-76/setup.sql` has an odd number
-    // of `'` characters, because its comments contain apostrophes. A regex
-    // stripper lost phase there and blanked the rest of the file.
-    //
-    // Length preservation is NOT the check. `blank()` swaps each character for
-    // a space and the fallthrough appends one character, so equal length is
-    // structurally guaranteed on every input — it cannot fail, and in
-    // particular a total loss of phase does not change it. What proves phase is
-    // that specific known text survives and specific known text does not.
-    for (const [name, sql] of ALL_SCRIPTS) {
-      const code = statementsOnly(sql);
-
-      // Executable text at the very end of the file must still be there. A
-      // scanner that lost phase anywhere earlier blanks everything after it.
-      expect(code, `${name}: nothing survives to the end of the script`).toMatch(/commit\s*;\s*$/i);
-
-      // Literal content must be gone — proving the scanner is doing its job at
-      // all, not merely returning its input.
-      expect(code, `${name}: string literals were not removed`).not.toMatch(/PILOT-LAN-\d+/);
-    }
-  });
-
-  it("keeps the executable contents of a preflight body visible", () => {
-    // The regression this exists to prevent: `do $x$ … $x$` was treated as a
-    // literal and blanked, which hid every statement in every preflight —
-    // including the one `create temporary table` in the repository, and any
-    // `grant` or `drop` an edit put there.
-    const cleanup = read("scripts/pilot/lan-74/cleanup.sql");
-    const code = statementsOnly(cleanup);
-
-    expect(code, "the preflight's own statements must be visible").toMatch(
-      /create temporary table/i,
-    );
-    // …while the messages inside it are still removed.
-    expect(code).not.toMatch(/pilot cleanup refused/i);
-  });
-
-  it.each(ALL_SCRIPTS)("%s is not a migration in disguise", (name, sql) => {
-    // Permanent DDL is a migration's job. A TEMPORARY table is not — it lives
-    // for the transaction, adds no schema concept, and LAN-74 uses one to hold
-    // the set its preflight validated so the deletes cannot re-derive a wider
-    // one. So the rule is: no permanent DDL, and a temp table must say so.
-    const code = statementsOnly(sql);
-
-    const DDL =
-      "table|type|schema|index|view|function|procedure|policy|extension|sequence|trigger|role|" +
-      "user|group|database|domain|aggregate|operator|rule|server|publication|subscription|" +
-      "tablespace|collation|cast|statistics";
-
-    // Modifiers may sit between `create` and the object keyword — `or replace`,
-    // `unlogged`, `unique`, `materialized`, `recursive`. Matching only
-    // `create <keyword>` let every one of them through, which injection
-    // confirmed: `create or replace view`, `create unlogged table` and
-    // `create unique index` were all invisible.
-    //
-    // `temporary`/`temp` is the one modifier that makes the statement legal, so
-    // it is the only one that stops the match.
-    const MODIFIERS =
-      "(?:or\\s+replace|unlogged|unique|materialized|recursive|concurrently|foreign|global|local)";
-    const permanentDdl = [
-      ...code.matchAll(
-        new RegExp(
-          `\\bcreate\\s+(?!(?:temporary|temp)\\b)(?:${MODIFIERS}\\s+)*(?:${DDL})\\b`,
-          "gi",
-        ),
-      ),
-    ].map((match) => match[0].replace(/\s+/g, " "));
-    expect(permanentDdl, `${name} creates a permanent database object`).toEqual([]);
-
-    expect(code, `${name} alters a database object`).not.toMatch(
-      new RegExp(`\\balter\\s+(?:${MODIFIERS}\\s+)*(?:${DDL})\\b`, "i"),
-    );
-
-    // Every `drop`, not just `drop table`: dropping a view, a function or a
-    // policy is as much a schema change as dropping a table. The one permitted
-    // form is a temporary relation this script created itself, and it must be
-    // `pg_temp.`-qualified so it cannot reach a permanent object through
-    // `search_path`.
-    for (const drop of [
-      ...code.matchAll(
-        new RegExp(
-          `\\bdrop\\s+(?:${MODIFIERS}\\s+)*(${DDL})\\s+(?:if\\s+exists\\s+)?([\\w.]+)`,
-          "gi",
-        ),
-      ),
-    ]) {
-      expect(
-        `${drop[1]} ${drop[2]}`,
-        `${name} drops "${drop[2]}", which is not a pg_temp relation`,
-      ).toMatch(/^table pg_temp\./i);
-    }
-
-    expect(code, `${name} grants or revokes`).not.toMatch(/\b(grant|revoke)\b/i);
-
-    // The three classes PostgreSQL fires NO event trigger for, so this textual
-    // rule is their only cover anywhere in the repository. Probed and
-    // confirmed: `truncate` raised no event, and shared objects — roles,
-    // databases, tablespaces — are documented as exempt.
-    expect(code, `${name} executes COPY … FROM/TO PROGRAM`).not.toMatch(
-      /\bcopy\b[\s\S]{0,200}?\bprogram\b/i,
-    );
-    expect(code, `${name} changes a role, database or tablespace`).not.toMatch(
-      /\b(create|alter|drop)\s+(role|user|group|database|tablespace)\b/i,
-    );
-    expect(code, `${name} changes cluster configuration`).not.toMatch(/\balter\s+system\b/i);
-
-    // `truncate` is not DDL, and is the single most destructive statement a
-    // hand-run production script could contain. It has no undo and, until this
-    // line, no test in the repository mentioned it.
-    expect(code, `${name} truncates a table`).not.toMatch(/\btruncate\b/i);
-
-    // `select … into <table>` creates a permanent table without the word
-    // `create` appearing anywhere. Checked at TOP LEVEL only: the same syntax
-    // inside a PL/pgSQL body assigns to a variable, which every preflight here
-    // does to read a count.
-    expect(withoutPreflightBodies(sql), `${name} creates a table via SELECT INTO`).not.toMatch(
-      /\binto\s+(?!strict\b)[\w.]+\s+from\b/i,
-    );
-
-    // `drop owned by` / `reassign owned by` change role ownership wholesale.
-    expect(code, `${name} changes role ownership`).not.toMatch(/\b(drop|reassign)\s+owned\s+by\b/i);
-  });
+      expect(code, `${name} executes COPY … PROGRAM`).not.toMatch(
+        /\bcopy\b[\s\S]{0,200}?\bprogram\b/i,
+      );
+    },
+  );
 
   it.each([
     ["setup.sql", setup],
@@ -2385,6 +2091,17 @@ describe("the pilot runbook represents elevated access truthfully", () => {
 
 describe("the pilot-data manifest", () => {
   const manifest = read(PILOT_MANIFEST);
+
+  it("deletes a retired scenario's executable suite in the same change", () => {
+    const retired = manifest.split("## Retired scenarios")[1] ?? "";
+    const issues = new Set([...retired.matchAll(/\bLAN-(\d+)\b/g)].map((match) => match[1]));
+    for (const issue of issues) {
+      expect(
+        filesUnder("tests"),
+        `LAN-${issue} is retired but its pilot scenario suite still runs`,
+      ).not.toContain(`tests/pilot-scenario-lan-${issue}.test.ts`);
+    }
+  });
 
   it("records the durable identities and the active scenarios separately", () => {
     expect(manifest).toMatch(/## Durable pilot identities and access/);

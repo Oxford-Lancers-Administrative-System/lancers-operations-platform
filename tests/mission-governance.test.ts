@@ -251,14 +251,12 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
     }
     const agreement = flat(read("AGENTS.md"));
     expect(agreement).toMatch(
-      /Exactly five user-invoked workflows and two subagents are approved/i,
+      /Exactly five user-invoked workflows and three subagents are approved/i,
     );
     expect(agreement).toMatch(
       /No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase, or writes to production/i,
     );
-    expect(agreement).toMatch(
-      /mission merge performed with GITHUB_TOKEN deliberately does not deploy/i,
-    );
+    expect(agreement).toMatch(/mission merge does not deploy because deploy\.yml is manual-only/i);
   });
 
   it("prohibits every owner-gated surface class from the mission lane", () => {
@@ -322,5 +320,13 @@ describe("neither automatic lane can reach the mission lane's machinery", () => 
     expect(
       touchesVisualSurface([{ status: "M", path: "src/lib/events/filters.ts" }], missionRules),
     ).toBe(false);
+  });
+
+  it("keeps visual carry-forward machine-classified and fail-closed", () => {
+    const skill = read(".claude/skills/run-mission/SKILL.md").replace(/\s+/g, " ");
+    expect(skill).toMatch(/same visual-surface rules as the guarded merge gate/i);
+    expect(skill).toMatch(/rendered or unclassifiable link voids the walker and approval/i);
+    expect(read("scripts/mission/lib/state.mjs")).toContain("classifyVisualDelta");
+    expect(read("scripts/mission/merge-gate.mjs")).toContain("visualCarryForwardDefects");
   });
 });

@@ -25,6 +25,8 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 import { validateDecomposition, validatePacket, validatePackage } from "./packet.mjs";
+import { parseNameStatus } from "../../fast-lane/classify.mjs";
+import { classifyVisualDelta, loadRules } from "../merge-gate.mjs";
 
 export const MAX_ACTIVE_WORKERS = 2;
 export const LEAD_TTL_MS = 120_000;
@@ -49,6 +51,7 @@ export const EVENT_TYPES = [
   "owner-question",
   "owner-answer",
   "rule-applied",
+  "journal-annotation",
   "merge-recorded",
   "checkpoint",
   "scope-drift",
@@ -60,6 +63,8 @@ export const EVENT_TYPES = [
   "mission-stopped",
   "mission-resumed",
 ];
+
+export const PHASE_BOUNDARIES = ["plan-approved", "build-complete", "gate-complete"];
 
 function repositoryIdentity(repoPath) {
   try {
@@ -144,6 +149,70 @@ export function ownerAlive(pid, probe = process.kill) {
 
 const isNonEmptyString = (value) => typeof value === "string" && value.trim() !== "";
 
+function carryForwardCovers(chain, fromSha, toSha) {
+  if (fromSha === toSha) return true;
+  let current = fromSha;
+  for (const link of chain ?? []) {
+    if (link.from_sha !== current || link.verdict !== "non-rendered") continue;
+    current = link.to_sha;
+    if (current === toSha) return true;
+  }
+  return false;
+}
+
+export function visualApprovalCovers(pkg, headSha = pkg?.head_sha) {
+  return Boolean(
+    pkg?.visual_approved &&
+    !pkg.visual_evidence_pending &&
+    pkg.visual_approval?.head_sha &&
+    carryForwardCovers(pkg.visual_carry_forward_chain, pkg.visual_approval.head_sha, headSha),
+  );
+}
+
+function packageHeadCovers(record, pkg, headSha = pkg?.head_sha) {
+  const recorded = record?.package_heads?.[pkg?.id];
+  return Boolean(
+    recorded && carryForwardCovers(pkg?.visual_carry_forward_chain, recorded, headSha),
+  );
+}
+
+export function missionReviewCovers(state, pkg, headSha = pkg?.head_sha) {
+  return state.integratedReviews.some(
+    (review) =>
+      review.mode === "security-tier" &&
+      review.result === "clear" &&
+      packageHeadCovers(review, pkg, headSha),
+  );
+}
+
+export function missionVisualApprovalCovers(state, pkg, headSha = pkg?.head_sha) {
+  return state.missionVisualApprovals.some((approval) => packageHeadCovers(approval, pkg, headSha));
+}
+
+function reviewCovers(state, pkg, headSha = pkg?.head_sha) {
+  return Boolean(
+    (pkg?.review?.result === "clear" && pkg.review.reviewed_head_sha === headSha) ||
+    missionReviewCovers(state, pkg, headSha),
+  );
+}
+
+function approvalCovers(state, pkg, headSha = pkg?.head_sha) {
+  return (
+    pkg?.visual === "nonvisual" ||
+    visualApprovalCovers(pkg, headSha) ||
+    missionVisualApprovalCovers(state, pkg, headSha)
+  );
+}
+
+function clearWalkerCovers(state, pkg, headSha = pkg?.head_sha) {
+  return state.integratedReviews.some(
+    (review) =>
+      review.mode === "workflow-walker" &&
+      review.result === "clear" &&
+      carryForwardCovers(pkg.visual_carry_forward_chain, review.head_sha, headSha),
+  );
+}
+
 export const WORKER_RESULTS = [
   "completed",
   "blocked",
@@ -176,7 +245,7 @@ const REVIEW_RECEIPT_FIELDS = ["review_mode", "reviewed_head_sha", "round", "res
  * the repeated facts, states, dates, permissions and copy across the surfaces
  * once they have all integrated.
  */
-export const INTEGRATED_REVIEW_MODES = ["workflow-walker", "cross-surface"];
+export const INTEGRATED_REVIEW_MODES = ["workflow-walker", "cross-surface", "security-tier"];
 
 /**
  * The four sources a UI brief must name (LAN-148 §E).
@@ -288,25 +357,28 @@ export function dependencyUsable(state, packageId) {
   const pkg = state.packages[packageId];
   if (!pkg) return { usable: false, basis: null, why: `${packageId} is not planned.` };
   if (pkg.status === "merged") return { usable: true, basis: "merged" };
-  const review = pkg.review;
-  if (!review || review.result !== "clear") {
+  if (!reviewCovers(state, pkg)) {
+    if (pkg.review?.result === "clear" && pkg.review.reviewed_head_sha !== pkg.head_sha) {
+      return {
+        usable: false,
+        basis: null,
+        why: `${packageId} was reviewed at ${pkg.review.reviewed_head_sha ?? "no recorded head"}, but its pull request now carries ${pkg.head_sha ?? "no recorded head"}.`,
+      };
+    }
     return { usable: false, basis: null, why: `${packageId} has no clear independent review.` };
   }
-  if (!pkg.head_sha || review.reviewed_head_sha !== pkg.head_sha) {
-    return {
-      usable: false,
-      basis: null,
-      why: `${packageId} was reviewed at ${review.reviewed_head_sha ?? "no recorded head"}, but its pull request now carries ${pkg.head_sha ?? "no recorded head"}.`,
-    };
-  }
-  if (pkg.visual !== "nonvisual" && !pkg.visual_approved) {
+  if (pkg.visual !== "nonvisual" && !approvalCovers(state, pkg)) {
     return {
       usable: false,
       basis: null,
       why: `${packageId} is visual and has no recorded approval at its current head.`,
     };
   }
-  return { usable: true, basis: "reviewed-at-head", head_sha: pkg.head_sha };
+  return {
+    usable: true,
+    basis: missionReviewCovers(state, pkg) ? "mission-reviewed-at-head" : "reviewed-at-head",
+    head_sha: pkg.head_sha,
+  };
 }
 
 /**
@@ -316,7 +388,7 @@ export function dependencyUsable(state, packageId) {
  * competes for the single migration slot, and still may not resume execution
  * that an unanswered owner question or unresolved source drift has paused.
  */
-function schedulingRefusals(state, pkg, packageId) {
+function schedulingRefusals(state, pkg, packageId, { correction = false } = {}) {
   const errors = [];
   if (state.activeWorkers.length >= MAX_ACTIVE_WORKERS) {
     errors.push(
@@ -345,6 +417,20 @@ function schedulingRefusals(state, pkg, packageId) {
     errors.push(
       `${packageId} is stopped by source drift; it needs a revised approved packet before work resumes.`,
     );
+  }
+  if (!correction) {
+    const queued = Object.values(state.packages).find(
+      (other) =>
+        other.id !== packageId &&
+        other.status === "blocked" &&
+        other.review?.result === "blocked" &&
+        other.collision_domain === pkg.collision_domain,
+    );
+    if (queued) {
+      errors.push(
+        `${queued.id} has a queued correction in collision domain "${pkg.collision_domain}"; correction work outranks a fresh dispatch for that slot.`,
+      );
+    }
   }
   return errors;
 }
@@ -377,13 +463,12 @@ export function guardedLaneRefusals(state, packageId, sha) {
       `${packageId} is highest risk. It may use the guarded lane only when an answered owner checkpoint names it, so that Brian has heard about it before it merges.`,
     );
   }
-  const review = pkg.review;
-  if (!review || review.result !== "clear" || review.reviewed_head_sha !== sha) {
+  if (!reviewCovers(state, pkg, sha)) {
     refusals.push(
-      `A guarded merge requires a clear review receipt at exactly ${sha ?? "the merged SHA"}.`,
+      `A guarded merge requires a clear review receipt at exactly ${sha ?? "the merged SHA"}, either package-scoped or from the mission-level security tier.`,
     );
   }
-  if (pkg.visual !== "nonvisual" && !pkg.visual_approved) {
+  if (!approvalCovers(state, pkg, sha)) {
     refusals.push("Visual work merges only after Brian's recorded visual approval.");
   }
   for (const question of openQuestionsAffecting(state, packageId)) {
@@ -774,7 +859,7 @@ export function validateEvent(event, state) {
         errors.push(`${event.package_id} already has an active worker.`);
       }
       if (pkg.status === "merged") errors.push(`${event.package_id} is already merged.`);
-      errors.push(...schedulingRefusals(state, pkg, event.package_id));
+      errors.push(...schedulingRefusals(state, pkg, event.package_id, { correction: true }));
       break;
     }
 
@@ -825,6 +910,23 @@ export function validateEvent(event, state) {
       if (!/^[0-9a-f]{40}$/.test(event.head_sha ?? "")) {
         errors.push("An integrated review records the exact integrated head it ran against.");
       }
+      if (event.package_heads !== undefined) {
+        if (
+          event.package_heads === null ||
+          typeof event.package_heads !== "object" ||
+          Array.isArray(event.package_heads) ||
+          Object.keys(event.package_heads).length === 0
+        ) {
+          errors.push(
+            "An integrated review records the package heads covered by its integrated head.",
+          );
+        }
+        for (const [packageId, packageHead] of Object.entries(event.package_heads)) {
+          if (!state.packages[packageId] || !/^[0-9a-f]{40}$/.test(packageHead)) {
+            errors.push(`Integrated review package_heads has invalid coverage for ${packageId}.`);
+          }
+        }
+      }
       if (!["clear", "blocked"].includes(event.result)) {
         errors.push('An integrated review result is "clear" or "blocked".');
       }
@@ -832,6 +934,21 @@ export function validateEvent(event, state) {
         errors.push(
           "A workflow walker records the user jobs it completed end to end, not the screens it visited.",
         );
+      }
+      if (event.mode === "security-tier") {
+        if (!event.package_heads) {
+          errors.push(
+            "A security-tier review records the package heads covered by its integrated head.",
+          );
+        }
+        if (!Array.isArray(event.sensitive_paths)) {
+          errors.push(
+            "A security-tier review records the sensitive-path intersection it reviewed.",
+          );
+        }
+        if (!isNonEmptyString(event.report)) {
+          errors.push("A security-tier review records its on-disk report path.");
+        }
       }
       if (
         event.result === "blocked" &&
@@ -843,6 +960,42 @@ export function validateEvent(event, state) {
     }
 
     case "visual-approval": {
+      if (event.package_heads !== undefined || event.head_sha !== undefined) {
+        if (!/^[0-9a-f]{40}$/.test(event.head_sha ?? "")) {
+          errors.push("A mission visual approval records the exact integrated head Brian saw.");
+        }
+        if (
+          event.package_heads === null ||
+          typeof event.package_heads !== "object" ||
+          Array.isArray(event.package_heads) ||
+          Object.keys(event.package_heads).length === 0
+        ) {
+          errors.push("A mission visual approval records the package heads it covers.");
+        } else {
+          for (const [packageId, packageHead] of Object.entries(event.package_heads)) {
+            if (!state.packages[packageId] || !/^[0-9a-f]{40}$/.test(packageHead)) {
+              errors.push(
+                `Mission visual approval package_heads has invalid coverage for ${packageId}.`,
+              );
+            }
+          }
+        }
+        const walker = state.integratedReviews.some(
+          (review) =>
+            review.mode === "workflow-walker" &&
+            review.result === "clear" &&
+            review.head_sha === event.head_sha,
+        );
+        if (!walker) {
+          errors.push(
+            `No clear workflow-walker review covers integrated head ${event.head_sha ?? "unknown"}.`,
+          );
+        }
+        if (!isNonEmptyString(event.approved_by) || !isNonEmptyString(event.evidence)) {
+          errors.push("A visual approval records who approved and where (the live review).");
+        }
+        break;
+      }
       const pkg = state.packages[event.package_id];
       if (!pkg) {
         errors.push(`No planned package ${event.package_id}.`);
@@ -853,19 +1006,35 @@ export function validateEvent(event, state) {
       }
       // LAN-148 §D: Brian looks at the integrated result, not at one package in
       // isolation. The walker runs first, at the head he will be shown.
-      const walked = state.integratedReviews.find(
-        (review) =>
-          review.mode === "workflow-walker" &&
-          review.result === "clear" &&
-          review.head_sha === pkg.head_sha,
-      );
-      if (!walked) {
+      if (!clearWalkerCovers(state, pkg)) {
         errors.push(
           `No clear workflow-walker review covers ${pkg.head_sha ?? "this package's head"}. The mission's own user jobs are completed end to end before Brian is asked to judge presentation.`,
         );
       }
       if (!isNonEmptyString(event.approved_by) || !isNonEmptyString(event.evidence)) {
         errors.push("A visual approval records who approved and where (the live review).");
+      }
+      break;
+    }
+
+    case "journal-annotation": {
+      if (!Number.isInteger(event.target_event) || event.target_event < 0) {
+        errors.push("A journal annotation names an existing zero-based target_event index.");
+      } else if (event.target_event >= state.eventCount) {
+        errors.push(
+          `Journal event ${event.target_event} does not exist; append-only annotations cannot correct an absent entry.`,
+        );
+      }
+      if (!["disputed", "corrected"].includes(event.disposition)) {
+        errors.push('A journal annotation disposition is "disputed" or "corrected".');
+      }
+      if (!isNonEmptyString(event.reason)) {
+        errors.push(
+          "A journal annotation records why the existing entry is disputed or corrected.",
+        );
+      }
+      if (event.disposition === "corrected" && !isNonEmptyString(event.correction)) {
+        errors.push("A corrected journal entry records the correction without rewriting history.");
       }
       break;
     }
@@ -1120,10 +1289,19 @@ export function validateEvent(event, state) {
     }
 
     case "mission-stopped": {
-      if (!["usage-exhausted", "owner-stop", "blocked"].includes(event.reason)) {
-        errors.push('A stop reason is "usage-exhausted", "owner-stop" or "blocked".');
+      if (!["usage-exhausted", "owner-stop", "blocked", "phase-boundary"].includes(event.reason)) {
+        errors.push(
+          'A stop reason is "usage-exhausted", "owner-stop", "blocked" or "phase-boundary".',
+        );
       }
       if (!isNonEmptyString(event.detail)) errors.push("A stop records why.");
+      if (event.reason === "phase-boundary") {
+        if (!PHASE_BOUNDARIES.includes(event.phase)) {
+          errors.push(`A phase-boundary stop names one of ${PHASE_BOUNDARIES.join(", ")}.`);
+        } else if (state.phaseRecycles.includes(event.phase)) {
+          errors.push(`The Lead already recycled at ${event.phase}.`);
+        }
+      }
       break;
     }
 
@@ -1164,6 +1342,9 @@ export function validateEvent(event, state) {
  *   dispatchDeferrals: Array<Record<string, any>>,
  *   laneBypasses: Array<Record<string, any>>,
  *   integratedReviews: Array<Record<string, any>>,
+ *   missionVisualApprovals: Array<Record<string, any>>,
+ *   phaseRecycles: string[],
+ *   annotations: Array<Record<string, any>>,
  *   closeout: Record<string, any> | null,
  *   reclaimed: string[],
  *   terminal: { at: string, state: "finalized" | "abandoned" } | null,
@@ -1191,6 +1372,9 @@ function emptyState() {
     dispatchDeferrals: [],
     laneBypasses: [],
     integratedReviews: [],
+    missionVisualApprovals: [],
+    phaseRecycles: [],
+    annotations: [],
     closeout: null,
     reclaimed: [],
     terminal: null,
@@ -1244,6 +1428,9 @@ export function reduce(events) {
             receipts: existing?.receipts ?? [],
             review: existing?.review ?? null,
             visual_approved: existing?.visual_approved ?? false,
+            visual_approval: existing?.visual_approval ?? null,
+            visual_carry_forward_chain: existing?.visual_carry_forward_chain ?? [],
+            visual_evidence_pending: existing?.visual_evidence_pending ?? false,
             driftStopped: existing?.driftStopped ?? false,
           };
         }
@@ -1293,9 +1480,10 @@ export function reduce(events) {
       case "correction-dispatched": {
         const pkg = state.packages[event.package_id];
         pkg.status = "correction";
-        // The correction will produce a new head; whatever Brian visually
-        // approved is no longer what would merge. Approval is re-earned.
-        pkg.visual_approved = false;
+        // A dispatch has no new head to classify. Keep the evidence but mark it
+        // pending so it cannot satisfy a gate until `pr-opened` records and
+        // classifies the actual old-head..new-head delta.
+        pkg.visual_evidence_pending = true;
         state.activeWorkers.push({
           worker_id: event.worker_id,
           package_id: event.package_id,
@@ -1340,11 +1528,31 @@ export function reduce(events) {
       }
       case "pr-opened": {
         const pkg = state.packages[event.package_id];
-        // A new head invalidates a visual approval given at an older one —
-        // Brian approved what he saw, not whatever came later.
-        if (pkg.visual_approved && pkg.visual_approval?.head_sha !== event.head_sha) {
-          pkg.visual_approved = false;
+        const previousHead = pkg.head_sha;
+        if (previousHead && previousHead !== event.head_sha) {
+          const delta = event.visual_delta;
+          if (
+            delta?.previous_head === previousHead &&
+            delta?.new_head === event.head_sha &&
+            delta?.verdict === "non-rendered" &&
+            delta?.fact === `carried-forward-from ${previousHead}`
+          ) {
+            pkg.visual_carry_forward_chain.push({
+              from_sha: previousHead,
+              to_sha: event.head_sha,
+              verdict: delta.verdict,
+              files: delta.files,
+              fact: delta.fact,
+            });
+          } else {
+            // Unknown and rendered deltas both fail closed. Brian approved what
+            // he saw, not an unclassified or presentation-changing head.
+            pkg.visual_approved = false;
+            pkg.visual_approval = null;
+            pkg.visual_carry_forward_chain = [];
+          }
         }
+        pkg.visual_evidence_pending = false;
         pkg.pr_number = event.pr_number;
         pkg.head_sha = event.head_sha;
         break;
@@ -1371,6 +1579,9 @@ export function reduce(events) {
           result: event.result,
           jobs_completed: event.jobs_completed ?? null,
           findings: event.findings ?? [],
+          package_heads: event.package_heads,
+          sensitive_paths: event.sensitive_paths ?? null,
+          report: event.report ?? null,
         });
         break;
       case "package-reclaimed": {
@@ -1413,8 +1624,20 @@ export function reduce(events) {
         };
         break;
       case "visual-approval": {
+        if (event.package_heads !== undefined || event.head_sha !== undefined) {
+          state.missionVisualApprovals.push({
+            at: event.at,
+            by: event.approved_by,
+            evidence: event.evidence,
+            head_sha: event.head_sha,
+            package_heads: event.package_heads,
+          });
+          break;
+        }
         const pkg = state.packages[event.package_id];
         pkg.visual_approved = true;
+        pkg.visual_evidence_pending = false;
+        pkg.visual_carry_forward_chain = [];
         pkg.visual_approval = {
           at: event.at,
           by: event.approved_by,
@@ -1424,6 +1647,15 @@ export function reduce(events) {
         };
         break;
       }
+      case "journal-annotation":
+        state.annotations.push({
+          at: event.at,
+          target_event: event.target_event,
+          disposition: event.disposition,
+          reason: event.reason,
+          correction: event.correction ?? null,
+        });
+        break;
       case "owner-question":
         state.questions[event.id] = {
           id: event.id,
@@ -1478,7 +1710,13 @@ export function reduce(events) {
         for (const pkg of Object.values(state.packages)) pkg.driftStopped = false;
         break;
       case "mission-stopped":
-        state.stopped = { at: event.at, reason: event.reason, detail: event.detail };
+        state.stopped = {
+          at: event.at,
+          reason: event.reason,
+          detail: event.detail,
+          phase: event.phase ?? null,
+        };
+        if (event.reason === "phase-boundary") state.phaseRecycles.push(event.phase);
         break;
       case "mission-resumed":
         state.stopped = null;
@@ -1498,6 +1736,48 @@ export function replayState(repoPath, missionId, env = process.env) {
   return reduce(readJournal(paths.journal));
 }
 
+function prepareJournalEvent(repoPath, event, state) {
+  if (event.type !== "pr-opened") return event;
+  const previousHead = state.packages[event.package_id]?.head_sha;
+  if (!previousHead || previousHead === event.head_sha) return event;
+
+  try {
+    const output = execFileSync(
+      "git",
+      ["diff", "--name-status", previousHead, event.head_sha, "--"],
+      {
+        cwd: repoPath,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    );
+    const classified = classifyVisualDelta(parseNameStatus(output), loadRules());
+    return {
+      ...event,
+      visual_delta: {
+        previous_head: previousHead,
+        new_head: event.head_sha,
+        ...classified,
+        ...(classified.verdict === "non-rendered"
+          ? { fact: `carried-forward-from ${previousHead}` }
+          : {}),
+      },
+    };
+  } catch {
+    // A missing commit, invalid repository, or failed diff is not evidence that
+    // presentation stayed unchanged. Record the unknown verdict and invalidate.
+    return {
+      ...event,
+      visual_delta: {
+        previous_head: previousHead,
+        new_head: event.head_sha,
+        verdict: "unknown",
+        files: [],
+      },
+    };
+  }
+}
+
 /**
  * Validate-then-append under the mission lock. Returns the replayed state
  * after the append. Throws with every refusal when the event is invalid —
@@ -1507,10 +1787,13 @@ export async function appendEvent(repoPath, missionId, event, options = {}) {
   const env = options.env ?? process.env;
   const now = options.now ?? Date.now();
   const paths = missionPaths(repoPath, missionId, env);
-  const stamped = { at: new Date(now).toISOString(), ...event };
   return withLock(paths.lock, () => {
     const events = readJournal(paths.journal);
     const state = reduce(events);
+    // Caller-supplied classifier fields are overwritten. Carry-forward is a
+    // machine decision derived from the repository, never a Lead assertion.
+    const prepared = prepareJournalEvent(repoPath, event, state);
+    const stamped = { at: new Date(now).toISOString(), ...prepared };
     const errors = validateEvent(stamped, state);
     if (errors.length > 0) {
       const error = new Error(`Refused ${event.type}:\n- ${errors.join("\n- ")}`);
@@ -1572,6 +1855,13 @@ export function nextActions(state) {
       detail: "Run the non-mutating Linear connectivity check and record it.",
     });
   }
+  if (state.planApproved && !state.phaseRecycles.includes("plan-approved")) {
+    actions.push({
+      action: "recycle-lead",
+      detail:
+        "Plan approved. Stop at the plan-approved phase boundary; a fresh Lead resumes from the journal and reconciles GitHub before dispatch.",
+    });
+  }
   for (const question of Object.values(state.questions)) {
     if (question.status === "open" && question.classification === "immediate") {
       actions.push({
@@ -1612,23 +1902,6 @@ export function nextActions(state) {
         });
       }
     }
-    if (pkg.status === "implemented" && pkg.risk_class !== "low") {
-      actions.push({
-        action: "review",
-        package_id: pkg.id,
-        detail: "Route one fresh-context independent review.",
-      });
-    }
-    if (pkg.status === "implemented" && pkg.risk_class === "low") {
-      // The guarded lane always requires a clear review receipt, so low-risk
-      // work either earns one to qualify, or goes to Brian as a normal draft.
-      actions.push({
-        action: "low-risk-disposition",
-        package_id: pkg.id,
-        detail:
-          "Low risk: verify the worker's evidence deterministically, then either route a review to qualify for the guarded lane or hand the draft PR to Brian.",
-      });
-    }
     if (pkg.status === "blocked" && pkg.review?.result === "blocked") {
       actions.push({
         action: "correction",
@@ -1636,43 +1909,90 @@ export function nextActions(state) {
         detail: `Resume original worker ${pkg.worker_id}.`,
       });
     }
-    if (pkg.status === "reviewed") {
+    if (
+      ["implemented", "reviewed"].includes(pkg.status) &&
+      reviewCovers(state, pkg) &&
+      approvalCovers(state, pkg)
+    ) {
       actions.push({
         action: "merge-gate",
         package_id: pkg.id,
         detail: "Evaluate the guarded merge gate.",
       });
     }
-    // The walker runs against the head Brian will be shown, before he is asked.
-    if (
-      pkg.visual !== "nonvisual" &&
-      pkg.head_sha &&
-      !pkg.visual_approved &&
-      ["implemented", "reviewed"].includes(pkg.status) &&
-      !state.integratedReviews.some(
-        (review) =>
-          review.mode === "workflow-walker" &&
-          review.result === "clear" &&
-          review.head_sha === pkg.head_sha,
-      )
-    ) {
-      actions.push({
-        action: "workflow-walker",
-        package_id: pkg.id,
-        detail: `Complete the mission's user jobs end to end against ${pkg.head_sha} before asking Brian to judge presentation.`,
-      });
-    }
   }
 
   const live = packages.filter((pkg) => pkg.status !== "removed");
+  const built = live.filter((pkg) => ["implemented", "reviewed", "merged"].includes(pkg.status));
+  const buildComplete = live.length > 0 && built.length === live.length;
+  const integratedCovers = (mode) =>
+    state.integratedReviews.some(
+      (review) =>
+        review.mode === mode &&
+        review.result === "clear" &&
+        live.every(
+          (pkg) =>
+            pkg.status === "merged" ||
+            review.package_heads?.[pkg.id] === pkg.head_sha ||
+            (live.length === 1 && review.head_sha === pkg.head_sha),
+        ),
+    );
+  if (buildComplete && !state.phaseRecycles.includes("build-complete")) {
+    actions.push({
+      action: "recycle-lead",
+      detail:
+        "Build complete. Stop at the build-complete phase boundary; a fresh Lead resumes before integrated verification and review.",
+    });
+  }
+  if (buildComplete && !integratedCovers("workflow-walker")) {
+    actions.push({
+      action: "workflow-walker",
+      detail:
+        "At build-complete, run full verification once, then complete the mission's user jobs end to end at the integrated head.",
+    });
+  }
+  if (buildComplete && !integratedCovers("cross-surface")) {
+    actions.push({
+      action: "cross-surface-review",
+      detail:
+        "At the integrated head, compare repeated facts, states, dates, permissions and copy across the mission's surfaces.",
+    });
+  }
+  if (buildComplete && !integratedCovers("security-tier")) {
+    actions.push({
+      action: "security-tier-review",
+      detail:
+        "Run one fresh-context review over only the integrated diff's sensitive-path intersection and record its report file.",
+    });
+  }
+  const visualPackages = live.filter((pkg) => pkg.visual !== "nonvisual");
+  if (
+    buildComplete &&
+    visualPackages.length > 0 &&
+    integratedCovers("workflow-walker") &&
+    !visualPackages.every((pkg) => approvalCovers(state, pkg))
+  ) {
+    actions.push({
+      action: "mission-visual-approval",
+      detail:
+        "Present one three-part brief and integrated environment for Brian's single mission check-off.",
+    });
+  }
+  const gateComplete =
+    buildComplete &&
+    integratedCovers("workflow-walker") &&
+    integratedCovers("cross-surface") &&
+    integratedCovers("security-tier") &&
+    visualPackages.every((pkg) => approvalCovers(state, pkg));
+  if (gateComplete && !state.phaseRecycles.includes("gate-complete")) {
+    actions.push({
+      action: "recycle-lead",
+      detail:
+        "Gate complete. Stop at the gate-complete phase boundary; a fresh Lead reconciles GitHub before evaluating package merge routes.",
+    });
+  }
   if (live.length > 0 && live.every((pkg) => pkg.status === "merged")) {
-    if (!state.integratedReviews.some((review) => review.mode === "cross-surface")) {
-      actions.push({
-        action: "cross-surface-review",
-        detail:
-          "Every package has landed. Compare the repeated facts, states, dates, permissions and copy across the surfaces they add up to.",
-      });
-    } else if (!state.closeout) {
+    if (!state.closeout) {
       actions.push({
         action: "closeout",
         detail:

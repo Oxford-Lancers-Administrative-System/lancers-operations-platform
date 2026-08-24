@@ -24,6 +24,7 @@ import {
 import { validatePacket } from "../scripts/mission/lib/packet.mjs";
 import { promoteRule, readRules } from "../scripts/mission/lib/owner-rules.mjs";
 import {
+  deriveGitVisualFiles,
   evaluateMissionGate,
   journalConjuncts,
   loadRules,
@@ -58,6 +59,21 @@ function mission() {
   let tick = 1_700_000_000_000;
   const append = (event: object) => appendEvent(repo, MISSION, event, { env, now: (tick += 1000) });
   return { repo, env, append };
+}
+
+function git(repo: string, args: string[]) {
+  const result = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
+  if (result.status !== 0) throw new Error(result.stderr || result.stdout);
+  return result.stdout.trim();
+}
+
+function commitFile(repo: string, relative: string, contents: string, message: string) {
+  const target = path.join(repo, relative);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  fs.writeFileSync(target, contents);
+  git(repo, ["add", relative]);
+  git(repo, ["commit", "-m", message]);
+  return git(repo, ["rev-parse", "HEAD"]);
 }
 
 /**
@@ -555,6 +571,149 @@ describe("Rehearsal 9 — guarded merge permits the qualifying case and refuses 
     expect(merged.packages["WP-events-filter"].status).toBe("merged");
   });
 
+  it("carries walker and approval across a proved comment-only delta, then voids both for presentation", async () => {
+    const m = mission();
+    git(m.repo, ["init", "--quiet"]);
+    git(m.repo, ["config", "user.email", "rehearsal@example.invalid"]);
+    git(m.repo, ["config", "user.name", "Mission Rehearsal"]);
+    const approvedSha = commitFile(
+      m.repo,
+      "src/lib/events/service.ts",
+      "export const value = 1; // approved comment\n",
+      "baseline",
+    );
+    const presentationPath = path.join(m.repo, "src/app/events/page.tsx");
+    fs.mkdirSync(path.dirname(presentationPath), { recursive: true });
+    fs.writeFileSync(presentationPath, "export default function Page() { return null; }\n");
+    git(m.repo, ["add", "src/app/events/page.tsx"]);
+    git(m.repo, ["commit", "--amend", "--no-edit"]);
+    const actualApprovedSha = git(m.repo, ["rev-parse", "HEAD"]);
+
+    await synced(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/WP-events-filter",
+      branch: "feat/WP-events-filter",
+    });
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      receipt: workerReceipt(),
+    });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 60,
+      head_sha: actualApprovedSha,
+    });
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: {
+        review_mode: "full",
+        full_review_sha: actualApprovedSha,
+        reviewed_head_sha: actualApprovedSha,
+        round: 1,
+        result: "clear",
+      },
+    });
+    await m.append({
+      type: "integrated-review",
+      mode: "workflow-walker",
+      head_sha: actualApprovedSha,
+      result: "clear",
+      jobs_completed: "Completed the synthetic event workflow end to end.",
+    });
+    await m.append({
+      type: "visual-approval",
+      package_id: "WP-events-filter",
+      approved_by: "Brian",
+      evidence: "synthetic live review",
+    });
+
+    const commentSha = commitFile(
+      m.repo,
+      "src/lib/events/service.ts",
+      "export const value = 1; // corrected comment only\n",
+      "comment only",
+    );
+    const carried = await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 60,
+      head_sha: commentSha,
+    });
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: {
+        review_mode: "correction",
+        full_review_sha: actualApprovedSha,
+        reviewed_head_sha: commentSha,
+        round: 2,
+        result: "clear",
+      },
+    });
+    expect(carried.packages["WP-events-filter"].visual_approved).toBe(true);
+    const chain = carried.packages["WP-events-filter"].visual_carry_forward_chain;
+    expect(chain).toEqual([
+      expect.objectContaining({
+        from_sha: actualApprovedSha,
+        to_sha: commentSha,
+        verdict: "non-rendered",
+        fact: `carried-forward-from ${actualApprovedSha}`,
+      }),
+    ]);
+    expect(
+      journalConjuncts(replayState(m.repo, MISSION, m.env), "WP-events-filter", commentSha),
+    ).toEqual([]);
+
+    const carryReceipt = receipt({
+      full_review_sha: actualApprovedSha,
+      reviewed_head_sha: commentSha,
+      review_mode: "correction",
+      visual_evidence: {
+        approved_sha: actualApprovedSha,
+        carry_forward_chain: chain,
+      },
+    });
+    const carryVerdict = evaluateMissionGate({
+      pullRequest: pullRequest({
+        headRefOid: commentSha,
+        body: bodyWith(carryReceipt),
+      }),
+      checkRuns: greenChecks(commentSha),
+      files: [{ status: "M", path: "src/lib/events/service.ts" }],
+      rules,
+      deriveVisualFiles: (fromSha, toSha, currentHead) =>
+        deriveGitVisualFiles(m.repo, fromSha, toSha, currentHead),
+    });
+    expect(carryVerdict.reasons).toEqual([]);
+    expect(carryVerdict.merge).toBe(true);
+
+    const presentationSha = commitFile(
+      m.repo,
+      "src/app/events/page.tsx",
+      "export default function Page() { return <main>Changed</main>; }\n",
+      "presentation",
+    );
+    const voided = await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 60,
+      head_sha: presentationSha,
+    });
+    expect(voided.packages["WP-events-filter"].visual_approved).toBe(false);
+    expect(voided.packages["WP-events-filter"].visual_carry_forward_chain).toEqual([]);
+    expect(journalConjuncts(voided, "WP-events-filter", presentationSha).join("\n")).toMatch(
+      /visual work without Brian's recorded visual approval/,
+    );
+    expect(approvedSha).not.toBe(actualApprovedSha);
+  });
+
   it("refuses stale SHA, failed CI, unresolved review, missing visual approval, prohibited risk, and open owner decisions", async () => {
     const stale = evaluateMissionGate({
       pullRequest: pullRequest({ headRefOid: "b".repeat(40) }),
@@ -640,7 +799,7 @@ describe("Rehearsal 9 — guarded merge permits the qualifying case and refuses 
     await implemented(m);
     const state = replayState(m.repo, MISSION, m.env);
     expect(journalConjuncts(state, "WP-events-filter", HEAD).join("\n")).toMatch(
-      /no clear review receipt/,
+      /no clear .*review.*covers/i,
     );
   });
 });

@@ -67,6 +67,10 @@ Any defect — dirty tree, unpushed commits, an unmerged package, an active
 worker — and that package is left entirely alone and reported. Absence of
 evidence is never permission.
 
+`merge-record` invokes this same per-package path immediately after recording a
+merge. `/finish-mission` remains the explicit idempotent recovery and final
+closeout path; automatic cleanup never weakens or bypasses any refusal above.
+
 ## 3. Retire the mission stack, once
 
 A mission-owned stack is shared: several workers attach to it and finish at
@@ -96,8 +100,10 @@ npm run mission:finish -- M-<id> --abandon --reason "…" --preserved "…"
 
 ## What stays with Brian
 
-Everything that already did. Migrations, RLS and grants, authentication and
-session boundaries, production scripts, secrets, hosted data, deployment,
-WhatsApp and external configuration are unaffected by reclamation — it runs
-after their merges, never instead of them. If a package has not merged, this
-command reclaims nothing and says why.
+Everything that already did. Every prohibited path, plus migrations, RLS and
+grants, production scripts, secrets, hosted data, deployment, WhatsApp and
+external configuration, is unaffected by reclamation — it runs after their
+owner merges, never instead of them. The checkpoint-approval surfaces
+`src/lib/auth/**` and `src/lib/delivery/**` remain lane-mergeable only after an
+answered checkpoint question names the package. If a package has not merged,
+this command reclaims nothing and says why.

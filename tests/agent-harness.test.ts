@@ -21,14 +21,23 @@ function frontMatter(file: string) {
 }
 
 const flat = (value: string) => value.replace(/\*\*/g, "").replace(/\s+/g, " ");
+function numberedSection(markdown: string, number: number): string {
+  const start = markdown.search(new RegExp(`^## ${number}\\. `, "m"));
+  if (start < 0) throw new Error(`Missing numbered section ${number}`);
+  const rest = markdown.slice(start);
+  const next = rest.slice(1).search(/^## \d+\. /m);
+  return next < 0 ? rest : rest.slice(0, next + 1);
+}
 const skillPath = path.join(skills, "start-issue", "SKILL.md");
 const reviewerPath = path.join(agents, "code-reviewer.md");
+const scoutPath = path.join(agents, "scout.md");
 const finishSkillPath = path.join(skills, "finish-issue", "SKILL.md");
 const missionSkillPath = path.join(skills, "run-mission", "SKILL.md");
 const intakeSkillPath = path.join(skills, "mission-intake", "SKILL.md");
 const workerPath = path.join(agents, "implementation-worker.md");
 const skill = frontMatter(skillPath);
 const reviewer = frontMatter(reviewerPath);
+const scout = frontMatter(scoutPath);
 const finishSkill = frontMatter(finishSkillPath);
 const missionSkill = frontMatter(missionSkillPath);
 const intakeSkill = frontMatter(intakeSkillPath);
@@ -44,6 +53,10 @@ const repeatedPremiseTranscript = readFileSync(
 );
 const findingDispositionTranscript = readFileSync(
   path.join(root, "tests", "fixtures", "agent-review", "finding-dispositions.md"),
+  "utf8",
+);
+const runnerDisciplineTranscript = readFileSync(
+  path.join(root, "tests", "fixtures", "mission", "runner-discipline.md"),
   "utf8",
 );
 const pullRequestTemplate = readFileSync(
@@ -224,6 +237,7 @@ describe("single-issue Claude workflow", () => {
     expect([...readdirSync(agents)].sort()).toEqual([
       "code-reviewer.md",
       "implementation-worker.md",
+      "scout.md",
     ]);
     expect(flat(skill.body)).toMatch(/Do not launch an implementation sub-agent/i);
     expect(flat(skill.body)).toMatch(/launch one fresh-context `code-reviewer`/i);
@@ -452,7 +466,9 @@ describe("issue closeout workflow", () => {
   it("is announced by /start-issue and by the working agreement, and leaves missions alone", () => {
     expect(flat(skill.body)).toMatch(/Closeout is a separate, later invocation/i);
     expect(flat(skill.body)).toMatch(/`\/finish-issue LAN-###`/i);
-    expect(flat(agreement)).toMatch(/five user-invoked workflows and two subagents are approved/i);
+    expect(flat(agreement)).toMatch(
+      /five user-invoked workflows and three subagents are approved/i,
+    );
     expect(flat(agreement)).toMatch(/Under `\/finish-issue`, the top-level session finalizes/i);
     expect(flat(agreement)).toMatch(
       /Linear recordkeeping is limited to In Progress at start, the draft PR link, one final evidence\/handoff comment, and — after the merge, from `\/finish-issue` alone — the Done transition and its single closing comment/i,
@@ -483,7 +499,7 @@ describe("graded review routing", () => {
     expect(body).toMatch(/Full review.*independently reconstructs material requirements/i);
     expect(body).toMatch(/Correction review.*previous_reviewed_sha\.\.current_head_sha/i);
     expect(reviewBody).toMatch(
-      /review mode \(`full`, `correction`, or `requirement-adjudication`\)/i,
+      /review mode \(`full`, `security-tier`, `correction`, or `requirement-adjudication`\)/i,
     );
     expect(reviewBody).toMatch(/Review `previous_reviewed_sha\.\.current_head_sha`/i);
     expect(reviewBody).toMatch(
@@ -711,6 +727,15 @@ describe("graded review routing", () => {
     );
     expect(flat(reviewer.body)).toMatch(/Do not repair anything/i);
   });
+
+  it("keeps the approved scout bounded, read-only, concise, and unable to delegate", () => {
+    expect(scout.fields.name).toBe("scout");
+    for (const tool of ["Write", "Edit", "NotebookEdit", "Agent", "Workflow"])
+      expect(scout.fields.disallowedTools).toContain(tool);
+    expect(flat(scout.body)).toMatch(/Answer exactly one bounded question/i);
+    expect(flat(scout.body)).toMatch(/Return one concise paragraph/i);
+    expect(flat(scout.body)).toMatch(/Never spawn another agent/i);
+  });
 });
 
 describe("zero-command visual acceptance", () => {
@@ -769,9 +794,14 @@ describe("zero-command visual acceptance", () => {
 
 describe("mission harness v1", () => {
   const missionBody = flat(missionSkill.body);
+  const finishMissionBody = flat(frontMatter(path.join(skills, "finish-mission", "SKILL.md")).body);
   const workerBody = flat(worker.body);
   const stateSource = readFileSync(
     path.join(root, "scripts", "mission", "lib", "state.mjs"),
+    "utf8",
+  );
+  const finishMissionSource = readFileSync(
+    path.join(root, "scripts", "mission", "finish-mission.mjs"),
     "utf8",
   );
   const gateSource = readFileSync(path.join(root, "scripts", "mission", "merge-gate.mjs"), "utf8");
@@ -796,7 +826,7 @@ describe("mission harness v1", () => {
   it("fences one stable Lead per mission and recovers abandoned workers", () => {
     expect(missionBody).toContain("LANCERS_MISSION_LEAD_ID");
     expect(missionBody).toMatch(/transient CLI PID is only liveness evidence/i);
-    expect(missionBody).toMatch(/record `abandon-worker`/i);
+    expect(missionBody).toMatch(/`abandon-worker` is only for a worker that cannot be resumed/i);
   });
 
   it("defines the implementation worker as bounded, unable to spawn agents, but able to implement", () => {
@@ -813,12 +843,44 @@ describe("mission harness v1", () => {
   });
 
   it("makes the Mission Lead the only orchestrator, with flat delegation", () => {
-    expect(missionBody).toMatch(/workers and reviewers are spawned only by the Mission Lead/i);
-    expect(missionBody).toMatch(/workers never spawn agents of any kind/i);
+    const dispatch = numberedSection(missionSkill.body, 6);
+    for (const role of ["`implementation-worker`", "reviewers", "scouts"])
+      expect(dispatch).toContain(role);
     expect(missionBody).toMatch(
-      /never launches an agent that is not `implementation-worker` or `code-reviewer`/i,
+      /never launches an agent that is not `implementation-worker`, `code-reviewer`, or `scout`/i,
     );
     expect(missionBody).toMatch(/never becomes the default application-code implementer/i);
+    const boundaries = numberedSection(missionSkill.body, 13);
+    expect(boundaries).toContain("`scout`");
+    expect(boundaries).toContain("three concurrent implementers");
+    expect(boundaries).toContain("read-only scout");
+  });
+
+  it("pins model tiering, file handoffs, output suppression, phase recycling, and no polling", () => {
+    expect(worker.fields.model).toBe("opus");
+    expect(reviewer.fields.model).toBe("opus");
+    expect(scout.fields.model).toBe("sonnet");
+    const dispatch = numberedSection(missionSkill.body, 6);
+    for (const token of [
+      "security-tier reviewer",
+      "Sonnet-class model",
+      "brief.md",
+      "receipt.json",
+      "/tmp/out.log",
+      "tail -20 /tmp/out.log",
+      "git diff --stat",
+    ])
+      expect(dispatch).toContain(token);
+    const recovery = numberedSection(missionSkill.body, 12);
+    for (const token of [
+      "plan-approved",
+      "build-complete",
+      "gate-complete",
+      "--reason phase-boundary",
+      "completion",
+      "notifications",
+    ])
+      expect(recovery).toContain(token);
   });
 
   it("caps implementation concurrency at two and serializes collisions and migrations", async () => {
@@ -840,6 +902,16 @@ describe("mission harness v1", () => {
     expect(pkg.scripts.mission).toBe("node scripts/mission/cli.mjs");
   });
 
+  it("carries visual evidence only across machine-proved non-rendered deltas", () => {
+    expect(missionBody).toContain("carried-forward-from <sha>");
+    expect(missionBody).toMatch(/same visual-surface rules as the guarded merge gate/i);
+    expect(missionBody).toMatch(/The machine decides this[\s\S]*never asserts carry-forward/i);
+    expect(missionBody).toMatch(/any rendered or unclassifiable link voids/i);
+    expect(missionBody).toContain("visual_evidence");
+    expect(stateSource).toContain('verdict: "unknown"');
+    expect(gateSource).toContain("visualCarryForwardDefects");
+  });
+
   it("refuses dispatch before Linear synchronization, and keeps sync idempotent", () => {
     expect(missionBody).toMatch(
       /No implementation worker starts until its package has a created or reconciled Linear issue/i,
@@ -854,9 +926,86 @@ describe("mission harness v1", () => {
   it("routes ordinary corrections back to the original worker, never a replacement", () => {
     expect(stateSource).toContain("resumes the original implementation worker");
     expect(stateSource).toContain("is refused");
-    expect(missionBody).toMatch(/resume the original implementation worker/i);
+    expect(missionBody).toMatch(/resume the affected original workers/i);
     expect(missionBody).toMatch(/Do not create a new implementer because review failed/i);
     expect(workerBody).toMatch(/re-enter the same worktree and branch/i);
+  });
+
+  it("batches corrections, targets iteration checks, and keeps workers resumable", () => {
+    const review = numberedSection(missionSkill.body, 7);
+    for (const token of [
+      "one batched correction round",
+      "--findings R-001,R-002,…",
+      "npx vitest run <affected files>",
+      "npm run typecheck",
+      "npm run verify",
+      "integrated build-complete",
+    ])
+      expect(review).toContain(token);
+    expect(missionBody).toMatch(/stopped without returning a receipt is resumable/i);
+    expect(missionBody).toMatch(/evidence of the failed resume attempt/i);
+  });
+
+  it("keeps package scope isolated and review hostnames canonical", () => {
+    expect(missionBody).toMatch(/A package's pull request contains only its package/i);
+    expect(missionBody).toMatch(/unrelated fix[\s\S]*ships as its own pull request/i);
+    expect(missionBody).toMatch(/exact hostname named by that stack's Auth configuration/i);
+    expect(missionBody).toMatch(/never substitutes `localhost` for `127\.0\.0\.1`/i);
+    expect(missionBody).toMatch(/Review links retain the exact hostname/i);
+  });
+
+  it("keeps reviewer context bounded and applies the three-tier merge route", () => {
+    const reviewerBody = flat(reviewer.body);
+    expect(reviewerBody).toMatch(/AGENTS\.md.*Hard rules.*Definition of done/i);
+    for (const adr of ["ADR 0020", "ADR 0024", "ADR 0025", "ADR 0033"])
+      expect(reviewerBody).toContain(adr);
+    expect(reviewerBody).toMatch(/ADR 0013, ADR 0015, and ADR 0018 are superseded; do not load/i);
+    expect(reviewerBody).toMatch(/Acquire or attach.*database lease before running any DB-backed/i);
+    expect(reviewerBody).toMatch(/Refuse a review brief that does not state lease status/i);
+    expect(reviewerBody).toMatch(/anonymous-tier checks.*curl.*fresh browser profile/i);
+
+    expect(missionBody).not.toMatch(/Review grades follow.*start-issue/i);
+    const review = numberedSection(missionSkill.body, 7);
+    for (const token of [
+      "Non-security mission code",
+      "security-tier budget",
+      "one initial full review",
+      "two correction reviews",
+      "three total reviewer",
+    ])
+      expect(review).toContain(token);
+    expect(missionBody).toMatch(
+      /src\/lib\/auth\/.*src\/lib\/delivery\/.*lane-mergeable only after/i,
+    );
+    expect(missionBody).not.toMatch(/authentication and session boundaries.*owner-merged/i);
+    expect(finishMissionBody).toMatch(
+      /src\/lib\/auth\/.*src\/lib\/delivery\/.*lane-mergeable only after/i,
+    );
+  });
+
+  it("pins all five runner-discipline rules and rehearses both refusals", () => {
+    expect(missionBody).toMatch(/three-part review brief.*Scope.*Fit.*Exact review table/i);
+    expect(missionBody).toMatch(/Your approval means X; it does not yet mean Y/i);
+    expect(missionBody).toMatch(/not ready for owner review.*refuses to hand off/i);
+    expect(missionBody).toMatch(/Expected merge route: guarded-auto \| owner/i);
+    expect(missionBody).toMatch(/re-checked before dispatch, before owner review/i);
+    expect(missionBody).toMatch(
+      /route-changing scope change.*before review, never after approval/i,
+    );
+    expect(flat(worker.body)).toMatch(/read-back command proving the old form is gone/i);
+    expect(flat(worker.body)).toMatch(/nothing still references it/i);
+    for (const body of [missionBody, flat(worker.body)]) {
+      expect(body).toMatch(/“cannot”, “not possible”, or “the harness refuses”/i);
+      expect(body).toMatch(/refusal message quoted verbatim or two distinct attempts/i);
+    }
+    expect(missionBody).toMatch(/From apply until deploy, production is broken/i);
+    expect(missionBody).toMatch(/command that cannot run in Brian's current checkout/i);
+
+    const transcript = flat(runnerDisciplineTranscript);
+    expect(transcript).toMatch(/refused — not ready for owner review/i);
+    expect(transcript).toMatch(/route re-check detects a refused path/i);
+    expect(transcript).toMatch(/stop before owner review/i);
+    expect(transcript).toMatch(/Approval given for `guarded-auto` is not reused/i);
   });
 
   it("checks owner rules before asking, and separates immediate from hourly questions", () => {
@@ -910,6 +1059,17 @@ describe("mission harness v1", () => {
     expect(missionBody).toMatch(/Never put routine owner questions or scheduled check-in items/i);
   });
 
+  it("reports and reclaims resources at every checkpoint", () => {
+    expect(missionBody).toMatch(/Every checkpoint includes one Resources line/i);
+    expect(missionBody).toMatch(/active stacks, lease states, worktree count/i);
+    expect(missionBody).toContain("npm run db:cleanup-stale");
+    expect(missionBody).toMatch(/prune only worktrees whose merges the repository proves/i);
+    expect(missionBody).toContain("caffeinate -dims");
+    expect(readFileSync(path.join(root, "docs", "mission-harness.md"), "utf8")).toContain(
+      "Machine sleep stalled a worker",
+    );
+  });
+
   it("distinguishes implementation completion from verified acceptance", () => {
     expect(missionBody).toContain("Fully accepted");
     expect(missionBody).toContain("Implementation complete; acceptance pending");
@@ -929,6 +1089,19 @@ describe("mission harness v1", () => {
     expect(gateSource).not.toMatch(/merge\s*=\s*true/);
   });
 
+  it("reclaims merged packages automatically through the existing refusal path", () => {
+    expect(missionBody).toMatch(
+      /Recording any merge automatically invokes per-package reclamation/i,
+    );
+    expect(missionBody).toMatch(
+      /dirty, stash, unpushed, and active-worker refusals remain binding/i,
+    );
+    expect(finishMissionBody).toMatch(/merge-record.*same per-package path immediately/i);
+    expect(finishMissionBody).toMatch(/automatic cleanup never weakens or bypasses/i);
+    expect(finishMissionSource).toContain("await releaseLease");
+    expect(finishMissionSource).toMatch(/retirement failed:[\s\S]*lease remains visible/);
+  });
+
   it("keeps migration and unapproved visual work with Brian, and gates highest risk on his checkpoint", () => {
     // LAN-148 §F separated review grade from merge route. Highest risk is no
     // longer refused for its grade; it is refused unless an answered owner
@@ -938,7 +1111,7 @@ describe("mission harness v1", () => {
     expect(stateSource).toContain("owner-merged, never autonomous");
     expect(gateSource).toContain("only when it cites the answered owner question");
     expect(gateSource).toContain("no answered owner question names it");
-    expect(missionBody).toMatch(/ADR 0020 stands/);
+    expect(missionBody).toMatch(/ADR 0020's protected environment requirements stand/);
     // The review found the skill's operative merge procedure (§10) still
     // forbidding what its own §9 and the gate permit. Pin both, in the files
     // that carry them, so they cannot drift apart again.
@@ -1045,14 +1218,16 @@ describe("local Supabase workflow contract", () => {
 
     expect(pkg.scripts["db:seed"]).toMatch(/local-supabase-command/);
     expect(pkg.scripts["db:seed-user"]).toMatch(/local-supabase-command/);
-    expect(pkg.scripts.test).toBe("vitest run");
+    expect(pkg.scripts.test).toBe("vitest run --project unit --project database");
+    expect(pkg.scripts["verify:gate"]).toContain("--project gate");
     expect(pkg.scripts.pretest).toMatch(/require-local-supabase-lease/);
 
-    for (const command of ["db:seed:ci", "db:seed-user:ci", "test:ci"])
+    for (const command of ["db:seed:ci", "db:seed-user:ci", "test:ci", "test:gate:ci"])
       expect(pkg.scripts[command]).toMatch(/ci-local-command/);
     expect(workflow).toContain("npm run db:seed:ci");
     expect(workflow).toContain("npm run db:seed-user:ci");
     expect(workflow).toContain("npm run test:ci");
+    expect(workflow).toContain("npm run test:gate:ci");
     expect(workflow).not.toMatch(/run: npm run (db:seed|db:seed-user|test)$/m);
   });
 
@@ -1133,7 +1308,7 @@ describe("local Supabase workflow contract", () => {
     );
   });
 
-  it("keeps the fixed review credential in shared protected state and provisions on start/reset", () => {
+  it("keeps the fixed review credential in shared protected state and provisions on start/reset/seed", () => {
     const command = readFileSync(path.join(root, "scripts", "local-supabase-command.mjs"), "utf8");
     const account = readFileSync(
       path.join(root, "scripts", "lib", "local-review-account.mjs"),
@@ -1146,6 +1321,7 @@ describe("local Supabase workflow contract", () => {
     expect(command).toMatch(/ensureLocalReviewAccount/);
     expect(command).toMatch(/operation === "start"[\s\S]*provisionReviewState/);
     expect(command).toMatch(/operation === "reset"[\s\S]*provisionReviewState/);
+    expect(command).toMatch(/operation === "seed"[\s\S]*provisionReviewState/);
     expect(command).not.toMatch(/randomBytes/);
     expect(command).not.toMatch(/review-credentials/);
     expect(command).not.toMatch(/`TEST_USER_PASSWORD=\$\{reviewAccount\.password\}`/);

@@ -14,9 +14,11 @@
  */
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { execFileSync, spawnSync } from "node:child_process";
 
 import {
   appendEvent,
@@ -28,15 +30,35 @@ import {
   replayState,
 } from "./lib/state.mjs";
 import { promoteRule, readRules } from "./lib/owner-rules.mjs";
-import { evaluateMissionGate, journalConjuncts, loadRules } from "./merge-gate.mjs";
+import {
+  deriveGitVisualFiles,
+  evaluateMissionGate,
+  journalConjuncts,
+  loadRules,
+} from "./merge-gate.mjs";
 import { parseNameStatus } from "../fast-lane/classify.mjs";
+import { coordinatorStatus } from "../lib/local-supabase-coordinator.mjs";
 
 const repoPath = process.cwd();
+const finishMissionScript = import.meta.url.startsWith("file:")
+  ? path.join(path.dirname(fileURLToPath(import.meta.url)), "finish-mission.mjs")
+  : path.join(repoPath, "scripts", "mission", "finish-mission.mjs");
 const leadId = process.env.LANCERS_MISSION_LEAD_ID;
 
 function fail(message) {
   console.error(message);
   process.exit(1);
+}
+
+function requireNonEmptyFile(file, label) {
+  let contents;
+  try {
+    contents = fs.readFileSync(path.resolve(file), "utf8");
+  } catch (error) {
+    fail(`${label} file could not be read: ${error.message}`);
+  }
+  if (!contents.trim()) fail(`${label} file is empty.`);
+  return contents;
 }
 
 /** `--flag value` pairs and positionals, tiny on purpose. */
@@ -81,6 +103,31 @@ async function append(missionId, event) {
 
 function openQuestions(state) {
   return Object.values(state.questions).filter((question) => question.status === "open");
+}
+
+function resourceLine() {
+  const leases = Object.values(coordinatorStatus(repoPath).slots).filter(
+    (record) => !["released", "stale"].includes(record.state),
+  );
+  let worktrees = "unknown";
+  try {
+    worktrees = String(
+      execFileSync("git", ["worktree", "list", "--porcelain"], {
+        cwd: repoPath,
+        encoding: "utf8",
+      })
+        .split("\n")
+        .filter((line) => line.startsWith("worktree ")).length,
+    );
+  } catch {
+    // Reporting remains useful even when this checkout cannot enumerate worktrees.
+  }
+  const load = os
+    .loadavg()
+    .map((value) => value.toFixed(1))
+    .join("/");
+  const slots = leases.map((record) => `${record.slot}:${record.state}`).join(", ") || "none";
+  return `- Active stacks: ${leases.length}; leases: ${slots}; worktrees: ${worktrees}; load (1/5/15m): ${load}`;
 }
 
 /**
@@ -160,6 +207,13 @@ export function renderCheckpoint(state, events, options = {}) {
       "- Unknown — compare git rev-parse origin/main with the commit reported by /api/health, and deploy with: gh workflow run deploy.yml",
     );
   }
+
+  lines.push(
+    "",
+    "## Resources",
+    options.resourceLine ??
+      "- Active stacks: unknown; leases: unknown; worktrees: unknown; load (1/5/15m): unknown",
+  );
 
   return lines.join("\n");
 }
@@ -295,11 +349,19 @@ async function main() {
 
     case "dispatch": {
       const [, packageId] = positional;
-      if (!missionId || !packageId || !flags.worker || !flags.worktree || !flags.branch) {
+      if (
+        !missionId ||
+        !packageId ||
+        !flags.worker ||
+        !flags.worktree ||
+        !flags.branch ||
+        !flags.brief
+      ) {
         fail(
-          "Usage: mission dispatch <mission-id> <package-id> --worker <id> --worktree <path> --branch <name>",
+          "Usage: mission dispatch <mission-id> <package-id> --worker <id> --worktree <path> --branch <name> --brief <brief.md>",
         );
       }
+      requireNonEmptyFile(flags.brief, "Worker brief");
       // A dependency that is reviewed clean at exactly its recorded head is a
       // usable base — the whole point of LAN-148 §F. The state machine asks the
       // dispatch to record that basis, pinned to the commit it relies on, and
@@ -321,6 +383,7 @@ async function main() {
         worker_id: flags.worker,
         worktree: flags.worktree,
         branch: flags.branch,
+        brief_file: path.resolve(flags.brief),
         ...(basis.length > 0 ? { dependency_basis: basis } : {}),
       });
       const standing = basis.map((entry) => `${entry.package_id} at ${entry.head_sha}`).join(", ");
@@ -426,6 +489,23 @@ async function main() {
       break;
     }
 
+    case "mission-visual-approve": {
+      if (!missionId || !flags.head || !flags["package-heads"] || !flags.by || !flags.evidence) {
+        fail(
+          "Usage: mission mission-visual-approve <mission-id> --head <integrated-sha> --package-heads <file> --by Brian --evidence <where>",
+        );
+      }
+      await append(missionId, {
+        type: "visual-approval",
+        head_sha: flags.head,
+        package_heads: readJson(flags["package-heads"]),
+        approved_by: flags.by,
+        evidence: flags.evidence,
+      });
+      console.log(`Mission visual approval recorded at ${flags.head}.`);
+      break;
+    }
+
     case "question": {
       if (!missionId || !flags.id || !flags.class || !flags.text || !flags.source) {
         fail(
@@ -489,6 +569,25 @@ async function main() {
       break;
     }
 
+    case "annotate": {
+      if (!missionId || flags.event === undefined || !flags.disposition || !flags.reason) {
+        fail(
+          "Usage: mission annotate <mission-id> --event <zero-based-index> --disposition disputed|corrected --reason <why> [--correction <truth>]",
+        );
+      }
+      await append(missionId, {
+        type: "journal-annotation",
+        target_event: Number(flags.event),
+        disposition: flags.disposition,
+        reason: flags.reason,
+        ...(flags.correction ? { correction: flags.correction } : {}),
+      });
+      console.log(
+        `Journal event ${flags.event} annotated ${flags.disposition}; the original entry remains append-only.`,
+      );
+      break;
+    }
+
     case "rules": {
       console.log(JSON.stringify(readRules(repoPath), null, 2));
       break;
@@ -514,22 +613,47 @@ async function main() {
         ...(flags.reason ? { owner_route_reason: flags.reason } : {}),
       });
       console.log(`Merge recorded for ${packageId} (${flags.route}).`);
+      const reclamation = spawnSync(
+        process.execPath,
+        [finishMissionScript, missionId, "--package", packageId, "--reclaim-only"],
+        { cwd: repoPath, env: process.env, encoding: "utf8" },
+      );
+      if (reclamation.stdout.trim()) console.log(reclamation.stdout.trim());
+      if (reclamation.status !== 0) {
+        console.warn(
+          reclamation.stderr.trim() ||
+            `Automatic reclamation for ${packageId} exited ${reclamation.status}; the package was left alone.`,
+        );
+      }
       break;
     }
 
     case "integrated-review": {
-      if (!missionId || !flags.mode || !flags.head || !flags.result) {
+      if (
+        !missionId ||
+        !flags.mode ||
+        !flags.head ||
+        !flags["package-heads"] ||
+        !flags.result ||
+        !flags.report
+      ) {
         fail(
-          "Usage: mission integrated-review <mission-id> --mode workflow-walker|cross-surface --head <sha> --result clear|blocked [--jobs <what was completed>] [--findings <file>]",
+          "Usage: mission integrated-review <mission-id> --mode workflow-walker|cross-surface|security-tier --head <sha> --package-heads <file> --result clear|blocked [--jobs <what was completed>] [--findings <file>] [--sensitive-paths <file>] [--report <file>]",
         );
       }
+      requireNonEmptyFile(flags.report, "Integrated review report");
       await append(missionId, {
         type: "integrated-review",
         mode: flags.mode,
         head_sha: flags.head,
+        package_heads: flags["package-heads"] ? readJson(flags["package-heads"]) : undefined,
         result: flags.result,
         ...(flags.jobs ? { jobs_completed: flags.jobs } : {}),
         ...(flags.findings ? { findings: readJson(flags.findings) } : {}),
+        ...(flags["sensitive-paths"]
+          ? { sensitive_paths: readJson(flags["sensitive-paths"]) }
+          : {}),
+        report: path.resolve(flags.report),
       });
       console.log(`Integrated ${flags.mode} review recorded at ${flags.head}: ${flags.result}.`);
       break;
@@ -559,6 +683,7 @@ async function main() {
       const report = renderCheckpoint(state, events, {
         mainCommit: flags["main-commit"],
         deployedCommit: flags["deployed-commit"],
+        resourceLine: resourceLine(),
       });
       await append(missionId, { type: "checkpoint", number: state.checkpoints + 1 });
       console.log(report);
@@ -584,6 +709,8 @@ async function main() {
         checkRuns: readJson(flags["checks-json"]),
         files,
         rules: loadRules(),
+        deriveVisualFiles: (fromSha, toSha, currentHead) =>
+          deriveGitVisualFiles(repoPath, fromSha, toSha, currentHead),
       });
       const verdict = {
         merge: local.length === 0 && server.merge,
@@ -604,7 +731,7 @@ async function main() {
     case "stop": {
       if (!missionId || !flags.reason || !flags.detail) {
         fail(
-          "Usage: mission stop <mission-id> --reason usage-exhausted|owner-stop|blocked --detail <why>",
+          "Usage: mission stop <mission-id> --reason usage-exhausted|owner-stop|blocked|phase-boundary --detail <why> [--phase plan-approved|build-complete|gate-complete]",
         );
       }
       const state = replayState(repoPath, missionId);
@@ -613,6 +740,7 @@ async function main() {
         type: "mission-stopped",
         reason: flags.reason,
         detail: flags.detail,
+        ...(flags.phase ? { phase: flags.phase } : {}),
       });
       console.log(
         "Checkpointed and stopped. A fresh Mission Lead resumes with: mission resume " + missionId,
@@ -667,7 +795,7 @@ async function main() {
 
     default:
       fail(
-        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, question, answer, apply-rule, promote-rule, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
+        `Unknown command "${command ?? ""}". Commands: validate, init, plan, approve-plan, defer-dispatch, integrated-review, closeout, preflight, sync-intent, sync-result, dispatch, receipt, abandon-worker, correction, pr, review, visual-approve, mission-visual-approve, question, answer, apply-rule, promote-rule, annotate, rules, merge-record, checkpoint, heartbeat, stop, resume, status.`,
       );
   }
 }

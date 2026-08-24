@@ -50,6 +50,75 @@ function readyMission(m: ReturnType<typeof fixture>) {
 }
 
 describe("mission CLI", () => {
+  it("refuses a live dispatch without an on-disk brief", () => {
+    const m = fixture();
+    readyMission(m);
+    const refused = m.run(
+      "dispatch",
+      MISSION,
+      "WP-events-filter",
+      "--worker",
+      "worker-1",
+      "--worktree",
+      ".claude/worktrees/wp-events",
+      "--branch",
+      "feat/wp-events",
+    );
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toMatch(/--brief <brief\.md>/);
+  });
+
+  it("reads integrated package coverage and reports from files", () => {
+    const m = fixture();
+    readyMission(m);
+    const head = "a".repeat(40);
+    const packageHeads = path.join(m.repo, "package-heads.json");
+    const report = path.join(m.repo, "walker-report.md");
+    fs.writeFileSync(
+      packageHeads,
+      JSON.stringify(
+        Object.fromEntries(
+          ["WP-events-filter", "WP-attendance-export", "WP-report-footer"].map((id) => [id, head]),
+        ),
+      ),
+    );
+    fs.writeFileSync(report, "Completed every synthetic user job.\n");
+    const missing = m.run(
+      "integrated-review",
+      MISSION,
+      "--mode",
+      "workflow-walker",
+      "--head",
+      head,
+      "--package-heads",
+      packageHeads,
+      "--result",
+      "clear",
+      "--jobs",
+      "Synthetic jobs",
+    );
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toMatch(/--report <file>/);
+    expect(
+      m.run(
+        "integrated-review",
+        MISSION,
+        "--mode",
+        "workflow-walker",
+        "--head",
+        head,
+        "--package-heads",
+        packageHeads,
+        "--result",
+        "clear",
+        "--jobs",
+        "Synthetic jobs",
+        "--report",
+        report,
+      ).status,
+    ).toBe(0);
+  });
+
   /**
    * The rule said a dependency reviewed clean at its exact head is a usable
    * base; the dispatch command had no way to say so, so the Lead's only
@@ -78,6 +147,8 @@ describe("mission CLI", () => {
         ".claude/worktrees/wp-attendance",
         "--branch",
         "feat/wp-attendance",
+        "--brief",
+        PACKET,
       ).status,
     ).toBe(0);
     expect(
@@ -129,6 +200,8 @@ describe("mission CLI", () => {
       ".claude/worktrees/wp-report",
       "--branch",
       "feat/wp-report",
+      "--brief",
+      PACKET,
     );
     expect(dispatched.status).toBe(0);
     expect(dispatched.stdout).toContain(`standing on reviewed WP-attendance-export at ${HEAD}`);
@@ -178,6 +251,8 @@ describe("mission CLI", () => {
       ".claude/worktrees/wp-events",
       "--branch",
       "feat/wp-events",
+      "--brief",
+      PACKET,
     );
     expect(refused.status).toBe(1);
     expect(refused.stderr).toMatch(/No Linear connectivity preflight/);
@@ -219,11 +294,15 @@ describe("mission CLI", () => {
       "## Rules learned",
       "## Next hour",
       "## Deploy drift",
+      "## Resources",
     ]) {
       expect(checkpoint.stdout).toContain(section);
     }
     expect(checkpoint.stdout).toMatch(/1\. \[hourly\] Q-1/);
     expect(checkpoint.stdout).toMatch(/gh workflow run deploy\.yml/);
+    expect(checkpoint.stdout).toMatch(
+      /Active stacks: .*leases: .*worktrees: .*load \(1\/5\/15m\):/,
+    );
   });
 
   it("stops with a durable checkpoint and resumes in a completely fresh process", () => {

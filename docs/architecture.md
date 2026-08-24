@@ -33,7 +33,7 @@ src/
     login/                email/password sign-in (Server Action)
     operate/              the operator shell — the protected area (LAN-73)
     dashboard/            LAN-71's session-protected wiring proof, superseded by operate/
-    api/health/route.ts   dependency-free health endpoint
+    api/health/route.ts   deploy-readiness and current-schema probe
     layout.tsx            MUI providers + CssBaseline
   lib/auth/
     operator.ts           session → club Person and currently-effective role codes

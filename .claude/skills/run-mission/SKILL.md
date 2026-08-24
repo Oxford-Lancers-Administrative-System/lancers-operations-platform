@@ -17,6 +17,11 @@ never becomes the default application-code implementer. `/start-issue` remains
 available for deliberate manual single-issue work and is unchanged by this
 workflow.
 
+The Mission Lead's planning, security and merge judgment runs on the top model.
+It does not spend that context exploring repository details; §6 dispatches a
+Sonnet-class read-only scout for one bounded question whenever investigation is
+needed.
+
 ## 1. Validate the invocation
 
 Require `$ARGUMENTS` to match exactly `^M-[A-Za-z0-9][A-Za-z0-9-]*$` after
@@ -41,6 +46,11 @@ work, active and stopped work, existing PRs, prior decisions and rules,
 blockers, and the next action from this state alone — never from a previous
 conversation.
 
+On every resume, reconcile the journal's branches, pull-request heads, merge
+states and current-head CI conclusions against GitHub before choosing a next
+action. Correct stale journal-to-GitHub relationships in durable state before
+new dispatch or gate work.
+
 At the start of the Lead session, generate one random UUID and keep it in
 `LANCERS_MISSION_LEAD_ID` for every mission CLI call. The journal fences every
 mutation to that stable per-mission identity; a transient CLI PID is only
@@ -55,10 +65,11 @@ scope requires a revised packet from the Mission Intake workflow and new
 Brian approval — record `scope-drift` for the affected packages and continue
 unaffected work.
 
-Then read current `main`, the packet's pinned sources, and the state of every
-worktree, branch, draft PR, and CI run the journal names, before starting any
-new work. Also reconcile the mission's existing Linear `owner-action` issues
-as described in §5a before deciding what is executable.
+Then reconcile current `main` and the state of every worktree, branch, draft PR,
+and CI run the journal names before starting new work. When a pinned source
+needs investigation, dispatch one bounded scout question instead of reading the
+source in the Lead session. Also reconcile the mission's existing Linear
+`owner-action` issues as described in §5a before deciding what is executable.
 
 ## 3. Authority
 
@@ -120,6 +131,12 @@ worker its identity is protected, and a package with an active worker keeps its
 collision domain and migration ownership. Speculative alternatives stay in
 mission state, not in Linear.
 
+Immediately after plan approval, stop with `mission stop --reason
+phase-boundary --phase plan-approved`; a fresh top-model Lead resumes from the
+journal. The same deliberate recycle happens at build-complete and
+gate-complete, so accumulated conversational context never becomes mission
+memory.
+
 Route a late blocking finding to the current open package for its issue, or to
 the next existing open one, rather than creating another package for it.
 
@@ -179,11 +196,15 @@ normal owner question and is never reported as an owner action.
 
 ## 6. Dispatch bounded implementation workers
 
-Spawn at most two `implementation-worker` agents for this mission, and only for genuinely
-independent packages: the CLI refuses a third active worker, a colliding
+Spawn at most two `implementation-worker` agents for this mission, and only for
+genuinely independent packages. Across implementers, reviewers and walkers,
+never run more than three agents concurrently. The CLI refuses a third active worker, a colliding
 collision domain, a second migration owner, an unusable dependency, a
 drift-stopped package, and a package affected by an unanswered owner
 question.
+
+A queued correction outranks fresh work for a contested collision slot. Do not
+start a new package in that domain while its correction is ready to resume.
 
 A dependency is usable when it is merged, **or** when it has been independently
 reviewed clean at exactly the head its pull request carries and — if it is
@@ -196,25 +217,53 @@ scheduling dependency. Workers share the mission-owned stack by default. Seriali
 commands that mutate that shared stack; use a temporary worker stack only when
 two workers demonstrate incompatible database states.
 
-Record `dispatch` before the worker starts. The worker brief names one work
-package, its Linear issue, its requirement excerpts and acceptance criteria,
-its worktree name and branch, and its collision domain. **A user-facing brief
+Record `dispatch` before the worker starts. Write the package handoff once as
+`brief.md`, roughly one third the former conversational length, pointing to
+authoritative sources rather than copying them. Pass only its path to both the
+CLI (`dispatch --brief <brief.md>`) and worker. The brief names one work package,
+its Linear issue, its requirement excerpts and acceptance criteria, its
+worktree name and branch, and its collision domain. **A user-facing brief
 also names `docs/ux/slice-ux.md`, `docs/ux/standards.md`, the applicable
 `docs/ux/tickets/` contract, and the desktop and 375px wireframes.** Where the
 packet is the only contract, delivery writes the implemented one to
 `docs/ux/tickets/<LINEAR-ID>-<slug>.md` so the next mission reads a contract
 rather than re-deriving one from a superseded packet. Delegation is flat:
-workers and reviewers are spawned only by the Mission Lead, workers never
-spawn agents of any kind, and every transition returns to the Lead as a
-structured receipt, recorded with `receipt`.
+workers, reviewers, and read-only scouts are spawned only by the Mission Lead;
+they never spawn agents of any kind, and every transition returns to the Lead
+as a structured receipt, recorded with `receipt`. A `scout` receives one
+bounded repository question and returns one concise paragraph; it never changes
+state or substitutes for an implementation worker or reviewer.
+
+Implementation workers and the security-tier reviewer use the top model.
+Browser preflight, workflow walking, cross-surface comparison, Linear sync,
+cleanup, scouts, and mechanical correction passes use a Sonnet-class model. If
+an agent definition cannot select dynamically, the Lead selects the model at
+dispatch. Batch independent shell commands into one tool turn.
+
+Workers write `receipt.json`; walkers and reviewers write their report files.
+The Lead gives the CLI those paths and never copies a structured payload through
+conversation. Long-output commands redirect to `/tmp/out.log` and show only
+`tail -20 /tmp/out.log`; inspect `git diff --stat` before a full diff. Never dump
+full verify output, seed output, or `docker ps` into context.
 
 When a worker returns `blocked` or `owner-decision-required`, record the
 question durably before pausing that package; unaffected packages continue.
 When it returns `failed-recoverably`, the package returns to the frontier
 and the same worker contract applies to the retry.
-If a worker crashes or cannot return, record `abandon-worker` with the evidence.
-That clears only its active record so a replacement may be dispatched; it does
-not discard the branch, worktree, issue, or journal history.
+A worker that stopped without returning a receipt is **resumable** by
+re-dispatching under its original worker identity. `abandon-worker` is only for
+a worker that cannot be resumed at all, and requires the evidence of the failed
+resume attempt. It clears only that active record so a replacement may be
+dispatched; it does not discard the branch, worktree, issue, or journal history.
+
+A package's pull request contains only its package. An unrelated fix — seed
+data, tooling, or another issue's defect — ships as its own pull request and is
+never folded in. PR #71 became owner-gated exactly through that contamination.
+
+The expected merge route is calculated during planning and re-checked before
+dispatch, before owner review, and after every change to the package's file
+scope. Adding any refused path is a route-changing scope change: disclose the
+new owner route and exact path to Brian before review, never after approval.
 
 ### 6a. Mission-owned local database
 
@@ -235,39 +284,67 @@ not require owner confirmation; an actual failure becomes bounded correction
 work. After acceptance, stop and release the mission stack. Never copy
 production data or deploy a hosted migration.
 
-## 7. Orchestrate review and correction
+## 7. Build first; review the integrated mission once
 
-The fresh-context `code-reviewer` contract is unchanged: isolated worktree,
-exact-SHA pinning, independent requirement reconstruction, structured
-receipts, defect injection, and no repair authority. Review grades follow
-`.claude/skills/start-issue/SKILL.md` §4 — reachability and blast radius,
-never diff size — as do the finding dispositions, hard exclusions, reset
-conditions, circuit breaker, and the budget of at most one initial full
-review, two correction reviews, and three total reviewer invocations per
-package. Low risk may accept the Lead's deterministic verification of the
-worker's evidence without a fresh reviewer; Normal risk receives one
-fresh-context review; Highest risk receives the strongest review rules.
+Build every executable package before independent review or owner presentation.
+Workers use targeted affected tests plus `npm run typecheck` during iterations;
+CI remains the per-PR backstop. At build-complete, reconcile current `main`, run
+the full repository verification once at the integrated head, then stop and
+recycle the Lead before the integration gates.
+
+Run one fresh-context `security-tier` review at that integrated head,
+concurrent with Brian's check-off. Its scope is exactly the diff's intersection
+with migrations/schema, RLS/grants, auth/session boundaries, token and
+unauthenticated routes, secrets, PII egress, and production scripts or
+workflows. Non-security mission code receives no independent code review. The
+review report records the integrated head, exact covered package heads,
+sensitive-path intersection and findings. The CLI reads it with
+`integrated-review --mode security-tier --package-heads <file> --report <file>`.
+
+Every finding separately records impact severity and gate disposition:
+`block`, `correct-before-handoff`, or `advisory`. Incorrect reachable behavior
+and authentication, authorization, privacy, security, data-integrity,
+migration, RLS, transaction, or unauthorized external-effect findings are hard
+exclusions from the two lower dispositions. Narrow sensitive-tier blockers
+receive correction review over the correction delta. Reset the security-tier
+lineage only for a material trust-boundary, migration/RLS/transaction,
+production-side-effect, or security-test-strategy change that invalidates prior
+coverage. Two consecutive rounds on the same premise trigger fresh-context
+requirement adjudication, not another code search. The security-tier budget is
+one initial full review, at most two correction reviews, and three total reviewer
+invocations; exhaustion never auto-approves an unresolved blocker.
 
 **A review grade decides review rigour, not the merge route.** Route is decided
 by the protected surface the diff actually touches plus the evidence, which the
 `mission-merge` workflow re-derives from the real diff. Highest-risk work may
 use the guarded lane only when an answered owner checkpoint names the package,
-so Brian hears about it before it merges; migrations, grants and RLS,
-authentication and session boundaries, production scripts, secrets, hosted
-data, deployment and every prohibited path stay owner-merged
+so Brian hears about it before it merges. The checkpoint-approval surfaces
+`src/lib/auth/**` and `src/lib/delivery/**` are lane-mergeable only after that
+answered question names the package. Migrations, grants and RLS, production
+scripts, secrets, hosted data, deployment, and every path classified prohibited
+stay owner-merged
 (`docs/adr/0033-harness-after-the-first-live-mission.md` §4). Routing a
 lane-qualified package to Brian anyway is recorded as a harness defect and
 states why.
 
-**Two reviews belong to the mission rather than to any package.** Before a UI
-mission's visual gate, run a workflow walker against the integrated head that
+**The integration checkpoint belongs to the mission, not any package.** Run one
+workflow walker against the integrated head that
 completes the mission's actual user jobs end to end — the jobs, not the screens
 — and record it with `npm run mission -- integrated-review ... --mode
-workflow-walker`. A visual approval is refused without a clear walker at
-exactly the head Brian will be shown. After every package has integrated, run
-one cross-surface pass comparing the repeated facts, states, dates, permissions
-and copy across the surfaces they add up to; a mission cannot close as
-delivered without it.
+workflow-walker --package-heads <file> --report <file>`. Run one cross-surface
+pass at the same integrated head, comparing repeated facts, states, dates,
+permissions and copy. A visual approval is refused without a clear walker at
+exactly the head Brian will be shown, and a mission cannot close as delivered
+without the cross-surface pass.
+
+Walker and visual evidence may carry forward across a new head only when the
+mission control plane classifies every link in `previous_head..new_head` as
+**non-rendered** using the same visual-surface rules as the guarded merge gate.
+It records each link as `carried-forward-from <sha>` with the classifier verdict
+and complete file list. The chain must connect the walked and approved SHA to
+the current head; any rendered or unclassifiable link voids the walker and
+approval as before. The machine decides this. The Lead never asserts
+carry-forward by judgment.
 
 **Every substantive fix comes back bound to a test.** A correction's receipt
 carries, for each finding it was dispatched to fix, the named regression test,
@@ -275,22 +352,50 @@ the command, the failing assertion observed after the defect was reintroduced,
 the restored pass, and the exact SHA. This is four recorded facts about one
 fix, not a mutation-testing framework.
 
-The reviewer's receipt returns to the Mission Lead, which records it with
-`review` and decides the next transition. When review blocks ordinary
-implementation, resume the original implementation worker with the blocking
-finding IDs and lineage — record `correction` with the original worker id;
-the CLI refuses a replacement implementer for an ordinary correction. Do not
-create a new implementer because review failed.
+The review report returns through its file path. When the integrated review or
+Brian's check-off blocks, collect every open blocker across the mission and
+resume the affected original workers with their finding IDs and lineage. The
+CLI refuses a replacement implementer for an ordinary correction. Do not create
+a new implementer because review failed.
 
-## 8. The visual gate is unchanged
+All open blocking findings are dispatched as **one batched correction round**,
+grouped by affected original worker (`--findings R-001,R-002,…`). One scoped
+security correction review, one walker run when still required after machine
+carry-forward, and one re-approval complete the mission cycle. Dispatching
+findings singly is refused as a Lead defect.
 
-ADR 0020 stands: UI-affecting work receives an agent browser preflight and
-then a live, protected `review-ready` environment for Brian's presentation
-judgment, normally at the hourly checkpoint, before it can merge. Record his
-approval with `visual-approve` — the merge gate requires it for any package
-that is not genuinely nonvisual, and the merge workflow independently refuses
-a nonvisual claim whose diff touches a visual surface. Never describe visual
-work as mergeable before that approval exists.
+During implementation and correction iterations, workers and reviewers verify with targeted runs:
+`npx vitest run <affected files>` plus `npm run typecheck`. Full
+`npm run verify` runs once for the mission at the integrated build-complete
+checkpoint. CI remains the full backstop.
+
+## 8. One mission visual gate
+
+ADR 0020's protected environment requirements stand. The mission receives one
+agent browser preflight and one live `review-ready` environment at the
+integrated head for Brian's presentation judgment. Record his single approval
+with `mission-visual-approve --head <sha> --package-heads <file>`; the package
+merge conjunct accepts that exact mission record. Never describe visual work as
+mergeable before it exists.
+
+Every review-environment URL uses the exact hostname named by that stack's Auth
+configuration. The Lead never substitutes `localhost` for `127.0.0.1`, or the
+reverse; a hostname mismatch can authenticate one page and leave later controls
+dead.
+
+Before giving Brian the one owner-review link, present a three-part review brief:
+(1) **Scope** — purpose, complete outcome, and in/out boundary in plain
+sentences; (2) **Fit** — where this ticket sits in the end-to-end journey and
+what remains elsewhere; (3) an **Exact review table** — every page with URL,
+action, what to verify, and acceptance. End with “Your approval means X; it does
+not yet mean Y.” Include `Expected merge route: guarded-auto | owner — <exact
+reason>`. The mission without all three parts and package route lines is **not
+ready for owner review**; the Lead refuses to hand off its link.
+
+When a non-rendered carry-forward chain exists, publish it in the receipt's
+`visual_evidence` block (`approved_sha` plus `carry_forward_chain`). The merge
+gate validates every link and its file list and refuses a chain that is broken,
+rendered, unclassified, or does not reach the current head.
 
 ## 9. Hourly checkpoints
 
@@ -305,6 +410,13 @@ deploy, so tell Brian how far `main` is ahead and that
 journal, never in the checkpoint. Persist Brian's answers with `answer`
 before dependent execution resumes.
 
+Every checkpoint includes one **Resources** line: active stacks, lease states,
+worktree count, and 1/5/15-minute system load. Before presenting it, run the
+guarded `npm run db:cleanup-stale` command and prune only worktrees whose merges
+the repository proves; dirty, unpushed, active, or unmerged worktrees stay and
+are reported. For an overnight mission, keep the machine awake with
+`caffeinate -dims` (or the platform equivalent) so sleep cannot stall a worker.
+
 Append a concise **Owner actions** section built from the Linear reconciliation,
 separate from the numbered owner-question queue, grouped as:
 
@@ -317,6 +429,12 @@ For every item give the Linear issue and status, required outcome, linked
 requirement/criterion/gate, remaining human action (if any), remaining agent
 verification, and next actor. Omit an empty group. Never put routine owner
 questions or scheduled check-in items in this section.
+
+When an owner handoff involves a non-backward-compatible migration, its first
+line is: `From apply until deploy, production is broken; expected duration N
+minutes.` Annotate every command with the checkout or environment where it
+runs. A command that cannot run in Brian's current checkout never appears
+without saying so.
 
 ## 10. Merge only through the guarded mission lane
 
@@ -332,15 +450,23 @@ open owner question affecting the package, mission not stopped) with the
 evidence conjuncts (base `main`, mergeability, prohibited-surface scan,
 required checks green at the exact head).
 
+Immediately before this gate, re-check the planned merge route against the
+current file scope. If it changed, stop and make the pre-review disclosure
+required by §6; an approval for the old route is not approval for the new one.
+
 Only when the local gate passes: publish the `mission-merge-receipt` fenced
 JSON block into the PR body, apply the `mission-merge` label with
 `gh pr edit <pr> --add-label mission-merge`, and let the checked-in
 `mission-merge` workflow re-derive its own verdict and perform the merge. A
 refusal from the workflow is recorded reality — read its reasons, correct,
 and re-ask; never work around it. After the workflow merges, record
-`merge-record` with route `guarded-auto`. Migrations, RLS/auth/security,
-secrets, deployment, WhatsApp and external configuration, and unapproved
-visual behavior are owner-gated: hand them to Brian as normal draft PRs and
+`merge-record` with route `guarded-auto`. Recording any merge automatically
+invokes per-package reclamation for its worktree, branch, and mission-stack
+attachment. The existing repository proof and dirty, stash, unpushed, and
+active-worker refusals remain binding; a refused package is left entirely alone
+and reported. Prohibited paths, migrations, grants and RLS, secrets,
+deployment, WhatsApp and external configuration, and unapproved visual
+behavior are owner-gated: hand them to Brian as normal draft PRs and
 record his merges with route `owner`. What is owner-gated is decided from the
 diff by the prohibited-path scan, not from a risk label — and routing a
 lane-qualified package to Brian anyway is recorded as a harness defect.
@@ -366,7 +492,9 @@ a new packet or journal schema.
 
 ## 12. Stops, drift, and recovery
 
-When Claude usage capacity is exhausted, or Brian says stop, run
+At plan-approved, build-complete and gate-complete, deliberately run `mission
+stop --reason phase-boundary --phase <phase> --detail <why>` and let a fresh
+Lead resume from the journal. When Claude usage capacity is exhausted, or Brian says stop, run
 `npm run mission -- stop $ARGUMENTS --reason usage-exhausted --detail <why>`
 — it writes a final checkpoint and a durable stop, and a completely fresh
 Mission Lead resumes from it with `resume`. When a pinned source drifts or
@@ -374,18 +502,29 @@ genuinely new scope appears, record `scope-drift` for the affected packages
 only; they wait for a revised approved packet (`packet-revised`) while
 unaffected work continues safely.
 
+The Lead never polls workers, walkers or reviewers. Wait for completion
+notifications; triage a stale or duplicate wake once and dismiss it.
+
 ## 13. Boundaries
 
 The Mission Lead never implements a work package in its own session, never
-launches an agent that is not `implementation-worker` or `code-reviewer`,
-never lets a worker or reviewer spawn agents, and never exceeds two active
-implementation workers. It never merges or un-drafts a pull request itself,
+launches an agent that is not `implementation-worker`, `code-reviewer`, or
+`scout`, never lets a worker, reviewer, or scout spawn agents, never exceeds two active
+implementation workers, and never exceeds three concurrent implementers,
+reviewers and walkers together. It never explores source files or runs
+investigation commands itself; a bounded read-only scout answers one question.
+It never merges or un-drafts a pull request itself,
 never deploys, never runs a workflow, never applies a migration anywhere,
 never touches hosted Supabase, never performs a production or real-data
 action, and never modifies live GitHub settings. Draft PRs stay drafts until
 the mission-merge workflow or Brian merges them. Local database access uses
 only the guarded coordinator commands and respects every existing lease and
-fencing rule. The LAN-90 UX gate and LAN-92 automated-WhatsApp decision gate
-remain binding; manual posting or distribution is never an MVP, pilot,
-fallback, or completion path. Linear recordkeeping stays minimal: issue
+fencing rule. Review links retain the exact hostname from the assigned stack's
+Auth configuration through every handoff and resumption. The LAN-90 UX gate
+and LAN-92 automated-WhatsApp decision gate remain binding; manual posting or
+distribution is never an MVP, pilot, fallback, or completion path. Linear recordkeeping stays minimal: issue
 status, the draft PR link, and one final evidence comment per package.
+
+A claim of “cannot”, “not possible”, or “the harness refuses” includes the
+refusal message quoted verbatim or two distinct attempts recorded. One denied
+command form proves only that form; it never establishes a general incapacity.

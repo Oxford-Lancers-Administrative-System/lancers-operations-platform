@@ -35,8 +35,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { resolveLocalDatabaseUrl } from "../scripts/lib/local-db.mjs";
 import { expectRejected, one, openLocalClient, type Client } from "./helpers/domain-fixture";
+import { scopedPilotSnapshot } from "./helpers/pilot-snapshot";
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
 const scenarioDir = path.join(repoRoot, "scripts", "pilot", "lan-93");
@@ -103,26 +103,7 @@ const CLEANUP = scriptBody("cleanup.sql", CLEANUP_FILE);
  * create. Hashing the whole row catches both.
  */
 async function snapshot(client: Client): Promise<Record<string, string>> {
-  const { rows: tables } = await client.query<{ qualified: string }>(
-    `select quote_ident(n.nspname) || '.' || quote_ident(c.relname) as qualified
-       from pg_class c
-       join pg_namespace n on n.oid = c.relnamespace
-      where c.relkind in ('r', 'p')
-        and n.nspname in ('public', 'staging')
-      order by 1`,
-  );
-
-  const digests: Record<string, string> = {};
-  for (const { qualified } of tables) {
-    const row = await one<{ digest: string }>(
-      client,
-      `select count(*)::text || ':' ||
-              coalesce(md5(string_agg(row_hash, ',' order by row_hash)), '-') as digest
-         from (select md5(to_jsonb(t)::text) as row_hash from ${qualified} t) hashed`,
-    );
-    digests[qualified] = row.digest;
-  }
-  return digests;
+  return scopedPilotSnapshot(client, CLEANUP);
 }
 
 /** How many of the scenario's six rows are currently present. */
@@ -320,28 +301,6 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   await client.query("rollback");
-});
-
-describe("the local-only guard this suite depends on", () => {
-  it("refuses a hosted target, so these scripts can never reach production from here", () => {
-    expect(() =>
-      resolveLocalDatabaseUrl(
-        "postgresql://postgres:pw@db.abcdefghijklmnop.supabase.co:5432/postgres",
-      ),
-    ).toThrow();
-    expect(() =>
-      resolveLocalDatabaseUrl(
-        "postgresql://postgres.abc:pw@aws-0-eu-west-2.pooler.supabase.com:6543/postgres",
-      ),
-    ).toThrow();
-    expect(() =>
-      resolveLocalDatabaseUrl("postgresql://postgres:pw@10.0.0.7:5432/postgres"),
-    ).toThrow();
-
-    expect(
-      resolveLocalDatabaseUrl("postgresql://postgres:postgres@127.0.0.1:54322/postgres"),
-    ).toContain("127.0.0.1");
-  });
 });
 
 describe("setup.sql is repeatable", () => {

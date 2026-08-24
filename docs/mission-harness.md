@@ -114,6 +114,14 @@ checkpoint generated from durable state:
   without asking.
 - **Next hour** — what runs after the checkpoint.
 - **Deploy drift** — how far `main` is ahead of production.
+- **Resources** — active stacks, lease states, worktree count, and current
+  1/5/15-minute system load. The Lead runs the guarded `db:cleanup-stale` and
+  prunes repository-proven merged worktrees before reporting it; anything
+  dirty, unpushed, active, or unmerged stays and is named.
+
+For overnight missions, the Lead keeps the machine awake with
+`caffeinate -dims` (or the platform equivalent). Machine sleep stalled a worker
+during the 23 August run and is an operating condition, not a worker failure.
 
 Answer the questions in the session; the Lead persists each answer
 (`npm run mission -- answer …`) before dependent work resumes. When an
@@ -145,26 +153,27 @@ the Linear issue, required outcome, linked criterion or gate, remaining human
 and agent work, and next actor. Questions Brian can answer in the conversation
 remain in **Need from Brian** and never enter the owner-action section.
 
-**Visual review is unchanged from ADR 0020.** UI-affecting packages wait
-for Brian to open a live, protected `review-ready` environment — normally at
-a checkpoint — with one URL, the fixed login, and zero commands. His
-approval is recorded (`visual-approve`) and the merge gate requires it; the
-merge workflow independently refuses a "nonvisual" claim whose diff touches
-a visual surface.
+**Visual review keeps ADR 0020's protected environment and moves to mission
+level under ADR 0034.** After all packages are built, one workflow walker and
+one cross-surface pass run at the integrated head. Brian opens one live
+`review-ready` environment with one URL, the fixed login, and zero commands.
+His approval is recorded once (`mission-visual-approve`) with the exact package
+heads it covers. A rendered batched correction requires a scoped re-walk and
+re-approval; a classifier-proven non-rendered delta may carry them forward.
 
 ## What merges by itself, and what never does
 
 There are three tiers, decided by Brian on 2026-08-18:
 
-**Merges by itself.** Standard application work at low or normal risk, with
-a clear independent review at the exact head SHA, recorded visual approval
-(or genuinely nonvisual), no open owner question, and green required checks
+**Merges by itself.** Standard application work whose exact package head is
+covered by the clear integrated security-tier review, the mission visual
+approval (or genuinely nonvisual), no open owner question, and green required checks
 at that exact commit, merges through the checked-in `mission-merge` workflow
 after the Mission Lead publishes its receipt and applies the `mission-merge`
 label. The workflow re-derives everything server-verifiable from evidence
 and fails closed; a refusal is posted on the pull request. A review-blocked
-correction or any new head clears a previously recorded visual approval —
-Brian approved what he saw, not whatever came later.
+rendered correction clears the applicable visual evidence — Brian approved
+what he saw, not whatever came later.
 
 Merging is where a package's lifecycle ends. A worker or review receipt that
 arrives after the merge is refused, and a journal that somehow contains one
@@ -276,7 +285,8 @@ with the missing work named; a package blocks rather than pretends.
 
 ## Known limitations in v1
 
-- One Lead per mission; at most two implementation workers per mission. There
+- One Lead per mission; at most two implementation workers and at most three
+  concurrent implementers, reviewers and walkers per mission. There
   is no harness-level mission count. Each active mission owns a uniquely ported
   disposable local database; the standing non-mission stack remains available.
 - The workflow trusts the Lead's published receipt for facts whose ground
@@ -290,3 +300,18 @@ with the missing work named; a package blocks rather than pretends.
   fresh session.
 - Mission state is machine-local: a different machine starts from the
   repository's durable artifacts (PRs, branches, Linear), not the journal.
+
+## Context and turn economy
+
+The top model is reserved for the Mission Lead's judgment, implementation and
+the integrated security-tier review. Walkers, browser preflight, cross-surface
+comparison, Linear sync, cleanup, scouts and mechanical corrections use a
+Sonnet-class model. Handoffs are on-disk pointers (`brief.md`, `receipt.json`
+and walker/review reports), not conversational payloads. Independent commands
+are batched; long output goes to `/tmp/out.log` with only its last 20 lines
+shown, and a diff stat precedes a full diff.
+
+The Lead stops and a fresh Lead resumes at plan-approved, build-complete and
+gate-complete. Every resume reconciles the journal against GitHub first. The
+Lead delegates repository investigation to the bounded read-only scout and
+waits for completion notifications instead of polling.

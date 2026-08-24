@@ -169,6 +169,27 @@ describe("the guarded mission merge gate", () => {
     );
   });
 
+  it("accepts a mission-security receipt only with integrated coverage evidence", () => {
+    const missionReview = {
+      integrated_head_sha: OTHER,
+      package_head_sha: HEAD,
+      result: "clear",
+      sensitive_paths: ["src/lib/auth/session.ts"],
+      report: "reviews/security-tier.json",
+    };
+    const missionSecurity = receipt({
+      review_mode: "mission-security",
+      mission_review: missionReview,
+    });
+    expect(receiptDefects(missionSecurity)).toEqual([]);
+    expect(
+      receiptDefects({
+        ...missionSecurity,
+        mission_review: { ...missionReview, package_head_sha: OTHER },
+      }).join("\n"),
+    ).toMatch(/mission-security receipt/);
+  });
+
   it("trips the coherence wire: a nonvisual claim with a visual diff is refused on evidence", () => {
     const verdict = gate({
       pullRequest: pullRequest({ body: bodyWith(receipt({ visual: "nonvisual" })) }),
@@ -181,6 +202,43 @@ describe("the guarded mission merge gate", () => {
     });
     expect(trulyNonvisual.merge).toBe(true);
     expect(touchesVisualSurface([{ status: "M", path: "src/theme.ts" }], rules)).toBe(true);
+  });
+
+  it("re-derives every visual carry-forward link instead of trusting its file list", () => {
+    const evidence = {
+      approved_sha: OTHER,
+      carry_forward_chain: [
+        {
+          from_sha: OTHER,
+          to_sha: HEAD,
+          verdict: "non-rendered",
+          files: [{ status: "M", path: "src/lib/events/service.ts" }],
+          fact: `carried-forward-from ${OTHER}`,
+        },
+      ],
+    };
+    const carried = pullRequest({
+      body: bodyWith(receipt({ visual_evidence: evidence })),
+    });
+
+    const unproved = gate({ pullRequest: carried });
+    expect(unproved.merge).toBe(false);
+    expect(unproved.reasons.join("\n")).toMatch(/requires Git-derived evidence/);
+
+    const forged = gate({
+      pullRequest: carried,
+      deriveVisualFiles: () => [{ status: "M", path: "src/app/events/page.tsx" }],
+    });
+    expect(forged.merge).toBe(false);
+    expect(forged.reasons.join("\n")).toMatch(/Git-derived diff touches a rendered surface/);
+    expect(forged.reasons.join("\n")).toMatch(/does not match its Git-derived diff/);
+
+    const proved = gate({
+      pullRequest: carried,
+      deriveVisualFiles: () => [{ status: "M", path: "src/lib/events/service.ts" }],
+    });
+    expect(proved.reasons).toEqual([]);
+    expect(proved.merge).toBe(true);
   });
 
   it("requires a cited, answered owner decision for checkpoint-approval surfaces — detected from the diff", () => {
@@ -339,6 +397,32 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
       { type: "mission-stopped", at: "t", reason: "usage-exhausted", detail: "simulated" },
     ]);
     expect(journalConjuncts(stopped, "WP-events-filter", HEAD).join("\n")).toMatch(/stopped/);
+  });
+
+  it("accepts mission-level security review and visual approval covering the package head", () => {
+    const state = base();
+    state.packages["WP-events-filter"].review = null;
+    state.packages["WP-events-filter"].visual_approved = false;
+    state.integratedReviews.push({
+      mode: "security-tier",
+      result: "clear",
+      head_sha: OTHER,
+      package_heads: { "WP-events-filter": HEAD },
+      sensitive_paths: [],
+      report: "reviews/security-tier.json",
+    });
+    state.missionVisualApprovals = [
+      {
+        head_sha: OTHER,
+        package_heads: { "WP-events-filter": HEAD },
+        by: "Brian",
+        evidence: "mission review",
+      },
+    ];
+    expect(journalConjuncts(state, "WP-events-filter", HEAD)).toEqual([]);
+    expect(journalConjuncts(state, "WP-events-filter", OTHER).join("\n")).toMatch(
+      /no clear package review or mission-level security-tier review/i,
+    );
   });
 
   it("requires an answered owner question on the journal side for checkpoint-approval diffs", () => {
