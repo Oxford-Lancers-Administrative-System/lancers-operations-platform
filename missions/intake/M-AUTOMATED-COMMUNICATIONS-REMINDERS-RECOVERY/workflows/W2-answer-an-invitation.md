@@ -1,196 +1,280 @@
 # W2 — Answer an invitation
 
-- **Purpose/intended outcome:** A player receives the club's invitation without
-  an operator sending it by hand, follows its private link, and records a clear
-  Yes or No. The answer is confirmed to the player and immediately stops every
-  later chase that has not already started.
+- **Purpose/intended outcome:** A player receives a native-looking, approved
+  WhatsApp invitation with clear Yes and No choices, gives the club an answer
+  from that choice, and lands on the club page to see the event, complete any
+  required follow-up, and work through every other invitation still waiting for
+  them.
 - **Primary actor:** The invited player.
-- **Trigger:** A due invitation, reminder or email job sends the player the
-  latest signed RSVP link for an approved event that still awaits their answer.
-- **Entry point:** The link in the player's WhatsApp message or email.
-- **Route/placement:** The message is delivered outside the application. Its
-  link opens the existing no-login route `/rsvp/[token]`.
-- **Controlling sources:** Task 02 D9–D10 and F7; Task 03's binary RSVP,
-  server-rendered page, reminder and arriving-response decisions; Requirements
-  R5, R6 and R12; Register D1 and E1; Brian's 2026-08-22 boundary decisions; and
-  the W1 sequence approved 2026-08-24.
-- **User-visible result:** The player sees that their response was saved and can
-  reopen the latest link to read or change it until the event starts. Once they
-  answer, no later nonresponse message is sent for that invitation.
+- **Trigger:** A due invitation, reminder or email job contacts a player who has
+  not completed an answer for an approved event.
+- **Entry point:** **Yes — view details** or **No — give reason** in an approved
+  WhatsApp template. Email uses equivalent calls to action but does not pretend
+  an automated link visit is a human answer.
+- **Route/placement:** The choice opens the no-login RSVP experience. It begins
+  with the selected event and then exposes the same player's outstanding-RSVP
+  inbox.
+- **Controlling sources:** Brian's W2 direction on 2026-08-24; Meta's official
+  WhatsApp Business Platform template/button contract; Mission 2's approved
+  per-event questions; Task 03's binary RSVP, reminder and response decisions;
+  R5, R6 and R12; and the W1 sequence approved 2026-08-24.
+- **User-visible result:** The player immediately sees what their button did,
+  finishes anything the answer still requires, sees accurate social proof, and
+  is strongly directed to the next unanswered invitation rather than leaving
+  the club with a hidden queue.
+
+## What changed from the first draft
+
+The first draft treated WhatsApp as body copy containing one plain signed link
+and treated the existing LAN-79 page as the whole player journey. Brian rejected
+that shape. W2 now owns an interactive message, answer-specific landing states,
+per-event questions, aggregate RSVP social proof, and a player-facing outstanding
+invitation inbox.
+
+It also supersedes two earlier assumptions when this specification is approved:
+
+- D9's deferred-button shape becomes two approved WhatsApp actions. Direct typed
+  WhatsApp replies remain deferred; the new controls are template actions, not
+  free-text interpretation.
+- Task 03's zero-peer-visibility rule becomes **aggregate social proof only**.
+  The player may see an accurate count of Yes responses, never who supplied
+  them or any other answer.
+
+## The WhatsApp constraint and proposed answer contract
+
+Meta exposes two relevant template button behaviours:
+
+- a **Quick Reply** sends a button payload back through the WhatsApp webhook but
+  does not open the club's webpage; and
+- a **Call-to-Action / Visit Website** button opens a URL but does not itself
+  provide the club with an authenticated webhook answer.
+
+There is no single standard template button that both writes an answer through a
+webhook and opens an external page. A URL is also a GET: link previews, security
+scanners and reloads must not silently manufacture authoritative responses.
+
+The mockup therefore renders Brian's requested visible journey using two URL
+buttons and treating the click as the answer:
+
+| Choice                 | Immediate recorded result                                                   | Landing page                                                                                                                       |
+| ---------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| **Yes — view details** | A one-time signed choice records Yes idempotently as the page is entered    | Confirms **You're attending**, asks applicable event questions, shows the live Yes count and outstanding invitations               |
+| **No — give reason**   | Records No idempotently with the visible default reason **No reason given** | States strongly why the club needs a real reason; adding one supersedes the displayed default; the page encourages a change to Yes |
+
+**Brian's resolution, 2026-08-24.** “No reason given” is the default reason/state
+until the player supplies the actual reason. The No itself is authoritative from
+the button click and stops the RSVP chase. This supersedes R5's prior refusal of
+a No without a player-supplied reason: the system records the explicit default,
+shows it honestly to player and operator, and replaces it only with a later real
+reason. It never calls the default a reason the player supplied.
+
+The Mission Lead must also prove that the chosen URL-button implementation does
+not record a response from a preview/scanner. If Meta cannot provide that proof,
+the safe fallback is a Quick Reply that records the choice followed immediately
+by a separate **View event and finish** link; it is two taps and must be shown as
+such rather than disguised as one.
 
 ## The journey
 
-1. **Receive the current rung.** The first contact is WhatsApp message 1. If the
-   player remains unanswered, the schedule approved in W1 may later send
-   WhatsApp message 2 and then email. Each message identifies the club and the
-   event, states when it happens, and provides the current signed RSVP link.
-2. **Open the link.** The existing signed page shows only this player's event,
-   invitation and current answer. There is no login and no peer visibility; the
-   link is the credential.
-3. **Answer Yes or No.** **I'm attending** saves immediately. **I'm not
-   attending** opens the existing required-reason step; blank and
-   whitespace-only reasons are refused.
-4. **See confirmation.** The existing **Your response is saved** state confirms
-   the standing answer and says it can be changed until the event starts,
-   including after the response deadline.
-5. **Stop the chase.** Recording the response, updating the invitation, cancelling
-   every pending reminder or fallback job, clearing any un-actioned nonresponse
-   flag and writing the audit evidence happen as one committed result.
+1. **Receive WhatsApp message 1.** The approved template says the player is
+   invited, names the event and when it happens, gives the deadline, supplies an
+   accurate Yes count when that count is nonzero, and presents the two answer
+   actions. It does not expose a raw URL as body copy.
+2. **Choose Yes or No in WhatsApp.** The selected action opens the matching
+   answer state for that exact invitation. The click is recorded once; reloads
+   are idempotent.
+3. **See the event page.** The page contains the full event details, the player's
+   current choice, an accurate aggregate such as **12 other people have said
+   Yes**, and a prominent notice when other invitations still need answers.
+4. **Complete the follow-up.** The Yes or No is already authoritative. A Yes
+   player answers applicable event questions. A No player is strongly prompted
+   to replace **No reason given** with the real reason or change to Yes. Optional
+   questions remain visibly optional.
+5. **See confirmation and continue.** The saved state confirms the standing
+   answer and shows the outstanding-RSVP inbox, divided into **New invitations**
+   and **Still need your answer**, with the next one visually dominant.
+6. **Stop the chase.** Either button records the response, cancels every later
+   player-facing RSVP rung and clears any un-actioned nonresponse flag atomically.
+   Unanswered event questions and **No reason given** remain visible follow-up
+   work on the page; they do not make the RSVP itself unanswered.
 
-The response page itself is not redesigned in this mission. LAN-79's approved
-UX-60 through UX-66 surfaces remain the player interface. This workflow connects
-automatic delivery and the nonresponse sequence to that already-shipped surface.
+## Message ladder and pressure
 
-## Message and link rules
+These are distinct approved templates, not repeated copies of the first message.
+The exact approved wording is reviewed in the mockup and may be adjusted during
+Meta template approval without weakening the required information or pressure.
 
-- Production WhatsApp is approved-template-only. The existing invitation
-  contract supplies the player's name, event name, event date/time and signed
-  RSVP URL. Exact grammatical copy within that approved content is delegated to
-  the Mission Lead and the template approval process.
-- W1's order is fixed: WhatsApp message 1 → WhatsApp message 2 → email →
-  follow-up escalation to the President. W7 owns the exact offsets and
-  compression; this workflow obeys the resulting schedule and has no quiet-hours
-  rule.
-- Every message rung checks the standing response before it is claimed. A
-  response committed first cancels the remaining rungs. A provider request
-  already in flight cannot be recalled and remains honest delivery evidence.
-- Plaintext RSVP tokens are never stored. A send mints a new token only at
-  dispatch and supersedes the prior live token. Therefore the latest delivered
-  message contains the link the player should use; an older message deliberately
-  reaches the existing uniform **This RSVP link can't be used** response.
-- A failed delivery retries under W6's policy. Each retry that reaches dispatch
-  uses a fresh token. Terminal failure is visible to an operator in W6; it never
-  becomes a manual-send path.
-- A reply typed directly into WhatsApp is not an RSVP in Release One. The signed
-  page remains the only player-write path unless Stuart's real-experience review
-  produces a later owner-approved change. In-chat buttons remain deferred with
-  the same seam.
-- Saving an RSVP does not send a separate confirmation message. The signed
-  page's saved state is the confirmation; adding another outbound message would
-  be a new rung not present in the approved sequence.
+| Rung                     | Job of the message                             | Required content                                                                                                                                 |
+| ------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **WhatsApp message 1**   | Clear invitation                               | Event, date/time, deadline, current Yes count when nonzero, **Yes — view details**, **No — give reason**                                         |
+| **WhatsApp message 2**   | Strong reminder                                | **We still need your answer**, updated Yes count, honest planning consequence, same two actions                                                  |
+| **Email**                | Final direct player chase                      | **Action required**, event and deadline, updated social proof, clear statement that the club is still waiting, equivalent Yes/No calls to action |
+| **Follow-up escalation** | Move the unresolved exception to the President | Owned by W5; no player personal data in the outbound escalation body                                                                             |
+
+Pressure is factual, specific and current. The system may say **18 others are
+already attending** or **The club is still waiting for 4 answers, including
+yours** only when that is true at dispatch. It never fabricates popularity,
+names another person's answer, or implies a deadline has passed when it has not.
+An old message remains an honest snapshot; the landing page shows the live count.
+
+## Answer-specific page behaviour
+
+### Yes path
+
+- Lead with **You're attending** and the event details.
+- Show positive social proof and the other-outstanding-invitations notice.
+- Ask the event questions already authored and approved with the event. The
+  existing model permits text, Yes/No and choice questions, each required or
+  optional and filtered by invitation capacity.
+- The initial Yes is already complete and visible to operators. Unanswered
+  required questions carry the separate qualifier **Additional questions
+  outstanding**; they do not roll the player back to no response.
+- Changing to No remains available but visually secondary and lightly framed:
+  **Plans changed? You can change your answer.**
+
+### No path
+
+- Lead with **You're not attending — no reason given**.
+- Explain the operational reason strongly: **The club plans numbers, transport
+  and coaching from these responses. Give a reason before No can be completed.**
+- Give **Change to Yes** the primary treatment. The page may add accurate social
+  proof, for example **12 other people are attending**, but may not shame the
+  player, invent scarcity or reveal names.
+- Saving a real reason appends the player's actual explanation and replaces the
+  displayed default. Abandoning the page leaves the authoritative No visibly
+  qualified as **No reason given**.
+
+### Outstanding-RSVP inbox
+
+- A valid invitation credential may reveal only outstanding invitations for the
+  same person. This is a deliberate widening from one-invitation scope and must
+  be enforced server-side with cross-person isolation tests.
+- The page shows a prominent count at entry: **You have 2 other invitations to
+  answer**.
+- **New invitations** are those the player has not opened. **Still need your
+  answer** covers opened invitations with no Yes or No. Missing reasons and
+  unanswered event questions appear in a separate **Follow-up needed** section.
+- Each row carries event type, name, date/time, response deadline, live Yes count
+  when nonzero, and the same answer choices. Completed invitations are omitted;
+  this is a work queue, not response history.
 
 ## State transitions
 
-- An unanswered invitation becomes `responded_yes` or `responded_no` through an
-  append-only response row. Changing an answer appends another row and changes
-  the standing projection; it never edits history.
-- A No requires one nonblank reason. A Yes carries no reason.
-- Pending notification jobs for that invitation become `cancelled` because the
-  invitee responded. Jobs already `processing` or terminal retain their actual
-  state and evidence.
-- Any open, un-actioned nonresponse flag for the invitation clears when the
-  answer arrives. The response does not erase the fact that escalation happened.
-- The response deadline changes an unanswered invitation into an exception; it
-  does not close the player-write window. Event start closes it.
+- A one-time Yes choice records `responded_yes`. Required event-question
+  responses are separate follow-up state and do not change that answer.
+- A one-time No choice records `responded_no` with the explicit default **No
+  reason given**. Saving a real reason appends a newer No response carrying the
+  player's explanation; history retains the default click evidence.
+- Changing Yes to No or No to Yes appends response evidence; history is never
+  edited. A No still requires a real reason.
+- Either button click cancels pending later player-facing RSVP jobs and clears an
+  un-actioned nonresponse flag. Jobs already processing or terminal retain their
+  actual delivery evidence.
+- Response deadline creates an exception but does not close answering. Event
+  start closes all writes.
 
 ## Handoffs
 
-- **← W1** — the frozen audience and committed four-rung messaging plan.
-- **← W7** — the exact schedule and any short-runway compression.
-- **→ W4** — the standing Yes, No or no-response state shown to operators.
-- **→ W5** — only if the player remains unanswered through the deadline.
-- **→ W6** — delivery retries, terminal delivery failures and unusable routes.
-- **← W3** — an operator-recorded answer lands in the same standing response and
-  invokes the same cancellation and flag-clearing result.
+- **← W1** — the frozen audience and committed message ladder.
+- **← Mission 2 W4** — event details and per-event questions, already approved
+  before messaging begins.
+- **← W7** — the exact schedule and short-runway compression.
+- **→ W4** — the operator sees completed answers plus missing-reason and
+  question-follow-up qualifiers.
+- **→ W5** — only genuinely unresolved invitations reach the President.
+- **→ W6** — delivery retries, terminal failures and unusable contact routes.
+- **← W3** — an operator-recorded answer completes the same standing response and
+  invokes the same cancellation result.
 
 ## Dependencies and mission boundaries
 
-- Mission 2 owns the event, approved audience and response deadline. W2 never
-  adds a recipient or changes the event.
-- Mission 7 defines the WhatsApp acceptance record. Dispatch must enforce that
-  record before the hard-coded allowlist is removed; the acceptance gate becomes
-  real first and the allowlist is removed second.
-- W7 owns schedule values. W2 owns what happens when a player answers while that
-  schedule is active.
-- W6 owns provider failures. W2 promises the player only what a verified
-  delivery and a committed response can prove.
-- Production activation remains gated by approved Meta templates, the club
-  number and webhook work, an accepted WhatsApp basis, email setup, and Stuart's
-  review. Those gates do not block local implementation with synthetic data.
-- Telephone routing is international. Invalid or ambiguous numbers refuse rather
-  than guessing and sending a working link to a stranger.
+- Mission 2 owns event authoring and the question definitions. W2 renders and
+  records answers to those questions; it does not invent another question model.
+- Mission 7 defines WhatsApp acceptance. Its enforced record replaces the
+  hard-coded allowlist in that order.
+- Production WhatsApp remains approved-template-only. W2 now requires at least
+  three player-facing template shapes rather than one repeated invitation.
+- W7 owns timing; W2 owns the content progression and what stops it.
+- W6 owns provider failure. Delivery and RSVP remain separate axes.
+- International telephone numbers are supported, but invalid or ambiguous
+  numbers refuse rather than guessing.
 
 ## Exceptions and recovery
 
-| Situation                                                             | Behaviour                                                                                                                   |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| The player answers before a later rung                                | The remaining pending rungs are cancelled and no follow-up escalation is created for that invitation                        |
-| The player answers after the response deadline but before event start | The answer is accepted, pending chase is cancelled and any un-actioned flag clears                                          |
-| The player changes Yes to No                                          | A new response row is appended; a reason is required; the latest answer becomes standing                                    |
-| The player changes No to Yes                                          | A new response row is appended with no decline reason; prior history remains auditable                                      |
-| The player opens an older, superseded link                            | The existing security-uniform 404 says only that the link cannot be used and to request the latest one                      |
-| The event has started                                                 | No response is written; the same security-uniform terminal surface is shown                                                 |
-| A valid invitation's event is cancelled                               | The existing cancelled-event state names the event and says no response is needed                                           |
-| A write is briefly throttled                                          | The page says the response could not be saved just now and asks the player to try again; no false event-start claim is made |
-| WhatsApp delivery fails                                               | W6 retries or routes the terminal error; delivery failure never changes response state                                      |
-| Email is unavailable when its rung becomes due                        | W6 records and exposes the failure; the system does not claim the player was contacted                                      |
+| Situation                                     | Behaviour                                                                                                 |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| A URL is visited by a preview or scanner      | No authoritative response may be created; proof is required before one-tap URL recording is accepted      |
+| Yes is selected but required questions remain | Yes is standing; operator and player separately see **Additional questions outstanding**                  |
+| No is selected and the page is abandoned      | No is standing; operator and player see the honest default **No reason given**                            |
+| The player changes No to Yes                  | Yes becomes standing, **No reason given** remains only in append-only history, and no RSVP chase restarts |
+| The player changes Yes to No                  | The No page requires a real reason before the standing answer changes                                     |
+| Another invitation belongs to the same player | It appears in the outstanding inbox with its own event details and choices                                |
+| An invitation belongs to somebody else        | It is absent from content, DOM and response payload even if identifiers are guessed                       |
+| Event has started                             | No response or intent is written; the uniform terminal surface remains                                    |
+| Valid event is cancelled                      | Existing cancelled-event state says no response is needed                                                 |
+| Delivery fails                                | W6 retries or exposes terminal failure; response state is unchanged                                       |
 
 ## Safety, privacy, consent, and authority boundaries
 
-- The token is 256-bit, URL-safe and stored only as a digest. It is never logged,
-  rendered for an operator or recoverable from the database.
-- The token is the authorization. The page and submission are server-side,
-  no-cache, non-indexed and `no-referrer`; no browser-facing domain-table grant or
-  public RLS policy is introduced.
-- Unknown, expired, revoked, superseded and event-started tokens remain publicly
-  indistinguishable in status, content, headers, actions and timing class.
-- The page returns one player's event, invitation and standing answer only. It
-  contains no peer names, counts or responses.
-- Delivery state and response state remain separate. Accepted, attempted or
-  delivered never means answered.
-- The response actor is the signed-link mechanism, not a falsely asserted person
-  identity. Append-only response and audit evidence preserve what happened.
+- A signed credential remains the authorization. It is stored only as a digest,
+  never logged or shown to an operator.
+- Expanding from one invitation to the same player's outstanding inbox is a
+  deliberate capability change. It reveals event summaries and aggregate counts
+  for that player only; no peer identity or peer answer is exposed.
+- Aggregate Yes counts are new peer visibility and supersede the prior zero-peer
+  rule only if this revised specification is approved. Counts are never names.
+- Unknown, expired, revoked, superseded and event-started credentials remain
+  publicly indistinguishable.
+- Reads remain no-cache, non-indexed and no-referrer. Domain writes remain
+  server-only with no public table grants.
+- Automated URL visits must not create answers. This is a release gate, not a
+  best-effort check.
 
 ## Acceptance evidence
 
-- With fixed-clock synthetic scenarios, a due WhatsApp message is sent through
-  the approved template with the correct player, event, local date/time and a
-  newly minted signed link; no manual action or manual channel exists.
-- A player can save Yes in one response action and No through the required-reason
-  step at desktop and true 375px width, with no horizontal scrolling.
-- A blank or whitespace-only No reason is refused in the browser, service and
-  database layers.
-- A saved answer, invitation response state, cancellation of every pending later
-  rung, clearing of an un-actioned flag and audit evidence commit together. A
-  forced failure proves none of the partial result remains.
-- The scheduler cannot claim a later rung after the answer commits. A controlled
-  race proves that an already in-flight attempt remains evidence rather than
-  being rewritten.
-- Reopening the latest link shows the standing answer and permits an append-only
-  change until event start, including after the response deadline.
-- Dispatching a later message supersedes the previous token. The old link and
-  unknown, expired, revoked and event-started links all satisfy the existing
-  uniform public-response contract.
-- A cancelled event reaches the existing distinct cancelled-event state and
-  writes no response.
-- Message and page payload tests prove no peer data, provider secret, raw
-  callback or token value is persisted or exposed outside the intended message.
+- A true WhatsApp rendering proves three approved player-facing template shapes:
+  invitation, stronger reminder and final email-equivalent chase, with the two
+  actions and no raw URL as primary body content.
+- Provider-contract tests prove the exact approved template names, dynamic
+  fields and button parameters, and distinguish CTA URL buttons from Quick Reply
+  webhook buttons.
+- Preview/scanner, reload and double-tap tests prove idempotence and prove no
+  false RSVP is created.
+- Yes and No choices land on their matching desktop and true-375px states. No
+  horizontal scrolling is required.
+- Required/optional text, boolean and choice questions render by invitation
+  capacity and save with the invitation. A forced failure leaves no partial
+  completed answer.
+- A No click is immediately standing with **No reason given**. Adding the real
+  reason appends new evidence and replaces the displayed default without editing
+  history.
+- Accurate live aggregate counts appear in messages and on the page without any
+  peer name or answer detail. Zero-count copy is omitted rather than weaponised.
+- The outstanding inbox returns only the same player's incomplete invitations,
+  groups new versus incomplete work, and directs them to the next answer.
+- Either response click cancels all later player-facing RSVP jobs and clears any
+  un-actioned flag atomically; question/reason follow-up remains separately
+  visible.
 - Grounding is current `main` at
-  `80e9616d396336a7b575a975ecb012548b4ed611`: `/rsvp/[token]`, its plain-form
-  actions, append-only response service, pending-reminder cancellation and
-  security-uniform terminal states already exist. The new work is the automatic
-  sequence and its end-to-end joins.
+  `80e9616d396336a7b575a975ecb012548b4ed611`, Mission 2 packet v1's question
+  model, and Meta's official WhatsApp Business Platform template examples.
 
 ## Core decisions
 
-| Decision                                                                                  | Classification              | Governing evidence or recommended default                                                         | Status                  |
-| ----------------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------- |
-| RSVP remains strictly Yes or No; No requires one reason                                   | `locked`                    | R5 and the approved LAN-79 surface                                                                | Settled                 |
-| The signed, no-login page remains the player response surface                             | `locked`                    | Task 02 D9; Task 03 server-rendered decision; Brian's 2026-08-22 ownership boundary               | Settled                 |
-| WhatsApp message 1 → WhatsApp message 2 → email while unanswered                          | `locked`                    | W1, approved by Brian 2026-08-24                                                                  | Settled                 |
-| A valid answer atomically cancels pending chase and clears an un-actioned flag            | `locked`                    | Task 03 arriving-RSVP decision                                                                    | Settled                 |
-| Late answers are accepted until event start                                               | `locked`                    | D10 and the shipped LAN-79 contract                                                               | Settled                 |
-| Each dispatch issues a fresh token, so only the newest message's link remains live        | `locked`                    | Existing token secrecy and one-live-token invariants on `main`                                    | Settled consequence     |
-| Direct WhatsApp replies and in-chat response buttons are not authoritative in Release One | `locked`                    | D9 and Task 03's deferred inbound-reply gap, pending Stuart's review                              | Deferred seam preserved |
-| No separate outbound confirmation is added after RSVP                                     | `locked`                    | W1's approved four-rung sequence; the existing saved page already confirms                        | No new rung             |
-| Exact approved-template grammar within the required player, event, time and link content  | `delegated to Mission Lead` | Template approval can refine wording without changing the journey or data boundary                | Delegated               |
-| Retry mechanics, scheduler claim interval and transactional implementation                | `delegated to Mission Lead` | Must satisfy the race, idempotence and evidence acceptance above without changing visible meaning | Delegated               |
-
-There is no new owner decision in this draft. It applies the already-approved W1
-sequence to the existing LAN-79 response journey and preserves the deferred
-WhatsApp-reply seam rather than silently expanding it.
+| Decision                                                                               | Classification                | Governing evidence or recommended default                                                      | Status                                          |
+| -------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| WhatsApp presents Yes and No actions instead of one raw-link journey                   | `proposed for owner approval` | Brian's W2 feedback, 2026-08-24                                                                | Direction given; revised spec approval required |
+| The action opens the answer-specific club page and records the click                   | `proposed for owner approval` | Brian's W2 feedback; constrained by Meta's split Quick Reply/URL behaviours and scanner safety | Recommended intent contract above               |
+| A No click records No with **No reason given** until the player adds the actual reason | `proposed for owner approval` | Brian's resolution, 2026-08-24; explicitly supersedes R5's prior refusal shape                 | Direction given; revised spec approval required |
+| A Yes remains standing while event questions are separately outstanding                | `proposed for owner approval` | Mission 2 already authorises per-event questions; Brian says the click is confirmation         | Direction given; revised spec approval required |
+| The page exposes the same player's outstanding RSVP inbox                              | `proposed for owner approval` | Brian's W2 feedback, 2026-08-24                                                                | Capability expansion; approval required         |
+| Accurate aggregate Yes counts appear in player messages and pages                      | `proposed for owner approval` | Brian's W2 feedback, 2026-08-24                                                                | Supersedes zero-peer-visibility if approved     |
+| WhatsApp 1, WhatsApp 2 and email use progressively stronger, distinct copy             | `proposed for owner approval` | Brian's W2 feedback; W1 fixes the channel order                                                | Exact reviewed mockup copy to approve           |
+| Direct typed WhatsApp replies remain non-authoritative                                 | `locked`                      | Task 03 inbound-reply seam remains gated on Stuart's review                                    | Unchanged                                       |
+| No separate confirmation message follows a completed answer                            | `locked`                      | The landing page and outstanding inbox provide confirmation; W1 adds no extra rung             | Unchanged                                       |
+| Exact safe implementation of one-time actions, sessions and scanner resistance         | `delegated to Mission Lead`   | Must satisfy the visible and security acceptance without changing meaning                      | Delegated                                       |
 
 ## Brian approval
 
-- **Exact words:** Pending
+- **Exact words:** Pending revised specification approval
 - **Date:** Pending
