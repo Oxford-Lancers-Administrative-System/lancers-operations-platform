@@ -225,6 +225,12 @@ and cleanup proofs are authoritative. The Lead follows its executable frontier
 and uses scouts instead of loading repository investigation into top-tier
 context.
 
+Brian checks each visual package in its prepared environment as it becomes
+ready. After every package is built, one bounded Sonnet walker smoke-tests the
+integrated mission journeys before merge; it does not repeat per-issue visual
+review or explore beyond the named jobs. Only affected journeys repeat after a
+rendered correction.
+
 No agent merges, un-drafts a pull request, deploys, migrates hosted Supabase, or
 writes to production. No agent weakens local-only guards, changes GitHub
 settings, or bypasses a fence. Draft PRs remain drafts until Brian or the

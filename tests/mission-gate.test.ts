@@ -367,6 +367,15 @@ describe("the journal-side conjuncts the Lead checks before publishing a receipt
         approved_by: "Brian",
         evidence: "live review",
       },
+      {
+        type: "integrated-review",
+        at: "t",
+        mode: "workflow-walker",
+        head_sha: HEAD,
+        package_heads: { "WP-events-filter": HEAD },
+        result: "clear",
+        jobs_completed: "Completed the final integrated smoke.",
+      },
       ...extra,
     ]);
 

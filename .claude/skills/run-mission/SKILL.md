@@ -123,9 +123,8 @@ evidence, and take the `build-complete` phase stop.
 
 At the integrated head, concurrently obtain:
 
-- one workflow-walker report completing the mission's user jobs end to end;
-- one cross-surface report comparing repeated facts, states, dates, permissions,
-  and copy; and
+- one bounded workflow-walker smoke report completing the predetermined mission
+  journeys end to end and checking their visible hand-offs; and
 - one security-tier review of only the sensitive-path intersection.
 
 Record each through `integrated-review` with its report path and exact package
@@ -142,13 +141,15 @@ rendered or sensitive-boundary change invalidates prior coverage. Two rounds on
 the same premise trigger fresh requirement adjudication, not another code scan.
 
 The classifier alone carries walker or visual evidence across a non-rendered
-head change. A rendered, broken, or unclassifiable link invalidates it.
+head change. After a rendered correction, re-run only affected journeys. A
+broken or unclassifiable link invalidates the evidence.
 
-## Brian's one mission check
+## Brian's issue walkthroughs
 
-Visual missions receive one browser preflight and one protected `review-ready`
-environment at the integrated head. Preserve the stack's configured hostname;
-`localhost` and `127.0.0.1` are not interchangeable for Auth.
+As each visual package becomes ready, give Brian its protected `review-ready`
+environment. Preserve the configured hostname; `localhost` and `127.0.0.1` are
+not interchangeable for Auth. This is Brian's normal product and presentation
+check, not an agent walk and not a reason to pause unrelated packages.
 
 Before sharing the link, give Brian:
 
@@ -156,10 +157,11 @@ Before sharing the link, give Brian:
 2. fit: its place in the end-to-end journey and what remains; and
 3. a table of each page, URL, action, judgment, and acceptance.
 
-End with what approval means and does not mean, plus each package's expected
-merge route and exact reason. Record one `mission-visual-approve` at the exact
-integrated and package heads. A route change voids the old presentation until
-it is disclosed and re-presented.
+End with what approval means and does not mean and the package's expected merge
+route. Record `visual-approve` at the exact package head Brian saw. A rendered
+head change voids that approval; a classifier-proven non-rendered change carries
+it forward. The final mission walker is a single pre-merge smoke test of the
+integrated journeys, not a repeat of Brian's per-issue visual judgment.
 
 ## Checkpoint, merge, and acceptance
 

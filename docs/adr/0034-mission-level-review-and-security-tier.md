@@ -1,6 +1,6 @@
 # 0034 — Mission-level review and the security tier
 
-**Status:** Accepted · **Date:** 2026-08-23 · **Supersedes:** the
+**Status:** Superseded by [0035](0035-owner-package-walkthrough-and-final-smoke.md) · **Date:** 2026-08-23 · **Supersedes:** the
 per-package review clauses of [0027](0027-mission-harness.md) and
 [0033](0033-harness-after-the-first-live-mission.md)
 

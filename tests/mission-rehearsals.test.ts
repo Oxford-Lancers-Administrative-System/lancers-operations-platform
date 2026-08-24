@@ -135,6 +135,7 @@ async function reviewedAndApproved(m: ReturnType<typeof mission>, head: string, 
     type: "integrated-review",
     mode: "workflow-walker",
     head_sha: head,
+    package_heads: { [PACKAGE]: head },
     result: "clear",
     jobs_completed: "Completed the synthetic event workflow end to end.",
   });

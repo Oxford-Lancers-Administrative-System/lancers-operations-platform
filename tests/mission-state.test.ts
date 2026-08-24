@@ -146,13 +146,17 @@ async function readyMission(m: ReturnType<typeof fixture>) {
   }
 }
 
-/** LAN-148 §D: Brian is asked to judge the integrated result, so the walker
- * runs against the head he will be shown before any visual approval. */
-const walked = (m: ReturnType<typeof fixture>, sha = SHA) =>
+/** The one final mission smoke covers every package head. */
+const walked = (
+  m: ReturnType<typeof fixture>,
+  sha = SHA,
+  packageHeads = Object.fromEntries(plan.packages.map((pkg: { id: string }) => [pkg.id, sha])),
+) =>
   m.append({
     type: "integrated-review",
     mode: "workflow-walker",
     head_sha: sha,
+    package_heads: packageHeads,
     result: "clear",
     jobs_completed: "Signed in, drafted a practice, confirmed its audience and took the register.",
   });
@@ -1665,6 +1669,7 @@ describe("guarded merge recording", () => {
       answered_by: "Brian",
       reusable: false,
     });
+    await walked(m, SHA, { "WP-migration": SHA, "WP-risky": SHA });
     const merged = await m.append({
       type: "merge-recorded",
       package_id: "WP-risky",
@@ -1679,6 +1684,7 @@ describe("guarded merge recording", () => {
     const m = fixture();
     await readyMission(m);
     await reviewedClear(m, "WP-attendance-export");
+    await walked(m);
 
     // It qualifies: normal risk, nonvisual, clear review at the exact head.
     await expect(
@@ -1871,62 +1877,17 @@ describe("reviewing the thing the packages add up to", () => {
     ).rejects.toThrow(/invalid coverage[\s\S]*report path/);
   });
 
-  /**
-   * LAN-148 §D. Package-scoped review caught serious defects in the first live
-   * run and missed twelve usability and consistency ones, because nobody
-   * reviewed what the packages add up to. Brian is asked to judge the
-   * integrated result, so the walker runs against the head he will be shown.
-   */
-  it("refuses a visual approval that no walker covers, and accepts one that is walked", async () => {
+  it("records Brian's package walkthrough before the final mission smoke", async () => {
     const m = fixture();
     await readyMission(m);
-    await reviewedClear(m, "WP-events-filter");
-
-    await expect(
-      m.append({
-        type: "visual-approval",
+    const ready = await reviewedClear(m, "WP-events-filter");
+    expect(nextActions(ready)).toContainEqual(
+      expect.objectContaining({
+        action: "owner-walkthrough",
         package_id: "WP-events-filter",
-        approved_by: "Brian",
-        evidence: "live review",
       }),
-    ).rejects.toThrow(/No clear workflow-walker review covers/);
+    );
 
-    // A walker at a different head is not a walker at this one.
-    await m.append({
-      type: "integrated-review",
-      mode: "workflow-walker",
-      head_sha: "d".repeat(40),
-      result: "clear",
-      jobs_completed: "Walked a different head entirely.",
-    });
-    await expect(
-      m.append({
-        type: "visual-approval",
-        package_id: "WP-events-filter",
-        approved_by: "Brian",
-        evidence: "live review",
-      }),
-    ).rejects.toThrow(/No clear workflow-walker review covers/);
-
-    // Nor is a blocked one.
-    await m.append({
-      type: "integrated-review",
-      mode: "workflow-walker",
-      head_sha: SHA,
-      result: "blocked",
-      jobs_completed: "The register could not be reached from the event.",
-      findings: [{ id: "W-001", summary: "dead end" }],
-    });
-    await expect(
-      m.append({
-        type: "visual-approval",
-        package_id: "WP-events-filter",
-        approved_by: "Brian",
-        evidence: "live review",
-      }),
-    ).rejects.toThrow(/No clear workflow-walker review covers/);
-
-    await walked(m);
     const approved = await m.append({
       type: "visual-approval",
       package_id: "WP-events-filter",
@@ -1934,6 +1895,11 @@ describe("reviewing the thing the packages add up to", () => {
       evidence: "live review",
     });
     expect(approved.packages["WP-events-filter"].visual_approved).toBe(true);
+    expect(guardedLaneRefusals(approved, "WP-events-filter", SHA)).toContain(
+      "The final integrated workflow smoke does not cover this package head.",
+    );
+    const smoked = await walked(m);
+    expect(guardedLaneRefusals(smoked, "WP-events-filter", SHA)).toEqual([]);
   });
 
   it("waits for build-complete before one mission walker, and asks for jobs rather than screens", async () => {
@@ -1960,16 +1926,7 @@ describe("reviewing the thing the packages add up to", () => {
 
     await expect(
       m.append({ type: "integrated-review", mode: "eyeballed-it", head_sha: SHA, result: "clear" }),
-    ).rejects.toThrow(/mode is one of workflow-walker, cross-surface/);
-
-    await expect(
-      m.append({
-        type: "integrated-review",
-        mode: "cross-surface",
-        head_sha: SHA,
-        result: "blocked",
-      }),
-    ).rejects.toThrow(/blocked integrated review names its findings/);
+    ).rejects.toThrow(/mode is one of workflow-walker, security-tier/);
   });
 });
 
@@ -2105,21 +2062,7 @@ describe("closing the mission where Brian will find it", () => {
 
   async function crossed(m: ReturnType<typeof fixture>) {
     await readyMission(m);
-    await m.append({
-      type: "integrated-review",
-      mode: "cross-surface",
-      head_sha: SHA,
-      result: "clear",
-    });
   }
-
-  it("refuses a closeout with no cross-surface review of the integrated result", async () => {
-    const m = fixture();
-    await readyMission(m);
-    await expect(m.append({ type: "mission-closeout", ...payload() })).rejects.toThrow(
-      /No clear cross-surface review covers the integrated result/,
-    );
-  });
 
   it("refuses an outcome that is not one of the three that can be true", async () => {
     const m = fixture();
@@ -2388,12 +2331,6 @@ describe("giving back what the mission took out", () => {
   it("will not finalize while a package is unmerged or unreclaimed", async () => {
     const m = fixture();
     await merged(m);
-    await m.append({
-      type: "integrated-review",
-      mode: "cross-surface",
-      head_sha: SHA,
-      result: "clear",
-    });
     await m.append({
       type: "mission-closeout",
       outcome: "delivered",

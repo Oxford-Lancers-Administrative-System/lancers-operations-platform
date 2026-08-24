@@ -33,8 +33,8 @@ Modes:
 - `correction`: inspect the named findings and prior-reviewed..current delta.
 - `requirement-adjudication`: resolve a repeated premise from authority only.
 - `security-tier`: review an integrated mission's sensitive-path intersection.
-- `workflow-walker`: complete actual user jobs end to end.
-- `cross-surface`: compare repeated facts, states, dates, permissions, and copy.
+- `workflow-walker`: smoke-test predetermined user jobs and their visible
+  hand-offs once at the final integrated candidate.
 
 Pin and detach the exact PR/integrated head before reading implementation; require
 a clean worktree and re-check the head before verdict. If it moved, report stale
@@ -66,8 +66,9 @@ In `requirement-adjudication`, accept no PR body, implementation, diff, matrix,
 correction framing, prior reasoning, or proposed answer. Return the authoritative
 resolution or one precise owner decision; do not add code findings.
 
-Walkers report completed jobs and dead ends, not screen visits. Cross-surface
-reports identify contradictions. Both remain exact-head evidence.
+Walkers report completed jobs, dead ends, and contradictions encountered across
+the named journeys, not screen visits or open-ended exploration. They remain
+exact-head evidence.
 
 ## Findings and challenge
 

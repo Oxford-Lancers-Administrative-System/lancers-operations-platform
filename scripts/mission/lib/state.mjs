@@ -211,7 +211,9 @@ function clearWalkerCovers(state, pkg, headSha = pkg?.head_sha) {
     (review) =>
       review.mode === "workflow-walker" &&
       review.result === "clear" &&
-      carryForwardCovers(pkg.visual_carry_forward_chain, review.head_sha, headSha),
+      (packageHeadCovers(review, pkg, headSha) ||
+        (!review.package_heads &&
+          carryForwardCovers(pkg.visual_carry_forward_chain, review.head_sha, headSha))),
   );
 }
 
@@ -237,17 +239,8 @@ const WORKER_RECEIPT_FIELDS = [
 
 const REVIEW_RECEIPT_FIELDS = ["review_mode", "reviewed_head_sha", "round", "result"];
 
-/**
- * The two reviews that only make sense against the whole mission (LAN-148 §D).
- *
- * Package-scoped review caught serious defects in the first live run and missed
- * twelve usability and consistency ones, because nobody reviewed the thing the
- * packages add up to. A walker completes the mission's actual user jobs end to
- * end before Brian is asked to look at anything; a cross-surface pass compares
- * the repeated facts, states, dates, permissions and copy across the surfaces
- * once they have all integrated.
- */
-export const INTEGRATED_REVIEW_MODES = ["workflow-walker", "cross-surface", "security-tier"];
+/** Reviews that make sense only against the whole mission. */
+export const INTEGRATED_REVIEW_MODES = ["workflow-walker", "security-tier"];
 
 /**
  * The four sources a UI brief must name (LAN-148 §E).
@@ -472,6 +465,9 @@ export function guardedLaneRefusals(state, packageId, sha) {
   }
   if (!approvalCovers(state, pkg, sha)) {
     refusals.push("Visual work merges only after Brian's recorded visual approval.");
+  }
+  if (!clearWalkerCovers(state, pkg, sha)) {
+    refusals.push("The final integrated workflow smoke does not cover this package head.");
   }
   for (const question of openQuestionsAffecting(state, packageId)) {
     refusals.push(`Unresolved owner question ${question.id} affects ${packageId}.`);
@@ -1006,13 +1002,6 @@ export function validateEvent(event, state) {
       if (pkg.visual === "nonvisual") {
         errors.push(`${event.package_id} is nonvisual; there is nothing to visually approve.`);
       }
-      // LAN-148 §D: Brian looks at the integrated result, not at one package in
-      // isolation. The walker runs first, at the head he will be shown.
-      if (!clearWalkerCovers(state, pkg)) {
-        errors.push(
-          `No clear workflow-walker review covers ${pkg.head_sha ?? "this package's head"}. The mission's own user jobs are completed end to end before Brian is asked to judge presentation.`,
-        );
-      }
       if (!isNonEmptyString(event.approved_by) || !isNonEmptyString(event.evidence)) {
         errors.push("A visual approval records who approved and where (the live review).");
       }
@@ -1307,16 +1296,6 @@ export function validateEvent(event, state) {
       }
       if (!isNonEmptyString(event.owner_actions)) {
         errors.push("Closeout states what Brian or an external service must do, or 'none'.");
-      }
-      if (event.outcome !== "stopped-incomplete") {
-        const crossSurface = state.integratedReviews.find(
-          (review) => review.mode === "cross-surface" && review.result === "clear",
-        );
-        if (!crossSurface) {
-          errors.push(
-            "No clear cross-surface review covers the integrated result. Repeated facts, states, dates, permissions and copy are compared across the surfaces once they have all landed.",
-          );
-        }
       }
       break;
     }
@@ -1981,8 +1960,22 @@ export function nextActions(state) {
     }
     if (
       ["implemented", "reviewed"].includes(pkg.status) &&
+      pkg.pr_number &&
+      pkg.visual !== "nonvisual" &&
+      !approvalCovers(state, pkg)
+    ) {
+      actions.push({
+        action: "owner-walkthrough",
+        package_id: pkg.id,
+        detail:
+          "Present this issue's prepared environment, exact routes and judgments to Brian; record visual-approve at the head he checks.",
+      });
+    }
+    if (
+      ["implemented", "reviewed"].includes(pkg.status) &&
       reviewCovers(state, pkg) &&
-      approvalCovers(state, pkg)
+      approvalCovers(state, pkg) &&
+      clearWalkerCovers(state, pkg)
     ) {
       actions.push(
         pkg.gate_passed?.head_sha === pkg.head_sha
@@ -2029,13 +2022,6 @@ export function nextActions(state) {
         "At build-complete, run full verification once, then complete the mission's user jobs end to end at the integrated head.",
     });
   }
-  if (buildComplete && !integratedCovers("cross-surface")) {
-    actions.push({
-      action: "cross-surface-review",
-      detail:
-        "At the integrated head, compare repeated facts, states, dates, permissions and copy across the mission's surfaces.",
-    });
-  }
   if (buildComplete && !integratedCovers("security-tier")) {
     actions.push({
       action: "security-tier-review",
@@ -2044,22 +2030,9 @@ export function nextActions(state) {
     });
   }
   const visualPackages = live.filter((pkg) => pkg.visual !== "nonvisual");
-  if (
-    buildComplete &&
-    visualPackages.length > 0 &&
-    integratedCovers("workflow-walker") &&
-    !visualPackages.every((pkg) => approvalCovers(state, pkg))
-  ) {
-    actions.push({
-      action: "mission-visual-approval",
-      detail:
-        "Present one three-part brief and integrated environment for Brian's single mission check-off.",
-    });
-  }
   const gateComplete =
     buildComplete &&
     integratedCovers("workflow-walker") &&
-    integratedCovers("cross-surface") &&
     integratedCovers("security-tier") &&
     visualPackages.every((pkg) => approvalCovers(state, pkg));
   if (gateComplete && !state.phaseRecycles.includes("gate-complete")) {

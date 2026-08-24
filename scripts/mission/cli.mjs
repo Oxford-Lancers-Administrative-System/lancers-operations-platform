@@ -634,7 +634,7 @@ async function main() {
         !flags.report
       ) {
         fail(
-          "Usage: mission integrated-review <mission-id> --mode workflow-walker|cross-surface|security-tier --head <sha> --package-heads <file> --result clear|blocked [--jobs <what was completed>] [--findings <file>] [--sensitive-paths <file>] [--report <file>]",
+          "Usage: mission integrated-review <mission-id> --mode workflow-walker|security-tier --head <sha> --package-heads <file> --result clear|blocked [--jobs <what was completed>] [--findings <file>] [--sensitive-paths <file>] [--report <file>]",
         );
       }
       requireNonEmptyFile(flags.report, "Integrated review report");

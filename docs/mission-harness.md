@@ -153,13 +153,15 @@ the Linear issue, required outcome, linked criterion or gate, remaining human
 and agent work, and next actor. Questions Brian can answer in the conversation
 remain in **Need from Brian** and never enter the owner-action section.
 
-**Visual review keeps ADR 0020's protected environment and moves to mission
-level under ADR 0034.** After all packages are built, one workflow walker and
-one cross-surface pass run at the integrated head. Brian opens one live
-`review-ready` environment with one URL, the fixed login, and zero commands.
-His approval is recorded once (`mission-visual-approve`) with the exact package
-heads it covers. A rendered batched correction requires a scoped re-walk and
-re-approval; a classifier-proven non-rendered delta may carry them forward.
+**Visual review keeps ADR 0020's protected environment and follows ADR 0035.**
+Brian opens each visual package's live `review-ready` environment as it becomes
+ready, with one URL, the fixed login and zero commands. `visual-approve` records
+the exact package head he checked without pausing unrelated work. After every
+package is built, one bounded Sonnet walker smoke-tests the predetermined
+end-to-end journeys and their visible hand-offs at the integrated candidate.
+That final smoke is not another visual review. A rendered correction repeats
+only affected owner or walker evidence; a classifier-proven non-rendered delta
+may carry it forward.
 
 ## What merges by itself, and what never does
 
