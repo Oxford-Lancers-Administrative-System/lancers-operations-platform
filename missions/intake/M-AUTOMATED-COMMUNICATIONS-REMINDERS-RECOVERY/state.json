@@ -24,23 +24,19 @@
     {
       "id": "W1",
       "name": "Approve an event knowing what it will send",
-      "state": "spec_draft",
+      "state": "mock_approved",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W1-01",
-          "text": "Show the whole current event page: event details first, invited audience next, and the messaging plan last as an expandable dropdown. The default sequence is WhatsApp message 1, WhatsApp message 2, email, then follow-up escalation to the President."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Approved",
+          "date": "2026-08-24"
         },
-        {
-          "screen_id": "W1-02",
-          "text": "Remove the explanatory error copy. Show only that one user has an error and a compact 'See 1 user with error' disclosure."
-        },
-        {
-          "screen_id": "W1-03",
-          "text": "Show the approved messaging plan in the context of the whole event page rather than as an isolated card."
+        "mock": {
+          "words": "Approved",
+          "date": "2026-08-24"
         }
-      ],
-      "approvals": {}
+      }
     },
     {
       "id": "W2",
@@ -829,5 +825,5 @@
       }
     ]
   },
-  "next_action": "Review the revised W1 specification and full-page mockup (Stage 3)"
+  "next_action": "Draft and approve the W1 acceptance record (Stage 3)"
 }

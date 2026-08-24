@@ -205,8 +205,7 @@ silently abandoned.
 
 ## Brian approval
 
-- **Prior approval, now reopened:** "Then it's approved. Go make the mockup."
-  (2026-08-24)
-- **Reopened because:** Brian added a second WhatsApp message and moved the plan
-  into a full-page dropdown during mockup review.
-- **Current approval:** Pending review of this narrow revision.
+- **Prior approval:** "Then it's approved. Go make the mockup." (2026-08-24)
+- **Revision:** Brian added a second WhatsApp message and moved the plan into a
+  full-page dropdown during mockup review.
+- **Current specification and mockup approval:** "Approved" (2026-08-24)
