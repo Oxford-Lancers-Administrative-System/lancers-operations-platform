@@ -203,5 +203,5 @@ silently abandoned.
 
 ## Brian approval
 
-- **Exact words:**
-- **Date:**
+- **Exact words:** "Then it's approved. Go make the mockup."
+- **Date:** 2026-08-24

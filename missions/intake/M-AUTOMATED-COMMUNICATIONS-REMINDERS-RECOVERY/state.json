@@ -24,15 +24,15 @@
     {
       "id": "W1",
       "name": "Approve an event knowing what it will send",
-      "state": "spec_draft",
+      "state": "spec_approved",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W1-01",
-          "text": "Brian review, 2026-08-24: there are no quiet hours. The sequence is WhatsApp message, email, follow-up escalation, then send to the President. Every user should have WhatsApp; absence is an error, but its handling is outside W1. Compression needs a different timeline and remains to be worked out in W7. Recovery fallback must be visible."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "Then it's approved. Go make the mockup.",
+          "date": "2026-08-24"
         }
-      ],
-      "approvals": {}
+      }
     },
     {
       "id": "W2",
@@ -805,5 +805,5 @@
       }
     ]
   },
-  "next_action": "Review the revised W1 specification, then draft and walk its mockup (Stage 3)"
+  "next_action": "Draft and walk the W1 mockup (Stage 3)"
 }
