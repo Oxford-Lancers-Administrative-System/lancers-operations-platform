@@ -75,7 +75,7 @@
     {
       "id": "W4",
       "name": "See who is coming, and who has not answered",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -843,5 +843,5 @@
       }
     ]
   },
-  "next_action": "Draft the W4 specification — see who is coming, and who has not answered (Stage 3)"
+  "next_action": "Review the W4 specification and mockup with Brian (Stage 3)"
 }
