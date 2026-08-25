@@ -1,21 +1,42 @@
 # Mission-intake mockup standards
 
-Mission-intake mockups are review artifacts, not redesign proposals. Start from
-`.claude/skills/mission-intake/assets/mockup-exemplar.html` and preserve its
-data-driven single-file rendering approach, shell, tokens, and frame markup.
+Mission-intake mockups are review artifacts, not redesign proposals. Take the
+shell, tokens, and frame markup from
+`.claude/skills/mission-intake/assets/mockup-exemplar.html`. Take the grounding
+rule below instead of the exemplar's — the exemplar demonstrates it but the
+rule, not the file, is authority.
 
-## Grounding
+## Grounding — one method per screen
 
+**Both sides of a screen come from the same producer.** This is a refusal, not
+a preference.
+
+- A surface that exists on `main` is **photographed on both sides**. Capture it
+  with `npm run intake -- shoot --screen <Wn-nn> --route <path>` for the current
+  side, and again with `--proposal <file.js>` — JavaScript evaluated into the
+  live page — for the proposed side. Both frames are then the same running page
+  differing only by the proposal.
+- A surface that does not exist is **drawn on both sides**, which means the
+  current side reads `New surface, nothing to compare` and the proposal is
+  hand-built HTML.
+- **Never pair a photograph with a drawing on one screen.** Doing so is the
+  single defect this section exists to prevent: every difference in rendering
+  then reads as a proposal, the reviewer cannot tell a change from an artefact,
+  and a page they own daily stops being recognisable. It cost roughly half of
+  `M-EVENTS-CALENDAR-TARGET-STATE`'s five-hour intake.
+- A screen's disposition and its producer must agree. `modified` requires two
+  photographs; `new` requires `New surface, nothing to compare`. A `modified`
+  screen with no current side is a contradiction, not an omission.
 - Begin the stylesheet with a token-provenance comment naming the exact source
   files, normally `src/theme.ts` and applicable MUI defaults, and the sentence
   **“Nothing here is a redesign.”**
-- Capture the current running application with Playwright at desktop and 375px
-  and embed the relevant current-state screenshot beside each proposal so the
-  delta is visible. Use only synthetic pilot-data names and scenarios.
+- Use only synthetic pilot-data names and scenarios.
 - When the app cannot run because the local database or migrations are
-  unavailable, inspect the implementation and use code-only grounding. Mark the
-  acceptance record `grounding: code-only` and report screenshot restoration as
-  open. Never imply screenshots were captured when they were not.
+  unavailable, every screen in that mockup is drawn, the acceptance record is
+  marked `grounding: code-only`, and screenshot restoration is reported as open.
+  Never imply screenshots were captured when they were not, and never restore
+  only some screens — a mockup with mixed grounding is the pairing this section
+  refuses.
 - Repository authority wins over a draft requirement. Show the authoritative
   behavior and raise the conflict to Brian explicitly; never silently harmonize
   either direction.

@@ -4,6 +4,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Approve event → release invitations · mockup</title>
+    <!-- ================================================================== *
+     * SCOPE (LAN-166). This file is the shell, token and frame reference.
+     * It is NOT the grounding model, and its four screens must not be
+     * copied as one.
+     *
+     * All four draw a surface that already exists on `main`, with no current
+     * side at all. `M-EVENTS-CALENDAR-TARGET-STATE` copied that pattern onto
+     * a one-control change to a running page and spent roughly half of a
+     * five-hour intake rebuilding the drawing instead of photographing the
+     * page. The rule that governs grounding lives in
+     * `docs/ux/mockup-standards.md`: both sides of a screen come from the
+     * same producer, and an existing surface is photographed on both sides
+     * with `npm run intake -- shoot`.
+     * ================================================================== -->
     <style>
       /* ------------------------------------------------------------------ *
        * Tokens taken from the real application: src/theme.ts (primary
@@ -939,9 +953,12 @@
       <header class="page-head">
         <h1>Approve event → release invitations</h1>
         <p>
-          Four screens of the approval path for one event, each rendered at desktop (1280px, shown
-          at 72%) and at a true 375px phone width. The shell, typography, controls and copy are the
-          running application's — <code>src/app/operate/events/[id]/page.tsx</code>,
+          Four screens of the approval path for one event, each drawn at desktop (1280px, shown at
+          72%) and in a 375px-wide frame. Both frames hold the same markup, so the phone column is
+          this file's own responsive CSS and not a measurement of the application — a screen that
+          has to be trusted at 375px is photographed with <code>npm run intake -- shoot</code>,
+          which records the width the browser actually reported. The shell, typography, controls and
+          copy are the running application's — <code>src/app/operate/events/[id]/page.tsx</code>,
           <code>src/app/operate/layout.tsx</code> and <code>src/theme.ts</code>. Everything marked
           <em>Proposed</em> is the new per-event RSVP plan panel and does not exist in the build
           today.

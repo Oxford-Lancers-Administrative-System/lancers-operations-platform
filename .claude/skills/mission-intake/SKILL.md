@@ -103,10 +103,21 @@ and each real owner decision with a recommendation. Then show it and request
 approval.
 
 User-facing workflows build template-backed HTML mockups under
-`docs/ux/mockup-standards.md`, grounded in real-screen screenshots when
-possible and explicitly `code-only` otherwise. Generate—never hand-edit—the
-mockup hub after state/artifact/feedback changes and show revised mocks in the
-browser.
+`docs/ux/mockup-standards.md`. Both sides of a screen come from the same
+producer. A surface that exists on `main` is photographed on both sides:
+
+```bash
+npm run intake -- shoot --screen <Wn-nn> --route <path> [--proposal <file.js>]
+```
+
+A surface that does not exist is drawn on both sides, and its current side
+reads `New surface, nothing to compare`. Never pair a photograph with a
+drawing on one screen — every difference in rendering then reads as a
+proposal, and a page Brian owns daily stops being recognisable. When the
+application cannot run, every screen in that mockup is drawn and the
+acceptance record is marked `grounding: code-only`; never restore only some.
+Generate—never hand-edit—the mockup hub after state/artifact/feedback changes
+and show revised mocks in the browser.
 
 Track feedback by screen id. Spec approval, mock approval, and acceptance each
 advance atomically with Brian's words. Wn completes before Wn+1 approval, though

@@ -8,6 +8,7 @@ import { replaceExact, writeGenerated } from "./lib/edit.mjs";
 import { formatAs } from "./lib/format.mjs";
 import { HUB_FILE, renderMockupHub } from "./lib/hub.mjs";
 import { validateFinalPrPaths } from "./lib/pr.mjs";
+import { shootScreen } from "./lib/shoot.mjs";
 import {
   DECISION_COVERAGE_FILE,
   findStateFile,
@@ -23,6 +24,8 @@ const USAGE = `Usage:
   npm run intake -- hub [M-<mission-id>] --write|--check
   npm run intake -- coverage [M-<mission-id>] --write|--check
   npm run intake -- pr-paths [M-<mission-id>] --diff <ref>
+  npm run intake -- shoot [M-<mission-id>] --screen <Wn-nn> --route <path> \\
+                          [--proposal <file.js>]
   npm run intake -- edit --file <path> (--find <text>|--find-file <path>) \\
                          (--replace <text>|--replace-file <path>) --expect <n>`;
 
@@ -182,6 +185,39 @@ async function main() {
       console.log(
         `${paths.length} changed file(s) against ${base}: exactly ${state.mission_id}'s ledger and packet.`,
       );
+      return;
+    }
+    case "shoot": {
+      const options = parse(argv.slice(1), { values: ["--screen", "--route", "--proposal"] });
+      const { root } = load(missionArgument(options._), { requireGenerated: false });
+      if (!options.screen || !options.route) fail(`shoot needs --screen and --route.\n${USAGE}`);
+      const proposalFile = options.proposal ?? null;
+      const proposal = proposalFile ? fs.readFileSync(proposalFile, "utf8") : null;
+      try {
+        const record = await shootScreen({
+          repoPath: process.cwd(),
+          ledgerRoot: root,
+          screenId: options.screen,
+          route: options.route,
+          mutate: proposal,
+          mutateFile: proposalFile,
+        });
+        for (const capture of record.captures) {
+          console.log(
+            `${record.id} ${capture.side} ${capture.viewport}: browser context measured ${capture.measuredWidth}px → ${capture.file}`,
+          );
+        }
+        if (!proposal) {
+          // The whole failure this command exists to prevent: a photograph of
+          // the current build set beside a drawing of the proposal, so every
+          // difference in rendering reads as a proposal.
+          console.log(
+            `Current side only. A screen that changes an existing surface needs --proposal too; do not pair this photograph with a drawing.`,
+          );
+        }
+      } catch (error) {
+        fail(error.message);
+      }
       return;
     }
     case "edit": {
