@@ -16,6 +16,20 @@
   moved, and no player is left uninformed because the system quietly dropped a
   message.
 
+## W8 cannot be built before Mission 2 ships the amendment surface
+
+Verified in the running application on 2026-08-25 at `80e9616`: opening
+`/operate/events/[id]/edit` for an **approved** event is refused outright —
+_"Only a draft can be edited. This event is approved."_
+(`src/lib/services/events.ts`, `EDIT_REFUSAL_MESSAGE`).
+
+Amend-in-place is Mission 2's approved requirement `REQ-amend-in-place` and is
+not built. This workflow's entire trigger therefore does not exist yet, and the
+only event an edit form currently opens for is a draft.
+
+**This is a hard sequencing constraint, not a preference**, and it belongs in the
+packet rather than being discovered by whoever picks the work up.
+
 ## The seam this workflow sits on
 
 Mission 2 owns the event side and has already placed the amendment workflow.
