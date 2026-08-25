@@ -8,13 +8,30 @@ import { CLUB_TIME_ZONE } from "@/lib/club-time";
  *
  * There is no iCalendar library on `main`, and adding one puts `package.json`
  * and `package-lock.json` on the merge gate's prohibited-surface list. RFC 5545
- * for this shape is small, and the Lead's determination is exact about what
- * that shape is: "a VCALENDAR wrapper and one VEVENT per event carrying UID,
- * DTSTAMP, DTSTART, DTEND, SUMMARY, LOCATION, STATUS and SEQUENCE." That is the
- * complete list of `VEVENT` properties this module writes — no DESCRIPTION, no
- * CATEGORIES, nothing the workflow's "what the subscriber gets" table lists
- * beyond it. `SUMMARY` already carries the type where an operator wrote it into
- * the event's name (the seeded data does this — "Chalk — michaelmas week 4").
+ * for this shape is small, and the Lead's original determination was exact
+ * about what that shape is: "a VCALENDAR wrapper and one VEVENT per event
+ * carrying UID, DTSTAMP, DTSTART, DTEND, SUMMARY, LOCATION, STATUS and
+ * SEQUENCE." That list was complete and deliberate for the head this module
+ * shipped at, and this module followed it exactly — it was simply too thin.
+ * Brian walked the feed, subscribed to it, and asked for the event's
+ * description and required equipment to appear alongside the rest, so a
+ * member reading the calendar entry never has to tap through to the public
+ * page for detail (Q-29). `DESCRIPTION` is now part of the list; still no
+ * CATEGORIES, and nothing else the workflow's "what the subscriber gets"
+ * table does not list. `SUMMARY` already carries the type where an operator
+ * wrote it into the event's name (the seeded data does this — "Chalk —
+ * michaelmas week 4").
+ *
+ * ## `DESCRIPTION` matches the public event page, not a new rule (Q-29)
+ *
+ * `REQ-subscription` says the feed carries "the public tier's content", and
+ * `readPublicEvent` (`./events.ts`) already selects both `description` and
+ * `required_equipment` for the public event page — so before this change the
+ * public page showed strictly more than the feed did, for the same event, at
+ * the same tier. `descriptionFor` below joins the two into one `DESCRIPTION`
+ * value using the public page's own label for equipment, "What to bring", so
+ * this module invents no vocabulary the rest of the club's surfaces do not
+ * already use.
  *
  * ## Pure, like `./calendar`
  *
@@ -45,12 +62,15 @@ import { CLUB_TIME_ZONE } from "@/lib/club-time";
  * `SEQUENCE` increases with it — which is what tells a subscribed calendar to
  * replace its copy of the entry rather than add a second one.
  *
- * ## What the feed leaves out, and why that is structural
+ * ## What the feed still leaves out, and why that is structural
  *
- * `FeedEvent` has no field for a person, an RSVP, attendance, or an online
- * event's joining URL — the same absence `PublicEventListEntry` has, for the
- * same reason (`./events.ts`). There is nothing here to withhold because there
- * is nothing here to read one of them from.
+ * Q-29 widened `DESCRIPTION`, not this boundary. `FeedEvent` has no field for
+ * a person, an RSVP, attendance, or an online event's joining URL — the same
+ * absence `PublicEventListEntry` has, for the same reason (`./events.ts`).
+ * There is nothing here to withhold because there is nothing here to read one
+ * of them from. `description` is free-form operator text and ships exactly as
+ * written, including anything in it that merely resembles a URL — this module
+ * does not parse or redact it, only escape it like any other text value.
  *
  * ## Times, and the defect this module exists not to repeat
  *
@@ -82,6 +102,10 @@ export interface FeedEvent {
   deliveryMode: string;
   venue: string | null;
   isCancelled: boolean;
+  /** D18. Free-form operator text. Combined with `requiredEquipment` into `DESCRIPTION`. Q-29. */
+  description: string | null;
+  /** D17. Free-form operator text. Combined with `description` into `DESCRIPTION`. Q-29. */
+  requiredEquipment: string | null;
   /** ISO 8601 instant — `events.updated_at`. `SEQUENCE` is derived from this. */
   updatedAt: string;
 }
@@ -131,8 +155,13 @@ export function deriveSequence(updatedAtIso: string): number {
  * break as the literal two characters `\n`.
  *
  * Applied to every free-text value this module emits (`SUMMARY`, `LOCATION`,
- * the calendar name), because an event name or venue is operator-entered and
- * validators are strict about exactly these four substitutions.
+ * `DESCRIPTION`, the calendar name), because an event name, venue, description
+ * or equipment note is operator-entered and validators are strict about
+ * exactly these four substitutions. `DESCRIPTION` is where this is load-
+ * bearing rather than incidental: a multi-paragraph description is exactly the
+ * free text most likely to contain a real comma, semicolon or line break, and
+ * an unescaped one does not raise an error — it silently corrupts the
+ * document a subscriber's calendar app parses (Q-29).
  */
 export function escapeText(value: string): string {
   return value
@@ -288,9 +317,42 @@ function locationFor(event: FeedEvent): string | null {
   return event.deliveryMode === "online" ? "Online" : null;
 }
 
+/**
+ * `DESCRIPTION`, or `null` to omit the property entirely — never an empty or
+ * dangling one. Q-29.
+ *
+ * Blank strings are treated the same as `null`: an operator can save an empty
+ * description or equipment field, and that is not "one word of content", so
+ * an event with both fields blank still emits no `DESCRIPTION`, matching the
+ * public event page's own `{event.description ? … : null}` / `{event
+ * .requiredEquipment ? … : null}` guards.
+ *
+ * When both are present they are joined with a blank line, description first
+ * — it is the event's own prose, so it leads — followed by required equipment
+ * under the exact label the public event page already uses for it, "What to
+ * bring" (`src/app/calendar/[id]/page.tsx`), rather than inventing a heading
+ * vocabulary of this module's own. When only one is present, it is emitted
+ * alone; equipment alone still carries the "What to bring:" label, since
+ * without it a bare list of kit would read as an unlabelled fragment.
+ */
+function descriptionFor(event: FeedEvent): string | null {
+  const description =
+    event.description !== null && event.description.trim() !== "" ? event.description : null;
+  const equipment =
+    event.requiredEquipment !== null && event.requiredEquipment.trim() !== ""
+      ? event.requiredEquipment
+      : null;
+
+  if (description === null && equipment === null) return null;
+  if (equipment === null) return description;
+  if (description === null) return `What to bring: ${equipment}`;
+  return `${description}\n\nWhat to bring: ${equipment}`;
+}
+
 function buildVEventLines(event: FeedEvent, now: Date): string[] {
   const timing = eventTiming(event);
   const location = locationFor(event);
+  const description = descriptionFor(event);
   const dateParam = timing.allDay ? ";VALUE=DATE" : "";
 
   const lines = [
@@ -302,6 +364,7 @@ function buildVEventLines(event: FeedEvent, now: Date): string[] {
   if (timing.dtend !== null) lines.push(`DTEND${dateParam}:${timing.dtend}`);
   lines.push(`SUMMARY:${escapeText(event.name)}`);
   if (location !== null) lines.push(`LOCATION:${escapeText(location)}`);
+  if (description !== null) lines.push(`DESCRIPTION:${escapeText(description)}`);
   lines.push(`STATUS:${event.isCancelled ? "CANCELLED" : "CONFIRMED"}`);
   lines.push(`SEQUENCE:${deriveSequence(event.updatedAt)}`);
   lines.push("END:VEVENT");

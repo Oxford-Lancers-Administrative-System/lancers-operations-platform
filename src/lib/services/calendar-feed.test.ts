@@ -42,6 +42,8 @@ function anEvent(overrides: Partial<FeedEvent> = {}): FeedEvent {
     deliveryMode: "in_person",
     venue: "Iffley Road Astro",
     isCancelled: false,
+    description: null,
+    requiredEquipment: null,
     updatedAt: "2026-10-01T12:00:00.000Z",
     ...overrides,
   };
@@ -94,6 +96,23 @@ describe("escapeText", () => {
   it("doubles a literal backslash rather than treating it as an escape", () => {
     expect(escapeText("C:\\Users")).toBe("C:\\\\Users");
   });
+
+  it("escapes all four RFC 5545 special sequences in one value — the DESCRIPTION case", () => {
+    // Free-form operator text, exactly the shape a long description takes:
+    // a literal backslash, a semicolon, a comma and a line break together.
+    const input = "Meet at gate C:\\Entrance; bring boots, shin pads\nArrive 15 minutes early.";
+    const escaped = escapeText(input);
+    expect(escaped).toBe(
+      "Meet at gate C:\\\\Entrance\\; bring boots\\, shin pads\\nArrive 15 minutes early.",
+    );
+    // Unescaping (reverse each substitution) recovers the original exactly.
+    const unescaped = escaped
+      .replace(/\\n/g, "\n")
+      .replace(/\\,/g, ",")
+      .replace(/\\;/g, ";")
+      .replace(/\\\\/g, "\\");
+    expect(unescaped).toBe(input);
+  });
 });
 
 describe("foldLine", () => {
@@ -132,6 +151,17 @@ describe("foldLine", () => {
     }
   });
 });
+
+/**
+ * Reverses RFC 5545 §3.1 line folding across the whole document, so a test
+ * can assert on a property's *logical* value without caring whether it was
+ * long enough to have been physically wrapped. Folding only ever inserts
+ * exactly `CRLF` + one space at a continuation, so removing every such
+ * occurrence is the exact inverse of `foldLine`.
+ */
+function unfoldDocument(document: string): string {
+  return document.replace(/\r\n /g, "");
+}
 
 describe("buildCalendarFeed", () => {
   it("produces a document that validates as iCalendar", () => {
@@ -271,6 +301,163 @@ describe("buildCalendarFeed", () => {
     expect(document).toContain("LOCATION:The Lamb & Flag\\, St Giles");
   });
 
+  it("emits no DESCRIPTION at all when neither field is set — not empty, not dangling", () => {
+    const document = buildCalendarFeed({
+      seasonLabel: "2026-27",
+      events: [anEvent({ description: null, requiredEquipment: null })],
+      now: GENERATED_AT,
+    });
+    expect(validateICalendar(document)).toEqual([]);
+    expect(document).not.toMatch(/^DESCRIPTION/m);
+  });
+
+  it("emits no DESCRIPTION when both fields are the empty string, same as null", () => {
+    const document = buildCalendarFeed({
+      seasonLabel: "2026-27",
+      events: [anEvent({ description: "", requiredEquipment: "  " })],
+      now: GENERATED_AT,
+    });
+    expect(document).not.toMatch(/^DESCRIPTION/m);
+  });
+
+  it("carries DESCRIPTION alone from description when no equipment is set", () => {
+    const document = buildCalendarFeed({
+      seasonLabel: "2026-27",
+      events: [anEvent({ description: "Bring a positive attitude.", requiredEquipment: null })],
+      now: GENERATED_AT,
+    });
+    expect(document).toContain("DESCRIPTION:Bring a positive attitude.");
+  });
+
+  it("carries DESCRIPTION alone from required equipment, labelled as the public page labels it", () => {
+    const document = buildCalendarFeed({
+      seasonLabel: "2026-27",
+      events: [anEvent({ description: null, requiredEquipment: "Boots, shin pads" })],
+      now: GENERATED_AT,
+    });
+    expect(document).toContain("DESCRIPTION:What to bring: Boots\\, shin pads");
+  });
+
+  it("joins description and required equipment, description first, equipment under its own label", () => {
+    const document = buildCalendarFeed({
+      seasonLabel: "2026-27",
+      events: [
+        anEvent({
+          description: "Fitness session on the astro.",
+          requiredEquipment: "Boots and shin pads",
+        }),
+      ],
+      now: GENERATED_AT,
+    });
+    expect(validateICalendar(document)).toEqual([]);
+    expect(unfoldDocument(document)).toContain(
+      "DESCRIPTION:Fitness session on the astro.\\n\\nWhat to bring: Boots and shin pads",
+    );
+  });
+
+  it("matches the public event page's content, per Q-29: both fields, same words", () => {
+    // REQ-subscription: the feed carries the public tier's content.
+    // readPublicEvent already selects both columns for the public page; this
+    // is the feed catching up to what that page has always shown.
+    const document = buildCalendarFeed({
+      seasonLabel: "2026-27",
+      events: [
+        anEvent({
+          description: "Termly fitness assessment.",
+          requiredEquipment: "Trainers and a water bottle",
+        }),
+      ],
+      now: GENERATED_AT,
+    });
+    const unfolded = unfoldDocument(document);
+    expect(unfolded).toContain("Termly fitness assessment.");
+    expect(unfolded).toContain("Trainers and a water bottle");
+  });
+
+  it("still carries no person and no joining URL once DESCRIPTION is populated with free text", () => {
+    // The egress boundary is unchanged by Q-29: only description and required
+    // equipment moved. A description that happens to mention something
+    // URL-shaped ships as written — this module never parses or redacts it.
+    const document = buildCalendarFeed({
+      seasonLabel: "2026-27",
+      events: [
+        anEvent({
+          description: "See https://example.com/not-a-real-joining-link for the club handbook.",
+          requiredEquipment: null,
+        }),
+      ],
+      now: GENERATED_AT,
+    });
+    for (const term of ["RSVP", "invit", "attend", "joiningUrl", "joining_url"]) {
+      expect(document.toLowerCase()).not.toContain(term.toLowerCase());
+    }
+    // The operator's own text, including its URL-shaped substring, ships
+    // verbatim — this module does not parse or strip it.
+    expect(document).toContain("https://example.com/not-a-real-joining-link");
+  });
+
+  it("escapes DESCRIPTION text containing a backslash, a semicolon, a comma and a newline", () => {
+    const description =
+      "Meet at gate C:\\Entrance; bring boots, shin pads\nArrive 15 minutes early.";
+    const document = buildCalendarFeed({
+      seasonLabel: "2026-27",
+      events: [anEvent({ description, requiredEquipment: null })],
+      now: GENERATED_AT,
+    });
+    expect(validateICalendar(document)).toEqual([]);
+    expect(unfoldDocument(document)).toContain(
+      "DESCRIPTION:Meet at gate C:\\\\Entrance\\; bring boots\\, shin pads\\nArrive 15 minutes early.",
+    );
+  });
+
+  it("folds a long multi-line description at 75 octets and unfolds back to the original", () => {
+    const paragraph1 =
+      "This is a long-form operator description of a club event, written the way a " +
+      "real committee member actually writes one: several sentences describing " +
+      "what will happen, who is running the session, and what the plan is if the " +
+      "weather turns against us on the day.";
+    const paragraph2 =
+      "A second paragraph follows a real line break, adding logistics detail that " +
+      "pushes this well past anything the feed previously carried in SUMMARY or " +
+      "LOCATION, which were always short operator-entered labels rather than prose.";
+    const description = `${paragraph1}\n${paragraph2}`;
+    const requiredEquipment = "Boots, shin pads, a water bottle, and a positive attitude";
+
+    const document = buildCalendarFeed({
+      seasonLabel: "2026-27",
+      events: [anEvent({ description, requiredEquipment })],
+      now: GENERATED_AT,
+    });
+
+    expect(validateICalendar(document)).toEqual([]);
+
+    // Locate the folded DESCRIPTION property (it starts the physical line
+    // "DESCRIPTION:" and every continuation line begins with a single space)
+    // and reverse RFC 5545 folding by hand: strip CRLF + the leading space
+    // from every continuation line and rejoin.
+    const physicalLines = document.split("\r\n");
+    const startIndex = physicalLines.findIndex((line) => line.startsWith("DESCRIPTION:"));
+    expect(startIndex).toBeGreaterThanOrEqual(0);
+    let endIndex = startIndex + 1;
+    while (endIndex < physicalLines.length && physicalLines[endIndex]!.startsWith(" ")) {
+      endIndex += 1;
+    }
+    const foldedPhysicalLines = physicalLines.slice(startIndex, endIndex);
+    // A description this long must actually have folded into more than one
+    // physical line — otherwise this test would prove nothing about folding.
+    expect(foldedPhysicalLines.length).toBeGreaterThan(1);
+    for (const line of foldedPhysicalLines) {
+      expect(Buffer.byteLength(line, "utf8")).toBeLessThanOrEqual(75);
+    }
+    const unfolded = foldedPhysicalLines
+      .map((line, index) => (index === 0 ? line : line.slice(1)))
+      .join("");
+    const expectedContent = `DESCRIPTION:${escapeText(
+      `${description}\n\nWhat to bring: ${requiredEquipment}`,
+    )}`;
+    expect(unfolded).toBe(expectedContent);
+  });
+
   it("validates for a large season carrying every combination this module handles", () => {
     const document = buildCalendarFeed({
       seasonLabel: "2026-27",
@@ -286,6 +473,11 @@ describe("buildCalendarFeed", () => {
           venue: null,
         }),
         anEvent({ id: "33333333-3333-4333-8333-333333333337", scheduledOn: null }),
+        anEvent({
+          id: "33333333-3333-4333-8333-333333333338",
+          description: "Notes; details, more",
+          requiredEquipment: "Boots",
+        }),
       ],
     });
     expect(validateICalendar(document)).toEqual([]);
