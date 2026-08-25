@@ -45,6 +45,17 @@ export const OPERATOR_EVENTS_PATH = "/operate/events";
 
 export const OPERATOR_CALENDAR_PATH = "/operate/events/calendar";
 
+/**
+ * The seven fixed templates, behind the Events area — LAN-165.
+ *
+ * Reachable only by typing the address until this constant's one caller
+ * (`EventsPage`'s `Edit templates` button) was added: nothing linked to it,
+ * which the mission's final workflow walk found and Brian named as a stopgap
+ * to fix immediately rather than a considered navigation decision to design
+ * properly later. See that button's own doc comment.
+ */
+export const OPERATOR_EVENT_TEMPLATES_PATH = "/operate/events/templates";
+
 /** One event, at the operator tier. */
 export function operatorEventHref(eventId: string): string {
   return `${OPERATOR_EVENTS_PATH}/${eventId}`;

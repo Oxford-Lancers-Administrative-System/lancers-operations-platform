@@ -395,35 +395,35 @@ export async function readAttendanceBoard(
       [eventId],
     );
 
-    const flagged = new Map<string, string>();
-    for (const row of mismatches.rows) {
-      if (!row.mismatch) continue;
-      flagged.set(
-        participantKey(row.capacity, row.season_membership_id, row.person_id),
-        row.mismatch,
-      );
-    }
-
     /*
-      D74, and the defect it exists to prevent — LAN-152.
+      D74, and the defect it exists to prevent — LAN-152, corrected by LAN-165.
 
-      The board on `main` reported **zero recorded and thirty mismatches at the
-      same time**, on every occurred event whose register nobody had opened.
-      It is a counting fault rather than a display one, and it lives in one
-      classification: `said_yes_no_attendance_recorded` fires per person, so a
-      session nobody assessed came back as thirty separate accusations that
-      thirty people had let the club down. An unrecorded event read as a bad
-      one, which is the exact reading D74's two-state axis forbids.
+      The board on `main` once reported **zero recorded and thirty mismatches
+      at the same time**, on every occurred event whose register nobody had
+      opened. It is a counting fault rather than a display one, and it lives in
+      one classification: `said_yes_no_attendance_recorded` fires per person,
+      so a session nobody assessed came back as thirty separate accusations
+      that thirty people had let the club down. An unrecorded event read as a
+      bad one, which is the exact reading D74's two-state axis forbids.
 
       A mismatch is a **disagreement between two records**. Where the second
-      record does not exist there is no disagreement — there is an absence, and
-      the club already has a word for it: *not recorded*. So while nothing at
-      all has been recorded against the event, no participant carries a
-      mismatch and the count is zero. The moment somebody saves anything the
-      sheet exists, and a person who said yes and is not on it is a genuine
-      exception again — a partly-filled register still flags them.
+      record does not exist there is no disagreement — there is an absence,
+      and the club already has a word for it: *not recorded*. That is true of
+      every yes with nothing recorded, not only while the whole register is
+      untouched: LAN-152's first fix suppressed the classification only when
+      *nothing at all* had been saved against the event, so the moment one
+      person was recorded, every other unrecorded yes flipped back into a
+      "mismatch" — a 47-invited, 29-yes event recording one matching Present
+      moved Mismatches from a would-be 29 to 28, not to 0. `said_yes_marked_
+      absent`, `said_no_but_attended` and `attended_without_invitation` all
+      require an attendance row to exist at all, so `said_yes_no_attendance_
+      recorded` is the only classification this view can emit for a person
+      with nothing recorded — dropping it, per person, is both necessary and
+      sufficient: it reads zero mismatches while the sheet is untouched (no
+      other classification can fire yet) and it stops flagging an unrecorded
+      yes the instant somebody else on the same sheet is saved.
 
-      Suppressed **here** rather than in `public.rsvp_attendance_mismatches`
+      Filtered **here** rather than in `public.rsvp_attendance_mismatches`
       deliberately. The view is the durable home for this rule and it should
       carry it, but the view is schema, and this mission's schema belongs to
       the status-and-occurrence migration package; two packages writing
@@ -437,16 +437,23 @@ export async function readAttendanceBoard(
       off `attendance_records`.
 
       So the rule is applied wherever the view is read today, and what this
-      suppression protects against is a **future** reader: one written after
-      this package, going to the view directly, and not looking here.
+      filter protects against is a **future** reader: one written after this
+      package, going to the view directly, and not looking here.
 
       That makes moving the rule into the view a real follow-up rather than a
       tidy-up: a direct reader of `rsvp_attendance_mismatches` written after
-      this package, and not looking here, would over-count every session nobody
-      has taken a register for. It is recorded in the residual-risk section of
-      pull request #72, which is the one that merges.
+      this package, and not looking here, would over-count every unrecorded
+      yes on a sheet somebody has started. It is recorded in the residual-risk
+      section of the pull request that merges LAN-165.
     */
-    const registerSaved = rows.rows.some((row) => row.attendance_id !== null);
+    const flagged = new Map<string, string>();
+    for (const row of mismatches.rows) {
+      if (!row.mismatch || row.mismatch === "said_yes_no_attendance_recorded") continue;
+      flagged.set(
+        participantKey(row.capacity, row.season_membership_id, row.person_id),
+        row.mismatch,
+      );
+    }
 
     const participants = rows.rows.map((row) => {
       const key = participantKey(row.capacity, row.season_membership_id, row.person_id);
@@ -459,7 +466,7 @@ export async function readAttendanceBoard(
         presence: isAttendancePresence(row.presence) ? row.presence : null,
         recordedAt: asIsoString(row.recorded_at),
         recordedByName: row.recorded_by_name,
-        mismatch: registerSaved ? (flagged.get(key) ?? null) : null,
+        mismatch: flagged.get(key) ?? null,
       } satisfies AttendanceParticipant;
     });
 

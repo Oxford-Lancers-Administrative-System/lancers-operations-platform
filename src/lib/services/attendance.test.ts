@@ -948,8 +948,15 @@ describe("the wall between RSVP and attendance", () => {
       "said_yes_no_attendance_recorded",
     ]);
 
+    // The view classifies four, but the board counts three: A said yes and
+    // has nothing recorded, which is `said_yes_no_attendance_recorded` — an
+    // absence, not a disagreement, and LAN-165 excludes it from the board's
+    // count at every stage of recording, not only while the sheet is empty.
     const withMismatches = await readAttendanceBoard(event.id);
-    expect(withMismatches.mismatchCount).toBe(4);
+    expect(withMismatches.mismatchCount).toBe(3);
+    expect(
+      withMismatches.participants.find((participant) => participant.key === keyFor(0))?.mismatch,
+    ).toBeNull();
 
     // The walk-up is now flagged twice over, by two independent routes: the
     // board derives it from the absence of an invitation, and the view
@@ -1057,25 +1064,35 @@ describe("the wall between RSVP and attendance", () => {
 });
 
 // ---------------------------------------------------------------------------
-// D74 — a mismatch is never counted against nothing recorded. LAN-152.
+// D74 — a mismatch is never counted against an unrecorded yes, at any stage
+// of taking the register. LAN-152, corrected by LAN-165.
 // ---------------------------------------------------------------------------
 
 /**
- * The defect this package exists to kill.
+ * The defect this package exists to kill, and the one LAN-165 found still
+ * living in it.
  *
- * The board on `main` reported **zero recorded and thirty mismatches at the
- * same time**, on every occurred event whose register nobody had opened. It is
- * a counting fault: `said_yes_no_attendance_recorded` fires per person, so a
- * session nobody assessed came back as thirty separate accusations that thirty
- * people had let the club down. D74's two-state axis says an unrecorded event
- * must not read like a badly-attended one, and those two numbers side by side
- * are exactly that reading.
+ * The board on `main` first reported **zero recorded and thirty mismatches at
+ * the same time**, on every occurred event whose register nobody had opened.
+ * It was a counting fault: `said_yes_no_attendance_recorded` fires per person,
+ * so a session nobody assessed came back as thirty separate accusations that
+ * thirty people had let the club down. D74's two-state axis says an unrecorded
+ * event must not read like a badly-attended one, and those two numbers side by
+ * side are exactly that reading.
  *
- * Three assertions, deliberately at three scales: the view still emits the
- * classification (nothing was hidden in the database); the board no longer
- * reports it (the rule is applied where the club's definition is read); and the
- * whole synthetic season satisfies the invariant (it holds over real-shaped
- * data, not just the three rows this file mints).
+ * LAN-152's fix suppressed the classification only while the whole register
+ * was untouched, so the moment one person was recorded, every other unrecorded
+ * yes flipped back into a "mismatch" — the same reading D74 forbids, now
+ * reached one save at a time instead of all at once. LAN-165 is the fix for
+ * that: a `said_yes_no_attendance_recorded` row never counts, whether the
+ * sheet is empty or half-filled, because it marks an absence rather than a
+ * disagreement either way.
+ *
+ * Assertions at several scales: the view still emits the classification
+ * (nothing was hidden in the database); the board no longer reports it, empty
+ * or partially recorded (the rule is applied where the club's definition is
+ * read); and the whole synthetic season satisfies the invariant (it holds over
+ * real-shaped data, not just the rows this file mints).
  */
 describe("a mismatch counted against nothing recorded", () => {
   async function answerYes(invitationId: string) {
@@ -1119,14 +1136,32 @@ describe("a mismatch counted against nothing recorded", () => {
     expect(board.participants.every((participant) => participant.mismatch === null)).toBe(true);
   });
 
-  it("comes back the moment the register is saved, for whoever is not on it", async () => {
-    // The complement, and the reason this is not simply "hide the mismatches".
-    // A partly-filled sheet is a sheet somebody opened, so somebody who said
-    // yes and is not on it is a genuine exception again.
+  /**
+   * The partially-recorded state — LAN-165.
+   *
+   * Nothing above exercised it: one test leaves the sheet completely empty,
+   * and `"computes the mismatches and changes nothing about them"` records
+   * everybody. The defect lived in between. Measured in a real browser on a
+   * 47-invited, 29-yes event: recording a single matching Present moved the
+   * visible Mismatches count from a would-be 29 to 28, not to 0 — every
+   * not-yet-recorded yes was still being read off
+   * `said_yes_no_attendance_recorded` the moment anybody else on the sheet was
+   * saved. An unrecorded yes is an absence, not a disagreement, at every stage
+   * of taking the register, not only while it is completely untouched.
+   *
+   * Both assertions below run against the real database this suite already
+   * uses (`readAttendanceBoard` inside `withTransaction`), so a regression
+   * that only shows up once Postgres actually classifies the mismatch — not a
+   * hand-built fixture — would be caught.
+   */
+  it("stays at zero once a matching Present is recorded, with other yeses still unrecorded", async () => {
     const event = await occurredEvent(3);
     const invitations = await invitationIds(event.id);
     for (const invitation of invitations) await answerYes(invitation.id);
 
+    // Only the first is recorded, and it agrees with the RSVP. The other two
+    // are exactly where an operator leaves them mid-register: said yes,
+    // nothing recorded yet.
     await recordAttendance(
       actorPersonId,
       event.id,
@@ -1136,12 +1171,39 @@ describe("a mismatch counted against nothing recorded", () => {
 
     const board = await readAttendanceBoard(event.id);
     expect(board.recordedCount).toBe(1);
-    expect(board.mismatchCount).toBe(2);
-    expect(
-      board.participants
-        .filter((participant) => participant.mismatch !== null)
-        .map((participant) => participant.mismatch),
-    ).toEqual(["said_yes_no_attendance_recorded", "said_yes_no_attendance_recorded"]);
+    expect(board.mismatchCount).toBe(0);
+    expect(board.participants.every((participant) => participant.mismatch === null)).toBe(true);
+  });
+
+  it("moves to exactly one once a recorded attendance actually contradicts the RSVP", async () => {
+    const event = await occurredEvent(3);
+    const invitations = await invitationIds(event.id);
+    for (const invitation of invitations) await answerYes(invitation.id);
+
+    // The first agrees (present). The second is the real disagreement: said
+    // yes, marked absent. The third is still bare unrecorded — and must not
+    // join the count just because the sheet is now in use.
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[0].season_membership_id}`,
+      "present",
+    );
+    await recordAttendance(
+      actorPersonId,
+      event.id,
+      `player:${invitations[1].season_membership_id}`,
+      "absent",
+    );
+
+    const board = await readAttendanceBoard(event.id);
+    expect(board.recordedCount).toBe(2);
+    expect(board.mismatchCount).toBe(1);
+
+    const flaggedKeys = board.participants
+      .filter((participant) => participant.mismatch !== null)
+      .map((participant) => participant.key);
+    expect(flaggedKeys).toEqual([`player:${invitations[1].season_membership_id}`]);
   });
 
   it("holds across the whole synthetic season, not just this suite's fixtures", async () => {

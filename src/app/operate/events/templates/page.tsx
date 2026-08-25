@@ -12,6 +12,7 @@ import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { listEventTemplates, type EventTemplateSummary } from "@/lib/services/event-templates";
 import { groupsForEventType } from "@/lib/services/audience-selection";
+import { OPERATOR_EVENT_TEMPLATES_PATH } from "@/app/calendar/routes";
 import { gateShellPage } from "../../gate";
 import {
   describeQuestionCount,
@@ -48,7 +49,7 @@ import {
  * carries the same four facts, stacked.
  */
 export default async function EventTemplatesPage() {
-  const gate = await gateShellPage("/operate/events/templates", "event_calendar_management");
+  const gate = await gateShellPage(OPERATOR_EVENT_TEMPLATES_PATH, "event_calendar_management");
   if ("screen" in gate) return gate.screen;
 
   let templates: EventTemplateSummary[];
