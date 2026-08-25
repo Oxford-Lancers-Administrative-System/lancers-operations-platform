@@ -186,7 +186,87 @@ export const RESPONSE_WINDOW_CLOSED_RULE = "rsvp_response_window_closed";
 export const INVITATION_WITHDRAWN_RULE = "rsvp_invitation_withdrawn";
 
 /** Why a pending reminder was called off, recorded on the job itself. */
-const JOB_CANCELLED_REASON = "The invitee responded, so this reminder is no longer needed.";
+export const JOB_CANCELLED_REASON = "The invitee responded, so this reminder is no longer needed.";
+
+/** Why a raised flag was cleared, recorded on the flag itself. */
+export const FLAG_RESOLVED_BY_ANSWER = "The invitee answered.";
+
+/**
+ * Stops chasing one person about one event. LAN-169, `REQ-chase-stopped`.
+ *
+ * ## Why this is a named function rather than four lines in three places
+ *
+ * "An answer arrived, so stop chasing" was inlined twice and shared nowhere:
+ * `recordSignedLinkResponse` below cancelled pending jobs for the invitation,
+ * and `cancelEvent` in `event-amendment.ts` did the event-level equivalent.
+ * There was no third place because there was no third answer path — and
+ * `WP-record-in-person` is adding one, an operator recording an answer somebody
+ * gave them in person.
+ *
+ * The requirement is not "each path cancels jobs". It is that an answer **from
+ * any source** cancels that person's pending player-facing jobs and clears an
+ * un-actioned nonresponse flag **in the same transaction**. Three copies of that
+ * cannot satisfy it, because the guarantee is that they are identical and three
+ * copies are only ever identical until one of them is edited.
+ *
+ * So there is one function, it takes the transaction, and every answer path
+ * calls it.
+ *
+ * ## What "player-facing" excludes, and why the distinction is load-bearing
+ *
+ * The invitation and the reminders are chases addressed to the player, and an
+ * answer makes every one of them pointless. An **escalation** is not: it is a
+ * message about players, to a committee officer, and one person answering does
+ * not withdraw it. A cancellation notice and a schedule-change notice are not
+ * chases at all — they are things the club owes the invitee whatever they said.
+ *
+ * Cancelling by `invitation_id` alone would have caught all of them, because an
+ * escalation carries no invitation and the notices do. So the predicate names
+ * the job types that are chases rather than the ones that are not, which fails
+ * safe when a seventh type is added: a new job type is not silently cancelled by
+ * somebody answering.
+ *
+ * ## Why `processing` is left alone
+ *
+ * It is claimed and in flight. Racing the dispatcher for it would produce a job
+ * that is both cancelled and delivered, and the dispatcher's own idempotency
+ * owns that case. The player receiving one reminder they no longer needed is a
+ * far smaller wrong than the club's records saying a message was cancelled when
+ * somebody's phone is holding it.
+ *
+ * ## Why the flag is cleared here and not by a sweep
+ *
+ * `REQ-one-flag-per-threshold`: a flag clears by resolution, never by time.
+ * Nothing expires it, and the record that the club escalated stays readable —
+ * this writes `resolved_at`, and `service_role` holds no `delete` on that table,
+ * so "remains readable in history once cleared" is a property of the grant.
+ */
+export async function stopChasingIn(
+  tx: Tx,
+  invitationId: string,
+  options: { reason?: string; resolvedByPersonId?: string | null } = {},
+): Promise<{ cancelledJobs: number; clearedFlags: number }> {
+  const cancelled = await tx.query(
+    `update public.notification_jobs
+        set status = 'cancelled', cancelled_reason = $2, updated_at = now()
+      where invitation_id = $1
+        and status in ('pending', 'ready')
+        and job_type in ('invitation', 'reminder')`,
+    [invitationId, options.reason ?? JOB_CANCELLED_REASON],
+  );
+
+  const cleared = await tx.query(
+    `update public.nonresponse_flags
+        set resolved_at = now(),
+            resolution = $2,
+            resolved_by_person_id = $3
+      where invitation_id = $1
+        and resolved_at is null`,
+    [invitationId, options.reason ?? FLAG_RESOLVED_BY_ANSWER, options.resolvedByPersonId ?? null],
+  );
+
+  return { cancelledJobs: cancelled.rowCount ?? 0, clearedFlags: cleared.rowCount ?? 0 };
+}
 
 /**
  * The player's reason, normalised.
@@ -285,18 +365,13 @@ export async function recordSignedLinkResponse(
       [invitationId],
     );
 
-    // Model §2.7 — an arriving RSVP calls off that person's pending reminders.
-    // `processing` is left alone on purpose: it is claimed and in flight, and
-    // racing the dispatcher for it would produce a job that is cancelled and
-    // delivered. The dispatcher's own idempotency owns that case.
-    const cancelled = await tx.query(
-      `update public.notification_jobs
-          set status = 'cancelled', cancelled_reason = $2, updated_at = now()
-        where invitation_id = $1
-          and status in ('pending', 'ready')`,
-      [invitationId, JOB_CANCELLED_REASON],
-    );
-    const cancelledJobs = cancelled.rowCount ?? 0;
+    // Model §2.7 — an arriving RSVP calls off that person's pending reminders,
+    // and LAN-169 adds the second half of `REQ-chase-stopped`: it also clears an
+    // un-actioned nonresponse flag, in this same transaction. Both live in
+    // `stopChasingIn` above so that this path, `cancelEvent`, and the operator's
+    // record-an-answer path cannot drift into three slightly different
+    // definitions of "stop chasing".
+    const { cancelledJobs, clearedFlags } = await stopChasingIn(tx, invitationId);
 
     // The response itself is recorded in `rsvp_responses`, which is its typed
     // first-class home; this row records the invitation's *transition* and the
@@ -314,6 +389,7 @@ export async function recordSignedLinkResponse(
         response: submission.response,
         source: "signed_link",
         cancelledNotificationJobs: cancelledJobs,
+        clearedNonresponseFlags: clearedFlags,
       },
     });
 

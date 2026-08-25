@@ -87,6 +87,17 @@ afterEach(async () => {
   const events = "(select id from public.events where name like $1)";
   // Dependency order: approval creates invitations and jobs, and this suite
   // approves things deliberately.
+  // LAN-169. The plan an approval freezes, and any flag its chase raised,
+  // both reference their event with `on delete restrict` — so they go before
+  // the event does, in the same dependency order the lines below already keep.
+  await observer.query(
+    `delete from public.nonresponse_flags where invitation_id in
+         (select id from public.invitations where event_id in ${events})`,
+    [scope],
+  );
+  await observer.query(`delete from public.event_messaging_plans where event_id in ${events}`, [
+    scope,
+  ]);
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.invitations where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.event_audience_members where event_id in ${events}`, [

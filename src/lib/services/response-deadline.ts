@@ -1,136 +1,98 @@
 import "server-only";
 
 import { CLUB_TIME_ZONE } from "@/lib/club-time";
-import { ConstraintViolated, type Tx } from "@/lib/db";
+import { type Tx } from "@/lib/db";
+
+import {
+  PLAN_NEEDS_A_DATE_RULE,
+  SCHEDULE_NOT_CONFIGURED_RULE,
+  resolveMessagingPlanIn,
+  type PlannableEvent,
+} from "./messaging-schedule";
 
 /**
- * The club's RSVP response-deadline configuration. LAN-77.
+ * The club's RSVP response deadline. LAN-77, as amended by LAN-169.
  *
- * ## This file is a recorded owner decision, not an engineering choice
+ * ## What this file used to be, and why it is now four functions thick
  *
- * Brian decided these values on **13 August 2026**, after the implementation
- * stopped and asked for them. The issue's own words were that the governing
- * documentation contained no approved duration for any event type and that
- * "implementers must not invent them" — so nothing here was derived, inferred
- * from the wireframe, or copied from the seed. Changing a number in the table
- * below changes club policy and needs him, not a reviewer.
+ * It used to be the deadline itself: a frozen `Record<event_type,
+ * {daysBefore, atTime}>` table with Brian's reasoning of 13 August 2026 written
+ * beside it, and the arithmetic that turned a row into an instant. ADR 0021
+ * recorded that shape deliberately, including its rule that Release One would
+ * carry no configuration-administration surface.
  *
- * His reasoning, preserved because a bare table invites someone to "tidy" it:
+ * Brian reversed that on 2026-08-25 — "Okay, we're building it… Yes, it's a
+ * superseding ADR" — and the values moved into `public.messaging_schedules`,
+ * where the settings page W7 describes can read and write the same rows the
+ * scheduler obeys. `docs/adr/0036-messaging-schedule-configuration.md` records
+ * the reversal and what survives it.
  *
- *   * **Two days** — practice, S&C, chalk, recruitment, meeting. Routine
- *     events. Long enough to see a shortage, short enough not to manufacture a
- *     chase queue against people who would have answered anyway.
- *   * **Seven days** — a game. A shortfall here affects team eligibility,
- *     travel, accommodation and opposition coordination, and all of those have
- *     to be dealt with well before the day.
- *   * **Five days** — social. A middle tier for catering, deposits and venue
- *     numbers. A social that needs no numbers is better modelled as an
- *     informational event carrying no deadline at all.
+ * So this module is now a **named view onto one field of the messaging plan**,
+ * and it exists rather than being deleted for a reason that is not sentiment:
+ * `event-approval.ts` asks a narrower question than the plan answers — "what
+ * goes in `invitations.expires_at`?" — and a caller that only needs the
+ * deadline should not have to know that a ladder, an escalation threshold and a
+ * dispatch anchor were computed alongside it. There is exactly one arithmetic
+ * implementation, in `messaging-schedule.ts`, and this file has none of its own.
  *
- * He also recorded the uncertainty: the club has no measured evidence for any
- * of it, socials and camps vary, and these are the fixed MVP values to be
- * revisited after the controlled pilot. They are not an implementation blocker
- * and they are not a placeholder — do not "improve" them, and do not add a
- * per-event override, which LAN-77 explicitly withholds.
+ * ## What changed about the value, and what did not
+ *
+ * The **day counts are Brian's, unchanged** — two days for practice, S&C,
+ * chalk, recruitment and meeting; seven for a game; five for a social — and
+ * they now live in `public.messaging_schedules.rsvp_by_days`.
+ *
+ * The **fixed 18:00 wall clock is retired.** `REQ-deadline-from-event-start`
+ * measures every deadline from the event's own start instead, so a 20:00
+ * practice answers by 20:00 two days before. Brian, 2026-08-25: "'by 18:00' is
+ * a little bit confusing. It should just be '2 days before the start of the
+ * event' because the event is going to be different."
+ *
+ * ADR 0021's other rules survive and are enforced in `messaging-schedule.ts`:
+ * the table is complete with no default arm, a past deadline is clamped to the
+ * approval moment, and there is no per-event override.
  *
  * ## What the deadline means
  *
  * Not a cutoff. `docs/ux/slice-ux.md` § 9 is explicit that a player may answer
  * late and may change their answer until the event starts. What the deadline
  * does is decide when an unanswered invitation becomes an *exception the club
- * chases* — it feeds `nonresponse_queue` and the Monday report. That is why the
- * values are about planning lead time rather than about politeness.
- *
- * ## Why the arithmetic happens in PostgreSQL
- *
- * "18:00 Europe/London on the day two days before" is a wall-clock rule, and
- * Britain changes offset twice a year inside the season. PostgreSQL carries the
- * IANA database and `(date + time) at time zone 'Europe/London'` is correct
- * across both transitions; the equivalent in JavaScript is a hand-rolled offset
- * search that is one edge case away from putting a deadline an hour out every
- * October. The *rule* lives here in TypeScript, where club policy belongs; only
- * the calendar arithmetic is delegated.
+ * chases* — it feeds `nonresponse_queue`, the escalation threshold and the
+ * Monday report. That is why the values are about planning lead time rather
+ * than about politeness.
  */
 
-/** The rule for one event type: a whole-day offset and a local wall-clock time. */
-export interface ResponseDeadlineRule {
-  /** Calendar days before the event date. Never negative. */
-  readonly daysBefore: number;
-  /** Local time on that day, `HH:MM`, in `RESPONSE_DEADLINE_ZONE`. */
-  readonly atTime: string;
-}
-
 /**
- * The zone every rule's `atTime` is expressed in. The club is in Oxford.
+ * The zone every wall-clock rule is expressed in. The club is in Oxford.
  *
- * Re-pointed at `CLUB_TIME_ZONE` by LAN-114, which needed the calendar to use
- * "the application's configured club timezone" rather than declare a second
- * one. Same value; one declaration. The name stays because the deadline rules
- * read better naming their own zone, and callers already import it.
+ * Kept as a re-export because callers already import it from here and because
+ * the deadline rules read better naming their own zone. Same single
+ * declaration; no second timezone rule anywhere in the application.
  */
 export const RESPONSE_DEADLINE_ZONE = CLUB_TIME_ZONE;
 
-function rule(daysBefore: number, atTime: string): ResponseDeadlineRule {
-  return Object.freeze({ daysBefore, atTime });
+/**
+ * The rule for one event type.
+ *
+ * `atTime` is gone with the fixed clock. What remains is the day count and the
+ * statement of what it is counted from, which is the event's own start.
+ */
+export interface ResponseDeadlineRule {
+  /** Calendar days before the event's start. Never negative. */
+  readonly daysBefore: number;
 }
 
 /**
- * Every value of `public.event_type`, and the deadline rule for each.
+ * The refusal an unconfigured event type produces.
  *
- * Deliberately complete rather than defaulted. A `default` arm would silently
- * absorb a future event type and give it a deadline nobody approved, which is
- * exactly the invention this file exists to prevent — so an unknown type is a
- * refusal (see `responseDeadlineRule`), and adding an event type to the enum
- * forces the decision to be made rather than inherited.
- *
- * ## Remapped by LAN-151, and deliberately not taken over by it
- *
- * The seven-type model retired four of the ten keys this table had, so the
- * table was remapped onto the new enum and nothing else about it changed:
- * `camp` folded into `practice` (2 days), `fixture` and `varsity` folded into
- * `game` (7), and `other` folded into `meeting` (2). Every surviving value is
- * the one Brian decided on 13 August 2026.
- *
- * The remap lands on exactly D75 and D77's chase thresholds — 2 days for
- * practice, S&C, chalk, recruitment and meeting, 7 for a game, 5 for a social —
- * and that is not a coincidence, but it is also not a merge. LAN-151 stores
- * those thresholds in `public.event_type_settings` for **Mission 4**, which
- * owns the chase. This table is the RSVP response deadline that LAN-77 shipped
- * and still owns. Whether the two become one value is Mission 4's decision to
- * make, and it has not been made — so there are deliberately two, and neither
- * reads the other.
+ * Unchanged in name and in meaning, and still ADR 0021's first surviving rule:
+ * an event type with no configured policy is a refusal that names itself, never
+ * an inherited two days. What changed is only where the absence is detected —
+ * a missing row in `public.messaging_schedules` rather than a missing key in a
+ * frozen object.
  */
-export const RESPONSE_DEADLINE_RULES: Readonly<Record<string, ResponseDeadlineRule>> =
-  Object.freeze({
-    practice: rule(2, "18:00"),
-    strength_and_conditioning: rule(2, "18:00"),
-    chalk: rule(2, "18:00"),
-    game: rule(7, "18:00"),
-    social: rule(5, "18:00"),
-    recruitment: rule(2, "18:00"),
-    meeting: rule(2, "18:00"),
-  });
+export const UNCONFIGURED_EVENT_TYPE_RULE = SCHEDULE_NOT_CONFIGURED_RULE;
 
-export const UNCONFIGURED_EVENT_TYPE_RULE = "response_deadline_not_configured";
-
-/**
- * The rule for an event type, or a refusal naming the gap.
- *
- * The refusal is the point. If a later issue widens `public.event_type` without
- * Brian deciding the new type's deadline, approving such an event fails loudly
- * here rather than quietly inheriting two days from a fallback.
- */
-export function responseDeadlineRule(eventType: string): ResponseDeadlineRule {
-  const configured = RESPONSE_DEADLINE_RULES[eventType];
-  if (!configured) {
-    throw new ConstraintViolated(
-      `No response deadline has been agreed for ${eventType} events, so this event ` +
-        "cannot be approved. That is a club decision rather than a fault in the app.",
-      { rule: UNCONFIGURED_EVENT_TYPE_RULE },
-    );
-  }
-  return configured;
-}
+export const DEADLINE_NEEDS_A_DATE_RULE = PLAN_NEEDS_A_DATE_RULE;
 
 /** A deadline, resolved against a specific event and a specific moment. */
 export interface ResolvedResponseDeadline {
@@ -141,63 +103,38 @@ export interface ResolvedResponseDeadline {
   /**
    * The configured deadline had already passed, so it was clamped forward.
    *
-   * Brian's decision: responses are then **due immediately**, the approver is
-   * shown that before committing, and approval is not refused. Unanswered
-   * invitations enter the exception queue at once, which is the honest
-   * consequence of approving after the club's own planning point.
+   * Brian's decision, preserved from ADR 0021: responses are then **due
+   * immediately**, the approver is shown that before committing, and approval is
+   * not refused. Unanswered invitations enter the exception queue at once, which
+   * is the honest consequence of approving after the club's own planning point.
    */
   readonly clamped: boolean;
   readonly rule: ResponseDeadlineRule;
 }
 
-export const DEADLINE_NEEDS_A_DATE_RULE = "response_deadline_requires_a_date";
-
 /**
  * Resolves the deadline for one event, as of a given moment.
  *
  * `asOf` is the approval instant on the write path and `now()` on the preview
- * path, so the approver sees the same value the transaction is about to store —
- * the small drift between rendering the page and pressing the button can only
- * move a clamped deadline forward by seconds, and the stored value is always
- * the one computed inside the transaction.
+ * path, so the approver sees the same value the transaction is about to store.
+ *
+ * A caller that also needs the invitation anchor, the ladder or the escalation
+ * threshold should call `resolveMessagingPlanIn` directly rather than calling
+ * this and recomputing the rest — the plan is one arithmetic, and two callers
+ * deriving halves of it from different moments is how the panel and the
+ * scheduler come to disagree.
  */
 export async function resolveResponseDeadlineIn(
   tx: Tx,
-  event: { eventType: string; scheduledOn: string | null },
+  event: PlannableEvent,
   asOf?: Date,
 ): Promise<ResolvedResponseDeadline> {
-  const configured = responseDeadlineRule(event.eventType);
-
-  if (event.scheduledOn === null) {
-    // Invariant E1a requires a date from approval onward anyway, and the
-    // database would refuse the row. Refusing here means the operator is told
-    // which fact is missing instead of being shown a constraint name.
-    throw new ConstraintViolated(
-      "This event needs a date before it can be approved — the response deadline is " +
-        "worked out from it.",
-      { rule: DEADLINE_NEEDS_A_DATE_RULE },
-    );
-  }
-
-  const result = await tx.query<{ configured_at: Date; as_of: Date }>(
-    `select (($1::date - $2::integer) + $3::time) at time zone $4 as configured_at,
-            coalesce($5::timestamptz, now()) as as_of`,
-    [
-      event.scheduledOn,
-      configured.daysBefore,
-      configured.atTime,
-      RESPONSE_DEADLINE_ZONE,
-      asOf ?? null,
-    ],
-  );
-
-  const { configured_at: configuredAt, as_of: at } = result.rows[0];
-  const clamped = configuredAt.getTime() <= at.getTime();
+  const plan = await resolveMessagingPlanIn(tx, event, asOf);
 
   return {
-    at: clamped ? at : configuredAt,
-    configuredAt,
-    clamped,
-    rule: configured,
+    at: plan.responseDeadlineAt,
+    configuredAt: plan.configuredDeadlineAt,
+    clamped: plan.deadlineClamped,
+    rule: { daysBefore: plan.schedule.rsvpByDays },
   };
 }

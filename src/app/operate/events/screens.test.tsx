@@ -420,7 +420,7 @@ function givenAudience(
         recruit: candidates.filter((entry) => entry.capacity === "recruit").length,
       },
     },
-    deadline: deadline ? { ...deadline, rule: { daysBefore: 2, atTime: "18:00" } } : null,
+    deadline: deadline ? { ...deadline, rule: { daysBefore: 2 } } : null,
     // LAN-154. The review reads all three: the questions it shows as a player
     // will meet them, the group shape it leads with, and the completeness gate.
     questions: [],

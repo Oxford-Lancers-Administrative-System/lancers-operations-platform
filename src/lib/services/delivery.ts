@@ -12,13 +12,18 @@ import {
 import {
   resolveDeliveryProvider,
   rsvpUrl,
-  type DeliveryProvider,
+  type DeliveryContext,
   type Transport,
 } from "@/lib/delivery";
-import type { EnvironmentSource, OutboundConfig } from "@/lib/delivery/config";
+import type { EnvironmentSource } from "@/lib/delivery/config";
 import { RECIPIENT_NOT_PERMITTED_REASON, recipientPermitted } from "@/lib/delivery/allowlist";
+import {
+  EMAIL_NOT_PERMITTED_REASON,
+  NO_USABLE_EMAIL_REASON,
+  emailPermitted,
+} from "@/lib/delivery/email";
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
-import type { InvitationMessage, ProviderCallbackEvent } from "@/lib/delivery/provider";
+import type { MessageKind, OutboundMessage, ProviderCallbackEvent } from "@/lib/delivery/provider";
 import { recordAudit } from "./audit";
 import { issueTokenIn, revokeTokensIn } from "./rsvp-tokens";
 
@@ -100,6 +105,44 @@ export const MAX_ATTEMPTS = 5;
  */
 export const DISPATCH_BUDGET_MS = 90_000;
 
+/**
+ * How long to wait before each automatic re-attempt. LAN-169.
+ *
+ * One entry per attempt already made, so a job that has failed once waits five
+ * minutes, twice fifteen, and so on to the fifth and last. Read by index rather
+ * than computed, because an exponent is a number somebody tunes without
+ * noticing that attempt five moved from an hour to a day.
+ *
+ * ## Why these numbers
+ *
+ * The failures this backs off from are a provider being briefly unhappy — a
+ * 429, a 5xx, a timeout. Five minutes is long enough that a rate limit has
+ * lifted and short enough that a practice invited three days out is not
+ * materially later; four hours at the end is the point past which "the provider
+ * is briefly unhappy" has stopped being the likely explanation and the job is
+ * about to become a **Failed** somebody reads.
+ *
+ * ## There are no quiet hours in it
+ *
+ * `REQ-no-quiet-hours` is absolute, and a backoff is exactly the kind of place
+ * one gets reintroduced by accident — "wait until 8am" looks like politeness
+ * and is a rule that drops a message for eight hours. Nothing here reads the
+ * hour of day, and a retry due at 03:00 is attempted at 03:00.
+ */
+export const BACKOFF_MINUTES: readonly number[] = Object.freeze([5, 15, 60, 240, 240]);
+
+/**
+ * When the next automatic attempt becomes due, given the attempt just made.
+ *
+ * The last entry is reused for anything beyond the table, which cannot happen
+ * while `MAX_ATTEMPTS` is five but stops a future ceiling change turning this
+ * into an `undefined` that schedules a retry for the epoch.
+ */
+export function backoffFrom(attemptNumber: number, from: Date = new Date()): Date {
+  const index = Math.max(0, Math.min(attemptNumber - 1, BACKOFF_MINUTES.length - 1));
+  return new Date(from.getTime() + BACKOFF_MINUTES[index] * 60_000);
+}
+
 /** The audit actor for automated work. Never a person. */
 export const DISPATCH_ACTOR_LABEL = "system: automated delivery";
 
@@ -154,7 +197,38 @@ interface ClaimedAttempt {
   readonly invitationId: string;
   readonly attemptId: string;
   readonly attemptNumber: number;
-  readonly message: InvitationMessage;
+  readonly message: OutboundMessage;
+}
+
+/**
+ * Which of the six messages a job carries. LAN-169.
+ *
+ * `job_type` is the frozen model's vocabulary and `MessageKind` is the template
+ * registry's, and they are deliberately not the same list: the model has no
+ * `nudge` and the registry has no `other`. This is the one place the two are
+ * mapped, so a template can never be chosen from a job type by a second reading
+ * somewhere else.
+ *
+ * `other` maps to the nudge because that is what the club uses it for — a
+ * player who said yes and has not finished the event's questions — and W5 is
+ * explicit that such a person is *answered* and never reaches the nonresponse
+ * queue. It is not a chase, so it is not a reminder.
+ */
+function messageKindFor(jobType: string): MessageKind {
+  switch (jobType) {
+    case "invitation":
+      return "invitation";
+    case "reminder":
+      return "reminder";
+    case "escalation":
+      return "escalation";
+    case "schedule_change_notice":
+      return "change_notice";
+    case "cancellation_notice":
+      return "cancellation";
+    default:
+      return "nudge";
+  }
 }
 
 type ClaimOutcome =
@@ -174,14 +248,14 @@ type ClaimOutcome =
 async function claimJobIn(
   tx: Tx,
   jobId: string,
-  config: OutboundConfig,
-  provider: DeliveryProvider,
+  context: DeliveryContext,
   claim: string,
 ): Promise<ClaimOutcome> {
   const claimed = await tx.query<{
     id: string;
     invitation_id: string | null;
     attempt_count: number;
+    job_type: string;
   }>(
     `update public.notification_jobs
         set status = 'processing',
@@ -210,18 +284,23 @@ async function claimJobIn(
         and held_at is null
         and attempt_count < $3
         and invitation_id is not null
-      returning id, invitation_id, attempt_count`,
+      returning id, invitation_id, attempt_count, job_type::text as job_type`,
     [jobId, claim, MAX_ATTEMPTS],
   );
 
   const job = claimed.rows[0];
   if (!job || !job.invitation_id) return { claimed: false, reason: "unavailable" };
 
+  const kind = messageKindFor(job.job_type);
+
   const details = await tx.query<{
     invitation_id: string;
     event_id: string;
     event_name: string;
     when_label: string;
+    deadline_label: string | null;
+    venue: string | null;
+    attending_count: number;
     given_name: string;
     known_as: string | null;
     person_id: string;
@@ -233,6 +312,24 @@ async function claimJobIn(
               (e.scheduled_on + coalesce(e.starts_at, '00:00'::time)) at time zone 'Europe/London'
                 at time zone 'Europe/London',
               'FMDay FMDD FMMonth, HH24:MI') as when_label,
+            -- LAN-169. The response deadline, as the player reads it. Rendered
+            -- in the club's zone for the reason every other instant is: an
+            -- invitation that quotes a UTC deadline is an hour wrong for seven
+            -- months of the year.
+            to_char(
+              i.expires_at at time zone 'Europe/London',
+              'FMDay FMDD FMMonth, HH24:MI') as deadline_label,
+            e.venue,
+            -- The dispatch-time snapshot the approved W2-02 chase carries.
+            -- Counted here, inside the claiming transaction, so the number in
+            -- the message is the number at the moment it was sent rather than
+            -- one read earlier and gone stale. This invitation is excluded from
+            -- its own count: "18 others are attending" has to mean others.
+            (select count(*)::int
+               from public.current_rsvp r
+               join public.invitations o on o.id = r.invitation_id
+              where o.event_id = e.id and o.id <> i.id and r.response = 'yes')
+              as attending_count,
             p.id as person_id, p.given_name, p.known_as
        from public.invitations i
        join public.events e on e.id = i.event_id
@@ -243,7 +340,13 @@ async function claimJobIn(
   );
 
   const detail = details.rows[0];
-  if (!detail) return { claimed: false, reason: "undeliverable", detail: NO_USABLE_NUMBER_REASON };
+  if (!detail) {
+    return {
+      claimed: false,
+      reason: "undeliverable",
+      detail: context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
+    };
+  }
 
   const contacts = await tx.query<{
     kind: string;
@@ -265,28 +368,25 @@ async function claimJobIn(
     [detail.person_id],
   );
 
-  const recipient = selectMobileNumber(
-    contacts.rows.map((row) => ({
-      kind: row.kind,
-      rawValue: row.raw_value,
-      normalisedValue: row.normalised_value,
-      isPreferred: row.is_preferred,
-    })),
-    config.defaultCallingCode,
-  );
+  // The one branch this function grew for LAN-169's email channel, and it is
+  // deliberately the only one. Everything below — the token, the attempt row,
+  // the message — is identical on both channels, because a rung carried by
+  // email is the same message as the rung carried by WhatsApp. What differs is
+  // only what counts as a usable route and which allowlist governs it.
+  const route =
+    context.channel === "email"
+      ? selectEmailAddress(contacts.rows, context)
+      : selectWhatsAppRoute(contacts.rows, context);
 
   // Refused before a token is minted. Issuing a link that cannot be sent would
   // supersede a previous, possibly working one for nothing.
-  if (!recipient)
-    return { claimed: false, reason: "undeliverable", detail: NO_USABLE_NUMBER_REASON };
-
-  // LAN-124. Also before a token is minted, and for a stronger reason: a person
-  // this deployment may not message must not have a live RSVP link in existence
-  // at all. Refusing at the send would leave a working link that had been
-  // issued, recorded and superseded whatever came before it.
-  if (!recipientPermitted(recipient, config.recipientAllowlist, config.defaultCallingCode)) {
-    return { claimed: false, reason: "undeliverable", detail: RECIPIENT_NOT_PERMITTED_REASON };
-  }
+  //
+  // `REQ-no-channel-backstop` is what this refusal becomes on the surface: a
+  // person with no usable route reads "Not dispatched — no channel", is
+  // counted, and links to their record. It is the only delivery state that
+  // requires a person, and what it requires is a roster fix rather than a
+  // retry.
+  if (!route.ok) return { claimed: false, reason: "undeliverable", detail: route.reason };
 
   const token = await issueTokenIn(tx, job.invitation_id, { actorLabel: DISPATCH_ACTOR_LABEL });
 
@@ -295,7 +395,7 @@ async function claimJobIn(
        (notification_job_id, attempt_number, channel, provider, rsvp_access_token_id)
      values ($1, $2, $3, $4, $5)
      returning id`,
-    [jobId, job.attempt_count, provider.channel, provider.name, token.tokenId],
+    [jobId, job.attempt_count, context.channel, context.provider.name, token.tokenId],
   );
 
   const known = detail.known_as?.trim();
@@ -308,16 +408,83 @@ async function claimJobIn(
       attemptId: attempt.rows[0].id,
       attemptNumber: job.attempt_count,
       message: {
-        recipient,
+        kind,
+        recipient: route.recipient,
         inviteeName: known && known !== "" ? known : detail.given_name,
         eventName: detail.event_name,
         whenLabel: detail.when_label.replace(/\s+/g, " ").trim(),
+        venue: detail.venue,
+        deadlineLabel: detail.deadline_label?.replace(/\s+/g, " ").trim() ?? null,
+        // Suppressed on the first contact. The approved W2-01 note is explicit
+        // that there is "no social proof: first contact is a plain invitation",
+        // and the count only appears on the chase that follows it.
+        attendingCount: kind === "invitation" ? null : detail.attending_count,
         // The one place the plaintext token becomes a URL, and the last place
         // it exists at all.
-        rsvpUrl: rsvpUrl(config.appBaseUrl, token.token),
+        rsvpUrl: rsvpUrl(context.appBaseUrl, token.token),
       },
     },
   };
+}
+
+/** One contact row, as both selectors read it. */
+interface ContactRow {
+  kind: string;
+  raw_value: string;
+  normalised_value: string | null;
+  is_preferred: boolean;
+}
+
+type RouteOutcome =
+  | { readonly ok: true; readonly recipient: string }
+  | { readonly ok: false; readonly reason: string };
+
+function selectWhatsAppRoute(rows: readonly ContactRow[], context: DeliveryContext): RouteOutcome {
+  const recipient = selectMobileNumber(
+    rows.map((row) => ({
+      kind: row.kind,
+      rawValue: row.raw_value,
+      normalisedValue: row.normalised_value,
+      isPreferred: row.is_preferred,
+    })),
+    context.defaultCallingCode,
+  );
+
+  if (!recipient) return { ok: false, reason: NO_USABLE_NUMBER_REASON };
+
+  // LAN-124. Before a token is minted, and for a stronger reason than tidiness:
+  // a person this deployment may not message must not have a live RSVP link in
+  // existence at all. Refusing at the send would leave a working link that had
+  // been issued, recorded and superseded whatever came before it.
+  if (!recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode)) {
+    return { ok: false, reason: RECIPIENT_NOT_PERMITTED_REASON };
+  }
+
+  return { ok: true, recipient };
+}
+
+/**
+ * The email address this person is reachable at, or why they are not.
+ *
+ * The ordering is the query's — preferred first, then most recently recorded —
+ * and it is the same rule `selectMobileNumber` documents for the same reason:
+ * sending to an arbitrary one of somebody's two addresses is the kind of wrong
+ * that looks like working software.
+ */
+function selectEmailAddress(rows: readonly ContactRow[], context: DeliveryContext): RouteOutcome {
+  const candidate = rows.find(
+    (row) => row.kind === "email" && (row.normalised_value ?? row.raw_value).trim() !== "",
+  );
+
+  if (!candidate) return { ok: false, reason: NO_USABLE_EMAIL_REASON };
+
+  const recipient = (candidate.normalised_value ?? candidate.raw_value).trim().toLowerCase();
+
+  if (!emailPermitted(recipient, context.emailAllowlist)) {
+    return { ok: false, reason: EMAIL_NOT_PERMITTED_REASON };
+  }
+
+  return { ok: true, recipient };
 }
 
 /** Marks a job failed without having attempted a send — no number, no event. */
@@ -325,7 +492,7 @@ async function recordUndeliverableIn(
   tx: Tx,
   jobId: string,
   detail: string,
-  provider: DeliveryProvider,
+  context: DeliveryContext,
 ): Promise<void> {
   const job = await tx.query<{ attempt_count: number; invitation_id: string | null }>(
     `update public.notification_jobs
@@ -345,7 +512,7 @@ async function recordUndeliverableIn(
         concluded_at, failure_reason)
      values ($1, $2, $3, $4, now(), now(), $5)
      on conflict (notification_job_id, attempt_number) do nothing`,
-    [jobId, row.attempt_count, provider.channel, provider.name, detail],
+    [jobId, row.attempt_count, context.channel, context.provider.name, detail],
   );
 
   await tx.query(
@@ -353,7 +520,7 @@ async function recordUndeliverableIn(
        (notification_job_id, attempt_number, outcome, channel, provider, detail)
      values ($1, $2, 'failed', $3, $4, $5)
      on conflict (notification_job_id, attempt_number) do nothing`,
-    [jobId, row.attempt_count, provider.channel, provider.name, detail],
+    [jobId, row.attempt_count, context.channel, context.provider.name, detail],
   );
 
   await recordAudit(tx, {
@@ -362,7 +529,7 @@ async function recordUndeliverableIn(
     entityTable: "notification_jobs",
     entityId: jobId,
     reason: detail,
-    context: { attemptNumber: row.attempt_count, provider: provider.name },
+    context: { attemptNumber: row.attempt_count, provider: context.provider.name },
   });
 }
 
@@ -375,9 +542,34 @@ async function recordUndeliverableIn(
  */
 export async function dispatchJob(
   jobId: string,
-  options: { source?: EnvironmentSource; transport?: Transport; claim?: string } = {},
+  options: {
+    source?: EnvironmentSource;
+    transport?: Transport;
+    claim?: string;
+    /** LAN-169. Set by the scheduler, so a retry's backoff is recorded as automatic. */
+    automatic?: boolean;
+  } = {},
 ): Promise<"accepted" | "refused" | "skipped"> {
-  const resolution = resolveDeliveryProvider(options.source ?? process.env, options.transport);
+  // LAN-169. Read before the provider is resolved, because the provider is
+  // chosen by the job's own channel: `REQ-ladder-order` fixes the sequence
+  // WhatsApp, WhatsApp again, email, and the scheduler writes the rung's
+  // channel onto the job when it creates it. Resolving a provider first and
+  // discovering the channel afterwards would mean the email rung went out over
+  // WhatsApp — a duplicate, not a fallback.
+  const routed = await withTransaction(async (tx) =>
+    tx.query<{ channel: string | null }>(
+      "select channel::text as channel from public.notification_jobs where id = $1",
+      [jobId],
+    ),
+  );
+
+  const channel = routed.rows[0]?.channel === "email" ? "email" : "whatsapp";
+
+  const resolution = resolveDeliveryProvider(
+    options.source ?? process.env,
+    options.transport,
+    channel,
+  );
 
   if (!resolution.ok) {
     // Unconfigured. The job is failed with a reason naming the missing settings
@@ -417,7 +609,8 @@ export async function dispatchJob(
     return "refused";
   }
 
-  const { provider, config } = resolution;
+  const context = resolution.context;
+  const provider = context.provider;
 
   // One token for this dispatch, and the caller may supply it.
   //
@@ -430,9 +623,9 @@ export async function dispatchJob(
   const claimToken = options.claim ?? dispatchClaim();
 
   const claim = await withTransaction(async (tx) => {
-    const outcome = await claimJobIn(tx, jobId, config, provider, claimToken);
+    const outcome = await claimJobIn(tx, jobId, context, claimToken);
     if (!outcome.claimed && outcome.reason === "undeliverable") {
-      await recordUndeliverableIn(tx, jobId, outcome.detail, provider);
+      await recordUndeliverableIn(tx, jobId, outcome.detail, context);
     }
     return outcome;
   });
@@ -448,6 +641,19 @@ export async function dispatchJob(
             set accepted_at = now(), provider_message_id = $2
           where id = $1`,
         [claim.attempt.attemptId, outcome.providerMessageId],
+      );
+
+      // LAN-169. No automatic attempt is pending against an accepted message.
+      // Leaving a stale `next_attempt_at` behind would make the sweep claim a
+      // job the provider had just taken and send the same person a second copy
+      // — the failure mode the whole of `claimJobIn`'s concurrency control
+      // exists to prevent, reintroduced through a column rather than a race.
+      await tx.query(
+        `update public.notification_jobs
+            set next_attempt_at = null,
+                automatic_attempts = automatic_attempts + $2::integer
+          where id = $1`,
+        [claim.attempt.jobId, options.automatic ? 1 : 0],
       );
 
       // The job stays `processing`. Meta accepting a message is not Meta
@@ -495,12 +701,26 @@ export async function dispatchJob(
       ],
     );
 
+    // LAN-169. Time-based backoff, which is the second thing this file never
+    // had: `MAX_ATTEMPTS` and the retryable/terminal split existed, but nothing
+    // decided *when* an automatic re-attempt became due, so a failed job waited
+    // for a person to press Retry.
+    //
+    // `next_attempt_at` is null for a terminal refusal — a dead credential, an
+    // unroutable number, a rejected template. Those need a human to fix
+    // something first, and scheduling an automatic retry for them would burn
+    // the ceiling and hide the real problem behind "failed 5 times", which is
+    // exactly what `SendOutcome.retryable` exists to prevent.
+    const nextAttemptAt = outcome.retryable ? backoffFrom(claim.attempt.attemptNumber) : null;
+
     await tx.query(
       `update public.notification_jobs
           set status = 'failed', last_error = $2, claimed_at = null, claimed_by = null,
+              next_attempt_at = $3::timestamptz,
+              automatic_attempts = automatic_attempts + $4::integer,
               updated_at = now()
         where id = $1`,
-      [claim.attempt.jobId, outcome.reason],
+      [claim.attempt.jobId, outcome.reason, nextAttemptAt, options.automatic ? 1 : 0],
     );
 
     await recordAudit(tx, {
@@ -513,6 +733,10 @@ export async function dispatchJob(
         attemptNumber: claim.attempt.attemptNumber,
         provider: provider.name,
         retryable: outcome.retryable,
+        // `REQ-retries-have-no-actor`: the delivery surface shows the attempt
+        // and the next due time and offers nothing to press. This is where that
+        // time comes from.
+        nextAttemptAt: nextAttemptAt?.toISOString() ?? null,
       },
     });
   });
@@ -596,6 +820,19 @@ export async function dispatchEventInvitations(
           -- anyway, and counting them here would report an attempt against a
           -- message nothing tried to send.
           and held_at is null
+          -- LAN-169, and this one line is what makes REQ-dispatch-anchor true.
+          -- Approval used to dispatch every invitation job it found, because
+          -- nothing had ever written a scheduled_for and every job was due the
+          -- instant it existed. Now the plan writes the anchor, and an event
+          -- approved four weeks out with a two-week lead sends nothing today:
+          -- the sweep collects it when its moment arrives.
+          --
+          -- The guarantee an approver depends on survives in the arithmetic
+          -- rather than here. max(now, event start - lead) means an event
+          -- closer than its own lead has an anchor of *now*, so it passes this
+          -- predicate on the approval path and goes immediately, which is
+          -- exactly what W1 promises in those words.
+          and coalesce(scheduled_for, created_at) <= now()
           and attempt_count < $2
         order by created_at`,
       [eventId, MAX_ATTEMPTS],
@@ -613,14 +850,16 @@ export async function dispatchEventInvitations(
   // the request open past Cloud Run's own limit and hand the operator a
   // platform timeout instead of a confirmation.
   //
-  // What happens to a job left undispatched, stated exactly, because an earlier
-  // version of this comment claimed a sweep that does not exist: it stays
-  // `pending`, shows on the delivery screen as **Queued** with Retry offered,
-  // and **nothing picks it up automatically**. `dispatchEventInvitations` has
-  // exactly one caller — `approveEventAction` — and there is no scheduler, cron
-  // or route behind it. Recovery is real but manual and per-invitee until
-  // something schedules this. That is disclosed in the pull request rather than
-  // implied here.
+  // What happens to a job left undispatched, restated for LAN-169 because the
+  // previous version of this comment was accurate and is no longer: it stays
+  // `pending` and **the sweep picks it up on its next tick**.
+  // `src/lib/services/messaging-scheduler.ts` reads `scheduled_for` and
+  // `next_attempt_at`, and `/api/scheduler/messaging` triggers it. Recovery is
+  // no longer manual and no longer per-invitee.
+  //
+  // The budget therefore bounds a single approval's synchronous work rather
+  // than deciding whether an invitation is ever sent, which is a much smaller
+  // thing for it to be responsible for.
   const deadline = Date.now() + DISPATCH_BUDGET_MS;
 
   for (const job of due.rows) {
