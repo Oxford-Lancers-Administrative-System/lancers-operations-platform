@@ -99,7 +99,10 @@ workflow's screens, and not in any other workflow of this mission. Brian raised
 it at review on 2026-08-25, expecting it to give the individual detail of what
 has been sent and what has not.
 
-Proposed: it is the per-person delivery record for one event, and it belongs
+Proposed: it is a **page**, reached from the delivery page and built on the same
+table and chrome as every other operator surface — not a dialog, because the
+application has none. It is the per-person delivery record for one event, and it
+belongs
 here rather than in a later workflow, because it is what makes R15's "documented
 recovery procedure" checkable rather than asserted. For each invitee it shows
 every attempt on every channel — when, which channel, the outcome, the provider's
