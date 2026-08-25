@@ -2039,7 +2039,159 @@ describe("owner-last review and the final mission smoke", () => {
         jobs_completed: "Tried a third walk.",
         report: "reviews/third-walk.json",
       }),
-    ).rejects.toThrow(/capped at the initial run and one targeted re-walk/);
+    ).rejects.toThrow(/only after .* corrective work merged/);
+  });
+
+  /**
+   * LAN-167. `missionWorkflowSmokes` used to count every workflow-walker
+   * review the mission ever recorded, while `finalMissionSmoke` (used for
+   * closeout) correctly scoped to reviews after the latest merge. A mission
+   * that used its one smoke plus one targeted re-walk in an earlier round —
+   * before later work merged — could never record another smoke afterward:
+   * the cap check saw two prior reviews forever, even though a fresh merge
+   * had happened since either of them. Closeout was then permanently
+   * unreachable. The cap must scope the same way the closeout check does.
+   */
+  it("scopes the smoke cap to the current merge round, not all mission history", async () => {
+    const m = fixture();
+    await readyMission(m);
+    for (const pkg of plan.packages) {
+      await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+    }
+
+    // Round 1: a blocked smoke, a corrective merge, then a clear re-walk.
+    // Mission history now carries two lifetime workflow-walker reviews —
+    // exactly the pre-existing history LAN-167 found could never be
+    // out-counted by a later, fully post-merge smoke.
+    await m.append({
+      type: "integrated-review",
+      mode: "workflow-walker",
+      head_sha: SHA,
+      result: "blocked",
+      jobs_completed: "The attendance-to-report hand-off failed.",
+      findings: ["W-101"],
+      report: "reviews/round-1-smoke.json",
+    });
+    const correctionOne = {
+      ...plan.packages[1],
+      id: "WP-smoke-correction-1",
+      title: "Correct round-1 finding W-101",
+      depends_on: [],
+    };
+    await m.append(planEvent([...plan.packages, correctionOne]));
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "approved the round-1 smoke correction",
+    });
+    await m.append({
+      type: "merge-recorded",
+      package_id: correctionOne.id,
+      sha: "b".repeat(40),
+      route: "owner",
+    });
+    await m.append({
+      type: "integrated-review",
+      mode: "workflow-walker",
+      head_sha: "b".repeat(40),
+      result: "clear",
+      jobs_completed: "Repeated the attendance-to-report hand-off; it now succeeds.",
+      report: "reviews/round-1-rewalk.json",
+    });
+
+    // Round 2 begins: further work merges after both round-1 reviews.
+    const laterAddition = {
+      ...plan.packages[2],
+      id: "WP-round-2-addition",
+      title: "Round-2 work merged after the round-1 smoke pair",
+      depends_on: [],
+    };
+    await m.append(planEvent([...plan.packages, correctionOne, laterAddition]));
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "approved the round-2 addition",
+    });
+    await m.append({
+      type: "merge-recorded",
+      package_id: laterAddition.id,
+      sha: "c".repeat(40),
+      route: "owner",
+    });
+
+    // This is the exact bug: a fresh, fully post-merge smoke, refused
+    // forever under the old all-time count even though a merge intervened.
+    const round2Smoke = await m.append({
+      type: "integrated-review",
+      mode: "workflow-walker",
+      head_sha: "c".repeat(40),
+      result: "blocked",
+      jobs_completed: "Walked the mission journeys again at the round-2 head.",
+      findings: ["W-102"],
+      report: "reviews/round-2-smoke.json",
+    });
+    expect(
+      (Object.values(round2Smoke.packages) as Array<{ status: string }>).every(
+        (pkg) => pkg.status === "merged",
+      ),
+    ).toBe(true);
+
+    // Guard still holds: a re-walk with no intervening merge is refused.
+    await expect(
+      m.append({
+        type: "integrated-review",
+        mode: "workflow-walker",
+        head_sha: "c".repeat(40),
+        result: "blocked",
+        jobs_completed: "Tried again immediately.",
+        findings: ["W-102"],
+        report: "reviews/round-2-immediate-rewalk.json",
+      }),
+    ).rejects.toThrow(/only after .* corrective work merged/);
+
+    // Merge the round-2 correction; the one targeted re-walk is permitted.
+    const correctionTwo = {
+      ...plan.packages[1],
+      id: "WP-smoke-correction-2",
+      title: "Correct round-2 finding W-102",
+      depends_on: [],
+    };
+    await m.append(planEvent([...plan.packages, correctionOne, laterAddition, correctionTwo]));
+    await m.append({
+      type: "plan-approved",
+      approved_by: "Brian",
+      evidence: "approved the round-2 smoke correction",
+    });
+    await m.append({
+      type: "merge-recorded",
+      package_id: correctionTwo.id,
+      sha: "d".repeat(40),
+      route: "owner",
+    });
+    const round2Rewalk = await m.append({
+      type: "integrated-review",
+      mode: "workflow-walker",
+      head_sha: "d".repeat(40),
+      result: "blocked",
+      jobs_completed: "Repeated only the affected journey.",
+      findings: ["W-102"],
+      report: "reviews/round-2-rewalk.json",
+    });
+    expect(nextActions(round2Rewalk)).toContainEqual(
+      expect.objectContaining({ action: "owner-adjudication" }),
+    );
+
+    // Guard still holds: a third post-merge smoke in this round is refused.
+    await expect(
+      m.append({
+        type: "integrated-review",
+        mode: "workflow-walker",
+        head_sha: "d".repeat(40),
+        result: "clear",
+        jobs_completed: "Tried a third walk.",
+        report: "reviews/round-2-third-walk.json",
+      }),
+    ).rejects.toThrow(/only after .* corrective work merged/);
   });
 
   it("refuses security coverage that is stale or lacks a report", async () => {
