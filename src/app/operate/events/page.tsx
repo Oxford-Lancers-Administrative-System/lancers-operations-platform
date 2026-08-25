@@ -140,9 +140,9 @@ function statusColour(label: string): "default" | "info" | "success" | "warning"
  * being invisible today.
  *
  * Same outlined, small variant as `SubscribeToCalendarButton` immediately to
- * its right, so the row of three reads as one set rather than one button
- * styled apart from the other two — Brian's "white [outlined] link" meant that
- * existing button's treatment, not a new one.
+ * its right, so the row of three reads as one set rather than one control
+ * styled apart from the other two — Brian's "white" described that existing
+ * outlined button's treatment, not a request for a new style.
  */
 function EditTemplatesButton() {
   return (
