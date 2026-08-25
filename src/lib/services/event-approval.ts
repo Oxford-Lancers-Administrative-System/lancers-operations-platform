@@ -326,6 +326,34 @@ export async function readEventAudience(eventId: string): Promise<AudienceMember
 }
 
 /**
+ * Just the shape — "All active players — 32 people" — for a screen that names
+ * the audience's groups before its people without needing the full candidate
+ * catalogue `readApprovalPreview` returns, contact details included.
+ *
+ * D3 (round 2): the event detail page showed a count and then names, with no
+ * group named anywhere, which is the same fact the approval review already
+ * states with `summariseAudienceGroups`. This calls that same function so the
+ * rule is one rule in two places, not two — the detail page just does not get
+ * a payload built for an approver working the review, which is the whole
+ * reason this is its own read rather than a second use of
+ * `readApprovalPreview`.
+ */
+export async function readEventAudienceGroupSummary(
+  eventId: string,
+): Promise<AudienceGroupSummary> {
+  return withTransaction(async (tx) => {
+    const event = await readEventIn(tx, eventId);
+    const catalogue = await listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn);
+    const audience = await readAudienceIn(tx, eventId, catalogue);
+    return summariseAudienceGroups(
+      catalogue.candidates,
+      audience.map((member) => `${member.capacity}:${member.anchorId}`),
+      event.eventType,
+    );
+  });
+}
+
+/**
  * Replaces the audience proposed against a draft.
  *
  * Wholesale replacement rather than a diff, because the operator's screen holds

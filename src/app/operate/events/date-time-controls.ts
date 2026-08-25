@@ -7,9 +7,11 @@
  * `<input type="time">` controls with MUI X's `DatePicker`/`TimePicker`: a
  * native control renders in the browser/OS locale and ignores the page
  * entirely (D86's whole complaint), where MUI X's field is drawn by the page
- * itself with an explicit `format`, so day-month-year and a 24-hour clock in
- * five-minute steps hold regardless of what the browser or OS thinks a date
- * or time looks like.
+ * itself with an explicit `format`, so day-month-year and — since Q-27 — a
+ * deliberately-drawn 12-hour clock with AM/PM in five-minute steps hold
+ * regardless of what the browser or OS thinks a date or time looks like. The
+ * strings these functions round-trip stay plain 24-hour `HH:mm`; only the
+ * picker's own presentation changed.
  *
  * The conversions are local-calendar, not UTC — a `Date`'s day/month/year and
  * hour/minute getters read whatever the JS engine's local time zone says,

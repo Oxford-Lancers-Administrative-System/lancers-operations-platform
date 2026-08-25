@@ -380,19 +380,46 @@ export default function EventForm({
             {/*
               C1 + C2. A native `<input type="date">`/`<input type="time">`
               renders in the browser/OS locale and ignores the page — that is
-              what put an American mm/dd/yyyy date picker and a 12-hour clock
+              what put an American mm/dd/yyyy date picker and a 24-hour clock
               in front of an operator who typed a British one, and is the root
               cause of W154C-F1's crash. MUI X's `DatePicker`/`TimePicker`
               draw their own field rather than delegating to the OS, so
-              `format`, `ampm={false}` and the five-minute step hold no matter
-              what the browser or OS thinks a date or time looks like. Each
-              carries a hidden input for the form post — the visible field
-              shows "24/08/2026"; the value the server action reads is still
-              plain `scheduledOn`/`startsAt`/`endsAt`, exactly as before.
+              `format` holds no matter what the browser or OS thinks a date or
+              time looks like. Each carries a hidden input for the form post —
+              the visible field shows "24/08/2026"; the value the server
+              action reads is still plain `scheduledOn`/`startsAt`/`endsAt`,
+              exactly as before.
+
+              D2 (round 2, Q-27): Brian reversed himself on the clock, not on
+              locale-independence — "I want it to be a normal 12-hour clock
+              with AM and PM" supersedes the 24-hour half of C2, and he was
+              explicit that he misread his own earlier note. `ampm={true}` and
+              `format="hh:mm a"` are still fixed props, not a return to the
+              browser's locale: the whole reason a British operator on a
+              US-locale machine crashed this form is not undone by which
+              clock face is drawn, only by drawing one deliberately either
+              way. The five-minute step (`minutesStep`/`timeSteps`) is
+              unaffected, and so is the stored value — `startsAt`/`endsAt`
+              still post plain 24-hour `HH:mm` through the hidden input;
+              `dateFromTimeString`/`timeStringFromDate` never changed.
             */}
             <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={enGB}>
+              {/*
+                D1 (round 2). At desktop this row overflowed its card — the End
+                field and its clock adornment sat against the right edge,
+                clipped. A `flex: 1` child's default `minWidth` is `auto`,
+                which floors it at its own content's intrinsic width rather
+                than letting it shrink to its fair third of the row; three
+                fields whose content (a day-month-year date, an AM/PM time)
+                cannot all fit their intrinsic widths inside 760px pushed the
+                last one out past the card's edge instead of wrapping or
+                shrinking. `minWidth: 0` is the standard fix for exactly this
+                flexbox behaviour — it lets each field actually shrink to the
+                width `flex: 1` gives it, so the three sit evenly instead of
+                the row overflowing.
+              */}
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <Box data-field="scheduledOn" sx={{ flex: 1 }}>
+                <Box data-field="scheduledOn" sx={{ flex: 1, minWidth: 0 }}>
                   <DatePicker
                     label="Date"
                     value={scheduledOnDate}
@@ -410,13 +437,13 @@ export default function EventForm({
                   />
                   <input type="hidden" name="scheduledOn" value={scheduledOn} />
                 </Box>
-                <Box data-field="startsAt" sx={{ flex: 1 }}>
+                <Box data-field="startsAt" sx={{ flex: 1, minWidth: 0 }}>
                   <TimePicker
                     label="Start"
                     value={dateFromTimeString(startsAt)}
                     onChange={(next) => changeStart(timeStringFromDate(next))}
-                    ampm={false}
-                    format="HH:mm"
+                    ampm={true}
+                    format="hh:mm a"
                     minutesStep={5}
                     timeSteps={{ minutes: 5 }}
                     slotProps={{
@@ -425,13 +452,13 @@ export default function EventForm({
                         error: Boolean(issueFor(state, "startsAt")),
                         helperText:
                           issueFor(state, "startsAt") ??
-                          "24-hour clock, five-minute steps, e.g. 20:00.",
+                          "12-hour clock, five-minute steps, e.g. 08:00 PM.",
                       },
                     }}
                   />
                   <input type="hidden" name="startsAt" value={startsAt} />
                 </Box>
-                <Box data-field="endsAt" sx={{ flex: 1 }}>
+                <Box data-field="endsAt" sx={{ flex: 1, minWidth: 0 }}>
                   <TimePicker
                     label="End"
                     value={dateFromTimeString(endsAt)}
@@ -439,8 +466,8 @@ export default function EventForm({
                       setEndTouched(true);
                       setEndsAt(timeStringFromDate(next));
                     }}
-                    ampm={false}
-                    format="HH:mm"
+                    ampm={true}
+                    format="hh:mm a"
                     minutesStep={5}
                     timeSteps={{ minutes: 5 }}
                     slotProps={{

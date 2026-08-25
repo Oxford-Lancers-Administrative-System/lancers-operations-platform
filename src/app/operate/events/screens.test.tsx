@@ -81,6 +81,7 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
     ...actual,
     readApprovalPreview: vi.fn(),
     readEventAudience: vi.fn(),
+    readEventAudienceGroupSummary: vi.fn(),
     approveEvent: vi.fn(),
     saveEventAudience: vi.fn(),
   };
@@ -106,6 +107,7 @@ import type { EventTypeFormDefaults } from "@/lib/services/event-template-input"
 import {
   readApprovalPreview,
   readEventAudience,
+  readEventAudienceGroupSummary,
   type AudienceMember,
 } from "@/lib/services/event-approval";
 import { summariseAudienceGroups, type AudienceCandidate } from "@/lib/services/audience-selection";
@@ -2300,6 +2302,13 @@ describe("a draft that already carries an audience", () => {
   it("shows who it is for, and that nothing has been sent", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
     vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readEventAudienceGroupSummary).mockResolvedValue(
+      summariseAudienceGroups(
+        AUDIENCE,
+        SAVED_AUDIENCE.map((member) => `${member.capacity}:${member.anchorId}`),
+        "practice",
+      ),
+    );
 
     render(await EventDetailPage(detailProps()));
 
@@ -2308,6 +2317,78 @@ describe("a draft that already carries an audience", () => {
     );
     expect(within(screen.getByTestId("event-audience")).getByText("Avery Fielding")).toBeVisible();
     expect(screen.getByRole("link", { name: "Review audience and approve" })).toBeVisible();
+  });
+
+  /**
+   * D3 (round 2). Brian: "I do see where it got confused because I'm one of
+   * the pages the audience is listed above. On the pre-send, it says who's
+   * sent to all players, but I wanted it to be here." — "here" is this page,
+   * which used to show a count and then names with no group named anywhere.
+   */
+  it("names the audience's groups before its people, the same way the review does", async () => {
+    const twoPlayers: AudienceCandidate[] = [
+      candidate(),
+      candidate({
+        anchorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+        personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp2",
+        displayName: "Samira Quinn",
+      }),
+      // An unselected coach in the catalogue, so "Everyone active" is not
+      // wholly present and "All active players" is the group that names.
+      candidate({
+        capacity: "coach",
+        anchorId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
+        personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
+        displayName: "Casey North",
+      }),
+    ];
+    const bothPlayers = SAVED_AUDIENCE.slice(0, 2);
+    vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 2 }));
+    vi.mocked(readEventAudience).mockResolvedValue(bothPlayers);
+    // The exact function the approval review uses to name groups — reused,
+    // not reimplemented, so "All active players" only ever means one thing.
+    vi.mocked(readEventAudienceGroupSummary).mockResolvedValue(
+      summariseAudienceGroups(
+        twoPlayers,
+        bothPlayers.map((member) => `${member.capacity}:${member.anchorId}`),
+        "practice",
+      ),
+    );
+
+    const { container } = render(await EventDetailPage(detailProps()));
+
+    const shape = flatten(screen.getByTestId("audience-shape").textContent);
+    expect(shape).toBe("All active players — 2 people");
+    // At the head of the list — before the names, not instead of them.
+    expect(container.innerHTML.indexOf('data-testid="audience-shape"')).toBeLessThan(
+      container.innerHTML.indexOf('data-testid="event-audience"'),
+    );
+    expect(within(screen.getByTestId("event-audience")).getByText("Avery Fielding")).toBeVisible();
+  });
+
+  /**
+   * The other half of D3: a person added individually must still read
+   * truthfully. Two players plus one hand-picked coach is not "All active
+   * players" — the coach was never in that group, so naming it would claim
+   * something that was not chosen.
+   */
+  it("never claims a group that was not wholly chosen", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readEventAudienceGroupSummary).mockResolvedValue(
+      summariseAudienceGroups(
+        AUDIENCE,
+        SAVED_AUDIENCE.map((member) => `${member.capacity}:${member.anchorId}`),
+        "practice",
+      ),
+    );
+
+    render(await EventDetailPage(detailProps()));
+
+    const shape = flatten(screen.getByTestId("audience-shape").textContent);
+    expect(shape).not.toContain("All active players");
+    expect(shape).toContain("All active coaches");
+    expect(shape).toContain("2 more chosen by hand");
   });
 });
 
@@ -2474,7 +2555,9 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
     );
     render(await NewEventPage(newProps()));
 
-    await typeIntoField("Start", "Hours", "2000");
+    // 8:00 PM — Q-27's 12-hour AM/PM control. The derivation reads the
+    // stored 24-hour value regardless of which clock face typed it.
+    await typeTwelveHourTime("Start", "08", "00", "PM");
 
     expect(valueOf("endsAt")).toBe("22:00");
   });
@@ -2485,21 +2568,49 @@ describe("the type's template fills the form in, field by field (D40-D47)", () =
     );
     render(await NewEventPage(newProps()));
 
-    await typeIntoField("End", "Hours", "2100");
-    await typeIntoField("Start", "Hours", "2000");
+    await typeTwelveHourTime("End", "09", "00", "PM");
+    await typeTwelveHourTime("Start", "08", "00", "PM");
 
     expect(valueOf("endsAt")).toBe("21:00");
   });
 });
 
-describe("C1 + C2 — the date and time controls are day-month-year and 24-hour, not the browser's (D86)", () => {
+/**
+ * Types a 12-hour time into a `TimePicker` field: two digits for the hour
+ * (1-12), two for the minute — which auto-advance exactly as `typeIntoField`
+ * describes — then AM/PM typed as a letter into the Meridiem section, the way
+ * an operator with a keyboard sets it rather than an arrow-key toggle.
+ */
+async function typeTwelveHourTime(
+  groupLabel: string,
+  hour12: string,
+  minute: string,
+  meridiem: "AM" | "PM",
+) {
+  const user = userEvent.setup();
+  const group = screen.getByRole("group", { name: groupLabel });
+  within(group).getByRole("spinbutton", { name: "Hours" }).focus();
+  await user.keyboard(hour12 + minute);
+  within(group).getByRole("spinbutton", { name: "Meridiem" }).focus();
+  await user.keyboard(meridiem[0]);
+}
+
+describe("C1 + C2 — day-month-year, and (Q-27) a deliberate 12-hour AM/PM clock, not the browser's (D86)", () => {
   /**
    * W154C-F1's crash and Brian's C1/C2 findings share one root cause: a
    * native `<input type="date">`/`<input type="time">` renders in the
    * browser/OS locale and ignores the page entirely. These prove the
    * replacement `DatePicker`/`TimePicker` do not — typing a day-first date
-   * and a 24-hour time the way an operator would produces exactly the value
+   * and a 12-hour time the way an operator would produces exactly the value
    * the server action expects, regardless of what locale this machine runs.
+   *
+   * D2 (round 2, Q-27) reversed which clock face C2 draws — 12-hour with
+   * AM/PM, not 24-hour — but not the reason C1/C2 exist: the control must
+   * still draw itself the same way on every machine. The trap named in the
+   * correction brief is a control that goes back to answering to the
+   * browser's own locale; the test below this one is aimed at exactly that,
+   * proving the control still offers AM/PM and the five-minute step on a
+   * machine whose own locale would natively show a 24-hour clock.
    */
   it("accepts a day-month-year typed date intact — 24/08/2026 becomes 2026-08-24", async () => {
     render(await NewEventPage(newProps()));
@@ -2518,15 +2629,77 @@ describe("C1 + C2 — the date and time controls are day-month-year and 24-hour,
     );
   });
 
-  it("accepts a 24-hour time in a five-minute step intact — 20:05 stays 20:05", async () => {
+  it("accepts a 12-hour AM/PM time in a five-minute step intact — 8:05 PM stays 20:05", async () => {
     render(await NewEventPage(newProps()));
 
-    await typeIntoField("Start", "Hours", "2005");
+    await typeTwelveHourTime("Start", "08", "05", "PM");
 
+    // The stored value behind the form is unaffected by D2 — still plain
+    // 24-hour `HH:mm`, exactly as `date-time-controls.ts` always spoke it.
     expect(valueOf("startsAt")).toBe("20:05");
-    // Not "8:05 PM" and not rounded off the step — the clock the helper text
-    // promises.
-    expect(flatten(screen.getByRole("group", { name: "Start" }).textContent)).toContain("20:05");
+    // What the operator actually sees is the 12-hour face the helper text
+    // now promises, not the 24-hour one the D2 correction retired.
+    expect(flatten(screen.getByRole("group", { name: "Start" }).textContent)).toContain("08:05 PM");
+  });
+
+  /**
+   * D2's own trap, proved rather than assumed: this locks the JSDOM/ICU
+   * default locale — the one `Intl`/`navigator.language` would answer with if
+   * nothing overrode it, and the one a real British operator's machine could
+   * easily NOT be — to `de-DE`, which natively renders a 24-hour clock with no
+   * AM/PM at all. If the control ever fell back to answering the browser's own
+   * locale (the reversal `date-time-controls.ts` and the D2 correction both
+   * warn against), the Meridiem section would not exist here and the value
+   * below would round-trip as a 24-hour "20:05" typed as such rather than as
+   * "08:05 PM". A run of this suite on an en-GB machine would not catch that
+   * regression; forcing a 24-hour-native locale here does.
+   */
+  it("offers a 12-hour AM/PM clock and the five-minute step even on a 24-hour-native locale", async () => {
+    const originalLanguage = window.navigator.language;
+    const originalLanguages = window.navigator.languages;
+    Object.defineProperty(window.navigator, "language", {
+      value: "de-DE",
+      configurable: true,
+    });
+    Object.defineProperty(window.navigator, "languages", {
+      value: ["de-DE"],
+      configurable: true,
+    });
+
+    try {
+      render(await NewEventPage(newProps()));
+
+      const start = screen.getByRole("group", { name: "Start" });
+      // Only present at all when `ampm` renders true — a 24-hour field has no
+      // Meridiem section to find.
+      expect(within(start).getByRole("spinbutton", { name: "Meridiem" })).toBeInTheDocument();
+
+      await typeTwelveHourTime("Start", "08", "00", "PM");
+
+      expect(valueOf("startsAt")).toBe("20:00");
+      expect(flatten(start.textContent)).toContain("08:00 PM");
+      expect(flatten(start.textContent)).not.toContain("20:00");
+
+      // The five-minute step holds too, regardless of locale. MUI enforces
+      // `timeSteps={{ minutes: 5 }}` on the minute section's up/down arrows —
+      // typed digits are free text and are not where the step lives — so
+      // this steps the Minutes section by keyboard and checks it lands on
+      // 05, not 01, confirming D2 left C3/C5-C7's five-minute step intact
+      // while proving AM/PM independently of locale in the same render.
+      within(start).getByRole("spinbutton", { name: "Minutes" }).focus();
+      await userEvent.setup().keyboard("{ArrowUp}");
+      expect(valueOf("startsAt")).toBe("20:05");
+      expect(flatten(start.textContent)).toContain("08:05 PM");
+    } finally {
+      Object.defineProperty(window.navigator, "language", {
+        value: originalLanguage,
+        configurable: true,
+      });
+      Object.defineProperty(window.navigator, "languages", {
+        value: originalLanguages,
+        configurable: true,
+      });
+    }
   });
 });
 

@@ -28,6 +28,7 @@ import {
   describeMissingForApproval,
   readApprovalPreview,
   readEventAudience,
+  readEventAudienceGroupSummary,
   type AudienceMember,
 } from "@/lib/services/event-approval";
 import type { AudienceGroupSummary } from "@/lib/services/audience-selection";
@@ -265,6 +266,15 @@ export default async function EventDetailPage({
     "operator",
   );
 
+  // D3 (round 2): the audience is named by its groups before its people here
+  // too, the same rule the approval review already states — read only when
+  // `AudienceList` below will actually render, which is exactly when this
+  // section shows names at all.
+  const audienceGroupSummary =
+    audience.length > 0 && participation === null
+      ? await readEventAudienceGroupSummary(event.id)
+      : null;
+
   // The dialog reads the live link and never creates one; **Create the link**
   // is what creates one. A page render must not write.
   const clubLink = shareOpen && mayManage ? await readEventClubLink(event.id) : null;
@@ -277,6 +287,7 @@ export default async function EventDetailPage({
       mayAdministerDelivery={mayAdministerDelivery}
       justApproved={justApproved}
       audience={audience}
+      audienceGroupSummary={audienceGroupSummary}
       questions={questions}
       summary={summary}
       participation={participation}
@@ -578,13 +589,26 @@ function describeAudienceShape(summary: AudienceGroupSummary): string {
   return parts.length === 0 ? people : `${joinWithAnd(parts)} — ${people}`;
 }
 
-/** The named list, used by the confirmation and by the event detail alike. */
+/**
+ * The named list, used by the confirmation and by the event detail alike.
+ *
+ * D3 (round 2): the event detail page named a count and then people, with no
+ * group named anywhere — "I do see where it got confused because I'm one of
+ * the pages the audience is listed above. On the pre-send, it says who's sent
+ * to all players, but I wanted it to be here." `groupSummary` is optional
+ * because the approval review already states the shape in its own block
+ * above this list and does not repeat it here; the event detail has nowhere
+ * else to say it, so it passes one and this renders it — `describeAudienceShape`
+ * itself is the one place either surface knows how to say it.
+ */
 function AudienceList({
   audience,
+  groupSummary,
   heading,
   testId,
 }: {
   audience: AudienceMember[];
+  groupSummary?: AudienceGroupSummary;
   heading: string;
   testId: string;
 }) {
@@ -593,6 +617,11 @@ function AudienceList({
       <Typography variant="overline" color="text.secondary" component="p">
         {heading}
       </Typography>
+      {groupSummary ? (
+        <Typography variant="h6" component="p" sx={{ mb: 1 }} data-testid="audience-shape">
+          {describeAudienceShape(groupSummary)}
+        </Typography>
+      ) : null}
       <Stack component="ul" spacing={0} sx={{ listStyle: "none", p: 0, m: 0 }} data-testid={testId}>
         {audience.map((member) => (
           <Box
@@ -773,6 +802,7 @@ function EventDetailView({
   mayAdministerDelivery,
   justApproved,
   audience,
+  audienceGroupSummary,
   questions,
   summary,
   participation,
@@ -785,6 +815,8 @@ function EventDetailView({
   mayAdministerDelivery: boolean;
   justApproved: boolean;
   audience: AudienceMember[];
+  /** D3 (round 2). `null` whenever `audience` is not about to be listed by name. */
+  audienceGroupSummary: AudienceGroupSummary | null;
   questions: EventQuestion[];
   summary: AttendanceSummary | null;
   /** `null` until approval creates invitations — invariant P1. */
@@ -967,9 +999,10 @@ function EventDetailView({
             chosen but not yet approved, which has no invitations, no answers
             and no attendance to put in columns (invariant P1).
           */}
-          {audience.length > 0 && participation === null ? (
+          {audience.length > 0 && participation === null && audienceGroupSummary !== null ? (
             <AudienceList
               audience={audience}
+              groupSummary={audienceGroupSummary}
               heading={proposed ? "Who this is for" : "Who was invited"}
               testId="event-audience"
             />

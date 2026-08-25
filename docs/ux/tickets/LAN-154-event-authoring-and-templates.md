@@ -2,7 +2,9 @@
 
 Status: implemented under mission `M-EVENTS-CALENDAR-TARGET-STATE`, work package
 `WP-authoring`. Packet approved by Brian Schuster on 2026-08-21; amendment W4-A1
-approved the same day; the duplicate decision settled 2026-08-22.
+approved the same day; the duplicate decision settled 2026-08-22. Owner
+correction round 2, 2026-08-25: Q-27 reverses the clock to 12-hour AM/PM, and
+Q-28 settles C8 for the event detail page — both recorded below.
 
 > **Synthetic scenario data:** All displayed people, contact details, statuses,
 > responses and attendance records are synthetic and do not correspond to real
@@ -92,7 +94,11 @@ Everything else in both tickets stands, including the empty-audience refusal
   event and is never public.
 - **Times are five-minute increments, in Europe/London, with the zone stated**
   (D78, D86). Entering a start fills the end from the type's default length; an
-  end the operator sets is left alone.
+  end the operator sets is left alone. The control is a deliberately-drawn
+  **12-hour clock with AM/PM** (Q-27, round 2), on every machine regardless of
+  its own locale — the same locale-independence C1/C2 won in the first place,
+  which is not given back by which clock face is drawn. The stored value is
+  unaffected: `startsAt`/`endsAt` are still plain 24-hour `HH:mm`.
 - **`Response requested` appears nowhere** (D23).
 - **Questions are written here** (W4-A1), below the event's own facts: add,
   remove, reorder, choose one of three answer types, and mark each independently
@@ -118,6 +124,17 @@ names the template that supplied the default audience, or says nothing arrived.
 - **Nothing explains what approving does.**
 
 ### `W4-04` and `W4-05` — the draft's page, and deleting it
+
+**The audience is named by its groups before its people here too** (Q-28, round
+2), for exactly the same reason `W4-03` already does it: Brian, 2026-08-25:
+"I do see where it got confused because I'm one of the pages the audience is
+listed above. On the pre-send, it says who's sent to all players, but I wanted
+it to be here." The event detail page had a count and then names with no group
+named anywhere; it now reads, for example, "All active players — 32 people" at
+the head of the named list, before the names — reusing `describeAudienceShape`
+and `summariseAudienceGroups` from the approval review rather than a second
+implementation of the same rule. A person added individually still reads
+truthfully: no group is named unless it was wholly chosen.
 
 **Delete lives on the draft's own event page** (Brian, 2026-08-21), low emphasis
 and destructive — not on the create form, where there is nothing yet to delete.
@@ -149,33 +166,35 @@ not and why**, and what will not move at all. The button says what it will do.
 
 ## Decisions this contract records
 
-| Decision                                                                        | Source                             |
-| ------------------------------------------------------------------------------- | ---------------------------------- |
-| Minimum to save a draft is name, type and date                                  | D15                                |
-| Approval is the completeness gate                                               | D16                                |
-| **Required at approval: the date, and a non-empty audience — and nothing else** | See below                          |
-| A type's template supplies a default audience                                   | D47, reversing LAN-77              |
-| Four standing groups, plus recruits on Recruitment alone                        | D43, D46                           |
-| No unit or kit groups; the unit control filters                                 | D44                                |
-| Inactive people are never invited                                               | D45                                |
-| Description and required equipment are separate fields                          | D17, D18                           |
-| Online or in person is a property; venue follows it                             | D20, D21                           |
-| `Response requested` is removed                                                 | D23                                |
-| Five-minute increments; end follows start; Europe/London stated                 | D78, D86                           |
-| Template values flow per field into unapproved drafts; approval freezes them    | D41, refined 2026-08-21            |
-| No approved event and no past event ever changes                                | W8                                 |
-| An abandoned draft is deleted, permanently, after a confirmation naming it      | D29                                |
-| Only a draft may be deleted; an approved event is cancelled                     | D29, W6                            |
-| Delete lives on the draft's own page                                            | Brian, 2026-08-21                  |
-| The delete dialog does not pre-announce the approved-event rule                 | Brian, 2026-08-21                  |
-| The approval review does not explain what approving does                        | Brian, 2026-08-21                  |
-| Duplicate opens the create form prefilled and writes nothing                    | D39, Brian 2026-08-22              |
-| Three answer types; each question independently required                        | D66, D67                           |
-| Template questions arrive marked, and may be removed per event                  | D42                                |
-| Questions are authored in the create and edit form, never on their own screen   | W4-A1, Brian 2026-08-21            |
-| Bulk delete is retired and is not built                                         | Brian, 2026-08-21, superseding D35 |
-| **Attendance opens on the template's answer, and on Optional otherwise**        | See below, reversing LAN-76        |
-| **A template's audience is an inherited field, and moves like one**             | See below                          |
+| Decision                                                                          | Source                             |
+| --------------------------------------------------------------------------------- | ---------------------------------- |
+| Minimum to save a draft is name, type and date                                    | D15                                |
+| Approval is the completeness gate                                                 | D16                                |
+| **Required at approval: the date, and a non-empty audience — and nothing else**   | See below                          |
+| A type's template supplies a default audience                                     | D47, reversing LAN-77              |
+| Four standing groups, plus recruits on Recruitment alone                          | D43, D46                           |
+| No unit or kit groups; the unit control filters                                   | D44                                |
+| Inactive people are never invited                                                 | D45                                |
+| Description and required equipment are separate fields                            | D17, D18                           |
+| Online or in person is a property; venue follows it                               | D20, D21                           |
+| `Response requested` is removed                                                   | D23                                |
+| Five-minute increments; end follows start; Europe/London stated                   | D78, D86                           |
+| **The clock is 12-hour with AM/PM, deliberately drawn on every machine**          | Q-27, round 2                      |
+| **The event detail page names the audience by its groups too, before its people** | Q-28, round 2                      |
+| Template values flow per field into unapproved drafts; approval freezes them      | D41, refined 2026-08-21            |
+| No approved event and no past event ever changes                                  | W8                                 |
+| An abandoned draft is deleted, permanently, after a confirmation naming it        | D29                                |
+| Only a draft may be deleted; an approved event is cancelled                       | D29, W6                            |
+| Delete lives on the draft's own page                                              | Brian, 2026-08-21                  |
+| The delete dialog does not pre-announce the approved-event rule                   | Brian, 2026-08-21                  |
+| The approval review does not explain what approving does                          | Brian, 2026-08-21                  |
+| Duplicate opens the create form prefilled and writes nothing                      | D39, Brian 2026-08-22              |
+| Three answer types; each question independently required                          | D66, D67                           |
+| Template questions arrive marked, and may be removed per event                    | D42                                |
+| Questions are authored in the create and edit form, never on their own screen     | W4-A1, Brian 2026-08-21            |
+| Bulk delete is retired and is not built                                           | Brian, 2026-08-21, superseding D35 |
+| **Attendance opens on the template's answer, and on Optional otherwise**          | See below, reversing LAN-76        |
+| **A template's audience is an inherited field, and moves like one**               | See below                          |
 
 ### Three interpretations recorded plainly
 
@@ -250,21 +269,24 @@ the change and says so on the confirmation before anything is saved.
 | `Response requested` appears nowhere                                        | `screens.test.tsx`, `labels.test.ts`                        |
 | Description and required equipment round-trip separately                    | `events.test.ts`                                            |
 | Times save and display in Europe/London, five-minute steps, end after start | `event-input.test.ts`, `screens.test.tsx`                   |
+| The clock is 12-hour AM/PM on every machine, regardless of locale           | `screens.test.tsx`                                          |
 | A draft is deleted after a confirmation naming it                           | `event-questions.test.ts`, `screens.test.tsx`               |
 | An approved or cancelled event cannot be deleted at all                     | `event-questions.test.ts`, `screens.test.tsx`               |
 | Questions: three types, independently required, reorderable, removable      | `event-questions-input.test.ts`, `question-editor.test.tsx` |
 | The review names the audience by groups first, and shows the questions      | `audience-selection.test.ts`, `screens.test.tsx`            |
+| The event detail page names the audience by groups first too                | `screens.test.tsx`                                          |
 | The confirmation names what will and will not move                          | `event-templates.test.ts`, `templates/screens.test.tsx`     |
 
 ## Where the rules live
 
-| Rule                                                  | Source of truth                                                                                      |
-| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Per-field template inheritance                        | `src/lib/services/event-templates.ts`                                                                |
-| What a question is, and what a template may hold      | `event-questions-input.ts`, `event-template-input.ts`                                                |
-| The completeness gate, and the empty-audience refusal | `src/lib/services/event-approval.ts`                                                                 |
-| Deleting a draft, and the refusal for anything else   | `src/lib/services/events.ts`                                                                         |
-| Which groups a type offers                            | `src/lib/services/audience-selection.ts`                                                             |
-| Who may do any of it                                  | `src/lib/auth/capabilities.ts`                                                                       |
-| The audience must be non-empty (E1b)                  | [`../../adr/0012-explicit-event-audience.md`](../../adr/0012-explicit-event-audience.md)             |
-| Audience proposed on the draft, frozen at approval    | [`../../adr/0022-audience-proposed-then-frozen.md`](../../adr/0022-audience-proposed-then-frozen.md) |
+| Rule                                                   | Source of truth                                                                                                                                                            |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Per-field template inheritance                         | `src/lib/services/event-templates.ts`                                                                                                                                      |
+| What a question is, and what a template may hold       | `event-questions-input.ts`, `event-template-input.ts`                                                                                                                      |
+| The completeness gate, and the empty-audience refusal  | `src/lib/services/event-approval.ts`                                                                                                                                       |
+| Deleting a draft, and the refusal for anything else    | `src/lib/services/events.ts`                                                                                                                                               |
+| Which groups a type offers                             | `src/lib/services/audience-selection.ts`                                                                                                                                   |
+| Naming the audience's groups (review and detail alike) | `summariseAudienceGroups` in `src/lib/services/audience-selection.ts`, read for the detail page by `readEventAudienceGroupSummary` in `src/lib/services/event-approval.ts` |
+| Who may do any of it                                   | `src/lib/auth/capabilities.ts`                                                                                                                                             |
+| The audience must be non-empty (E1b)                   | [`../../adr/0012-explicit-event-audience.md`](../../adr/0012-explicit-event-audience.md)                                                                                   |
+| Audience proposed on the draft, frozen at approval     | [`../../adr/0022-audience-proposed-then-frozen.md`](../../adr/0022-audience-proposed-then-frozen.md)                                                                       |
