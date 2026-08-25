@@ -28,6 +28,7 @@ import {
   recordSignedLinkResponse,
   INVITATION_WITHDRAWN_RULE,
   NO_REQUIRES_A_REASON_RULE,
+  OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE,
   RESPONDED_AT_BEFORE_INVITATION_RULE,
   RESPONDED_AT_INVALID_RULE,
   RESPONDED_AT_NOT_FUTURE_RULE,
@@ -1148,5 +1149,79 @@ describe("recordOperatorRsvpResponse", () => {
 
     expect(recorded.response).toBe("yes");
     expect(await questionResponsesFor(invitationId)).toHaveLength(0);
+  });
+
+  // SEC-LAN170-01 / DEC-no-supersede -- correction round 1.
+  it("refuses to record over a player's own answer, and their answer stands", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+
+    const token = await tokenFor(invitationId);
+    await recordSignedLinkResponse(token, { response: "yes" });
+    // Backdated so the operator's "now" is unambiguously later -- the
+    // ordinary case is a player answering earlier in the day and an
+    // operator recording something later, which the form's own default
+    // encourages.
+    await observer.query(
+      "update public.rsvp_responses set responded_at = now() - interval '3 hours' where invitation_id = $1",
+      [invitationId],
+    );
+
+    const error = await caught(() =>
+      recordOperatorRsvpResponse(operator, eventId, invitationId, {
+        response: "no",
+        reason: "Misheard at training",
+        ...clubNow(),
+      }),
+    );
+    expect(error.rule).toBe(OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE);
+
+    // Nothing was written by the refused call, and the player's own answer
+    // is still what `current_rsvp` reports as standing.
+    const rows = await responsesFor(invitationId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].source).toBe("signed_link");
+    expect(rows[0].response).toBe("yes");
+    const current = await observer.query<{ response: string }>(
+      "select response::text as response from public.current_rsvp where invitation_id = $1",
+      [invitationId],
+    );
+    expect(current.rows[0].response).toBe("yes");
+  });
+
+  it("still permits a second operator to record over a first operator's answer", async () => {
+    // The workflow's own named exception ("Two operators record different
+    // answers -- both are kept in order; the latest stands") has no prior
+    // player answer to protect, and this fix must not break it.
+    const { invitationId, eventId } = await fixture(48);
+    const firstOperator = await operatorPersonId();
+    const secondOperator = await operatorPersonId();
+
+    // Backdated for the same reason the question-answer correction test
+    // above backdates it: two distinct `responded_at` instants are needed,
+    // and `clubNow()` called twice a few milliseconds apart can resolve to
+    // the same minute, which `rsvp_responses_one_answer_per_instant` refuses.
+    await observer.query(
+      "update public.invitations set created_at = timestamptz '2010-01-01' where id = $1",
+      [invitationId],
+    );
+
+    await recordOperatorRsvpResponse(firstOperator, eventId, invitationId, {
+      response: "yes",
+      respondedAtDate: "2020-06-01",
+      respondedAtTime: "10:00",
+    });
+
+    const recorded = await recordOperatorRsvpResponse(secondOperator, eventId, invitationId, {
+      response: "no",
+      reason: "Actually just heard they can't make it",
+      respondedAtDate: "2020-06-02",
+      respondedAtTime: "09:00",
+    });
+
+    expect(recorded.response).toBe("no");
+    const rows = await responsesFor(invitationId);
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.source === "operator")).toBe(true);
   });
 });

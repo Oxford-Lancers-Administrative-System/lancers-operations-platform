@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  Conflict,
   ConstraintViolated,
   InvalidTransition,
   NotFound,
@@ -396,6 +397,7 @@ export interface OperatorRsvpSubmission {
 export const RESPONDED_AT_INVALID_RULE = "rsvp_operator_responded_at_invalid";
 export const RESPONDED_AT_NOT_FUTURE_RULE = "rsvp_operator_responded_at_not_future";
 export const RESPONDED_AT_BEFORE_INVITATION_RULE = "rsvp_operator_responded_at_before_invitation";
+export const OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE = "rsvp_operator_cannot_supersede_player";
 
 /** The two shapes `respondedAtDate`/`respondedAtTime` must already be in. */
 const CLUB_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -408,15 +410,12 @@ const CLUB_TIME_PATTERN = /^\d{2}:\d{2}$/;
  *
  * ## What this does not do
  *
- * **It never refuses because an answer already exists.** Superseding a
- * player's own answer is cut from this workflow by Brian's decision of
- * 25 August 2026 — but that is a *surface* rule: `RecordAnswerControl` is
- * offered only against a row with no answer at all, and this function is
- * simply the append-only write every other RSVP path already is. Two
- * operators racing the same never-answered invitation, and both recording
- * before either page reloads, is the workflow's own named exception —
- * "both are kept in order; the latest stands, and the disagreement is visible
- * rather than resolved" — not a case this function is asked to prevent.
+ * **It never refuses because a prior *operator* answer already exists.**
+ * Two operators racing the same never-answered invitation, and both
+ * recording before either page reloads, is the workflow's own named
+ * exception — "both are kept in order; the latest stands, and the
+ * disagreement is visible rather than resolved" — not a case this function
+ * is asked to prevent.
  *
  * **It never checks whether the event has started.** `T03-gap-operator-correction`
  * names the post-start correction as this workflow's, deliberately unlike the
@@ -430,6 +429,16 @@ const CLUB_TIME_PATTERN = /^\d{2}:\d{2}$/;
  *     `NotFound`, the same shape as a mistyped id anywhere else in this layer;
  *   * a withdrawn invitation (`INVITATION_WITHDRAWN_RULE`) — there is nothing
  *     left to answer;
+ *   * an invitation that already carries the *player's own* answer
+ *     (`OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE`) — `DEC-no-supersede`, Brian,
+ *     25 August 2026: "We're not building this into the workflow. It's too
+ *     much. Cut it." `RecordAnswerControl` already offers itself only against
+ *     a row with no answer at all, but that render is a courtesy, not the
+ *     boundary — this check is what actually enforces it, re-checked inside
+ *     the same transaction that holds the invitation locked, so a player's
+ *     answer landing between this page's render and its submit is caught
+ *     rather than silently overwritten. A prior *operator* answer is not this
+ *     case; see above;
  *   * a `no` with no reason, in the operator's own words rather than W2's
  *     default (`NO_REQUIRES_A_REASON_RULE`) — R5 and the database constraint
  *     have always required this; nothing here is a new rule;
@@ -467,6 +476,31 @@ export async function recordOperatorRsvpResponse(
       throw new InvalidTransition(
         "This invitation has been withdrawn, so a response can no longer be recorded.",
         { rule: INVITATION_WITHDRAWN_RULE },
+      );
+    }
+
+    // DEC-no-supersede. Checked here, inside the transaction that already
+    // holds `invitations` locked `for update` above, so a player answering
+    // through their own signed link between this page's render and this
+    // submit is not a race this check can lose — `recordSignedLinkResponse`
+    // takes the same row lock before it inserts, so whichever of the two
+    // transactions gets here second sees the other's committed write. A
+    // prior *operator* answer does not trip this: two operators disagreeing
+    // over a never-answered invitation is the workflow's own named
+    // exception, and stays governed by "both are kept in order; the latest
+    // stands" rather than this refusal.
+    const existingPlayerResponse = await tx.query<{ id: string }>(
+      `select id from public.rsvp_responses
+        where invitation_id = $1 and source = 'signed_link'
+        limit 1`,
+      [invitationId],
+    );
+    if (existingPlayerResponse.rows.length > 0) {
+      throw new Conflict(
+        "This player has already answered for themselves, so an operator " +
+          "cannot record over it. Ask them to change their answer from " +
+          "their own RSVP link.",
+        { rule: OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE },
       );
     }
 
