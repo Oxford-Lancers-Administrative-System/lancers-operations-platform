@@ -8,7 +8,9 @@
 - **Portfolio row URL and observed version:**
   [Release One Mission Portfolio, row 4](https://app.notion.com/p/3bb488886d578126a88cdd747f590a01)
   — approved by Brian Schuster 2026-08-19; page fetched 2026-08-22T14:52Z
-- **Observed `main` SHA:** `c59bff174d6d17b5fa9dec4396eb3397d67e0c63`
+- **Observed `main` SHA:** `80e9616d396336a7b575a975ecb012548b4ed611`
+  (re-pinned 2026-08-25 from `c59bff174d6d17b5fa9dec4396eb3397d67e0c63`; see
+  **Baseline re-pin** below)
 - **Primary coverage:** R5, R6, R12, R15 · Tasks 02 + 03 · Scope 2
   ("Automated Communications, RSVP, Reminders and Recovery")
 - **Deliberately shared coverage:**
@@ -52,7 +54,7 @@ message, the answer, and the chase.
 
 Release One's largest approved-but-unbuilt capability sits inside it. The
 manifest's own words: R6 is "**Defined; not implemented** — no scheduler on main;
-largest approved-but-untracked capability." Verified against `main` @ `c59bff1`:
+largest approved-but-untracked capability." Verified against `main` @ `80e9616`:
 the substrate exists and nothing drives it. `notification_jobs` carries
 `scheduled_for`, an idempotency key and the six locked states; the `reminder` and
 `escalation` job types are already in the enum; `nonresponse_queue` and
@@ -61,6 +63,38 @@ policy, no escalation flag and no Resend adapter anywhere in `src/`.
 
 Clint's stated pain is the thing this mission answers: "My WhatsApp is
 essentially unusable… 30 chats with players."
+
+## Baseline re-pin — 2026-08-25
+
+The ledger baseline moved from `c59bff174d6d17b5fa9dec4396eb3397d67e0c63` to
+`80e9616d396336a7b575a975ecb012548b4ed611` on Brian's instruction. Seven commits
+landed on `main` in between. The drift is **recorded and tolerated**: it changes
+no meaning, feasibility, invariant, interface, or acceptance evidence for the
+approved boundary, overview, frozen inventory, or completed W1.
+
+Verified at `80e9616`:
+
+- **The R6 gap is unchanged.** There is still no scheduler, no reminder policy,
+  no escalation flag and no Resend adapter in `src/`. The only two matches for
+  "scheduler" are comments in `src/lib/services/delivery.ts` saying no scheduler
+  exists; every "resend" match is Mission 1's invitation resend, not email
+  transport.
+- **The substrate survived the one intervening migration.**
+  `20260822120000_events_target_state.sql` dropped and recreated
+  `invitation_response_state` and `nonresponse_queue`, both still
+  `security_invoker = true`. `notification_jobs` and the `reminder`/`escalation`
+  job types are untouched.
+
+Three commits are materially relevant and are absorbed rather than reopened:
+
+| Commit              | What landed                                                                                      | Disposition                                                                                                                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dae1bc2` (LAN-151) | `event_status` narrowed to `draft`/`approved`/`cancelled`; `event_type` narrowed to seven values | **Confirms the recorded Mission 2 seam.** Return-to-draft no longer exists in the schema, so D5's dead triggers are now dead in code as well. W7's per-type configurability is scoped to the seven named types. |
+| `b6b8164` (LAN-153) | Public calendar and its three access tiers at `src/app/calendar/`                                | No messaging surface. Adjacent only.                                                                                                                                                                            |
+| `80e9616` (LAN-157) | Participation surface at `src/app/participation/` and a public event page at `src/app/e/[token]` | **Grounding for the unstarted W4**, which must build on this surface rather than invent a second one, and adjacent to W2's landing page. No approved artifact changes.                                          |
+
+W1's mockup and W2's draft acceptance evidence were already grounded on
+`80e9616` before this re-pin, so no approved artifact required revision.
 
 ## In scope
 
