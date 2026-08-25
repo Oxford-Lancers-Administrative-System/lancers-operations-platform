@@ -2,7 +2,6 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { chromium } from "playwright";
 import { readSession, updateLease } from "../../lib/local-supabase-coordinator.mjs";
 import { readLocalReviewAccount } from "../../lib/local-review-account.mjs";
 
@@ -111,6 +110,10 @@ export async function shootScreen({
   const outputDir = path.join(ledgerRoot, SHOTS_DIR);
   fs.mkdirSync(outputDir, { recursive: true });
 
+  // Imported here, not at module scope. `hub.mjs` needs `measuredScreenCount`
+  // from this file on every render, and loading Playwright's module graph for
+  // that cost the intake tests their 5s budget.
+  const { chromium } = await import("playwright");
   const browser = await chromium.launch();
   const captures = [];
   try {
