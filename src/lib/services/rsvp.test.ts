@@ -464,7 +464,16 @@ describe("recordSignedLinkResponse", () => {
     await observer.query(
       `update public.events
           set scheduled_on = ((now() + interval '1 minute') at time zone 'Europe/London')::date,
-              starts_at = ((now() + interval '1 minute') at time zone 'Europe/London')::time
+              starts_at = ((now() + interval '1 minute') at time zone 'Europe/London')::time,
+              -- ends_at is a bare time with no date. fixture()'s own ends_at
+              -- was computed from a different now() read (this test's own
+              -- setup, moments earlier) and never adjusted to match this
+              -- override, so its time-of-day can fall on either side of the
+              -- new starts_at depending on where in the clock this test
+              -- happens to run — nulling it out (permitted:
+              -- events_times_ordered) removes the comparison entirely rather
+              -- than leaving a flake nobody is watching for at night.
+              ends_at = null
         where id = $1`,
       [eventId],
     );
@@ -551,7 +560,12 @@ describe("recordSignedLinkResponse", () => {
     await observer.query(
       `update public.events
           set scheduled_on = ((now() - interval '1 minute') at time zone 'Europe/London')::date,
-              starts_at = ((now() - interval '1 minute') at time zone 'Europe/London')::time
+              starts_at = ((now() - interval '1 minute') at time zone 'Europe/London')::time,
+              -- Same reasoning as the accepting test above: ends_at is a bare
+              -- time left over from fixture()'s own now(), and comparing it
+              -- against this override's time-of-day flakes near midnight.
+              -- Nulled out rather than raced against the clock.
+              ends_at = null
         where id = $1`,
       [eventId],
     );
@@ -1114,7 +1128,18 @@ describe("recordOperatorRsvpResponse", () => {
     await observer.query(
       `update public.events
           set scheduled_on = ((now() - interval '1 hour') at time zone 'Europe/London')::date,
-              starts_at = ((now() - interval '1 hour') at time zone 'Europe/London')::time
+              starts_at = ((now() - interval '1 hour') at time zone 'Europe/London')::time,
+              -- LAN-170 correction round 1: ends_at is a bare time column
+              -- with no date, and fixture()'s own ends_at was computed from a
+              -- different now() read moments earlier and never adjusted to
+              -- match this override. Comparing the two time-of-day values
+              -- with no date to break the tie flakes whenever the two
+              -- straddle midnight London — reproduced directly, on this exact
+              -- test, both locally and in CI. events_times_ordered permits a
+              -- null on either side, so nulling ends_at out removes the
+              -- comparison rather than leaving a flake nobody is watching for
+              -- at night.
+              ends_at = null
         where id = $1`,
       [eventId],
     );
