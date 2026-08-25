@@ -1,5 +1,6 @@
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
@@ -20,7 +21,11 @@ import { todayInClubZone } from "@/lib/club-time";
 import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import PeriodSwitch from "@/app/calendar/period-switch";
 import { first, readListQuery, sortLinkFactory } from "@/app/calendar/query";
-import { OPERATOR_CALENDAR_PATH, OPERATOR_EVENTS_PATH } from "@/app/calendar/routes";
+import {
+  OPERATOR_CALENDAR_PATH,
+  OPERATOR_EVENT_TEMPLATES_PATH,
+  OPERATOR_EVENTS_PATH,
+} from "@/app/calendar/routes";
 import SubscribeToCalendarButton from "@/app/calendar/subscribe-dialog";
 import ViewSwitch from "@/app/calendar/view-switch";
 import { readEventYear } from "@/app/calendar/year";
@@ -119,6 +124,40 @@ function statusColour(label: string): "default" | "info" | "success" | "warning"
   }
 }
 
+/**
+ * A stopgap for one problem, and only that one — LAN-165.
+ *
+ * The mission's final workflow walk over `main` found that
+ * `/operate/events/templates` works correctly — per-field inheritance, its
+ * save preview, all seven types — and is reachable by nobody who does not
+ * already know the address: nothing in the application links to it. Brian,
+ * on being shown the screen: put a button here "for the time being."
+ *
+ * This is deliberately that and nothing more. It is not a considered
+ * navigation decision — where template management belongs long-term (its own
+ * area? folded into Administration?) is unexamined, and this button should
+ * not be read as having settled it. It exists so the seven templates stop
+ * being invisible today.
+ *
+ * Same outlined, small variant as `SubscribeToCalendarButton` immediately to
+ * its right, so the row of three reads as one set rather than one button
+ * styled apart from the other two — Brian's "white [outlined] link" meant that
+ * existing button's treatment, not a new one.
+ */
+function EditTemplatesButton() {
+  return (
+    <Button
+      href={OPERATOR_EVENT_TEMPLATES_PATH}
+      variant="outlined"
+      size="small"
+      sx={{ minHeight: 44 }}
+      data-testid="edit-templates"
+    >
+      Edit templates
+    </Button>
+  );
+}
+
 export default async function EventsPage({ searchParams }: PageProps<"/operate/events">) {
   // LAN-110. The coach shell's one destination is this route, so it opts in —
   // and then renders something else entirely. See `./coach-eligible-events.tsx`
@@ -196,7 +235,8 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
             {`Season ${list.season.label}`}
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1.5}>
+        <Stack direction="row" spacing={1.5} sx={{ flexWrap: "wrap", gap: 1.5 }}>
+          {mayManage ? <EditTemplatesButton /> : null}
           <SubscribeToCalendarButton />
           {mayManage ? <CreateEventMenu /> : null}
         </Stack>

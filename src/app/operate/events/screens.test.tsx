@@ -462,6 +462,19 @@ describe("UX-30 — the current season's events", () => {
     expect(screen.getByTestId("season-label").textContent).toBe("Season 2026-27");
   });
 
+  // LAN-165. A stopgap for the templates page's own discoverability, not a
+  // defect in this list — see `EditTemplatesButton`'s doc comment in
+  // `page.tsx` for why it exists and why it is deliberately no more than
+  // this.
+  it("offers a stopgap Edit templates button, styled like Add to your calendar, for a manager", async () => {
+    givenList([listEntry()]);
+
+    render(await EventsPage(listProps()));
+
+    const link = screen.getByRole("link", { name: "Edit templates" });
+    expect(link).toHaveAttribute("href", "/operate/events/templates");
+  });
+
   it("shows date, type, status, term and week, and where the event is", async () => {
     givenList([listEntry()]);
 
@@ -1549,6 +1562,14 @@ describe("an operator without a calendar role reads the calendar and changes not
     render(await EventsPage(listProps()));
 
     expect(screen.queryByRole("link", { name: "Create event" })).toBeNull();
+  });
+
+  it("is offered no Edit templates button either — LAN-165", async () => {
+    givenList([listEntry()]);
+
+    render(await EventsPage(listProps()));
+
+    expect(screen.queryByRole("link", { name: "Edit templates" })).toBeNull();
   });
 
   it("is not told to create the first event when the season is empty", async () => {
