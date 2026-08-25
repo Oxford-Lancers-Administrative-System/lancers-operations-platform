@@ -109,10 +109,19 @@
     {
       "id": "W6",
       "name": "Repair a delivery that failed",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "Approved. Let's go to the next one.",
+          "date": "2026-08-25"
+        },
+        "mock": {
+          "words": "Approved. Let's go to the next one.",
+          "date": "2026-08-25"
+        }
+      }
     },
     {
       "id": "W7",
@@ -861,5 +870,5 @@
       }
     ]
   },
-  "next_action": "Review the W6 specification and mockup with Brian (Stage 3)"
+  "next_action": "Draft the W7 specification — find out what the club's messaging rules are, and change them (Stage 3)"
 }
