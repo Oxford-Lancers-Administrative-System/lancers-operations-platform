@@ -858,17 +858,31 @@
         },
         {
           id: "W2-05",
-          title: "The saved page becomes an outstanding-RSVP inbox",
+          title: "The sequence ends on the player's own page",
           disposition: "New",
-          note: "No current player surface shows other invitations. The new same-player inbox appears after either answer and turns the next unanswered event into the dominant action without exposing any peer identity.",
+          note: "No current player surface shows other invitations. Every answer ends here. Events still needing an answer sit at the top; below them is everything this player has already answered that has not happened yet, so a standing Yes or No can be changed without waiting to be asked again.",
           deltas: [
-            "New invitations and incomplete invitations are separated",
-            "Only the same player's work appears",
-            "Each event carries its own Yes/No actions",
+            "Needs-an-answer work sits above already-answered events",
+            "Answered events stay visible and changeable until they happen",
+            "Only the same player's work appears; no peer identity",
           ],
-          url: "lancers.example/rsvp/outstanding",
+          url: "lancers.example/me/••••",
           current: "none",
           proposed: "inbox",
+        },
+        {
+          id: "W2-06",
+          title: "Nothing outstanding, and somewhere useful to go",
+          disposition: "New",
+          note: "The end of the sequence when the player has answered everything. It confirms they are done rather than dropping them on a blank page, and offers the public calendar as the one useful onward step available without an account.",
+          deltas: [
+            "Confirms the queue is genuinely empty",
+            "Answered upcoming events remain reachable",
+            "Links to the public calendar shipped by LAN-153",
+          ],
+          url: "lancers.example/me/••••",
+          current: "none",
+          proposed: "empty",
         },
       ];
 
@@ -901,7 +915,7 @@
       function whatsappFirst() {
         return waShell(
           bubble(
-            `<strong>You're invited to ${event.name}</strong>\n\n${event.when}\n${event.venue}\n\n<strong>12 others have already said Yes.</strong>\nPlease answer by ${event.deadline}.`,
+            `<strong>You're invited to ${event.name}</strong>\n\n${event.when}\n${event.venue}\n\nPlease answer by ${event.deadline}.`,
             ["Yes — view details", "No — give reason"],
           ),
         );
@@ -929,11 +943,15 @@
       }
 
       function noPage() {
-        return `<div class="rsvp-shell"><div class="rsvp-wrap"><p class="rsvp-brand">LANCERS OPERATIONS</p><article class="card"><div class="alert info"><strong>You have 2 other invitations to answer.</strong> Add your reason or change to Yes, then continue.</div><div style="height:14px"></div>${eventHeader("Not attending · No reason given")}<div class="alert warn"><strong>You're recorded as not attending — no reason given.</strong><br>The club plans numbers, transport and coaching from these responses. Tell the club why if you can.</div><div class="proof"><b>12</b><div><strong>other people are attending</strong>If you can make it after all, change your answer to Yes.</div></div><div class="btn-row"><button class="btn primary">Change to Yes</button></div><div class="field"><label>Why can't you attend? <span>Replace “No reason given”</span></label><textarea placeholder="Give the club a clear reason"></textarea></div><div class="btn-row"><button class="btn outline">Save reason</button></div></article></div></div>`;
+        return `<div class="rsvp-shell"><div class="rsvp-wrap"><p class="rsvp-brand">LANCERS OPERATIONS</p><article class="card"><div class="alert info"><strong>You have 2 other invitations to answer.</strong> Change to Yes, or give a reason to continue.</div><div style="height:14px"></div>${eventHeader("Not attending · No reason given")}<div class="alert warn"><strong>You're recorded as not attending — no reason given.</strong><br>The club plans numbers, transport and coaching from these responses. Tell the club why if you can.</div><div class="proof"><b>12</b><div><strong>other people are attending</strong>If you can make it after all, change your answer to Yes.</div></div><div class="btn-row"><button class="btn primary">Change to Yes</button></div><div class="field"><label>Why can't you attend? <span>Replace “No reason given”</span></label><textarea placeholder="Give the club a clear reason"></textarea></div><div class="btn-row"><button class="btn outline">Give a reason and continue</button></div></article></div></div>`;
       }
 
       function inbox() {
-        return `<div class="rsvp-shell"><div class="rsvp-wrap"><p class="rsvp-brand">LANCERS OPERATIONS</p><article class="card"><div class="alert success"><strong>Your response is saved.</strong> You're attending ${event.name}.</div><h1 class="rsvp-title" style="margin-top:24px">You have 2 invitations to answer</h1><p class="help">Answer the next one now. Completed invitations disappear from this list.</p><h2 class="section-title">New invitations</h2><div class="inbox-list"><div class="invite-row next"><div><span class="chip proposed">Next</span><h3>Away Game vs Northbridge Comets</h3><p>Saturday, 17 October · 14:00</p><p><b>16 others have said Yes</b> · Answer by Thursday at 18:00</p></div><div class="mini-actions"><button>Yes</button><button>No</button></div></div></div><h2 class="section-title">Still need your answer</h2><div class="inbox-list"><div class="invite-row"><div><span class="chip warn">Awaiting answer</span><h3>Strength &amp; Conditioning</h3><p>Friday, 16 October · 18:30</p><p>You opened this invitation but have not selected Yes or No.</p></div><div class="mini-actions"><button>Yes</button><button>No</button></div></div></div><h2 class="section-title">Follow-up needed</h2><div class="inbox-list"><div class="invite-row"><div><span class="chip warn">No reason given</span><h3>Recruitment Meeting</h3><p>Monday, 19 October · 19:00</p><p>Your No is recorded. Add the reason if you can.</p></div><div class="mini-actions"><button>Change to Yes</button><button>Add reason</button></div></div></div></article></div></div>`;
+        return `<div class="rsvp-shell"><div class="rsvp-wrap"><p class="rsvp-brand">LANCERS OPERATIONS</p><article class="card"><div class="alert success"><strong>Your response is saved.</strong> You're attending ${event.name}.</div><h1 class="rsvp-title" style="margin-top:24px">You have 2 invitations to answer</h1><p class="help">Answer the next one now. Below that, everything you have already answered and that is still to come.</p><h2 class="section-title">New invitations</h2><div class="inbox-list"><div class="invite-row next"><div><span class="chip proposed">Next</span><h3>Away Game vs Northbridge Comets</h3><p>Saturday, 17 October · 14:00</p><p><b>16 others have said Yes</b> · Answer by Thursday at 18:00</p></div><div class="mini-actions"><button>Yes</button><button>No</button></div></div></div><h2 class="section-title">Still need your answer</h2><div class="inbox-list"><div class="invite-row"><div><span class="chip warn">Awaiting answer</span><h3>Strength &amp; Conditioning</h3><p>Friday, 16 October · 18:30</p><p>You opened this invitation but have not selected Yes or No.</p></div><div class="mini-actions"><button>Yes</button><button>No</button></div></div></div><h2 class="section-title">Follow-up needed</h2><div class="inbox-list"><div class="invite-row"><div><span class="chip warn">No reason given</span><h3>Recruitment Meeting</h3><p>Monday, 19 October · 19:00</p><p>Your No is recorded. Add the reason if you can.</p></div><div class="mini-actions"><button>Change to Yes</button><button>Add reason</button></div></div></div><h2 class="section-title">Your answers — still to come</h2><p class="help">Everything you have already answered that has not happened yet. Change any of them.</p><div class="inbox-list"><div class="invite-row"><div><span class="chip success">Attending</span><h3>${event.name}</h3><p>${event.when}</p><p>Answered just now. Additional questions outstanding.</p></div><div class="mini-actions"><button>Answer questions</button><button>Change to No</button></div></div><div class="invite-row"><div><span class="chip success">Attending</span><h3>Chalk Talk — Defence</h3><p>Tuesday, 20 October · 19:00</p><p>Answered on 9 October.</p></div><div class="mini-actions"><button>Change to No</button></div></div><div class="invite-row"><div><span class="chip warn">Not attending</span><h3>Club Social</h3><p>Thursday, 22 October · 20:00</p><p>You said: away that weekend.</p></div><div class="mini-actions"><button>Change to Yes</button><button>Edit reason</button></div></div></div></article></div></div>`;
+      }
+
+      function emptyPage() {
+        return `<div class="rsvp-shell"><div class="rsvp-wrap"><p class="rsvp-brand">LANCERS OPERATIONS</p><article class="card"><div class="alert success"><strong>Your response is saved.</strong> You're attending ${event.name}.</div><h1 class="rsvp-title" style="margin-top:24px">No outstanding events</h1><p class="help">You have answered every invitation waiting for you. Nothing else needs an answer right now.</p><h2 class="section-title">Your answers — still to come</h2><p class="help">Change any of these while the event is still ahead.</p><div class="inbox-list"><div class="invite-row"><div><span class="chip success">Attending</span><h3>${event.name}</h3><p>${event.when}</p><p>Answered just now.</p></div><div class="mini-actions"><button>Change to No</button></div></div><div class="invite-row"><div><span class="chip warn">Not attending</span><h3>Club Social</h3><p>Thursday, 22 October &middot; 20:00</p><p>You said: away that weekend.</p></div><div class="mini-actions"><button>Change to Yes</button><button>Edit reason</button></div></div></div><div class="btn-row"><button class="btn outline">See what else the club has coming up</button></div></article></div></div>`;
       }
 
       function proposedBody(kind) {
@@ -941,6 +959,7 @@
         if (kind === "pressure") return whatsappReminder();
         if (kind === "yes-page") return yesPage();
         if (kind === "no-page") return noPage();
+        if (kind === "empty") return emptyPage();
         return inbox();
       }
 
@@ -954,7 +973,7 @@
         if (screen.current === "current-no") {
           return `<div class="current-shot"><img src="../../../../docs/ux/wireframes/UX-61-rsvp-not-attending-desktop.svg" alt="Current No reason desktop"><img src="../../../../docs/ux/wireframes/UX-61-rsvp-not-attending-phone.svg" alt="Current No reason phone"></div>`;
         }
-        return `<div class="new-note"><strong>New surface, nothing to compare.</strong><br>The current signed RSVP route can show only one invitation. W2 introduces this same-player outstanding work queue because Brian requires the player to see every other invitation still waiting.</div>`;
+        return `<div class="new-note"><strong>New surface, nothing to compare.</strong><br>The current signed RSVP route is scoped to one invitation and dies when that event starts. W2 replaces it with a durable page belonging to the person for the season, showing everything they still owe an answer on and everything they have already answered that is still to come.</div>`;
       }
 
       function proposedSide(screen) {

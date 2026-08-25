@@ -106,10 +106,26 @@ Meta template approval without weakening the required information or pressure.
 
 | Rung                     | Job of the message                             | Required content                                                                                                                                 |
 | ------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **WhatsApp message 1**   | Clear invitation                               | Event, date/time, deadline, current Yes count when nonzero, **Yes — view details**, **No — give reason**                                         |
+| **WhatsApp message 1**   | Clear invitation                               | Event, date/time, venue, deadline, **Yes — view details**, **No — give reason**. **No social proof**: first contact is a plain invitation        |
 | **WhatsApp message 2**   | Strong reminder                                | **We still need your answer**, updated Yes count, honest planning consequence, same two actions                                                  |
 | **Email**                | Final direct player chase                      | **Action required**, event and deadline, updated social proof, clear statement that the club is still waiting, equivalent Yes/No calls to action |
 | **Follow-up escalation** | Move the unresolved exception to the President | Owned by W5; no player personal data in the outbound escalation body                                                                             |
+
+Social proof begins at the second rung. Brian's 2026-08-25 direction: the first
+invitation is a plain invitation and carries no count, because leading first
+contact with peer pressure is the wrong tone for somebody who has not yet been
+asked. Every later rung, and every landing page, may carry accurate counts.
+
+### The incomplete-answer nudge
+
+A Yes with unanswered required event questions earns **exactly one** further
+message — never a ladder, and never the RSVP chase restarted. It says the answer
+is recorded, names what is still missing, and links to the player's own page.
+It is sent once and never repeated, and whether the questions are then answered
+changes nothing about the standing RSVP. Brian's 2026-08-25 direction: _"if they
+said yes but didn't fill out all the questions, there should be one nudge"_ and
+_"I don't think there should be a separate chase sequence."_ W5 owns escalation
+and must not treat an incomplete answer as a nonresponse.
 
 Pressure is factual, specific and current. The system may say **18 others are
 already attending** or **The club is still waiting for 4 answers, including
@@ -136,27 +152,74 @@ An old message remains an honest snapshot; the landing page shows the live count
 
 - Lead with **You're not attending — no reason given**.
 - Explain the operational reason strongly: **The club plans numbers, transport
-  and coaching from these responses. Give a reason before No can be completed.**
+  and coaching from these responses. Tell the club why if you can.** The wording
+  must never suggest the No is unrecorded until a reason arrives. The click
+  already recorded it; the reason is follow-up work on a standing answer.
 - Give **Change to Yes** the primary treatment. The page may add accurate social
   proof, for example **12 other people are attending**, but may not shame the
   player, invent scarcity or reveal names.
+- **Give a reason and continue** is the single forward action. No separate
+  continue control competes with it or with **Change to Yes**.
 - Saving a real reason appends the player's actual explanation and replaces the
   displayed default. Abandoning the page leaves the authoritative No visibly
   qualified as **No reason given**.
 
-### Outstanding-RSVP inbox
+### The player's own page
 
-- A valid invitation credential may reveal only outstanding invitations for the
-  same person. This is a deliberate widening from one-invitation scope and must
-  be enforced server-side with cross-person isolation tests.
-- The page shows a prominent count at entry: **You have 2 other invitations to
-  answer**.
-- **New invitations** are those the player has not opened. **Still need your
-  answer** covers opened invitations with no Yes or No. Missing reasons and
-  unanswered event questions appear in a separate **Follow-up needed** section.
-- Each row carries event type, name, date/time, response deadline, live Yes count
-  when nonzero, and the same answer choices. Completed invitations are omitted;
-  this is a work queue, not response history.
+Brian's 2026-08-25 direction replaces the per-invitation landing page with a
+durable page belonging to the person: _"each person in the roster has their own
+unique page that they can go see that has all their events and everything on
+it"_, and _"the end of the sequence should dump them onto the event page where
+all the events are that they still need to fill out and are still coming up."_
+
+Every answer ends here, and it has two halves:
+
+- **Work that needs an answer**, at the top. **New invitations** are those the
+  player has not opened; **Still need your answer** covers opened invitations
+  with no Yes or No; **Follow-up needed** carries standing answers with missing
+  reasons or unanswered questions. The next invitation is visually dominant.
+- **Your answers — still to come**, below it. Everything this player has already
+  answered whose event has not happened yet, **Yes and No alike**, each showing
+  its standing answer and offering the change. Brian, 2026-08-25: _"it's
+  everything that they've said, plus their RSVP status."_ Completed answers do
+  not vanish; a player who said No in haste must be able to find it and change
+  it without waiting to be asked again.
+
+An empty queue is its own state: **No outstanding events**, the answered list
+still reachable, and a link to the public calendar shipped by LAN-153 — the one
+useful onward step available without an account.
+
+**An approved event is visible immediately.** Brian, 2026-08-25: _"if an event
+is approved then they see it… It may not message until we get closer, but the
+event is there."_ Visibility does not wait for the invitation's scheduled
+dispatch, so a player may answer before rung 1 is sent. W7 must therefore
+suppress rungs for an invitation already answered rather than send a pointless
+invitation.
+
+### The person credential
+
+The per-invitation `rsvp_access_tokens` row cannot express this page: its
+`invitation_id` is `NOT NULL` and its `expires_at` is stamped at the event's
+start, so it dies with one event. This workflow needs a **person-scoped token
+associated with a season**, on the shape `club_link_tokens` already established
+on `main` — digest only, one live per subject, revocable.
+
+Brian's 2026-08-25 decision: _"the person token is associated with the season,
+and then when the season closes, all those die. They should not be there."_
+Season close is the terminal event; the token carries no separate lifetime.
+
+This is a data-model addition and must be reflected in
+`docs/architecture/data-model.md` with RLS and narrow grants in its creating
+migration.
+
+**Nonblocking unknown, with its handling rule.** `seasons.ends_on` is nullable
+and season close is an operator action owned by Mission 10, which is not built.
+A season that is never closed therefore gives the token no terminal event. The
+handling rule that preserves safe execution: the token must be **revocable per
+person without waiting for Mission 10**, so a leaked link can always be killed
+by an operator action this mission ships. Revocation is not optional here — the
+neighbouring club link deliberately shipped without it, and two unrevokable
+durable credentials is not a posture this mission should add to.
 
 ## State transitions
 
@@ -218,9 +281,19 @@ An old message remains an honest snapshot; the landing page shows the live count
 
 - A signed credential remains the authorization. It is stored only as a digest,
   never logged or shown to an operator.
-- Expanding from one invitation to the same player's outstanding inbox is a
-  deliberate capability change. It reveals event summaries and aggregate counts
-  for that player only; no peer identity or peer answer is exposed.
+- Expanding from one invitation to a durable per-person page is a deliberate
+  capability change, and the largest one in this workflow. It reveals event
+  summaries, that player's own standing answers, and aggregate counts for that
+  player only; no peer identity or peer answer is exposed. Cross-person
+  isolation is enforced server-side and proved by test: an identifier belonging
+  to somebody else must be absent from content, DOM and response payload.
+- **What the peer-visibility rule is, and is not.** "Aggregate counts, never
+  names" governs what this mission's automated messages and player-facing pages
+  reveal. It is **not** a confidentiality property of the underlying data.
+  Verified against `main` at `80e9616` on 2026-08-25: the club link shipped by
+  LAN-157 at `/e/[token]` shows any holder every invitee's name, answer, stated
+  reason and attendance, with no account and — per its own ticket — no
+  revocation. The packet must not imply a guarantee the system does not make.
 - Aggregate Yes counts are new peer visibility and supersede the prior zero-peer
   rule only if this revised specification is approved. Counts are never names.
 - Unknown, expired, revoked, superseded and event-started credentials remain
@@ -255,24 +328,42 @@ An old message remains an honest snapshot; the landing page shows the live count
 - Either response click cancels all later player-facing RSVP jobs and clears any
   un-actioned flag atomically; question/reason follow-up remains separately
   visible.
+- WhatsApp message 1 renders with no count of any kind; message 2, the email and
+  the landing pages carry accurate counts.
+- The player's page lists needs-an-answer work above already-answered upcoming
+  events, shows both Yes and No with their standing status, and changes either.
+- An approved event appears for its invitee before its invitation is dispatched,
+  and answering it early suppresses rung 1 rather than sending it.
+- The empty state reads **No outstanding events**, keeps the answered list
+  reachable, and links to the public calendar.
+- A person token stops resolving the moment its season is closed, and an
+  operator can revoke one without a season close.
+- An incomplete Yes produces exactly one further message. A second is a defect.
 - Grounding is current `main` at
   `80e9616d396336a7b575a975ecb012548b4ed611`, Mission 2 packet v1's question
   model, and Meta's official WhatsApp Business Platform template examples.
 
 ## Core decisions
 
-| Decision                                                                               | Classification                | Governing evidence or recommended default                                                      | Status                                          |
-| -------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| WhatsApp presents Yes and No actions instead of one raw-link journey                   | `proposed for owner approval` | Brian's W2 feedback, 2026-08-24                                                                | Direction given; revised spec approval required |
-| The action opens the answer-specific club page and records the click                   | `proposed for owner approval` | Brian's W2 feedback; constrained by Meta's split Quick Reply/URL behaviours and scanner safety | Recommended intent contract above               |
-| A No click records No with **No reason given** until the player adds the actual reason | `proposed for owner approval` | Brian's resolution, 2026-08-24; explicitly supersedes R5's prior refusal shape                 | Direction given; revised spec approval required |
-| A Yes remains standing while event questions are separately outstanding                | `proposed for owner approval` | Mission 2 already authorises per-event questions; Brian says the click is confirmation         | Direction given; revised spec approval required |
-| The page exposes the same player's outstanding RSVP inbox                              | `proposed for owner approval` | Brian's W2 feedback, 2026-08-24                                                                | Capability expansion; approval required         |
-| Accurate aggregate Yes counts appear in player messages and pages                      | `proposed for owner approval` | Brian's W2 feedback, 2026-08-24                                                                | Supersedes zero-peer-visibility if approved     |
-| WhatsApp 1, WhatsApp 2 and email use progressively stronger, distinct copy             | `proposed for owner approval` | Brian's W2 feedback; W1 fixes the channel order                                                | Exact reviewed mockup copy to approve           |
-| Direct typed WhatsApp replies remain non-authoritative                                 | `locked`                      | Task 03 inbound-reply seam remains gated on Stuart's review                                    | Unchanged                                       |
-| No separate confirmation message follows a completed answer                            | `locked`                      | The landing page and outstanding inbox provide confirmation; W1 adds no extra rung             | Unchanged                                       |
-| Exact safe implementation of one-time actions, sessions and scanner resistance         | `delegated to Mission Lead`   | Must satisfy the visible and security acceptance without changing meaning                      | Delegated                                       |
+| Decision                                                                               | Classification                | Governing evidence or recommended default                                                      | Status                                                                   |
+| -------------------------------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| WhatsApp presents Yes and No actions instead of one raw-link journey                   | `proposed for owner approval` | Brian's W2 feedback, 2026-08-24                                                                | Direction given; revised spec approval required                          |
+| The action opens the answer-specific club page and records the click                   | `proposed for owner approval` | Brian's W2 feedback; constrained by Meta's split Quick Reply/URL behaviours and scanner safety | Recommended intent contract above                                        |
+| A No click records No with **No reason given** until the player adds the actual reason | `proposed for owner approval` | Brian's resolution, 2026-08-24; explicitly supersedes R5's prior refusal shape                 | Direction given; revised spec approval required                          |
+| A Yes remains standing while event questions are separately outstanding                | `proposed for owner approval` | Mission 2 already authorises per-event questions; Brian says the click is confirmation         | Direction given; revised spec approval required                          |
+| The landing page becomes a durable page belonging to the person                        | `proposed for owner approval` | Brian 2026-08-25: "each person in the roster has their own unique page"                        | Largest capability expansion here; approval required                     |
+| That page also lists already-answered events that have not happened yet                | `proposed for owner approval` | Brian 2026-08-25: "it's everything that they've said, plus their RSVP status"                  | Direction given; rendering to approve                                    |
+| The person credential is season-associated and dies when the season closes             | `proposed for owner approval` | Brian 2026-08-25: "when the season closes, all those die"                                      | Data-model addition; carries a nonblocking unknown and its handling rule |
+| An approved event is visible to its invitee before the invitation is dispatched        | `proposed for owner approval` | Brian 2026-08-25: "if an event is approved then they see it"                                   | Supersedes the recommendation to gate visibility on dispatch; W7 seam    |
+| Social proof starts at the second rung; the first invitation is plain                  | `proposed for owner approval` | Brian 2026-08-25: first message is "just a regular invitation"                                 | Direction given; rendered in W2-01                                       |
+| An incomplete Yes earns exactly one nudge and no second chase ladder                   | `proposed for owner approval` | Brian 2026-08-25: "there should be one nudge"                                                  | Direction given; W5 must not treat it as nonresponse                     |
+| On the No page, **Give a reason and continue** is the single forward action            | `proposed for owner approval` | Brian 2026-08-25                                                                               | Direction given; rendered in W2-04                                       |
+
+| Accurate aggregate Yes counts appear in player messages and pages | `proposed for owner approval` | Brian's W2 feedback, 2026-08-24 | Supersedes zero-peer-visibility if approved |
+| WhatsApp 1, WhatsApp 2 and email use progressively stronger, distinct copy | `proposed for owner approval` | Brian's W2 feedback; W1 fixes the channel order | Exact reviewed mockup copy to approve |
+| Direct typed WhatsApp replies remain non-authoritative | `locked` | Task 03 inbound-reply seam remains gated on Stuart's review | Unchanged |
+| No separate confirmation message follows a completed answer | `locked` | The landing page and outstanding inbox provide confirmation; W1 adds no extra rung | Unchanged |
+| Exact safe implementation of one-time actions, sessions and scanner resistance | `delegated to Mission Lead` | Must satisfy the visible and security acceptance without changing meaning | Delegated |
 
 ## Brian approval
 
