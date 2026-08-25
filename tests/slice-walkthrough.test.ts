@@ -109,7 +109,6 @@ import {
 } from "@/lib/services/event-import";
 import { selectionKey } from "@/lib/services/audience-selection";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
-import { RESPONSE_DEADLINE_RULES } from "@/lib/services/response-deadline";
 import {
   applyProviderCallback,
   dispatchEventInvitations,
@@ -554,7 +553,12 @@ async function cleanUp(): Promise<void> {
     "delete from public.audit_events where entity_table = 'seasons' and context ->> 'fileName' = $1",
     [IMPORT_FILE_NAME],
   );
+  // LAN-169. A flag references its invitation and a plan references its event,
+  // both `on delete restrict`, so both go before the rows they name — and the
+  // flag goes before the job, because it may name the escalation that job is.
+  await purge("public.nonresponse_flags", "invitation_id", invitationIds);
   await purge("public.notification_jobs", "event_id", eventIds);
+  await purge("public.event_messaging_plans", "event_id", eventIds);
   await purge("public.attendance_records", "event_id", eventIds);
   await purge("public.rsvp_responses", "invitation_id", invitationIds);
   await purge("public.rsvp_access_tokens", "invitation_id", invitationIds);
@@ -861,11 +865,23 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
 
     expect(outcome.event.status).toBe("approved");
     expect(outcome.invitationCount).toBe(2);
-    expect(outcome.notificationJobCount).toBe(2);
+    // Two invitees on a four-rung ladder: the invitation, two WhatsApp
+    // reminders and the email. LAN-169 changed what approval means — it commits
+    // the plan rather than performing the send (Brian, 2026-08-22: "Yes,
+    // approval commits the plan rather than sending") — and the audience freeze
+    // this test goes on to prove is unchanged by that.
+    expect(outcome.notificationJobCount).toBe(8);
+    // This event is a whole term away, further out than a chalk session's
+    // five-day invitation lead, so nothing goes today and the plan says so.
+    expect(outcome.plan?.dispatchesImmediately).toBe(false);
+    expect(outcome.plan?.lateApproval).toBe(false);
 
     // The deadline comes from the centrally configured rule for the event type,
-    // with no per-event override anywhere in this path.
-    expect(outcome.deadline?.rule).toEqual(RESPONSE_DEADLINE_RULES.practice);
+    // with no per-event override anywhere in this path. LAN-169 moved the rule
+    // from a frozen TypeScript table into `public.messaging_schedules` and
+    // retired its fixed 18:00 clock in favour of the event's own start; the day
+    // count Brian decided on 13 August 2026 is unchanged.
+    expect(outcome.deadline?.rule).toEqual({ daysBefore: 2 });
     expect(outcome.deadline?.clamped).toBe(false);
 
     const invitations = await db.query<{ id: string; membership: string; status: string }>(
@@ -893,6 +909,29 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
   // -------------------------------------------------------------------------
 
   it("dispatches both invitations through the WhatsApp adapter, with no manual step", async () => {
+    // LAN-169. The anchor first, because it is now part of the walk: approval
+    // committed the plan and scheduled the invitation for five days before the
+    // event, so dispatching *today* correctly sends nothing at all. Before this
+    // mission there was no `scheduled_for` on any job and approval sent
+    // everything immediately, which is why this assertion is new rather than
+    // moved.
+    const early = await dispatchEventInvitations(eventId, {
+      source: PROVIDER_ENVIRONMENT,
+      transport: capturingTransport,
+    });
+    expect(early).toMatchObject({ attempted: 0, accepted: 0, refused: 0, skipped: 0 });
+    expect(sent).toHaveLength(0);
+
+    // Now let the anchor arrive. Moving the schedule backwards is how a test
+    // travels forwards: the sweep's predicate is "has this moment passed", and
+    // there is no clock to advance inside one transaction.
+    await db.query(
+      `update public.notification_jobs
+          set scheduled_for = now() - interval '1 minute'
+        where event_id = $1 and job_type = 'invitation'`,
+      [eventId],
+    );
+
     const summary = await dispatchEventInvitations(eventId, {
       source: PROVIDER_ENVIRONMENT,
       transport: capturingTransport,
@@ -949,14 +988,22 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
       providerMessageIds.set(row.invitation_id, row.provider_message_id);
     }
 
-    // Nothing anywhere in this path is a person copying a link: the only
-    // channel written is `whatsapp`, and `manual` is not a channel the
-    // dispatcher can produce.
+    // Nothing anywhere in this path is a person copying a link. The channels
+    // written are the two automated ones, and `manual` is not a channel the
+    // dispatcher can produce — `delivery_attempts` refuses it at the database.
+    //
+    // `email` joined `whatsapp` with LAN-169's ladder: the fixed order is
+    // WhatsApp, WhatsApp again, then email (`REQ-ladder-order`), so the fourth
+    // rung of every plan is an email job created at approval. What has not
+    // changed, and is the claim this assertion exists to make, is that no
+    // channel here is a human.
     const channels = await db.query<{ channel: string }>(
-      "select distinct channel::text as channel from public.notification_jobs where event_id = $1",
+      `select distinct channel::text as channel
+         from public.notification_jobs where event_id = $1 order by 1`,
       [eventId],
     );
-    expect(channels.rows.map((row) => row.channel)).toEqual(["whatsapp"]);
+    expect(channels.rows.map((row) => row.channel)).toEqual(["email", "whatsapp"]);
+    expect(channels.rows.map((row) => row.channel)).not.toContain("manual");
   }, 120_000);
 
   // -------------------------------------------------------------------------

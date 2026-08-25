@@ -781,6 +781,29 @@ export async function cancelEvent(
       [eventId, JOB_CANCELLED_BY_CANCELLATION],
     );
 
+    // LAN-169. W5: "The event is cancelled — outstanding chase work stops; the
+    // queue drops the event." Half of that is free, because `nonresponse_queue`
+    // only reads approved events. The other half is not: a raised flag survives
+    // its event's cancellation, and a flag is cleared **only by resolution and
+    // never by time** (`REQ-one-flag-per-threshold`), so nothing else would ever
+    // close it and the follow-up queue would carry a permanent row about an
+    // event that is not happening.
+    //
+    // Resolved rather than deleted, for the same requirement's other half: a
+    // cleared flag stays readable in history, because the record that the club
+    // escalated is evidence.
+    await tx.query(
+      `update public.nonresponse_flags f
+          set resolved_at = now(),
+              resolution = $2,
+              resolved_by_person_id = $3
+         from public.invitations i
+        where i.id = f.invitation_id
+          and i.event_id = $1
+          and f.resolved_at is null`,
+      [eventId, "The event was cancelled, so there is nothing left to chase.", actorPersonId],
+    );
+
     const noticesOwed = options.notify
       ? await recordNoticesOwedIn(tx, {
           eventId,

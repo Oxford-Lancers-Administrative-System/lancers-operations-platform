@@ -170,6 +170,7 @@ own pitches, which no geocoder indexes, are typed rather than searched.
 | `npm run db:start` / `db:stop` / `db:status`                                 | Guarded lifecycle for the claimed stack           |
 | `npm run db:reset`                                                           | Reset, seed, and restore the fixed review login   |
 | `npm run db:seed`                                                            | Load the deterministic synthetic dataset          |
+| `npm run messaging:ticker`                                                   | Drive the messaging sweep locally, beside the app |
 | `npm run db:seed-user`                                                       | Create/update the local test user                 |
 | `npm run db:link-operator`                                                   | Link that test user to a seeded person and roles  |
 | `npm run db:link-coach`                                                      | Link the second login to a coaching seat only     |
@@ -185,6 +186,41 @@ own pitches, which no geocoder indexes, are typed rather than searched.
 | `npm run visual:status`                                                      | Report whether it is still genuinely ready        |
 | `npm run visual:disposition -- --set <state>`                                | Record approved/rejected/obsolete/abandoned       |
 | `npm run visual:release`                                                     | Stop the supervisor and hand the slot back        |
+
+### Seeing the messaging ladder advance
+
+The chase ladder is driven by one request — `POST /api/scheduler/messaging` —
+and nothing in the application makes it. Cloud Scheduler makes it in the deployed
+environment; locally, this does:
+
+```bash
+npm run messaging:ticker
+```
+
+Run it in a second terminal beside `npm run dev`. It reads `.env.local` for the
+application port and `SCHEDULER_TRIGGER_TOKEN`, ticks every fifteen seconds
+(`MESSAGING_TICK_MS` to change that), prints only the ticks that did something,
+and **refuses any target that is not loopback**.
+
+Without it, an approved event's invitation waits at its dispatch anchor, no
+reminder is ever sent, and nothing escalates. That looks exactly like a broken
+ladder and is not one — see `docs/operating-the-slice.md` §7.
+
+Two things make the loop reviewable with no Meta account and no Resend key:
+
+- **The local delivery sink** stands in for both providers, accepts the real
+  Graph and Resend payloads, validates each against the declared template
+  registry, and writes every rendered message to `.lancers-runtime/delivery-sink/`.
+  It is chosen by **runtime detection and never by a flag**: a deployed runtime
+  cannot reach it however the environment is set.
+- **`DELIVERY_SINK_FAILURES`** makes the sink refuse named recipients, so a real
+  delivery failure — and a WhatsApp failure the email fallback then carried — are
+  states somebody can actually look at.
+
+`npm run db:seed` also seeds the ladder itself: events mid-chase, fully
+delivered, queued, genuinely failed, one whose WhatsApp failed and whose email
+carried it, somebody with no usable route, a held job, a cancelled job, and one
+event past its escalation threshold with a flag raised.
 
 ### Closing out a finished issue
 

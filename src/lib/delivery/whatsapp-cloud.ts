@@ -11,6 +11,7 @@ import type {
   SendOutcome,
   Transport,
 } from "./provider";
+import { templateFor, templateNameFor } from "./templates";
 
 /**
  * The direct Meta Cloud API adapter. LAN-92 chose it; LAN-78 builds it.
@@ -156,6 +157,9 @@ export function buildMessageBody(
   // template to put one. That is a real limitation of this shape and not an
   // oversight here: a message sent this way demonstrates that delivery works
   // and demonstrates nothing else.
+  const kind = message.kind ?? "invitation";
+  const templateName = templateNameFor(kind, config);
+
   if (config.templateParameters === "none") {
     return {
       messaging_product: "whatsapp",
@@ -163,31 +167,37 @@ export function buildMessageBody(
       to,
       type: "template",
       template: {
-        name: config.templateName,
+        name: templateName,
         language: { code: config.templateLanguage },
       },
     };
   }
 
-  // The approved template's four body parameters, in order. The club creates
-  // the template to match this contract; the order is part of the handoff.
+  // The approved template's body parameters, in the order `./templates.ts`
+  // declares for this kind. The club creates each template to match that
+  // contract; the order is part of the handoff, and it is declared in one place
+  // rather than written out here so the local sink can validate against the
+  // same declaration the adapter sent from — which is what makes a reordering
+  // fail on a developer machine instead of arriving at Meta as `132000`, or
+  // worse, arriving at a player as a correctly-delivered message with its
+  // sentences swapped.
   return {
     messaging_product: "whatsapp",
     recipient_type: "individual",
     to,
     type: "template",
     template: {
-      name: config.templateName,
+      name: templateName,
       language: { code: config.templateLanguage },
       components: [
         {
           type: "body",
-          parameters: [
-            { type: "text", text: message.inviteeName },
-            { type: "text", text: message.eventName },
-            { type: "text", text: message.whenLabel },
-            { type: "text", text: message.rsvpUrl },
-          ],
+          parameters: templateFor(message)
+            .parameters(message)
+            .map((text) => ({
+              type: "text",
+              text,
+            })),
         },
       ],
     },

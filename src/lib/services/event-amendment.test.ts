@@ -87,6 +87,17 @@ afterEach(async () => {
     `delete from public.delivery_attempts where notification_job_id in (select id from public.notification_jobs where event_id in ${events})`,
     [scope],
   );
+  // LAN-169. The plan an approval freezes, and any flag its chase raised,
+  // both reference their event with `on delete restrict` — so they go before
+  // the event does, in the same dependency order the lines below already keep.
+  await observer.query(
+    `delete from public.nonresponse_flags where invitation_id in
+         (select id from public.invitations where event_id in ${events})`,
+    [scope],
+  );
+  await observer.query(`delete from public.event_messaging_plans where event_id in ${events}`, [
+    scope,
+  ]);
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
   await observer.query(
     `delete from public.rsvp_access_tokens where invitation_id in (select id from public.invitations where event_id in ${events})`,
@@ -1096,12 +1107,27 @@ describe("cancelling an event", () => {
       notify: true,
     });
 
-    expect(outcome.messagesCancelled).toBe(5);
+    // Twenty-three: the five invitations that had not gone out, plus the whole
+    // of the chase ladder behind them — six invitees times three reminders.
+    //
+    // LAN-169 is what changed this number, and the change is the behaviour
+    // rather than an accounting artefact. Before the ladder existed, cancelling
+    // an event called off one queued invitation per person and there was
+    // nothing else waiting; now every reminder and the email rung are queued at
+    // approval, and cancelling an event that leaves them behind would chase
+    // forty people for a fortnight about a match that is not happening.
+    expect(outcome.messagesCancelled).toBe(23);
 
     const jobs = await jobsFor(fixture.eventId);
     const invitations = jobs.filter((job) => job.job_type === "invitation");
     expect(invitations.filter((job) => job.status === "cancelled")).toHaveLength(5);
     expect(invitations.filter((job) => job.status === "completed")).toHaveLength(1);
+
+    // Every rung, not only the first. A reminder left `pending` on a cancelled
+    // event is one the sweep would dispatch when its moment arrived.
+    const reminders = jobs.filter((job) => job.job_type === "reminder");
+    expect(reminders).toHaveLength(18);
+    expect(reminders.every((job) => job.status === "cancelled")).toBe(true);
 
     // The notices the cancellation itself made owing are not among the ones it
     // called off.
