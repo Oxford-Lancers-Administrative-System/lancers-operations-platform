@@ -24,6 +24,8 @@ import type { EnvironmentSource } from "@/lib/delivery/config";
 import { WHATSAPP_CLOUD_PROVIDER } from "@/lib/delivery/whatsapp-cloud";
 import {
   applyProviderCallback,
+  JOB_HELD_MESSAGE,
+  JOB_HELD_RULE,
   JOB_NOT_FOUND_RULE,
   dispatchEventInvitations,
   dispatchJob,
@@ -755,6 +757,95 @@ describe("revoke and reissue", () => {
       revokeAndReissue(person, invitationId, "  ", { source: CONFIGURED }),
     );
     expect(error.kind).toBe("constraint_violated");
+  });
+
+  /**
+   * R156-B1. `revokeAndReissue` used to revoke the invitee's live token in a
+   * committed transaction *before* checking whether the job was held, then
+   * hand off to `dispatchJob`, whose `claimJobIn` refuses a held job
+   * regardless — so the invitee was left with a dead link, no message, and
+   * no `last_error` naming the cause. The reproduction the reviewer named:
+   * hold a failed job that already carries a live token, and prove the token
+   * survives the refusal.
+   */
+  it("refuses a held job, and its live token survives", async () => {
+    const { eventId, invitationId, jobId } = await fixture();
+    // A failed attempt with a usable, allowlisted number still mints a
+    // token before the provider is asked — see `claimJobIn`.
+    await dispatchEventInvitations(eventId, {
+      source: CONFIGURED,
+      transport: refuses(130429, 429),
+    });
+
+    const before = await observer.query<{ id: string }>(
+      `select id from public.rsvp_access_tokens
+        where invitation_id = $1 and revoked_at is null and superseded_at is null`,
+      [invitationId],
+    );
+    expect(before.rows).toHaveLength(1);
+
+    // Held the way `amendApprovedEvent` holds an unsent job after an
+    // amendment — a failed job is eligible.
+    await observer.query(
+      `update public.notification_jobs
+          set held_at = now(), held_reason = $2, held_by_person_id = $3
+        where id = $1`,
+      [jobId, "Event amended: Venue.", await anyPerson()],
+    );
+
+    const error = await caught(async () =>
+      revokeAndReissue(await anyPerson(), invitationId, "Should never reach the token", {
+        source: CONFIGURED,
+        transport: accepts(`${PROVIDER_MESSAGE_PREFIX}SHOULD_NOT_SEND`),
+      }),
+    );
+    expect(error.kind).toBe("invalid_transition");
+    expect(error.rule).toBe(JOB_HELD_RULE);
+    expect(error.message).toBe(JOB_HELD_MESSAGE);
+
+    const after = await observer.query<{ id: string; revoked_at: Date | null }>(
+      `select id, revoked_at from public.rsvp_access_tokens
+        where invitation_id = $1 and revoked_at is null and superseded_at is null`,
+      [invitationId],
+    );
+    expect(after.rows).toHaveLength(1);
+    expect(after.rows[0].id).toBe(before.rows[0].id);
+    expect(after.rows[0].revoked_at).toBeNull();
+  });
+});
+
+describe("a cancelled job", () => {
+  /**
+   * R156-B2. `cancelEvent` moves an unsent job straight to `status =
+   * 'cancelled'`, a status `DELIVERY_STATE_EXPRESSION` had no arm for, so it
+   * fell to the `else` and read as **Failed** — the club's own stand-down
+   * reported as a failed send — with `retryable: true`, a Retry button that
+   * then refuses because `retryDelivery` only accepts a job that is
+   * 'pending', 'ready' or 'failed'. The status is set directly here, exactly
+   * as `cancelEvent` sets it (`event-amendment.ts`), so this is a
+   * reproduction of the read model alone.
+   */
+  it("does not read as failed, and is not offered a retry", async () => {
+    const { eventId, jobId } = await fixture();
+    await observer.query(
+      `update public.notification_jobs
+          set status = 'cancelled', claimed_at = null, claimed_by = null, updated_at = now()
+        where id = $1`,
+      [jobId],
+    );
+
+    const current = await row(eventId);
+    expect(current.state).toBe("cancelled");
+    expect(current.state).not.toBe("failed");
+    expect(current.retryable).toBe(false);
+
+    // And the refusal is still the refusal — a Retry pressed anyway is
+    // refused with the same reason `retryDelivery` gives any job that is not
+    // pending, ready or failed, not a silent no-op.
+    const error = await caught(async () =>
+      retryDelivery(await anyPerson(), jobId, { source: CONFIGURED, transport: accepts() }),
+    );
+    expect(error.kind).toBe("invalid_transition");
   });
 });
 

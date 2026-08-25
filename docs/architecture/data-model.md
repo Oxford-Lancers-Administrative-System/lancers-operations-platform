@@ -63,13 +63,27 @@ and a composite foreign key with `on update cascade`:
 ```sql
 -- events has: unique (id, status)
 attendance_records.event_status  →  events (id, status)  on update cascade
-check (event_status = 'approved')
+check (event_status in ('approved', 'cancelled'))
 ```
 
-The copy cannot drift, because the cascade rewrites it. Cancelling the event
-cascades into the child and breaks the child's own check, so the update is
-refused while attendance exists. The result is invariant P5's structural half
-enforced declaratively, with no trigger and no trust placed in application code.
+The copy cannot drift, because the cascade rewrites it. The check then decides
+which parent states a child row may follow its parent into: cancelling the
+event rewrites `cancelled` onto every attendance row, and the check admits it,
+so the register survives the event being called off. A draft is refused, and
+nothing cascades a draft onto an attendance row, so that refusal is unreachable
+except by a caller writing the row directly.
+
+**The width of that check is load-bearing, and it is a decision, not an
+oversight.** `attendance_records` carried `= 'approved'` until LAN-156 and the
+cascade therefore made a cancellation _fail_ whenever a register had been
+opened — which W6 and D57 say must not happen, and which D71's six-hour buffer
+made the ordinary case rather than an unlucky one.
+`20260823090000_attendance_survives_cancellation.sql` widened it to the shape
+`invitations` already carried for P1. The consequence to hold in mind is that
+the database no longer refuses attendance _created_ against a cancelled event:
+it cannot, because the cascade has to be able to write that value. That rule
+lives in `closedReasonFor` in `src/lib/services/attendance.ts`, once, and every
+write path asks it.
 
 Its other half is the **clock**, which a check constraint cannot read. Two
 different questions are asked of it, and they are not the same question:
@@ -212,7 +226,7 @@ structurally present — see [Scope](#release-one-versus-structurally-present).
 | Invitation            | `invitations`                                | surrogate        | → **audience member**, event (with status), season, membership **or** person | one per invitee per event                                | `invitation_status` enum                             | —                                               | Release one |
 | RSVP Response         | `rsvp_responses`                             | surrogate        | → `invitations`                                                              | `(invitation_id, responded_at)`                          | binary `rsvp_value`                                  | append-only; current via `current_rsvp`         | Release one |
 | Question Response     | `question_responses`                         | surrogate        | → invitation, question (same event)                                          | `(invitation, question)`                                 | —                                                    | current row                                     | Release one |
-| Attendance Record     | `attendance_records`                         | surrogate        | → event (must be `approved`), membership **or** person                       | one per participant per event                            | `attendance_presence` enum                           | —                                               | Release one |
+| Attendance Record     | `attendance_records`                         | surrogate        | → event (approved; survives cancellation), membership **or** person          | one per participant per event                            | `attendance_presence` enum                           | —                                               | Release one |
 | Notification Job      | `notification_jobs`                          | surrogate        | → invitation / event / person                                                | `idempotency_key` (M1)                                   | six-state enum (M4)                                  | attempts in `delivery_results`                  | Release one |
 | Delivery Result       | `delivery_results`                           | surrogate        | → `notification_jobs`                                                        | `(job, attempt_number)`                                  | `delivery_outcome` enum                              | append-only by privilege                        | Release one |
 | Weekly Report         | `weekly_reports`                             | surrogate        | → `seasons`, self-FK supersession                                            | `(season, report_on, version)`                           | none — supersession derived                          | insert-only snapshot (M5)                       | Release one |
@@ -497,7 +511,7 @@ refer to `tests/schema-invariants.test.ts` and `tests/schema-accepts.test.ts`.
 | P2  | RSVP requires an invitation; value is binary                                                                                                                                               | FK + `rsvp_value` enum                                                                                                                                                                                                                                  | Yes                                                                                                                |
 | P3  | A non-acceptance must carry a reason                                                                                                                                                       | `rsvp_responses_no_requires_a_reason` check                                                                                                                                                                                                             | Yes                                                                                                                |
 | P4  | Invitation exists unanswered; cancellation deletes nothing                                                                                                                                 | No cascade delete; append-only responses; grants withhold `delete`                                                                                                                                                                                      | Yes                                                                                                                |
-| P5  | Attendance requires an approved event whose register has opened                                                                                                                            | Two halves. Database: composite FK + `event_status = 'approved'` check. **Service layer** for the clock, which a check constraint cannot read — D71's buffer in `attendance-window.ts`, asked by the board and by every write path through one function | Yes, both halves, including cancelling an event that carries attendance                                            |
+| P5  | Attendance requires an approved event whose register has opened                                                                                                                            | Two halves. Database: composite FK + `event_status in ('approved', 'cancelled')` check, which still refuses a draft structurally. **Service layer** for the approval and for the clock — `closedReasonFor`, plus D71's buffer in `attendance-window.ts` | Yes, both halves, and that a cancellation leaves the register standing                                             |
 | P6  | Attendance may exist without invitation or RSVP                                                                                                                                            | Schema shape — no FK from attendance to either                                                                                                                                                                                                          | Yes                                                                                                                |
 | P7  | Five-way response state, reportable                                                                                                                                                        | `event_audience_members` supplies the population; `invitation_response_state` left-joins invitations to it, so `never-invited` is derivable                                                                                                             | Yes — all five states, plus the negative case that a non-audience member is not reported                           |
 | P8  | Player anchors to membership; others to person                                                                                                                                             | `*_anchor_matches_capacity` checks on audience, invitations and attendance                                                                                                                                                                              | Yes                                                                                                                |

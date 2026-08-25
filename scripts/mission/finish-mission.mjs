@@ -30,7 +30,7 @@ import { mergeProof, worktreeDefects } from "./lib/merge-proof.mjs";
 import {
   coordinatorStatus,
   detachMissionLease,
-  releaseLease,
+  retireMissionLease,
 } from "../lib/local-supabase-coordinator.mjs";
 
 const repoPath = process.cwd();
@@ -174,10 +174,19 @@ try {
     // this was the last attachment is read back from the registry once, after
     // every package has let go, rather than trusted from any single detach.
     if (!gone) {
+      let detachment;
       try {
-        await detachMissionLease({ missionId, repoPath: pkg.worktree });
+        detachment = await detachMissionLease({ missionId, repoPath: pkg.worktree });
       } catch {
         // A mission that never allocated a stack has nothing to detach from.
+      }
+      if (detachment?.lastAttachment) {
+        try {
+          await retireMissionLease({ missionId, repoPath });
+        } catch (error) {
+          blocked.push(`${pkg.id}: its database stack could not be retired — ${error.message}`);
+          continue;
+        }
       }
       // One package's removal must not take the others down with it. This ran
       // as an uncaught throw and killed the whole reclamation on the first
@@ -277,15 +286,7 @@ try {
       disposition = `left running; ${attached.length} attachment(s) still hold it`;
     } else {
       try {
-        execFileSync(
-          path.join(repoPath, "node_modules", ".bin", "supabase"),
-          ["stop", "--no-backup", "--workdir", stack.runtimeRoot],
-          { cwd: repoPath, stdio: "ignore" },
-        );
-        // Hand the ports back as well, or the record holds them until the
-        // heartbeat window expires and someone runs cleanup-stale. Failure is
-        // loud: a stopped stack with a live lease is still a leaked slot.
-        await releaseLease({ repoPath, token: stack.token, slot: stack.slot });
+        await retireMissionLease({ missionId, repoPath });
         disposition = `retired ${stack.slot}`;
       } catch (error) {
         throw new Error(

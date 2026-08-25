@@ -53,6 +53,8 @@ async function releaseEnvironment(record, disposition) {
       // Already gone; releasing the lease below is still the right thing.
     }
   }
+  const session = readSession(repoPath);
+  const lease = await releaseLease({ repoPath, token: session.token, slot: session.slot });
   if (record) {
     writeEnvironment(repoPath, {
       ...record,
@@ -60,8 +62,7 @@ async function releaseEnvironment(record, disposition) {
       releasedAt: new Date().toISOString(),
     });
   }
-  const session = readSession(repoPath);
-  return releaseLease({ repoPath, token: session.token, slot: session.slot });
+  return lease;
 }
 
 try {

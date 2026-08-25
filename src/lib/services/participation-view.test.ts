@@ -611,7 +611,7 @@ describe("readParticipationFilters", () => {
     }
   });
 
-  it("accepts only the five states and `none` at the operator tier", () => {
+  it("accepts only the seven states and `none` at the operator tier", () => {
     for (const value of DELIVERY_FILTERS) {
       expect(
         readParticipationFilters({ delivery: value }, [LIFT], "operator").delivery,
@@ -628,15 +628,20 @@ describe("readParticipationFilters", () => {
     }
   });
 
-  it("names the same five delivery states the table renders", () => {
-    // So that a sixth state added to `DeliveryState` fails here as well as at
+  it("names the same delivery states the table renders", () => {
+    // So that a state added to `DeliveryState` fails here as well as at
     // `tsc`, and a filter value that renders no label cannot be introduced.
+    // `held` and `cancelled` are LAN-156's — the table's Delivery column
+    // reads the same `DELIVERY_STATE_EXPRESSION` the delivery screen does,
+    // so both can appear here too.
     expect([...DELIVERY_FILTERS]).toEqual([
       "queued",
       "attempted",
       "delivered",
       "failed",
       "retryable",
+      "held",
+      "cancelled",
       "none",
     ]);
   });

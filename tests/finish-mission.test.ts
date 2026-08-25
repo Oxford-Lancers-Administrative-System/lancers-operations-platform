@@ -6,6 +6,7 @@ import { spawnSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { appendEvent, replayState } from "../scripts/mission/lib/state.mjs";
+import { coordinatorPaths, coordinatorStatus } from "../scripts/lib/local-supabase-coordinator.mjs";
 
 const packet = JSON.parse(
   fs.readFileSync(path.join(__dirname, "fixtures", "mission", "approved-packet.json"), "utf8"),
@@ -151,6 +152,40 @@ function executeFinish(input: Awaited<ReturnType<typeof fixture>>) {
   );
 }
 
+function recordMissionStack(input: Awaited<ReturnType<typeof fixture>>) {
+  const slot = "mission-rehearsal-0";
+  const marker = path.join(path.dirname(input.repo), "stopped-project.txt");
+  const paths = coordinatorPaths(input.repo, input.env);
+  fs.mkdirSync(path.dirname(paths.registry), { recursive: true });
+  fs.writeFileSync(
+    paths.registry,
+    `${JSON.stringify({
+      version: 1,
+      slots: {
+        [slot]: {
+          missionId: MISSION,
+          repoPath: fs.realpathSync(input.worktree),
+          attachedRepoPaths: [fs.realpathSync(input.worktree)],
+          token: "rehearsal-token",
+          state: "review-ready",
+          slot,
+          projectId: "lancers-rehearsal",
+          ports: { api: 56321, db: 56322 },
+          applicationPort: 3100,
+        },
+      },
+    })}\n`,
+  );
+  const bin = path.join(input.repo, "node_modules", ".bin");
+  fs.mkdirSync(bin, { recursive: true });
+  fs.writeFileSync(
+    path.join(bin, "supabase"),
+    `#!/bin/sh\n[ -d '${input.worktree}' ] || exit 9\nprintf '%s\\n' "$@" > '${marker}'\n`,
+    { mode: 0o755 },
+  );
+  return { marker, slot };
+}
+
 describe("finish-mission executable reclamation", () => {
   it("auto-reclaims through the real merge-record command", async () => {
     const input = await fixture(false, false);
@@ -184,6 +219,17 @@ describe("finish-mission executable reclamation", () => {
     expect(fs.existsSync(input.worktree)).toBe(false);
     expect(git(input.repo, ["branch", "--list", input.branch])).toBe("");
     expect(replayState(input.repo, MISSION, input.env).reclaimed).toEqual([input.packageId]);
+  });
+
+  it("retires a last attachment before removing its merged package worktree", async () => {
+    const input = await fixture(false);
+    const stack = recordMissionStack(input);
+    const result = executeFinish(input);
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(fs.readFileSync(stack.marker, "utf8")).toContain("--project-id\nlancers-rehearsal");
+    expect(fs.existsSync(input.worktree)).toBe(false);
+    expect(coordinatorStatus(input.repo, input.env).slots[stack.slot]).toBeUndefined();
   });
 
   it("leaves a dirty merged worktree and branch untouched and reports the refusal", async () => {

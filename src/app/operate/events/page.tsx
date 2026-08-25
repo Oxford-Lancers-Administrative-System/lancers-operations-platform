@@ -1,6 +1,5 @@
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
@@ -26,6 +25,7 @@ import ViewSwitch from "@/app/calendar/view-switch";
 import { readEventYear } from "@/app/calendar/year";
 import { gateShellPage } from "../gate";
 import { CoachEligibleEvents } from "./coach-eligible-events";
+import CreateEventMenu from "./create-menu";
 import {
   bucketCoachEvents,
   isOpenForAttendance,
@@ -195,27 +195,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
             {`Season ${list.season.label}`}
           </Typography>
         </Box>
-        {mayManage ? (
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <Button variant="contained" href="/operate/events/new">
-              Create event
-            </Button>
-            {/*
-              D40's administration surface, reached from the Events area rather
-              than from the shell: a template is a property of an event type, and
-              somebody comes to it having noticed that every practice needs the
-              same thing typed in again.
-            */}
-            <Button
-              variant="outlined"
-              href="/operate/events/templates"
-              data-testid="open-templates"
-              sx={{ minHeight: 44 }}
-            >
-              Templates
-            </Button>
-          </Stack>
-        ) : null}
+        {mayManage ? <CreateEventMenu /> : null}
       </Stack>
 
       <ViewSwitch

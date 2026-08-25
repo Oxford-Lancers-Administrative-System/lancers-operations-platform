@@ -62,6 +62,13 @@ vi.mock("@/lib/services/event-templates", async (importOriginal) => {
     listEventTemplates: vi.fn(),
   };
 });
+// LAN-156. The event detail reads its change history; these screens are about
+// everything else on the page, so the reader is stubbed empty here and proved
+// in `[id]/change-screens.test.tsx` and `src/lib/services/event-amendment.test.ts`.
+vi.mock("@/lib/services/event-amendment", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/event-amendment")>();
+  return { ...actual, readEventChangeHistory: vi.fn(async () => []) };
+});
 // LAN-157. The event page reads the participation table and the live club
 // link. Both are proved elsewhere — `src/app/participation/screens.test.tsx`
 // for the rendering, `src/lib/services/participation.test.ts` for the payload —

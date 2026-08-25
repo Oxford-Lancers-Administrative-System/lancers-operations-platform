@@ -116,7 +116,8 @@ under that session shares, so an abandoned lease was unrecoverable while the
 editor stayed open — both slots were leaked when LAN-148 began, one for
 eighteen hours. A conclusively dead owner is reclaimed at once; an owner the
 pid cannot distinguish waits out a heartbeat window. `review-ready` is never
-reclaimed on a timer.
+reclaimed on a timer, but cleanup may retire it once every holding worktree is
+conclusively gone.
 
 ## Consequences
 

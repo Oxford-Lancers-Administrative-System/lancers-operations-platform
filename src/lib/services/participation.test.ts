@@ -23,6 +23,7 @@ vi.mock("server-only", () => ({}));
 import type { Client } from "pg";
 
 import { closePool, withTransaction } from "@/lib/db";
+import { todayInClubZone } from "@/lib/club-time";
 import { approveEvent, saveEventAudience } from "./event-approval";
 import { listAudienceCatalogueIn, type AudienceCatalogue } from "./event-audience";
 import { createEventDraft, type EventDraftInput } from "./events";
@@ -455,7 +456,14 @@ describe("the discrepancy marker", () => {
     // restricts to events whose date has passed, so on the evening itself it
     // emits no row — including for somebody who said no and is standing on the
     // pitch, which is what a coach notices first.
-    const today = new Date().toISOString().slice(0, 10);
+    // Europe/London, not `new Date().toISOString()`: that reads in UTC, and
+    // during British Summer Time the last hour before UTC midnight is already
+    // tomorrow in Oxford. `rsvp_attendance_mismatches` compares against
+    // `(now() at time zone 'Europe/London')::date` (Q-25) — an event this test
+    // schedules for "today" in UTC during that hour reads as yesterday to the
+    // view, which then reports it occurred and this assertion fails on a
+    // defect in the test, not in the view.
+    const today = todayInClubZone();
     const staged = await scenario({ scheduledOn: today });
 
     const stored = await observer.query(

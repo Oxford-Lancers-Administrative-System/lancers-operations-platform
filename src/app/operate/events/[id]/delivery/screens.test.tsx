@@ -95,6 +95,7 @@ function delivery(overrides: Partial<EventDelivery> = {}): EventDelivery {
       delivered: 38,
       failed: 1,
       retryable: 1,
+      held: 0,
       ...overrides.counts,
     },
     ...overrides,
@@ -185,12 +186,46 @@ describe("UX-50 — the overview", () => {
     expect(read("count-failed")).toContain("2");
   });
 
-  it("says so plainly when nothing has been sent yet", async () => {
+  it("says so plainly when nothing has been sent yet, and asserts no cause", async () => {
     vi.mocked(readEventDelivery).mockResolvedValue(delivery({ rows: [] }));
     const { container } = await renderPage();
 
-    expect(container.querySelector('[data-testid="delivery-empty"]')?.textContent).toContain(
-      "Invitations and their delivery are created when the event is approved",
+    const empty = container.querySelector('[data-testid="delivery-empty"]')?.textContent;
+    expect(empty).toContain("No invitations have been sent for this event.");
+
+    // It used to continue "Invitations and their delivery are created when the
+    // event is approved", which is false on an approved event whose
+    // invitations were never dispatched — the state Brian found at the visual
+    // gate on an approved event showing 0 of everything.
+    expect(empty).not.toContain("created when the event is approved");
+  });
+
+  /**
+   * LAN-156's cross-surface finding, on this side of it. The amend screen says
+   * messages are held; this screen has to be able to say so too, or the two
+   * describe one event differently.
+   */
+  it("names held messages, and says nothing about them when there are none", async () => {
+    const { container, unmount } = await renderPage();
+    expect(container.querySelector('[data-testid="delivery-held"]')).toBeNull();
+    unmount();
+
+    vi.mocked(readEventDelivery).mockResolvedValue(
+      delivery({
+        counts: {
+          audience: 42,
+          queued: 0,
+          attempted: 0,
+          delivered: 38,
+          failed: 0,
+          retryable: 0,
+          held: 4,
+        },
+      }),
+    );
+    const second = await renderPage();
+    expect(second.container.querySelector('[data-testid="delivery-held"]')?.textContent).toContain(
+      "4 messages are held after a change to this event.",
     );
   });
 
