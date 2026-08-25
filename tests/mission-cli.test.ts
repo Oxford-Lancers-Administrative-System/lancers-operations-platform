@@ -49,6 +49,152 @@ function readyMission(m: ReturnType<typeof fixture>) {
 }
 
 describe("mission CLI", () => {
+  it("checks receipts without appending and re-scopes a correction in place", () => {
+    const m = fixture();
+    readyMission(m);
+    expect(
+      m.run(
+        "dispatch",
+        MISSION,
+        "WP-attendance-export",
+        "--worker",
+        "worker-1",
+        "--worktree",
+        ".claude/worktrees/wp-attendance",
+        "--branch",
+        "feat/wp-attendance",
+        "--brief",
+        PACKET,
+      ).status,
+    ).toBe(0);
+    const receipt = path.join(m.repo, "receipt.json");
+    fs.writeFileSync(
+      receipt,
+      JSON.stringify({
+        branch: "feat/wp-attendance",
+        worktree: ".claude/worktrees/wp-attendance",
+        surfaces: ["src/lib/services/attendance.ts"],
+        acceptance_criteria: ["exports"],
+        verification: "npm run verify observed to pass",
+        ci_state: "green",
+        visual_state: "nonvisual",
+        migration_implications: "none",
+        limitations: "none",
+        result: "completed",
+      }),
+    );
+    const journal = missionPaths(m.repo, MISSION, m.env).journal;
+    const before = readJournal(journal).length;
+
+    const checked = m.run(
+      "receipt",
+      MISSION,
+      "WP-attendance-export",
+      "--worker",
+      "worker-1",
+      "--receipt",
+      receipt,
+      "--check",
+    );
+
+    expect(checked.status).toBe(0);
+    expect(checked.stdout).toMatch(/journal unchanged/);
+    expect(readJournal(journal)).toHaveLength(before);
+    expect(reduce(readJournal(journal)).activeWorkers).toHaveLength(1);
+
+    const invalid = JSON.parse(fs.readFileSync(receipt, "utf8"));
+    delete invalid.limitations;
+    fs.writeFileSync(receipt, JSON.stringify(invalid));
+    const refused = m.run(
+      "receipt",
+      MISSION,
+      "WP-attendance-export",
+      "--worker",
+      "worker-1",
+      "--receipt",
+      receipt,
+      "--check",
+    );
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toMatch(/missing `limitations`/);
+    expect(readJournal(journal)).toHaveLength(before);
+
+    invalid.limitations = "none";
+    fs.writeFileSync(receipt, JSON.stringify(invalid));
+    expect(
+      m.run(
+        "receipt",
+        MISSION,
+        "WP-attendance-export",
+        "--worker",
+        "worker-1",
+        "--receipt",
+        receipt,
+      ).status,
+    ).toBe(0);
+    expect(m.run("pr", MISSION, "WP-attendance-export", "41", "a".repeat(40)).status).toBe(0);
+    const review = path.join(m.repo, "review.json");
+    fs.writeFileSync(
+      review,
+      JSON.stringify({
+        review_mode: "full",
+        full_review_sha: "a".repeat(40),
+        reviewed_head_sha: "a".repeat(40),
+        round: 1,
+        result: "clear",
+        ci_state: "green",
+      }),
+    );
+    const beforeReviewCheck = readJournal(journal).length;
+    const reviewChecked = m.run(
+      "review",
+      MISSION,
+      "WP-attendance-export",
+      "--receipt",
+      review,
+      "--check",
+    );
+    expect(reviewChecked.status).toBe(0);
+    expect(reviewChecked.stdout).toMatch(/Review receipt.*journal unchanged/);
+    expect(readJournal(journal)).toHaveLength(beforeReviewCheck);
+
+    const blockedReview = JSON.parse(fs.readFileSync(review, "utf8"));
+    blockedReview.result = "blocked";
+    fs.writeFileSync(review, JSON.stringify(blockedReview));
+    expect(m.run("review", MISSION, "WP-attendance-export", "--receipt", review).status).toBe(0);
+    expect(
+      m.run(
+        "correction",
+        MISSION,
+        "WP-attendance-export",
+        "--worker",
+        "worker-1",
+        "--findings",
+        "R-001,R-002",
+      ).status,
+    ).toBe(0);
+    expect(
+      m.run(
+        "correction",
+        MISSION,
+        "WP-attendance-export",
+        "--worker",
+        "worker-1",
+        "--findings",
+        "R-001",
+        "--record-only",
+        "R-003",
+      ).status,
+    ).toBe(0);
+    const rescoped = reduce(readJournal(journal));
+    expect(rescoped.packages["WP-attendance-export"].status).toBe("correction");
+    expect(rescoped.activeWorkers).toHaveLength(1);
+    expect(rescoped.activeWorkers[0]).toMatchObject({
+      finding_ids: ["R-001"],
+      record_only_finding_ids: ["R-003"],
+    });
+  });
+
   it("refuses a live dispatch without an on-disk brief", () => {
     const m = fixture();
     readyMission(m);

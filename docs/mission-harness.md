@@ -255,6 +255,23 @@ A passing `mission gate` records `gate-passed` at the exact head. Re-running a
 now-failing gate invalidates that milestone, so volatile GitHub evidence cannot
 leave status falsely green.
 
+Workers can validate a completed receipt before filing it:
+
+```
+npm run mission -- receipt M-<id> WP-<id> --worker <worker-id> --receipt receipt.json --check
+npm run mission -- review M-<id> WP-<id> --receipt review.json --check
+```
+
+The check applies the same state-aware receipt rules and does not append to the
+journal. A correction dispatch separates findings that require injection proof
+with `--findings` from findings for which no regression test can exist with
+`--record-only`. That flag classifies injection-proof capability only; it does
+not change `block` / `correct-before-handoff` / `advisory` review disposition or
+authorize work on an advisory. Re-running `mission correction` for the same
+active worker replaces that correction scope in place; it preserves the worker
+identity, package lifecycle and append-only lineage, so `abandon-worker` is not
+a re-scoping tool.
+
 ## One-time owner actions before the first live mission
 
 Agents cannot change live GitHub settings, so Brian performs these once:

@@ -108,6 +108,11 @@ CLI paths, never conversational copies. Batch independent tool calls. For long
 commands retain the log and return only the useful tail; inspect a diff stat
 before a full diff.
 
+Require workers and reviewers to run `mission receipt ... --check` or
+`mission review ... --check` before they release resources. The pure checks
+validate receipts against replayed state without appending; after one passes,
+the Lead files the same path without `--check`.
+
 Workers, reviewers, and scouts never spawn agents. A stopped worker without a
 receipt resumes under its original identity. Use `abandon-worker` only after a
 failed resume proves it cannot return. Ordinary corrections always return to the
@@ -131,6 +136,12 @@ Every substantive correction records a regression test that fails with the
 defect restored and passes after the fix. Re-run only affected evidence unless a
 rendered or sensitive-boundary change invalidates prior coverage. Two rounds on
 the same premise trigger fresh requirement adjudication, not another code scan.
+Classify a finding that cannot admit a regression test with correction
+`--record-only`; the receipt gate then preserves that lineage without demanding
+fabricated injection output. This is an injection-proof classification, not a
+review gate disposition, and never authorizes correction of an advisory. Re-run
+`correction` for the same active worker to replace its scope in place; never
+abandon a healthy worker merely to re-scope it.
 
 Only after targeted checks, required security review, exact-head CI, and the
 prepared environment are clear may the package enter owner walkthrough. A head

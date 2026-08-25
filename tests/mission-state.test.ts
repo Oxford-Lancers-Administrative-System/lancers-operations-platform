@@ -983,6 +983,77 @@ describe("worker receipts and correction lineage", () => {
     });
   });
 
+  it("re-scopes an active correction in place without abandoning its worker or lifecycle", async () => {
+    const m = fixture();
+    await dispatched(m);
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 41,
+      head_sha: SHA,
+    });
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: reviewReceipt("blocked"),
+    });
+    await m.append({
+      type: "correction-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      finding_ids: ["R-001", "R-002"],
+    });
+    await m.append({
+      type: "owner-question",
+      id: "Q-rescope",
+      classification: "hourly",
+      text: "Synthetic: should the correction include the dead export?",
+      source: "finding R-003",
+      affected_packages: ["WP-events-filter"],
+    });
+    await expect(
+      m.append({
+        type: "correction-dispatched",
+        package_id: "WP-events-filter",
+        worker_id: "worker-1",
+        finding_ids: ["R-001"],
+        record_only_finding_ids: ["R-003"],
+      }),
+    ).rejects.toThrow(/unanswered owner question Q-rescope/);
+    await m.append({
+      type: "owner-answer",
+      question_id: "Q-rescope",
+      answer: "Yes; record why no regression test can observe it.",
+      answered_by: "Brian",
+      reusable: false,
+    });
+
+    const state = await m.append({
+      type: "correction-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      finding_ids: ["R-001"],
+      record_only_finding_ids: ["R-003"],
+    });
+
+    expect(state.packages["WP-events-filter"].status).toBe("correction");
+    expect(state.packages["WP-events-filter"].worker_id).toBe("worker-1");
+    expect(state.packages["WP-events-filter"].abandoned_workers).toBeUndefined();
+    expect(state.activeWorkers).toHaveLength(1);
+    expect(state.activeWorkers[0]).toMatchObject({
+      worker_id: "worker-1",
+      kind: "correction",
+      finding_ids: ["R-001"],
+      record_only_finding_ids: ["R-003"],
+    });
+  });
+
   it("routes a blocked review to a correction on the frontier, never to another review", async () => {
     const m = fixture();
     await dispatched(m);
@@ -2092,6 +2163,69 @@ describe("binding a fix to the test that would catch it again", () => {
     const receipt = state.packages["WP-events-filter"].receipts.at(-1);
     expect(receipt.injection_evidence).toHaveLength(2);
     expect(receipt.injection_evidence[0].sha).toBe(SHA);
+  });
+
+  it("accepts an honestly dispatched record-only finding without fabricated injection proof", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await reviewedClear(m, "WP-events-filter");
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: reviewReceipt("blocked"),
+    });
+    await m.append({
+      type: "correction-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      finding_ids: ["R-001"],
+      record_only_finding_ids: ["R-002"],
+    });
+
+    const state = await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      receipt: correctionReceipt(["R-001"]),
+    });
+
+    expect(state.packages["WP-events-filter"].status).toBe("implemented");
+    const receipt = state.packages["WP-events-filter"].receipts.at(-1);
+    expect(receipt.injection_evidence).toHaveLength(1);
+    expect(receipt.correction_scope).toEqual({
+      finding_ids: ["R-001"],
+      record_only_finding_ids: ["R-002"],
+    });
+  });
+
+  it("keeps record-only scope separate from injection-tested findings", async () => {
+    const m = fixture();
+    await readyMission(m);
+    await reviewedClear(m, "WP-events-filter");
+    await m.append({
+      type: "review-receipt",
+      package_id: "WP-events-filter",
+      receipt: reviewReceipt("blocked"),
+    });
+    await expect(
+      m.append({
+        type: "correction-dispatched",
+        package_id: "WP-events-filter",
+        worker_id: "worker-1",
+        finding_ids: ["R-001"],
+        record_only_finding_ids: ["R-001"],
+      }),
+    ).rejects.toThrow(/named exactly once/);
+
+    await expect(
+      m.append({
+        type: "correction-dispatched",
+        package_id: "WP-events-filter",
+        worker_id: "worker-1",
+        finding_ids: ["R-001"],
+        record_only_finding_ids: "R-002",
+      }),
+    ).rejects.toThrow(/Record-only correction findings are an array/);
   });
 
   it("asks nothing of an ordinary dispatch that is not correcting a finding", async () => {

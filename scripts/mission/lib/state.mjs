@@ -372,6 +372,21 @@ export function dependencyUsable(state, packageId) {
  * competes for the single migration slot, and still may not resume execution
  * that an unanswered owner question or unresolved source drift has paused.
  */
+function executionPauseRefusals(state, pkg, packageId) {
+  const errors = [];
+  for (const question of openQuestionsAffecting(state, packageId)) {
+    errors.push(
+      `${packageId} is affected by unanswered owner question ${question.id}; the answer is persisted before dependent execution resumes.`,
+    );
+  }
+  if (pkg.driftStopped) {
+    errors.push(
+      `${packageId} is stopped by source drift; it needs a revised approved packet before work resumes.`,
+    );
+  }
+  return errors;
+}
+
 function schedulingRefusals(state, pkg, packageId, { correction = false } = {}) {
   const errors = [];
   if (state.activeWorkers.length >= MAX_ACTIVE_WORKERS) {
@@ -392,16 +407,7 @@ function schedulingRefusals(state, pkg, packageId, { correction = false } = {}) 
       );
     }
   }
-  for (const question of openQuestionsAffecting(state, packageId)) {
-    errors.push(
-      `${packageId} is affected by unanswered owner question ${question.id}; the answer is persisted before dependent execution resumes.`,
-    );
-  }
-  if (pkg.driftStopped) {
-    errors.push(
-      `${packageId} is stopped by source drift; it needs a revised approved packet before work resumes.`,
-    );
-  }
+  errors.push(...executionPauseRefusals(state, pkg, packageId));
   if (!correction) {
     const queued = Object.values(state.packages).find(
       (other) =>
@@ -815,10 +821,36 @@ export function validateEvent(event, state) {
           `An ordinary review correction resumes the original implementation worker (${pkg.worker_id}); dispatching replacement implementer ${event.worker_id} is refused.`,
         );
       }
-      if (!Array.isArray(event.finding_ids) || event.finding_ids.length === 0) {
-        errors.push("A correction dispatch carries the blocking finding ids for lineage.");
+      const findingIds = Array.isArray(event.finding_ids) ? event.finding_ids : [];
+      const recordOnlyIds = Array.isArray(event.record_only_finding_ids)
+        ? event.record_only_finding_ids
+        : [];
+      if (!Array.isArray(event.finding_ids)) {
+        errors.push("Injection-tested correction findings are an array of ids.");
       }
-      if (activeWorkerFor(state, event.package_id)) {
+      if (
+        event.record_only_finding_ids !== undefined &&
+        !Array.isArray(event.record_only_finding_ids)
+      ) {
+        errors.push("Record-only correction findings are an array of ids.");
+      }
+      if (findingIds.length + recordOnlyIds.length === 0) {
+        errors.push(
+          "A correction dispatch carries at least one injection-tested or record-only finding id for lineage.",
+        );
+      }
+      const allFindingIds = [...findingIds, ...recordOnlyIds];
+      if (allFindingIds.some((id) => !isNonEmptyString(id))) {
+        errors.push("Every correction finding id is a non-empty string.");
+      }
+      if (new Set(allFindingIds).size !== allFindingIds.length) {
+        errors.push(
+          "A correction finding id is named exactly once across tested and record-only scope.",
+        );
+      }
+      const active = activeWorkerFor(state, event.package_id);
+      const rescoping = active?.kind === "correction" && active.worker_id === event.worker_id;
+      if (active && !rescoping) {
         errors.push(`${event.package_id} already has an active worker.`);
       }
       if (pkg.status === "merged") errors.push(`${event.package_id} is already merged.`);
@@ -827,7 +859,15 @@ export function validateEvent(event, state) {
           `${event.package_id} is owner-approved at its current head. Corrections happen before approval; a later mission-smoke defect becomes new corrective work.`,
         );
       }
-      errors.push(...schedulingRefusals(state, pkg, event.package_id, { correction: true }));
+      // Re-scoping keeps the same worker, slot, worktree and lifecycle. Its
+      // original dispatch already passed scheduling fences; testing those
+      // fences against itself would manufacture a collision and force an
+      // abandon/re-dispatch cycle that destroys correction lineage.
+      if (!rescoping) {
+        errors.push(...schedulingRefusals(state, pkg, event.package_id, { correction: true }));
+      } else {
+        errors.push(...executionPauseRefusals(state, pkg, event.package_id));
+      }
       break;
     }
 
@@ -1494,18 +1534,40 @@ export function reduce(events) {
         // pending so it cannot satisfy a gate until `pr-opened` records and
         // classifies the actual old-head..new-head delta.
         pkg.visual_evidence_pending = true;
-        state.activeWorkers.push({
-          worker_id: event.worker_id,
-          package_id: event.package_id,
-          dispatched_at: event.at,
-          kind: "correction",
-          finding_ids: event.finding_ids,
-        });
+        const active = activeWorkerFor(state, event.package_id);
+        const scope = {
+          finding_ids: event.finding_ids ?? [],
+          record_only_finding_ids: event.record_only_finding_ids ?? [],
+        };
+        if (active?.kind === "correction" && active.worker_id === event.worker_id) {
+          Object.assign(active, scope, { rescoped_at: event.at });
+        } else {
+          state.activeWorkers.push({
+            worker_id: event.worker_id,
+            package_id: event.package_id,
+            dispatched_at: event.at,
+            kind: "correction",
+            ...scope,
+          });
+        }
         break;
       }
       case "worker-receipt": {
         const pkg = state.packages[event.package_id];
-        pkg.receipts.push({ at: event.at, worker_id: event.worker_id, ...event.receipt });
+        const worker = activeWorkerFor(state, event.package_id);
+        pkg.receipts.push({
+          at: event.at,
+          worker_id: event.worker_id,
+          ...event.receipt,
+          ...(worker?.kind === "correction"
+            ? {
+                correction_scope: {
+                  finding_ids: worker.finding_ids ?? [],
+                  record_only_finding_ids: worker.record_only_finding_ids ?? [],
+                },
+              }
+            : {}),
+        });
         state.activeWorkers = state.activeWorkers.filter(
           (worker) => worker.package_id !== event.package_id,
         );

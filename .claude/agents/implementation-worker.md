@@ -31,6 +31,17 @@ Work only in the assigned worktree and branch; prove the root before writing.
 For corrections, resume the original worktree and branch. Never touch the primary
 checkout or another worker's state.
 
+Before releasing a database attachment or returning the receipt, validate its
+complete shape without filing it:
+
+```bash
+npm run mission -- receipt <mission-id> <package-id> --worker <id> --receipt receipt.json --check
+```
+
+The check reads replayed mission state and leaves the append-only journal
+unchanged. Fix every refusal, then notify the Lead with the validated path; the
+Lead owns the actual filing.
+
 Attach to the mission-owned database lease and use guarded commands. Serialize
 shared mutations. A temporary worker stack requires demonstrated incompatible
 database states. Never use hosted Supabase or production data.
@@ -66,6 +77,12 @@ and record test, command, assertion, pass, and SHA. Leave no mutation behind.
 For prose/factual corrections, record a read-back proving the old form and all
 references are gone. A capability claim includes the exact refusal or two
 different attempts; one denied command form proves only that form.
+
+When the correction dispatch classifies a finding as record-only for injection
+proof because no regression test can observe it, do not fabricate evidence.
+This does not change its review gate disposition or authorize advisory work.
+Preserve the finding in the receipt's verification or limitations narrative and
+validate the receipt normally.
 
 User-facing receipts name the durable UX contract, standards, and desktop/375px
 wireframes. If only the packet supplied a contract, write the implemented
