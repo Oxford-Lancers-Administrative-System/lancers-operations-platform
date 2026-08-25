@@ -75,10 +75,19 @@
     {
       "id": "W4",
       "name": "See who is coming, and who has not answered",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "Cool, approved, move to 5",
+          "date": "2026-08-25"
+        },
+        "mock": {
+          "words": "Cool, approved, move to 5",
+          "date": "2026-08-25"
+        }
+      }
     },
     {
       "id": "W5",
@@ -843,5 +852,5 @@
       }
     ]
   },
-  "next_action": "Review the W4 specification and mockup with Brian (Stage 3)"
+  "next_action": "Draft the W5 specification — chase the people who have not answered (Stage 3)"
 }
