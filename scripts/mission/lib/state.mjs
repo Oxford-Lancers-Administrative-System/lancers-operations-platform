@@ -219,8 +219,10 @@ function finalMissionSmoke(state) {
   );
 }
 
-function missionWorkflowSmokes(state) {
-  return state.integratedReviews.filter((review) => review.mode === "workflow-walker");
+function missionWorkflowSmokes(state, afterEventIndex = -1) {
+  return state.integratedReviews.filter(
+    (review) => review.mode === "workflow-walker" && review.event_index > afterEventIndex,
+  );
 }
 
 function finalMissionSmokeClear(state) {
@@ -983,11 +985,11 @@ export function validateEvent(event, state) {
         );
       }
       if (event.mode === "workflow-walker") {
-        const priorSmokes = missionWorkflowSmokes(state);
         const latestMerge = Math.max(
           -1,
           ...livePackages.map((pkg) => pkg.merged?.event_index ?? -1),
         );
+        const priorSmokes = missionWorkflowSmokes(state, latestMerge);
         if (priorSmokes.length >= 2) {
           errors.push(
             "Mission smoke is capped at the initial run and one targeted re-walk; another failure requires owner adjudication.",
