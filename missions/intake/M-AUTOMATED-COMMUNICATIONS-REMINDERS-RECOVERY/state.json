@@ -139,7 +139,7 @@
     {
       "id": "W8",
       "name": "Keep queued messages honest when an event changes",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -875,5 +875,5 @@
       }
     ]
   },
-  "next_action": "Draft the W8 specification — keep queued messages honest when an event changes (Stage 3). W7 remains open on its values."
+  "next_action": "Review W8 with Brian, then return to W7's open values (Stage 3)"
 }
