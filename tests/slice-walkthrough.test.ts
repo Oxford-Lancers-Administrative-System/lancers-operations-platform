@@ -58,6 +58,30 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
+/**
+ * `event-import.ts` calls `requireCapability()` itself rather than taking an
+ * actor argument — a deliberate choice its own header explains ("Authorisation
+ * is here, not in the route"). That means it resolves its actor from a
+ * verified request session exactly as `resolveOperatorAccess()` does, and this
+ * walk cannot open one for the same reason the header above gives.
+ *
+ * Every other guarded call in this file works around that by calling the pure
+ * `assertCapability(operator, key)` directly with the walk's own resolved
+ * operator, instead of the session-resolving wrapper. `event-import.ts` gives
+ * no such seam to call into from outside, so this substitutes the same
+ * operator at the one point that needs it — through the real, unmocked
+ * `assertCapability`, so a wrong capability on this route still fails exactly
+ * as it would for every other one.
+ */
+vi.mock("@/lib/auth/guards", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/auth/guards")>();
+  return {
+    ...actual,
+    requireCapability: (key: Parameters<typeof actual.assertCapability>[1]) =>
+      Promise.resolve(actual.assertCapability(operator, key)),
+  };
+});
+
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Client } from "pg";
 
@@ -75,6 +99,14 @@ import type { Transport } from "@/lib/delivery/provider";
 import { enterReturningPlayer } from "@/lib/services/roster";
 import { activateMembership } from "@/lib/services/membership";
 import { createEventDraft, listCurrentSeasonEvents } from "@/lib/services/events";
+import { formatCsv } from "@/lib/services/csv";
+import { IMPORT_COLUMNS } from "@/lib/services/event-csv";
+import {
+  applySeasonImport,
+  exportSeasonEvents,
+  planSeasonImport,
+  readSeasonImportContext,
+} from "@/lib/services/event-import";
 import { selectionKey } from "@/lib/services/audience-selection";
 import { approveEvent, saveEventAudience } from "@/lib/services/event-approval";
 import { RESPONSE_DEADLINE_RULES } from "@/lib/services/response-deadline";
@@ -101,6 +133,13 @@ import { openLocalClient } from "./helpers/domain-fixture";
  * deletes by. Unique to this file — see the header.
  */
 const MARKER = "LAN82Walk";
+
+/**
+ * The bulk import's own file name — scopes the one audit row the import step
+ * writes that names no event (`event.imported` is about the season), since
+ * `cleanUp()`'s `entity_id` sweep below only ever names events.
+ */
+const IMPORT_FILE_NAME = `${MARKER}-bulk-import.csv`;
 
 /**
  * Week 1 of the next seeded term to begin — inside a term and comfortably in
@@ -509,6 +548,12 @@ async function cleanUp(): Promise<void> {
     ...personIds,
     ...membershipIds,
   ]);
+  // `event.imported` names the season, not an event, so the sweep above never
+  // reaches it.
+  await db.query(
+    "delete from public.audit_events where entity_table = 'seasons' and context ->> 'fileName' = $1",
+    [IMPORT_FILE_NAME],
+  );
   await purge("public.notification_jobs", "event_id", eventIds);
   await purge("public.attendance_records", "event_id", eventIds);
   await purge("public.rsvp_responses", "invitation_id", invitationIds);
@@ -737,6 +782,66 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
       [eventId],
     );
     expect(actions.rows.map((row) => row.action)).toEqual(["event.drafted"]);
+  }, 60_000);
+
+  // -------------------------------------------------------------------------
+  // 4b. Bulk import — LAN-155, W3. The join `REQ-upsert-only` depends on: an
+  // import-made draft reaches the same surfaces a hand-made one does, and an
+  // import's update lands on the exact row `createEventDraft` wrote above.
+  //
+  // `event-csv.test.ts` and `event-import.test.ts` already prove the rules a
+  // row obeys and the transaction it applies in; this proves only that the
+  // whole pipeline — the guard, the season read, the plan and the two writers
+  // `events.ts` already exposed — composes with the rest of the slice, through
+  // the same `requireCapability` gate the server action calls (substituted
+  // above exactly as `resolveOperatorAccess` is elsewhere in this file).
+  // -------------------------------------------------------------------------
+
+  it("bulk imports through the same guard the action calls: updates the practice and adds a second event", async () => {
+    const before = await readSeasonImportContext();
+    expect(before.season.id).toBe(seasonId);
+
+    const secondName = `${MARKER} Bulk-imported chalk talk`;
+    const csvText = formatCsv([
+      [...IMPORT_COLUMNS],
+      // Every cell but one is blank — REQ: a blank cell changes nothing. This
+      // row targets the practice `createEventDraft` wrote in step 4.
+      [eventId, "", "", "", "", "", "", "", "Added by the bulk import walk.", "", ""],
+      // A blank id: a second, new event, not a second change to the first.
+      ["", secondName, "Chalk", EVENT_ON, "", "", "yes", "Microsoft Teams", "", "", "no"],
+    ]);
+
+    const planned = await planSeasonImport({ csvText, fileName: IMPORT_FILE_NAME });
+    if (!planned.ok) throw new Error(`The walk's own file was refused: ${planned.reason}`);
+    expect(planned.plan.totals).toMatchObject({ new: 1, updated: 1, refused: 0 });
+
+    const applied = await applySeasonImport({
+      csvText,
+      fileName: IMPORT_FILE_NAME,
+      digest: planned.plan.digest,
+    });
+    expect(applied).toEqual({ created: 1, updated: 1, unchanged: 0, refused: 0 });
+
+    // The second event reaches the same list `listCurrentSeasonEvents` feeds
+    // Calendar View and Oxford View below — indistinguishable, to that
+    // surface, from one entered by hand.
+    const list = await listCurrentSeasonEvents({ search: MARKER });
+    const imported = list.events.find((entry) => entry.name === secondName);
+    expect(imported?.status).toBe("draft");
+
+    // The update landed on the practice itself, and left every blank cell —
+    // including the venue step 4 set — exactly as it was.
+    const updatedRow = await db.query<{ description: string | null; venue: string | null }>(
+      "select description, venue from public.events where id = $1",
+      [eventId],
+    );
+    expect(updatedRow.rows[0].description).toBe("Added by the bulk import walk.");
+    expect(updatedRow.rows[0].venue).toBe("University Parks, Oxford OX1 3RF");
+
+    // The reverse join: what `createEventDraft` wrote is what the export —
+    // the file an operator would actually start an edit from — reads back.
+    const exported = await exportSeasonEvents();
+    expect(exported.csv).toContain(eventId);
   }, 60_000);
 
   // -------------------------------------------------------------------------
