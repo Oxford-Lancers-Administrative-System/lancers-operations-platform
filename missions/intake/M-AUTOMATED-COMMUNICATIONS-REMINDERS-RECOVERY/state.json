@@ -1,7 +1,7 @@
 {
   "mission_id": "M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY",
   "ledger_version": 2,
-  "stage": "workflows",
+  "stage": "assembly",
   "baseline": {
     "branch": "main",
     "commit": "80e9616d396336a7b575a975ecb012548b4ed611"
@@ -888,5 +888,5 @@
       }
     ]
   },
-  "next_action": "Assemble the packet from the approved ledger (Stage 4)"
+  "next_action": "Open the intake-artifacts-only pull request for Brian's merge (Stage 5)"
 }

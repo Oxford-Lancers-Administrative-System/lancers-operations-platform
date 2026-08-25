@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W1 · Approve an event knowing what it will send — mockup</title>
+    <style>
+      /* Tokens taken from src/theme.ts, MUI v9 defaults, and the approved
+       * M-EVENTS-CALENDAR-TARGET-STATE W4 mockup. Nothing here is a redesign. */
+      :root {
+        --primary: #0b3d91;
+        --primary-dark: #082c69;
+        --text: rgba(0, 0, 0, 0.87);
+        --secondary: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --outline: rgba(0, 0, 0, 0.23);
+        --paper: #fff;
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --grey400: #bdbdbd;
+        --grey800: #424242;
+        --grey900: #212121;
+        --info-bg: #e5f6fd;
+        --info-text: #014361;
+        --warn-bg: #fff4e5;
+        --warn-text: #663c00;
+        --error-bg: #fdeded;
+        --error-text: #5f2120;
+        --current: #5f6b7a;
+        --proposed: #0b3d91;
+        --radius: 8px;
+        --shadow: 0 3px 8px rgba(0, 0, 0, 0.16);
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #e7e9ee;
+        color: var(--text);
+        font-family: var(--font);
+      }
+      button {
+        font: inherit;
+      }
+      .page {
+        max-width: 1580px;
+        margin: auto;
+        padding: 36px 28px 96px;
+      }
+      .page-head {
+        max-width: 980px;
+      }
+      .page-head h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+      .page-head p,
+      .screen-head p {
+        color: var(--secondary);
+        line-height: 1.55;
+      }
+      .crumbs {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+        font-size: 14px;
+      }
+      .crumbs a {
+        color: var(--primary);
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 20px;
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--secondary);
+      }
+      .key {
+        width: 30px;
+        border-top: 5px solid;
+      }
+      .key.current {
+        border-color: var(--current);
+      }
+      .key.proposed {
+        border-color: var(--proposed);
+      }
+
+      .screen {
+        margin-top: 66px;
+      }
+      .screen-head {
+        position: relative;
+        border-top: 2px solid var(--grey900);
+        padding-top: 24px;
+        max-width: 1180px;
+      }
+      .screen-tab {
+        position: absolute;
+        top: 0;
+        transform: translateY(-100%);
+        padding: 6px 14px;
+        border-radius: 6px 6px 0 0;
+        background: var(--grey900);
+        color: white;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+      }
+      .screen-head h2 {
+        margin: 0 0 5px;
+        font-size: 19px;
+      }
+      .screen-head p {
+        margin: 0;
+        max-width: 90ch;
+        font-size: 14px;
+      }
+      .deltas {
+        margin: 10px 0 0;
+        padding-left: 20px;
+        color: var(--secondary);
+        font-size: 14px;
+      }
+      .clock {
+        display: inline-block;
+        margin-top: 10px;
+        padding: 4px 11px;
+        border: 1px solid var(--divider);
+        border-radius: 20px;
+        background: white;
+        color: var(--secondary);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .comparison {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 26px;
+        margin-top: 20px;
+      }
+      .side {
+        border-top: 6px solid;
+        padding-top: 10px;
+      }
+      .side.current {
+        border-color: var(--current);
+      }
+      .side.proposed {
+        border-color: var(--proposed);
+      }
+      .side-label {
+        margin: 0 0 10px;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+      }
+      .current-shot {
+        display: grid;
+        grid-template-columns: minmax(0, 922px) 377px;
+        gap: 24px;
+        align-items: start;
+      }
+      .current-shot img {
+        display: block;
+        width: 100%;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+        background: white;
+      }
+      .new-note {
+        padding: 24px;
+        border: 1px dashed var(--outline);
+        border-radius: 10px;
+        background: white;
+        color: var(--secondary);
+      }
+      .pair {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 26px;
+        align-items: flex-start;
+      }
+
+      .frame {
+        overflow: hidden;
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        border-radius: 12px;
+        background: white;
+        box-shadow: 0 12px 32px rgba(16, 24, 40, 0.12);
+      }
+      .frame.desktop {
+        width: 922px;
+        max-width: 100%;
+      }
+      .frame.phone {
+        width: 377px;
+        border-radius: 20px;
+      }
+      .chrome {
+        height: 34px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 12px;
+        background: var(--grey100);
+        border-bottom: 1px solid var(--divider);
+      }
+      .dots {
+        display: flex;
+        gap: 5px;
+      }
+      .dots i {
+        display: block;
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--grey400);
+      }
+      .url {
+        min-width: 0;
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        border: 1px solid var(--divider);
+        border-radius: 20px;
+        background: white;
+        padding: 3px 9px;
+        color: var(--secondary);
+        font-size: 11px;
+      }
+      .badge {
+        white-space: nowrap;
+        color: var(--secondary);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+      .viewport {
+        overflow: hidden;
+      }
+      .desktop-vp {
+        width: 1280px;
+        zoom: 0.72;
+      }
+      .phone-vp {
+        width: 375px;
+      }
+
+      .app {
+        display: flex;
+        min-height: 830px;
+        background: white;
+        font-size: 16px;
+      }
+      nav.shell {
+        flex: 0 0 226px;
+        display: flex;
+        flex-direction: column;
+        background: var(--grey900);
+        color: white;
+      }
+      .nav-head {
+        padding: 24px 24px 16px;
+      }
+      .nav-head .over {
+        color: var(--grey400);
+      }
+      .nav-head strong {
+        display: block;
+        font-size: 20px;
+      }
+      .nav-list {
+        list-style: none;
+        margin: 0;
+        padding: 8px;
+      }
+      .nav-list a {
+        display: block;
+        min-height: 48px;
+        padding: 12px 16px;
+        border-radius: 8px;
+        color: white;
+        text-decoration: none;
+      }
+      .nav-list a.sel {
+        background: var(--grey800);
+      }
+      main.shell {
+        min-width: 0;
+        flex: 1;
+        padding: 32px;
+      }
+      .shell-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 26px;
+      }
+      .brand {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 800;
+      }
+      .content {
+        max-width: 900px;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+      }
+      h1.event {
+        margin: 0;
+        font-size: 24px;
+      }
+      .body2 {
+        margin: 0;
+        color: var(--secondary);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+      .paper {
+        padding: 24px;
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        background: var(--paper);
+      }
+      .paper h2 {
+        margin: 0;
+        font-size: 20px;
+      }
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .fact-label {
+        margin: 0;
+        color: var(--secondary);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .fact-value {
+        margin: 4px 0 0;
+        font-weight: 700;
+        line-height: 1.4;
+      }
+      .divider {
+        border: 0;
+        border-top: 1px solid var(--divider);
+        width: 100%;
+        margin: 0;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+      .chip {
+        display: inline-flex;
+        min-height: 24px;
+        align-items: center;
+        padding: 0 10px;
+        border: 1px solid var(--outline);
+        border-radius: 16px;
+        font-size: 12px;
+      }
+      .chip.proposed {
+        border-style: dashed;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .chip.error {
+        border-color: #d32f2f;
+        color: #b71c1c;
+      }
+      .alert {
+        display: flex;
+        gap: 12px;
+        padding: 12px 16px;
+        border-radius: var(--radius);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+      .alert.info {
+        background: var(--info-bg);
+        color: var(--info-text);
+      }
+      .alert.warn {
+        background: var(--warn-bg);
+        color: var(--warn-text);
+      }
+      .alert.error {
+        background: var(--error-bg);
+        color: var(--error-text);
+      }
+      .icon {
+        font-size: 19px;
+        line-height: 1.1;
+      }
+
+      .plan {
+        display: flex;
+        flex-direction: column;
+      }
+      .plan-row {
+        display: grid;
+        grid-template-columns: 26px minmax(0, 1fr) auto;
+        gap: 0 14px;
+        padding-bottom: 18px;
+      }
+      .plan-row:last-child {
+        padding-bottom: 0;
+      }
+      .rail {
+        position: relative;
+        display: flex;
+        justify-content: center;
+      }
+      .node {
+        z-index: 1;
+        width: 13px;
+        height: 13px;
+        margin-top: 5px;
+        border: 2px solid var(--primary);
+        border-radius: 50%;
+        background: white;
+      }
+      .plan-row:not(:last-child) .rail::after {
+        content: "";
+        position: absolute;
+        top: 17px;
+        bottom: -5px;
+        width: 2px;
+        background: var(--divider);
+      }
+      .when {
+        margin: 0;
+        color: var(--secondary);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+        line-height: 1.7;
+      }
+      .plan-title {
+        margin: 0;
+        font-weight: 700;
+        line-height: 1.45;
+      }
+      .plan-note {
+        margin: 2px 0 0;
+        color: var(--secondary);
+        font-size: 14px;
+        line-height: 1.4;
+      }
+      .plan-side {
+        padding-top: 2px;
+      }
+      .recovery {
+        border-left: 4px solid var(--primary);
+        padding: 14px 16px;
+        background: var(--grey50);
+      }
+      details.disclosure {
+        border: 1px solid var(--divider);
+        border-radius: var(--radius);
+        background: white;
+      }
+      details.disclosure > summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px;
+        cursor: pointer;
+        font-weight: 700;
+        list-style: none;
+      }
+      details.disclosure > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.disclosure > summary::after {
+        content: "⌄";
+        color: var(--secondary);
+      }
+      details.disclosure[open] > summary::after {
+        content: "⌃";
+      }
+      .disclosure-body {
+        padding: 0 16px 16px;
+      }
+      .audience-list {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0 20px;
+      }
+      .audience-more {
+        margin: 10px 0 0;
+        color: var(--secondary);
+        font-size: 14px;
+      }
+      .person {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--divider);
+      }
+      .person:last-child {
+        border-bottom: 0;
+      }
+      .person strong {
+        display: block;
+      }
+      .btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+      }
+      .btn {
+        min-height: 42px;
+        padding: 7px 16px;
+        border-radius: var(--radius);
+        text-transform: uppercase;
+        letter-spacing: 0.025em;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .btn.primary {
+        border: 0;
+        background: var(--primary);
+        color: white;
+        box-shadow: var(--shadow);
+      }
+      .btn.outline {
+        border: 1px solid rgba(11, 61, 145, 0.5);
+        background: white;
+        color: var(--primary);
+      }
+      .btn.text {
+        border: 0;
+        background: white;
+        color: var(--primary);
+      }
+
+      .phone .app {
+        min-height: 760px;
+        flex-direction: column;
+      }
+      .phone nav.shell {
+        position: sticky;
+        bottom: 0;
+        order: 2;
+        flex: none;
+        width: 100%;
+      }
+      .phone .nav-head {
+        display: none;
+      }
+      .phone .nav-list {
+        display: flex;
+        padding: 0;
+      }
+      .phone .nav-list li {
+        flex: 1;
+      }
+      .phone .nav-list a {
+        padding: 12px 7px;
+        text-align: center;
+        font-size: 14px;
+      }
+      .phone main.shell {
+        order: 1;
+        padding: 22px 16px 30px;
+      }
+      .phone .shell-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      .phone .paper {
+        padding: 16px;
+      }
+      .phone .grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .phone .audience-list {
+        grid-template-columns: 1fr;
+      }
+      .phone .plan-row {
+        grid-template-columns: 24px minmax(0, 1fr);
+      }
+      .phone .plan-side {
+        grid-column: 2;
+        padding-top: 7px;
+      }
+      .phone .btn-row {
+        flex-direction: column;
+      }
+      .phone .btn {
+        width: 100%;
+      }
+      .phone .content {
+        gap: 16px;
+      }
+
+      @media (max-width: 760px) {
+        .page {
+          padding: 28px 14px 72px;
+        }
+        .current-shot {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <div class="crumbs">
+          <a href="index.html">Mission 4 mockup hub</a
+          ><a href="../workflows/W1-approve-an-event-knowing-what-it-will-send.md"
+            >Approved W1 specification</a
+          >
+        </div>
+        <h1>W1 · Approve an event knowing what it will send</h1>
+        <p>
+          Three review states for the approved W1 workflow. The underlying event and approval
+          surface is Mission 2 W4; this mockup adds only the read-only messaging plan, visible
+          WhatsApp errors, and the post-approval recovery result. Synthetic event throughout:
+          <strong>Wednesday Practice</strong>, Iffley Road, 14 October 2026.
+        </p>
+        <div class="legend">
+          <span
+            ><i class="key current"></i><strong>CURRENT — on <code>main</code> today</strong></span
+          >
+          <span><i class="key proposed"></i><strong>PROPOSED — this mission</strong></span>
+          <span><span class="chip proposed">Proposed</span> new W1 content</span>
+        </div>
+      </header>
+      <div id="screens"></div>
+    </div>
+
+    <script>
+      const CURRENT_ROOT = "../../../packets/M-EVENTS-CALENDAR-TARGET-STATE/mockups/current/";
+      const EVENT = {
+        name: "Wednesday Practice",
+        meta: "Draft · Wednesday, 14 October 2026 · 20:00–22:00 · Iffley Road",
+      };
+
+      const fact = (label, value, note = "") => `
+        <div><p class="fact-label">${label}</p><p class="fact-value">${value}</p>${note ? `<p class="body2">${note}</p>` : ""}</div>`;
+      const chip = (text, type = "") => `<span class="chip ${type}">${text}</span>`;
+      const alert = (type, text) =>
+        `<div class="alert ${type}"><span class="icon">${type === "error" ? "⚠" : "ℹ"}</span><div>${text}</div></div>`;
+      const planRow = ({ when, title, note, side }) => `
+        <div class="plan-row"><div class="rail"><i class="node"></i></div><div><p class="when">${when}</p><p class="plan-title">${title}</p><p class="plan-note">${note}</p></div><div class="plan-side">${side || ""}</div></div>`;
+
+      const shell = (body, approved = false) => `
+        <div class="app">
+          <nav class="shell"><div class="nav-head"><p class="over">Lancers</p><strong>Operations</strong></div><ul class="nav-list"><li><a href="#">Roster</a></li><li><a class="sel" href="#">Events</a></li><li><a href="#">Report</a></li><li><a href="#">Operators</a></li><li><a href="#">Roles</a></li></ul></nav>
+          <main class="shell"><div class="shell-head"><div><p class="brand">Lancers Operations</p><p class="body2">Signed in as Rowan Ashfield</p></div><button class="btn outline">Sign out</button></div><div class="content"><div><h1 class="event">${EVENT.name}</h1><p class="body2">${approved ? EVENT.meta.replace("Draft", "Approved") : EVENT.meta}</p></div>${body}</div></main>
+        </div>`;
+
+      const normalPlan = () => `
+        <div class="plan">
+          ${planRow({ when: "Saturday 10 October · 18:00", title: "WhatsApp message 1", note: "Automated 1:1 message to all 38 people.", side: chip("38 people") })}
+          ${planRow({ when: "Sunday 11 October · 18:00", title: "WhatsApp message 2", note: "Only to people who have not answered.", side: chip("Unanswered") })}
+          ${planRow({ when: "Monday 12 October · 12:00", title: "Email", note: "Only to people who still have not answered.", side: chip("Still unanswered") })}
+          ${planRow({ when: "Monday 12 October · 18:00", title: "Follow-up escalation", note: "Send the event and unanswered count to the President.", side: chip("President") })}
+        </div>`;
+
+      const recovery = `
+        <div class="recovery"><p class="fact-value">Recovery</p><p class="body2">Failed sends retry automatically. Remaining errors appear in Delivery.</p></div>`;
+
+      const eventDetails = `
+        <section class="paper"><div class="stack"><h2>Event details</h2><div class="grid">${fact("Type", "Practice")}${fact("Where", "In person")}${fact("Venue", "Iffley Road")}${fact("Term / week", "Michaelmas 2026–27 · Week 1")}${fact("Attendance", "Optional")}${fact("Required equipment", "Mouthguard and boots")}</div></div></section>`;
+
+      const audience = (error = false) => `
+        <section class="paper"><div class="stack"><div>${fact("Audience", "38 chosen, not yet approved", "Saved against this draft")}</div><hr class="divider"><div>${fact("Distribution", "Nothing distributed", "No invitations or responses")}</div>${error ? `${alert("error", "1 user has an error.")}<details class="disclosure"><summary>See 1 user with error</summary><div class="disclosure-body"><div class="person"><div><strong>Juno Wenlock</strong><p class="body2">WhatsApp error</p></div>${chip("Error", "error")}</div></div></details>` : ""}<div><p class="fact-label">Who is invited</p><div class="audience-list"><div class="person"><strong>Alaric Ashcombe</strong>${chip("Player")}</div><div class="person"><strong>Beatrix Ravensworth</strong>${chip("Player")}</div><div class="person"><strong>Caspian Caldicott</strong>${chip("Player")}</div><div class="person"><strong>Delphine Ottershaw</strong>${chip("Player")}</div><div class="person"><strong>Emrys Elverton</strong>${chip("Coach")}</div><div class="person"><strong>Fenella Braemar</strong>${chip("Player")}</div></div><p class="audience-more">32 more, all named on the real page.</p></div></div></section>`;
+
+      const messagingPlan = (approved = false) => `
+        <details class="disclosure" open><summary><span>Messaging plan · 4 steps${approved ? " · approved" : ""}</span>${chip("Proposed", "proposed")}</summary><div class="disclosure-body stack"><p class="body2">${approved ? "Frozen at approval." : "Approval commits this plan."} No quiet-hours adjustment.</p>${normalPlan()}${recovery}</div></details>`;
+
+      const reviewBody = `
+        ${eventDetails}${audience()}${messagingPlan()}<div class="btn-row"><button class="btn primary">Review audience and approve</button><button class="btn outline">Edit draft</button></div>`;
+
+      const errorBody = `
+        ${eventDetails}${audience(true)}${messagingPlan()}<div class="btn-row"><button class="btn primary">Review audience and approve</button><button class="btn outline">Edit draft</button></div>`;
+
+      const approvedBody = `
+        ${alert("info", "Event approved · 38 invitations created.")}${eventDetails}${audience()}${messagingPlan(true)}<div class="btn-row"><button class="btn outline">Delivery</button><button class="btn text">Back to events</button></div>`;
+
+      const SCREENS = [
+        {
+          id: "W1-01",
+          title: "Pre-approval review — complete messaging plan",
+          disposition: "Modified",
+          now: "Friday 9 October 2026 · 20:18",
+          deltas: [
+            "Keeps the current event details and named audience above the new plan",
+            "Adds a bottom-of-page dropdown for WhatsApp 1 → WhatsApp 2 → email → President escalation",
+            "Keeps recovery copy to one concise line",
+          ],
+          current: ["event-detail-draft-desktop.png", "event-detail-draft-phone.png"],
+          body: reviewBody,
+        },
+        {
+          id: "W1-02",
+          title: "Missing WhatsApp route — visible error before approval",
+          disposition: "New",
+          now: "Friday 9 October 2026 · 20:19",
+          deltas: [
+            "Says only that one user has an error",
+            "Reveals the affected user through a compact disclosure",
+            "Keeps the rest of the full event page unchanged",
+          ],
+          current: null,
+          body: errorBody,
+        },
+        {
+          id: "W1-03",
+          title: "Approved — committed plan and recovery outcome",
+          disposition: "Modified",
+          now: "Friday 9 October 2026 · 20:21",
+          deltas: [
+            "Keeps event details and the invited audience visible",
+            "Places the approved plan in the same bottom-of-page dropdown",
+            "Keeps Delivery as the recovery destination",
+          ],
+          current: ["event-detail-approved-desktop.png", "event-detail-approved-phone.png"],
+          body: approvedBody,
+          approved: true,
+        },
+      ];
+
+      const frame = (screen, kind) =>
+        `<div class="frame ${kind}"><div class="chrome">${kind === "desktop" ? `<span class="dots"><i></i><i></i><i></i></span>` : ""}<span class="url">localhost:3000/operate/events/8f2c1a4e</span><span class="badge">${screen.id} · ${kind === "desktop" ? "DESKTOP 1280" : "375"}</span></div><div class="viewport ${kind}-vp ${kind}">${shell(screen.body, screen.approved)}</div></div>`;
+
+      const currentSide = (screen) =>
+        screen.current
+          ? `<div class="current-shot"><img src="${CURRENT_ROOT + screen.current[0]}" alt="Current main desktop"><img src="${CURRENT_ROOT + screen.current[1]}" alt="Current main at 375px"></div>`
+          : `<div class="new-note"><strong>New surface, nothing to compare.</strong> W1 introduces this error state because a missing WhatsApp route must be visible before approval; W6 owns what happens next.</div>`;
+
+      document.getElementById("screens").innerHTML = SCREENS.map(
+        (screen) => `
+        <section class="screen"><header class="screen-head"><span class="screen-tab">${screen.id}</span><h2>${screen.id} · ${screen.title}</h2><p><strong>${screen.disposition}.</strong> ${screen.disposition === "New" ? "W1 introduces this state." : "Mission 2 W4 remains the substrate."}</p><ul class="deltas">${screen.deltas.map((x) => `<li>${x}</li>`).join("")}</ul><span class="clock">Now: ${screen.now}</span></header>
+        <div class="comparison"><div class="side current"><p class="side-label">CURRENT — on <code>main</code> today</p>${currentSide(screen)}</div><div class="side proposed"><p class="side-label">PROPOSED — this mission</p><div class="pair">${frame(screen, "desktop")}${frame(screen, "phone")}</div></div></div></section>`,
+      ).join("");
+    </script>
+  </body>
+</html>
