@@ -58,8 +58,8 @@ is never permission.
 
 1. Stop only the application process whose port and working directory match this
    issue worktree. Leave any other process alone and report it.
-2. From the worktree run `npm run db:stop`, then `npm run db:release`.
-   Fencing must still validate; never stop a mission-owned/shared stack.
+2. From the worktree run `npm run db:release`. It validates the fence and stops
+   the stack before releasing it; never retire a mission-owned/shared stack.
 3. Remove/prune the clean worktree, then delete only its proved local branch.
    Never force deletion or delete a remote branch.
 4. Set Linear Done only for merged work; preserve canceled state otherwise.

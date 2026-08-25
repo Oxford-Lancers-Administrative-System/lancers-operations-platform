@@ -140,7 +140,7 @@ try {
       }
       if (stillRunning) {
         throw new Error(
-          `${lease.slot} is still running after a stop, so a restart would not apply this holder's configuration. Stop it by hand and retry; readiness would otherwise pass while Auth served the previous holder's redirect allow-list.`,
+          `${lease.slot} is still running after a stop, so a restart would not apply this holder's configuration. Retry the guarded command; readiness would otherwise pass while Auth served the previous holder's redirect allow-list.`,
         );
       }
     }

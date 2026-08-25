@@ -45,6 +45,7 @@ try {
       );
     }
   } else if (operation === "acquire-mission") {
+    await cleanupStale({ repoPath });
     const lease = await acquireMissionLease({
       missionId: argument,
       repoPath,
@@ -80,7 +81,7 @@ try {
     const lease = await releaseLease({ repoPath, token: session.token, slot: session.slot });
     console.log(`Released ${lease.slot}.`);
   } else if (operation === "cleanup-stale") {
-    console.log(`Marked stale: ${(await cleanupStale({ repoPath })).join(", ") || "none"}.`);
+    console.log(`Retired: ${(await cleanupStale({ repoPath })).join(", ") || "none"}.`);
   } else
     throw new Error(
       "Usage: coordinator <status|acquire LAN-###|acquire-mission M-... --base-commit SHA --migration-head N|attach-mission M-... --token TOKEN|heartbeat|review-ready|release|cleanup-stale>",
