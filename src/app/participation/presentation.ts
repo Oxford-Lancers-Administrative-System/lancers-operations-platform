@@ -137,13 +137,21 @@ export function presenceLabel(presence: AttendancePresence | null): string {
   return presence === null ? NOT_RECORDED : PRESENCE_LABELS[presence];
 }
 
-/** D3, D65: the five delivery states, exactly as the delivery screen says them. */
+/**
+ * D3, D65: the delivery states, exactly as the delivery screen says them —
+ * `docs/ux/standards.md` rule 7, one word per fact across both surfaces.
+ * `held` and `cancelled` are LAN-156's; this table reads the same
+ * `DELIVERY_STATE_EXPRESSION` the delivery screen does, so both can appear
+ * here too.
+ */
 export const DELIVERY_LABELS: Readonly<Record<string, string>> = Object.freeze({
   queued: "Queued",
   attempted: "Attempted",
   delivered: "Delivered",
   failed: "Failed",
   retryable: "Retryable",
+  held: "Held",
+  cancelled: "Cancelled",
 });
 
 export const DELIVERY_NOT_QUEUED = "Nothing queued";

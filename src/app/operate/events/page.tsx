@@ -1,6 +1,5 @@
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
@@ -27,6 +26,7 @@ import ViewSwitch from "@/app/calendar/view-switch";
 import { readEventYear } from "@/app/calendar/year";
 import { gateShellPage } from "../gate";
 import { CoachEligibleEvents } from "./coach-eligible-events";
+import CreateEventMenu from "./create-menu";
 import {
   bucketCoachEvents,
   isOpenForAttendance,
@@ -197,11 +197,7 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
         </Box>
         <Stack direction="row" spacing={1.5}>
           <SubscribeToCalendarButton />
-          {mayManage ? (
-            <Button variant="contained" href="/operate/events/new">
-              Create event
-            </Button>
-          ) : null}
+          {mayManage ? <CreateEventMenu /> : null}
         </Stack>
       </Stack>
 

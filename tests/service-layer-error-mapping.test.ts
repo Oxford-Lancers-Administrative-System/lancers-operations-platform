@@ -107,7 +107,7 @@ const CASES = [
       ),
   },
   {
-    name: "attendance against an event that is not approved",
+    name: "attendance against a draft event",
     constraint: "attendance_records_require_an_approved_event",
     kind: "invalid_transition",
     attempt: (tx: Tx, base: Baseline) =>

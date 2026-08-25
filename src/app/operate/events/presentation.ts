@@ -265,13 +265,19 @@ export const APPROVED_NOTHING_SENT_YET =
 /**
  * What the Audience fact says once there is one.
  *
- * Brian's clarification freezes the audience at approval — no late additions,
- * no removals, no re-resolution — so the screen states that rather than leaving
- * an operator to discover it by looking for an edit control that does not exist.
+ * It used to add "Adding or removing someone afterwards is deliberately not
+ * possible in this workflow". LAN-156 took that sentence out, for two reasons.
+ * It narrated a rule rather than saying what the screen shows, which is the
+ * thing Brian has asked for repeatedly. And W5's "second reversal of LAN-77"
+ * records D49 and D50 as overriding the claim it made: an approved event can
+ * now be changed, and the sentence sat directly above an **Edit event** button
+ * saying it could not.
+ *
+ * The audience is still not editable during an amendment — no surface in the
+ * approved mockups offers that — and the honest way to say so is to say nothing
+ * about it rather than to describe a permanence the mission has reversed.
  */
-export const AUDIENCE_FROZEN_AT_APPROVAL =
-  "Confirmed at approval and fixed for this event. Adding or removing someone afterwards " +
-  "is deliberately not possible in this workflow.";
+export const AUDIENCE_FROZEN_AT_APPROVAL = "Confirmed at approval.";
 
 /**
  * The half of the Distribution fact that stops "invitations created" being read

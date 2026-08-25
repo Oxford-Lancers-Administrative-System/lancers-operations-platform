@@ -123,8 +123,22 @@ function dispatchClaim(): string {
 export const JOB_NOT_RETRYABLE_RULE = "delivery_job_not_retryable";
 export const JOB_NOT_FOUND_RULE = "delivery_job_not_found";
 
-/** The provider-neutral vocabulary LAN-90 fixed. Exactly these five. */
-export type DeliveryState = "queued" | "attempted" | "delivered" | "failed" | "retryable";
+/** REQ-amend-hold, LAN-156 — what an operator is told when they retry a held message. */
+export const JOB_HELD_RULE = "delivery_job_held";
+export const JOB_HELD_MESSAGE = "This message is on hold after a change to the event.";
+
+/**
+ * `held` is LAN-156's, and it is a **read** state the write paths already had.
+ *
+ * `claimJobIn` and `retryDelivery` have refused a held job since the amendment
+ * hold landed, but nothing on the delivery screen knew the column existed: a
+ * held job rendered as **Queued** — or as **Failed** with a live **Retry**
+ * button — which is the one state that surface exists to make visible. An
+ * operator who amends an event and then opens Delivery is asking exactly this
+ * question, and was being answered with the state the job had before the hold.
+ */
+export type DeliveryState =
+  "queued" | "attempted" | "delivered" | "failed" | "retryable" | "held" | "cancelled";
 
 export interface DispatchSummary {
   readonly attempted: number;
@@ -184,6 +198,16 @@ async function claimJobIn(
             updated_at = now()
       where id = $1
         and status in ('pending', 'ready', 'failed')
+        -- REQ-amend-hold, LAN-156. The single chokepoint through which every
+        -- delivery in this file passes — dispatch, the operator's Retry, and
+        -- Revoke and reissue all claim here. A held job is one whose event was
+        -- amended after the job was queued, so sending it would deliver a
+        -- superseded venue, date or time; the hold is released by Mission 4,
+        -- which decides whether the message resumes as it was, resumes
+        -- corrected, or is replaced. Putting the condition here rather than in
+        -- each caller is what makes "no held message is dispatched" a property
+        -- of the code rather than of three separate queries agreeing.
+        and held_at is null
         and attempt_count < $3
         and invitation_id is not null
       returning id, invitation_id, attempt_count`,
@@ -568,6 +592,10 @@ export async function dispatchEventInvitations(
         where event_id = $1
           and job_type = 'invitation'
           and status in ('pending', 'ready')
+          -- LAN-156. Held jobs are not due: the claim below refuses them
+          -- anyway, and counting them here would report an attempt against a
+          -- message nothing tried to send.
+          and held_at is null
           and attempt_count < $2
         order by created_at`,
       [eventId, MAX_ATTEMPTS],
@@ -644,8 +672,8 @@ export async function retryDelivery(
     // form, and every job is an invitation today only because nothing else
     // creates one yet — LAN-79's reminders would make an unconstrained retry a
     // way to fire an unrelated job from the delivery screen.
-    const result = await tx.query<{ status: string; attempt_count: number }>(
-      `select status::text as status, attempt_count
+    const result = await tx.query<{ status: string; attempt_count: number; held: boolean }>(
+      `select status::text as status, attempt_count, held_at is not null as held
          from public.notification_jobs
         where id = $1 and job_type = 'invitation'`,
       [jobId],
@@ -653,6 +681,13 @@ export async function retryDelivery(
     const row = result.rows[0];
     if (!row) {
       throw new ConstraintViolated("That delivery no longer exists.", { rule: JOB_NOT_FOUND_RULE });
+    }
+    // LAN-156. `claimJobIn` refuses a held job regardless, and would report it
+    // as "unavailable" — which on this screen reads as "somebody else is
+    // sending it". Said plainly here instead, so the operator who pressed Retry
+    // is told what state the message is actually in.
+    if (row.held) {
+      throw new InvalidTransition(JOB_HELD_MESSAGE, { rule: JOB_HELD_RULE });
     }
     if (row.attempt_count >= MAX_ATTEMPTS) {
       throw new InvalidTransition(
@@ -698,10 +733,8 @@ export async function revokeAndReissue(
   options: { source?: EnvironmentSource; transport?: Transport } = {},
 ): Promise<"accepted" | "refused"> {
   const jobId = await withTransaction(async (tx) => {
-    const revoked = await revokeTokensIn(tx, invitationId, reason);
-
-    const job = await tx.query<{ id: string; attempt_count: number }>(
-      `select id, attempt_count
+    const job = await tx.query<{ id: string; attempt_count: number; held: boolean }>(
+      `select id, attempt_count, held_at is not null as held
          from public.notification_jobs
         where invitation_id = $1 and job_type = 'invitation'
         order by created_at
@@ -715,6 +748,16 @@ export async function revokeAndReissue(
         rule: JOB_NOT_FOUND_RULE,
       });
     }
+    // LAN-156 (R156-B1). Checked, and the reason a live token still exists to
+    // revoke, before anything is revoked. A held job's link is the one still
+    // reaching the invitee's last confirmed state; revoking it first and then
+    // finding `claimJobIn` refuses the held row left the invitee with a dead
+    // link, no message, and no `last_error` naming the cause. The message this
+    // throws matches `retryDelivery`'s, so both controls tell the operator the
+    // same true thing about a held row.
+    if (row.held) {
+      throw new InvalidTransition(JOB_HELD_MESSAGE, { rule: JOB_HELD_RULE });
+    }
     if (row.attempt_count >= MAX_ATTEMPTS) {
       throw new InvalidTransition(
         `This invitation has already been attempted ${MAX_ATTEMPTS} times. Reissuing the link ` +
@@ -722,6 +765,8 @@ export async function revokeAndReissue(
         { rule: JOB_NOT_RETRYABLE_RULE },
       );
     }
+
+    const revoked = await revokeTokensIn(tx, invitationId, reason);
 
     // The job has to become sendable again, or the reissued link would never
     // leave the building. Guarded on the same states a retry accepts.
@@ -960,6 +1005,8 @@ export interface DeliveryCounts {
   readonly delivered: number;
   readonly failed: number;
   readonly retryable: number;
+  /** LAN-156. Messages an amendment stopped, and the number the amend screen quotes. */
+  readonly held: number;
 }
 
 export interface DeliveryRow {
@@ -1001,6 +1048,19 @@ export interface EventDelivery {
  */
 export const DELIVERY_STATE_EXPRESSION = `
   case
+    -- LAN-156, and FIRST, because a hold outranks whatever the job was doing
+    -- when it was placed. A completed job is never held — \`amendApprovedEvent\`
+    -- holds only pending, ready and failed — so this arm cannot hide a
+    -- delivery that actually happened.
+    when j.held_at is not null then 'held'
+    -- LAN-156 (R156-B2). \`cancelEvent\` moves every unsent job straight to
+    -- 'cancelled', a status none of the arms below matched, so it fell to the
+    -- \`else\` and read as the club's own stand-down having failed to send —
+    -- with a Retry button that then refused it, because \`retryDelivery\` only
+    -- accepts 'pending', 'ready' or 'failed'. A cancelled job is never
+    -- completed or processing, so this arm cannot hide a delivery that
+    -- actually happened either.
+    when j.status = 'cancelled' then 'cancelled'
     when j.status = 'completed' then 'delivered'
     when j.status = 'processing' then 'attempted'
     when j.status in ('pending', 'ready') then 'queued'
@@ -1121,10 +1181,23 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         // ever answer "this is already in progress" is worse than offering
         // none — the repair for a send that never concluded is **Revoke and
         // reissue link**, which returns the job to `pending` first.
+        //
+        // `held` is excluded for the same reason and it is the stronger case:
+        // `retryDelivery` throws `JOB_HELD_MESSAGE` at a held job, so the
+        // button was offered, pressed, and refused. `docs/ux/standards.md`
+        // rule 4 says a control that cannot act is not offered.
+        //
+        // `cancelled` (R156-B2) is excluded for the identical reason: the
+        // event is terminal, `retryDelivery` only accepts a job that is
+        // 'pending', 'ready' or 'failed', and a 'cancelled' job is none of
+        // those — so a Retry button here would be offered, pressed and
+        // refused, exactly like a held one.
         retryable:
           row.attempt_count < MAX_ATTEMPTS &&
           row.state !== "delivered" &&
-          row.state !== "attempted",
+          row.state !== "attempted" &&
+          row.state !== "held" &&
+          row.state !== "cancelled",
       };
     });
 
@@ -1141,6 +1214,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         delivered: count("delivered"),
         failed: count("failed"),
         retryable: count("retryable"),
+        held: count("held"),
       },
       rows: mapped,
     };

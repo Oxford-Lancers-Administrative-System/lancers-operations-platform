@@ -196,13 +196,37 @@ function Overview({ delivery, basePath }: { delivery: EventDelivery; basePath: s
         <Metric value={counts.failed + counts.retryable} label="Failed" testId="count-failed" />
       </Box>
 
+      {/*
+        LAN-156, at the visual gate. A held message is the one state this screen
+        exists to make visible, and it had none: the amend screen said messages
+        were held and this screen showed them as Queued. The tile appears only
+        when there are held messages, so an event nobody has amended is
+        unchanged.
+
+        R156-B3. This used to add "Re-notify to send the change", which told
+        the operator that Re-notify sends the held message itself. Re-notify
+        writes a separate notice job and nothing in the repository ever
+        clears `held_at`, so that was a release condition this build does not
+        implement. Says only what happened, and stops.
+      */}
+      {counts.held > 0 ? (
+        <Alert severity="warning" data-testid="delivery-held">
+          {counts.held === 1
+            ? "1 message is held after a change to this event."
+            : `${counts.held} messages are held after a change to this event.`}
+        </Alert>
+      ) : null}
+
       {delivery.rows.length === 0 ? (
         // § 9's Empty: distinguish "nothing yet" from "nothing matched". This is
-        // system-empty — the event has not been approved, so no invitation and
-        // no job exists. The smallest authorized recovery is the event itself.
+        // system-empty — no invitation job exists for this event.
+        //
+        // The sentence used to assert the cause ("Invitations and their delivery
+        // are created when the event is approved"), which is false on an event
+        // that IS approved and whose invitations were never dispatched — the
+        // state Brian found. It now says what is true and stops.
         <Alert severity="info" data-testid="delivery-empty">
-          Nothing has been sent for this event yet. Invitations and their delivery are created when
-          the event is approved.
+          No invitations have been sent for this event.
         </Alert>
       ) : null}
 

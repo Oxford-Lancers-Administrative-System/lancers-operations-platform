@@ -178,8 +178,8 @@ own pitches, which no geocoder indexes, are typed rather than searched.
 | `npm run check:rls`                                                          | Fail if a migration creates a table without RLS   |
 | `npm run db:heartbeat`                                                       | Refresh the current slot lease                    |
 | `npm run db:review-ready`                                                    | Validate browser evidence and protect review      |
-| `npm run db:release`                                                         | Release the current slot after stopping it        |
-| `npm run db:cleanup-stale`                                                   | Mark abandoned active leases stale                |
+| `npm run db:release`                                                         | Stop and release the current fenced stack         |
+| `npm run db:cleanup-stale`                                                   | Stop and retire abandoned or orphaned stacks      |
 | `npm run visual:start`                                                       | Supervise a pending visual environment            |
 | `npm run visual:preflight -- /route …`                                       | Measure both viewports and capture the artifacts  |
 | `npm run visual:status`                                                      | Report whether it is still genuinely ready        |
@@ -190,20 +190,17 @@ own pitches, which no geocoder indexes, are typed rather than searched.
 
 When an issue's pull request has merged, the slot it held is still held, its
 worktree is still on disk, and its stack may still be running. Reclaim them in
-this order — from **inside** the issue worktree for the first two commands:
+this order — run the first command from **inside** the issue worktree:
 
 ```bash
-npm run db:stop      # inside the worktree; needs the still-valid fencing token
-npm run db:release   # inside the worktree; the token lives in .lancers-runtime/
+npm run db:release   # stops first; the token lives in .lancers-runtime/
 git worktree remove <path> && git worktree prune && git branch -d <branch>
 ```
 
-The order is not interchangeable. `db:stop` validates the lease and refuses one
-that is already released, so releasing first leaves the containers running with
-no guarded way to stop them. And the fencing token lives in the worktree's
-ignored `.lancers-runtime/lease.json`, so removing the worktree before releasing
-destroys the only proof of ownership — `db:cleanup-stale` will not rescue you,
-because it never reclaims a `review-ready` record.
+Release is one fenced retirement operation: it marks the record as retiring,
+stops its Supabase project, and only then makes the slot reusable. Removing the
+worktree first still destroys its private token, but `db:cleanup-stale` can
+retire the resulting orphan once every recorded holding path is gone.
 
 `/finish-issue LAN-###` does exactly this, after proving from the repository
 that the work merged, and closes the Linear issue with one comment. It fails
@@ -237,15 +234,10 @@ ignored. Every lifecycle or mutating database command validates that token.
 Primary keeps the familiar ports; overflow receives a distinct project ID,
 complete service-port set, and application port automatically. Do not edit the
 tracked `supabase/config.toml` to make a second stack.
-If a slot this coordinator has already allocated still has its own containers
-running — a released stack kept warm, or an abandoned one whose owner died
-without stopping it — the next claim rotates the fencing token and adopts that
-slot. Only a slot with no record at all fails closed on occupied ports, because
-only there is it genuinely unknown whose process is listening. The next holder's
-`db:start` restarts the stack under its own rendered configuration before it is
-usable: `supabase start` against running containers is a no-op, so a re-fenced
-stack would otherwise keep serving the previous holder's Auth site URL and
-redirect allow-list, which fails invisibly rather than loudly.
+If an interrupted holder leaves containers running, cleanup stops the recorded
+Supabase project before returning the slot. Only a slot with no record at all
+fails closed on occupied ports, because only there is it genuinely unknown whose
+process is listening.
 
 **When a slot becomes available again.** A lease is held while its heartbeat is
 fresh — every guarded database command refreshes it — and for four hours after
@@ -254,10 +246,9 @@ its own: a conclusively dead owner is reclaimed at once, and an owner that
 cannot be told apart from a live one waits out that window. The process alone
 cannot decide because every agent in one Claude session shares that session's
 pid, so a live pid says nothing about whether the agent that took the lease
-still exists. A `review-ready` slot is never reclaimed on a timer at all; it is
-protected until its owner releases it. `npm run db:cleanup-stale` is the
-deliberate route for a slot known to be finished, and it never touches a live or
-`review-ready` one.
+still exists. A `review-ready` slot is never reclaimed on a timer; it remains
+protected while any recorded holding worktree exists. `npm run db:cleanup-stale`
+also retires an orphaned `review-ready` stack once every holder path is gone.
 
 For UI work the environment has an owner of its own. `npm run visual:start`
 spawns a detached supervisor that holds the application and refreshes the
