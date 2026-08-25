@@ -41,10 +41,19 @@
     {
       "id": "W2",
       "name": "Answer an invitation",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "Make that change, make it consistent. I approve. Let's go to the next workflow.",
+          "date": "2026-08-25"
+        },
+        "mock": {
+          "words": "Make that change, make it consistent. I approve. Let's go to the next workflow.",
+          "date": "2026-08-25"
+        }
+      }
     },
     {
       "id": "W3",
@@ -273,7 +282,7 @@
         "source_id": "SRC-task-02-brief",
         "disposition": "workflow",
         "workflow": "W6",
-        "reason": "The 'Not dispatched \u2014 no channel' backstop: counted and visible rather than silently absent."
+        "reason": "The 'Not dispatched — no channel' backstop: counted and visible rather than silently absent."
       },
       {
         "id": "D9",
@@ -360,14 +369,14 @@
         "source_id": "SRC-task-02-brief",
         "disposition": "excluded",
         "reason": "Stuart's real-experience review is a named external gate on production acceptance, not build scope for this mission.",
-        "evidence": "Task 02 \u00a77 step 4 and the Authority Manifest \u00a76 gate table record it against Scope 2 as an external-human gate owned by Stuart."
+        "evidence": "Task 02 §7 step 4 and the Authority Manifest §6 gate table record it against Scope 2 as an external-human gate owned by Stuart."
       },
       {
         "id": "Q3",
         "source_id": "SRC-task-02-brief",
         "disposition": "delegated_to_mission_lead",
         "reason": "ICS attachment versus the Google Calendar API is an implementation choice that changes no approved product intent; the brief recommends ICS and gives its reasoning.",
-        "evidence": "Task 02 \u00a76 Shape B recommends ICS over the Google Calendar API \u2014 no Google-identity dependency \u2014 and \u00a712 Q3 assigns the final call to ticketing."
+        "evidence": "Task 02 §6 Shape B recommends ICS over the Google Calendar API — no Google-identity dependency — and §12 Q3 assigns the final call to ticketing."
       },
       {
         "id": "Q4",
@@ -389,7 +398,7 @@
         "disposition": "other_mission",
         "other_mission": "M-EVENTS-CALENDAR-TARGET-STATE",
         "reason": "The named-list privacy configuration applies to the signed live-attendance surface, which Mission 2's participation view owns. It is explicitly not the RSVP page.",
-        "evidence": "Task 03 \u00a71 states the player RSVP page remains zero-peer-visibility and that the named list applies to the separate signed live attendance surface only."
+        "evidence": "Task 03 §1 states the player RSVP page remains zero-peer-visibility and that the named list applies to the separate signed live attendance surface only."
       },
       {
         "id": "T03-deadline-values",
@@ -431,7 +440,7 @@
         "source_id": "SRC-task-03-brief",
         "disposition": "excluded",
         "reason": "Peer visibility is locked out of the slice and is additive later at no rework cost.",
-        "evidence": "Task 03 \u00a72 enumerates it as deferred scope, and the Authority Manifest \u00a78 lists live group RSVP visibility (Q3) among the explicit Release One exclusions."
+        "evidence": "Task 03 §2 enumerates it as deferred scope, and the Authority Manifest §8 lists live group RSVP visibility (Q3) among the explicit Release One exclusions."
       },
       {
         "id": "T03-e2-adequate",
@@ -528,7 +537,7 @@
         "source_id": "SRC-task-03-brief",
         "disposition": "excluded",
         "reason": "The committee-facing configuration surface is committed post-release-one and is not built here; Release One must be built so that surface is a UI over it rather than a rework.",
-        "evidence": "Task 03 \u00a74.2 records it as committed post-release-one scope landing in LAN-106, and the Authority Manifest \u00a78 lists the LAN-106 admin surface among the Release One deferrals."
+        "evidence": "Task 03 §4.2 records it as committed post-release-one scope landing in LAN-106, and the Authority Manifest §8 lists the LAN-106 admin surface among the Release One deferrals."
       },
       {
         "id": "T03-stale-deadline",
@@ -546,7 +555,7 @@
           "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"
         ],
         "reason": "Consent and contact onboarding gates every real recipient. Mission 7 defines the lawful basis and the record; this mission refuses to dispatch without it, and that record is what replaces the allowlist.",
-        "evidence": "Task 03 \u00a74.3 records D6 as a hard dependency defined in the consent and intake workflows, not in this brief."
+        "evidence": "Task 03 §4.3 records D6 as a hard dependency defined in the consent and intake workflows, not in this brief."
       },
       {
         "id": "T03-prereq-templates",
@@ -568,14 +577,14 @@
         "source_id": "SRC-task-03-brief",
         "disposition": "excluded",
         "reason": "Naming reminder and escalation configuration in LAN-106's description is a Linear reconciliation task, not build scope.",
-        "evidence": "Task 03 \u00a74.3 item 4 flags it for a future Linear reconciliation pass and states the task makes no Linear changes."
+        "evidence": "Task 03 §4.3 item 4 flags it for a future Linear reconciliation pass and states the task makes no Linear changes."
       },
       {
         "id": "T03-template-budget",
         "source_id": "SRC-task-03-brief",
         "disposition": "excluded",
         "reason": "Paid template conversations at reminder volume are confirmed within the approved budget. An owner cost decision already taken, with no build consequence.",
-        "evidence": "Task 03 \u00a74.3 item 2 records the owner's 2026-08-14 confirmation that the cost is accepted."
+        "evidence": "Task 03 §4.3 item 2 records the owner's 2026-08-14 confirmation that the cost is accepted."
       },
       {
         "id": "D1",
@@ -590,7 +599,7 @@
         "source_id": "SRC-register",
         "disposition": "excluded",
         "reason": "WhatsApp production enablement is human and operational account work, not build scope.",
-        "evidence": "The Authority Manifest \u00a76 records it as an external gate owned by Stewart and Brian against LAN-101, and the portfolio places it in Track A."
+        "evidence": "The Authority Manifest §6 records it as an external gate owned by Stewart and Brian against LAN-101, and the portfolio places it in Track A."
       },
       {
         "id": "D3",
@@ -611,7 +620,7 @@
         "source_id": "SRC-register",
         "disposition": "workflow",
         "workflow": "W5",
-        "reason": "Reminders and configurable nonresponse escalation \u2014 Clint's core pain, and the largest approved-but-untracked capability.",
+        "reason": "Reminders and configurable nonresponse escalation — Clint's core pain, and the largest approved-but-untracked capability.",
         "also_referenced_by": ["W2"]
       },
       {
@@ -623,7 +632,7 @@
           "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"
         ],
         "reason": "Consent and contact-preference onboarding. Mission 7 defines it; this mission enforces it at dispatch.",
-        "evidence": "The register records D6 as approved-by-assumption and undefined as a workflow, with its next record an owner confirmation of consent language \u2014 which is Mission 7's."
+        "evidence": "The register records D6 as approved-by-assumption and undefined as a workflow, with its next record an owner confirmation of consent language — which is Mission 7's."
       },
       {
         "id": "D7",
@@ -681,7 +690,7 @@
         "source_id": "SRC-manifest",
         "disposition": "workflow",
         "workflow": "W8",
-        "reason": "OD-1/Q6 \u2014 rescheduling recomputes the chase threshold and the app says a reschedule is happening. Q7 and Q9 are Mission 2's event-side rules.",
+        "reason": "OD-1/Q6 — rescheduling recomputes the chase threshold and the app says a reschedule is happening. Q7 and Q9 are Mission 2's event-side rules.",
         "also_referenced_by": ["W5"]
       },
       {
@@ -689,7 +698,7 @@
         "source_id": "SRC-manifest",
         "disposition": "excluded",
         "reason": "R16's acceptance is Clint's dated sign-off at delivery. A release-acceptance decision that blocks no build scope.",
-        "evidence": "The Authority Manifest \u00a75 records OD-4 as closed and routes R16 to Track B, and states it gates Scope 11's measurement branch only."
+        "evidence": "The Authority Manifest §5 records OD-4 as closed and routes R16 to Track B, and states it gates Scope 11's measurement branch only."
       },
       {
         "id": "PILOT-verbal-rsvp",
@@ -704,7 +713,7 @@
         "disposition": "other_mission",
         "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
         "reason": "The operator message-and-flag direction is recorded, deliberately not promoted, and has Mission 6 as its candidate home. It rides this transport, so the pipeline must not preclude it.",
-        "evidence": "The Authority Manifest \u00a75 records it as awaiting definition, not yet scope, with a candidate home extending Task 11, and the portfolio names Mission 6 as the candidate home without promoting it."
+        "evidence": "The Authority Manifest §5 records it as awaiting definition, not yet scope, with a candidate home extending Task 11, and the portfolio names Mission 6 as the candidate home without promoting it."
       },
       {
         "id": "REQ-amend-hold",
@@ -825,5 +834,5 @@
       }
     ]
   },
-  "next_action": "Review and approve the W2 specification (Stage 3)"
+  "next_action": "Draft the W3 specification — record an answer somebody gave you in person (Stage 3)"
 }

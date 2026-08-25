@@ -140,6 +140,17 @@ player-facing message reports how many people have not answered, including the
 player's own membership of that group. The outstanding count is operator
 information and belongs to W4 and W5, not to a message sent to a player.
 
+**Emphasis always points at Yes.** Brian, 2026-08-25: _"we should always be
+emphasizing the change ... where possible ... 'Change to Yes' should be
+highlighted. 'Change to No' otherwise should be unhighlighted. That's a rule
+across the board for everything."_ Every affirmative action — **Yes**, **Change
+to Yes**, and the forward action that completes an answer — carries the filled
+treatment. Every **Change to No** is available but unfilled, on every surface,
+including a row where it is the only control. Emphasis is chosen by what the
+action means, never by where the button sits: styling the first control in a row
+gave a lone **Change to No** the filled treatment, which invited exactly the
+answer the club least wants.
+
 **Answer colour follows the application, not this workflow.** Verified in
 `src/app/participation/participation-table.tsx` at `80e9616`: a Yes is MUI
 `success`, a No is MUI `error`, and anything else is `default`. Every
