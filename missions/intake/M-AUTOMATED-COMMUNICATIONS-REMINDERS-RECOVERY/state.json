@@ -130,8 +130,8 @@
       "stale": false,
       "feedback": [
         {
-          "screen": "W7-01",
-          "note": "Open at Brian's pause on 2026-08-25: the five schedule values; whether reminders anchor to the RSVP deadline rather than the invitation; and the superseding ADR recording the settings-page reversal and the deadline anchor change. Brian: 'I'll fix the rest of this workflow later.'"
+          "screen_id": "W7-01",
+          "text": "Open at Brian's pause on 2026-08-25: the five schedule values; whether reminders anchor to the RSVP deadline rather than the invitation; and the superseding ADR that must record both the settings-page reversal and the deadline anchor change. Brian: 'I'll fix the rest of this workflow later.'"
         }
       ],
       "approvals": {}
