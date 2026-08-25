@@ -1,0 +1,594 @@
+{
+  "packet_version": 1,
+  "mission_id": "M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY",
+  "status": "approved",
+  "title": "Automated Communications, Reminders & Recovery",
+  "objective": "The club stops chasing people by hand. Every approved event invites its audience automatically, chases the silence on an approved ladder, escalates what is genuinely unresolved to the President, records answers given in person, repairs what could not be delivered, and never sends a message that has stopped being true.",
+  "why_now": "This is Release One's largest approved-but-unbuilt capability. Verified at main 80e9616: notification_jobs carries scheduled_for, an idempotency key and six states; the reminder and escalation job types are in the enum; nonresponse_queue and invitation_response_state are live views. Nothing drives any of it — the delivery page shows Audience 47 with Delivered, Queued and Failed all zero, and the participation table reads Nothing queued for all 47 people. The substrate is complete and inert. Clint's stated pain is the consequence: 'My WhatsApp is essentially unusable… 30 chats with players.'",
+  "non_goals": [
+    "Deciding that a message is owed, or to whom. Mission 2 owns the event, its audience and its questions",
+    "Building the amendment surface itself. Mission 2 owns REQ-amend-in-place; this mission owns what happens to the messages",
+    "Taking the register. Attendance is Task 04's, and a recorded RSVP never implies attendance",
+    "The Monday report surface, which is Mission 9's. This mission supplies its exception content",
+    "Consent capture and the lawful basis, which Mission 7 defines and this mission refuses to dispatch without",
+    "The onboarding chase, which reuses this transport verbatim but keeps its behaviour and queue in Mission 6",
+    "Broadcast announcements, which stay in WhatsApp groups",
+    "Peer visibility beyond accurate aggregate counts. Names and individual answers are never revealed by an automated surface",
+    "Inbound free-text WhatsApp replies as an authoritative answer, which stay deferred pending Stuart's review",
+    "Any manual send. Repair never becomes a place where somebody composes a message",
+    "The wider App Shell. The operator phone navigation was raised at review and returned to Mission 3"
+  ],
+  "sources": [
+    {
+      "id": "SRC-task-02-brief",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bc488886d5781a3aba8c46c7a11d611",
+      "version": "Automated Delivery & Recovery — owner-approved 2026-08-14 rev 2; amended 2026-08-15 (D7 chase bounded) and 2026-08-17 (Resend adopted, Shape B operative); fetched 2026-08-22"
+    },
+    {
+      "id": "SRC-task-03-brief",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bc488886d5781aaabc1edf83a3425cf",
+      "version": "Task 03 RSVP, reminders and escalation; read 2026-08-22 alongside its parent task"
+    },
+    {
+      "id": "SRC-portfolio",
+      "kind": "notion",
+      "ref": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+      "version": "Release One Mission Portfolio row 4, approved by Brian Schuster 2026-08-19; fetched 2026-08-22"
+    },
+    {
+      "id": "SRC-m2-packet",
+      "kind": "github",
+      "ref": "missions/packets/M-EVENTS-CALENDAR-TARGET-STATE/packet.json",
+      "version": "packet_version 1, approved, merged via PR #62 at 5256d1f02615f9d0ed866659d26a75ae384b91fe"
+    },
+    {
+      "id": "SRC-adr-0021",
+      "kind": "github",
+      "ref": "docs/adr/0021-response-deadline-configuration.md",
+      "version": "Accepted 2026-08-13; reversed on two points by this mission, see DEC-adr-0021-reversal"
+    },
+    {
+      "id": "SRC-main",
+      "kind": "github",
+      "ref": "https://github.com/Oxford-Lancers-Administrative-System/lancers-operations-platform/tree/80e9616d396336a7b575a975ecb012548b4ed611",
+      "version": "main at 80e9616d396336a7b575a975ecb012548b4ed611, read in the running application on 2026-08-25"
+    },
+    {
+      "id": "SRC-meta",
+      "kind": "document",
+      "ref": "https://www.postman.com/meta/whatsapp-business-platform/request/lwtlz1k/send-message-template-interactive",
+      "version": "Official Meta WhatsApp Business Platform collection, fetched 2026-08-24"
+    },
+    {
+      "id": "SRC-ledger",
+      "kind": "github",
+      "ref": "missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/",
+      "version": "This mission's intake ledger, eight workflows approved by Brian Schuster on 2026-08-22 to 2026-08-25"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-plan-before-approval",
+      "text": "The event page shows complete event details, then the named invited audience, then the messaging plan as an expandable disclosure. Approval commits the plan and freezes its work. Ledger: workflows/W1.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-dispatch-anchor",
+      "text": "Dispatch occurs at the configured invitation anchor. An event closer than its invitation lead sends immediately and the page says so before approval. Ledger: workflows/W1.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-ladder-order",
+      "text": "The player-facing order is fixed and not configurable: WhatsApp, WhatsApp again, email, then escalation to the President. Only spacing and counts are tuned. Ledger: workflows/W1, W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-no-quiet-hours",
+      "text": "There is no quiet-hours window. Scheduling, compression and recovery must never delay or drop a message on the basis of time of day. Ledger: workflows/W1, W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-missing-route-is-an-error",
+      "text": "A missing or unusable WhatsApp route is an error, not a configuration choice. W1 shows it concisely before approval; W6 owns handling it. Ledger: workflows/W1, W6.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-whatsapp-actions",
+      "text": "The invitation is an approved template presenting Yes and No actions, never a raw URL as primary body content. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-click-is-the-answer",
+      "text": "The tap records the answer. Neither landing page asks the player to confirm an answer they have already given. Reloads are idempotent. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-no-false-rsvp",
+      "text": "An automated URL visit by a link preview, security scanner or reload must never create an authoritative response. This is a release gate, not a best-effort check. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-no-reason-given",
+      "text": "A No is standing from the click with the visible default 'No reason given'. No copy may imply the No is unrecorded until a reason arrives. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-yes-stands-with-questions",
+      "text": "A Yes is standing while required event questions remain outstanding, qualified separately as additional questions outstanding. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-one-nudge",
+      "text": "An incomplete Yes earns exactly one further message. A second is a defect, and W5 must not treat an incomplete answer as a nonresponse. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-attendance-not-absence",
+      "text": "Player-facing social proof counts attendance only. No player-facing message reports how many people have not answered. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-plain-first-contact",
+      "text": "The first invitation carries no count of any kind. Counts begin at the second rung and on landing pages. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-player-page",
+      "text": "Every answer ends on a page belonging to the player: work needing an answer above, everything already answered whose event has not happened yet below, Yes and No alike, each changeable. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-player-page-empty",
+      "text": "An empty queue reads 'No outstanding events', keeps the answered list reachable, and links to the public calendar. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-approved-means-visible",
+      "text": "An approved event is visible to its invitee before its invitation is dispatched. Answering early suppresses the rung rather than sending it. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-person-token",
+      "text": "The player's page is reached by a person-scoped credential associated with a season, stored as a digest, which stops resolving when that season closes and is revocable per person without waiting for Mission 10. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-cross-person-isolation",
+      "text": "A credential reveals only its own person's work. An identifier belonging to somebody else is absent from content, DOM and response payload. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-emphasis-points-at-yes",
+      "text": "Every affirmative action carries the filled treatment and every Change to No is unfilled, on every surface, including a row where it is the only control. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-answer-colour",
+      "text": "Answer colour matches src/app/participation/participation-table.tsx: Yes success, No error, anything else default, on every player-facing and operator surface. Ledger: workflows/W2.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-operator-recorded-answer",
+      "text": "An operator records an answer given in person from the participation table, against an invitation with no answer. It writes source=operator with the recording operator's person id, and counts exactly like a player's own answer. Ledger: workflows/W3.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-recorded-answer-reads-plain",
+      "text": "A recorded answer renders exactly like one the player gave. Provenance lives in the audit trail, not on the row. Ledger: workflows/W3.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-operator-no-needs-a-reason",
+      "text": "An operator recording a No must supply a real reason; W2's default text is not available to them. Ledger: workflows/W3.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-responded-at-backdates",
+      "text": "responded_at may be backdated but never postdated, and never before the invitation. It stays distinct from recorded_at. Ledger: workflows/W3.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-no-operator-supersede",
+      "text": "Record answer is absent from any row that already carries an answer. A player changing their mind does so on their own page. Ledger: workflows/W3.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-questions-in-the-same-form",
+      "text": "The event's own questions are answerable in the recording form, partially or not at all, and never block the answer. Ledger: workflows/W3.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-delivery-reports-truth",
+      "text": "The Delivery column reports the real state of each person's most recent job using the shipped vocabulary, and its filter selects on it. Nothing queued remains where it is true. Ledger: workflows/W4.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-chase-position",
+      "text": "A person who has not answered shows the rung already sent and the next one due; an answered person shows none; an escalated person shows no further player-facing rung. Ledger: workflows/W4.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-chase-stopped",
+      "text": "An arriving answer, from any source, cancels that person's pending player-facing jobs and clears an un-actioned nonresponse flag in the same transaction. Ledger: workflows/W2, W3, W4.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-operator-tier-only",
+      "text": "Delivery state, chase position and diagnostics are operator-tier. A club-link holder sees none of them, proved by test. Ledger: workflows/W4, W6.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-nobody-compiles-a-list",
+      "text": "Nonresponse surfaces without anybody compiling it, read from the nonresponse_queue view, on a cross-event Follow-ups page under Administration using the application's own table and chrome. Ledger: workflows/W5.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-one-list-two-streams",
+      "text": "Undeliverable people appear in the same queue as unanswered people, labelled as a delivery problem. Ledger: workflows/W5.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-escalation-threshold",
+      "text": "Escalation fires N hours after the RSVP deadline, N configurable per event type and N=0 permitted. Ledger: workflows/W5, W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-escalation-to-an-office",
+      "text": "Escalation resolves to whoever currently holds the President's seat. Changing the seat changes the recipient with no configuration change; a vacant seat holds it visibly rather than dropping or misdirecting it. Ledger: workflows/W5.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-no-personal-data-in-escalation",
+      "text": "No name, contact detail or reason appears in an escalation body. It states how many people, which event and the deadline, then links to the queue. Ledger: workflows/W5.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-one-flag-per-threshold",
+      "text": "One flag per invitation per threshold, idempotent under reruns. It clears only by real resolution, never by time, and remains readable in history once cleared. Ledger: workflows/W5.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-repair-on-the-delivery-page",
+      "text": "Repair happens on the delivery page LAN-78 shipped. Its counts report real numbers. Ledger: workflows/W6.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-retries-have-no-actor",
+      "text": "Retries are automatic. A retrying person shows the attempt and the next due time and offers no operator action. Ledger: workflows/W6.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-fallback-is-automatic",
+      "text": "The email fallback is automatic. No operator sends, routes to, or confirms it. Ledger: workflows/W6.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-whatsapp-outage-visible",
+      "text": "A WhatsApp failure that the email fallback then carried reads as WhatsApp unresponsive, stays counted, and offers no action. The person was reached; the primary channel failed and that must be visible. Ledger: workflows/W6.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-no-channel-backstop",
+      "text": "A person with no usable route reads 'Not dispatched — no channel', is counted, and links to their record. It is the only state requiring a person, and what it requires is a roster fix. Ledger: workflows/W6.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-no-composing-surface",
+      "text": "Repair never becomes a place where somebody composes a message, in any path. Ledger: workflows/W6.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-diagnostics-page",
+      "text": "Diagnostics is a page reached from the delivery page, using the application's own table and chrome, showing one row per attempt per channel with provider references and deduplicated webhooks, and no message content. Ledger: workflows/W6.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-messaging-schedule-page",
+      "text": "An editable Messaging schedule page at /operate/admin/messaging under Administration, set per event type and never per event, carrying player RSVP by, first invitation sent, reminder cadence, reminder counts and president escalation. Ledger: workflows/W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-schedule-defaults",
+      "text": "Defaults: reminder cadence 24 hours, 2 WhatsApp and 1 email, escalation 12 hours after the RSVP deadline for every type. Ledger: workflows/W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-count-forward",
+      "text": "Reminders count forward from the invitation on the cadence, not backwards from the RSVP deadline. Ledger: workflows/W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-deadline-from-event-start",
+      "text": "Response deadlines keep ADR 0021's day counts but are measured from the event's own start rather than a fixed 18:00 clock, still resolved in the club's timezone so British Summer Time stays correct. Ledger: workflows/W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-schedule-preview",
+      "text": "Every row expands to preview the dates it produces for a worked example, and warns when the last reminder lands well before the deadline it is chasing. Ledger: workflows/W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-schedule-not-retroactive",
+      "text": "Schedule changes apply only to events approved afterwards. Approved events keep the schedule they were approved with. Every change is attributed. Ledger: workflows/W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-late-approval",
+      "text": "A late-approved event still chases: the invitation goes immediately, still states the RSVP deadline, fills the remaining time with WhatsApp reminders on the normal cadence, always sends at least one WhatsApp, is WhatsApp only, and never escalates to the President. It still appears in Follow-ups. Ledger: workflows/W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-superseding-adr",
+      "text": "A superseding ADR records both reversals of ADR 0021: the configuration-administration surface, and the deadline anchor moving from 18:00 to the event start. Ledger: workflows/W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-phone-is-cards",
+      "text": "Operator surfaces this mission adds render one card per row below the table breakpoint, matching LAN-157's participation card idiom. No horizontal scrolling. Ledger: workflows/W7.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-amendment-holds",
+      "text": "Saving an amendment holds every unsent job for that event and holds nothing else. Held is never a resting state: a job resumes or cancels. Ledger: workflows/W8.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-resume-follows-notify",
+      "text": "Resume follows the operator's notify choice recorded in Mission 2: telling people resumes the held messages and informs everybody already invited of what changed; declining resumes them unchanged. Ledger: workflows/W8.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-reschedule-recomputes",
+      "text": "A reschedule recomputes the response deadline and every time counted from it using the schedule rules, and the application says a reschedule is happening. Ledger: workflows/W8.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-cancellation-is-terminal",
+      "text": "Cancelling an event cancels every undelivered job. Cancellation notices are sent only where Mission 2 recorded that choice. Ledger: workflows/W8.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-cancellation-reason-is-internal",
+      "text": "The internal cancellation reason appears in no recipient-facing payload, proved by test against the rendered message. Ledger: workflows/W8.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-cancelled-is-not-failed",
+      "text": "A job cancelled by an event change never appears as a delivery failure in any count, list or queue. Ledger: workflows/W8.",
+      "source_id": "SRC-ledger"
+    },
+    {
+      "id": "REQ-history-is-never-rewritten",
+      "text": "An already-delivered message is never retracted and history is never rewritten. A player's standing answer survives an amendment, a reschedule and a cancellation. Ledger: workflows/W2, W8.",
+      "source_id": "SRC-ledger"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-boundary",
+      "text": "Boundary approved 2026-08-22: ownership is by subject, not build state. If it concerns a message the club sends a person, or the response that comes back, it belongs here — whether it shipped months ago, is half-built, or does not exist. Ledger: 00-boundary.md."
+    },
+    {
+      "id": "DEC-inventory",
+      "text": "Eight workflows frozen 2026-08-22. Brian: 'Approve the eight workflows and freeze them.' Ledger: 02-workflows.md."
+    },
+    {
+      "id": "DEC-provenance-to-audit",
+      "text": "An operator-recorded answer counts as a response and its provenance lives in the audit trail, not on the row. This amends the 2026-08-19 portfolio decision recording it as 'provenance-visible': counting is unchanged, visibility moved. Brian 2026-08-25: 'it should just say yes… it should go in the audit.' Ledger: acceptance/W3.md."
+    },
+    {
+      "id": "DEC-no-supersede",
+      "text": "An operator may not overwrite an answer the player gave themselves. Brian 2026-08-25: 'We're not building this into the workflow. It's too much. Cut it.' Ledger: acceptance/W3.md."
+    },
+    {
+      "id": "DEC-flag-lifecycle",
+      "text": "T03-flag-lifecycle was approved provisionally and explicitly owed a restatement at this intake. Restated and confirmed 2026-08-25: one flag per invitation per threshold, idempotent under reruns, cleared by resolution rather than time, and kept in history once cleared. Ledger: acceptance/W5.md."
+    },
+    {
+      "id": "DEC-operator-has-one-job",
+      "text": "Retries and the email fallback are automatic, so only a missing route requires a person. Brian 2026-08-25: 'Wait should just be no action, route is automated, only the third action actually requires the owner.' Ledger: acceptance/W6.md."
+    },
+    {
+      "id": "DEC-adr-0021-reversal",
+      "text": "ADR 0021 is reversed on two points and both are recorded in a superseding ADR that this mission must write. Its no-configuration-administration-surface rule is reversed — Brian 2026-08-25: 'Okay, we're building it… Yes, it's a superseding ADR.' And deadlines are measured from the event's own start rather than a fixed 18:00 clock. ADR 0021's other rules survive: a complete table with no default arm, a past deadline clamped at approval, and no per-event override. Ledger: acceptance/W7.md."
+    },
+    {
+      "id": "DEC-count-forward",
+      "text": "Reminders count forward from the invitation, not backwards from the RSVP deadline. Brian 2026-08-25: 'Count forward from the invitations.' Ledger: acceptance/W7.md."
+    },
+    {
+      "id": "DEC-late-approval",
+      "text": "A late-approved event still chases: invitation immediately, RSVP deadline still stated, remaining time filled with WhatsApp reminders, at least one WhatsApp always, WhatsApp only, and no escalation. This replaces the earlier compression rule entirely, which was incoherent because it never said what the runway ended at. Ledger: acceptance/W7.md."
+    },
+    {
+      "id": "DEC-d5-trigger-corrected",
+      "text": "D5's trigger is corrected. It assumed an amendment returned an event to draft and required re-approval; Mission 2 amends in place and LAN-151 has narrowed event_status to draft, approved, cancelled, making return-to-draft unrepresentable. Two of its three triggers are dead. Ledger: workflows/W8, evidence/mission-2-amendment-hold-handoff.md."
+    },
+    {
+      "id": "DEC-lan90-lan92-not-binding",
+      "text": "Brian corrected on 2026-08-25 that LAN-90 and LAN-92 are not binding and that what the application currently asserts is not itself authority. The no-manual-send rule is retained because this mission chooses it. AGENTS.md still states those issues remain binding, which now contradicts the owner; see blockers. Ledger: acceptance/W6.md."
+    }
+  ],
+  "baseline": {
+    "branch": "main",
+    "commit": "80e9616d396336a7b575a975ecb012548b4ed611"
+  },
+  "gates": {
+    "owner": [
+      "Brian merges this intake-artifacts-only pull request; nothing may execute before that merge",
+      "Brian settles the first-invitation values and whether that column stays editable before the messaging schedule ships its defaults",
+      "Brian decides whether AGENTS.md's LAN-90/LAN-92 statement changes, since it now contradicts his 2026-08-25 correction",
+      "Brian registers the club WhatsApp number and captures the phone number id (LAN-101) before any real dispatch",
+      "Brian obtains approved Meta templates for every player-facing shape and the escalation, because production is template-only"
+    ],
+    "external": [
+      "LAN-101: Meta Business Verification, production webhook and the real-number test",
+      "LAN-126: the permanent application hostname, before any durable player link is issued",
+      "Mission 7 defines the consent lawful basis and its acceptance record, which replaces the hard-coded allowlist",
+      "Mission 2 delivers REQ-amend-in-place before W8 can be built",
+      "Stuart's review, which gates the deferred inbound-reply path this mission keeps non-authoritative"
+    ]
+  },
+  "merge_envelope": {
+    "auto_merge_classes": ["standard-application"],
+    "owner_gated": [
+      "schema-migration",
+      "rls-auth-security",
+      "secrets-credentials",
+      "deployment-production-data",
+      "whatsapp-external-configuration",
+      "highest-risk",
+      "visual-without-approval"
+    ]
+  },
+  "completion_evidence": [
+    "An approved event dispatches its invitation at the configured anchor with no operator action, and the participation table's Delivery column stops reading Nothing queued",
+    "A player answers from a WhatsApp action and their answer is standing before the landing page renders; a reload, a link preview and a security scanner create no response",
+    "A No is standing from the click with the visible default 'No reason given', and adding a real reason appends evidence without editing history",
+    "Either answer cancels every later player-facing job and clears an un-actioned nonresponse flag in the same transaction",
+    "A player's own page lists their outstanding work above everything they have already answered whose event has not happened, and changes either",
+    "The person credential stops resolving when its season closes, and an operator can revoke one without a season close",
+    "An operator records an answer given in person; the row then reads exactly like a player's own and the audit trail carries who recorded it and when it was said",
+    "Crossing the escalation threshold raises exactly one flag per invitation and sends one escalation, proved idempotent by rerunning the scheduler",
+    "The escalation resolves to the current President by office and its body contains no name, contact detail or reason, proved against the rendered template",
+    "A WhatsApp failure that email carried reads as WhatsApp unresponsive, stays counted, and offers no operator action",
+    "A person with no usable route is counted and visible as 'Not dispatched — no channel' rather than silently absent",
+    "Diagnostics shows one row per attempt per channel with provider references, deduplicated webhooks and no message content",
+    "The messaging schedule is editable per event type, previews the dates a row produces, and never offers a per-event override",
+    "A late-approved event sends its invitation immediately, sends at least one WhatsApp, sends no email, and produces no escalation",
+    "Saving an amendment holds every unsent job for that event and nothing else, and no job remains held once the amendment resolves or the event is cancelled",
+    "Cancelling an event cancels its undelivered jobs and none of them appears as a delivery failure in any count, list or queue"
+  ],
+  "workflow_matrix": [
+    {
+      "id": "W1",
+      "name": "Approve an event knowing what it will send",
+      "surfaces": "Event page: details, named audience, expandable messaging plan",
+      "disposition": "Modified — the event page exists; the messaging plan does not",
+      "acceptance": "acceptance/W1.md",
+      "mockup": "mockups/W1.html"
+    },
+    {
+      "id": "W2",
+      "name": "Answer an invitation",
+      "surfaces": "Approved WhatsApp templates, answer-specific landing pages, the player's own durable page",
+      "disposition": "Modified and New — the signed RSVP page exists; the templates, the durable page and its credential do not",
+      "acceptance": "acceptance/W2.md",
+      "mockup": "mockups/W2.html"
+    },
+    {
+      "id": "W3",
+      "name": "Record an answer somebody gave you in person",
+      "surfaces": "Participation table row action and recording form",
+      "disposition": "Modified — the table exists; recording does not",
+      "acceptance": "acceptance/W3.md",
+      "mockup": "mockups/W3.html"
+    },
+    {
+      "id": "W4",
+      "name": "See who is coming, and who has not answered",
+      "surfaces": "Participation table Delivery column and chase position",
+      "disposition": "Modified — the table and its filters are adequate; the Delivery column reads Nothing queued for everybody",
+      "acceptance": "acceptance/W4.md",
+      "mockup": "mockups/W4.html"
+    },
+    {
+      "id": "W5",
+      "name": "Chase the people who have not answered",
+      "surfaces": "Follow-ups queue under Administration; the escalation message",
+      "disposition": "New — nonresponse_queue exists in the database and nothing renders it",
+      "acceptance": "acceptance/W5.md",
+      "mockup": "mockups/W5.html"
+    },
+    {
+      "id": "W6",
+      "name": "Repair a delivery that failed",
+      "surfaces": "Per-event delivery page and its diagnostics page",
+      "disposition": "Modified and New — LAN-78's delivery page ships with every count at zero; diagnostics is a disabled button",
+      "acceptance": "acceptance/W6.md",
+      "mockup": "mockups/W6.html"
+    },
+    {
+      "id": "W7",
+      "name": "Find out what the club's messaging rules are, and change them",
+      "surfaces": "Messaging schedule under Administration",
+      "disposition": "New — the deadline table ships in source; nothing else exists and there is no surface",
+      "acceptance": "acceptance/W7.md",
+      "mockup": "mockups/W7.html"
+    },
+    {
+      "id": "W8",
+      "name": "Keep queued messages honest when an event changes",
+      "surfaces": "Hold panel on Mission 2's amendment form",
+      "disposition": "New — and its trigger is unbuilt: editing an approved event is refused on main",
+      "acceptance": "acceptance/W8.md",
+      "mockup": "mockups/W8.html"
+    }
+  ],
+  "delegated_to_mission_lead": [
+    "Issue decomposition, dependency ordering and the work-package DAG",
+    "The scheduler's own shape: how jobs are claimed, retried, backed off and made idempotent",
+    "Exact retry bounds and backoff, within the policy values the schedule page holds",
+    "The safe implementation of one-time answer actions, sessions and scanner resistance, satisfying the no-false-RSVP gate without changing the visible journey",
+    "Where the person credential table sits and its exact columns, on the club_link_tokens pattern",
+    "Exact form copy, and the operator-facing warning about who reads a recorded reason",
+    "Exact column placement and the wording of the chase phrases",
+    "Exact escalation copy, subject to Meta template approval and the no-personal-data rule",
+    "Package structure, validation bounds, test strategy and concurrency handling"
+  ],
+  "nonblocking_unknowns": [
+    {
+      "unknown": "The first-invitation value for each event type, and whether that column stays editable or becomes derived",
+      "handling": "Counting forward makes it derivable: deadline plus reminders times cadence gives 5 days for a practice, 10 for a game and 8 for a social. The Mission Lead implements the page with those derived defaults and the column editable, and the row's own preview warns when the last reminder lands well before the deadline. Brian confirms the values before the first real dispatch. Nothing else is blocked."
+    },
+    {
+      "unknown": "Whether a one-tap WhatsApp URL button can be proved safe against link previews and security scanners",
+      "handling": "If it cannot, the fallback is a Quick Reply that records the answer followed by a separate page link, shown honestly as two taps. The visible journey changes; no requirement does. This must be settled before any real dispatch, and REQ-no-false-rsvp is the gate."
+    },
+    {
+      "unknown": "Whether showing accurate aggregate Yes counts is compatible with the consent basis Mission 7 defines",
+      "handling": "Counts are peer data even without names. The Mission Lead implements them as approved and raises it with Mission 7's intake rather than deciding it; if Mission 7 refuses, the counts are removed without touching any other requirement."
+    },
+    {
+      "unknown": "How an invited person receives an online event's joining URL",
+      "handling": "Mission 2 stores it and shows it to operators but neither publishes nor delivers it, and named this mission as its likely home. Nothing here is blocked, but a Chalk invitation without the link is useless to a player and must not be forgotten."
+    },
+    {
+      "unknown": "Whether a season that is never closed leaves person credentials with no terminal event",
+      "handling": "Season close is an operator action owned by Mission 10, which is unbuilt. The handling rule that preserves safe execution: the credential must be revocable per person by an action this mission ships, so a leaked link can always be killed without waiting for Mission 10."
+    }
+  ],
+  "escalation_rules": {
+    "permitted_clarifications": [
+      "Any decision this packet marks delegated to the Mission Lead",
+      "Defects found in existing delivery, RSVP or participation code that block a listed requirement, provided the fix does not widen approved behaviour",
+      "Restating a provisional value inside an implementing issue for confirmation",
+      "Ordinary engineering choices: package structure, validation bounds, test strategy, concurrency handling"
+    ],
+    "requires_packet_revision": [
+      "Any change to the frozen eight-workflow inventory: adding, removing, renaming or reordering",
+      "Reintroducing quiet hours in any form, including as a side effect of scheduling or compression",
+      "Any per-event override of a schedule value, which ADR 0021 forbids and this mission preserves",
+      "Widening what an automated player-facing message reveals about other people beyond accurate aggregate counts",
+      "Any manual send path, or any repair that ends in somebody composing a message",
+      "Changing who escalation reaches, or putting player personal data in an escalation body",
+      "Making an operator able to overwrite an answer the player gave themselves",
+      "Changing the ladder order, which W1 froze"
+    ]
+  },
+  "repository_drift": {
+    "startup_rule": "Compare main at execution against baseline.commit 80e9616d396336a7b575a975ecb012548b4ed611. Drift that does not change meaning, feasibility, invariants, interfaces or acceptance evidence may be recorded and tolerated — this intake itself re-pinned its baseline once, from c59bff17, absorbing seven commits including LAN-151's event-model narrowing and LAN-157's participation surface. Every current-state screenshot in mockups/ was captured from the running application at this baseline on 2026-08-25.",
+    "stop_rule": "Stop and require a new packet version if: the eight-workflow inventory no longer matches; notification_jobs, rsvp_responses or their states change shape; the participation table or delivery page is materially restructured; ADR 0021 is amended by anything other than this mission's superseding ADR; or Mission 2 ships an amendment surface whose hold semantics differ from REQ-amend-hold."
+  },
+  "blockers": [
+    "AGENTS.md states 'LAN-90 and LAN-92 remain binding; manual distribution is never a fallback.' Brian corrected on 2026-08-25 that they are not binding and that what the application asserts is not itself authority. The no-manual-send rule is retained by this mission's own choice, so no requirement depends on the resolution, but the working agreement and the owner now disagree in writing and Brian should settle it.",
+    "W8 cannot be built until Mission 2 delivers REQ-amend-in-place. Editing an approved event is refused on main today, so W8's trigger does not exist. This is a hard ordering constraint on the DAG, not a preference."
+  ],
+  "approval": {
+    "approved_by": "Brian Schuster",
+    "date": "2026-08-25",
+    "evidence": "Approved during the mission intake of 2026-08-22 to 2026-08-25. The boundary, the overview and the eight-workflow inventory each carry Brian's dated approval in his own words in missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/state.json, and every workflow carries his approval in state.json and in acceptance/Wn.md: W1 'Approved'; W2 'Make that change, make it consistent. I approve. Let's go to the next workflow.'; W3 'I trust it's there. Make the spec W3 approved.'; W4 'Cool, approved, move to 5'; W5 'If the follow-up message to them is approved, there's nothing more with this workflow. I approve it.'; W6 'Approved. Let's go to the next one.'; W7 'Fine for that right now.'; W8 'As long as the app thinks it's consistent, I'm fine with it. This seems like an edge case. Okay, I go ahead and approve this.' Brian's merge of this intake-artifacts-only pull request is what approves this exact version and commit."
+  }
+}

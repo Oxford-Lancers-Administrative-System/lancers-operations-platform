@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W2 · Answer an invitation — mockup</title>
+    <style>
+      /* Tokens taken from src/theme.ts, MUI v9 defaults, the shipped LAN-79
+       * RSVP page, and WhatsApp's current mobile/Web visual conventions.
+       * Nothing here is a redesign. */
+      :root {
+        --primary: #0b3d91;
+        --primary-dark: #082c69;
+        --text: rgba(0, 0, 0, 0.87);
+        --secondary: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --paper: #fff;
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --grey900: #212121;
+        --info-bg: #e5f6fd;
+        --info-text: #014361;
+        --warn-bg: #fff4e5;
+        --warn-text: #663c00;
+        --success-bg: #edf7ed;
+        --success-text: #1e4620;
+        --current: #5f6b7a;
+        --proposed: #0b3d91;
+        --wa-green: #008069;
+        --wa-chat: #efeae2;
+        --wa-link: #027eb5;
+        --wa-out: #d9fdd3;
+        --radius: 8px;
+        --shadow: 0 8px 26px rgba(16, 24, 40, 0.15);
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #e7e9ee;
+        color: var(--text);
+        font-family: var(--font);
+      }
+      button,
+      input,
+      textarea,
+      select {
+        font: inherit;
+      }
+      .page {
+        max-width: 1580px;
+        margin: auto;
+        padding: 36px 28px 96px;
+      }
+      .page-head {
+        max-width: 1040px;
+      }
+      .page-head h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+      .page-head p,
+      .screen-head p {
+        color: var(--secondary);
+        line-height: 1.55;
+      }
+      .crumbs {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+        font-size: 14px;
+      }
+      .crumbs a {
+        color: var(--primary);
+      }
+      .research {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border-left: 4px solid var(--primary);
+        background: white;
+        line-height: 1.5;
+        font-size: 14px;
+      }
+      .research strong {
+        display: block;
+        margin-bottom: 3px;
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 20px;
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--secondary);
+      }
+      .key {
+        width: 30px;
+        border-top: 5px solid;
+      }
+      .key.current {
+        border-color: var(--current);
+      }
+      .key.proposed {
+        border-color: var(--proposed);
+      }
+      .screen {
+        margin-top: 68px;
+      }
+      .screen-head {
+        position: relative;
+        max-width: 1180px;
+        padding-top: 24px;
+        border-top: 2px solid var(--grey900);
+      }
+      .screen-tab {
+        position: absolute;
+        top: 0;
+        transform: translateY(-100%);
+        padding: 6px 14px;
+        border-radius: 6px 6px 0 0;
+        background: var(--grey900);
+        color: white;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+      }
+      .screen-head h2 {
+        margin: 0 0 5px;
+        font-size: 20px;
+      }
+      .screen-head p {
+        max-width: 95ch;
+        margin: 0;
+        font-size: 14px;
+      }
+      .deltas {
+        margin: 10px 0 0;
+        padding-left: 20px;
+        color: var(--secondary);
+        font-size: 14px;
+      }
+      .clock,
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 25px;
+        padding: 2px 10px;
+        border: 1px solid var(--divider);
+        border-radius: 20px;
+        background: white;
+        color: var(--secondary);
+        font-size: 12px;
+      }
+      .clock {
+        margin-top: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .chip.proposed {
+        border-color: var(--primary);
+        border-style: dashed;
+        color: var(--primary);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .chip.success {
+        border-color: #7cb680;
+        background: var(--success-bg);
+        color: var(--success-text);
+      }
+      .chip.danger {
+        border-color: #c0392b;
+        background: #fdecea;
+        color: #9b2c1f;
+      }
+
+      .chip.warn {
+        border-color: #e8a64a;
+        background: var(--warn-bg);
+        color: var(--warn-text);
+      }
+      .side {
+        margin-top: 22px;
+        padding-top: 10px;
+        border-top: 6px solid;
+      }
+      .side.current {
+        border-color: var(--current);
+      }
+      .side.proposed {
+        border-color: var(--proposed);
+      }
+      .side-label {
+        margin: 0 0 11px;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+      }
+      .pair {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 26px;
+        align-items: flex-start;
+      }
+      .frame {
+        overflow: hidden;
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        border-radius: 12px;
+        background: white;
+        box-shadow: var(--shadow);
+      }
+      .frame.desktop {
+        width: 922px;
+        max-width: 100%;
+      }
+      .frame.phone {
+        width: 377px;
+        border-radius: 20px;
+      }
+      .chrome {
+        height: 34px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 12px;
+        background: var(--grey100);
+        border-bottom: 1px solid var(--divider);
+      }
+      .dots {
+        display: flex;
+        gap: 5px;
+      }
+      .dots i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #bdbdbd;
+      }
+      .url {
+        min-width: 0;
+        flex: 1;
+        overflow: hidden;
+        padding: 3px 9px;
+        border: 1px solid var(--divider);
+        border-radius: 20px;
+        background: white;
+        color: var(--secondary);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 11px;
+      }
+      .badge {
+        white-space: nowrap;
+        color: var(--secondary);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+      .viewport {
+        overflow: hidden;
+      }
+      .desktop-vp {
+        width: 1280px;
+        zoom: 0.72;
+      }
+      .phone-vp {
+        width: 375px;
+      }
+      .current-shot {
+        display: grid;
+        grid-template-columns: minmax(0, 922px) 377px;
+        gap: 24px;
+        align-items: start;
+      }
+      .current-shot img {
+        display: block;
+        width: 100%;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        background: white;
+        box-shadow: var(--shadow);
+      }
+      .new-note {
+        padding: 24px;
+        border: 1px dashed rgba(0, 0, 0, 0.28);
+        border-radius: 10px;
+        background: white;
+        color: var(--secondary);
+        line-height: 1.5;
+      }
+
+      /* WhatsApp review frames. */
+      .wa-app {
+        display: flex;
+        min-height: 760px;
+        background: var(--wa-chat);
+      }
+      .wa-sidebar {
+        width: 330px;
+        border-right: 1px solid #d8dbdd;
+        background: white;
+      }
+      .wa-side-head {
+        padding: 19px;
+        background: #f0f2f5;
+        font-weight: 700;
+      }
+      .wa-thread {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        border-bottom: 1px solid #edf0f2;
+      }
+      .wa-thread.selected {
+        background: #f0f2f5;
+      }
+      .avatar {
+        display: grid;
+        width: 44px;
+        height: 44px;
+        flex: none;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--primary);
+        color: white;
+        font-weight: 800;
+      }
+      .wa-main {
+        display: flex;
+        min-width: 0;
+        flex: 1;
+        flex-direction: column;
+      }
+      .wa-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 64px;
+        padding: 9px 16px;
+        border-bottom: 1px solid #d8dbdd;
+        background: #f0f2f5;
+      }
+      .wa-head small,
+      .wa-thread small {
+        display: block;
+        margin-top: 2px;
+        color: #667781;
+      }
+      .wa-chat {
+        flex: 1;
+        padding: 44px 8%;
+        background-color: var(--wa-chat);
+        background-image: radial-gradient(rgba(0, 0, 0, 0.035) 1px, transparent 1px);
+        background-size: 18px 18px;
+      }
+      .wa-day {
+        width: max-content;
+        margin: 0 auto 24px;
+        padding: 7px 12px;
+        border-radius: 7px;
+        background: #fff;
+        color: #667781;
+        font-size: 12px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+      }
+      .wa-bubble {
+        width: 420px;
+        max-width: 88%;
+        overflow: hidden;
+        border-radius: 8px;
+        background: white;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+      }
+      .wa-copy {
+        padding: 13px 14px 8px;
+        color: #111b21;
+        line-height: 1.42;
+        white-space: pre-line;
+        font-size: 14px;
+      }
+      .wa-copy strong {
+        font-size: 15px;
+      }
+      .wa-meta {
+        margin-top: 8px;
+        color: #667781;
+        text-align: right;
+        font-size: 11px;
+      }
+      .wa-action {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 46px;
+        border-top: 1px solid #e9edef;
+        color: var(--wa-link);
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .wa-compose {
+        min-height: 60px;
+        padding: 10px 16px;
+        background: #f0f2f5;
+      }
+      .wa-compose span {
+        display: block;
+        padding: 10px 15px;
+        border-radius: 22px;
+        background: white;
+        color: #8696a0;
+      }
+      .phone .wa-app {
+        min-height: 720px;
+      }
+      .phone .wa-sidebar {
+        display: none;
+      }
+      .phone .wa-head {
+        min-height: 58px;
+        background: var(--wa-green);
+        color: white;
+      }
+      .phone .wa-head small {
+        color: rgba(255, 255, 255, 0.78);
+      }
+      .phone .avatar {
+        width: 38px;
+        height: 38px;
+        background: white;
+        color: var(--primary);
+      }
+      .phone .wa-chat {
+        padding: 24px 14px;
+      }
+      .phone .wa-bubble {
+        width: 318px;
+        max-width: 100%;
+      }
+      .phone .wa-copy {
+        font-size: 14px;
+      }
+
+      /* Public RSVP page. */
+      .rsvp-shell {
+        min-height: 760px;
+        padding: 46px 22px;
+        background: var(--grey100);
+      }
+      .rsvp-wrap {
+        max-width: 760px;
+        margin: auto;
+      }
+      .rsvp-brand {
+        margin: 0 0 14px;
+        color: var(--secondary);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.09em;
+      }
+      .card {
+        padding: 30px;
+        border: 1px solid var(--divider);
+        border-radius: 12px;
+        background: white;
+      }
+      .card + .card {
+        margin-top: 18px;
+      }
+      .event-type {
+        display: inline-flex;
+        margin-bottom: 12px;
+        padding: 4px 10px;
+        border-radius: 16px;
+        background: var(--primary);
+        color: white;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+      }
+      .rsvp-title {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.2;
+      }
+      .event-time {
+        margin: 8px 0 0;
+        font-size: 18px;
+        font-weight: 650;
+      }
+      .facts {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        margin: 24px 0;
+      }
+      .fact small {
+        display: block;
+        margin-bottom: 3px;
+        color: var(--secondary);
+        font-weight: 700;
+      }
+      .alert {
+        padding: 14px 16px;
+        border-radius: var(--radius);
+        line-height: 1.45;
+        font-size: 14px;
+      }
+      .alert + .alert {
+        margin-top: 12px;
+      }
+      .alert.success {
+        background: var(--success-bg);
+        color: var(--success-text);
+      }
+      .alert.info {
+        background: var(--info-bg);
+        color: var(--info-text);
+      }
+      .alert.warn {
+        background: var(--warn-bg);
+        color: var(--warn-text);
+      }
+      .section-title {
+        margin: 26px 0 6px;
+        font-size: 19px;
+      }
+      .help {
+        margin: 0 0 15px;
+        color: var(--secondary);
+        line-height: 1.45;
+        font-size: 14px;
+      }
+      .field {
+        margin-top: 16px;
+      }
+      .field label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .field label span {
+        color: var(--secondary);
+        font-weight: 500;
+      }
+      .field input,
+      .field textarea,
+      .field select {
+        width: 100%;
+        min-height: 48px;
+        padding: 11px 12px;
+        border: 1px solid rgba(0, 0, 0, 0.28);
+        border-radius: 6px;
+        background: white;
+      }
+      .field textarea {
+        min-height: 90px;
+      }
+      .choice-row,
+      .btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .choice {
+        flex: 1;
+        min-width: 120px;
+        padding: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.25);
+        border-radius: 6px;
+        background: white;
+        text-align: center;
+      }
+      .choice.selected {
+        border: 2px solid var(--primary);
+        background: #edf3ff;
+        color: var(--primary-dark);
+        font-weight: 700;
+      }
+      .btn-row {
+        margin-top: 22px;
+      }
+      .btn {
+        min-height: 48px;
+        padding: 10px 18px;
+        border-radius: 7px;
+        font-weight: 700;
+      }
+      .btn.primary {
+        border: 1px solid var(--primary);
+        background: var(--primary);
+        color: white;
+      }
+      .btn.outline {
+        border: 1px solid var(--primary);
+        background: white;
+        color: var(--primary);
+      }
+      .btn.text {
+        border: 0;
+        background: transparent;
+        color: var(--primary);
+      }
+      .proof {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin: 18px 0;
+        padding: 14px 16px;
+        border-left: 4px solid var(--primary);
+        background: #f1f5fb;
+      }
+      .proof strong {
+        display: block;
+      }
+      .proof b {
+        font-size: 24px;
+        color: var(--primary);
+      }
+      .inbox-list {
+        display: grid;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .invite-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 14px;
+        padding: 16px;
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+      }
+      .invite-row.next {
+        border: 2px solid var(--primary);
+        background: #f7f9ff;
+      }
+      .invite-row h3 {
+        margin: 5px 0;
+        font-size: 17px;
+      }
+      .invite-row p {
+        margin: 2px 0;
+        color: var(--secondary);
+        font-size: 13px;
+      }
+      .mini-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        justify-content: center;
+      }
+      .mini-actions button {
+        min-width: 110px;
+        padding: 8px 12px;
+        border: 1px solid var(--primary);
+        border-radius: 6px;
+        background: white;
+        color: var(--primary);
+        font-weight: 700;
+      }
+      .mini-actions button.emphasis {
+        background: var(--primary);
+        color: white;
+      }
+      .phone .rsvp-shell {
+        min-height: 720px;
+        padding: 22px 16px;
+      }
+      .phone .card {
+        padding: 20px;
+      }
+      .phone .rsvp-title {
+        font-size: 24px;
+      }
+      .phone .event-time {
+        font-size: 16px;
+      }
+      .phone .facts {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin: 18px 0;
+      }
+      .phone .btn-row,
+      .phone .choice-row {
+        flex-direction: column;
+      }
+      .phone .btn,
+      .phone .choice {
+        width: 100%;
+      }
+      .phone .invite-row {
+        grid-template-columns: 1fr;
+      }
+      .phone .mini-actions {
+        flex-direction: row;
+      }
+      .phone .mini-actions button {
+        flex: 1;
+        min-width: 0;
+      }
+
+      /* Email pressure specimen. */
+      .mail {
+        min-height: 760px;
+        padding: 54px 12%;
+        background: #f6f8fb;
+      }
+      .mail-card {
+        max-width: 720px;
+        margin: auto;
+        border: 1px solid #dfe3e8;
+        border-radius: 12px;
+        background: white;
+        box-shadow: var(--shadow);
+      }
+      .mail-head {
+        padding: 22px 26px;
+        border-bottom: 1px solid var(--divider);
+      }
+      .mail-head h2 {
+        margin: 0 0 8px;
+        font-size: 21px;
+      }
+      .mail-body {
+        padding: 28px 30px 34px;
+        line-height: 1.55;
+      }
+      .mail-body h3 {
+        margin: 0 0 12px;
+        font-size: 23px;
+      }
+      .mail-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+      }
+      .phone .mail {
+        min-height: 720px;
+        padding: 18px 12px;
+      }
+      .phone .mail-body,
+      .phone .mail-head {
+        padding: 20px;
+      }
+      .phone .mail-actions {
+        flex-direction: column;
+      }
+
+      @media (max-width: 800px) {
+        .page {
+          padding: 24px 12px 70px;
+        }
+        .current-shot {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <div class="crumbs">
+          <a href="index.html">Mission 4 mockups</a>
+          <span>W2</span>
+          <a href="../workflows/W2-answer-an-invitation.md">Specification</a>
+        </div>
+        <h1>W2 · Answer an invitation</h1>
+        <p>
+          Draft revision after Brian's 24 and 25 August reviews. One synthetic player and event run
+          through the plain first invitation, the stronger chase, the answer-specific pages and the
+          player's own durable page. Screens are review evidence, not implementation.
+        </p>
+        <div class="research">
+          <strong>WhatsApp constraint found in Meta's official platform examples</strong>
+          Quick Reply buttons return a payload to the webhook; Call-to-Action website buttons open a
+          page. The standard template does not do both in one action. This mockup shows Brian's
+          requested one-click journey using website buttons and marks scanner-safe recording as an
+          approval gate. A No click records No immediately with the honest default
+          <b>No reason given</b> until the player supplies the actual reason.
+        </div>
+        <div class="legend">
+          <span><i class="key current"></i>CURRENT — on <code>main</code> today</span>
+          <span><i class="key proposed"></i>PROPOSED — this mission</span>
+          <span><i class="chip proposed">Proposed</i>new or changed surface</span>
+        </div>
+      </header>
+      <div id="screens"></div>
+    </div>
+
+    <script>
+      const event = {
+        type: "TEAM PRACTICE",
+        name: "Michaelmas week 3",
+        when: "Wednesday, 14 October 2026 · 20:00–22:00",
+        venue: "Iffley Road Sports Centre",
+        deadline: "Tuesday, 13 October at 18:00",
+      };
+
+      const screens = [
+        {
+          id: "W2-01",
+          title: "The first invitation arrives as a WhatsApp choice",
+          disposition: "Modified",
+          note: "The current provider template has four body parameters and exposes the signed URL as body content. The proposal is an approved utility template with two website actions and no peer counts: the first contact is a plain invitation.",
+          deltas: [
+            "Raw URL removed from primary body copy",
+            "Yes and No are visible WhatsApp actions",
+            "No social proof: first contact is a plain invitation",
+          ],
+          url: "web.whatsapp.com · Oxford Lancers",
+          current: "wa-current",
+          proposed: "wa-first",
+        },
+        {
+          id: "W2-02",
+          title: "The chase gets stronger instead of repeating itself",
+          disposition: "Modified",
+          note: "Today there is one invitation template and no scheduled second message or email rung. The proposed reminder and email use distinct approved wording, updated counts and an honest statement of what the club is waiting for.",
+          deltas: [
+            "Second WhatsApp template is more urgent",
+            "Email is a distinct final player chase",
+            "Counts are dispatch-time snapshots",
+          ],
+          url: "web.whatsapp.com · Oxford Lancers",
+          current: "repeat-current",
+          proposed: "pressure",
+        },
+        {
+          id: "W2-03",
+          title: "Yes is recorded, then the player finishes event questions",
+          disposition: "Modified",
+          note: "The shipped saved state confirms an answer and stops. The proposal records Yes from the selected action, then places full event details, social proof, required questions and the outstanding-invitations notice on the page.",
+          deltas: [
+            "Yes confirmation leads",
+            "Mission 2 questions are answered here",
+            "Outstanding RSVP count is prominent",
+          ],
+          url: "lancers.example/rsvp/••••/yes",
+          current: "current-yes",
+          proposed: "yes-page",
+        },
+        {
+          id: "W2-04",
+          title: "No is recorded immediately with No reason given",
+          disposition: "Modified",
+          note: "Brian resolved that the button click is the answer. The proposed page shows the standing No with the default No reason given, strongly asks for the actual reason, and gives Change to Yes the strongest treatment.",
+          deltas: [
+            "No is standing immediately",
+            "No reason given is the honest default",
+            "Change to Yes is primary",
+          ],
+          url: "lancers.example/rsvp/••••/no",
+          current: "current-no",
+          proposed: "no-page",
+        },
+        {
+          id: "W2-05",
+          title: "The sequence ends on the player's own page",
+          disposition: "New",
+          note: "No current player surface shows other invitations. Every answer ends here. Events still needing an answer sit at the top; below them is everything this player has already answered that has not happened yet, so a standing Yes or No can be changed without waiting to be asked again.",
+          deltas: [
+            "Needs-an-answer work sits above already-answered events",
+            "Answered events stay visible and changeable until they happen",
+            "Only the same player's work appears; no peer identity",
+          ],
+          url: "lancers.example/me/••••",
+          current: "none",
+          proposed: "inbox",
+        },
+        {
+          id: "W2-06",
+          title: "Nothing outstanding, and somewhere useful to go",
+          disposition: "New",
+          note: "The end of the sequence when the player has answered everything. It confirms they are done rather than dropping them on a blank page, and offers the public calendar as the one useful onward step available without an account.",
+          deltas: [
+            "Confirms the queue is genuinely empty",
+            "Answered upcoming events remain reachable",
+            "Links to the public calendar shipped by LAN-153",
+          ],
+          url: "lancers.example/me/••••",
+          current: "none",
+          proposed: "empty",
+        },
+      ];
+
+      function chrome(url, badge, body, kind) {
+        return `<div class="frame ${kind}">
+          <div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">${url}</span><span class="badge">${badge}</span></div>
+          <div class="viewport"><div class="${kind === "desktop" ? "desktop-vp" : "phone-vp"} ${kind}">${body}</div></div>
+        </div>`;
+      }
+
+      function waShell(message) {
+        return `<div class="wa-app">
+          <aside class="wa-sidebar"><div class="wa-side-head">Chats</div><div class="wa-thread selected"><span class="avatar">OL</span><div><b>Oxford Lancers</b><small>We still need your answer…</small></div></div><div class="wa-thread"><span class="avatar" style="background:#6b7280">S</span><div><b>Synthetic chat</b><small>Training update</small></div></div></aside>
+          <section class="wa-main"><header class="wa-head"><span class="avatar">OL</span><div><b>Oxford Lancers</b><small>Official business account</small></div></header><div class="wa-chat"><div class="wa-day">TODAY</div>${message}</div><footer class="wa-compose"><span>Message</span></footer></section>
+        </div>`;
+      }
+
+      function bubble(copy, actions = []) {
+        return `<div class="wa-bubble"><div class="wa-copy">${copy}<div class="wa-meta">10:02 ✓✓</div></div>${actions.map((a) => `<div class="wa-action">↗&nbsp; ${a}</div>`).join("")}</div>`;
+      }
+
+      function whatsappCurrent() {
+        return waShell(
+          bubble(
+            `<strong>You're invited, Jamie Example</strong>\n\n${event.name}\n${event.when}\n\nRespond here:\n<span style="color:#027eb5">https://lancers.example/rsvp/••••</span>`,
+          ),
+        );
+      }
+
+      function whatsappFirst() {
+        return waShell(
+          bubble(
+            `<strong>You're invited to ${event.name}</strong>\n\n${event.when}\n${event.venue}\n\nPlease answer by ${event.deadline}.`,
+            ["Yes — view details", "No — give reason"],
+          ),
+        );
+      }
+
+      function whatsappReminder() {
+        return waShell(
+          bubble(
+            `<strong>We still need your answer</strong>\n\n${event.name} is coming up. <strong>18 others are attending.</strong>\n\nPlease answer now so coaches can plan.`,
+            ["Yes — view details", "No — give reason"],
+          ),
+        );
+      }
+
+      function mail() {
+        return `<div class="mail"><div class="mail-card"><div class="mail-head"><h2>Action required: RSVP for ${event.name}</h2><div><b>Oxford Lancers</b> &lt;events@lancers.example&gt;</div></div><div class="mail-body"><h3>Jamie, the club still needs your answer.</h3><p>${event.when}<br>${event.venue}</p><div class="proof"><b>21</b><div><strong>people have already said Yes</strong>Your answer affects numbers, transport and coaching plans.</div></div><p>Please respond now. Your answer affects numbers, transport and coaching plans.</p><div class="mail-actions"><button class="btn primary">Yes — view details</button><button class="btn outline">No — give reason</button></div></div></div></div>`;
+      }
+
+      function eventHeader(status) {
+        return `<span class="event-type">${event.type}</span><h1 class="rsvp-title">${event.name}</h1><p class="event-time">${event.when}</p><div class="facts"><div class="fact"><small>Player</small>Jamie Example</div><div class="fact"><small>Venue</small>${event.venue}</div><div class="fact"><small>Response deadline</small>${event.deadline}</div><div class="fact"><small>Your answer</small>${status}</div></div>`;
+      }
+
+      function yesPage() {
+        return `<div class="rsvp-shell"><div class="rsvp-wrap"><p class="rsvp-brand">LANCERS OPERATIONS</p><article class="card"><div class="alert info"><strong>You have 2 other invitations to answer.</strong> Answer these questions, then we'll take you to the next invitation.</div><div style="height:14px"></div>${eventHeader("Attending")}<div class="alert success"><strong>You're attending.</strong> Your WhatsApp choice has been recorded. Additional questions are still outstanding.</div><div class="proof"><b>12</b><div><strong>other people have said Yes</strong>This is the live count for this event. No names are shown.</div></div><h2 class="section-title">Additional questions</h2><p class="help">Your Yes is already saved. The event organiser also needs these answers.</p><div class="field"><label>Can you arrive by 19:45? <span>Required</span></label><div class="choice-row"><button class="choice selected">Yes</button><button class="choice">No</button></div></div><div class="field"><label>Transport <span>Optional</span></label><select><option>Select one</option><option>I can drive</option><option>I need a lift</option><option>Not needed</option></select></div><div class="btn-row"><button class="btn primary">Save questions and continue</button><button class="btn text">Plans changed? Change to No</button></div></article></div></div>`;
+      }
+
+      function noPage() {
+        return `<div class="rsvp-shell"><div class="rsvp-wrap"><p class="rsvp-brand">LANCERS OPERATIONS</p><article class="card"><div class="alert info"><strong>You have 2 other invitations to answer.</strong> Change to Yes, or give a reason to continue.</div><div style="height:14px"></div>${eventHeader("Not attending · No reason given")}<div class="alert warn"><strong>You're recorded as not attending — no reason given.</strong><br>The club plans numbers, transport and coaching from these responses. Tell the club why if you can.</div><div class="proof"><b>12</b><div><strong>other people are attending</strong>If you can make it after all, change your answer to Yes.</div></div><div class="btn-row"><button class="btn primary">Change to Yes</button></div><div class="field"><label>Why can't you attend? <span>Replace “No reason given”</span></label><textarea placeholder="Give the club a clear reason"></textarea></div><div class="btn-row"><button class="btn outline">Give a reason and continue</button></div></article></div></div>`;
+      }
+
+      function inbox() {
+        return `<div class="rsvp-shell"><div class="rsvp-wrap"><p class="rsvp-brand">LANCERS OPERATIONS</p><article class="card"><div class="alert success"><strong>Your response is saved.</strong> You're attending ${event.name}.</div><h1 class="rsvp-title" style="margin-top:24px">You have 2 invitations to answer</h1><p class="help">Answer the next one now. Below that, everything you have already answered and that is still to come.</p><h2 class="section-title">New invitations</h2><div class="inbox-list"><div class="invite-row next"><div><span class="chip proposed">Next</span><h3>Away Game vs Northbridge Comets</h3><p>Saturday, 17 October · 14:00</p><p><b>16 others have said Yes</b> · Answer by Thursday at 18:00</p></div><div class="mini-actions"><button class="emphasis">Yes</button><button>No</button></div></div></div><h2 class="section-title">Still need your answer</h2><div class="inbox-list"><div class="invite-row"><div><span class="chip">Awaiting answer</span><h3>Strength &amp; Conditioning</h3><p>Friday, 16 October · 18:30</p><p>You opened this invitation but have not selected Yes or No.</p></div><div class="mini-actions"><button class="emphasis">Yes</button><button>No</button></div></div></div><h2 class="section-title">Follow-up needed</h2><div class="inbox-list"><div class="invite-row"><div><span class="chip danger">No reason given</span><h3>Recruitment Meeting</h3><p>Monday, 19 October · 19:00</p><p>Your No is recorded. Add the reason if you can.</p></div><div class="mini-actions"><button class="emphasis">Change to Yes</button><button>Add reason</button></div></div></div><h2 class="section-title">Your answers — still to come</h2><p class="help">Everything you have already answered that has not happened yet. Change any of them.</p><div class="inbox-list"><div class="invite-row"><div><span class="chip success">Attending</span><h3>${event.name}</h3><p>${event.when}</p><p>Answered just now. Additional questions outstanding.</p></div><div class="mini-actions"><button class="emphasis">Answer questions</button><button>Change to No</button></div></div><div class="invite-row"><div><span class="chip success">Attending</span><h3>Chalk Talk — Defence</h3><p>Tuesday, 20 October · 19:00</p><p>Answered on 9 October.</p></div><div class="mini-actions"><button>Change to No</button></div></div><div class="invite-row"><div><span class="chip danger">Not attending</span><h3>Club Social</h3><p>Thursday, 22 October · 20:00</p><p>You said: away that weekend.</p></div><div class="mini-actions"><button class="emphasis">Change to Yes</button><button>Edit reason</button></div></div></div></article></div></div>`;
+      }
+
+      function emptyPage() {
+        return `<div class="rsvp-shell"><div class="rsvp-wrap"><p class="rsvp-brand">LANCERS OPERATIONS</p><article class="card"><div class="alert success"><strong>Your response is saved.</strong> You're attending ${event.name}.</div><h1 class="rsvp-title" style="margin-top:24px">No outstanding events</h1><p class="help">You have answered every invitation waiting for you. Nothing else needs an answer right now.</p><h2 class="section-title">Your answers — still to come</h2><p class="help">Change any of these while the event is still ahead.</p><div class="inbox-list"><div class="invite-row"><div><span class="chip success">Attending</span><h3>${event.name}</h3><p>${event.when}</p><p>Answered just now.</p></div><div class="mini-actions"><button>Change to No</button></div></div><div class="invite-row"><div><span class="chip danger">Not attending</span><h3>Club Social</h3><p>Thursday, 22 October &middot; 20:00</p><p>You said: away that weekend.</p></div><div class="mini-actions"><button class="emphasis">Change to Yes</button><button>Edit reason</button></div></div></div><div class="btn-row"><button class="btn outline">See what else the club has coming up</button></div></article></div></div>`;
+      }
+
+      function proposedBody(kind) {
+        if (kind === "wa-first") return whatsappFirst();
+        if (kind === "pressure") return whatsappReminder();
+        if (kind === "yes-page") return yesPage();
+        if (kind === "no-page") return noPage();
+        if (kind === "empty") return emptyPage();
+        return inbox();
+      }
+
+      function currentSide(screen) {
+        if (screen.current === "wa-current" || screen.current === "repeat-current") {
+          return `<div class="pair">${chrome(screen.url, `${screen.id} · DESKTOP 1280`, whatsappCurrent(), "desktop")}${chrome(screen.url, `${screen.id} · 375`, whatsappCurrent(), "phone")}</div>`;
+        }
+        if (screen.current === "current-yes") {
+          return `<div class="current-shot"><img src="../../../../docs/ux/wireframes/UX-62-rsvp-saved-desktop.svg" alt="Current saved RSVP desktop"><img src="../../../../docs/ux/wireframes/UX-62-rsvp-saved-phone.svg" alt="Current saved RSVP phone"></div>`;
+        }
+        if (screen.current === "current-no") {
+          return `<div class="current-shot"><img src="../../../../docs/ux/wireframes/UX-61-rsvp-not-attending-desktop.svg" alt="Current No reason desktop"><img src="../../../../docs/ux/wireframes/UX-61-rsvp-not-attending-phone.svg" alt="Current No reason phone"></div>`;
+        }
+        return `<div class="new-note"><strong>New surface, nothing to compare.</strong><br>The current signed RSVP route is scoped to one invitation and dies when that event starts. W2 replaces it with a durable page belonging to the person for the season, showing everything they still owe an answer on and everything they have already answered that is still to come.</div>`;
+      }
+
+      function proposedSide(screen) {
+        if (screen.proposed === "pressure") {
+          return `<div class="pair">${chrome(screen.url, `${screen.id} · DESKTOP 1280`, whatsappReminder(), "desktop")}${chrome("mail.google.com · Oxford Lancers", `${screen.id} · 375 EMAIL`, mail(), "phone")}</div>`;
+        }
+        const body = proposedBody(screen.proposed);
+        return `<div class="pair">${chrome(screen.url, `${screen.id} · DESKTOP 1280`, body, "desktop")}${chrome(screen.url, `${screen.id} · 375`, body, "phone")}</div>`;
+      }
+
+      document.getElementById("screens").innerHTML = screens
+        .map(
+          (screen) =>
+            `<section class="screen" id="${screen.id}"><header class="screen-head"><span class="screen-tab">${screen.id}</span><h2>${screen.title} · ${screen.disposition}</h2><p>${screen.note}</p><ul class="deltas">${screen.deltas.map((d) => `<li>${d}</li>`).join("")}</ul><span class="clock">Now: 12 October 2026 · 10:02 Europe/London</span></header><div class="side current"><p class="side-label">CURRENT — on <code>main</code> today</p>${currentSide(screen)}</div><div class="side proposed"><p class="side-label">PROPOSED — this mission</p>${proposedSide(screen)}</div></section>`,
+        )
+        .join("");
+    </script>
+  </body>
+</html>
