@@ -95,16 +95,6 @@ export function changeSummary(row: PlannedRow): string {
   return `${row.changes.length} field${row.changes.length > 1 ? "s" : ""} changed: ${fields}`;
 }
 
-/** "6 new · 3 updated · 36 unchanged · 2 refused", for the screen reader line. */
-export function describeTotals(totals: {
-  new: number;
-  updated: number;
-  unchanged: number;
-  refused: number;
-}): string {
-  return `${totals.new} new · ${totals.updated} updated · ${totals.unchanged} unchanged · ${totals.refused} refused`;
-}
-
 /** The Apply button's label, which counts what it will actually write. */
 export function applyLabel(applicableCount: number): string {
   if (applicableCount === 0) return "Nothing to apply";

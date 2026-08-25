@@ -1,4 +1,9 @@
-import { labelFor, shortMonthOf, TERM_LABELS } from "@/lib/services/event-vocabulary";
+import {
+  formatDatePart,
+  labelFor,
+  shortMonthOf,
+  TERM_LABELS,
+} from "@/lib/services/event-vocabulary";
 import type { TermWindow } from "@/lib/services/event-input";
 
 /**
@@ -30,21 +35,10 @@ import type { TermWindow } from "@/lib/services/event-input";
  * once in `@/lib/club-time` rather than here.
  */
 
-function part(day: string, options: Intl.DateTimeFormatOptions): string {
-  return new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" }).format(
-    new Date(`${day}T00:00:00Z`),
-  );
-}
-
 /** "October 2026" — the Gregorian view's heading. */
 export function formatMonthLabel(month: string): string {
   const anchor = `${month}-01`;
-  return `${part(anchor, { month: "long" })} ${part(anchor, { year: "numeric" })}`;
-}
-
-/** "2026-10" as a `<input type="month">` understands it. Identity, but named. */
-export function monthInputValue(month: string): string {
-  return month;
+  return `${formatDatePart(anchor, { month: "long" })} ${formatDatePart(anchor, { year: "numeric" })}`;
 }
 
 /**
@@ -57,12 +51,12 @@ export function monthInputValue(month: string): string {
  * another row to be read.
  */
 export function formatWeekRange(startsOn: string, endsOn: string): string {
-  const startDay = part(startsOn, { day: "numeric" });
-  const endDay = part(endsOn, { day: "numeric" });
+  const startDay = formatDatePart(startsOn, { day: "numeric" });
+  const endDay = formatDatePart(endsOn, { day: "numeric" });
   const startMonth = shortMonthOf(startsOn);
   const endMonth = shortMonthOf(endsOn);
-  const startYear = part(startsOn, { year: "numeric" });
-  const endYear = part(endsOn, { year: "numeric" });
+  const startYear = formatDatePart(startsOn, { year: "numeric" });
+  const endYear = formatDatePart(endsOn, { year: "numeric" });
 
   if (startYear !== endYear) {
     return `${startDay} ${startMonth} ${startYear} – ${endDay} ${endMonth} ${endYear}`;
@@ -80,15 +74,15 @@ export function formatTermName(term: TermWindow): string {
 
 /** "Sun 27" — the day number in a term-card or month cell. */
 export function formatDayNumber(day: string): string {
-  return part(day, { day: "numeric" });
+  return formatDatePart(day, { day: "numeric" });
 }
 
 /** "Wed 14 Oct 2026" — the accessible name a cell gives its date. */
 export function formatCellDate(day: string): string {
-  const weekday = part(day, { weekday: "short" });
-  const dayNumber = part(day, { day: "numeric" });
+  const weekday = formatDatePart(day, { weekday: "short" });
+  const dayNumber = formatDatePart(day, { day: "numeric" });
   const month = shortMonthOf(day);
-  const year = part(day, { year: "numeric" });
+  const year = formatDatePart(day, { year: "numeric" });
   return `${weekday} ${dayNumber} ${month} ${year}`;
 }
 

@@ -48,9 +48,5 @@ export const EMPTY_IMPORT_STATE: ImportScreenState = {
   applied: null,
 };
 
-/** The three things the one action can be asked to do. */
-export const IMPORT_INTENTS = ["propose", "apply", "cancel"] as const;
-export type ImportIntent = (typeof IMPORT_INTENTS)[number];
-
 /** What the operator is told when they chose no file at all. */
 export const NO_FILE_CHOSEN_MESSAGE = "Choose a CSV file to import.";

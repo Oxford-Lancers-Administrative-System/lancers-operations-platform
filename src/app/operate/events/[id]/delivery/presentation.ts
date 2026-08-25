@@ -129,15 +129,32 @@ export const DIAGNOSTICS_NOTE =
 export const SEARCH_LABEL = "Search invitees";
 export const OPEN_SELECTED_ISSUE = "Open selected issue";
 
-/** The status filter's options. "Needs attention" is the wireframe's default. */
+/**
+ * The five provider-neutral states offered as filters — `held` and
+ * `cancelled` are not, because there is nothing an operator does differently
+ * for either from this screen.
+ */
+const FILTERABLE_STATES: readonly DeliveryState[] = Object.freeze([
+  "queued",
+  "attempted",
+  "delivered",
+  "failed",
+  "retryable",
+]);
+
+/**
+ * The status filter's options. "Needs attention" is the wireframe's default.
+ *
+ * Labels come from {@link DELIVERY_STATE_LABELS} rather than a second copy of
+ * the same five words, so the filter and the chip can never say the state
+ * differently.
+ */
 export const STATUS_FILTERS: readonly { value: string; label: string }[] = Object.freeze([
   Object.freeze({ value: "", label: "All" }),
   Object.freeze({ value: "attention", label: "Needs attention" }),
-  Object.freeze({ value: "queued", label: "Queued" }),
-  Object.freeze({ value: "attempted", label: "Attempted" }),
-  Object.freeze({ value: "delivered", label: "Delivered" }),
-  Object.freeze({ value: "failed", label: "Failed" }),
-  Object.freeze({ value: "retryable", label: "Retryable" }),
+  ...FILTERABLE_STATES.map((state) =>
+    Object.freeze({ value: state, label: DELIVERY_STATE_LABELS[state] }),
+  ),
 ]);
 
 /** "Needs attention" is failed or retryable — the two an operator can act on. */

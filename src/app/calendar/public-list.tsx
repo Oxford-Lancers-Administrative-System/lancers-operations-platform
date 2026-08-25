@@ -1,4 +1,3 @@
-import Alert from "@mui/material/Alert";
 import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import Chip from "@mui/material/Chip";
@@ -201,13 +200,4 @@ function whereItIs(event: PublicEventListEntry): string {
     return event.venue ?? labelFor(DELIVERY_MODE_LABELS, "online");
   }
   return event.venue ?? labelFor(DELIVERY_MODE_LABELS, "in_person");
-}
-
-/** The empty state shown when the season has events but this period has none. */
-export function PublicEmpty({ testId, children }: { testId: string; children: string }) {
-  return (
-    <Alert severity="info" data-testid={testId}>
-      {children}
-    </Alert>
-  );
 }

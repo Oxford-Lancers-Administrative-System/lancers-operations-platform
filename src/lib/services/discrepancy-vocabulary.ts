@@ -71,8 +71,6 @@ export const STORED_MISMATCH_CLASSES = Object.freeze([
   "attended_without_invitation",
 ] as const);
 
-export type StoredMismatchClass = (typeof STORED_MISMATCH_CLASSES)[number];
-
 /**
  * What the participation table derives. Two of the stored spellings, plus one
  * case the view does not classify.

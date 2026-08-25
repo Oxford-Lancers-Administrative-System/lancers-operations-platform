@@ -377,8 +377,6 @@ export const PARTICIPATION_SORT_COLUMNS = Object.freeze([
   "attendance",
 ] as const);
 
-export type ParticipationSortColumn = (typeof PARTICIPATION_SORT_COLUMNS)[number];
-
 /** `answer=` accepts these three, and "no answer" is a real, filterable state. */
 export const ANSWER_FILTERS = Object.freeze(["yes", "no", "none"] as const);
 

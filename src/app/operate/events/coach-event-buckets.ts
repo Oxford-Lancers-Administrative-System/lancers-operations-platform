@@ -40,6 +40,7 @@
  * administration § 3 withholds, and listing a cancelled game under Upcoming
  * would be worse than not listing it.
  */
+import { todayInClubZone } from "@/lib/club-time";
 import { isRegisterAvailable } from "@/lib/services/attendance-window";
 import type { EventListEntry } from "@/lib/services/events";
 
@@ -72,23 +73,19 @@ export const COACH_VISIBLE_STATUSES: readonly string[] = Object.freeze(["approve
 /**
  * Today's date in the club's timezone, as `YYYY-MM-DD`.
  *
- * `en-CA` because it formats exactly that way, which is also how
- * `events.scheduled_on` arrives — a `date` column, not an instant. Comparing
- * two `YYYY-MM-DD` strings lexicographically is the same comparison PostgreSQL
- * would make, and it avoids constructing a `Date` per row and then arguing with
- * it about which day a 23:00 kickoff in October belongs to.
+ * Delegates to `@/lib/club-time`'s `todayInClubZone` — the one place this
+ * repository answers "which day is it in Oxford", per that module's own
+ * doc — rather than carrying a second `Intl.DateTimeFormat` call reaching the
+ * same conclusion. Kept as its own name here because this file's callers, and
+ * its tests, know it as `londonToday`.
  *
- * Europe/London rather than the server's zone: the club is in Oxford, and a
- * container in `europe-west2` running on UTC would put a 00:30 social on the
- * wrong day for half the year.
+ * Comparing the returned `YYYY-MM-DD` strings lexicographically is the same
+ * comparison PostgreSQL would make against `events.scheduled_on`, and it
+ * avoids constructing a `Date` per row and then arguing with it about which
+ * day a 23:00 kickoff in October belongs to.
  */
 export function londonToday(now: Date = new Date()): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
+  return todayInClubZone(now);
 }
 
 /** The same date, `days` later. Both argument and result are `YYYY-MM-DD`. */

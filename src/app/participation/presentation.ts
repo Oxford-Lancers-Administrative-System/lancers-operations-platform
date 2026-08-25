@@ -3,6 +3,7 @@ import type {
   ParticipationDiscrepancy,
   ParticipationPerson,
 } from "@/lib/services/participation-view";
+import { CAPACITY_LABELS } from "../operate/events/presentation";
 
 /**
  * The participation table's words, in one place — W7. LAN-157.
@@ -72,6 +73,13 @@ export {
  */
 export { formatTermAndWeek } from "../operate/events/presentation";
 
+/**
+ * `invitation_capacity`, in the club's words — re-exported rather than a
+ * second copy. This file used to carry its own byte-identical map; the
+ * `formatTermAndWeek` note above is the exact defect that shape invites.
+ */
+export { CAPACITY_LABELS };
+
 // ---------------------------------------------------------------------------
 // The table
 // ---------------------------------------------------------------------------
@@ -88,15 +96,6 @@ export const TABLE_HEADINGS = Object.freeze({
 
 /** What a cell with nothing in it prints. One glyph, everywhere. */
 export const NOTHING = "—";
-
-/** `invitation_capacity`, plus the row that has none. */
-export const CAPACITY_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  player: "Player",
-  coach: "Coach",
-  committee: "Committee",
-  guest: "Guest",
-  recruit: "Recruit",
-});
 
 /** Invariant P6's row: attended, never asked. */
 export const WALK_UP_LABEL = "Walk-up";

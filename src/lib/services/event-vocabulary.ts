@@ -15,6 +15,10 @@
  * `server-only`, safe in a client component, and owned by the service layer
  * because the words are the domain's rather than a screen's.
  *
+ * `CLUB_TIME_ZONE` itself is re-exported from `@/lib/club-time` rather than
+ * declared here a second time — that module's own docs are explicit that a
+ * second timezone literal is exactly the drift LAN-114 forbids.
+ *
  * What did **not** move is anything tiered. `STATUS_LABELS` is here because the
  * word for `approved` is "Approved" wherever it is legitimately shown; *whether*
  * a reader may be shown it is `@/lib/auth/event-tier`'s question, and no answer
@@ -43,6 +47,30 @@ export function labelFor(labels: Readonly<Record<string, string>>, value: string
   return labels[value] ?? value;
 }
 
+/**
+ * "A, B and C" — the club's punctuation rather than ICU's.
+ *
+ * Shared rather than screen-local because the audience summary
+ * (`@/app/operate/events/[id]/page.tsx`) and the approval refusal that names a
+ * missing date or name (`@/lib/services/event-approval.ts`) both join a short
+ * list of things the same way, and the service layer cannot import from
+ * `app/` to reach a screen's copy of it.
+ */
+export function joinWithAnd(parts: readonly string[]): string {
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+/**
+ * D86. The zone every event time is in, said rather than assumed.
+ *
+ * Per-user timezones are a later release (DEC-timezone); this is the club's,
+ * fixed, and stated wherever a time is shown to somebody who did not enter it.
+ * Re-exported rather than redeclared — see the module doc above.
+ */
+export { CLUB_TIME_ZONE } from "@/lib/club-time";
+
 // ---------------------------------------------------------------------------
 // Dates and times
 // ---------------------------------------------------------------------------
@@ -54,17 +82,21 @@ export function labelFor(labels: Readonly<Record<string, string>>, value: string
  * "Wednesday, 14 October" on another, and the wireframes show the comma. This
  * way the punctuation is the repository's, and a CI runner with a different ICU
  * build cannot change what a reader sees.
+ *
+ * Exported because `@/app/calendar/presentation` needs the identical UTC
+ * reading for the same `YYYY-MM-DD` values and must not carry a second copy
+ * of it — see this file's module doc.
  */
-function part(scheduledOn: string, options: Intl.DateTimeFormatOptions): string {
+export function formatDatePart(day: string, options: Intl.DateTimeFormatOptions): string {
   return new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "UTC" }).format(
-    new Date(`${scheduledOn}T00:00:00Z`),
+    new Date(`${day}T00:00:00Z`),
   );
 }
 
 /**
  * Month abbreviations, owned by this repository rather than asked of ICU.
  *
- * The same reasoning as `part()` above, and found the same way. `en-GB` with
+ * The same reasoning as `formatDatePart()` above, and found the same way. `en-GB` with
  * `month: "short"` renders September as **"Sept"** on some ICU builds and "Sep"
  * on others, so the abbreviation a reader sees would depend on which Node the
  * container happened to be built with — and a calendar whose whole job is to
@@ -100,20 +132,20 @@ export function shortMonthOf(day: string): string {
  */
 export function formatShortDate(scheduledOn: string | null): string {
   if (!scheduledOn) return "No date yet";
-  const weekday = part(scheduledOn, { weekday: "short" });
-  const day = part(scheduledOn, { day: "numeric" });
+  const weekday = formatDatePart(scheduledOn, { weekday: "short" });
+  const day = formatDatePart(scheduledOn, { day: "numeric" });
   const month = shortMonthOf(scheduledOn);
-  const year = part(scheduledOn, { year: "numeric" });
+  const year = formatDatePart(scheduledOn, { year: "numeric" });
   return `${weekday} ${day} ${month} ${year}`;
 }
 
 /** "Sunday, 18 October 2026" — the detail heading. Year, for the same reason. */
 export function formatLongDate(scheduledOn: string | null): string {
   if (!scheduledOn) return "No date yet";
-  const weekday = part(scheduledOn, { weekday: "long" });
-  const day = part(scheduledOn, { day: "numeric" });
-  const month = part(scheduledOn, { month: "long" });
-  const year = part(scheduledOn, { year: "numeric" });
+  const weekday = formatDatePart(scheduledOn, { weekday: "long" });
+  const day = formatDatePart(scheduledOn, { day: "numeric" });
+  const month = formatDatePart(scheduledOn, { month: "long" });
+  const year = formatDatePart(scheduledOn, { year: "numeric" });
   return `${weekday}, ${day} ${month} ${year}`;
 }
 
@@ -146,14 +178,6 @@ export function formatDetailWhen(event: EventWhen & { endsAt: string | null }): 
   const date = formatLongDate(event.scheduledOn);
   return times ? `${date} · ${times}` : date;
 }
-
-/**
- * D86. The zone every event time is in, said rather than assumed.
- *
- * Per-user timezones are a later release (DEC-timezone); this is the club's,
- * fixed, and stated wherever a time is shown to somebody who did not enter it.
- */
-export const CLUB_TIME_ZONE = "Europe/London";
 
 // ---------------------------------------------------------------------------
 // The enums, in the club's words
@@ -218,3 +242,11 @@ export function venueLabel(deliveryMode: string): string {
 export function describeAttendance(isMandatory: boolean): string {
   return isMandatory ? "Mandatory" : "Optional";
 }
+
+/**
+ * The label for `required_equipment` — the public event page's own word for
+ * it. Shared with `@/lib/services/calendar-feed`, which folds the same field
+ * into `DESCRIPTION` under this exact label rather than inventing a heading
+ * vocabulary of its own (Q-29).
+ */
+export const EQUIPMENT_LABEL = "What to bring";

@@ -1,5 +1,5 @@
 import type { TermCoordinate, TermWindow } from "@/lib/services/event-input";
-import { labelFor, TERM_LABELS } from "@/lib/services/event-vocabulary";
+import { joinWithAnd, labelFor, TERM_LABELS } from "@/lib/services/event-vocabulary";
 
 /**
  * How an event reads on the **operator's** screens — UX-30, UX-31, UX-32, UX-33.
@@ -37,6 +37,7 @@ export {
   formatLongDate,
   formatShortDate,
   formatTimes,
+  joinWithAnd,
   labelFor,
   SHORT_MONTHS,
   shortMonthOf,
@@ -107,14 +108,6 @@ export const CLUB_TIME_ZONE_NOTE =
 export const JOINING_URL_IS_NEVER_PUBLIC =
   "Never shown on the public calendar or in a subscription feed. How an invited person " +
   "receives it is not yet built.";
-
-/** `event_origin` in the club's words — Source Data Analysis §5.6. */
-export const ORIGIN_LABELS: Readonly<Record<string, string>> = Object.freeze({
-  club_controlled: "Club",
-  externally_assigned: "Assigned externally",
-  externally_scheduled: "Scheduled externally",
-  negotiated: "Negotiated",
-});
 
 /**
  * The derived coordinate in the club's words — "Michaelmas 2026-27, Week 1", or
@@ -213,13 +206,6 @@ export function describeBuilderDefault(
 ): string {
   if (groupLabels.length === 0) return "Choose who this event is for.";
   return `The ${eventTypeLabel} template invites ${joinWithAnd(groupLabels).toLowerCase()}. Check it, change it, or add people by hand.`;
-}
-
-/** "A, B and C" — the club's punctuation rather than ICU's. */
-export function joinWithAnd(parts: readonly string[]): string {
-  if (parts.length === 0) return "";
-  if (parts.length === 1) return parts[0];
-  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
 /** UX-42 — the empty-audience refusal, which is a screen rather than a toast. */
