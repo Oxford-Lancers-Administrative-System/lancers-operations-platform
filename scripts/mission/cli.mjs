@@ -29,6 +29,7 @@ import {
   packageLifecycle,
   readJournal,
   replayState,
+  validateEvent,
 } from "./lib/state.mjs";
 import { promoteRule, readRules } from "./lib/owner-rules.mjs";
 import { deriveGitVisualFiles, evaluateProspectiveMissionGate, loadRules } from "./merge-gate.mjs";
@@ -99,6 +100,13 @@ async function append(missionId, event) {
 
 function openQuestions(state) {
   return Object.values(state.questions).filter((question) => question.status === "open");
+}
+
+function checkWithoutAppending(missionId, event, label) {
+  const state = replayState(repoPath, missionId);
+  const errors = validateEvent({ at: new Date().toISOString(), ...event }, state);
+  if (errors.length > 0) fail(`Refused ${event.type}:\n- ${errors.join("\n- ")}`);
+  console.log(`${label} is valid; journal unchanged.`);
 }
 
 function resourceLine() {
@@ -394,14 +402,21 @@ async function main() {
     case "receipt": {
       const [, packageId] = positional;
       if (!missionId || !packageId || !flags.worker || !flags.receipt) {
-        fail("Usage: mission receipt <mission-id> <package-id> --worker <id> --receipt <file>");
+        fail(
+          "Usage: mission receipt <mission-id> <package-id> --worker <id> --receipt <file> [--check]",
+        );
       }
-      await append(missionId, {
+      const event = {
         type: "worker-receipt",
         package_id: packageId,
         worker_id: flags.worker,
         receipt: readJson(flags.receipt),
-      });
+      };
+      if (flags.check === true) {
+        checkWithoutAppending(missionId, event, `Receipt for ${packageId}`);
+        break;
+      }
+      await append(missionId, event);
       console.log(`Receipt recorded for ${packageId}.`);
       break;
     }
@@ -424,18 +439,23 @@ async function main() {
 
     case "correction": {
       const [, packageId] = positional;
-      if (!missionId || !packageId || !flags.worker || !flags.findings) {
+      if (!missionId || !packageId || !flags.worker || (!flags.findings && !flags["record-only"])) {
         fail(
-          "Usage: mission correction <mission-id> <package-id> --worker <original-worker-id> --findings R-001,R-002",
+          "Usage: mission correction <mission-id> <package-id> --worker <original-worker-id> [--findings R-001,R-002] [--record-only R-003]",
         );
       }
       await append(missionId, {
         type: "correction-dispatched",
         package_id: packageId,
         worker_id: flags.worker,
-        finding_ids: String(flags.findings).split(",").filter(Boolean),
+        finding_ids: flags.findings ? String(flags.findings).split(",").filter(Boolean) : [],
+        record_only_finding_ids: flags["record-only"]
+          ? String(flags["record-only"]).split(",").filter(Boolean)
+          : [],
       });
-      console.log(`Original worker ${flags.worker} resumed on ${packageId} with review lineage.`);
+      console.log(
+        `Original worker ${flags.worker} resumed or re-scoped on ${packageId} with review lineage.`,
+      );
       break;
     }
 
@@ -457,17 +477,22 @@ async function main() {
     case "review": {
       const [, packageId] = positional;
       if (!missionId || !packageId || !flags.receipt) {
-        fail("Usage: mission review <mission-id> <package-id> --receipt <file>");
+        fail("Usage: mission review <mission-id> <package-id> --receipt <file> [--check]");
       }
       const receipt = readJson(flags.receipt);
       if (receipt.review_mode === "security-tier") {
         requireNonEmptyFile(receipt.report, "Security-tier review report");
       }
-      await append(missionId, {
+      const event = {
         type: "review-receipt",
         package_id: packageId,
         receipt,
-      });
+      };
+      if (flags.check === true) {
+        checkWithoutAppending(missionId, event, `Review receipt for ${packageId}`);
+        break;
+      }
+      await append(missionId, event);
       console.log(`Review receipt recorded for ${packageId}.`);
       break;
     }

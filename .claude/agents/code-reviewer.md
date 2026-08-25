@@ -104,6 +104,10 @@ never approves an unresolved blocker.
 ## Report
 
 Write the supplied report file and notify the orchestrator with only its path.
+For a mission review, write its `review.json` and run
+`mission review ... --receipt review.json --check` before notifying the Lead;
+the pure check validates against replayed state without filing it. The Lead owns
+the actual journal append.
 Include issue/PR, mode, full-review SHA, correction base, reviewed/integrated and
 package heads, round/budget, requirement provenance, findings grouped by
 disposition, resolved IDs, result, `ci_state: green` only after exact-head CI,
