@@ -92,7 +92,7 @@
     {
       "id": "W5",
       "name": "Chase the people who have not answered",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -852,5 +852,5 @@
       }
     ]
   },
-  "next_action": "Draft the W5 specification — chase the people who have not answered (Stage 3)"
+  "next_action": "Review the W5 specification and mockup with Brian (Stage 3)"
 }
