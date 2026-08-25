@@ -241,26 +241,42 @@ one worked example for the whole page.
 
 Escalation is expressed as hours **after the RSVP deadline**, not after a date.
 
-### What the preview immediately exposed
+### The anchor, settled: count forward from the invitation
 
-A **game** sends its first invitation 21 days out with a 24-hour cadence, so all
-four player messages land 21, 20, 19 and 18 days before the event — and its RSVP
-deadline is 7 days before. **The whole ladder finishes eleven days before the
-deadline it is chasing**, and the President is then told about people who last
-heard from the club a fortnight earlier.
+Brian, 2026-08-25: _"Count forward from the invitations."_ The reminders run
+forward from the invitation on the cadence, and are not anchored backwards from
+the RSVP deadline.
 
-A cadence anchored to the first invitation works when the runway is short and
-fails when it is long. Two ways out, and this needs Brian:
+**That makes the first-invitation value derivable rather than free.** The last
+reminder lands at `invitation + (reminders × cadence)`. For it to arrive near the
+deadline instead of well before it:
 
-1. **Anchor the reminders to the RSVP deadline and count backwards.** The
-   invitation still goes early; the reminders cluster where they matter. A
-   24-hour cadence then means the last three days before the deadline.
-2. **Keep the forward cadence but stretch it per type** — a game would need a
-   cadence measured in days, not hours, to span 21 days to 7.
+```
+first invitation = RSVP deadline + (number of reminders × cadence)
+```
 
-Recommendation: **1**. The invitation announces; the reminders chase. Chasing
-should happen near the thing being chased, and it keeps one cadence value
-meaningful across every event type.
+With three reminders at 24 hours, that gives:
+
+| Event type                                 | RSVP deadline | First invitation   | Reminders land |
+| ------------------------------------------ | ------------- | ------------------ | -------------- |
+| Practice, S&C, chalk, recruitment, meeting | 2 days before | **5 days before**  | 4, 3, 2        |
+| Game                                       | 7 days before | **10 days before** | 9, 8, 7        |
+| Social                                     | 5 days before | **8 days before**  | 7, 6, 5        |
+
+The earlier placeholders — 7, 21 and 14 days — were built for a model where the
+reminders clustered near the deadline by other means, and under forward counting
+they produce the gap the preview exposed: a game invited 21 days out finishes its
+ladder eleven days before the deadline it is chasing.
+
+**Whether the first-invitation value stays editable or becomes derived is not
+settled.** Leaving it editable keeps the club's freedom to announce a game early;
+deriving it makes the gap impossible. A middle option keeps it editable and lets
+the row's own preview warn when the last reminder lands more than a day before
+the deadline, which is what the preview already does.
+
+Recommendation: **keep it editable and keep the warning.** Announcing a game
+three weeks out is a real thing a club wants to do, and the warning turns the
+consequence into information rather than a refusal.
 
 ## What the research says
 
@@ -323,23 +339,25 @@ the page:
 
 ## Core decisions
 
-| Decision                                                                                                        | Classification                | Governing evidence or recommended default                                                              | Status                             |
-| --------------------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------- |
-| A settings page exists at `/operate/admin/messaging`, reversing ADR 0021                                        | `proposed for owner approval` | Brian 2026-08-25: "Okay, we're building it. We're changing what we said here." Needs a superseding ADR | **Reversal — needs recording**     |
-| Deadlines keep ADR 0021's day counts but are measured from the event start, not 18:00                           | `proposed for owner approval` | Brian 2026-08-25: "it should just be 2 days before the start of the event". Changes an ADR 0021 value  | **Value change — needs recording** |
-| No per-event override                                                                                           | `locked`                      | ADR 0021                                                                                               | Settled                            |
-| There are no quiet hours                                                                                        | `locked`                      | `OWN-no-quiet-hours`, confirmed at W1                                                                  | Settled                            |
-| It lives under Administration, beside Follow-ups                                                                | `proposed for owner approval` | Consistent with the W5 placement decision                                                              | Recommended                        |
-| The ladder is a cadence, not per-rung offsets: every N hours, N=24                                              | `proposed for owner approval` | Brian 2026-08-25: "it waits 24 hours, then sends the next one"                                         | Recommended                        |
-| Reminders default to 2 WhatsApp and 1 email                                                                     | `proposed for owner approval` | Brian 2026-08-25                                                                                       | Recommended                        |
-| President escalation is 12 hours after the RSVP date for every type                                             | `proposed for owner approval` | Brian 2026-08-25, replacing the per-type values and the zero-hour game                                 | Recommended                        |
-| The page previews the dates a row produces                                                                      | `proposed for owner approval` | Brian asked for a better way to show cadence; inputs alone are unreadable as policy                    | Recommended                        |
-| Reminders anchor to the RSVP deadline, not the invitation                                                       | `proposed for owner approval` | The preview showed a game's ladder finishing 11 days before its own deadline                           | **Needs Brian — two options**      |
-| The invitation anchor and ladder offsets                                                                        | `proposed for owner approval` | No approved values exist; ADR 0021's precedent is that they must not be invented                       | **Needs Brian — values**           |
-| A late-approved event sends immediately, fills the remaining time, guarantees one WhatsApp, and never escalates | `locked`                      | Brian 2026-08-25, replacing compression entirely                                                       | Settled                            |
-| Whether the email rung still sends on a late-approved event                                                     | `proposed for owner approval` | Brian's rule names WhatsApp; the email is the last rung of an order W1 froze                           | **Open — one question**            |
-| Changes never apply retroactively to approved events                                                            | `proposed for owner approval` | Their deadlines are frozen on the invitation and their jobs already scheduled                          | Recommended                        |
-| Where the sibling policy file sits and its shape                                                                | `delegated to Mission Lead`   | `T03-config-location` fixes that it is one sibling file                                                | Delegated                          |
+| Decision                                                                                                        | Classification                | Governing evidence or recommended default                                           | Status                   |
+| --------------------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------- | ------------------------ |
+| A settings page exists at `/operate/admin/messaging`, reversing ADR 0021, recorded in a superseding ADR         | `locked`                      | Brian 2026-08-25: "Yes, it's a superseding ADR."                                    | Settled                  |
+| Deadlines keep ADR 0021's day counts but are measured from the event start; carried by the same superseding ADR | `locked`                      | Brian 2026-08-25                                                                    | Settled                  |
+| No per-event override                                                                                           | `locked`                      | ADR 0021                                                                            | Settled                  |
+| There are no quiet hours                                                                                        | `locked`                      | `OWN-no-quiet-hours`, confirmed at W1                                               | Settled                  |
+| It lives under Administration, beside Follow-ups                                                                | `proposed for owner approval` | Consistent with the W5 placement decision                                           | Recommended              |
+| The ladder is a cadence, not per-rung offsets: every N hours, N=24                                              | `proposed for owner approval` | Brian 2026-08-25: "it waits 24 hours, then sends the next one"                      | Recommended              |
+| Reminders default to 2 WhatsApp and 1 email                                                                     | `proposed for owner approval` | Brian 2026-08-25                                                                    | Recommended              |
+| President escalation is 12 hours after the RSVP date for every type                                             | `proposed for owner approval` | Brian 2026-08-25, replacing the per-type values and the zero-hour game              | Recommended              |
+| The page previews the dates a row produces                                                                      | `proposed for owner approval` | Brian asked for a better way to show cadence; inputs alone are unreadable as policy | Recommended              |
+| Reminders count forward from the invitation, not backwards from the deadline                                    | `locked`                      | Brian 2026-08-25: "Count forward from the invitations."                             | Settled                  |
+| First invitation should be deadline + (reminders x cadence): 5, 10 and 8 days                                   | `proposed for owner approval` | Follows arithmetically from counting forward; the earlier 7/21/14 leave a gap       | Recommended              |
+| The first-invitation value stays editable, with the preview warning on a gap                                    | `proposed for owner approval` | Announcing a game early is legitimate; a warning informs rather than refuses        | Recommended              |
+| The invitation anchor and ladder offsets                                                                        | `proposed for owner approval` | No approved values exist; ADR 0021's precedent is that they must not be invented    | **Needs Brian — values** |
+| A late-approved event sends immediately, fills the remaining time, guarantees one WhatsApp, and never escalates | `locked`                      | Brian 2026-08-25, replacing compression entirely                                    | Settled                  |
+| Whether the email rung still sends on a late-approved event                                                     | `proposed for owner approval` | Brian's rule names WhatsApp; the email is the last rung of an order W1 froze        | **Open — one question**  |
+| Changes never apply retroactively to approved events                                                            | `proposed for owner approval` | Their deadlines are frozen on the invitation and their jobs already scheduled       | Recommended              |
+| Where the sibling policy file sits and its shape                                                                | `delegated to Mission Lead`   | `T03-config-location` fixes that it is one sibling file                             | Delegated                |
 
 ## Brian approval
 
