@@ -16,23 +16,48 @@
   change one is stated in the product rather than known only by the person who
   built it.
 
-## There is no settings screen, and that is deliberate
+## ADR 0021 is reversed here: there is a settings page
 
-`T03-config-model`: central repository configuration on the **ADR 0021 pattern,
-with no admin UI in Release One.** ADR 0021 says it in its own words — _"No
-per-event override, and no configuration-administration surface. Not a field, not
-a query parameter, not an 'advanced' disclosure."_
+`T03-config-model` and ADR 0021 both said there would be no
+configuration-administration surface in Release One. **Brian reversed that on
+2026-08-25** after asking what it would cost: _"Okay, we're building it. We're
+changing what we said here, so we're going to do admin."_
 
-So this workflow is two halves that must not be confused:
+The cost was measured before he decided, and it is small:
 
-- **Find out** — a page in the app that _shows_ the rules. Read-only, always.
-- **Change them** — a reviewed change to one file in the repository, which is
-  club policy and therefore needs Brian. `T03-config-location`: one sibling
-  policy file, plus **the operator-readable pointer answering where a change is
-  requested**.
+- Only **three call sites** read the values, all in
+  `src/lib/services/event-approval.ts`.
+- `resolveResponseDeadlineIn(tx, …)` is **already asynchronous and already
+  inside a transaction**, because it resolves Europe/London wall clock in
+  PostgreSQL. Reading configuration from a table instead of a constant needs no
+  new boundary.
+- `/operate/admin/operators` and `/operate/admin/roles` already exist, so the
+  page copies a shipped pattern rather than inventing one.
+- `audit_events` already exists, so attribution is wiring rather than invention.
 
-A read-only display is not the administration surface the ADR forbids. The
-pointer is what stops "read-only" meaning "undiscoverable".
+**This requires a superseding ADR.** ADR 0021 must be recorded as reversed on
+its configuration-surface point, deliberately and in writing, rather than
+quietly contradicted by an implementation. Its other three rules survive intact:
+the table is complete with no default arm, a past deadline is clamped to the
+approval moment, and **there is still no per-event override** — the page sets
+policy per event type, never per event.
+
+### What is traded
+
+Today a rule change is a reviewed pull request, permanently in version control,
+requiring Brian. It becomes a runtime change recorded in `audit_events` —
+faster, and easier to make casually. For values deciding when 47 people are
+messaged, that cuts both ways, which is why every change is attributed and why
+events already approved keep the schedule they were approved with.
+
+### Where it lives
+
+`/operate/admin/messaging`, titled **Messaging schedule**, beside Operators and
+Roles.
+
+**Not "Delivery".** That word already means the per-event delivery telemetry at
+`/operate/events/[id]/delivery` which W6 owns, and reusing it for policy would
+collide with a meaning the product has already established.
 
 ## What already exists
 
@@ -95,16 +120,48 @@ it degenerating into option 1, and when even the floor does not fit, it becomes
 option 4 rather than a burst. It needs one number — the floor — and that is a
 value, not a mechanism.
 
+## When an event is approved too late for its own schedule
+
+Brian raised this at review on 2026-08-25 and was right that nothing covered it.
+Checked: ADR 0021 clamps a past deadline to the approval moment and states
+_"there is no minimum-notice window"_, and it anticipated the consequence — a
+late approval _"puts its whole audience into the nonresponse queue at once."_
+But escalation did not exist when it was written, and **no decision anywhere
+connects a clamped deadline to escalation N.**
+
+The failure it leaves is sharp. A game is approved two days out. Its seven-day
+answer-by date has already passed, so it clamps to now. Escalation N for a game
+is **zero hours**. The President is escalated **at the instant of approval** —
+before one message has been delivered, let alone answered.
+
+Three rules close it, and all three are configurable on the page:
+
+1. **The answer-by date becomes now**, and the approver is told before
+   committing. Unchanged from ADR 0021.
+2. **The reminders compress**, keeping their order, down to a **minimum gap**.
+   If even that will not fit, only the invitation is sent.
+3. **Nobody is escalated before they have had a chance to answer.** Escalation
+   fires no earlier than a **minimum answer window** after the first message is
+   actually sent, however short the runway and whatever N says. Escalation
+   therefore fires at the later of the two: the answer-by date plus N, or the
+   first message plus the minimum answer window.
+
+Rule 3 is the new one, and it is what stops a late approval telling the
+President about people who have not yet been asked.
+
 ## How a change is actually made
 
 The page states it, in the product:
 
-> These rules are club policy. They live in the repository and are changed by a
-> reviewed change to one file, approved by Brian. To request a change, open an
-> issue describing the rule and why it should differ.
+Changes take effect for events approved afterwards. **Events already approved
+keep the schedule they were approved with**, because their invitations already
+carry a frozen deadline and their jobs are already scheduled. Every change is
+recorded against the operator who made it.
 
-That sentence is the whole of `T03-config-location`'s "operator-readable
-pointer". Without it, read-only means a dead end.
+`T03-config-location`'s "operator-readable pointer" is satisfied differently now
+that the page is editable: the answer to "where is this changed" is "here", and
+the page states who may change it and what a change does not retroactively
+affect.
 
 ## Handoffs
 
@@ -150,18 +207,19 @@ pointer". Without it, read-only means a dead end.
 
 ## Core decisions
 
-| Decision                                          | Classification                | Governing evidence or recommended default                                        | Status                         |
-| ------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------- | ------------------------------ |
-| No configuration-administration surface exists    | `locked`                      | `T03-config-model`, ADR 0021 in its own words                                    | Settled                        |
-| Response deadlines keep ADR 0021's shipped values | `locked`                      | `T03-deadline-values`; the table ships today                                     | Settled                        |
-| No per-event override                             | `locked`                      | ADR 0021                                                                         | Settled                        |
-| There are no quiet hours                          | `locked`                      | `OWN-no-quiet-hours`, confirmed at W1                                            | Settled                        |
-| A read-only rules page exists in the app          | `proposed for owner approval` | `T03-config-location` requires an operator-readable pointer                      | Recommended                    |
-| It lives under Administration, beside Follow-ups  | `proposed for owner approval` | Consistent with the W5 placement decision                                        | Recommended                    |
-| The invitation anchor and ladder offsets          | `proposed for owner approval` | No approved values exist; ADR 0021's precedent is that they must not be invented | **Needs Brian — values**       |
-| Escalation N per event type                       | `proposed for owner approval` | `T03-escalation-hours` fixes the shape, not the numbers                          | **Needs Brian — values**       |
-| Short-runway compression                          | `proposed for owner approval` | The earlier drop-and-gap proposal was reopened and is not approved               | **Needs Brian — four options** |
-| Where the sibling policy file sits and its shape  | `delegated to Mission Lead`   | `T03-config-location` fixes that it is one sibling file                          | Delegated                      |
+| Decision                                                                      | Classification                | Governing evidence or recommended default                                                              | Status                         |
+| ----------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------ |
+| A settings page exists at `/operate/admin/messaging`, reversing ADR 0021      | `proposed for owner approval` | Brian 2026-08-25: "Okay, we're building it. We're changing what we said here." Needs a superseding ADR | **Reversal — needs recording** |
+| Response deadlines keep ADR 0021's shipped values                             | `locked`                      | `T03-deadline-values`; the table ships today                                                           | Settled                        |
+| No per-event override                                                         | `locked`                      | ADR 0021                                                                                               | Settled                        |
+| There are no quiet hours                                                      | `locked`                      | `OWN-no-quiet-hours`, confirmed at W1                                                                  | Settled                        |
+| It lives under Administration, beside Follow-ups                              | `proposed for owner approval` | Consistent with the W5 placement decision                                                              | Recommended                    |
+| The invitation anchor and ladder offsets                                      | `proposed for owner approval` | No approved values exist; ADR 0021's precedent is that they must not be invented                       | **Needs Brian — values**       |
+| Escalation N per event type                                                   | `proposed for owner approval` | `T03-escalation-hours` fixes the shape, not the numbers                                                | **Needs Brian — values**       |
+| Short-runway compression                                                      | `proposed for owner approval` | The earlier drop-and-gap proposal was reopened and is not approved                                     | **Needs Brian — four options** |
+| Escalation never fires before a minimum answer window after the first message | `proposed for owner approval` | Nothing connected a clamped deadline to escalation N; a game at N=0 would escalate at approval         | **New rule — needs Brian**     |
+| Changes never apply retroactively to approved events                          | `proposed for owner approval` | Their deadlines are frozen on the invitation and their jobs already scheduled                          | Recommended                    |
+| Where the sibling policy file sits and its shape                              | `delegated to Mission Lead`   | `T03-config-location` fixes that it is one sibling file                                                | Delegated                      |
 
 ## Brian approval
 

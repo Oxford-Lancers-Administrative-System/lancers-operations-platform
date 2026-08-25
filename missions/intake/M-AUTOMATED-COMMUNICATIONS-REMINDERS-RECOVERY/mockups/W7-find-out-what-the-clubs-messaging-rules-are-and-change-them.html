@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>W7 · Find out what the club's messaging rules are — mockup</title>
+    <title>W7 · Messaging schedule — mockup</title>
     <style>
       /* Tokens taken from src/theme.ts, MUI v9 defaults, the shipped LAN-79
        * RSVP page, and WhatsApp's current mobile/Web visual conventions.
@@ -800,7 +800,7 @@
         letter-spacing: 0.04em;
       }
       .scroller {
-        max-height: 620px;
+        max-height: 640px;
         overflow: auto;
         background: #fff;
       }
@@ -836,52 +836,51 @@
         font-size: 12px;
         color: var(--secondary);
       }
-      .ask {
+      .blk {
         margin: 26px 0 0;
         padding: 16px 18px;
-        border-left: 4px solid #e8a64a;
-        background: #fff;
         border-radius: 0 8px 8px 0;
+        background: #fff;
+        border-left: 4px solid var(--primary);
       }
-      .ask h3 {
+      .blk h3 {
         margin: 0 0 8px;
         font-size: 16px;
-        color: #8a5a12;
       }
-      .ask h4 {
-        margin: 16px 0 5px;
+      .blk h4 {
+        margin: 15px 0 5px;
         font-size: 13px;
       }
-      .ask p {
+      .blk p {
         margin: 0 0 9px;
         font-size: 13px;
       }
-      .ask ol {
+      .blk ul {
         margin: 0 0 9px;
         padding-left: 20px;
         font-size: 13px;
       }
-      .ask li {
+      .blk li {
         margin-bottom: 6px;
       }
-      .ask .rec {
+      .rev {
+        border-left-color: #c0392b;
+      }
+      .rev h3 {
+        color: #9b2c1f;
+      }
+      .gap {
+        border-left-color: #e8a64a;
+      }
+      .gap h3 {
+        color: #8a5a12;
+      }
+      .rec {
         background: #f4f8fd;
         border-radius: 6px;
         padding: 10px 13px;
         font-size: 13px;
-      }
-      .shipped {
-        margin: 26px 0 0;
-        padding: 15px 17px;
-        border-left: 4px solid #7cb680;
-        background: #fff;
-        border-radius: 0 8px 8px 0;
-        font-size: 13px;
-      }
-      .shipped h3 {
-        margin: 0 0 7px;
-        font-size: 15px;
-        color: #1e6b2e;
+        margin: 0;
       }
     </style>
   </head>
@@ -896,11 +895,11 @@
         </div>
         <h1>W7 · Find out what the club's messaging rules are, and change them</h1>
         <p>
-          The shell, table and chrome are the running application on
-          <code>main</code> @ <code>80e9616</code>, captured 25 August at 1600 and 375.
-          <b>This is not a settings screen and cannot become one</b> — ADR 0021 forbids a
-          configuration-administration surface, so the page reads the rules and tells you where a
-          change is requested.
+          The shell and chrome are the running application on <code>main</code> @
+          <code>80e9616</code>, captured 25 August at 1600 and 375.
+          <b>Changed on 25 August:</b> this was drafted as a read-only page because ADR 0021 forbade
+          a settings surface. Brian reversed that after asking what it would cost, so it is now
+          editable — and the reversal needs a superseding ADR.
         </p>
         <div class="legend">
           <span><i class="key current"></i>CURRENT — on <code>main</code> today</span>
@@ -917,55 +916,64 @@
         <section class="screen" id="W7-01">
           <header class="screen-head">
             <span class="screen-tab">W7-01</span>
-            <h2>The messaging rules, readable and read-only · New</h2>
-            <p>One page under Administration showing when the club messages people and why. It has no controls, because ADR 0021 forbids a configuration-administration surface — so it ends with the sentence that says where a change is actually requested.</p>
+            <h2>Messaging schedule — set the cadence per event type · New</h2>
+            <p>Under Administration beside Operators and Roles. Every event type gets its answer-by date, when the first invitation goes, when the two reminders follow, and how long after the deadline the President hears.</p>
             <ul class="deltas">
-              <li>Every event type, its deadline, its ladder and its escalation</li>
-              <li>States plainly that there are no quiet hours</li>
-              <li>No control on the page changes anything</li>
-              <li>Says where to request a change, so read-only is not a dead end</li>
+              <li>Editable, per event type — never per event</li>
+              <li>The ladder order is fixed and stated, not configurable</li>
+              <li>No quiet hours, stated on the page</li>
+              <li>Changes never apply to events already approved</li>
             </ul>
             <span class="clock">Captured 25 August 2026 from the running application</span>
           </header>
           <div class="side current">
             <p class="side-label">CURRENT — on <code>main</code> today</p>
-            <div class="shots">${shot("W7-current-desktop.jpg", "Desktop 1600", "real screenshot")}${shot("W7-current-375.jpg", "375", "real screenshot")}</div>
-            <p class="hint">There is no such page. The deadline values ship in <code>src/lib/services/response-deadline.ts</code> and are visible only by reading the source. Shown here is Roster, whose table and chrome the page reuses.</p>
+            <div class="shots">${shot("W7-current-admin-desktop.jpg", "Desktop 1600", "real screenshot")}${shot("W7-current-admin-375.jpg", "375", "real screenshot")}</div>
+            <p class="hint">Administration has Operators and Roles. The deadline values ship in <code>src/lib/services/response-deadline.ts</code> and are visible only by reading the source; the rest of the cadence does not exist at all.</p>
           </div>
           <div class="side proposed">
             <p class="side-label">PROPOSED — this mission</p>
-            <div class="shots">${shot("W7-01-desktop.jpg", "Desktop 1600", "real shell + new surface")}${shot("W7-01-375.jpg", "375", "real shell + new surface")}</div>
-            <p class="authored">The shell, nav, table and chrome are the running application. The pixels authored for this proposal are the <b>Messaging rules</b> nav item, the five column headings, the rows, and the two notes beneath.</p>
+            <div class="shots">${shot("W7-02-desktop.jpg", "Desktop 1600", "real shell + new surface")}${shot("W7-02-375.jpg", "375", "real shell + new surface")}</div>
+            <p class="authored">The shell, nav and chrome are the running application. The pixels authored for this proposal are the <b>Messaging schedule</b> nav item and the page content.</p>
           </div>
         </section>
 
-        <div class="shipped">
-          <h3>The deadline column is already real</h3>
-          <p style="margin:0">Those seven values ship today in <code>src/lib/services/response-deadline.ts</code>, decided by you on 13 August and recorded in ADR 0021 — two days for practice, S&amp;C, chalk, recruitment and meeting; seven for a game; five for a social; all 18:00 Europe/London. The table is complete with no default arm, so a new event type refuses rather than silently inheriting two days. <b>Everything else in the table is proposed and unapproved.</b></p>
+        <div class="blk rev">
+          <h3>This reverses ADR 0021, and that needs recording</h3>
+          <p>ADR 0021 says there is <b>no configuration-administration surface</b> — <i>"not a field, not a query parameter, not an 'advanced' disclosure."</i> You reversed that on 25 August after asking what it would cost. It needs a <b>superseding ADR</b>, written deliberately rather than left as an implementation that quietly contradicts an accepted decision.</p>
+          <h4>What it costs — measured before you decided</h4>
+          <ul>
+            <li><b>Three call sites</b>, all in <code>event-approval.ts</code>.</li>
+            <li><code>resolveResponseDeadlineIn(tx, …)</code> is <b>already async and already in a transaction</b> — reading from a table needs no new boundary.</li>
+            <li>Operators and Roles already exist to copy.</li>
+            <li><code>audit_events</code> already exists, so attribution is wiring.</li>
+          </ul>
+          <h4>What survives from ADR 0021</h4>
+          <p>The table stays complete with no default arm, a past deadline still clamps to the approval moment, and <b>there is still no per-event override</b> — this page sets policy per event <i>type</i>, never per event.</p>
+          <h4>What you trade</h4>
+          <p>A rule change stops being a reviewed pull request in version control and becomes a runtime change in <code>audit_events</code>. Faster, and easier to do casually. Hence: every change attributed, and events already approved keep the schedule they were approved with.</p>
+          <h4>Why not call it "Delivery"</h4>
+          <p>That word already means the per-event delivery telemetry at <code>/operate/events/[id]/delivery</code>, which W6 owns. Reusing it for policy would collide with a meaning the product has already established — so the route is <code>/operate/admin/messaging</code> and the page is <b>Messaging schedule</b>.</p>
         </div>
 
-        <div class="ask">
-          <h3>This workflow needs numbers from you, and one real decision</h3>
-          <p>ADR 0021's own precedent is that these must not be invented — it stopped implementation once already rather than launder an illustration into policy. The values on the page are placeholders to react to, not proposals I can approve.</p>
+        <div class="blk gap">
+          <h3>The hole you spotted, and the rule that closes it</h3>
+          <p>You were right that this was not tied down. I checked: ADR 0021 clamps a past deadline to the approval moment and says <i>"there is no minimum-notice window"</i>. It even anticipated that a late approval <i>"puts its whole audience into the nonresponse queue at once."</i> But escalation did not exist when it was written, and <b>nothing anywhere connects a clamped deadline to escalation N</b>.</p>
+          <p><b>The failure that leaves:</b> approve a game two days out. Its seven-day answer-by date has passed, so it clamps to now. Escalation for a game is <b>0 hours</b>. The President is told <b>the instant you press approve</b> — before a single message has been delivered, let alone answered.</p>
+          <p class="rec"><b>Proposed rule:</b> escalation fires at the <i>later</i> of two moments — the answer-by date plus N, or <b>the first message actually being sent plus a minimum answer window</b> (shown as 24 hours). However short the runway, nobody is escalated about people who have not yet had a chance to answer. It is one more number on the page, and it is the third rule in the late-approval box.</p>
+        </div>
 
-          <h4>1. When does the first invitation go out?</h4>
-          <p>Shown as 7 days before a practice, 21 before a game, 14 before a social. Too early and people forget; too late and the ladder has no room.</p>
-
-          <h4>2. How are the two reminders spaced?</h4>
-          <p>Shown as WhatsApp 2 and then the email, both before the deadline — for a game, 10 days and 8 days out against a 7-day deadline.</p>
-
-          <h4>3. How long after the deadline does the President hear?</h4>
-          <p>Shown as 12 hours normally, <b>0 for a game</b> — a game escalates the moment the deadline passes, because team eligibility depends on it. A social waits a day.</p>
-
-          <h4>4. What happens when there is not enough time? — the real decision</h4>
-          <p>An event approved two days before a game whose ladder wants seven cannot run it. The earlier drop-and-gap proposal was reopened and is <b>not approved</b>, so this is genuinely open:</p>
-          <ol>
-            <li><b>Send everything at once</b>, in order, as fast as delivery allows. Honest and loud — and possibly three messages in minutes.</li>
-            <li><b>Keep the order, squeeze the gaps</b> into whatever runway exists.</li>
-            <li><b>Drop the early rungs</b>, keep the strongest ones.</li>
-            <li><b>Send only the invitation</b> and let the deadline do the rest.</li>
-          </ol>
-          <p class="rec"><b>My recommendation: 2, with a floor.</b> Compression keeps the shape the approver agreed to in W1. A minimum gap — shown as 6 hours — stops it collapsing into option 1, and when even that will not fit it becomes option 4 rather than a burst. That needs one number from you, not a mechanism.</p>
+        <div class="blk">
+          <h3>Still needed from you: the numbers</h3>
+          <p>Everything except the answer-by column is a placeholder. ADR 0021's precedent is that these must not be invented — it halted implementation once rather than launder an illustration into policy.</p>
+          <ul>
+            <li><b>First invitation</b> — shown 7 days out for a practice, 21 for a game, 14 for a social.</li>
+            <li><b>Reminder spacing</b> — for a game, WhatsApp 2 at 10 days and email at 8, against a 7-day answer-by.</li>
+            <li><b>Escalation</b> — 12 hours normally, <b>0 for a game</b>, 24 for a social.</li>
+            <li><b>Minimum gap when compressing</b> — shown as 6 hours.</li>
+            <li><b>Minimum answer window before escalation</b> — shown as 24 hours.</li>
+          </ul>
+          <p style="margin:0">You said these will need fine-tuning, which is now easy — that is the point of building the page.</p>
         </div>`;
     </script>
   </body>
