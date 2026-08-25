@@ -859,76 +859,6 @@
       .ask p:last-child {
         margin: 0;
       }
-      .wa {
-        max-width: 380px;
-        background: #0b141a;
-        border-radius: 12px;
-        padding: 14px;
-        color: #e9edef;
-        font-family: Inter, system-ui, sans-serif;
-      }
-      .wa .who {
-        display: flex;
-        align-items: center;
-        gap: 9px;
-        margin-bottom: 12px;
-      }
-      .wa .av {
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        background: #1e57a8;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font:
-          700 11px/1 Inter,
-          sans-serif;
-        color: #fff;
-      }
-      .wa .nm {
-        font-weight: 700;
-        font-size: 13px;
-      }
-      .wa .sub2 {
-        font-size: 10px;
-        color: #8696a0;
-      }
-      .wa .bub {
-        background: #005c4b;
-        border-radius: 8px;
-        padding: 11px 12px;
-        font-size: 13px;
-        line-height: 1.55;
-      }
-      .wa .tick {
-        text-align: right;
-        color: #8696a0;
-        font-size: 10px;
-        margin-top: 6px;
-      }
-      .wa .cta {
-        margin-top: 8px;
-        padding-top: 9px;
-        border-top: 1px solid #1f2c34;
-        text-align: center;
-        color: #53bdeb;
-        font-size: 13px;
-      }
-      .msgwrap {
-        display: flex;
-        gap: 22px;
-        flex-wrap: wrap;
-        align-items: flex-start;
-      }
-      .msgnote {
-        flex: 1;
-        min-width: 260px;
-        font-size: 13px;
-      }
-      .msgnote li {
-        margin-bottom: 7px;
-      }
     </style>
   </head>
   <body>
@@ -1004,21 +934,19 @@
           <div class="side proposed">
             <p class="side-label">PROPOSED — this mission</p>
             <div class="msgwrap">
-              <div class="wa">
-                <div class="who"><span class="av">OL</span><div><div class="nm">Oxford Lancers</div><div class="sub2">Official business account</div></div></div>
-                <div class="bub"><b>6 people have not answered</b><br><br>vs Harewell Hawks — Sunday 13 September, 14:00.<br>The response deadline passed at 18:00.<br><br>Open the club app to see who and follow up.<div class="tick">18:00 ✓✓</div></div>
-                <div class="cta">↗ Open follow-ups</div>
-              </div>
+              ${chrome("web.whatsapp.com · Oxford Lancers", "W5-02 · DESKTOP 1280", waShell(bubble(ESC, ["Open follow-ups"])), "desktop")}
               <div class="msgnote">
-                <p><b>How it gets sent.</b> Every player-facing rung has run — WhatsApp, WhatsApp again, then email. The response deadline passes. N hours later, the system sends this once and marks the event escalated in the queue above.</p>
+                <p><b>How it gets sent.</b> Every player-facing rung has already run — WhatsApp, WhatsApp again, then email. The response deadline passes. N hours later the system sends this once, and the event shows as <b>Escalated</b> in the queue above.</p>
                 <ul>
                   <li><b>Nobody triggers it.</b> No operator presses anything; crossing the threshold is what sends it.</li>
+                  <li><b>N is set per event type</b>, and may be zero — a game can escalate the moment the deadline passes, a social can wait a day. W7 owns where that value is read and changed.</li>
                   <li><b>No names in the message.</b> It travels to a committee phone, so who has not answered stays behind the operator login.</li>
-                  <li><b>It goes to the office.</b> Whoever is President when it fires receives it — changing the seat changes the recipient with no setting to update.</li>
-                  <li><b>It is sent once.</b> Reruns, retries and backlogs never produce a second one.</li>
+                  <li><b>It goes to the office.</b> Whoever is President when it fires receives it; changing the seat changes the recipient with no setting to update.</li>
+                  <li><b>Sent once.</b> Retries, crashes and backlogs never produce a second one.</li>
                 </ul>
               </div>
             </div>
+            ${chrome("web.whatsapp.com · Oxford Lancers", "W5-02 · 375", waShell(bubble(ESC, ["Open follow-ups"])), "phone")}
             <p class="authored">Authored in full — nothing like this exists in the app, and it is not an app screen.</p>
           </div>
         </section>
