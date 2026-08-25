@@ -58,7 +58,7 @@
     {
       "id": "W3",
       "name": "Record an answer somebody gave you in person",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -834,5 +834,5 @@
       }
     ]
   },
-  "next_action": "Draft the W3 specification — record an answer somebody gave you in person (Stage 3)"
+  "next_action": "Review the W3 specification and mockup with Brian (Stage 3)"
 }
