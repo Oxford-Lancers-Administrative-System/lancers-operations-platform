@@ -156,13 +156,10 @@ the rule read as nonsense.
 There is no minimum gap, no floor, and no drop-and-gap. The rule is "start now,
 fill the time you have, guarantee one message, do not escalate."
 
-### One thing this leaves open
-
-Rules 4 and 5 name WhatsApp. Whether the **email** rung still sends when there is
-room for it, or whether a late event is WhatsApp-only, is not settled. The
-conservative reading is that the email sends if the cadence reaches it before the
-deadline, since it is the last rung of an order W1 froze. Confirmation would
-close it.
+7. **A late-approved event is WhatsApp only.** Brian, 2026-08-25: _"Late events
+   should be WhatsApp only."_ The email rung does not send, even if the cadence
+   would reach it before the deadline. On a short runway the club uses the
+   channel everybody has and does not add a second one.
 
 ## How a change is actually made
 

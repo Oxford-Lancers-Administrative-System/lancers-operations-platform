@@ -128,7 +128,12 @@
       "name": "Find out what the club's messaging rules are, and change them",
       "state": "spec_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen": "W7-01",
+          "note": "Open at Brian's pause on 2026-08-25: the five schedule values; whether reminders anchor to the RSVP deadline rather than the invitation; and the superseding ADR recording the settings-page reversal and the deadline anchor change. Brian: 'I'll fix the rest of this workflow later.'"
+        }
+      ],
       "approvals": {}
     },
     {
@@ -870,5 +875,5 @@
       }
     ]
   },
-  "next_action": "Review the W7 specification and mockup with Brian (Stage 3)"
+  "next_action": "Draft the W8 specification — keep queued messages honest when an event changes (Stage 3). W7 remains open on its values."
 }
