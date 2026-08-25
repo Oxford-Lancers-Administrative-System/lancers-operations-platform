@@ -800,14 +800,18 @@
         letter-spacing: 0.04em;
       }
       .scroller {
-        max-height: 560px;
-        overflow-y: auto;
-        overflow-x: hidden;
+        max-height: 620px;
+        overflow: auto;
         background: #fff;
       }
+      .shot.phone .scroller img {
+        width: 375px;
+      }
+
       .scroller img {
         display: block;
-        width: 100%;
+        width: auto;
+        max-width: none;
         height: auto;
       }
       .shot .foot {
@@ -927,7 +931,7 @@
       ];
 
       function shot(src, label, note) {
-        return `<div class="shot"><div class="cap"><b>${label}</b><span>${note}</span></div><div class="scroller"><img src="${src}" alt="${label}" loading="lazy" /></div><div class="foot">Scroll inside the frame — this is the whole page.</div></div>`;
+        return `<div class="shot${label === "375" ? " phone" : ""}"><div class="cap"><b>${label}</b><span>${note}</span></div><div class="scroller"><img src="${src}" alt="${label}" loading="lazy" /></div><div class="foot">Scroll inside the frame, sideways too — the whole page at real size.</div></div>`;
       }
 
       document.getElementById("screens").innerHTML =

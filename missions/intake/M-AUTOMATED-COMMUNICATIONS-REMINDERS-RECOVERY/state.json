@@ -58,10 +58,19 @@
     {
       "id": "W3",
       "name": "Record an answer somebody gave you in person",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "I trust it's there. Make the spec W3 approved.",
+          "date": "2026-08-25"
+        },
+        "mock": {
+          "words": "I trust it's there. Make the spec W3 approved.",
+          "date": "2026-08-25"
+        }
+      }
     },
     {
       "id": "W4",
@@ -834,5 +843,5 @@
       }
     ]
   },
-  "next_action": "Review the W3 specification and mockup with Brian (Stage 3)"
+  "next_action": "Draft the W4 specification — see who is coming, and who has not answered (Stage 3)"
 }
