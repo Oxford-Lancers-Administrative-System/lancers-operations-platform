@@ -800,7 +800,7 @@
         letter-spacing: 0.04em;
       }
       .scroller {
-        max-height: 640px;
+        max-height: 620px;
         overflow: auto;
         background: #fff;
       }
@@ -872,6 +872,12 @@
       .warn h3 {
         color: #9b2c1f;
       }
+      .dep {
+        border-left-color: #e8a64a;
+      }
+      .dep h3 {
+        color: #8a5a12;
+      }
       .rec {
         background: #f4f8fd;
         border-radius: 6px;
@@ -895,8 +901,8 @@
           Screenshots of the running application at
           <code>/operate/events/[id]/edit</code> on <code>main</code> @ <code>80e9616</code>,
           captured 25 August at 1600 and 375. This workflow has <b>no surface of its own</b> — it
-          runs behind Mission 2's edit page, and the only thing it adds is the consequence of
-          saving.
+          runs behind Mission 2's edit page. The first screen is evidence that the page it attaches
+          to does not accept an approved event yet.
         </p>
         <div class="legend">
           <span><i class="key current"></i>CURRENT — on <code>main</code> today</span>
@@ -910,51 +916,70 @@
         return `<div class="shot${label === "375" ? " phone" : ""}"><div class="cap"><b>${label}</b><span>${note}</span></div><div class="scroller"><img src="${src}" alt="${label}" loading="lazy" /></div><div class="foot">Scroll inside the frame, sideways too — real size.</div></div>`;
       }
       document.getElementById("screens").innerHTML = `
+        <section class="screen" id="W8-00">
+          <header class="screen-head">
+            <span class="screen-tab">W8-00</span>
+            <h2>What amending an approved event does today · Unbuilt</h2>
+            <p>Not a proposal — evidence. Opening the edit page for an approved event on <code>main</code> refuses it outright. Amend-in-place is Mission 2's approved requirement and it has not been built, so this workflow's trigger does not exist yet.</p>
+            <ul class="deltas"><li>An approved event cannot be edited at all today</li><li>Mission 2 owns building the surface; W8 owns what happens to the messages</li></ul>
+          </header>
+          <div class="side current">
+            <p class="side-label">CURRENT — on <code>main</code> today</p>
+            <div class="shots">${shot("W8-current-refusal-desktop.jpg", "Desktop 1600", "real screenshot")}${shot("W8-current-refusal-375.jpg", "375", "real screenshot")}</div>
+            <p class="hint"><b>"Only a draft can be edited. This event is approved."</b> — <code>src/lib/services/events.ts</code>. There is nowhere for this workflow to attach until Mission 2 ships <code>REQ-amend-in-place</code>.</p>
+          </div>
+        </section>
+
         <section class="screen" id="W8-01">
           <header class="screen-head">
             <span class="screen-tab">W8-01</span>
-            <h2>Saving an amendment tells you what it holds · Modified</h2>
-            <p>This workflow has no surface of its own — it runs behind Mission 2's edit page. What it adds is the consequence: which unsent messages are about to be held, and one question that decides what resumes.</p>
+            <h2>Saving an amendment tells you what it holds · Proposed on a Mission 2 surface</h2>
+            <p>The form below is the real edit page, captured on a draft — the only event a form currently opens for. What this workflow adds sits at its foot, immediately above the save control: the last thing read before committing.</p>
             <ul class="deltas">
               <li>Names the exact messages being held, and when they were due</li>
               <li>One question — does this change matter to people already invited?</li>
-              <li>Says plainly that nothing already sent is retracted</li>
-              <li>Says the deadline is recalculated when the date moves</li>
+              <li>States plainly that nothing already sent is retracted</li>
+              <li>States that the deadline recalculates when the date moves</li>
             </ul>
             <span class="clock">Captured 25 August 2026 from the running application</span>
           </header>
           <div class="side current">
             <p class="side-label">CURRENT — on <code>main</code> today</p>
-            <div class="shots">${shot("W8-current-desktop.jpg", "Desktop 1600", "real screenshot")}${shot("W8-current-375.jpg", "375", "real screenshot")}</div>
-            <p class="hint">The edit page saves the event and says nothing about messages, because there is no scheduler yet for it to say anything about.</p>
+            <div class="shots">${shot("W8-current-form-desktop.jpg", "Desktop 1600", "real screenshot")}${shot("W8-current-form-375.jpg", "375", "real screenshot")}</div>
+            <p class="hint">The draft edit form as it stands. It says nothing about messages, because there is no scheduler yet for it to say anything about.</p>
           </div>
           <div class="side proposed">
             <p class="side-label">PROPOSED — this mission</p>
             <div class="shots">${shot("W8-01-desktop.jpg", "Desktop 1600", "real screenshot + change")}${shot("W8-01-375.jpg", "375", "real screenshot + change")}</div>
-            <p class="authored">Everything else is the running application. The only pixels authored for this proposal are the amber hold panel.</p>
+            <p class="authored">Everything else is the running application. The only pixels authored for this proposal are the amber hold panel above the save control.</p>
           </div>
         </section>
+
+        <div class="blk dep">
+          <h3>A dependency worth knowing before this is scheduled</h3>
+          <p>W8's trigger is an operator amending an approved event. On <code>main</code> that is refused outright — <b>amend-in-place does not exist</b>. Mission 2's approved packet carries it as <code>REQ-amend-in-place</code>, and <code>REQ-amend-hold</code> states the split in its own words: <i>"This mission places the hold; Mission 4 decides what resumes."</i></p>
+          <p class="rec"><b>So W8 cannot be built before Mission 2 delivers the amendment surface.</b> That is a hard sequencing constraint on this mission, not a preference, and it belongs in the packet rather than being discovered by whoever picks the work up.</p>
+        </div>
 
         <div class="blk">
           <h3>Three changes, three different answers</h3>
           <h4>An amendment holds</h4>
-          <p>Unsent messages are <b>held</b>, not cancelled — the jobs still exist and are waiting on a decision. Mission 2 places the hold; this mission decides what resumes, and it follows the operator's own notify choice. Say the change matters and the held messages resume <i>plus</i> everybody already invited is told what is different. Say it does not and they resume unchanged.</p>
+          <p>Unsent messages are <b>held</b>, not cancelled — the jobs still exist, waiting on a decision. Say the change matters and they resume <i>plus</i> everybody already invited is told what is different. Say it does not and they resume unchanged.</p>
           <h4>A reschedule recomputes the chase</h4>
-          <p>This is the case ADR 0021 deliberately left open — it froze the deadline onto each invitation at approval and recorded that amending does not recompute it, because <i>"the amendment workflow is unowned and will have to decide that deliberately."</i> Mission 2 has now placed that workflow, and this is the deliberate answer: <b>a reschedule recomputes the deadline and everything counted from it.</b> A deadline frozen against a date that no longer exists is not a deadline.</p>
+          <p>This is the case ADR 0021 deliberately left open — it froze the deadline onto each invitation at approval and recorded that amending does not recompute it, because <i>"the amendment workflow is unowned and will have to decide that deliberately."</i> Mission 2 has now placed that workflow, so here is the deliberate answer: <b>a reschedule recomputes the deadline and everything counted from it.</b> A deadline frozen against a date that no longer exists is not a deadline.</p>
           <h4>A cancellation is terminal</h4>
-          <p>Its undelivered jobs are <b>cancelled, not held</b> — there is nothing to resume. Notices go out only if Mission 2 recorded that choice. And the internal cancellation reason <b>never</b> reaches a recipient: operators record why for the club's own record, and a player is told it is off, not that the coach fell out with the venue.</p>
+          <p>Its undelivered jobs are <b>cancelled, not held</b>. Notices go out only if Mission 2 recorded that choice. The internal cancellation reason <b>never</b> reaches a recipient — a player is told it is off, not that the coach fell out with the venue.</p>
         </div>
 
         <div class="blk warn">
           <h3>The mistake this workflow is most likely to make</h3>
-          <p>A job cancelled by an event change and a job that failed to deliver both end the same way: a message that never sent. They are not the same thing and must never be counted together.</p>
-          <p>W6 counts failures so an operator can repair them. Counting cancellations there manufactures work that does not exist and buries the failures that do. <b>A cancelled job never appears as a failure</b> — in a count, in a list, or in the follow-up queue.</p>
+          <p>A job cancelled by an event change and a job that failed to deliver both end the same way: a message that never sent. They are not the same thing.</p>
+          <p>W6 counts failures so an operator can repair them. Counting cancellations there manufactures work that does not exist and buries the failures that do. <b>A cancelled job never appears as a failure</b> — not in a count, not in a list, not in the follow-up queue.</p>
         </div>
 
         <div class="blk">
           <h3>D5's trigger was corrected during this intake</h3>
-          <p>The controlling brief's D5 assumed an amendment sent an event back to draft and required re-approval. <b>Neither exists.</b> Mission 2 decided an approved event is amended in place, and LAN-151 has since narrowed <code>event_status</code> to <code>draft</code>, <code>approved</code>, <code>cancelled</code> — so return-to-draft is not merely retired, it is <b>unrepresentable in the schema</b>.</p>
-          <p class="rec">Two of D5's three triggers are dead. The surviving one is the amendment hold, which is what this workflow is built on. That correction came from the Mission 2 seam handoff recorded at Stage 0 of this intake, and reading the brief in full found the same dead trigger in two further places the handoff had not named.</p>
+          <p>The controlling brief's D5 assumed an amendment sent an event back to draft and required re-approval. <b>Neither exists.</b> Mission 2 decided an approved event is amended in place, and LAN-151 has since narrowed <code>event_status</code> to <code>draft</code>, <code>approved</code>, <code>cancelled</code> — so return-to-draft is not merely retired, it is <b>unrepresentable in the schema</b>. Two of D5's three triggers are dead; the survivor is the amendment hold this workflow is built on.</p>
         </div>`;
     </script>
   </body>
