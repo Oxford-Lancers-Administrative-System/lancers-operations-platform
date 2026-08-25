@@ -139,9 +139,14 @@
     {
       "id": "W8",
       "name": "Keep queued messages honest when an event changes",
-      "state": "done",
+      "state": "spec_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W8-01",
+          "text": "Brian approved W8 on 2026-08-25: \"As long as the app thinks it's consistent, I'm fine with it. This seems like an edge case. Okay, I go ahead and approve this.\" The acceptance record is written. The ledger cannot advance W8 to done until W7 closes, because the harness requires each workflow to complete before the next is approved. W7's open values are therefore the only thing holding W8."
+        }
+      ],
       "approvals": {
         "spec": {
           "words": "As long as the app thinks it's consistent, I'm fine with it. This seems like an edge case. Okay, I go ahead and approve this.",
@@ -884,5 +889,5 @@
       }
     ]
   },
-  "next_action": "Close W7's open values, then assemble the packet (Stage 4)"
+  "next_action": "Close W7's open values; W8 is owner-approved and advances the moment W7 is done, then assemble the packet (Stage 4)"
 }
