@@ -105,12 +105,12 @@ These are distinct approved templates, not repeated copies of the first message.
 The exact approved wording is reviewed in the mockup and may be adjusted during
 Meta template approval without weakening the required information or pressure.
 
-| Rung                     | Job of the message                             | Required content                                                                                                                                 |
-| ------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **WhatsApp message 1**   | Clear invitation                               | Event, date/time, venue, deadline, **Yes — view details**, **No — give reason**. **No social proof**: first contact is a plain invitation        |
-| **WhatsApp message 2**   | Strong reminder                                | **We still need your answer**, updated Yes count, honest planning consequence, same two actions                                                  |
-| **Email**                | Final direct player chase                      | **Action required**, event and deadline, updated social proof, clear statement that the club is still waiting, equivalent Yes/No calls to action |
-| **Follow-up escalation** | Move the unresolved exception to the President | Owned by W5; no player personal data in the outbound escalation body                                                                             |
+| Rung                     | Job of the message                             | Required content                                                                                                                                                   |
+| ------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **WhatsApp message 1**   | Clear invitation                               | Event, date/time, venue, deadline, **Yes — view details**, **No — give reason**. **No social proof**: first contact is a plain invitation                          |
+| **WhatsApp message 2**   | Strong reminder                                | **We still need your answer**, updated Yes count, honest planning consequence, same two actions. **Never a count of who has not answered**                         |
+| **Email**                | Final direct player chase                      | **Action required**, event and deadline, updated Yes count, the planning consequence, equivalent Yes/No calls to action. **Never a count of who has not answered** |
+| **Follow-up escalation** | Move the unresolved exception to the President | Owned by W5; no player personal data in the outbound escalation body                                                                                               |
 
 Social proof begins at the second rung. Brian's 2026-08-25 direction: the first
 invitation is a plain invitation and carries no count, because leading first
@@ -129,10 +129,22 @@ _"I don't think there should be a separate chase sequence."_ W5 owns escalation
 and must not treat an incomplete answer as a nonresponse.
 
 Pressure is factual, specific and current. The system may say **18 others are
-already attending** or **The club is still waiting for 4 answers, including
-yours** only when that is true at dispatch. It never fabricates popularity,
-names another person's answer, or implies a deadline has passed when it has not.
-An old message remains an honest snapshot; the landing page shows the live count.
+already attending** only when that is true at dispatch. It never fabricates
+popularity, names another person's answer, or implies a deadline has passed when
+it has not. An old message remains an honest snapshot; the landing page shows
+the live count.
+
+**Social proof counts attendance, never absence.** Brian, 2026-08-25: _"It should
+just say 18 others are attending. Don't mention waiting for responses."_ No
+player-facing message reports how many people have not answered, including the
+player's own membership of that group. The outstanding count is operator
+information and belongs to W4 and W5, not to a message sent to a player.
+
+**Answer colour follows the application, not this workflow.** Verified in
+`src/app/participation/participation-table.tsx` at `80e9616`: a Yes is MUI
+`success`, a No is MUI `error`, and anything else is `default`. Every
+player-facing surface uses the same mapping, so a standing No reads red on the
+player's page exactly as it does in the operator table.
 
 ## Answer-specific page behaviour
 
