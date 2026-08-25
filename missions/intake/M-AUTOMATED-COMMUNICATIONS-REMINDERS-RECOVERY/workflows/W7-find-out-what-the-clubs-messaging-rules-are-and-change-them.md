@@ -163,6 +163,48 @@ that the page is editable: the answer to "where is this changed" is "here", and
 the page states who may change it and what a change does not retroactively
 affect.
 
+## Everything is counted from the event start
+
+Brian, 2026-08-25: _"'by 18:00' is a little bit confusing. It should just be '2
+days before the start of the event' because the event is going to be
+different."_
+
+**This changes a value ADR 0021 recorded.** That ADR fixes every deadline at
+**18:00 Europe/London wall clock**, resolved in PostgreSQL so both British
+Summer Time transitions inside a season are correct. Counting from the event's
+own start instead means a 20:00 practice answers by 20:00 two days before, and a
+14:00 game by 14:00 seven days before.
+
+- **It is more predictable per event**, which is the point: one rule that reads
+  the same whatever time the event is.
+- **The BST correctness requirement does not go away.** "Two days before this
+  event's start" still has to be resolved in the club's timezone, so the
+  existing PostgreSQL resolution stays; only the anchor moves from a fixed clock
+  to the event's own time.
+- **It interacts with no-quiet-hours.** An early-morning event now produces an
+  early-morning deadline, and nothing may delay a message on that basis. That is
+  the honest consequence and it is small, because a deadline is a threshold
+  rather than a send.
+
+The superseding ADR that records the settings-page reversal covers this too.
+
+## What the research says
+
+Brian asked for the recommended pattern rather than a guess. Two findings shaped
+the page:
+
+- **One card per row on a phone, never a scrolling table.** The card view puts
+  the identifying field as the card title with its fields beneath, removes
+  horizontal scrolling, and keeps every column reachable. This is also the idiom
+  the application already uses — LAN-157's `participation-card` — so following it
+  is consistency rather than novelty.
+- **Cadence settings belong in one place, grouped, with the volume visible.**
+  The recurring guidance is to avoid repeated notifications for the same event,
+  group what belongs together, and give explicit control over frequency. The
+  page therefore shows the whole ladder for a type on one row rather than
+  scattering offsets, and states the fixed order above the table so the thing
+  being tuned is spacing rather than sequence.
+
 ## Handoffs
 
 - **→ W1** — the plan an approver reads is rendered from these values. W7 owns
@@ -207,19 +249,20 @@ affect.
 
 ## Core decisions
 
-| Decision                                                                      | Classification                | Governing evidence or recommended default                                                              | Status                         |
-| ----------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------ |
-| A settings page exists at `/operate/admin/messaging`, reversing ADR 0021      | `proposed for owner approval` | Brian 2026-08-25: "Okay, we're building it. We're changing what we said here." Needs a superseding ADR | **Reversal — needs recording** |
-| Response deadlines keep ADR 0021's shipped values                             | `locked`                      | `T03-deadline-values`; the table ships today                                                           | Settled                        |
-| No per-event override                                                         | `locked`                      | ADR 0021                                                                                               | Settled                        |
-| There are no quiet hours                                                      | `locked`                      | `OWN-no-quiet-hours`, confirmed at W1                                                                  | Settled                        |
-| It lives under Administration, beside Follow-ups                              | `proposed for owner approval` | Consistent with the W5 placement decision                                                              | Recommended                    |
-| The invitation anchor and ladder offsets                                      | `proposed for owner approval` | No approved values exist; ADR 0021's precedent is that they must not be invented                       | **Needs Brian — values**       |
-| Escalation N per event type                                                   | `proposed for owner approval` | `T03-escalation-hours` fixes the shape, not the numbers                                                | **Needs Brian — values**       |
-| Short-runway compression                                                      | `proposed for owner approval` | The earlier drop-and-gap proposal was reopened and is not approved                                     | **Needs Brian — four options** |
-| Escalation never fires before a minimum answer window after the first message | `proposed for owner approval` | Nothing connected a clamped deadline to escalation N; a game at N=0 would escalate at approval         | **New rule — needs Brian**     |
-| Changes never apply retroactively to approved events                          | `proposed for owner approval` | Their deadlines are frozen on the invitation and their jobs already scheduled                          | Recommended                    |
-| Where the sibling policy file sits and its shape                              | `delegated to Mission Lead`   | `T03-config-location` fixes that it is one sibling file                                                | Delegated                      |
+| Decision                                                                              | Classification                | Governing evidence or recommended default                                                              | Status                             |
+| ------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| A settings page exists at `/operate/admin/messaging`, reversing ADR 0021              | `proposed for owner approval` | Brian 2026-08-25: "Okay, we're building it. We're changing what we said here." Needs a superseding ADR | **Reversal — needs recording**     |
+| Deadlines keep ADR 0021's day counts but are measured from the event start, not 18:00 | `proposed for owner approval` | Brian 2026-08-25: "it should just be 2 days before the start of the event". Changes an ADR 0021 value  | **Value change — needs recording** |
+| No per-event override                                                                 | `locked`                      | ADR 0021                                                                                               | Settled                            |
+| There are no quiet hours                                                              | `locked`                      | `OWN-no-quiet-hours`, confirmed at W1                                                                  | Settled                            |
+| It lives under Administration, beside Follow-ups                                      | `proposed for owner approval` | Consistent with the W5 placement decision                                                              | Recommended                        |
+| The two reminders default to 2 days and 1 day before the event                        | `proposed for owner approval` | Brian 2026-08-25: "we should default to 2-1 on how many reminders they get"                            | Recommended                        |
+| The invitation anchor and ladder offsets                                              | `proposed for owner approval` | No approved values exist; ADR 0021's precedent is that they must not be invented                       | **Needs Brian — values**           |
+| Escalation N per event type                                                           | `proposed for owner approval` | `T03-escalation-hours` fixes the shape, not the numbers                                                | **Needs Brian — values**           |
+| Short-runway compression                                                              | `proposed for owner approval` | The earlier drop-and-gap proposal was reopened and is not approved                                     | **Needs Brian — four options**     |
+| Escalation never fires before a minimum answer window after the first message         | `proposed for owner approval` | Nothing connected a clamped deadline to escalation N; a game at N=0 would escalate at approval         | **New rule — needs Brian**         |
+| Changes never apply retroactively to approved events                                  | `proposed for owner approval` | Their deadlines are frozen on the invitation and their jobs already scheduled                          | Recommended                        |
+| Where the sibling policy file sits and its shape                                      | `delegated to Mission Lead`   | `T03-config-location` fixes that it is one sibling file                                                | Delegated                          |
 
 ## Brian approval
 

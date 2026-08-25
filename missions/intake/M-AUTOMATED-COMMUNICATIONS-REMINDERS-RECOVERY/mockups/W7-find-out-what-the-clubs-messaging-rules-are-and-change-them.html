@@ -920,7 +920,8 @@
             <p>Under Administration beside Operators and Roles. Every event type gets its answer-by date, when the first invitation goes, when the two reminders follow, and how long after the deadline the President hears.</p>
             <ul class="deltas">
               <li>Editable, per event type — never per event</li>
-              <li>The ladder order is fixed and stated, not configurable</li>
+              <li>One card per event type on a phone, not a scrolling table</li>
+              <li>The ladder order is fixed and stated; only spacing is tuned</li>
               <li>No quiet hours, stated on the page</li>
               <li>Changes never apply to events already approved</li>
             </ul>
@@ -963,12 +964,20 @@
           <p class="rec"><b>Proposed rule:</b> escalation fires at the <i>later</i> of two moments — the answer-by date plus N, or <b>the first message actually being sent plus a minimum answer window</b> (shown as 24 hours). However short the runway, nobody is escalated about people who have not yet had a chance to answer. It is one more number on the page, and it is the third rule in the late-approval box.</p>
         </div>
 
+
+        <div class="blk gap">
+          <h3>Two changes from your review, and one you should notice</h3>
+          <p><b>Cards on a phone, not a squeezed table.</b> The research and your own app agree: one card per row, identifying field as the title, no horizontal scrolling. LAN-157's participation surface already does exactly this, so the schedule page follows it rather than inventing a second mobile pattern.</p>
+          <p><b>Reminders default to 2 and 1 days before</b>, across every event type.</p>
+          <p><b>The 18:00 is gone — and that changes an ADR 0021 value.</b> Deadlines were fixed at 18:00 Europe/London. Counting from the event's own start instead means a 20:00 practice answers by 20:00 two days before. It reads the same whatever time the event is, which is what you asked for. Two consequences: the timezone resolution still has to happen in PostgreSQL so British Summer Time stays correct, and an early-morning event now yields an early-morning deadline — which no-quiet-hours means nothing may delay. Small, because a deadline is a threshold rather than a send. The superseding ADR covers it alongside the settings-page reversal.</p>
+        </div>
+
         <div class="blk">
           <h3>Still needed from you: the numbers</h3>
           <p>Everything except the answer-by column is a placeholder. ADR 0021's precedent is that these must not be invented — it halted implementation once rather than launder an illustration into policy.</p>
           <ul>
             <li><b>First invitation</b> — shown 7 days out for a practice, 21 for a game, 14 for a social.</li>
-            <li><b>Reminder spacing</b> — for a game, WhatsApp 2 at 10 days and email at 8, against a 7-day answer-by.</li>
+            <li><b>Reminder spacing</b> — now defaulting to 2 days and 1 day before, per your steer. Confirm it holds for a game too, whose answer-by is 7 days out.</li>
             <li><b>Escalation</b> — 12 hours normally, <b>0 for a game</b>, 24 for a social.</li>
             <li><b>Minimum gap when compressing</b> — shown as 6 hours.</li>
             <li><b>Minimum answer window before escalation</b> — shown as 24 hours.</li>
