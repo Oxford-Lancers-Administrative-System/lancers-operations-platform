@@ -909,15 +909,16 @@
           n: "02",
           title: "Diagnostics — every attempt, on every channel",
           disp: "New",
-          note: "What View diagnostics opens. It is designed nowhere on main and appears in no other workflow of this mission, so it is proposed here: the per-person record of what was tried, when, and what the provider said.",
+          note: "What View diagnostics opens — a page, like every other operator surface, using the same table and chrome as the rest of the app. It is designed nowhere on main and appears in no other workflow of this mission, so it is proposed here.",
           deltas: [
+            "A page, not a dialog — the app has no modals like that",
             "One row per attempt, not per person",
             "Shows the fallback email that carried a failed WhatsApp",
             "Provider references and deduplicated webhooks",
             "Never shows message content",
           ],
-          authored: "the entire dialog",
-          hint: "The button exists and is disabled. Nothing opens.",
+          authored: "the heading, the six columns and the rows",
+          hint: "The button exists and is disabled. Nothing opens. Shown here is Roster, whose table and chrome the page reuses.",
         },
       ];
       document.getElementById("screens").innerHTML =
