@@ -766,93 +766,83 @@
     </style>
 
     <style>
-      .ptable {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-        background: white;
+      .shots {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 400px;
+        gap: 16px;
+        align-items: start;
       }
-      .ptable th {
-        text-align: left;
-        padding: 8px 10px;
-        background: #f4f7fa;
-        border-bottom: 2px solid var(--divider);
-        font-weight: 700;
-        white-space: nowrap;
+      @media (max-width: 900px) {
+        .shots {
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
-      .ptable td {
-        padding: 8px 10px;
-        border-bottom: 1px solid var(--divider);
-        vertical-align: middle;
-      }
-      .ptable tr:last-child td {
-        border-bottom: 0;
-      }
-      .ptable .who {
-        font-weight: 700;
-      }
-      .prov {
-        display: block;
-        margin-top: 2px;
-        color: var(--secondary);
-        font-size: 11px;
-      }
-      .row-act {
-        padding: 5px 10px;
-        border: 1px solid var(--primary);
-        border-radius: 6px;
-        background: white;
-        color: var(--primary);
-        font-weight: 700;
-        font-size: 11px;
-        white-space: nowrap;
-      }
-      .dlg {
+      .shot {
+        background: #fff;
         border: 1px solid var(--divider);
         border-radius: 10px;
-        background: white;
-        padding: 18px;
-        box-shadow: 0 12px 30px rgba(16, 32, 52, 0.14);
+        overflow: hidden;
       }
-      .dlg h3 {
-        margin: 0 0 4px;
-        font-size: 17px;
-      }
-      .dlg .sub {
-        margin: 0 0 14px;
-        color: var(--secondary);
-        font-size: 13px;
-      }
-      .seg {
+      .shot .cap {
         display: flex;
-        gap: 8px;
-        margin-bottom: 4px;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 11px;
+        border-bottom: 1px solid var(--divider);
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--secondary);
+        background: #f7f9fc;
       }
-      .seg button {
-        flex: 1;
-        padding: 10px;
-        border: 1px solid var(--primary);
-        border-radius: 8px;
-        background: white;
-        color: var(--primary);
-        font-weight: 700;
+      .shot .cap b {
+        color: #33465c;
+        letter-spacing: 0.04em;
       }
-      .seg button.on-yes {
-        background: var(--success-text);
-        border-color: var(--success-text);
-        color: white;
+      .scroller {
+        max-height: 560px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        background: #fff;
       }
-      .seg button.on-no {
-        background: #c0392b;
-        border-color: #c0392b;
-        color: white;
+      .scroller img {
+        display: block;
+        width: 100%;
+        height: auto;
       }
-      .stat {
-        padding: 10px 12px;
-        border-radius: 8px;
-        background: #f4f7fa;
+      .shot .foot {
+        padding: 6px 11px;
+        border-top: 1px solid var(--divider);
+        font-size: 11px;
+        color: var(--secondary);
+        background: #f7f9fc;
+      }
+      .authored {
+        margin: 10px 0 0;
+        padding: 9px 12px;
+        border-left: 4px solid var(--primary);
+        background: #fff;
+        border-radius: 0 6px 6px 0;
         font-size: 12px;
-        margin-bottom: 12px;
+      }
+      .authored b {
+        color: var(--primary);
+      }
+      .cut {
+        margin: 26px 0 0;
+        padding: 14px 16px;
+        border-left: 4px solid #c0392b;
+        background: #fff;
+        border-radius: 0 8px 8px 0;
+      }
+      .cut h3 {
+        margin: 0 0 6px;
+        font-size: 15px;
+        color: #9b2c1f;
+      }
+      .cut p {
+        margin: 0;
+        font-size: 13px;
       }
     </style>
   </head>
@@ -860,199 +850,113 @@
     <div class="page">
       <header class="page-head">
         <div class="crumbs">
-          <a href="index.html">Mission 4 mockups</a>
-          <span>W3</span>
+          <a href="index.html">Mission 4 mockups</a><span>W3</span>
           <a href="../workflows/W3-record-an-answer-somebody-gave-you-in-person.md"
             >Specification</a
           >
         </div>
         <h1>W3 · Record an answer somebody gave you in person</h1>
         <p>
-          Draft for review. The current sides are the LAN-157 participation table as it stands on
-          <code>main</code>, read in the running application on 25 August. Screens are review
-          evidence, not implementation.
+          Every image is a <b>screenshot of the running application</b> at
+          <code>/operate/events/[id]</code> on <code>main</code> @ <code>80e9616</code>, captured 25
+          August at 1280 and 375. The event is <b>vs Harewell Hawks</b>, 13 September — approved,
+          upcoming, two people yet to answer, and two optional questions of its own. The proposed
+          sides are those same captures with this workflow's change injected into the live page.
         </p>
         <div class="callout">
-          <strong>The substrate already exists</strong>
+          <strong>This is a small change, and deliberately so</strong>
           <p>
+            The person who needs it is whoever is working the follow-up list, not a coach at large.
             <code>rsvp_source</code> already has an <code>operator</code> value,
-            <code>rsvp_responses</code> already records who entered an answer and keeps when it was
-            said separate from when it was typed, and a database constraint already refuses a No
-            with no reason. This workflow adds the surface that writes an existing concept.
+            <code>rsvp_responses</code> already records who entered an answer, and a database
+            constraint already refuses a No with no reason. What is missing is one control on a row.
           </p>
         </div>
         <div class="legend">
           <span><i class="key current"></i>CURRENT — on <code>main</code> today</span>
           <span><i class="key proposed"></i>PROPOSED — this mission</span>
-          <span><span class="chip proposed">PROPOSED</span> new or changed surface</span>
         </div>
       </header>
       <div id="screens"></div>
     </div>
     <script>
-      const screens = [
+      const SCREENS = [
         {
           id: "W3-01",
-          title: "The people who have not answered, and no way to say what they told you",
-          disposition: "Modified",
-          note: "LAN-157 shipped the table and its filters, so the operator can already see exactly who is silent. What the row cannot do is record the answer that person gave out loud, so the club's own knowledge stays outside the system.",
+          n: "01",
+          title: "Record answer appears on the rows that have none",
+          disp: "Modified",
+          note: "The only change is one control, and only on the rows where nobody has answered. Everything else on the page is untouched.",
           deltas: [
-            "Record answer appears on rows with no answer",
-            "The table and its filters are unchanged",
-            "Nothing else on the row moves",
+            "One control, only on rows with no answer",
+            "Columns, filters and card layout unchanged",
+            "Nothing else on the page moves",
           ],
-          url: "lancers.example/operate/events/\u2022\u2022\u2022\u2022",
-          current: "table-plain",
-          proposed: "table-action",
+          authored: "the <b>Record answer</b> button",
+          full: true,
         },
         {
           id: "W3-02",
-          title: "Recording what the player actually said",
-          disposition: "New",
-          note: "The answer, when they gave it, and for a No what they said. It defaults to now and can be moved earlier but never later. The operator is told plainly that a reason is read by everyone holding the club link.",
+          n: "02",
+          title: "Recording what they told you, and anything else they said",
+          disp: "New",
+          note: "A dialog over the same page, so the operator keeps their place in the list. The event's own questions are here too, and partial answers are fine — whatever is left stays outstanding.",
           deltas: [
+            "Opens over the list, never a separate page",
+            "The event's questions are answerable here",
+            "Partial answers accepted; the rest stays outstanding",
             "A No cannot be saved without a real reason",
-            "The answer time backdates, never postdates",
-            "The operator is warned who reads a reason",
           ],
-          url: "lancers.example/operate/events/\u2022\u2022\u2022\u2022",
-          current: "none-record",
-          proposed: "record-dialog",
+          authored: "the dialog",
+          full: false,
         },
         {
           id: "W3-03",
-          title: "The recorded answer, permanently marked as recorded",
-          disposition: "Modified",
-          note: "Brian's 19 August decision requires this to count as a response and to stay provenance-visible. The answer sits in the same column as everybody else's and never renders as though the player gave it.",
+          n: "03",
+          title: "It just says Yes",
+          disp: "Modified",
+          note: "The recorded answer becomes an ordinary Yes in the ordinary column. Nothing on the page announces that an operator entered it — the audit trail carries who did it and when, like every other action.",
           deltas: [
-            "Answer counts exactly like a player's own",
-            "Row names who recorded it and when it was said",
-            "Chase and escalation stop for that person",
+            "Reads exactly like a player's own answer",
+            "No provenance clutter on the row",
+            "Who recorded it lives in the audit trail",
           ],
-          url: "lancers.example/operate/events/\u2022\u2022\u2022\u2022",
-          current: "table-plain",
-          proposed: "table-recorded",
-        },
-        {
-          id: "W3-04",
-          title: "Superseding an answer the player gave themselves",
-          disposition: "New",
-          note: "A player who clicked Yes in October and tells a coach in November is a real case. It is allowed, and it is shown before it is confirmed, because the alternative is sending the operator back to WhatsApp.",
-          deltas: [
-            "The answer being superseded is shown first",
-            "Both answers stay in history",
-            "The player's own words are never erased",
-          ],
-          url: "lancers.example/operate/events/\u2022\u2022\u2022\u2022",
-          current: "none-supersede",
-          proposed: "supersede-dialog",
-        },
-        {
-          id: "W3-05",
-          title: "What the player sees on their own page",
-          disposition: "New",
-          note: "This is the one answer in the system the player did not give with their own hands, so their own page says so and offers the change. Their own answer supersedes without anybody being chased again.",
-          deltas: [
-            "The player is told the club recorded it for them",
-            "The date they gave it is shown",
-            "Changing it is available and unemphasised",
-          ],
-          url: "lancers.example/me/\u2022\u2022\u2022\u2022",
-          current: "none-player",
-          proposed: "player-view",
+          authored: "the green <b>Yes</b> chip on one row",
+          full: true,
         },
       ];
 
-      function chrome(url, badge, body, kind) {
-        return `<div class="frame ${kind}"><div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">${url}</span><span class="badge">${badge}</span></div><div class="viewport">${body}</div></div>`;
+      function shot(src, label, note) {
+        return `<div class="shot"><div class="cap"><b>${label}</b><span>${note}</span></div><div class="scroller"><img src="${src}" alt="${label}" loading="lazy" /></div><div class="foot">Scroll inside the frame — this is the whole page.</div></div>`;
       }
 
-      const ROWS = [
-        { n: "Alaric Brindlewood", as: "Player", a: "yes" },
-        { n: "Kestrel Hawksmoor", as: "Player", a: "none" },
-        { n: "Marlowe Fairhurst", as: "Player", a: "no" },
-        { n: "Peregrine Oakhanger", as: "Player", a: "none" },
-      ];
-
-      function answerCell(a, prov) {
-        const chip =
-          a === "yes"
-            ? '<span class="chip success">Yes</span>'
-            : a === "no"
-              ? '<span class="chip danger">No</span>'
-              : '<span class="chip">No answer</span>';
-        return `${chip}${prov ? `<span class="prov">${prov}</span>` : ""}`;
-      }
-
-      function table(mode) {
-        const body = ROWS.map((r) => {
-          let answer = answerCell(r.a);
-          let action = "";
-          if (mode === "action" && r.a === "none")
-            action = '<button class="row-act">Record answer</button>';
-          if (mode === "recorded" && r.n === "Kestrel Hawksmoor")
-            answer = answerCell("yes", "Recorded by Zenas Yaxlington &middot; said Tue 25 Aug");
-          if (mode === "recorded" && r.a === "none" && r.n !== "Kestrel Hawksmoor")
-            action = '<button class="row-act">Record answer</button>';
-          return `<tr><td class="who">${r.n}</td><td>${r.as}</td><td>${answer}</td><td style="text-align:right">${action}</td></tr>`;
-        }).join("");
-        return `<div class="rsvp-shell"><div class="rsvp-wrap"><p class="rsvp-brand">LANCERS OPERATIONS &middot; PRACTICE — HILARY WEEK 2</p><article class="card"><div class="stat"><b>47</b> invited &middot; <b>34</b> said yes &middot; <b>8</b> have not answered</div><table class="ptable"><thead><tr><th>Name</th><th>As</th><th>Answer</th><th></th></tr></thead><tbody>${body}</tbody></table></article></div></div>`;
-      }
-
-      function recordDialog() {
-        return `<div class="rsvp-shell"><div class="rsvp-wrap"><div class="dlg"><h3>Record Kestrel Hawksmoor's answer</h3><p class="sub">Practice — hilary week 2 &middot; Wednesday, 26 August, 20:00</p><div class="field"><label>What did they say?</label><div class="seg"><button class="on-yes">Yes, attending</button><button>No, not attending</button></div></div><div class="field"><label>When did they tell you?</label><input value="Tuesday, 25 August 2026 &middot; 19:40" /><p class="help">Defaults to now. You can move it earlier, not later.</p></div><div class="field"><label>Reason <span>Required for a No</span></label><textarea placeholder="What they told you, in their words"></textarea><p class="help">A reason is shown to everybody holding this event's club link, not only to operators.</p></div><div class="alert info"><strong>This is recorded as your entry, not theirs.</strong> It counts as their answer and stops their reminders. The row will say you recorded it.</div><div class="btn-row"><button class="btn primary">Record answer</button><button class="btn text">Cancel</button></div></div></div></div>`;
-      }
-
-      function supersedeDialog() {
-        return `<div class="rsvp-shell"><div class="rsvp-wrap"><div class="dlg"><h3>Record Alaric Brindlewood's answer</h3><p class="sub">Practice — hilary week 2 &middot; Wednesday, 26 August, 20:00</p><div class="alert warn"><strong>They already answered this themselves.</strong><br>Alaric said <strong>Yes</strong> on 14 August through their own invitation. Recording a different answer supersedes it. Both stay in the history, and their own words are not erased.</div><div class="field"><label>What did they say?</label><div class="seg"><button>Yes, attending</button><button class="on-no">No, not attending</button></div></div><div class="field"><label>Reason <span>Required for a No</span></label><textarea>Working night shift that week, told me at training</textarea></div><div class="btn-row"><button class="btn primary">Supersede their answer</button><button class="btn text">Cancel</button></div></div></div></div>`;
-      }
-
-      function playerView() {
-        return `<div class="rsvp-shell"><div class="rsvp-wrap"><p class="rsvp-brand">LANCERS OPERATIONS</p><article class="card"><h1 class="rsvp-title">Your answers — still to come</h1><div class="inbox-list"><div class="invite-row"><div><span class="chip success">Attending</span><h3>Practice — hilary week 2</h3><p>Wednesday, 26 August 2026 &middot; 20:00–22:30</p><p><strong>The club recorded this for you</strong> from what you said on Tuesday, 25 August. If that is wrong, change it — your own answer always wins.</p></div><div class="mini-actions"><button>Change to No</button></div></div><div class="invite-row"><div><span class="chip success">Attending</span><h3>Chalk — hilary week 2</h3><p>Tuesday, 25 August 2026 &middot; 19:00</p><p>You answered this yourself on 14 August.</p></div><div class="mini-actions"><button>Change to No</button></div></div></div></article></div></div>`;
-      }
-
-      function newNote(text) {
-        return `<div class="new-note"><strong>New surface, nothing to compare.</strong><br>${text}</div>`;
-      }
-
-      function currentSide(screen) {
-        if (screen.current === "table-plain") {
-          const b = table("plain");
-          return `<div class="pair">${chrome(screen.url, `${screen.id} · DESKTOP 1280`, b, "desktop")}${chrome(screen.url, `${screen.id} · 375`, b, "phone")}</div>`;
-        }
-        if (screen.current === "none-record")
-          return newNote(
-            "There is no way to record an answer somebody gave in person. The club's own knowledge stays outside the system and the player keeps being chased for an answer they already gave.",
-          );
-        if (screen.current === "none-supersede")
-          return newNote(
-            "Nothing supersedes a player's own answer today, because nothing records an operator's at all.",
-          );
-        return newNote(
-          "The player has no durable page today; W2 introduces it, and this is what it says about an answer the player did not give themselves.",
-        );
-      }
-
-      function proposedSide(screen) {
-        const body =
-          screen.proposed === "table-action"
-            ? table("action")
-            : screen.proposed === "table-recorded"
-              ? table("recorded")
-              : screen.proposed === "record-dialog"
-                ? recordDialog()
-                : screen.proposed === "supersede-dialog"
-                  ? supersedeDialog()
-                  : playerView();
-        return `<div class="pair">${chrome(screen.url, `${screen.id} · DESKTOP 1280`, body, "desktop")}${chrome(screen.url, `${screen.id} · 375`, body, "phone")}</div>`;
-      }
-
-      document.getElementById("screens").innerHTML = screens
-        .map(
-          (screen) =>
-            `<section class="screen" id="${screen.id}"><header class="screen-head"><span class="screen-tab">${screen.id}</span><h2>${screen.title} · ${screen.disposition}</h2><p>${screen.note}</p><ul class="deltas">${screen.deltas.map((d) => `<li>${d}</li>`).join("")}</ul><span class="clock">Now: 25 August 2026 · 11:40 Europe/London</span></header><div class="side current"><p class="side-label">CURRENT — on <code>main</code> today</p>${currentSide(screen)}</div><div class="side proposed"><p class="side-label">PROPOSED — this mission</p>${proposedSide(screen)}</div></section>`,
-        )
-        .join("");
+      document.getElementById("screens").innerHTML =
+        SCREENS.map(
+          (s) => `
+        <section class="screen" id="${s.id}">
+          <header class="screen-head">
+            <span class="screen-tab">${s.id}</span>
+            <h2>${s.title} · ${s.disp}</h2>
+            <p>${s.note}</p>
+            <ul class="deltas">${s.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>
+            <span class="clock">Captured 25 August 2026 from the running application</span>
+          </header>
+          <div class="side current">
+            <p class="side-label">CURRENT — on <code>main</code> today</p>
+            <div class="shots">${shot("W3-current-desktop.jpg", "Desktop 1280", "real screenshot")}${shot("W3-current-375.jpg", "375", "real screenshot")}</div>
+          </div>
+          <div class="side proposed">
+            <p class="side-label">PROPOSED — this mission</p>
+            <div class="shots">${shot(`W3-${s.n}-desktop.jpg`, "Desktop 1280", s.full ? "real screenshot + change" : "viewport capture + change")}${shot(`W3-${s.n}-375.jpg`, "375", s.full ? "real screenshot + change" : "viewport capture + change")}</div>
+            <p class="authored">Everything here is the running application. The only pixels authored for this proposal are ${s.authored}.</p>
+          </div>
+        </section>`,
+        ).join("") +
+        `
+        <div class="cut">
+          <h3>Cut on 25 August: superseding an answer the player already gave</h3>
+          <p>An earlier draft let an operator overwrite an answer a player had given themselves. Brian removed it: <em>"If they change it and they want to change it to yes, they say, go to your event and change it. We're not building this into the workflow. It's too much."</em> <b>Record answer</b> therefore appears only on rows with no answer at all, which is what every screen above shows.</p>
+        </div>`;
     </script>
   </body>
 </html>

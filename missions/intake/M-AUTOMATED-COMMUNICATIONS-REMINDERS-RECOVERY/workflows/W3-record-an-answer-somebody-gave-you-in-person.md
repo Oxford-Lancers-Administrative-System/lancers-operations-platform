@@ -65,23 +65,29 @@ existing one.
    nonresponse flag is cleared, exactly as `T03-arriving-rsvp-cancels` requires
    of any arriving RSVP. The person leaves W5's chase list.
 
-## Provenance is permanent and visible
+## Provenance lives in the audit trail, not on the row
 
-Brian's 2026-08-19 decision requires this answer to be provenance-visible and to
-count as a response. Both halves are load-bearing.
+Brian's 2026-08-19 portfolio decision recorded operator-recorded RSVP as
+"provenance-visible, counts as a response". On 2026-08-25 he amended where that
+visibility lives: _"If you did record an answer, it should just say yes and
+change. It should go in the audit, obviously, for the person that a coach did
+that. The audit keeps that trail there, but other than that, we don't have to
+say it does."_
 
-- **The operator table** shows the answer with its source. A recorded answer
-  never renders identically to one the player gave.
-- **The player's own page (W2)** shows it too: their standing answer, and that
-  the club recorded it on their behalf, with the date. A player who never
-  touched the system must still be able to see what the club believes they
-  said — and correct it, because their own answer supersedes.
-- **History is append-only.** A recorded answer is a new response row, never an
-  edit of an existing one. Both remain readable in order.
+So:
 
-The reason a player can silently disagree matters more here than anywhere else
-in the mission: this is the one answer in the system the player did not give
-with their own hands.
+- **The row just says Yes.** A recorded answer renders exactly like one the
+  player gave. No badge, no "recorded by", no second line. It counts in the
+  headline numbers and stops the chase like any other answer.
+- **The audit trail carries who and when.** `rsvp_responses` already stores
+  `source = operator`, `recorded_by_person_id`, and `responded_at` apart from
+  `recorded_at`. Nothing is lost; it is simply not shown on the participation
+  table.
+- **Counting as a response is unchanged.** That half of the 2026-08-19 decision
+  stands exactly as recorded.
+
+This is an amendment to a recorded owner decision, not a reinterpretation of it,
+and is carried here with the words that made it.
 
 ## Recording a No
 
@@ -95,19 +101,34 @@ This is not a stricter rule invented here. R5 and the database constraint have
 always required a No to carry a reason; W2 satisfies it with an honest default
 for a case where no human heard anything. That case does not arise here.
 
-## Overwriting an answer the player gave themselves
+## Superseding a player's own answer is out of scope
 
-Permitted, and deliberately uncomfortable. A player who clicked Yes in October
-and told a coach in November that they can no longer make it is a real and
-common case, and refusing it would send the operator to ask them to redo it in
-WhatsApp — which is the behaviour this whole mission exists to end.
+Cut by Brian on 2026-08-25: _"If they change it and they want to change it to
+yes, they say, go to your event and change it. We're not building this into the
+workflow. It's too much. Cut it."_
 
-The surface must therefore:
+**Record answer** therefore appears only against an invitation with no answer at
+all. A player who has already answered and wants to change it does so on their
+own page, which W2 provides and which they can reach from any of their messages.
+An operator who is told about a change directs them there.
 
-- show the operator the answer they are about to supersede, and who gave it,
-  before they confirm;
-- keep both rows in history, so the change is visible rather than silent; and
-- never let the recorded answer erase the player's own words.
+This keeps the workflow to one rule with no ambiguity about whose answer wins:
+the player's, always, because theirs is the only one that can replace another.
+
+## The event's own questions
+
+An event may carry its own questions, and an operator standing in front of the
+player often hears those answers at the same time. The recording form therefore
+offers them alongside the answer.
+
+- **Partial answers are accepted.** Brian, 2026-08-25: _"they will accept partial
+  answers, but that's fine."_ Whatever the operator was told is saved; whatever
+  they were not stays outstanding and remains visible follow-up work.
+- **A question is never required here** even when it is required of the player.
+  Refusing to record a Yes because the operator does not know somebody's
+  transport plans would defeat the point of the workflow.
+- Answers are written against the same invitation and the same question model
+  Mission 2 defines. This workflow invents no second question concept.
 
 ## Recording after the event has started
 
@@ -172,17 +193,20 @@ Task 04, and a recorded RSVP never implies attendance.
 
 ## Acceptance evidence
 
-- An operator records Yes and No from the participation table, and the row shows
-  the answer, the source, who recorded it, and when the player said it.
+- An operator records Yes and No from the participation table, and the row then
+  reads exactly like a player's own answer, with no provenance shown on it.
+- The audit trail records the source, the operator, and when the player said it.
+- **Record answer** is absent from any row that already carries an answer.
+- The event's own questions are answerable in the same form, partially or not at
+  all, and unanswered ones remain outstanding.
 - A No cannot be saved without a reason, in the form and at the database.
 - `responded_at` may be backdated but never postdated, and never before the
   invitation.
 - Recording cancels that person's pending reminders and clears an un-actioned
   nonresponse flag in the same transaction.
 - The person disappears from W5's chase list and produces no escalation.
-- The player's own page shows the standing answer and that the club recorded it
-  on their behalf, and lets them change it.
-- A player's own later answer supersedes a recorded one, and both remain in
+- The player's own page shows the standing answer and lets them change it.
+- A player's own later answer replaces a recorded one, and both remain in
   history.
 - A post-start recording writes no job and sends no message.
 - A recorded RSVP never marks attendance.
