@@ -1,5 +1,6 @@
 import { addDays } from "./calendar";
 import { CLUB_TIME_ZONE } from "@/lib/club-time";
+import { EQUIPMENT_LABEL } from "./event-vocabulary";
 
 /**
  * The RFC 5545 document `W2`'s subscription feed serves. LAN-158.
@@ -345,8 +346,8 @@ function descriptionFor(event: FeedEvent): string | null {
 
   if (description === null && equipment === null) return null;
   if (equipment === null) return description;
-  if (description === null) return `What to bring: ${equipment}`;
-  return `${description}\n\nWhat to bring: ${equipment}`;
+  if (description === null) return `${EQUIPMENT_LABEL}: ${equipment}`;
+  return `${description}\n\n${EQUIPMENT_LABEL}: ${equipment}`;
 }
 
 function buildVEventLines(event: FeedEvent, now: Date): string[] {

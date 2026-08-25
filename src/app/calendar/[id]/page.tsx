@@ -11,6 +11,7 @@ import {
   CLUB_TIME_ZONE,
   DELIVERY_MODE_LABELS,
   describeAttendance,
+  EQUIPMENT_LABEL,
   formatDetailWhen,
   labelFor,
   STATUS_LABELS,
@@ -135,7 +136,7 @@ export default async function PublicEventPage({ params }: PageProps<"/calendar/[
             />
             <Fact label="Attendance" value={describeAttendance(event.isMandatory)} />
             {event.requiredEquipment ? (
-              <Fact label="What to bring" value={event.requiredEquipment} />
+              <Fact label={EQUIPMENT_LABEL} value={event.requiredEquipment} />
             ) : null}
             {event.description ? (
               <Box sx={{ gridColumn: { sm: "1 / -1" } }}>

@@ -3,7 +3,7 @@ import {
   describeRoleCapabilities,
   NO_CAPABILITY_SUMMARY,
 } from "@/lib/auth/capabilities";
-import { formatClubDay, UNREADABLE_DATE } from "@/lib/club-time";
+import { CLUB_TIME_ZONE, formatClubDay, UNREADABLE_DATE } from "@/lib/club-time";
 import {
   operatorAccountState,
   type OperatorAccountState,
@@ -563,9 +563,6 @@ export function describePeriod(assignment: {
   }
   return assignment.effectiveTo ? `${from} – ${formatDay(assignment.effectiveTo)}` : `From ${from}`;
 }
-
-/** Everything this club does is on club time. */
-const CLUB_TIME_ZONE = "Europe/London";
 
 // ---------------------------------------------------------------------------
 // Player membership

@@ -14,6 +14,7 @@ import {
   type AudienceGroupSummary,
 } from "./event-audience";
 import { readEventQuestionsIn, type EventQuestion } from "./event-questions";
+import { joinWithAnd } from "./event-vocabulary";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
 import { readCurrentSeasonIn } from "./seasons";
 import { resolveResponseDeadlineIn, type ResolvedResponseDeadline } from "./response-deadline";
@@ -176,10 +177,7 @@ export function missingForApproval(event: EventDetail): string[] {
 
 /** "This event cannot be approved without its date." — the refusal, named. */
 export function describeMissingForApproval(missing: readonly string[]): string {
-  const list =
-    missing.length === 1
-      ? missing[0]
-      : `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}`;
+  const list = joinWithAnd(missing);
   return missing.length === 1
     ? `This event has no ${list} yet. Add it and approve when you are ready.`
     : `This event has no ${list} yet. Add them and approve when you are ready.`;
