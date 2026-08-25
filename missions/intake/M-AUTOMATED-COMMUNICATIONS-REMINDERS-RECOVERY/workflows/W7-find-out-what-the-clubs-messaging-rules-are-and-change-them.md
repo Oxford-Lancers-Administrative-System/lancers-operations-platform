@@ -209,18 +209,25 @@ then the email last. Only the spacing and the counts are tuned. Escalation is
 **12 hours for every type**, replacing the earlier per-type values and the
 zero-hour game case.
 
-### Showing it: the schedule preview
+### Showing it: a preview on every row
 
-Brian: _"I think there's a better way to show that, but I'm not sure how."_ The
-answer is to stop showing only the inputs. The page renders the **actual
-schedule the row produces** for a worked example, as dates:
+Brian, 2026-08-25: _"Maybe each one gets a dropdown from it, and it just gives a
+sample date, using today as a day or whatever… It shows sample dates starting
+from today. If it gets sent out today, when does it go there?"_
 
-> Practice at 20:00 on Wednesday 16 September — invitation Wed 9 Sept 20:00,
-> reminders Thu 10, Fri 11 and (email) Sat 12, RSVP deadline Mon 14 20:00,
-> President told Tue 15 at 08:00.
+**Every row expands.** Opening one answers a single question — _if the invitation
+went out today, when does everything else happen?_ — and answers it in real
+dates rather than offsets:
 
-Numbers like "2 and 1" are unreadable as policy and obvious as dates. The
-preview is not decoration; it is how the values are checked.
+> **Practice** — if the invitation went out today, the event would be Tue 1 Sep,
+> 20:00. Invitation Tue 25 Aug · reminders Wed 26 and Thu 27 · email Fri 28 ·
+> RSVP deadline Sun 30 Aug · President told Mon 31 Aug, 08:00.
+
+Offsets are unreadable as policy and obvious as dates. The preview is how the
+values are checked, and it belongs against the type it describes rather than as
+one worked example for the whole page.
+
+Escalation is expressed as hours **after the RSVP deadline**, not after a date.
 
 ### What the preview immediately exposed
 
