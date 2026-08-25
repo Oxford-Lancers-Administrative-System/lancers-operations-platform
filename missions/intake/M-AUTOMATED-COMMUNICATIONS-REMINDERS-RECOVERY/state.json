@@ -126,7 +126,7 @@
     {
       "id": "W7",
       "name": "Find out what the club's messaging rules are, and change them",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -870,5 +870,5 @@
       }
     ]
   },
-  "next_action": "Draft the W7 specification — find out what the club's messaging rules are, and change them (Stage 3)"
+  "next_action": "Review the W7 specification and mockup with Brian (Stage 3)"
 }
