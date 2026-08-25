@@ -996,10 +996,18 @@ export function validateEvent(event, state) {
           );
         } else if (
           priorSmokes.length === 1 &&
-          (priorSmokes[0].result !== "blocked" || latestMerge <= priorSmokes[0].event_index)
+          (priorSmokes[0].result !== "blocked" || event.head_sha === priorSmokes[0].head_sha)
         ) {
+          // The re-walk's evidence that corrective work landed is its own head,
+          // not a package merge. A blocker creates one corrective issue and pull
+          // request cycle -- an issue, deliberately not a package -- so
+          // `latestMerge` can never advance past the initial smoke and the gate
+          // was unsatisfiable for exactly the workflow the harness prescribes.
+          // A head that differs from the blocked smoke's is proof something
+          // merged between them; a head that matches is a re-walk of the same
+          // code, which is what this refusal exists to stop.
           errors.push(
-            "The one targeted re-walk runs only after the initial smoke was blocked and its corrective work merged.",
+            "The one targeted re-walk runs only after the initial smoke was blocked and its corrective work merged to a new head.",
           );
         }
       }

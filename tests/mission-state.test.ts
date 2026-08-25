@@ -1965,6 +1965,43 @@ describe("owner-last review and the final mission smoke", () => {
     );
   });
 
+  it("accepts the targeted re-walk at a new head, without a further package merge", async () => {
+    // The harness prescribes that a blocked smoke creates one corrective issue
+    // and pull request cycle -- an issue, deliberately not a package. So no
+    // package merge follows the blocked smoke, and gating the re-walk on one
+    // made it unsatisfiable for exactly the workflow the harness asks for. The
+    // re-walk's evidence that corrective work landed is its own head.
+    const m = fixture();
+    await readyMission(m);
+    for (const pkg of plan.packages) {
+      await m.append({ type: "merge-recorded", package_id: pkg.id, sha: SHA, route: "owner" });
+    }
+    await m.append({
+      type: "integrated-review",
+      mode: "workflow-walker",
+      head_sha: SHA,
+      result: "blocked",
+      jobs_completed: "The attendance board counted an unrecorded yes as a mismatch.",
+      findings: ["W-001"],
+      report: "reviews/final-smoke.json",
+    });
+
+    const correctedHead = "b".repeat(40);
+    const rewalked = await m.append({
+      type: "integrated-review",
+      mode: "workflow-walker",
+      head_sha: correctedHead,
+      result: "clear",
+      jobs_completed: "Re-walked only the affected journey at the corrected head.",
+      report: "reviews/targeted-rewalk.json",
+    });
+
+    expect(rewalked.integratedReviews.at(-1)).toMatchObject({
+      head_sha: correctedHead,
+      result: "clear",
+    });
+  });
+
   it("caps final-smoke repair at one correction and one targeted re-walk", async () => {
     const m = fixture();
     await readyMission(m);
