@@ -1,0 +1,921 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W6 · Repair a delivery that failed — mockup</title>
+    <style>
+      /* Tokens taken from src/theme.ts, MUI v9 defaults, the shipped LAN-79
+       * RSVP page, and WhatsApp's current mobile/Web visual conventions.
+       * Nothing here is a redesign. */
+      :root {
+        --primary: #0b3d91;
+        --primary-dark: #082c69;
+        --text: rgba(0, 0, 0, 0.87);
+        --secondary: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --paper: #fff;
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --grey900: #212121;
+        --info-bg: #e5f6fd;
+        --info-text: #014361;
+        --warn-bg: #fff4e5;
+        --warn-text: #663c00;
+        --success-bg: #edf7ed;
+        --success-text: #1e4620;
+        --current: #5f6b7a;
+        --proposed: #0b3d91;
+        --wa-green: #008069;
+        --wa-chat: #efeae2;
+        --wa-link: #027eb5;
+        --wa-out: #d9fdd3;
+        --radius: 8px;
+        --shadow: 0 8px 26px rgba(16, 24, 40, 0.15);
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #e7e9ee;
+        color: var(--text);
+        font-family: var(--font);
+      }
+      button,
+      input,
+      textarea,
+      select {
+        font: inherit;
+      }
+      .page {
+        max-width: 1580px;
+        margin: auto;
+        padding: 36px 28px 96px;
+      }
+      .page-head {
+        max-width: 1040px;
+      }
+      .page-head h1 {
+        margin: 0 0 8px;
+        font-size: 28px;
+      }
+      .page-head p,
+      .screen-head p {
+        color: var(--secondary);
+        line-height: 1.55;
+      }
+      .crumbs {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+        font-size: 14px;
+      }
+      .crumbs a {
+        color: var(--primary);
+      }
+      .research {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border-left: 4px solid var(--primary);
+        background: white;
+        line-height: 1.5;
+        font-size: 14px;
+      }
+      .research strong {
+        display: block;
+        margin-bottom: 3px;
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 20px;
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--secondary);
+      }
+      .key {
+        width: 30px;
+        border-top: 5px solid;
+      }
+      .key.current {
+        border-color: var(--current);
+      }
+      .key.proposed {
+        border-color: var(--proposed);
+      }
+      .screen {
+        margin-top: 68px;
+      }
+      .screen-head {
+        position: relative;
+        max-width: 1180px;
+        padding-top: 24px;
+        border-top: 2px solid var(--grey900);
+      }
+      .screen-tab {
+        position: absolute;
+        top: 0;
+        transform: translateY(-100%);
+        padding: 6px 14px;
+        border-radius: 6px 6px 0 0;
+        background: var(--grey900);
+        color: white;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+      }
+      .screen-head h2 {
+        margin: 0 0 5px;
+        font-size: 20px;
+      }
+      .screen-head p {
+        max-width: 95ch;
+        margin: 0;
+        font-size: 14px;
+      }
+      .deltas {
+        margin: 10px 0 0;
+        padding-left: 20px;
+        color: var(--secondary);
+        font-size: 14px;
+      }
+      .clock,
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 25px;
+        padding: 2px 10px;
+        border: 1px solid var(--divider);
+        border-radius: 20px;
+        background: white;
+        color: var(--secondary);
+        font-size: 12px;
+      }
+      .clock {
+        margin-top: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .chip.proposed {
+        border-color: var(--primary);
+        border-style: dashed;
+        color: var(--primary);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .chip.success {
+        border-color: #7cb680;
+        background: var(--success-bg);
+        color: var(--success-text);
+      }
+      .chip.danger {
+        border-color: #c0392b;
+        background: #fdecea;
+        color: #9b2c1f;
+      }
+
+      .chip.warn {
+        border-color: #e8a64a;
+        background: var(--warn-bg);
+        color: var(--warn-text);
+      }
+      .side {
+        margin-top: 22px;
+        padding-top: 10px;
+        border-top: 6px solid;
+      }
+      .side.current {
+        border-color: var(--current);
+      }
+      .side.proposed {
+        border-color: var(--proposed);
+      }
+      .side-label {
+        margin: 0 0 11px;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+      }
+      .pair {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 26px;
+        align-items: flex-start;
+      }
+      .frame {
+        overflow: hidden;
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        border-radius: 12px;
+        background: white;
+        box-shadow: var(--shadow);
+      }
+      .frame.desktop {
+        width: 922px;
+        max-width: 100%;
+      }
+      .frame.phone {
+        width: 377px;
+        border-radius: 20px;
+      }
+      .chrome {
+        height: 34px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 12px;
+        background: var(--grey100);
+        border-bottom: 1px solid var(--divider);
+      }
+      .dots {
+        display: flex;
+        gap: 5px;
+      }
+      .dots i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #bdbdbd;
+      }
+      .url {
+        min-width: 0;
+        flex: 1;
+        overflow: hidden;
+        padding: 3px 9px;
+        border: 1px solid var(--divider);
+        border-radius: 20px;
+        background: white;
+        color: var(--secondary);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 11px;
+      }
+      .badge {
+        white-space: nowrap;
+        color: var(--secondary);
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+      .viewport {
+        overflow: hidden;
+      }
+      .desktop-vp {
+        width: 1280px;
+        zoom: 0.72;
+      }
+      .phone-vp {
+        width: 375px;
+      }
+      .current-shot {
+        display: grid;
+        grid-template-columns: minmax(0, 922px) 377px;
+        gap: 24px;
+        align-items: start;
+      }
+      .current-shot img {
+        display: block;
+        width: 100%;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        background: white;
+        box-shadow: var(--shadow);
+      }
+      .new-note {
+        padding: 24px;
+        border: 1px dashed rgba(0, 0, 0, 0.28);
+        border-radius: 10px;
+        background: white;
+        color: var(--secondary);
+        line-height: 1.5;
+      }
+
+      /* WhatsApp review frames. */
+      .wa-app {
+        display: flex;
+        min-height: 760px;
+        background: var(--wa-chat);
+      }
+      .wa-sidebar {
+        width: 330px;
+        border-right: 1px solid #d8dbdd;
+        background: white;
+      }
+      .wa-side-head {
+        padding: 19px;
+        background: #f0f2f5;
+        font-weight: 700;
+      }
+      .wa-thread {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        border-bottom: 1px solid #edf0f2;
+      }
+      .wa-thread.selected {
+        background: #f0f2f5;
+      }
+      .avatar {
+        display: grid;
+        width: 44px;
+        height: 44px;
+        flex: none;
+        place-items: center;
+        border-radius: 50%;
+        background: var(--primary);
+        color: white;
+        font-weight: 800;
+      }
+      .wa-main {
+        display: flex;
+        min-width: 0;
+        flex: 1;
+        flex-direction: column;
+      }
+      .wa-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 64px;
+        padding: 9px 16px;
+        border-bottom: 1px solid #d8dbdd;
+        background: #f0f2f5;
+      }
+      .wa-head small,
+      .wa-thread small {
+        display: block;
+        margin-top: 2px;
+        color: #667781;
+      }
+      .wa-chat {
+        flex: 1;
+        padding: 44px 8%;
+        background-color: var(--wa-chat);
+        background-image: radial-gradient(rgba(0, 0, 0, 0.035) 1px, transparent 1px);
+        background-size: 18px 18px;
+      }
+      .wa-day {
+        width: max-content;
+        margin: 0 auto 24px;
+        padding: 7px 12px;
+        border-radius: 7px;
+        background: #fff;
+        color: #667781;
+        font-size: 12px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+      }
+      .wa-bubble {
+        width: 420px;
+        max-width: 88%;
+        overflow: hidden;
+        border-radius: 8px;
+        background: white;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+      }
+      .wa-copy {
+        padding: 13px 14px 8px;
+        color: #111b21;
+        line-height: 1.42;
+        white-space: pre-line;
+        font-size: 14px;
+      }
+      .wa-copy strong {
+        font-size: 15px;
+      }
+      .wa-meta {
+        margin-top: 8px;
+        color: #667781;
+        text-align: right;
+        font-size: 11px;
+      }
+      .wa-action {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 46px;
+        border-top: 1px solid #e9edef;
+        color: var(--wa-link);
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .wa-compose {
+        min-height: 60px;
+        padding: 10px 16px;
+        background: #f0f2f5;
+      }
+      .wa-compose span {
+        display: block;
+        padding: 10px 15px;
+        border-radius: 22px;
+        background: white;
+        color: #8696a0;
+      }
+      .phone .wa-app {
+        min-height: 720px;
+      }
+      .phone .wa-sidebar {
+        display: none;
+      }
+      .phone .wa-head {
+        min-height: 58px;
+        background: var(--wa-green);
+        color: white;
+      }
+      .phone .wa-head small {
+        color: rgba(255, 255, 255, 0.78);
+      }
+      .phone .avatar {
+        width: 38px;
+        height: 38px;
+        background: white;
+        color: var(--primary);
+      }
+      .phone .wa-chat {
+        padding: 24px 14px;
+      }
+      .phone .wa-bubble {
+        width: 318px;
+        max-width: 100%;
+      }
+      .phone .wa-copy {
+        font-size: 14px;
+      }
+
+      /* Public RSVP page. */
+      .rsvp-shell {
+        min-height: 760px;
+        padding: 46px 22px;
+        background: var(--grey100);
+      }
+      .rsvp-wrap {
+        max-width: 760px;
+        margin: auto;
+      }
+      .rsvp-brand {
+        margin: 0 0 14px;
+        color: var(--secondary);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.09em;
+      }
+      .card {
+        padding: 30px;
+        border: 1px solid var(--divider);
+        border-radius: 12px;
+        background: white;
+      }
+      .card + .card {
+        margin-top: 18px;
+      }
+      .event-type {
+        display: inline-flex;
+        margin-bottom: 12px;
+        padding: 4px 10px;
+        border-radius: 16px;
+        background: var(--primary);
+        color: white;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+      }
+      .rsvp-title {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.2;
+      }
+      .event-time {
+        margin: 8px 0 0;
+        font-size: 18px;
+        font-weight: 650;
+      }
+      .facts {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        margin: 24px 0;
+      }
+      .fact small {
+        display: block;
+        margin-bottom: 3px;
+        color: var(--secondary);
+        font-weight: 700;
+      }
+      .alert {
+        padding: 14px 16px;
+        border-radius: var(--radius);
+        line-height: 1.45;
+        font-size: 14px;
+      }
+      .alert + .alert {
+        margin-top: 12px;
+      }
+      .alert.success {
+        background: var(--success-bg);
+        color: var(--success-text);
+      }
+      .alert.info {
+        background: var(--info-bg);
+        color: var(--info-text);
+      }
+      .alert.warn {
+        background: var(--warn-bg);
+        color: var(--warn-text);
+      }
+      .section-title {
+        margin: 26px 0 6px;
+        font-size: 19px;
+      }
+      .help {
+        margin: 0 0 15px;
+        color: var(--secondary);
+        line-height: 1.45;
+        font-size: 14px;
+      }
+      .field {
+        margin-top: 16px;
+      }
+      .field label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .field label span {
+        color: var(--secondary);
+        font-weight: 500;
+      }
+      .field input,
+      .field textarea,
+      .field select {
+        width: 100%;
+        min-height: 48px;
+        padding: 11px 12px;
+        border: 1px solid rgba(0, 0, 0, 0.28);
+        border-radius: 6px;
+        background: white;
+      }
+      .field textarea {
+        min-height: 90px;
+      }
+      .choice-row,
+      .btn-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .choice {
+        flex: 1;
+        min-width: 120px;
+        padding: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.25);
+        border-radius: 6px;
+        background: white;
+        text-align: center;
+      }
+      .choice.selected {
+        border: 2px solid var(--primary);
+        background: #edf3ff;
+        color: var(--primary-dark);
+        font-weight: 700;
+      }
+      .btn-row {
+        margin-top: 22px;
+      }
+      .btn {
+        min-height: 48px;
+        padding: 10px 18px;
+        border-radius: 7px;
+        font-weight: 700;
+      }
+      .btn.primary {
+        border: 1px solid var(--primary);
+        background: var(--primary);
+        color: white;
+      }
+      .btn.outline {
+        border: 1px solid var(--primary);
+        background: white;
+        color: var(--primary);
+      }
+      .btn.text {
+        border: 0;
+        background: transparent;
+        color: var(--primary);
+      }
+      .proof {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin: 18px 0;
+        padding: 14px 16px;
+        border-left: 4px solid var(--primary);
+        background: #f1f5fb;
+      }
+      .proof strong {
+        display: block;
+      }
+      .proof b {
+        font-size: 24px;
+        color: var(--primary);
+      }
+      .inbox-list {
+        display: grid;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .invite-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 14px;
+        padding: 16px;
+        border: 1px solid var(--divider);
+        border-radius: 8px;
+      }
+      .invite-row.next {
+        border: 2px solid var(--primary);
+        background: #f7f9ff;
+      }
+      .invite-row h3 {
+        margin: 5px 0;
+        font-size: 17px;
+      }
+      .invite-row p {
+        margin: 2px 0;
+        color: var(--secondary);
+        font-size: 13px;
+      }
+      .mini-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        justify-content: center;
+      }
+      .mini-actions button {
+        min-width: 110px;
+        padding: 8px 12px;
+        border: 1px solid var(--primary);
+        border-radius: 6px;
+        background: white;
+        color: var(--primary);
+        font-weight: 700;
+      }
+      .mini-actions button.emphasis {
+        background: var(--primary);
+        color: white;
+      }
+      .phone .rsvp-shell {
+        min-height: 720px;
+        padding: 22px 16px;
+      }
+      .phone .card {
+        padding: 20px;
+      }
+      .phone .rsvp-title {
+        font-size: 24px;
+      }
+      .phone .event-time {
+        font-size: 16px;
+      }
+      .phone .facts {
+        grid-template-columns: 1fr;
+        gap: 12px;
+        margin: 18px 0;
+      }
+      .phone .btn-row,
+      .phone .choice-row {
+        flex-direction: column;
+      }
+      .phone .btn,
+      .phone .choice {
+        width: 100%;
+      }
+      .phone .invite-row {
+        grid-template-columns: 1fr;
+      }
+      .phone .mini-actions {
+        flex-direction: row;
+      }
+      .phone .mini-actions button {
+        flex: 1;
+        min-width: 0;
+      }
+
+      /* Email pressure specimen. */
+      .mail {
+        min-height: 760px;
+        padding: 54px 12%;
+        background: #f6f8fb;
+      }
+      .mail-card {
+        max-width: 720px;
+        margin: auto;
+        border: 1px solid #dfe3e8;
+        border-radius: 12px;
+        background: white;
+        box-shadow: var(--shadow);
+      }
+      .mail-head {
+        padding: 22px 26px;
+        border-bottom: 1px solid var(--divider);
+      }
+      .mail-head h2 {
+        margin: 0 0 8px;
+        font-size: 21px;
+      }
+      .mail-body {
+        padding: 28px 30px 34px;
+        line-height: 1.55;
+      }
+      .mail-body h3 {
+        margin: 0 0 12px;
+        font-size: 23px;
+      }
+      .mail-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 24px;
+      }
+      .phone .mail {
+        min-height: 720px;
+        padding: 18px 12px;
+      }
+      .phone .mail-body,
+      .phone .mail-head {
+        padding: 20px;
+      }
+      .phone .mail-actions {
+        flex-direction: column;
+      }
+
+      @media (max-width: 800px) {
+        .page {
+          padding: 24px 12px 70px;
+        }
+        .current-shot {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+
+    <style>
+      .shots {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 400px;
+        gap: 16px;
+        align-items: start;
+      }
+      @media (max-width: 1000px) {
+        .shots {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      .shot {
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .shot .cap {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 11px;
+        border-bottom: 1px solid var(--divider);
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--secondary);
+        background: #f7f9fc;
+      }
+      .shot .cap b {
+        color: #33465c;
+        letter-spacing: 0.04em;
+      }
+      .scroller {
+        max-height: 620px;
+        overflow: auto;
+        background: #fff;
+      }
+      .scroller img {
+        display: block;
+        width: auto;
+        max-width: none;
+        height: auto;
+      }
+      .shot.phone .scroller img {
+        width: 375px;
+      }
+      .shot .foot {
+        padding: 6px 11px;
+        border-top: 1px solid var(--divider);
+        font-size: 11px;
+        color: var(--secondary);
+        background: #f7f9fc;
+      }
+      .authored {
+        margin: 10px 0 0;
+        padding: 9px 12px;
+        border-left: 4px solid var(--primary);
+        background: #fff;
+        border-radius: 0 6px 6px 0;
+        font-size: 12px;
+      }
+      .authored b {
+        color: var(--primary);
+      }
+      .hint {
+        margin: 8px 0 0;
+        font-size: 12px;
+        color: var(--secondary);
+      }
+      .moves {
+        margin: 26px 0 0;
+        padding: 15px 17px;
+        border-left: 4px solid var(--primary);
+        background: #fff;
+        border-radius: 0 8px 8px 0;
+      }
+      .moves h3 {
+        margin: 0 0 8px;
+        font-size: 15px;
+      }
+      .moves ol {
+        margin: 0;
+        padding-left: 20px;
+        font-size: 13px;
+      }
+      .moves li {
+        margin-bottom: 7px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-head">
+        <div class="crumbs">
+          <a href="index.html">Mission 4 mockups</a><span>W6</span>
+          <a href="../workflows/W6-repair-a-delivery-that-failed.md">Specification</a>
+        </div>
+        <h1>W6 · Repair a delivery that failed</h1>
+        <p>
+          Screenshots of the running application at
+          <code>/operate/events/[id]/delivery</code> on <code>main</code> @ <code>80e9616</code>,
+          captured 25 August at 1600 and 375, with this workflow's change injected into the live
+          page.
+        </p>
+        <div class="legend">
+          <span><i class="key current"></i>CURRENT — on <code>main</code> today</span>
+          <span><i class="key proposed"></i>PROPOSED — this mission</span>
+        </div>
+      </header>
+      <div id="screens"></div>
+    </div>
+    <script>
+      function shot(src, label, note) {
+        return `<div class="shot${label === "375" ? " phone" : ""}"><div class="cap"><b>${label}</b><span>${note}</span></div><div class="scroller"><img src="${src}" alt="${label}" loading="lazy" /></div><div class="foot">Scroll inside the frame, sideways too — real size.</div></div>`;
+      }
+      document.getElementById("screens").innerHTML = `
+        <section class="screen" id="W6-01">
+          <header class="screen-head">
+            <span class="screen-tab">W6-01</span>
+            <h2>The delivery page, with something to repair · Modified</h2>
+            <p>LAN-78 already shipped this page, and D1 settles that it is the surface an operator repairs from. Its scaffolding is complete and every count is zero, because nothing sends. This workflow fills it and adds the list of people the club could not reach.</p>
+            <ul class="deltas">
+              <li>Delivered, Queued and Failed report real counts</li>
+              <li>A Needs attention list names who, and why</li>
+              <li>Retrying people are shown but offer no action</li>
+              <li>View diagnostics stops being disabled</li>
+            </ul>
+            <span class="clock">Captured 25 August 2026 from the running application</span>
+          </header>
+          <div class="side current">
+            <p class="side-label">CURRENT — on <code>main</code> today</p>
+            <div class="shots">${shot("W6-current-desktop.jpg", "Desktop 1600", "real screenshot")}${shot("W6-current-375.jpg", "375", "real screenshot")}</div>
+            <p class="hint">Audience 47, Delivered 0, Queued 0, Failed 0 — and <i>"Nothing has been sent for this event yet."</i> The page is honest and empty. <b>View diagnostics</b> is disabled.</p>
+          </div>
+          <div class="side proposed">
+            <p class="side-label">PROPOSED — this mission</p>
+            <div class="shots">${shot("W6-01-desktop.jpg", "Desktop 1600", "real screenshot + change")}${shot("W6-01-375.jpg", "375", "real screenshot + change")}</div>
+            <p class="authored">Everything here is the running application. The only pixels authored for this proposal are the three counts, the <b>Needs attention</b> list, and enabling <b>View diagnostics</b>.</p>
+          </div>
+        </section>
+        <div class="moves">
+          <h3>An operator has exactly three moves, and no more</h3>
+          <ol>
+            <li><b>Wait.</b> Retries run on their own and have no operator actor. The page says which attempt it is on and when the next is due. Nothing to press.</li>
+            <li><b>Route to the fallback.</b> Retries are exhausted, so send this person by the automated email path instead. One action — no composing, no copying.</li>
+            <li><b>Fix the route.</b> There is no usable contact detail at all. That is a roster problem, not a messaging one, so the page names it and points at the person's record.</li>
+          </ol>
+          <p style="margin:10px 0 0;font-size:13px"><b>There is no fourth move, and there is no manual send.</b> The page already states that operators never copy, send or post invitations by hand — LAN-90 and LAN-92 are binding. A repair that ends with somebody pasting a link into a chat is not a repair.</p>
+        </div>`;
+    </script>
+  </body>
+</html>
