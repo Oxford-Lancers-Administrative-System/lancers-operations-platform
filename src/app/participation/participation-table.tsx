@@ -41,6 +41,7 @@ import {
   SORTABLE_NOTE,
   TABLE_HEADINGS,
 } from "./presentation";
+import { RecordAnswerControl } from "./record-answer";
 
 /**
  * The participation table, at whichever tier is reading — W7's centre.
@@ -107,6 +108,48 @@ function AnswerChip({ person }: { person: ParticipationPerson }) {
       color={label === ANSWER_YES ? "success" : label === ANSWER_NO ? "error" : "default"}
       variant={label === ANSWER_YES || label === ANSWER_NO ? "filled" : "outlined"}
     />
+  );
+}
+
+/**
+ * The Answer cell's whole story — W3, LAN-170.
+ *
+ * `RecordAnswerControl` is offered beside the chip, never instead of it: the
+ * chip still says the row has no answer, exactly as it always has, and the
+ * control is the one addition this package makes. It renders only for an
+ * operator, only against a real invitation (never a walk-up, who was never
+ * asked), and only where `answer` is `null` — a row that already carries an
+ * answer never gets it, which is the whole of "superseding is out of scope"
+ * enforced at the surface that offers the control at all.
+ */
+function AnswerCell({
+  operator,
+  eventId,
+  person,
+  questions,
+}: {
+  operator: boolean;
+  eventId: string;
+  person: ParticipationPerson;
+  questions: readonly ParticipationQuestion[];
+}) {
+  const invitationId = operator
+    ? ((person as OperatorParticipationPerson).invitationId ?? null)
+    : null;
+  const offerRecording = operator && person.answer === null && !person.isWalkUp && invitationId;
+
+  return (
+    <Stack spacing={0.75} sx={{ alignItems: "flex-start" }}>
+      <AnswerChip person={person} />
+      {offerRecording ? (
+        <RecordAnswerControl
+          eventId={eventId}
+          invitationId={invitationId}
+          displayName={person.displayName}
+          questions={questions}
+        />
+      ) : null}
+    </Stack>
   );
 }
 
@@ -245,6 +288,9 @@ export function ParticipationTable({
   const { questions } = participation;
   const people = applyParticipationView(participation.people, filters, questions);
   const total = participation.people.length;
+  // Common to both tiers' event-facts shape (`EventFactsBase.id`) — LAN-170's
+  // recording dialog needs it and the table otherwise never reads it.
+  const eventId = participation.event.id;
 
   return (
     <Paper variant="outlined" data-testid="participation-table" data-tier={participation.tier}>
@@ -341,7 +387,12 @@ export function ParticipationTable({
                 </Stack>
                 <Stack direction="row" spacing={1.25} sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.75 }}>
                   <LabeledField label={TABLE_HEADINGS.answer}>
-                    <AnswerChip person={person} />
+                    <AnswerCell
+                      operator={operator}
+                      eventId={eventId}
+                      person={person}
+                      questions={questions}
+                    />
                   </LabeledField>
                   <LabeledField label={TABLE_HEADINGS.attendance}>
                     <AttendanceChip presence={person.presence} />
@@ -461,7 +512,12 @@ export function ParticipationTable({
                       </TableCell>
                     ) : null}
                     <TableCell>
-                      <AnswerChip person={person} />
+                      <AnswerCell
+                        operator={operator}
+                        eventId={eventId}
+                        person={person}
+                        questions={questions}
+                      />
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">

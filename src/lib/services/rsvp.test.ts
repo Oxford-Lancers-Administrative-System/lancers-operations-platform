@@ -24,9 +24,13 @@ import { issueTokenIn, mintToken, resolveRsvpToken, revokeTokensIn } from "./rsv
 import {
   composeReason,
   readSignedRsvpPageIn,
+  recordOperatorRsvpResponse,
   recordSignedLinkResponse,
   INVITATION_WITHDRAWN_RULE,
   NO_REQUIRES_A_REASON_RULE,
+  RESPONDED_AT_BEFORE_INVITATION_RULE,
+  RESPONDED_AT_INVALID_RULE,
+  RESPONDED_AT_NOT_FUTURE_RULE,
   RESPONSE_WINDOW_CLOSED_RULE,
 } from "./rsvp";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
@@ -70,6 +74,14 @@ afterEach(async () => {
   await observer.query(`delete from public.rsvp_responses where invitation_id in ${invitations}`, [
     MARKER,
   ]);
+  // LAN-170: `question_responses` has no `on delete cascade` from
+  // `invitations` (only `on update cascade`), so a row left behind here would
+  // block the invitation delete below for every suite that runs after this
+  // one adds a question answer.
+  await observer.query(
+    `delete from public.question_responses where invitation_id in ${invitations}`,
+    [MARKER],
+  );
   await observer.query(
     `delete from public.notification_jobs where invitation_id in ${invitations}`,
     [MARKER],
@@ -236,6 +248,66 @@ async function responsesFor(invitationId: string) {
     `select id, response::text as response, reason, source::text as source, responded_at,
             recorded_by_person_id
        from public.rsvp_responses where invitation_id = $1 order by responded_at asc`,
+    [invitationId],
+  );
+  return result.rows;
+}
+
+/** A second person, distinct from the invitee, to act as the recording operator. */
+async function operatorPersonId(): Promise<string> {
+  const result = await observer.query<{ id: string }>(
+    `insert into public.people (given_name, family_name, created_at)
+     values ($1, 'Operator', now() + interval '100 years') returning id`,
+    [MARKER],
+  );
+  return result.rows[0].id;
+}
+
+async function pendingJob(invitationId: string, key: string): Promise<string> {
+  const result = await observer.query<{ id: string }>(
+    `insert into public.notification_jobs
+       (idempotency_key, job_type, status, invitation_id, channel, scheduled_for)
+     values ($1, 'reminder', 'pending', $2, 'whatsapp', now() + interval '1 day')
+     returning id`,
+    [`${MARKER}-${key}`, invitationId],
+  );
+  return result.rows[0].id;
+}
+
+/**
+ * "Now", in the club's own zone, as the two fields
+ * `recordOperatorRsvpResponse` takes rather than an instant this process
+ * already resolved. Every fixture's invitation is created moments before a
+ * test calls this, so real "now" is always safely after it and never in the
+ * future — the two bounds the function itself enforces.
+ */
+function clubNow(): { respondedAtDate: string; respondedAtTime: string } {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return {
+    respondedAtDate: `${value("year")}-${value("month")}-${value("day")}`,
+    respondedAtTime: `${value("hour")}:${value("minute")}`,
+  };
+}
+
+async function questionResponsesFor(invitationId: string) {
+  const result = await observer.query<{
+    event_question_id: string;
+    answer_text: string | null;
+    answer_boolean: boolean | null;
+    answer_choice: string | null;
+  }>(
+    `select event_question_id, answer_text, answer_boolean, answer_choice
+       from public.question_responses where invitation_id = $1`,
     [invitationId],
   );
   return result.rows;
@@ -742,5 +814,339 @@ describe("readSignedRsvpPageIn", () => {
       readSignedRsvpPageIn(tx, resolved.invitation!.invitationId),
     );
     expect(page.playerName).toBe(`${MARKER} Second`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The operator's own write — W3, LAN-170
+// ---------------------------------------------------------------------------
+
+describe("recordOperatorRsvpResponse", () => {
+  it("records a Yes with source operator and the recording operator's own id", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+
+    const recorded = await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+      response: "yes",
+      ...clubNow(),
+    });
+
+    expect(recorded.response).toBe("yes");
+    const rows = await responsesFor(invitationId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].source).toBe("operator");
+    expect(rows[0].recorded_by_person_id).toBe(operator);
+    expect(rows[0].reason).toBeNull();
+    expect(await statusOf(invitationId)).toBe("responded");
+  });
+
+  it("requires a real reason for a No, in the operator's own words, not W2's default", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+
+    const blank = await caught(() =>
+      recordOperatorRsvpResponse(operator, eventId, invitationId, {
+        response: "no",
+        ...clubNow(),
+      }),
+    );
+    expect(blank.rule).toBe(NO_REQUIRES_A_REASON_RULE);
+
+    const whitespace = await caught(() =>
+      recordOperatorRsvpResponse(operator, eventId, invitationId, {
+        response: "no",
+        reason: "   ",
+        ...clubNow(),
+      }),
+    );
+    expect(whitespace.rule).toBe(NO_REQUIRES_A_REASON_RULE);
+    expect(await responsesFor(invitationId)).toHaveLength(0);
+
+    const recorded = await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+      response: "no",
+      reason: "Told the coach at training on Tuesday",
+      ...clubNow(),
+    });
+    expect(recorded.response).toBe("no");
+    const rows = await responsesFor(invitationId);
+    expect(rows[0].reason).toBe("Told the coach at training on Tuesday");
+  });
+
+  it("refuses a responded time in the future, and never wrote the failed attempt", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+    const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    const error = await caught(() =>
+      recordOperatorRsvpResponse(operator, eventId, invitationId, {
+        response: "yes",
+        respondedAtDate: future.toISOString().slice(0, 10),
+        respondedAtTime: "10:00",
+      }),
+    );
+    expect(error.rule).toBe(RESPONDED_AT_NOT_FUTURE_RULE);
+    expect(await responsesFor(invitationId)).toHaveLength(0);
+  });
+
+  it("refuses a responded time before the invitation existed", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+
+    const error = await caught(() =>
+      recordOperatorRsvpResponse(operator, eventId, invitationId, {
+        response: "yes",
+        // The invitation was created moments ago by `fixture()`; 2000 is
+        // unambiguously before it, whenever this suite happens to run.
+        respondedAtDate: "2000-01-01",
+        respondedAtTime: "09:00",
+      }),
+    );
+    expect(error.rule).toBe(RESPONDED_AT_BEFORE_INVITATION_RULE);
+    expect(await responsesFor(invitationId)).toHaveLength(0);
+  });
+
+  it("refuses a date or time that is not the shape the picker produces", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+
+    const badDate = await caught(() =>
+      recordOperatorRsvpResponse(operator, eventId, invitationId, {
+        response: "yes",
+        respondedAtDate: "",
+        respondedAtTime: "10:00",
+      }),
+    );
+    expect(badDate.rule).toBe(RESPONDED_AT_INVALID_RULE);
+
+    const badTime = await caught(() =>
+      recordOperatorRsvpResponse(operator, eventId, invitationId, {
+        response: "yes",
+        respondedAtDate: "2020-06-01",
+        respondedAtTime: "not-a-time",
+      }),
+    );
+    expect(badTime.rule).toBe(RESPONDED_AT_INVALID_RULE);
+  });
+
+  it("refuses a withdrawn invitation", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+    await observer.query(
+      "update public.invitations set status = 'cancelled', cancelled_at = now() where id = $1",
+      [invitationId],
+    );
+
+    const error = await caught(() =>
+      recordOperatorRsvpResponse(operator, eventId, invitationId, {
+        response: "yes",
+        ...clubNow(),
+      }),
+    );
+    expect(error.rule).toBe(INVITATION_WITHDRAWN_RULE);
+    expect(await responsesFor(invitationId)).toHaveLength(0);
+  });
+
+  it("refuses an invitation that does not belong to the named event", async () => {
+    const mine = await fixture(48);
+    const other = await fixture(48);
+    const operator = await operatorPersonId();
+
+    const error = await caught(() =>
+      // The invitation is real, but not this event's.
+      recordOperatorRsvpResponse(operator, other.eventId, mine.invitationId, {
+        response: "yes",
+        ...clubNow(),
+      }),
+    );
+    expect(error.kind).toBe("not_found");
+    expect(await responsesFor(mine.invitationId)).toHaveLength(0);
+  });
+
+  it("permits recording after the event has started, and schedules nothing", async () => {
+    // Negative: the event started two hours ago. `resolveRsvpTokenIn` would
+    // hard-cut the signed-link path here; this one is the named correction
+    // path (`T03-gap-operator-correction`) and is not asked to.
+    const { invitationId, eventId } = await fixture(-2);
+    const operator = await operatorPersonId();
+
+    const before = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.notification_jobs where invitation_id = $1",
+      [invitationId],
+    );
+
+    const recorded = await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+      response: "yes",
+      ...clubNow(),
+    });
+    expect(recorded.response).toBe("yes");
+    expect(await statusOf(invitationId)).toBe("responded");
+
+    // Nothing in this function schedules a job, so the count a post-start
+    // correction leaves behind is exactly the count it found.
+    const after = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.notification_jobs where invitation_id = $1",
+      [invitationId],
+    );
+    expect(after.rows[0].count).toBe(before.rows[0].count);
+  });
+
+  it("cancels that person's pending reminders in the same transaction, and nobody else's", async () => {
+    const mine = await fixture(48);
+    const other = await fixture(48);
+    const operator = await operatorPersonId();
+
+    const pending = await pendingJob(mine.invitationId, "pending");
+    const foreign = await pendingJob(other.invitationId, "foreign");
+
+    const recorded = await recordOperatorRsvpResponse(operator, mine.eventId, mine.invitationId, {
+      response: "yes",
+      ...clubNow(),
+    });
+    expect(recorded.cancelledJobs).toBe(1);
+
+    const statuses = await observer.query<{ id: string; status: string }>(
+      "select id, status::text as status from public.notification_jobs where id = any($1::uuid[])",
+      [[pending, foreign]],
+    );
+    const byId = new Map(statuses.rows.map((row) => [row.id, row.status]));
+    expect(byId.get(pending)).toBe("cancelled");
+    expect(byId.get(foreign)).toBe("pending");
+  });
+
+  it("writes an audit row naming the operator as the actor, with source operator", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+
+    await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+      response: "no",
+      reason: "Away with the course all week",
+      ...clubNow(),
+    });
+
+    const audit = await observer.query<{
+      actor_person_id: string | null;
+      actor_label: string | null;
+      context: { response: string; source: string };
+    }>(
+      `select actor_person_id, actor_label, context
+         from public.audit_events
+        where entity_id = $1 and action = 'invitation.response_recorded'`,
+      [invitationId],
+    );
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0].actor_person_id).toBe(operator);
+    // A person, not a mechanism label — unlike the signed-link path's own row.
+    expect(audit.rows[0].actor_label).toBeNull();
+    expect(audit.rows[0].context.source).toBe("operator");
+    // The reason is a player's personal data and is not duplicated into the
+    // audit trail, exactly as the signed-link path already keeps it out.
+    expect(JSON.stringify(audit.rows[0].context)).not.toContain("course");
+  });
+
+  it("writes the event's own questions, accepts a partial set, and stores each answer type correctly", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+
+    const questions = await observer.query<{ id: string }>(
+      `insert into public.event_questions (event_id, prompt, answer_type, choices, sort_order)
+       values ($1, 'Transport there?', 'boolean', null, 0),
+              ($1, 'Shirt size', 'text', null, 1),
+              ($1, 'Which car?', 'choice', $2::text[], 2)
+       returning id`,
+      [eventId, ["Red", "Blue"]],
+    );
+    const [booleanId, textId, choiceId] = questions.rows.map((row) => row.id);
+
+    await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+      response: "yes",
+      ...clubNow(),
+      questionAnswers: {
+        [booleanId]: "Yes",
+        [textId]: "",
+        [choiceId]: "Blue",
+      },
+    });
+
+    const answers = await questionResponsesFor(invitationId);
+    // The text question was left blank and stays outstanding — no row at all,
+    // not a row with an empty string, which is what "partial answers accepted"
+    // means at the storage layer.
+    expect(answers).toHaveLength(2);
+    const byQuestion = new Map(answers.map((row) => [row.event_question_id, row]));
+
+    expect(byQuestion.get(booleanId)?.answer_boolean).toBe(true);
+    expect(byQuestion.get(booleanId)?.answer_text).toBeNull();
+    expect(byQuestion.get(choiceId)?.answer_choice).toBe("Blue");
+    expect(byQuestion.get(choiceId)?.answer_boolean).toBeNull();
+    expect(byQuestion.has(textId)).toBe(false);
+  });
+
+  it("corrects a previously recorded question answer rather than duplicating it", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+    const questions = await observer.query<{ id: string }>(
+      `insert into public.event_questions (event_id, prompt, answer_type, sort_order)
+       values ($1, 'Transport there?', 'boolean', 0)
+       returning id`,
+      [eventId],
+    );
+    const questionId = questions.rows[0].id;
+
+    // Pushed well before 2020 so the test can use two genuinely distinct
+    // instants for the two recordings below —
+    // `rsvp_responses_one_answer_per_instant` refuses two rows at the same
+    // `responded_at`, and `clubNow()` called twice a few milliseconds apart
+    // resolves to the same minute.
+    await observer.query(
+      "update public.invitations set created_at = timestamptz '2010-01-01' where id = $1",
+      [invitationId],
+    );
+
+    await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+      response: "yes",
+      respondedAtDate: "2020-06-01",
+      respondedAtTime: "10:00",
+      questionAnswers: { [questionId]: "Yes" },
+    });
+
+    // A post-start correction, taking the register, hears the opposite.
+    await observer.query(
+      `update public.events
+          set scheduled_on = ((now() - interval '1 hour') at time zone 'Europe/London')::date,
+              starts_at = ((now() - interval '1 hour') at time zone 'Europe/London')::time
+        where id = $1`,
+      [eventId],
+    );
+    await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+      response: "yes",
+      respondedAtDate: "2020-06-02",
+      respondedAtTime: "09:00",
+      questionAnswers: { [questionId]: "No" },
+    });
+
+    const answers = await questionResponsesFor(invitationId);
+    expect(answers).toHaveLength(1);
+    expect(answers[0].answer_boolean).toBe(false);
+  });
+
+  it("ignores a question id that does not belong to this event, without failing the recording", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+    const foreignEvent = await fixture(48);
+    const foreignQuestion = await observer.query<{ id: string }>(
+      `insert into public.event_questions (event_id, prompt, answer_type, sort_order)
+       values ($1, 'Somebody else''s question', 'text', 0)
+       returning id`,
+      [foreignEvent.eventId],
+    );
+
+    const recorded = await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+      response: "yes",
+      ...clubNow(),
+      questionAnswers: { [foreignQuestion.rows[0].id]: "Something" },
+    });
+
+    expect(recorded.response).toBe("yes");
+    expect(await questionResponsesFor(invitationId)).toHaveLength(0);
   });
 });

@@ -155,6 +155,16 @@ export interface ParticipationQuestion {
    * counts below need it.
    */
   readonly appliesToCapacities: readonly string[];
+  /**
+   * `event_questions.choices`, present only for `answerType === "choice"`.
+   * LAN-170's recording form needs the actual options to offer; nothing before
+   * it read this far into a question, so it was never surfaced. Optional so
+   * every fixture in this file's own tests and in `screens.test.tsx` that
+   * predates the field keeps compiling — treat a missing key the same as
+   * `null`. Carried at both tiers, unlike `delivery` and `invitationId`: a
+   * question's own defined options are not the kind of fact D3 gates.
+   */
+  readonly choices?: readonly string[] | null;
 }
 
 /** One line of the collapsed Questions section — D68. */
@@ -234,6 +244,21 @@ export interface ParticipationPerson {
 export interface OperatorParticipationPerson extends ParticipationPerson {
   /** `null` when nothing has been queued for them at all. */
   readonly delivery: DeliveryState | null;
+  /**
+   * `invitations.id`, or `null` for a walk-up who was never invited.
+   *
+   * LAN-170's `RecordAnswerControl` needs the actual invitation to record
+   * against, and `key` deliberately is not it — `key` is
+   * `capacity:anchorId`, stable across a person's whole history at this
+   * event, while a real write needs the row itself. Off `ParticipationPerson`
+   * and off the club-link reassembly in `buildClubLinkParticipationIn`, the
+   * same way `delivery` is: a club-link reader records nothing, so it is
+   * never handed the id to record against.
+   *
+   * Optional so every existing fixture in `participation-view.test.ts` and
+   * `screens.test.tsx` keeps compiling — the real payload always sets it.
+   */
+  readonly invitationId?: string | null;
 }
 
 interface EventFactsBase {

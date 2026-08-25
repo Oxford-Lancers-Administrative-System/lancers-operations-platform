@@ -66,6 +66,17 @@ vi.mock("@/lib/services/participation", () => ({
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-forwarded-for": "203.0.113.7" }),
 }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// LAN-170. `recordOperatorAnswerAction` runs for real below — the same
+// pattern the attendance screen's own suite uses — with only the session
+// resolution and the database write stubbed. That proves the real action
+// wires the dialog's `FormData` through correctly, which a mock of the action
+// itself could not.
+vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
+vi.mock("@/lib/services/rsvp", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/rsvp")>();
+  return { ...actual, recordOperatorRsvpResponse: vi.fn() };
+});
 
 import {
   EMPTY_FILTERS,
@@ -84,6 +95,9 @@ import {
 } from "@/lib/rsvp/public-surface";
 
 import { labelFor, TYPE_LABELS } from "@/lib/services/event-vocabulary";
+import { resolveOperatorAccess } from "@/lib/auth/operator";
+import { recordOperatorRsvpResponse } from "@/lib/services/rsvp";
+import { ConstraintViolated } from "@/lib/db/errors";
 
 import ClubLinkPage from "../e/[token]/page";
 import { EventFacts, HeadlineNumbers } from "./event-facts";
@@ -101,6 +115,11 @@ import {
   NOBODY_ASKED,
   NOT_RECORDED,
   NOTHING,
+  REASON_PLACEHOLDER,
+  RECORD_ANSWER,
+  RESPONSE_NO_LABEL,
+  RESPONSE_YES_LABEL,
+  recordAnswerDialogTitle,
   SORTABLE_NOTE,
   TABLE_HEADINGS,
 } from "./presentation";
@@ -1162,5 +1181,278 @@ describe("a walk-up's row", () => {
       (element) => element.getAttribute("data-person") === "walkup:4",
     )!;
     expect(card.textContent).not.toContain(DELIVERY_NOT_QUEUED);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Recording an answer in person — W3, LAN-170
+// ---------------------------------------------------------------------------
+
+const UNANSWERED_INVITATION_ID = "99999999-9999-4999-8999-999999999999";
+
+function unanswered(
+  overrides: Partial<OperatorParticipationPerson> = {},
+): OperatorParticipationPerson {
+  return {
+    key: "player:unanswered",
+    displayName: "Gideon Thornbury",
+    capacity: "player",
+    isWalkUp: false,
+    invitedAt: "2027-02-15T18:00:00.000Z",
+    answer: null,
+    reason: null,
+    presence: null,
+    discrepancy: null,
+    answers: {},
+    delivery: null,
+    invitationId: UNANSWERED_INVITATION_ID,
+    ...overrides,
+  };
+}
+
+const OPERATOR_WITH_UNANSWERED: OperatorParticipation = {
+  ...OPERATOR,
+  people: [...PEOPLE, unanswered()],
+};
+
+/**
+ * The identical person, at the tier that never gets `invitationId` at all —
+ * matching what `buildClubLinkParticipationIn`'s field-by-field reassembly
+ * actually produces, rather than stripping the key off an operator fixture.
+ */
+const CLUB_WITH_UNANSWERED: ClubLinkParticipation = {
+  ...CLUB,
+  people: [
+    ...CLUB.people,
+    {
+      key: "player:unanswered",
+      displayName: "Gideon Thornbury",
+      capacity: "player",
+      isWalkUp: false,
+      invitedAt: "2027-02-15T18:00:00.000Z",
+      answer: null,
+      reason: null,
+      presence: null,
+      discrepancy: null,
+      answers: {},
+    },
+  ],
+};
+
+function resolvedOperator(personId = "operator-1") {
+  return {
+    state: "active" as const,
+    operator: {
+      authUserId: "auth-operator-1",
+      personId,
+      displayName: "Casey Operator",
+      roleCodes: ["secretary"],
+      isActive: true,
+    },
+  };
+}
+
+const RECORDED: Awaited<ReturnType<typeof recordOperatorRsvpResponse>> = {
+  responseId: "response-1",
+  response: "yes",
+  respondedAt: new Date("2027-02-16T10:00:00.000Z"),
+  invitationId: UNANSWERED_INVITATION_ID,
+  cancelledJobs: 0,
+};
+
+describe("recording an answer in person", () => {
+  beforeEach(() => {
+    vi.mocked(recordOperatorRsvpResponse).mockReset();
+    vi.mocked(resolveOperatorAccess).mockReset();
+  });
+
+  it("offers Record answer only on the row with no answer, at the operator tier", () => {
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    // The desktop row and the phone card both render it for the same person
+    // — two renderings of one control, never a second destination.
+    const buttons = container.querySelectorAll('[data-testid="record-answer-open"]');
+    expect(buttons.length).toBe(2);
+    for (const button of Array.from(buttons)) {
+      expect(button.textContent).toBe(RECORD_ANSWER);
+    }
+  });
+
+  it("never offers it at the club-link tier, even for the identical unanswered person", () => {
+    const { container } = render(
+      <ParticipationTable
+        basePath="/e/token"
+        participation={CLUB_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    expect(container.querySelectorAll('[data-testid="record-answer-open"]').length).toBe(0);
+  });
+
+  it("never offers it for a walk-up, who was never invited and has no invitation to record against", () => {
+    const operatorWithWalkUp: OperatorParticipation = { ...OPERATOR, people: [...PEOPLE, WALK_UP] };
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={operatorWithWalkUp}
+        filters={filters()}
+      />,
+    );
+    expect(container.querySelectorAll('[data-testid="record-answer-open"]').length).toBe(0);
+  });
+
+  it("opens naming the person, with neither answer chosen and the submit button disabled", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+
+    expect(screen.getByText(recordAnswerDialogTitle("Gideon Thornbury"))).toBeInTheDocument();
+    expect(screen.getByText(RESPONSE_YES_LABEL)).toBeInTheDocument();
+    expect(screen.getByText(RESPONSE_NO_LABEL)).toBeInTheDocument();
+    expect(screen.getByTestId("response-yes")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("response-no")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("record-answer-submit")).toBeDisabled();
+  });
+
+  it("keeps Yes filled and No unfilled regardless of which is selected", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+
+    const yes = screen.getByTestId("response-yes");
+    const no = screen.getByTestId("response-no");
+    // The gate condition itself: emphasis never depends on selection.
+    expect(yes.className).toContain("MuiButton-contained");
+    expect(no.className).toContain("MuiButton-outlined");
+
+    fireEvent.click(no);
+    expect(no).toHaveAttribute("aria-pressed", "true");
+    // Selecting No must not turn it filled, or unfill Yes.
+    expect(yes.className).toContain("MuiButton-contained");
+    expect(no.className).toContain("MuiButton-outlined");
+  });
+
+  it("records a Yes through the real action, and closes the dialog on success", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue(resolvedOperator());
+    vi.mocked(recordOperatorRsvpResponse).mockResolvedValue(RECORDED);
+
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+    fireEvent.click(screen.getByTestId("response-yes"));
+    fireEvent.click(screen.getByTestId("record-answer-submit"));
+
+    await waitFor(() => expect(recordOperatorRsvpResponse).toHaveBeenCalledTimes(1));
+    const [personId, eventId, invitationId, submission] = vi.mocked(recordOperatorRsvpResponse).mock
+      .calls[0];
+    expect(personId).toBe("operator-1");
+    expect(eventId).toBe("event-1");
+    expect(invitationId).toBe(UNANSWERED_INVITATION_ID);
+    expect(submission.response).toBe("yes");
+    expect(submission.respondedAtDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(submission.respondedAtTime).toMatch(/^\d{2}:\d{2}$/);
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("record-answer-submit")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("shows the server's refusal and keeps the dialog open with the choice intact", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue(resolvedOperator());
+    vi.mocked(recordOperatorRsvpResponse).mockRejectedValue(
+      new ConstraintViolated("Choose a reason before saving Not attending.", {
+        rule: "rsvp_responses_no_requires_a_reason",
+      }),
+    );
+
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+    fireEvent.click(screen.getByTestId("response-no"));
+    // Whitespace satisfies the browser's own `required` attribute, so the
+    // submit actually reaches the server action — exactly the case
+    // `composeReason`'s own test suite proves is not a reason.
+    fireEvent.change(screen.getByPlaceholderText(REASON_PLACEHOLDER), {
+      target: { value: "   " },
+    });
+    fireEvent.click(screen.getByTestId("record-answer-submit"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("record-answer-error")).toHaveTextContent(
+        "Choose a reason before saving Not attending.",
+      ),
+    );
+    // The dialog stayed open, and the operator's choice was not lost.
+    expect(screen.getByTestId("response-no")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("answers the event's own questions in the same form, and a blank one posts as blank rather than being dropped", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue(resolvedOperator());
+    vi.mocked(recordOperatorRsvpResponse).mockResolvedValue(RECORDED);
+
+    const TRANSPORT: ParticipationQuestion = {
+      id: "question-transport",
+      prompt: "Transport there?",
+      answerType: "boolean",
+      sortOrder: 0,
+      appliesToCapacities: ["player"],
+    };
+    const SHIRT: ParticipationQuestion = {
+      id: "question-shirt",
+      prompt: "Shirt size",
+      answerType: "text",
+      sortOrder: 1,
+      appliesToCapacities: ["player"],
+    };
+    const payload: OperatorParticipation = {
+      ...OPERATOR_WITH_UNANSWERED,
+      questions: [TRANSPORT, SHIRT],
+    };
+
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={payload}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+    fireEvent.click(screen.getByTestId("response-yes"));
+    // The boolean question's own Yes button — distinct from the dialog's
+    // "Yes, attending", which carries a different accessible name.
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+    fireEvent.click(screen.getByTestId("record-answer-submit"));
+
+    await waitFor(() => expect(recordOperatorRsvpResponse).toHaveBeenCalledTimes(1));
+    const [, , , submission] = vi.mocked(recordOperatorRsvpResponse).mock.calls[0];
+    expect(submission.questionAnswers?.["question-transport"]).toBe("Yes");
+    // Left blank — partial answers are accepted, and this one stays
+    // outstanding rather than blocking the answer that was given.
+    expect(submission.questionAnswers?.["question-shirt"]).toBe("");
   });
 });

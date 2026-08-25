@@ -258,3 +258,47 @@ export const CLUB_LINK_SUBTITLE = "Shared link";
  */
 export const CLUB_LINK_UNAVAILABLE_HEADLINE = "This link does not open anything.";
 export const CLUB_LINK_UNAVAILABLE_DETAIL = "Ask the club for a current link.";
+
+// ---------------------------------------------------------------------------
+// Recording an answer in person — W3, LAN-170
+// ---------------------------------------------------------------------------
+
+/**
+ * The row action, and the dialog's own submit button — the same word for the
+ * same act, which is what W3-02's wireframe does too.
+ */
+export const RECORD_ANSWER = "Record answer";
+
+export function recordAnswerDialogTitle(displayName: string): string {
+  return `Record ${displayName}'s answer`;
+}
+
+export const WHAT_DID_THEY_SAY = "What did they say?";
+export const RESPONSE_YES_LABEL = "Yes, attending";
+export const RESPONSE_NO_LABEL = "No, not attending";
+
+export const WHEN_DID_THEY_TELL_YOU = "When did they tell you?";
+export const WHEN_HELPER =
+  "Defaults to now. Earlier is allowed, later is not. Times are in the club's zone, Europe/London.";
+
+export const REASON_LABEL = "Reason";
+export const REASON_REQUIRED_FOR_NO = "Required for a No";
+export const REASON_PLACEHOLDER = "What they told you, in their words";
+
+/**
+ * The one warning the form carries about who reads a reason — required by
+ * W3's "Safety, privacy, and authority" section, because the operator is
+ * writing words a club-link holder will read, not only the coach who typed
+ * them.
+ */
+export const REASON_PRIVACY_NOTE =
+  "This reason is visible to anybody holding the club link for this event, the same as a " +
+  "player's own reason would be.";
+
+export const EVENT_QUESTIONS_HEADING = "This event's questions";
+export const EVENT_QUESTIONS_HELPER =
+  "Fill in whatever they told you. Partial answers are fine — the rest stays outstanding.";
+export const QUESTION_OPTIONAL = "Optional";
+
+export const CANCEL = "Cancel";
+export const RECORDING = "Recording…";
