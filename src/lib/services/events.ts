@@ -717,6 +717,69 @@ export async function readPublicEvent(eventId: string): Promise<PublicEventDetai
 }
 
 /**
+ * One public event row, plus the one column only the subscription feed reads —
+ * `updated_at`. LAN-158, `W2`.
+ *
+ * Extends `PublicEventListEntry` rather than adding a field to it: no public
+ * screen imports this type or reads this interface, only
+ * `/calendar/feed.ics` does, through `listPublicSeasonEventsForFeed` below.
+ * `updated_at` is never rendered — `calendar-feed.ts` reads it only to derive
+ * `SEQUENCE`.
+ */
+export interface FeedEventEntry extends PublicEventListEntry {
+  /** ISO 8601 instant. */
+  updatedAt: string;
+}
+
+/** `Date` from the driver, or the string PostgreSQL sent — either becomes ISO. */
+function toIsoInstant(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+/**
+ * Every event in the open season, unfiltered and unpaginated, at the public
+ * tier plus its revision clock — the whole of what `W2`'s subscription feed
+ * reads. LAN-158.
+ *
+ * The same projection as `listPublicSeasonEvents` — same columns
+ * (`PUBLIC_EVENT_COLUMNS`), same guarantee that no participation table is
+ * touched — with `updated_at` added and no search, type or sort applied: a
+ * feed has no reader to filter for, and a provider that fetched it once with a
+ * filter would keep re-fetching that filter forever. Ordered by date so the
+ * emitted document is stable and readable, though `UID` rather than order is
+ * what a subscribed calendar actually keys on.
+ *
+ * `readCurrentSeasonIn` throws when no season is open — the same refusal
+ * `listPublicSeasonEvents` propagates today. The route handler decides what a
+ * machine consumer does with that; this function's contract does not change to
+ * accommodate it.
+ */
+export async function listPublicSeasonEventsForFeed(): Promise<{
+  season: Season;
+  events: FeedEventEntry[];
+}> {
+  return withTransaction(async (tx) => {
+    const season = await readCurrentSeasonIn(tx);
+
+    const result = await tx.query<PublicEventRow & { updated_at: Date | string }>(
+      `select ${PUBLIC_EVENT_COLUMNS}, e.updated_at
+         from public.events e
+        where e.season_id = $1
+        order by e.scheduled_on asc nulls last, e.starts_at asc nulls last, e.id asc`,
+      [season.id],
+    );
+
+    return {
+      season,
+      events: result.rows.map((row) => ({
+        ...toPublicEntry(row),
+        updatedAt: toIsoInstant(row.updated_at),
+      })),
+    };
+  });
+}
+
+/**
  * Deliberately says only that the event is gone.
  *
  * An earlier draft added "or it belongs to a season this club is not

@@ -17,6 +17,7 @@ import PublicList from "./public-list";
 import { PUBLIC_CALENDAR_PATH, PUBLIC_CALENDAR_VIEW_PATH } from "./routes";
 import PublicShell from "./public-shell";
 import { first, readListQuery, sortLinkFactory } from "./query";
+import SubscribeToCalendarButton from "./subscribe-dialog";
 import ViewSwitch from "./view-switch";
 import { readEventYear } from "./year";
 
@@ -93,7 +94,7 @@ export default async function PublicCalendarPage({ searchParams }: PageProps<"/c
   });
 
   return (
-    <PublicShell seasonLabel={list.season.label}>
+    <PublicShell seasonLabel={list.season.label} action={<SubscribeToCalendarButton />}>
       <Stack spacing={3}>
         <Box>
           <Typography variant="h6" component="h1">

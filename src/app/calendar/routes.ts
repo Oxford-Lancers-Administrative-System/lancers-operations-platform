@@ -31,6 +31,16 @@ export function publicEventHref(eventId: string): string {
   return `${PUBLIC_CALENDAR_PATH}/${eventId}`;
 }
 
+/**
+ * `W2`'s one public subscription feed — LAN-158.
+ *
+ * A route, not a page: `src/app/calendar/feed.ics/route.ts` serves
+ * `text/calendar` from it, and `SubscribeToCalendarButton` is the one place
+ * that builds a URL from it, so the address a subscriber's calendar app is
+ * given and the address the route actually answers on can never drift apart.
+ */
+export const PUBLIC_CALENDAR_FEED_PATH = "/calendar/feed.ics";
+
 export const OPERATOR_EVENTS_PATH = "/operate/events";
 
 export const OPERATOR_CALENDAR_PATH = "/operate/events/calendar";

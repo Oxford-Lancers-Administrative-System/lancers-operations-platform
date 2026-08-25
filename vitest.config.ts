@@ -61,6 +61,7 @@ export const DATABASE_TEST_SUITES: readonly string[] = [
   "src/lib/services/weekly-report.test.ts",
   "tests/auth-flow.test.ts",
   "tests/auth-recovery-flow.test.ts",
+  "tests/calendar-feed-side-effects.test.ts",
   "tests/hosted-role-posture.test.ts",
   "tests/link-test-operator.test.ts",
   "tests/operator-capability-catalogue.test.ts",

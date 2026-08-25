@@ -22,6 +22,7 @@ import { isNarrowAttendanceRecorder } from "@/lib/auth/capabilities";
 import PeriodSwitch from "@/app/calendar/period-switch";
 import { first, readListQuery, sortLinkFactory } from "@/app/calendar/query";
 import { OPERATOR_CALENDAR_PATH, OPERATOR_EVENTS_PATH } from "@/app/calendar/routes";
+import SubscribeToCalendarButton from "@/app/calendar/subscribe-dialog";
 import ViewSwitch from "@/app/calendar/view-switch";
 import { readEventYear } from "@/app/calendar/year";
 import { gateShellPage } from "../gate";
@@ -194,11 +195,14 @@ export default async function EventsPage({ searchParams }: PageProps<"/operate/e
             {`Season ${list.season.label}`}
           </Typography>
         </Box>
-        {mayManage ? (
-          <Button variant="contained" href="/operate/events/new">
-            Create event
-          </Button>
-        ) : null}
+        <Stack direction="row" spacing={1.5}>
+          <SubscribeToCalendarButton />
+          {mayManage ? (
+            <Button variant="contained" href="/operate/events/new">
+              Create event
+            </Button>
+          ) : null}
+        </Stack>
       </Stack>
 
       <ViewSwitch
