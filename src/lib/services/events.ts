@@ -747,6 +747,90 @@ export async function readPublicEvent(eventId: string): Promise<PublicEventDetai
 }
 
 /**
+ * One public event row, plus `description` and `required_equipment` — the two
+ * columns `readPublicEvent` already selects and this feed withheld until
+ * Q-29 — and the one column only the subscription feed reads, `updated_at`.
+ * LAN-158, `W2`.
+ *
+ * Extends `PublicEventListEntry` rather than adding a field to it: no public
+ * screen imports this type or reads this interface, only
+ * `/calendar/feed.ics` does, through `listPublicSeasonEventsForFeed` below.
+ * `updated_at` is never rendered — `calendar-feed.ts` reads it only to derive
+ * `SEQUENCE`.
+ */
+export interface FeedEventEntry extends PublicEventListEntry {
+  /** D18. Same value `readPublicEvent` returns; Q-29 lets the feed carry it too. */
+  description: string | null;
+  /** D17. Same value `readPublicEvent` returns; Q-29 lets the feed carry it too. */
+  requiredEquipment: string | null;
+  /** ISO 8601 instant. */
+  updatedAt: string;
+}
+
+/** `Date` from the driver, or the string PostgreSQL sent — either becomes ISO. */
+function toIsoInstant(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+/**
+ * Every event in the open season, unfiltered and unpaginated, at the public
+ * tier plus its revision clock — the whole of what `W2`'s subscription feed
+ * reads. LAN-158.
+ *
+ * The same projection as `listPublicSeasonEvents` — same columns
+ * (`PUBLIC_EVENT_COLUMNS`), same guarantee that no participation table is
+ * touched — with `description`, `required_equipment` and `updated_at` added
+ * and no search, type or sort applied: a feed has no reader to filter for, and
+ * a provider that fetched it once with a filter would keep re-fetching that
+ * filter forever. Ordered by date so the emitted document is stable and
+ * readable, though `UID` rather than order is what a subscribed calendar
+ * actually keys on.
+ *
+ * `description` and `required_equipment` are the same two columns
+ * `readPublicEvent` already selects for the public event page — Q-29 is the
+ * decision that the feed may carry them too, matching what `readPublicEvent`
+ * has always returned. `joining_url` is not among them and never will be
+ * (`REQ-no-joining-url`); neither is anything from `PARTICIPATION_TABLES`.
+ *
+ * `readCurrentSeasonIn` throws when no season is open — the same refusal
+ * `listPublicSeasonEvents` propagates today. The route handler decides what a
+ * machine consumer does with that; this function's contract does not change to
+ * accommodate it.
+ */
+export async function listPublicSeasonEventsForFeed(): Promise<{
+  season: Season;
+  events: FeedEventEntry[];
+}> {
+  return withTransaction(async (tx) => {
+    const season = await readCurrentSeasonIn(tx);
+
+    const result = await tx.query<
+      PublicEventRow & {
+        description: string | null;
+        required_equipment: string | null;
+        updated_at: Date | string;
+      }
+    >(
+      `select ${PUBLIC_EVENT_COLUMNS}, e.description, e.required_equipment, e.updated_at
+         from public.events e
+        where e.season_id = $1
+        order by e.scheduled_on asc nulls last, e.starts_at asc nulls last, e.id asc`,
+      [season.id],
+    );
+
+    return {
+      season,
+      events: result.rows.map((row) => ({
+        ...toPublicEntry(row),
+        description: row.description,
+        requiredEquipment: row.required_equipment,
+        updatedAt: toIsoInstant(row.updated_at),
+      })),
+    };
+  });
+}
+
+/**
  * Deliberately says only that the event is gone.
  *
  * An earlier draft added "or it belongs to a season this club is not

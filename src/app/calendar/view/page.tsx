@@ -26,6 +26,7 @@ import {
 import { first } from "../query";
 import { PUBLIC_CALENDAR_PATH, PUBLIC_CALENDAR_VIEW_PATH, publicEventHref } from "../routes";
 import PublicShell from "../public-shell";
+import SubscribeToCalendarButton from "../subscribe-dialog";
 import { publicTileStatus, type TileStatus } from "../tile-status";
 import TypeLegend from "../type-legend";
 import ViewSwitch from "../view-switch";
@@ -111,7 +112,7 @@ export default async function PublicCalendarViewPage({
   };
 
   return (
-    <PublicShell seasonLabel={list.season.label}>
+    <PublicShell seasonLabel={list.season.label} action={<SubscribeToCalendarButton />}>
       <Stack spacing={3}>
         <Box>
           <Typography variant="h6" component="h1">

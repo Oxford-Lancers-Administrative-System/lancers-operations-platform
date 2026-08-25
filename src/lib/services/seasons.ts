@@ -79,6 +79,23 @@ export const NO_CURRENT_SEASON_MESSAGE =
   "There is no season currently open. A season has to be opened before events can be " +
   "recorded against it.";
 
+/**
+ * `NotFound.rule` for {@link NO_CURRENT_SEASON_MESSAGE} — exported so a caller
+ * can identify exactly this refusal rather than any other `NotFound`.
+ *
+ * LAN-158, R158-B1: `/calendar/feed.ics` used to treat every `ServiceError` as
+ * this case, which also swallowed a real database outage
+ * (`UnexpectedDatabaseError`) and answered it with a fabricated empty,
+ * publicly cached calendar. A caller that imports this constant instead of
+ * restating the string — as `src/app/calendar/feed.ics/route.ts` now does —
+ * cannot drift from what this module actually throws, which a hand-typed
+ * literal already had once (a sibling module's own unrelated
+ * `"no_open_season"` rule was typed here by mistake and passed every test,
+ * because the route being corrected caught the whole `ServiceError` supertype
+ * regardless of which rule fired).
+ */
+export const NO_CURRENT_SEASON_RULE = "no_current_season";
+
 interface SeasonRow {
   id: string;
   label: string;
@@ -111,7 +128,7 @@ export async function readCurrentSeasonIn(tx: Tx): Promise<Season> {
 
   const row = result.rows[0];
   if (!row) {
-    throw new NotFound(NO_CURRENT_SEASON_MESSAGE, { rule: "no_current_season" });
+    throw new NotFound(NO_CURRENT_SEASON_MESSAGE, { rule: NO_CURRENT_SEASON_RULE });
   }
 
   return {

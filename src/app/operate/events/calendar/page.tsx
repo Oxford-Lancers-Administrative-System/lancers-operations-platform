@@ -34,6 +34,7 @@ import {
   OPERATOR_CALENDAR_PATH,
   OPERATOR_EVENTS_PATH,
 } from "@/app/calendar/routes";
+import SubscribeToCalendarButton from "@/app/calendar/subscribe-dialog";
 import { operatorTileStatus, type TileStatus } from "@/app/calendar/tile-status";
 import TypeLegend from "@/app/calendar/type-legend";
 import ViewSwitch from "@/app/calendar/view-switch";
@@ -157,11 +158,14 @@ export default async function EventCalendarPage({
             {`Season ${list.season.label}`}
           </Typography>
         </Box>
-        {mayManage ? (
-          <Button variant="contained" href="/operate/events/new">
-            Create event
-          </Button>
-        ) : null}
+        <Stack direction="row" spacing={1.5}>
+          <SubscribeToCalendarButton />
+          {mayManage ? (
+            <Button variant="contained" href="/operate/events/new">
+              Create event
+            </Button>
+          ) : null}
+        </Stack>
       </Stack>
 
       <Stack spacing={1.5}>

@@ -19,6 +19,7 @@ import {
 import { readPublicEvent, type PublicEventDetail } from "@/lib/services/events";
 import PublicShell from "../public-shell";
 import { PUBLIC_CALENDAR_PATH } from "../routes";
+import SubscribeToCalendarButton from "../subscribe-dialog";
 import { readEventYear } from "../year";
 
 /**
@@ -83,9 +84,12 @@ export default async function PublicEventPage({ params }: PageProps<"/calendar/[
     <PublicShell
       seasonLabel={null}
       action={
-        <Button variant="outlined" size="small" href={PUBLIC_CALENDAR_PATH}>
-          Back to the calendar
-        </Button>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+          <Button variant="outlined" size="small" href={PUBLIC_CALENDAR_PATH}>
+            Back to the calendar
+          </Button>
+          <SubscribeToCalendarButton />
+        </Stack>
       }
     >
       <Stack spacing={3} sx={{ maxWidth: 880 }}>
