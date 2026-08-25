@@ -7,7 +7,8 @@
 - **Primary actor:** The President, and any operator working follow-ups.
 - **Trigger:** A response deadline passes, or a delivery proves undeliverable.
 - **Entry point:** The proactive escalation message, and an in-app chase queue.
-- **Route/placement:** A new cross-event queue in the operator shell. Per-event
+- **Route/placement:** A new cross-event queue under **Administration** in the
+  operator shell, reusing the application's own table and filters. Per-event
   detail stays on W4's participation table.
 - **Controlling sources:** `T03-nonresponse-queue`, `T03-escalation-hours`,
   `T03-escalation-office`, `T03-flag-surfaces`, `T03-no-personal-data`,

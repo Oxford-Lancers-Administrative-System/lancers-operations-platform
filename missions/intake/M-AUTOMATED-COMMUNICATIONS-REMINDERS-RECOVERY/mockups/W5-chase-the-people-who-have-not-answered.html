@@ -837,16 +837,20 @@
         color: var(--secondary);
       }
       .ask {
-        margin: 24px 0 0;
-        padding: 14px 16px;
+        margin: 26px 0 0;
+        padding: 15px 17px;
         border-left: 4px solid #e8a64a;
         background: #fff;
         border-radius: 0 8px 8px 0;
       }
       .ask h3 {
-        margin: 0 0 6px;
+        margin: 0 0 8px;
         font-size: 15px;
         color: #8a5a12;
+      }
+      .ask h4 {
+        margin: 14px 0 4px;
+        font-size: 13px;
       }
       .ask p {
         margin: 0 0 8px;
@@ -854,6 +858,76 @@
       }
       .ask p:last-child {
         margin: 0;
+      }
+      .wa {
+        max-width: 380px;
+        background: #0b141a;
+        border-radius: 12px;
+        padding: 14px;
+        color: #e9edef;
+        font-family: Inter, system-ui, sans-serif;
+      }
+      .wa .who {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 12px;
+      }
+      .wa .av {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: #1e57a8;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font:
+          700 11px/1 Inter,
+          sans-serif;
+        color: #fff;
+      }
+      .wa .nm {
+        font-weight: 700;
+        font-size: 13px;
+      }
+      .wa .sub2 {
+        font-size: 10px;
+        color: #8696a0;
+      }
+      .wa .bub {
+        background: #005c4b;
+        border-radius: 8px;
+        padding: 11px 12px;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .wa .tick {
+        text-align: right;
+        color: #8696a0;
+        font-size: 10px;
+        margin-top: 6px;
+      }
+      .wa .cta {
+        margin-top: 8px;
+        padding-top: 9px;
+        border-top: 1px solid #1f2c34;
+        text-align: center;
+        color: #53bdeb;
+        font-size: 13px;
+      }
+      .msgwrap {
+        display: flex;
+        gap: 22px;
+        flex-wrap: wrap;
+        align-items: flex-start;
+      }
+      .msgnote {
+        flex: 1;
+        min-width: 260px;
+        font-size: 13px;
+      }
+      .msgnote li {
+        margin-bottom: 7px;
       }
     </style>
   </head>
@@ -866,21 +940,12 @@
         </div>
         <h1>W5 · Chase the people who have not answered</h1>
         <p>
-          The shell in every image is the running application on <code>main</code> @
-          <code>80e9616</code>, captured 25 August at 1600 and 375. Unlike W3 and W4, this
-          workflow's surface does not exist yet, so the content area is authored and dropped into
-          the real shell — the nav, header and operator identity around it are the actual app.
+          The shell, table and filters are the running application on
+          <code>main</code> @ <code>80e9616</code>, captured 25 August at 1600 and 375. This
+          workflow's surface does not exist yet, so its rows are authored into the real page rather
+          than drawn from scratch. The escalation message is not an app screen at all, and is shown
+          as what it is.
         </p>
-        <div class="callout">
-          <strong>Nobody compiles a list</strong>
-          <p>
-            <code>T03-nonresponse-queue</code> is the rule everything else follows from.
-            <code>nonresponse_queue</code> is already a live view on <code>main</code>, joining
-            response state to approved events and selecting everybody awaiting or expired without a
-            response. Nothing renders it. This workflow is what reads it, and what happens when the
-            deadline plus N hours elapses.
-          </p>
-        </div>
         <div class="legend">
           <span><i class="key current"></i>CURRENT — on <code>main</code> today</span>
           <span><i class="key proposed"></i>PROPOSED — this mission</span>
@@ -889,68 +954,83 @@
       <div id="screens"></div>
     </div>
     <script>
-      const SCREENS = [
-        {
-          id: "W5-01",
-          n: "01",
-          title: "The follow-up queue nobody has to compile",
-          disp: "New",
-          note: "One cross-event list of everybody the club is still waiting on, grouped by event, soonest first. Unanswered people and unreachable people share it — one list, two streams — because somebody the club cannot reach is as unresolved as somebody who has not replied.",
-          deltas: [
-            "Grouped by event, soonest first",
-            "Each person carries the chase position W4 renders",
-            "Undeliverable people appear here, labelled",
-            "Answering removes the row and clears the flag",
-          ],
-          authored: "the <b>Follow-ups</b> nav item and everything in the content area",
-          full: true,
-        },
-        {
-          id: "W5-02",
-          n: "02",
-          title: "The escalation that reaches the President",
-          disp: "New",
-          note: "Fired at the response deadline plus N hours, N configurable per event type and N = 0 permitted. It goes to an office, not a person, so committee turnover changes the recipient with no configuration change.",
-          deltas: [
-            "No name, contact detail or reason in the body",
-            "Counts and the event only, then a link",
-            "One flag per invitation per threshold, idempotent under reruns",
-          ],
-          authored: "the WhatsApp message",
-          full: false,
-        },
-      ];
+      const S = {
+        id: "W5-01",
+        n: "01",
+        title: "The follow-up queue nobody has to compile",
+        disp: "New",
+        note: "One list of everybody the club is still waiting on, across every approved event. It uses the same table, filters and shell as the rest of the operator app, and sits under Administration rather than beside Events.",
+        deltas: [
+          "Under Administration, not a peer of Events",
+          "The application's own table and filters",
+          "Unanswered and unreachable people share one list",
+          "Answering removes the row and clears the flag",
+        ],
+        authored: "the <b>Follow-ups</b> nav item, the six column headings, and the rows",
+      };
+
       function shot(src, label, note) {
         return `<div class="shot${label === "375" ? " phone" : ""}"><div class="cap"><b>${label}</b><span>${note}</span></div><div class="scroller"><img src="${src}" alt="${label}" loading="lazy" /></div><div class="foot">Scroll inside the frame, sideways too — real size.</div></div>`;
       }
-      document.getElementById("screens").innerHTML =
-        SCREENS.map(
-          (s) => `
-        <section class="screen" id="${s.id}">
+
+      document.getElementById("screens").innerHTML = `
+        <section class="screen" id="${S.id}">
           <header class="screen-head">
-            <span class="screen-tab">${s.id}</span>
-            <h2>${s.title} · ${s.disp}</h2>
-            <p>${s.note}</p>
-            <ul class="deltas">${s.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>
+            <span class="screen-tab">${S.id}</span>
+            <h2>${S.title} · ${S.disp}</h2>
+            <p>${S.note}</p>
+            <ul class="deltas">${S.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>
             <span class="clock">Captured 25 August 2026 from the running application</span>
           </header>
           <div class="side current">
             <p class="side-label">CURRENT — on <code>main</code> today</p>
             <div class="shots">${shot("W5-current-desktop.jpg", "Desktop 1600", "real screenshot")}${shot("W5-current-375.jpg", "375", "real screenshot")}</div>
-            <p class="hint">There is no follow-up surface. The nav is Roster, Events, Report, Operators, Roles — and <code>nonresponse_queue</code> already exists in the database with nothing rendering it.</p>
+            <p class="hint">There is no follow-up surface. <code>nonresponse_queue</code> already exists in the database and nothing renders it. Shown here is Roster, whose table and filters the new surface reuses.</p>
           </div>
           <div class="side proposed">
             <p class="side-label">PROPOSED — this mission</p>
-            <div class="shots">${shot(`W5-${s.n}-desktop.jpg`, "Desktop 1600", "real shell + new surface")}${shot(`W5-${s.n}-375.jpg`, "375", "real shell + new surface")}</div>
-            <p class="authored">The shell, nav, header and operator identity are the running application. The pixels authored for this proposal are ${s.authored}.</p>
+            <div class="shots">${shot("W5-01-desktop.jpg", "Desktop 1600", "real shell + new surface")}${shot("W5-01-375.jpg", "375", "real shell + new surface")}</div>
+            <p class="authored">The shell, nav, table, filters and operator identity are the running application. The pixels authored for this proposal are ${S.authored}.</p>
           </div>
-        </section>`,
-        ).join("") +
-        `
+        </section>
+
+        <section class="screen" id="W5-02">
+          <header class="screen-head">
+            <span class="screen-tab">W5-02</span>
+            <h2>The escalation, on the President's phone · New</h2>
+            <p>This is not a screen in the app. It is the message the club sends when a deadline passes and people still have not answered — the last rung of the ladder approved in W1, and the only one aimed at a committee officer rather than a player.</p>
+            <ul class="deltas"><li>Sent at the response deadline plus N hours</li><li>Goes to whoever currently holds the President's seat</li><li>Carries no name, contact detail or reason</li></ul>
+          </header>
+          <div class="side proposed">
+            <p class="side-label">PROPOSED — this mission</p>
+            <div class="msgwrap">
+              <div class="wa">
+                <div class="who"><span class="av">OL</span><div><div class="nm">Oxford Lancers</div><div class="sub2">Official business account</div></div></div>
+                <div class="bub"><b>6 people have not answered</b><br><br>vs Harewell Hawks — Sunday 13 September, 14:00.<br>The response deadline passed at 18:00.<br><br>Open the club app to see who and follow up.<div class="tick">18:00 ✓✓</div></div>
+                <div class="cta">↗ Open follow-ups</div>
+              </div>
+              <div class="msgnote">
+                <p><b>How it gets sent.</b> Every player-facing rung has run — WhatsApp, WhatsApp again, then email. The response deadline passes. N hours later, the system sends this once and marks the event escalated in the queue above.</p>
+                <ul>
+                  <li><b>Nobody triggers it.</b> No operator presses anything; crossing the threshold is what sends it.</li>
+                  <li><b>No names in the message.</b> It travels to a committee phone, so who has not answered stays behind the operator login.</li>
+                  <li><b>It goes to the office.</b> Whoever is President when it fires receives it — changing the seat changes the recipient with no setting to update.</li>
+                  <li><b>It is sent once.</b> Reruns, retries and backlogs never produce a second one.</li>
+                </ul>
+              </div>
+            </div>
+            <p class="authored">Authored in full — nothing like this exists in the app, and it is not an app screen.</p>
+          </div>
+        </section>
+
         <div class="ask">
           <h3>Two things this workflow needs from Brian</h3>
-          <p><b>Where the queue lives.</b> It is shown here as a new <b>Follow-ups</b> item in the operator nav, between Events and Report. Nothing renders <code>nonresponse_queue</code> today, so it needs a home. Adding a top-level nav item touches the App Shell, which is Mission 3's — say if you would rather it sat under Events.</p>
-          <p><b>The flag lifecycle, restated.</b> <code>T03-flag-lifecycle</code> was approved provisionally and explicitly owed a restatement at this intake. It is: one flag per invitation per threshold; idempotent under reruns, so running the scheduler twice raises nothing new; cleared by resolution rather than by time; and kept in history once cleared, because the record that the club escalated is evidence.</p>
+          <h4>1. Is Administration the right home?</h4>
+          <p>Shown as a <b>Follow-ups</b> item under <b>ADMINISTRATION</b>, above Operators, per your steer. Say if it belongs somewhere else.</p>
+          <h4>2. Should the President ever get the same alert twice?</h4>
+          <p>My answer is no, and I want that written down because the machinery makes it easy to get wrong. The scheduler can run more than once over the same event — a retry after a crash, a backlog being worked through, a job processed twice. If nothing prevents it, each pass sends the President another message about the same six people.</p>
+          <p>So the proposal is: <b>one alert per person per event, ever.</b> Once raised it stays raised until it is actually resolved — somebody answers, an operator records an answer, or the delivery problem is fixed. It never lapses on its own just because time passed. And once resolved it stays in the record, because "the club escalated this" is worth being able to look up later.</p>
+          <p>The reason I am asking rather than assuming: this was agreed once before, provisionally, on the condition it be put in front of you again at this intake. This is that.</p>
         </div>`;
     </script>
   </body>
