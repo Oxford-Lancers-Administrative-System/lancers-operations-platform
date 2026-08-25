@@ -34,47 +34,46 @@ Verified in the running application on 2026-08-25 at `80e9616`. The page shows:
 The scaffolding is complete and honest. Every number is zero because nothing
 sends. This workflow is what fills it and what an operator does with it.
 
-## The three states worth repairing
+## What is automatic, and what is a person's job
 
-### 1. Failed with a retryable cause
+Brian, 2026-08-25: _"Wait should just be no action, route is automated, only the
+third action actually requires the owner."_
 
-`D6` and `F1`: retries are automatic and **have no actor**. The loop tries, backs
-off, and either succeeds or exhausts. What an operator sees is its outcome, never
-its mechanics. A person mid-retry is not an operator's problem yet, and the page
-says so — attempts made, next attempt due.
+Almost nothing here is an operator's job. The system retries, and the system
+falls back to email on its own. The operator is watching, not driving.
 
-Only when retries are exhausted does it become work.
+### Retrying — no action
 
-### 2. Failed terminally, with a usable alternative
+`D6` and `F1`: retries are automatic and **have no actor**. The page says which
+attempt it is on and when the next is due, and offers nothing to press. A person
+mid-retry is not work.
 
-`D3` and `F5`: the fallback is **automated email and calendar**, and Resend is
-its provider. `R12` bounds it — WhatsApp is primary, the fallback is automated,
-and **neither is ever the system of record**. The operator routes the person to
-it; they do not compose anything.
+### WhatsApp unresponsive — visible, still no action
 
-### 3. No usable route at all
+Brian, 2026-08-25: _"If WhatsApp is down that's a failure. We can still email but
+that's something that needs to be seen."_
 
-`D8` and `OWN-missing-whatsapp-error`: **every user is expected to have
-WhatsApp**, so a missing or unusable route is an error, not a configuration
-choice. It reads **Not dispatched — no channel**, and it is **counted and
-visible rather than silently absent** — the backstop exists precisely so a
-person cannot disappear from the club's attention by having no contact details.
+When WhatsApp cannot deliver, the automated email fallback carries the message —
+`D3`, `F5`, Resend as provider, bounded by `R12` so neither channel is ever the
+system of record. **The person was reached.** But the club's primary channel
+failed, and that is a failure the club must see rather than a silent substitution.
 
-W1 shows this error concisely before approval; **W6 owns handling it.**
+So it reads **WhatsApp unresponsive**, it is counted, and it still offers the
+operator nothing to do. Sending the email is not an operator action; it already
+happened.
 
-## What repair actually is
+### Not dispatched — no channel — the one thing a person must fix
 
-The operator has three moves and no more:
+`D8` and `OWN-missing-whatsapp-error`: every user is expected to have WhatsApp,
+so a missing or unusable route is an error, **counted and visible rather than
+silently absent**. There is nothing to retry and nothing to fall back to, because
+there is no way to reach this person at all.
 
-1. **Wait** — retries have not finished. The page says when the next one is due.
-2. **Route to the fallback** — send this person by the automated email path
-   instead. One action, no composing, no copying.
-3. **Fix the route** — the person has no usable contact detail, which is a roster
-   problem, not a messaging one. W6 names it and points at the person's record.
+This is the only state that requires a human, and what it requires is not a
+message. It is a **roster fix** — the person has no usable contact detail — so
+the page names it and points at their record.
 
-**There is no manual send.** LAN-90 and LAN-92 are binding and the page already
-says so: operators never copy, send or post invitations by hand. A repair that
-ends in somebody pasting a link into a chat is not a repair.
+W1 shows this error concisely before approval; W6 owns handling it.
 
 ## The documented recovery procedure
 
@@ -92,6 +91,22 @@ asking anybody:
 **View diagnostics** — disabled today — is where the evidence lives: provider
 identifiers, delivery evidence, and deduplicated webhooks, all already named on
 the page. It is operator-tier, and it never shows message bodies.
+
+## The diagnostics page
+
+**View diagnostics** is disabled on `main` and is designed nowhere — not in this
+workflow's screens, and not in any other workflow of this mission. Brian raised
+it at review on 2026-08-25, expecting it to give the individual detail of what
+has been sent and what has not.
+
+Proposed: it is the per-person delivery record for one event, and it belongs
+here rather than in a later workflow, because it is what makes R15's "documented
+recovery procedure" checkable rather than asserted. For each invitee it shows
+every attempt on every channel — when, which channel, the outcome, the provider's
+identifier, and the deduplicated webhook evidence the page already names.
+
+It is operator-tier and **never shows a message body**. It answers "was this
+person reached, and how do we know", not "what did we say to them".
 
 ## Handoffs
 
@@ -128,7 +143,6 @@ the page. It is operator-tier, and it never shows message bodies.
   club-link holder.
 - Delivery telemetry does not imply an RSVP. The page says so today and must
   continue to.
-- No operator action here sends anything a human composed.
 - Routing to the fallback is an operator action and is attributable.
 
 ## Acceptance evidence
@@ -137,10 +151,9 @@ the page. It is operator-tier, and it never shows message bodies.
   Audience continues to report the frozen audience.
 - A retrying person shows attempts made and the next attempt due, and offers no
   operator action.
-- An exhausted person offers exactly one action: route to the automated email
-  fallback.
-- Routing to the fallback dispatches by the automated path, composes nothing, and
-  is attributed to the operator who did it.
+- A person whose WhatsApp failed reads **WhatsApp unresponsive**, is counted, and
+  offers no operator action, because the automated email fallback already carried
+  the message.
 - A person with no usable route reads **Not dispatched — no channel**, is counted
   in Failed, and links to their record.
 - **View diagnostics** is enabled, shows provider identifiers and delivery
@@ -154,18 +167,20 @@ the page. It is operator-tier, and it never shows message bodies.
 
 ## Core decisions
 
-| Decision                                                            | Classification                | Governing evidence or recommended default                                         | Status      |
-| ------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------- | ----------- |
-| LAN-78's delivery page is the surface repair happens on             | `locked`                      | `D1`, `D4`                                                                        | Settled     |
-| Retries are automatic and have no operator actor                    | `locked`                      | `D6`, `F1`                                                                        | Settled     |
-| The fallback is automated email and calendar, provided by Resend    | `locked`                      | `D3`, `F5`, and the 2026-08-17 Resend amendment                                   | Settled     |
-| Neither channel is ever the system of record                        | `locked`                      | `R12`                                                                             | Settled     |
-| A missing WhatsApp route is an error, counted and visible           | `locked`                      | `D8`, `OWN-missing-whatsapp-error`                                                | Settled     |
-| No manual send exists, in any repair path                           | `locked`                      | LAN-90 and LAN-92; the page already states it                                     | Settled     |
-| The operator has exactly three moves: wait, route, fix the route    | `proposed for owner approval` | Anything more becomes a composing surface, which the prohibition forbids          | Recommended |
-| Retrying people are shown but offer no action until retries exhaust | `proposed for owner approval` | `D6` gives the loop no actor; surfacing it as work invites pointless intervention | Recommended |
-| **View diagnostics** becomes enabled and is operator-tier           | `proposed for owner approval` | `R15` needs visible evidence; the page already names what it holds                | Recommended |
-| Exact retry bounds and backoff                                      | `delegated to Mission Lead`   | W7 owns policy values; the loop's shape is implementation                         | Delegated   |
+| Decision                                                                             | Classification                | Governing evidence or recommended default                                                                                | Status          |
+| ------------------------------------------------------------------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| LAN-78's delivery page is the surface repair happens on                              | `locked`                      | `D1`, `D4`                                                                                                               | Settled         |
+| Retries are automatic and have no operator actor                                     | `locked`                      | `D6`, `F1`                                                                                                               | Settled         |
+| The fallback is automated email and calendar, provided by Resend                     | `locked`                      | `D3`, `F5`, and the 2026-08-17 Resend amendment                                                                          | Settled         |
+| Neither channel is ever the system of record                                         | `locked`                      | `R12`                                                                                                                    | Settled         |
+| A missing WhatsApp route is an error, counted and visible                            | `locked`                      | `D8`, `OWN-missing-whatsapp-error`                                                                                       | Settled         |
+| Repair never becomes a composing surface                                             | `proposed for owner approval` | The mission's own rule. Brian 2026-08-25: what the application currently asserts is not itself binding                   | Recommended     |
+| Only a missing route requires a person; retries and the email fallback are automatic | `locked`                      | Brian 2026-08-25: "Wait should just be no action, route is automated, only the third action actually requires the owner" | Settled         |
+| A WhatsApp failure stays visible even though email carried the message               | `locked`                      | Brian 2026-08-25: "If WhatsApp is down that's a failure. We can still email but that's something that needs to be seen"  | Settled         |
+| The diagnostics page shows per-person send detail                                    | `proposed for owner approval` | Brian asked at review whether it is designed anywhere. It is not; see **The diagnostics page**                           | **Needs Brian** |
+| Retrying people are shown but offer no action until retries exhaust                  | `proposed for owner approval` | `D6` gives the loop no actor; surfacing it as work invites pointless intervention                                        | Recommended     |
+| **View diagnostics** becomes enabled and is operator-tier                            | `proposed for owner approval` | `R15` needs visible evidence; the page already names what it holds                                                       | Recommended     |
+| Exact retry bounds and backoff                                                       | `delegated to Mission Lead`   | W7 owns policy values; the loop's shape is implementation                                                                | Delegated       |
 
 ## Brian approval
 

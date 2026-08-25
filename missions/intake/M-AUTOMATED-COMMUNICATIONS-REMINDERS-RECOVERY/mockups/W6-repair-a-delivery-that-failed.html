@@ -836,24 +836,29 @@
         font-size: 12px;
         color: var(--secondary);
       }
-      .moves {
+      .note {
         margin: 26px 0 0;
         padding: 15px 17px;
         border-left: 4px solid var(--primary);
         background: #fff;
         border-radius: 0 8px 8px 0;
       }
-      .moves h3 {
+      .note h3 {
         margin: 0 0 8px;
         font-size: 15px;
       }
-      .moves ol {
-        margin: 0;
-        padding-left: 20px;
+      .note p {
+        margin: 0 0 9px;
         font-size: 13px;
       }
-      .moves li {
-        margin-bottom: 7px;
+      .note p:last-child {
+        margin: 0;
+      }
+      .flag {
+        border-left-color: #e8a64a;
+      }
+      .flag h3 {
+        color: #8a5a12;
       }
     </style>
   </head>
@@ -882,39 +887,73 @@
       function shot(src, label, note) {
         return `<div class="shot${label === "375" ? " phone" : ""}"><div class="cap"><b>${label}</b><span>${note}</span></div><div class="scroller"><img src="${src}" alt="${label}" loading="lazy" /></div><div class="foot">Scroll inside the frame, sideways too — real size.</div></div>`;
       }
-      document.getElementById("screens").innerHTML = `
-        <section class="screen" id="W6-01">
+      const SC = [
+        {
+          id: "W6-01",
+          n: "01",
+          title: "The delivery page, with something to repair",
+          disp: "Modified",
+          note: "LAN-78 already shipped this page and D1 settles that it is where repair happens. Its counts are all zero because nothing sends. This fills them and names who the club could not reach.",
+          deltas: [
+            "Delivered, Queued and Failed report real counts",
+            "Needs attention names who, and why",
+            "Only a missing route offers an action",
+            "View diagnostics stops being disabled",
+          ],
+          authored:
+            "the three counts, the <b>Needs attention</b> list, and enabling <b>View diagnostics</b>",
+          hint: 'Audience 47, Delivered 0, Queued 0, Failed 0, and <i>"Nothing has been sent for this event yet."</i> <b>View diagnostics</b> is disabled.',
+        },
+        {
+          id: "W6-02",
+          n: "02",
+          title: "Diagnostics — every attempt, on every channel",
+          disp: "New",
+          note: "What View diagnostics opens. It is designed nowhere on main and appears in no other workflow of this mission, so it is proposed here: the per-person record of what was tried, when, and what the provider said.",
+          deltas: [
+            "One row per attempt, not per person",
+            "Shows the fallback email that carried a failed WhatsApp",
+            "Provider references and deduplicated webhooks",
+            "Never shows message content",
+          ],
+          authored: "the entire dialog",
+          hint: "The button exists and is disabled. Nothing opens.",
+        },
+      ];
+      document.getElementById("screens").innerHTML =
+        SC.map(
+          (s) => `
+        <section class="screen" id="${s.id}">
           <header class="screen-head">
-            <span class="screen-tab">W6-01</span>
-            <h2>The delivery page, with something to repair · Modified</h2>
-            <p>LAN-78 already shipped this page, and D1 settles that it is the surface an operator repairs from. Its scaffolding is complete and every count is zero, because nothing sends. This workflow fills it and adds the list of people the club could not reach.</p>
-            <ul class="deltas">
-              <li>Delivered, Queued and Failed report real counts</li>
-              <li>A Needs attention list names who, and why</li>
-              <li>Retrying people are shown but offer no action</li>
-              <li>View diagnostics stops being disabled</li>
-            </ul>
+            <span class="screen-tab">${s.id}</span>
+            <h2>${s.title} · ${s.disp}</h2>
+            <p>${s.note}</p>
+            <ul class="deltas">${s.deltas.map((d) => `<li>${d}</li>`).join("")}</ul>
             <span class="clock">Captured 25 August 2026 from the running application</span>
           </header>
           <div class="side current">
             <p class="side-label">CURRENT — on <code>main</code> today</p>
             <div class="shots">${shot("W6-current-desktop.jpg", "Desktop 1600", "real screenshot")}${shot("W6-current-375.jpg", "375", "real screenshot")}</div>
-            <p class="hint">Audience 47, Delivered 0, Queued 0, Failed 0 — and <i>"Nothing has been sent for this event yet."</i> The page is honest and empty. <b>View diagnostics</b> is disabled.</p>
+            <p class="hint">${s.hint}</p>
           </div>
           <div class="side proposed">
             <p class="side-label">PROPOSED — this mission</p>
-            <div class="shots">${shot("W6-01-desktop.jpg", "Desktop 1600", "real screenshot + change")}${shot("W6-01-375.jpg", "375", "real screenshot + change")}</div>
-            <p class="authored">Everything here is the running application. The only pixels authored for this proposal are the three counts, the <b>Needs attention</b> list, and enabling <b>View diagnostics</b>.</p>
+            <div class="shots">${shot(`W6-${s.n}-desktop.jpg`, "Desktop 1600", "real screenshot + change")}${shot(`W6-${s.n}-375.jpg`, "375", "real screenshot + change")}</div>
+            <p class="authored">Everything else is the running application. The only pixels authored for this proposal are ${s.authored}.</p>
           </div>
-        </section>
-        <div class="moves">
-          <h3>An operator has exactly three moves, and no more</h3>
-          <ol>
-            <li><b>Wait.</b> Retries run on their own and have no operator actor. The page says which attempt it is on and when the next is due. Nothing to press.</li>
-            <li><b>Route to the fallback.</b> Retries are exhausted, so send this person by the automated email path instead. One action — no composing, no copying.</li>
-            <li><b>Fix the route.</b> There is no usable contact detail at all. That is a roster problem, not a messaging one, so the page names it and points at the person's record.</li>
-          </ol>
-          <p style="margin:10px 0 0;font-size:13px"><b>There is no fourth move, and there is no manual send.</b> The page already states that operators never copy, send or post invitations by hand — LAN-90 and LAN-92 are binding. A repair that ends with somebody pasting a link into a chat is not a repair.</p>
+        </section>`,
+        ).join("") +
+        `
+        <div class="note">
+          <h3>Almost none of this is an operator's job</h3>
+          <p><b>Retrying</b> — the system is already trying again. It says which attempt and when the next is due, and offers nothing to press.</p>
+          <p><b>WhatsApp unresponsive</b> — WhatsApp did not deliver, so the automated email fallback carried the message. <b>The person was reached.</b> But the club's primary channel failed and that stays visible rather than being silently substituted. Still nothing for an operator to do; the email already went.</p>
+          <p><b>Not dispatched — no channel</b> — there is no usable contact detail, so there is nothing to retry and nothing to fall back to. This is the one state that needs a person, and what it needs is a roster fix, not a message.</p>
+        </div>
+        <div class="note flag">
+          <h3>One thing to settle away from this page</h3>
+          <p>An earlier draft justified the no-manual-send rule by citing LAN-90 and LAN-92 as binding. Brian corrected that on 25 August: those are not binding, and what the application currently asserts is not itself authority.</p>
+          <p>The rule still holds here because this mission chooses it — repair never becomes a place where somebody composes a message. But <code>AGENTS.md</code> still states <i>"LAN-90 and LAN-92 remain binding; manual distribution is never a fallback,"</i> which now contradicts that. Recorded rather than edited: changing the repository's working agreement is Brian's call, not this intake's.</p>
         </div>`;
     </script>
   </body>
