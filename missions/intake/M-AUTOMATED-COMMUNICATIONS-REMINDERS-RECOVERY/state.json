@@ -139,10 +139,19 @@
     {
       "id": "W8",
       "name": "Keep queued messages honest when an event changes",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "As long as the app thinks it's consistent, I'm fine with it. This seems like an edge case. Okay, I go ahead and approve this.",
+          "date": "2026-08-25"
+        },
+        "mock": {
+          "words": "As long as the app thinks it's consistent, I'm fine with it. This seems like an edge case. Okay, I go ahead and approve this.",
+          "date": "2026-08-25"
+        }
+      }
     }
   ],
   "mockup_hub": "generated",
@@ -875,5 +884,5 @@
       }
     ]
   },
-  "next_action": "Review W8 with Brian, then return to W7's open values (Stage 3)"
+  "next_action": "Close W7's open values, then assemble the packet (Stage 4)"
 }
