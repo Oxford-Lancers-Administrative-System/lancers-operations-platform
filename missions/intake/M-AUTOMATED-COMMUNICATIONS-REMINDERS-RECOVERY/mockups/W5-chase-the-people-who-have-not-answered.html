@@ -884,6 +884,20 @@
       <div id="screens"></div>
     </div>
     <script>
+      const ESC = `<strong>6 people have not answered</strong>\n\nvs Harewell Hawks — Sunday 13 September, 14:00.\nThe response deadline passed at 18:00.\n\nOpen the club app to see who and follow up.`;
+
+      function chrome(url, badge, body, kind) {
+        return `<div class="frame ${kind}"><div class="chrome"><span class="dots"><i></i><i></i><i></i></span><span class="url">${url}</span><span class="badge">${badge}</span></div><div class="viewport"><div class="${kind === "desktop" ? "desktop-vp" : "phone-vp"} ${kind}">${body}</div></div></div>`;
+      }
+
+      function waShell(message) {
+        return `<div class="wa-app"><aside class="wa-sidebar"><div class="wa-side-head">Chats</div><div class="wa-thread selected"><span class="avatar">OL</span><div><b>Oxford Lancers</b><small>6 people have not answered…</small></div></div><div class="wa-thread"><span class="avatar" style="background:#6b7280">C</span><div><b>Committee</b><small>Fixtures</small></div></div></aside><section class="wa-main"><header class="wa-head"><span class="avatar">OL</span><div><b>Oxford Lancers</b><small>Official business account</small></div></header><div class="wa-chat"><div class="wa-day">TODAY</div>${message}</div><footer class="wa-compose"><span>Message</span></footer></section></div>`;
+      }
+
+      function bubble(copy, actions = []) {
+        return `<div class="wa-bubble"><div class="wa-copy">${copy}<div class="wa-meta">18:00 ✓✓</div></div>${actions.map((a) => `<div class="wa-action">↗&nbsp; ${a}</div>`).join("")}</div>`;
+      }
+
       const S = {
         id: "W5-01",
         n: "01",
