@@ -92,10 +92,19 @@
     {
       "id": "W5",
       "name": "Chase the people who have not answered",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "If the follow-up message to them is approved, there's nothing more with this workflow. I approve it.",
+          "date": "2026-08-25"
+        },
+        "mock": {
+          "words": "If the follow-up message to them is approved, there's nothing more with this workflow. I approve it.",
+          "date": "2026-08-25"
+        }
+      }
     },
     {
       "id": "W6",
@@ -852,5 +861,5 @@
       }
     ]
   },
-  "next_action": "Review the W5 specification and mockup with Brian (Stage 3)"
+  "next_action": "Draft the W6 specification — repair a delivery that failed (Stage 3)"
 }
