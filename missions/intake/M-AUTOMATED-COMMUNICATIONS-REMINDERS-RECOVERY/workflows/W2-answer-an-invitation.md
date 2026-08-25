@@ -12,9 +12,9 @@
   WhatsApp template. Email uses equivalent calls to action but does not pretend
   an automated link visit is a human answer.
 - **Route/placement:** The choice opens the no-login RSVP experience. It begins
-  with the selected event and then exposes the same player's outstanding-RSVP
-  inbox.
-- **Controlling sources:** Brian's W2 direction on 2026-08-24; Meta's official
+  with the selected event and ends on the player's own durable page.
+- **Controlling sources:** Brian's W2 direction on 2026-08-24 and his revisions
+  of 2026-08-25; Meta's official
   WhatsApp Business Platform template/button contract; Mission 2's approved
   per-event questions; Task 03's binary RSVP, reminder and response decisions;
   R5, R6 and R12; and the W1 sequence approved 2026-08-24.
@@ -28,8 +28,8 @@
 The first draft treated WhatsApp as body copy containing one plain signed link
 and treated the existing LAN-79 page as the whole player journey. Brian rejected
 that shape. W2 now owns an interactive message, answer-specific landing states,
-per-event questions, aggregate RSVP social proof, and a player-facing outstanding
-invitation inbox.
+per-event questions, aggregate RSVP social proof from the second rung onward, and
+a durable page belonging to the player.
 
 It also supersedes two earlier assumptions when this specification is approved:
 
@@ -91,8 +91,9 @@ such rather than disguised as one.
    to replace **No reason given** with the real reason or change to Yes. Optional
    questions remain visibly optional.
 5. **See confirmation and continue.** The saved state confirms the standing
-   answer and shows the outstanding-RSVP inbox, divided into **New invitations**
-   and **Still need your answer**, with the next one visually dominant.
+   answer and ends on the player's own page: work still needing an answer at the
+   top with the next one visually dominant, and everything already answered whose
+   event has not happened yet below it.
 6. **Stop the chase.** Either button records the response, cancels every later
    player-facing RSVP rung and clears any un-actioned nonresponse flag atomically.
    Unanswered event questions and **No reason given** remain visible follow-up
@@ -271,7 +272,7 @@ durable credentials is not a posture this mission should add to.
 | No is selected and the page is abandoned      | No is standing; operator and player see the honest default **No reason given**                            |
 | The player changes No to Yes                  | Yes becomes standing, **No reason given** remains only in append-only history, and no RSVP chase restarts |
 | The player changes Yes to No                  | The No page requires a real reason before the standing answer changes                                     |
-| Another invitation belongs to the same player | It appears in the outstanding inbox with its own event details and choices                                |
+| Another invitation belongs to the same player | It appears on the player's own page with its own event details and choices                                |
 | An invitation belongs to somebody else        | It is absent from content, DOM and response payload even if identifiers are guessed                       |
 | Event has started                             | No response or intent is written; the uniform terminal surface remains                                    |
 | Valid event is cancelled                      | Existing cancelled-event state says no response is needed                                                 |
@@ -323,8 +324,9 @@ durable credentials is not a posture this mission should add to.
   history.
 - Accurate live aggregate counts appear in messages and on the page without any
   peer name or answer detail. Zero-count copy is omitted rather than weaponised.
-- The outstanding inbox returns only the same player's incomplete invitations,
-  groups new versus incomplete work, and directs them to the next answer.
+- The player's page returns only that player's own work, separates
+  needs-an-answer from already-answered-and-upcoming, and directs them to the
+  next answer.
 - Either response click cancels all later player-facing RSVP jobs and clears any
   un-actioned flag atomically; question/reason follow-up remains separately
   visible.
@@ -362,7 +364,7 @@ durable credentials is not a posture this mission should add to.
 | Accurate aggregate Yes counts appear in player messages and pages | `proposed for owner approval` | Brian's W2 feedback, 2026-08-24 | Supersedes zero-peer-visibility if approved |
 | WhatsApp 1, WhatsApp 2 and email use progressively stronger, distinct copy | `proposed for owner approval` | Brian's W2 feedback; W1 fixes the channel order | Exact reviewed mockup copy to approve |
 | Direct typed WhatsApp replies remain non-authoritative | `locked` | Task 03 inbound-reply seam remains gated on Stuart's review | Unchanged |
-| No separate confirmation message follows a completed answer | `locked` | The landing page and outstanding inbox provide confirmation; W1 adds no extra rung | Unchanged |
+| No separate confirmation message follows a completed answer | `locked` | The landing page and the player's own page provide confirmation; W1 adds no extra rung | Unchanged |
 | Exact safe implementation of one-time actions, sessions and scanner resistance | `delegated to Mission Lead` | Must satisfy the visible and security acceptance without changing meaning | Delegated |
 
 ## Brian approval
