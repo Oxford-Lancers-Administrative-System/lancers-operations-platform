@@ -188,6 +188,61 @@ own start instead means a 20:00 practice answers by 20:00 two days before, and a
 
 The superseding ADR that records the settings-page reversal covers this too.
 
+## The schedule model, as Brian defined it on 2026-08-25
+
+Per-rung day offsets are replaced by a **cadence**. Brian: _"The first message
+gets sent out at the thing, then it waits 24 hours, then sends the next one,
+then sends out the next cadence at 24 hours."_
+
+Each event type therefore carries five values:
+
+| Column                    | Meaning                                                   |
+| ------------------------- | --------------------------------------------------------- |
+| **Player RSVP by**        | Days before the event start                               |
+| **First invitation sent** | Days before the event start                               |
+| **Reminder cadence**      | Hours between messages — default **24**                   |
+| **Reminders**             | How many of each — default **2 WhatsApp, 1 email**        |
+| **President escalation**  | Hours after the RSVP date — default **12** for every type |
+
+The order is fixed and not configurable: invitation, then WhatsApp reminders,
+then the email last. Only the spacing and the counts are tuned. Escalation is
+**12 hours for every type**, replacing the earlier per-type values and the
+zero-hour game case.
+
+### Showing it: the schedule preview
+
+Brian: _"I think there's a better way to show that, but I'm not sure how."_ The
+answer is to stop showing only the inputs. The page renders the **actual
+schedule the row produces** for a worked example, as dates:
+
+> Practice at 20:00 on Wednesday 16 September — invitation Wed 9 Sept 20:00,
+> reminders Thu 10, Fri 11 and (email) Sat 12, RSVP deadline Mon 14 20:00,
+> President told Tue 15 at 08:00.
+
+Numbers like "2 and 1" are unreadable as policy and obvious as dates. The
+preview is not decoration; it is how the values are checked.
+
+### What the preview immediately exposed
+
+A **game** sends its first invitation 21 days out with a 24-hour cadence, so all
+four player messages land 21, 20, 19 and 18 days before the event — and its RSVP
+deadline is 7 days before. **The whole ladder finishes eleven days before the
+deadline it is chasing**, and the President is then told about people who last
+heard from the club a fortnight earlier.
+
+A cadence anchored to the first invitation works when the runway is short and
+fails when it is long. Two ways out, and this needs Brian:
+
+1. **Anchor the reminders to the RSVP deadline and count backwards.** The
+   invitation still goes early; the reminders cluster where they matter. A
+   24-hour cadence then means the last three days before the deadline.
+2. **Keep the forward cadence but stretch it per type** — a game would need a
+   cadence measured in days, not hours, to span 21 days to 7.
+
+Recommendation: **1**. The invitation announces; the reminders chase. Chasing
+should happen near the thing being chased, and it keeps one cadence value
+meaningful across every event type.
+
 ## What the research says
 
 Brian asked for the recommended pattern rather than a guess. Two findings shaped
@@ -256,9 +311,12 @@ the page:
 | No per-event override                                                                 | `locked`                      | ADR 0021                                                                                               | Settled                            |
 | There are no quiet hours                                                              | `locked`                      | `OWN-no-quiet-hours`, confirmed at W1                                                                  | Settled                            |
 | It lives under Administration, beside Follow-ups                                      | `proposed for owner approval` | Consistent with the W5 placement decision                                                              | Recommended                        |
-| The two reminders default to 2 days and 1 day before the event                        | `proposed for owner approval` | Brian 2026-08-25: "we should default to 2-1 on how many reminders they get"                            | Recommended                        |
+| The ladder is a cadence, not per-rung offsets: every N hours, N=24                    | `proposed for owner approval` | Brian 2026-08-25: "it waits 24 hours, then sends the next one"                                         | Recommended                        |
+| Reminders default to 2 WhatsApp and 1 email                                           | `proposed for owner approval` | Brian 2026-08-25                                                                                       | Recommended                        |
+| President escalation is 12 hours after the RSVP date for every type                   | `proposed for owner approval` | Brian 2026-08-25, replacing the per-type values and the zero-hour game                                 | Recommended                        |
+| The page previews the dates a row produces                                            | `proposed for owner approval` | Brian asked for a better way to show cadence; inputs alone are unreadable as policy                    | Recommended                        |
+| Reminders anchor to the RSVP deadline, not the invitation                             | `proposed for owner approval` | The preview showed a game's ladder finishing 11 days before its own deadline                           | **Needs Brian — two options**      |
 | The invitation anchor and ladder offsets                                              | `proposed for owner approval` | No approved values exist; ADR 0021's precedent is that they must not be invented                       | **Needs Brian — values**           |
-| Escalation N per event type                                                           | `proposed for owner approval` | `T03-escalation-hours` fixes the shape, not the numbers                                                | **Needs Brian — values**           |
 | Short-runway compression                                                              | `proposed for owner approval` | The earlier drop-and-gap proposal was reopened and is not approved                                     | **Needs Brian — four options**     |
 | Escalation never fires before a minimum answer window after the first message         | `proposed for owner approval` | Nothing connected a clamped deadline to escalation N; a game at N=0 would escalate at approval         | **New rule — needs Brian**         |
 | Changes never apply retroactively to approved events                                  | `proposed for owner approval` | Their deadlines are frozen on the invitation and their jobs already scheduled                          | Recommended                        |
