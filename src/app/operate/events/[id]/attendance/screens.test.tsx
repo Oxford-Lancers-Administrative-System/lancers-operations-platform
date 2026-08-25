@@ -56,6 +56,13 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
     readEventAudience: vi.fn(),
   };
 });
+// LAN-156. The event detail reads its change history; this file is about the
+// register panel, so the reader is stubbed empty and is proved in
+// `../change-screens.test.tsx` and `src/lib/services/event-amendment.test.ts`.
+vi.mock("@/lib/services/event-amendment", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/event-amendment")>();
+  return { ...actual, readEventChangeHistory: vi.fn(async () => []) };
+});
 // LAN-157. The event page reads the participation table and the live club
 // link; the table itself is proved in `src/app/participation/screens.test.tsx`
 // and against the database in `src/lib/services/participation.test.ts`.

@@ -278,48 +278,115 @@ describe("participation (P1–P8)", () => {
     );
   });
 
-  it("P5 — refuses attendance against an event that is not approved", async () => {
+  it("P5 — refuses attendance against a draft event", async () => {
     // The database's half of P5, and the only half it can hold: a check
     // constraint cannot read the clock, so when the register opens lives in the
-    // service layer (`attendance-window.ts`). A draft has nobody on it and a
-    // cancelled event did not happen, and both are refused here structurally,
-    // whatever any caller believes.
+    // service layer (`attendance-window.ts`). A draft was never held, and it is
+    // refused here structurally, whatever any caller believes.
+    //
+    // LAN-156 widened this check to `in ('approved', 'cancelled')` so that
+    // cancelling an event does not destroy its register (W6, D57). `draft` is
+    // the half that did not move, and this is the test that says so.
     //
     // A-5: the rule is named exactly. It had been weakened to the bare
     // substring "attendance_records", which any of a dozen constraints on that
     // table would satisfy — including the composite foreign key, which fails
     // for an entirely different reason and would have hidden the check being
     // dropped.
-    for (const status of ["draft", "cancelled"]) {
-      await expectRejected(
-        client,
-        `insert into public.attendance_records
-           (event_id, event_status, season_id, capacity, season_membership_id, presence)
-         values ($1, $4, $2, 'player', $3, 'present')`,
-        [base.approvedEventId, base.seasonId, base.membershipId, status],
-        "attendance_records_require_an_approved_event",
-      );
-    }
+    //
+    // The parent here is a real draft event, so its own copy of the status
+    // agrees with the child's: the composite foreign key is satisfied and this
+    // check is the only thing left that can refuse the row. That is what makes
+    // it proof, rather than a refusal that happens to arrive from elsewhere.
+    await expectRejected(
+      client,
+      `insert into public.attendance_records
+         (event_id, event_status, season_id, capacity, season_membership_id, presence)
+       values ($1, 'draft', $2, 'player', $3, 'present')`,
+      [base.draftEventId, base.seasonId, base.membershipId],
+      "attendance_records_require_an_approved_event",
+    );
+
+    // And with the copy disagreeing with an approved parent, which is the shape
+    // this test carried before LAN-156. The check still fires first.
+    await expectRejected(
+      client,
+      `insert into public.attendance_records
+         (event_id, event_status, season_id, capacity, season_membership_id, presence)
+       values ($1, 'draft', $2, 'player', $3, 'present')`,
+      [base.approvedEventId, base.seasonId, base.membershipId],
+      "attendance_records_require_an_approved_event",
+    );
   });
 
-  it("P5 — refuses cancelling an event while attendance exists", async () => {
+  it("P5 — refuses an attendance record whose copy of the status is not the event's", async () => {
+    // `cancelled` is now inside the check, so the thing that refuses this row is
+    // the composite foreign key: the parent is approved and the child claims
+    // otherwise. Naming it exactly matters here for the same reason A-5 gave —
+    // the two constraints refuse for entirely different reasons, and a test that
+    // accepted either would pass while the check was silently gone.
+    await expectRejected(
+      client,
+      `insert into public.attendance_records
+         (event_id, event_status, season_id, capacity, season_membership_id, presence)
+       values ($1, 'cancelled', $2, 'player', $3, 'present')`,
+      [base.approvedEventId, base.seasonId, base.membershipId],
+      "attendance_records_event_state_is_current",
+    );
+
+    // And the direction that matters most now that the check admits
+    // `cancelled`: a register cannot be opened on an event that was called off.
+    // The check alone no longer refuses that row, so this is the composite
+    // foreign key doing it — a cancelled event has no `(id, 'approved')` row to
+    // point at, which is exactly why `attendance.ts` writes the literal
+    // `approved` rather than copying the event's status.
     await client.query(
+      `update public.events set status = 'cancelled', decision_reason = 'Called off.'
+        where id = $1`,
+      [base.approvedEventId],
+    );
+    await expectRejected(
+      client,
       `insert into public.attendance_records
          (event_id, event_status, season_id, capacity, season_membership_id, presence)
        values ($1, 'approved', $2, 'player', $3, 'present')`,
+      [base.approvedEventId, base.seasonId, base.membershipId],
+      "attendance_records_event_state_is_current",
+    );
+  });
+
+  it("P5 — cancelling an event keeps its attendance records (W6, D57)", async () => {
+    const record = await one<{ id: string }>(
+      client,
+      `insert into public.attendance_records
+         (event_id, event_status, season_id, capacity, season_membership_id, presence)
+       values ($1, 'approved', $2, 'player', $3, 'present')
+       returning id`,
       [base.occurredEventId, base.seasonId, base.membershipId],
     );
 
     // The cascading composite foreign key rewrites the child's copy of the
-    // status, which then fails its own check. Calling the event off has to deal
-    // with the attendance first — which is the point.
-    await expectRejected(
+    // status. Before LAN-156 the rewritten value failed the child's own check
+    // and the cancellation was refused outright — which meant an event whose
+    // register had opened could not be called off at all, against W6. The check
+    // now admits `cancelled`, so the cascade lands and the register survives.
+    await expectAccepted(
       client,
       `update public.events set status = 'cancelled', decision_reason = 'Called off.'
         where id = $1`,
       [base.occurredEventId],
-      "attendance_records_require_an_approved_event",
     );
+
+    const after = await client.query<{ id: string; event_status: string }>(
+      `select id, event_status::text as event_status
+         from public.attendance_records where event_id = $1`,
+      [base.occurredEventId],
+    );
+
+    // By count and by identity: the same row, not a replacement.
+    expect(after.rows).toHaveLength(1);
+    expect(after.rows[0].id).toBe(record.id);
+    expect(after.rows[0].event_status).toBe("cancelled");
   });
 
   it("P8 — refuses a participation record anchored to both a membership and a person", async () => {

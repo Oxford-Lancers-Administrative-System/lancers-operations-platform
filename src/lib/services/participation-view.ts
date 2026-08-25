@@ -315,13 +315,15 @@ export const PARTICIPATION_PARAMS = Object.freeze({
 });
 
 /**
- * The five delivery states a `?delivery=` value may name, plus `none`.
+ * Every `DeliveryState` a `?delivery=` value may name, plus `none`.
  *
  * Written out here rather than imported from `./delivery`, which is
  * `server-only` and would reach the browser through the filter bar. The
- * assertion below is what keeps the two from drifting: a sixth `DeliveryState`
+ * assertion below is what keeps the two from drifting: a `DeliveryState`
  * that is not listed here fails compilation rather than becoming a filter value
- * that silently matches nothing.
+ * that silently matches nothing. `held` and `cancelled` (LAN-156) joined the
+ * five provider outcomes after this list was first written, which is exactly
+ * the drift the assertion exists to catch — it did.
  */
 export const DELIVERY_FILTERS = Object.freeze([
   "queued",
@@ -329,6 +331,8 @@ export const DELIVERY_FILTERS = Object.freeze([
   "delivered",
   "failed",
   "retryable",
+  "held",
+  "cancelled",
   "none",
 ] as const);
 

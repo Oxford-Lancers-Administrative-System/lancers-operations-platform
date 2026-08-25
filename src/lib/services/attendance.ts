@@ -49,11 +49,19 @@ import { personDisplayNameSql as displayName } from "./sql-text";
  *   * **Invariant P5** — attendance belongs to an event that is really going
  *     to have happened, and since LAN-151 occurrence is derived rather than
  *     asserted (D30). The rule is in two halves, deliberately. The database
- *     holds "the event is approved", with a cascading composite foreign key
- *     plus `check (event_status = 'approved')`, so it is true of every row in
- *     the table at every instant including rows written by a script that never
- *     called this module. Cancelling an event that carries attendance is
- *     refused by the same cascade.
+ *     holds the part no legitimate write can produce: a cascading composite
+ *     foreign key plus
+ *     `check (event_status in ('approved', 'cancelled'))`, so no row in the
+ *     table has ever belonged to a draft, including rows written by a script
+ *     that never called this module. `cancelled` is inside that check since
+ *     LAN-156 because cancelling an event cascades its status onto the
+ *     register and W6 says those rows survive it — the event was approved when
+ *     the register was taken, and calling it off does not unmake that.
+ *
+ *     What the database therefore does *not* hold is "attendance is only ever
+ *     created against an approved event". That is this module's, in
+ *     `closedReasonFor`, which every write path asks. A cancelled event's
+ *     register is closed.
  *
  *     The other half is the **clock**, which a check constraint cannot read, so
  *     it is enforced here: the register opens on D71's buffer before the event
@@ -184,11 +192,15 @@ export interface AttendanceBoard {
    * third. D71 says the register opens on a buffer before the event and D72
    * says it never closes — `./attendance-window.ts` holds the first, and
    * `closedReasonFor` below holds the second by treating a register with
-   * anything recorded against it as one that is already open. What remains of
-   * the stored half is the approval: `attendance_records_require_an_occurred_event`
-   * was a check constraint and this branch's migration replaces it with
-   * `attendance_records_require_an_approved_event`, which is the same conjunct
-   * one state earlier.
+   * anything recorded against it as one that is already open.
+   *
+   * The approval is this function's own rule and not the database's backstop.
+   * `attendance_records_require_an_approved_event` admits `cancelled` as well
+   * as `approved`, because a cancellation cascades its status onto the
+   * register's rows and W6 says those rows survive it. `draft` is all the
+   * check still refuses. So "may the register be opened?" is answered here,
+   * once, by `closedReasonFor`, and the database catches only the case nothing
+   * legitimate can produce.
    */
   isOpen: boolean;
   /** `null` when the register is open. */
@@ -822,12 +834,13 @@ async function writeAttendance(
     attendanceId = updated.rows[0].id;
     recordedAt = updated.rows[0].recorded_at;
   } else {
-    // `event_status` is written as the literal the check constraint admits
-    // rather than copied from the event we read, so that this statement states
-    // the rule it is relying on. If the event is not `approved` the composite
-    // foreign key has nothing to point at and the insert is refused — which is
-    // the database's half of invariant P5 holding without this module being
-    // trusted. The other half, that the date has passed, was proved above.
+    // `event_status` is written as the literal `approved` rather than copied
+    // from the event we read, so that this statement states the rule it is
+    // relying on. If the event is not `approved` the composite foreign key has
+    // nothing to point at and the insert is refused — which is why writing the
+    // literal still holds invariant P5 here even though the check constraint
+    // now also admits `cancelled`: a cancelled event has no `(id, 'approved')`
+    // row to reference. The clock half was proved above.
     const inserted = await tx.query<{ id: string; recorded_at: Date }>(
       `insert into public.attendance_records
          (event_id, event_status, season_id, capacity, season_membership_id, person_id,

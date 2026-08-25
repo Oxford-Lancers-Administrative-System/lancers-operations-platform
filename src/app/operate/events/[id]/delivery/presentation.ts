@@ -15,13 +15,27 @@ import type { DeliveryState } from "@/lib/services/delivery";
  * the whole of the screen's copy without reading its layout.
  */
 
-/** § 6's five, and nothing else. */
+/**
+ * § 6's five, plus **Held**.
+ *
+ * Held is LAN-156's and it is not a sixth provider status — it is the club
+ * stopping its own message. § 6's vocabulary describes what the provider did
+ * with a message, and a held message has not been offered to the provider at
+ * all, so no existing word covers it. It was previously rendered as **Queued**,
+ * which told the operator the opposite of the truth: that it was on its way.
+ */
 export const DELIVERY_STATE_LABELS: Readonly<Record<DeliveryState, string>> = Object.freeze({
   queued: "Queued",
   attempted: "Attempted",
   delivered: "Delivered",
   failed: "Failed",
   retryable: "Retryable",
+  held: "Held",
+  // LAN-156 (R156-B2). Not a provider outcome either, for the same reason
+  // Held is not: the club stopped the message itself, before it ever reached
+  // a provider. Distinct from Held because there is nothing left to resume —
+  // the event is terminal.
+  cancelled: "Cancelled",
 });
 
 /**
@@ -40,6 +54,13 @@ export const DELIVERY_STATE_COLOURS: Readonly<
   delivered: "success",
   failed: "error",
   retryable: "warning",
+  // Not an error — nothing has gone wrong, and the club did this on purpose.
+  // Warning rather than neutral because it is a message that has stopped.
+  held: "warning",
+  // Not an error either, and calmer than Held: the event is cancelled and
+  // terminal, so there is no change coming that would make this message
+  // send after all.
+  cancelled: "default",
 });
 
 /** The RSVP column. Response language from § 6, never delivery language. */
@@ -179,6 +200,16 @@ export function describeRetryability(
   if (state === "delivered") return "Delivered — nothing to repair";
   if (state === "attempted") return "Waiting for the provider to confirm delivery";
   if (state === "queued") return "Waiting to be sent";
+  // LAN-156. Says what stopped it. It used to add "Re-notify to send the
+  // change", which told the operator that pressing Re-notify sends *this*
+  // message — R156-B3. Re-notify writes a separate notice job; nothing here
+  // ever clears `held_at`, so that sentence promised a release the codebase
+  // does not perform. Whether a held job itself ever resumes is Mission 4's
+  // decision, so this says only what is true today and stops.
+  if (state === "held") return "Held since this event was changed.";
+  // LAN-156 (R156-B2). The event is cancelled and terminal, so unlike Held
+  // there is nothing to say would release it — nothing will.
+  if (state === "cancelled") return "Cancelled with the event. Nothing further will be sent.";
   if (!retryable) {
     return `${countAttempts(attempts)} used, and no further automatic attempt. Somebody has to fix the cause first.`;
   }
@@ -198,6 +229,7 @@ function countAttempts(attempts: number): string {
  */
 export function describeRetryColumn(state: DeliveryState, retryable: boolean): string {
   if (state === "queued") return "Scheduled";
+  if (state === "held") return "Held";
   return retryable ? "Retryable" : "—";
 }
 
