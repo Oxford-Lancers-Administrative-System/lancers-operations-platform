@@ -574,17 +574,28 @@ invitations, RSVP, attendance, notification jobs and delivery results, the
 weekly report, follow-up actions, and audit.
 
 **Structurally present, not yet driven by a workflow.** `eligibility_records`
-beyond `club_play`; `event_questions` beyond transport; `alternative_groups`;
-the `staging` schema.
+beyond `club_play`; `alternative_groups`; the `staging` schema.
 
-LAN-151 added five more, deliberately: `event_type_settings`,
-`event_templates`, `event_template_questions`,
+LAN-151 added five tables ahead of the behaviour that reads them, deliberately:
+`event_type_settings`, `event_templates`, `event_template_questions`,
 `event_template_audience_groups` and `club_link_tokens`, plus the amendment
 hold on `notification_jobs`. That work package owns the whole
 Events & Calendar mission's schema so that one migration reaches hosted rather
-than four, and the behaviour that reads and writes them belongs to the mission's
-later packages. Nothing in `src/` touches any of them yet, and their contract is
-asserted in `tests/schema-events-target-state.test.ts`.
+than four, and their contract is asserted in
+`tests/schema-events-target-state.test.ts`.
+
+**LAN-154 took up three of them.** `event_templates`,
+`event_template_questions` and `event_template_audience_groups` are now read and
+written by `src/lib/services/event-templates.ts`, which is also where D41's
+per-field inheritance lives — a template value flows into a draft only where
+nobody has edited it, and no approved or past event ever changes.
+`event_questions` is written by the event form through
+`src/lib/services/event-questions.ts`, so it is no longer "beyond transport"
+either: `from_template` marks a question that arrived with the type and is what
+makes removing one per event safe (D42).
+
+Still untouched by any workflow: `event_type_settings`, which stores D75 and
+D77's chase thresholds for Mission 4 to consume, and `club_link_tokens`.
 
 `recruitment_prospects` is no longer among them. LAN-110's walk-on form writes
 one at `identified` for the event's season — somebody who turned up and is not

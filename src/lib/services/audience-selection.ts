@@ -21,8 +21,16 @@
  * and the operator would never know which of the two was lying.
  */
 
-/** The capacities an audience can be built from in this slice. */
-export type AudienceCapacity = "player" | "coach" | "committee";
+/**
+ * The capacities an audience can be built from.
+ *
+ * `recruit` joined the other three with D46, and only ever appears on a
+ * Recruitment event — see `AUDIENCE_GROUPS`. It anchors to the durable Person
+ * like coach and committee do, because a prospect is deliberately not a
+ * membership: `public.recruitment_prospects` exists so that the roster keeps
+ * meaning "people on the team".
+ */
+export type AudienceCapacity = "player" | "coach" | "committee" | "recruit";
 
 /**
  * Which capacity wins when one person qualifies under several.
@@ -36,6 +44,10 @@ export const CAPACITY_PRECEDENCE: readonly AudienceCapacity[] = Object.freeze([
   "player",
   "coach",
   "committee",
+  // Last, and it costs nothing: a prospect who is also a member is not a
+  // prospect any more — `recruitment_prospects.status` is `converted` and the
+  // catalogue stops offering them. The rank exists so the ordering is total.
+  "recruit",
 ]);
 
 /** One selectable person, in one capacity, with everything UX-40 lists. */
@@ -56,46 +68,90 @@ export interface AudienceCandidate {
   contact: string | null;
 }
 
+/**
+ * `public.audience_group`, in full — the closed vocabulary a template's default
+ * audience is stored in (D43, D46).
+ *
+ * Closed because D43 is explicit that there is no further roster-derived group
+ * and no saved custom group, and D44 that there are no unit or kit groups: the
+ * unit control on the builder filters who is on screen and creates nothing.
+ */
+export type AudienceGroupKey =
+  "everyone_active" | "active_players" | "active_coaches" | "active_committee" | "recruits";
+
 /** A derived group offered on UX-40. Data, so the screen enumerates rather than hard-codes. */
 export interface AudienceGroup {
-  key: string;
+  key: AudienceGroupKey;
   label: string;
   capacities: readonly AudienceCapacity[];
+  /**
+   * The event types this group is offered on. Absent means every type.
+   *
+   * D46 puts the recruits group on Recruitment alone, and
+   * `event_template_audience_groups_recruits_are_recruitment_only` says the same
+   * thing in the database. This field is what stops the builder and the template
+   * editor each inventing their own copy of that rule.
+   */
+  eventTypes?: readonly string[];
 }
 
 /**
- * The system-derived groups Brian's clarification names, and no others.
+ * The system-derived groups the club has, and no others.
  *
  * Every one is backed by current authoritative domain data. There is no saved
- * custom group here and no seam for one: custom group creation and
- * administration are explicitly not part of LAN-77 and "require later shaping if
- * the derived groups prove insufficient".
+ * custom group here and no seam for one: D43 is explicit that there is no
+ * further roster-derived group, and D44 that there are no unit or kit groups —
+ * the unit control on the builder filters who is on screen and creates nothing.
+ *
+ * The list is also the vocabulary a template's default audience is stored in
+ * (D47), which is why the keys match `public.audience_group` exactly.
  */
 export const AUDIENCE_GROUPS: readonly AudienceGroup[] = Object.freeze([
   // Everyone first, on Brian's instruction: it is the common case, and the
   // narrower groups then read as refinements of it rather than as a list you
   // have to assemble. The order here is the order on screen.
   Object.freeze({
-    key: "everyone_active",
+    key: "everyone_active" as const,
     label: "Everyone active",
     capacities: Object.freeze(["player" as const, "coach" as const, "committee" as const]),
   }),
   Object.freeze({
-    key: "active_players",
+    key: "active_players" as const,
     label: "All active players",
     capacities: Object.freeze(["player" as const]),
   }),
   Object.freeze({
-    key: "active_coaches",
+    key: "active_coaches" as const,
     label: "All active coaches",
     capacities: Object.freeze(["coach" as const]),
   }),
   Object.freeze({
-    key: "active_committee",
+    key: "active_committee" as const,
     label: "All active committee",
     capacities: Object.freeze(["committee" as const]),
   }),
+  // D46. A recruitment event is the one occasion the club invites people who
+  // are not on the roster, so this is the one type the group appears on.
+  Object.freeze({
+    key: "recruits" as const,
+    label: "Recruits",
+    capacities: Object.freeze(["recruit" as const]),
+    eventTypes: Object.freeze(["recruitment"]),
+  }),
 ]);
+
+/**
+ * The groups offered for one event type.
+ *
+ * The builder, the template editor and the approval review all ask this rather
+ * than filtering for themselves, so "which groups does a Social have?" has one
+ * answer — `docs/ux/standards.md` rule 7 over three surfaces.
+ */
+export function groupsForEventType(eventType: string): readonly AudienceGroup[] {
+  return AUDIENCE_GROUPS.filter(
+    (group) => group.eventTypes === undefined || group.eventTypes.includes(eventType),
+  );
+}
 
 /** The full selectable catalogue for one event. */
 export interface AudienceCatalogue {
@@ -337,4 +393,62 @@ export function toggleGroup(
 
   const leaving = new Set(groupKeys);
   return new Set([...selected].filter((key) => !leaving.has(key)));
+}
+
+/**
+ * The audience named by its groups before its people — W4, amendment W4-A1.
+ *
+ * Brian, 2026-08-21: "it should say at the very top what groups it would be ...
+ * You don't have to show me how it's done." An approver checks a shape faster
+ * than they check a list of thirty-five, so the review leads with **All active
+ * players, all coaches** and a headcount, and the names follow underneath.
+ *
+ * ## The covering, and why it is greedy in the declared order
+ *
+ * `AUDIENCE_GROUPS` runs widest first, so the walk below names the broadest
+ * group that is wholly present and then only names a narrower one if it adds
+ * somebody not already covered. An audience of the whole club therefore reads
+ * "Everyone active" rather than "Everyone active, all active players, all active
+ * coaches, all active committee", which is the same fact said four times.
+ *
+ * ## What is left over is counted, never guessed at
+ *
+ * People chosen by hand belong to no group, and a group that is *partly*
+ * selected is not named at all — naming it would tell the approver the whole
+ * group is invited when it is not, which is the one thing this line must never
+ * do. They come back as `others`, and the named list underneath is where they
+ * are actually read.
+ */
+export interface AudienceGroupSummary {
+  /** The labels of the groups wholly present, widest first. Possibly empty. */
+  groups: string[];
+  /** How many of the chosen people no named group accounts for. */
+  others: number;
+  /** How many people are chosen altogether. */
+  total: number;
+}
+
+export function summariseAudienceGroups(
+  candidates: readonly AudienceCandidate[],
+  selected: readonly string[],
+  eventType: string,
+): AudienceGroupSummary {
+  const chosen = peopleIn(candidates, selected);
+  const covered = new Set<string>();
+  const groups: string[] = [];
+
+  for (const group of groupsForEventType(eventType)) {
+    const wanted = peopleIn(candidates, groupSelectionKeys(candidates, group.key));
+    if (wanted.size === 0) continue;
+    if (![...wanted].every((personId) => chosen.has(personId))) continue;
+    if ([...wanted].every((personId) => covered.has(personId))) continue;
+    groups.push(group.label);
+    for (const personId of wanted) covered.add(personId);
+  }
+
+  return {
+    groups,
+    others: [...chosen].filter((personId) => !covered.has(personId)).length,
+    total: chosen.size,
+  };
 }

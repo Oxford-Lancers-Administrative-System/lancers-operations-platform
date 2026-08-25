@@ -103,6 +103,25 @@ moved between — `pending_approval`, `rejected`, `withdrawn`, `occurred` and
 `event-approval.ts`; a status a caller cannot reach is one the enum does not
 have, which is a stronger guarantee than a rule about it.
 
+LAN-154 added the one transition that has no target status: `deleteEventDraft`
+removes the row. "Withdrawn" used to mean _it never became an event_, and D29
+says such a draft is deleted rather than parked in a state that says so. Only a
+draft may be deleted — an approved event was announced, so it is cancelled — and
+the guard is the same `where … and status = 'draft'` every other write here uses,
+rather than a preceding read.
+
+The three modules LAN-154 added follow the split `event-input.ts` established,
+and for the same reason: `event-questions-input.ts` and `event-template-input.ts`
+are pure and are what the Client Components import, while `event-questions.ts`
+and `event-templates.ts` reach the database and re-export them. The rule worth
+knowing before changing any of it is D41's, and it lives in `event-templates.ts`:
+a template value flows into a draft **only where nobody has edited that field**,
+approval freezes it, and no approved or past event ever changes. "Untouched" is
+derived rather than marked — a draft field still equal to what the _old_ template
+gave it is one nobody has touched — so there is no provenance column to keep in
+step, and `templateDefaults` is the single definition both the create path and
+the change path read.
+
 `administration-events.ts` and `administration-audit.ts` are LAN-130's half of
 the operator-administration mission, and they are the pattern for **one event
 read two ways**. The vocabulary module is pure — a closed set of administration

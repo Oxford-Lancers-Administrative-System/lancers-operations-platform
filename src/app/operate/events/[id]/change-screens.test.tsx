@@ -36,7 +36,15 @@ vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("../../login/actions", () => ({ signOut: vi.fn() }));
 vi.mock("@/lib/services/events", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/events")>();
-  return { ...actual, readEvent: vi.fn(), listCurrentSeasonEvents: vi.fn() };
+  return {
+    ...actual,
+    readEvent: vi.fn(),
+    listCurrentSeasonEvents: vi.fn(),
+    // LAN-154. The detail page reads its questions on every status; this file
+    // is about everything else on the page, so an empty list is stubbed here
+    // and questions themselves are proved in `screens.test.tsx`.
+    readEventQuestions: vi.fn(async () => []),
+  };
 });
 vi.mock("@/lib/services/seasons", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/seasons")>();
@@ -48,7 +56,15 @@ vi.mock("@/lib/services/attendance", async (importOriginal) => {
 });
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-approval")>();
-  return { ...actual, readEventAudience: vi.fn(async () => []), readApprovalPreview: vi.fn() };
+  return {
+    ...actual,
+    readEventAudience: vi.fn(async () => []),
+    readApprovalPreview: vi.fn(),
+    // LAN-154 (round 3, D3). Read only when the detail page is about to list
+    // names by hand — see the guard in `[id]/page.tsx` — which none of this
+    // file's cancelled/approved fixtures reach; proved in `screens.test.tsx`.
+    readEventAudienceGroupSummary: vi.fn(),
+  };
 });
 vi.mock("@/lib/services/event-amendment", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-amendment")>();

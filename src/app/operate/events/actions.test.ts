@@ -313,11 +313,29 @@ describe("a validation failure comes back as fields, with the entries intact", (
     givenAccess({ state: "active", operator: actor(["secretary"]) });
   });
 
-  it("names the unanswered attendance choice and writes nothing", async () => {
-    // The response-solicited choice was the other unanswerable one, and D23
-    // removed it: mandatory or optional already carries whether the club
-    // expects somebody to be there.
-    const state = await createEventDraftAction(EMPTY_FORM_STATE, draftForm({ attendance: "" }));
+  it("saves an unanswered attendance as optional rather than refusing it", async () => {
+    // LAN-154 changed this deliberately. LAN-76 refused a draft whose
+    // attendance was unanswered, so that an event never quietly claimed
+    // attendance was expected. D15 makes name, type and date the minimum to
+    // save, and W8 puts the answer on the type's template — so an unanswered
+    // one saves as *optional*, which claims nothing, and the form shows the
+    // template's answer selected rather than hiding a default.
+    // It succeeds, so it redirects, so it throws — the mocked `redirect` above
+    // mirrors the real one. What matters is what reached the service.
+    await expect(
+      createEventDraftAction(EMPTY_FORM_STATE, draftForm({ attendance: "" })),
+    ).rejects.toThrow(/^REDIRECT:/);
+
+    expect(vi.mocked(createEventDraft).mock.calls[0][1].isMandatory).toBe(false);
+  });
+
+  it("still refuses an attendance value that is neither word", async () => {
+    // The control offers two answers. Anything else means it was tampered with,
+    // and guessing what was meant is the wrong recovery.
+    const state = await createEventDraftAction(
+      EMPTY_FORM_STATE,
+      draftForm({ attendance: "whenever" }),
+    );
 
     expect(state.issues.map((issue) => issue.field)).toEqual(["attendance"]);
     expect(createEventDraft).not.toHaveBeenCalled();
@@ -326,7 +344,7 @@ describe("a validation failure comes back as fields, with the entries intact", (
   it("hands every submitted value back so nothing is retyped", async () => {
     const state = await createEventDraftAction(
       EMPTY_FORM_STATE,
-      draftForm({ name: "Wednesday practice, in the rain", attendance: "" }),
+      draftForm({ name: "Wednesday practice, in the rain", attendance: "whenever" }),
     );
 
     expect(state.values?.name).toBe("Wednesday practice, in the rain");

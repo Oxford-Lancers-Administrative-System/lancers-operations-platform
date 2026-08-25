@@ -82,6 +82,7 @@ export default async function PublicCalendarPage({ searchParams }: PageProps<"/c
   const buckets = bucketEventsByPeriod(list.events, {
     today,
     period: query.period,
+    segmentStartsOn: year?.currentSegmentStartsOn ?? null,
     segmentEndsOn: year?.currentSegmentEndsOn ?? null,
   });
 

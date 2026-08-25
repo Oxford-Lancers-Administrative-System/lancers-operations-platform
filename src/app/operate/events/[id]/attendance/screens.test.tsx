@@ -46,6 +46,9 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
     markEventOccurred: vi.fn(),
     markEventNotHeld: vi.fn(),
     correctOccurrenceAssertion: vi.fn(),
+    // LAN-154. The event detail reads its questions, and this file renders that
+    // page to reach the register panel.
+    readEventQuestions: vi.fn(),
   };
 });
 vi.mock("@/lib/services/event-approval", async (importOriginal) => {
@@ -85,7 +88,7 @@ import {
   type AttendanceBoard,
   type AttendanceParticipant,
 } from "@/lib/services/attendance";
-import { readEvent, type EventDetail } from "@/lib/services/events";
+import { readEvent, readEventQuestions, type EventDetail } from "@/lib/services/events";
 import { readEventAudience } from "@/lib/services/event-approval";
 import {
   describeOperatorLock,
@@ -208,6 +211,7 @@ function detailProps(query: Record<string, string> = {}) {
 beforeEach(() => {
   vi.mocked(resolveOperatorAccess).mockResolvedValue({ state: "active", operator: operator() });
   vi.mocked(readEventAudience).mockResolvedValue([]);
+  vi.mocked(readEventQuestions).mockResolvedValue([]);
   vi.mocked(readEventAttendanceSummary).mockResolvedValue(summariseAttendance([]));
   routerPush.mockClear();
 });

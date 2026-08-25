@@ -251,11 +251,14 @@ export const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0
  * correction — for all of them, not for whichever one happened to be checked
  * first.
  *
- * Mandatory-or-optional is deliberately answerable only by answering it: it has
- * no default here, so an event never quietly claims attendance is expected when
- * nobody said so. `Response requested` used to sit beside it and D23 removed
- * it — mandatory or optional already carries that, and everyone sent an event
- * is expected to answer.
+ * Mandatory-or-optional had no default at all under LAN-76, so a draft could not
+ * be saved without answering it. D15 and W8 changed what is right: name, type
+ * and date are the minimum to save, and the type's template says whether this
+ * kind of event expects attendance. An unanswered one is therefore accepted and
+ * stored as **optional** — which claims nothing, and is the direction the
+ * original rule was protecting. `Response requested` used to sit beside it and
+ * D23 removed it: mandatory or optional already carries that, and everyone sent
+ * an event is expected to answer.
  *
  * D78 and D86: times are entered in five-minute increments, in Europe/London,
  * with the zone stated on the form. The increment is an entry rule and is
@@ -312,8 +315,14 @@ export function validateEventDraft(raw: RawEventDraft): EventDraftValidation {
     issues.push({ field: "endsAt", message: "The event has to end after it starts." });
   }
 
+  // D15: name, type and date are the minimum to save a draft, so an unanswered
+  // attendance saves rather than refusing. It saves as *optional*, which is the
+  // direction the LAN-76 rule cared about — "an event never quietly claims
+  // attendance is expected when nobody said so" — and the form shows the
+  // template's answer selected, so nothing is hidden. Anything that is neither
+  // word is still a correction: it means the control was tampered with.
   const attendance = trimmed(raw.attendance);
-  if (attendance !== "mandatory" && attendance !== "optional") {
+  if (attendance !== "" && attendance !== "mandatory" && attendance !== "optional") {
     issues.push({
       field: "attendance",
       message: "Say whether attendance is expected at this event.",

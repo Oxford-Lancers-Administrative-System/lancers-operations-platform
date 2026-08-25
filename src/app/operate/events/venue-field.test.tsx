@@ -17,10 +17,31 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 
 vi.mock("server-only", () => ({}));
 
 import VenueField, { DEBOUNCE_MS } from "./venue-field";
+
+/**
+ * The field is controlled by the form that owns it (LAN-154), so the tests need
+ * something to hold the value. This is the smallest honest stand-in for
+ * `EventForm`: it does what the real parent does and nothing else.
+ */
+function ControlledVenueField({
+  name,
+  initial,
+  errorMessage,
+}: {
+  name: string;
+  initial: string;
+  errorMessage?: string;
+}) {
+  const [value, setValue] = useState(initial);
+  return (
+    <VenueField name={name} value={value} onValueChange={setValue} errorMessage={errorMessage} />
+  );
+}
 
 const HORSPATH = {
   id: "0",
@@ -76,7 +97,7 @@ describe("VenueField", () => {
   it("shows the stored venue when an existing event is edited, and never searches for it", async () => {
     const fetchImpl = answering({ status: "ok", suggestions: [] });
     vi.stubGlobal("fetch", fetchImpl);
-    render(<VenueField name="venue" defaultValue="University Parks, Oxford" />);
+    render(<ControlledVenueField name="venue" initial="University Parks, Oxford" />);
 
     expect(venueInput()).toHaveValue("University Parks, Oxford");
 
@@ -93,7 +114,7 @@ describe("VenueField", () => {
   it("searches again once the operator edits a stored venue", async () => {
     const fetchImpl = answering({ status: "ok", suggestions: [HORSPATH] });
     vi.stubGlobal("fetch", fetchImpl);
-    render(<VenueField name="venue" defaultValue="University Parks, Oxford" />);
+    render(<ControlledVenueField name="venue" initial="University Parks, Oxford" />);
 
     // Not searching for the value it was given must not become never searching.
     await type("horspath sports ground");
@@ -103,7 +124,7 @@ describe("VenueField", () => {
 
   it("submits under the same field name the action already reads", () => {
     vi.stubGlobal("fetch", answering({ status: "ok", suggestions: [] }));
-    render(<VenueField name="venue" defaultValue="" />);
+    render(<ControlledVenueField name="venue" initial="" />);
 
     expect(venueInput()).toHaveAttribute("name", "venue");
   });
@@ -111,7 +132,7 @@ describe("VenueField", () => {
   it("does not search until there is enough typed to mean anything", async () => {
     const fetchImpl = answering({ status: "ok", suggestions: [] });
     vi.stubGlobal("fetch", fetchImpl);
-    render(<VenueField name="venue" defaultValue="" />);
+    render(<ControlledVenueField name="venue" initial="" />);
 
     await type("ox");
 
@@ -128,7 +149,7 @@ describe("VenueField", () => {
       });
     });
     vi.stubGlobal("fetch", fetchImpl);
-    render(<VenueField name="venue" defaultValue="" />);
+    render(<ControlledVenueField name="venue" initial="" />);
 
     for (const text of ["hor", "hors", "horsp", "horspa"]) {
       fireEvent.change(venueInput(), { target: { value: text } });
@@ -147,7 +168,7 @@ describe("VenueField", () => {
 
   it("offers a suggestion, and stores its formatted address when it is chosen", async () => {
     vi.stubGlobal("fetch", answering({ status: "ok", suggestions: [HORSPATH] }));
-    render(<VenueField name="venue" defaultValue="" />);
+    render(<ControlledVenueField name="venue" initial="" />);
 
     await type("horspath");
 
@@ -162,7 +183,7 @@ describe("VenueField", () => {
 
   it("can be searched, navigated, selected and dismissed by keyboard alone", async () => {
     vi.stubGlobal("fetch", answering({ status: "ok", suggestions: [HORSPATH, IFFLEY] }));
-    render(<VenueField name="venue" defaultValue="" />);
+    render(<ControlledVenueField name="venue" initial="" />);
 
     const input = venueInput();
     act(() => input.focus());
@@ -189,7 +210,7 @@ describe("VenueField", () => {
   it("does not search again for the suggestion it has just been given", async () => {
     const fetchImpl = answering({ status: "ok", suggestions: [HORSPATH] });
     vi.stubGlobal("fetch", fetchImpl);
-    render(<VenueField name="venue" defaultValue="" />);
+    render(<ControlledVenueField name="venue" initial="" />);
 
     await type("horspath");
     fireEvent.click(await screen.findByText("Horspath Sports Ground"));
@@ -203,7 +224,7 @@ describe("VenueField", () => {
 
   it("keeps a venue the provider has never heard of", async () => {
     vi.stubGlobal("fetch", answering({ status: "ok", suggestions: [] }));
-    render(<VenueField name="venue" defaultValue="" />);
+    render(<ControlledVenueField name="venue" initial="" />);
 
     // The club's own pitch, which no geocoder indexes.
     await type("The far pitch, behind the pavilion");
@@ -221,7 +242,7 @@ describe("VenueField", () => {
     "explains a %s provider without taking the field away",
     async (_case, body, status, message) => {
       vi.stubGlobal("fetch", answering(body, status));
-      render(<VenueField name="venue" defaultValue="" />);
+      render(<ControlledVenueField name="venue" initial="" />);
 
       await type("horspath");
 
@@ -234,7 +255,7 @@ describe("VenueField", () => {
 
   it("survives a provider answering 200 with something that is not an outcome", async () => {
     vi.stubGlobal("fetch", answering({ unexpected: true }));
-    render(<VenueField name="venue" defaultValue="" />);
+    render(<ControlledVenueField name="venue" initial="" />);
 
     await type("horspath");
 
@@ -243,7 +264,7 @@ describe("VenueField", () => {
 
   it("shows a validation correction instead of any search state", async () => {
     vi.stubGlobal("fetch", answering({ status: "ok", suggestions: [] }));
-    render(<VenueField name="venue" defaultValue="" errorMessage="Give the venue a name." />);
+    render(<ControlledVenueField name="venue" initial="" errorMessage="Give the venue a name." />);
 
     expect(statusText()).toBe("Give the venue a name.");
     expect(venueInput()).toHaveAttribute("aria-invalid", "true");
@@ -271,7 +292,7 @@ describe("VenueField", () => {
     });
     vi.stubGlobal("fetch", fetchImpl);
 
-    render(<VenueField name="venue" defaultValue="" />);
+    render(<ControlledVenueField name="venue" initial="" />);
 
     await type("horspath");
     await type("iffley");
@@ -295,7 +316,7 @@ describe("VenueField", () => {
   it("abandons an in-flight search when the field is emptied", async () => {
     const fetchImpl = answering({ status: "ok", suggestions: [HORSPATH] });
     vi.stubGlobal("fetch", fetchImpl);
-    render(<VenueField name="venue" defaultValue="" />);
+    render(<ControlledVenueField name="venue" initial="" />);
 
     await type("horspath");
     await screen.findByText("Horspath Sports Ground");

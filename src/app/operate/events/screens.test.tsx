@@ -14,6 +14,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 vi.mock("server-only", () => ({}));
 const routerPush = vi.fn();
@@ -40,6 +41,8 @@ vi.mock("@/lib/services/events", async (importOriginal) => {
     createEventDraft: vi.fn(),
     updateEventDraft: vi.fn(),
     abandonEventDraft: vi.fn(),
+    deleteEventDraft: vi.fn(),
+    readEventQuestions: vi.fn(),
   };
 });
 vi.mock("@/lib/services/seasons", async (importOriginal) => {
@@ -49,6 +52,15 @@ vi.mock("@/lib/services/seasons", async (importOriginal) => {
 vi.mock("@/lib/services/attendance", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/attendance")>();
   return { ...actual, readEventAttendanceSummary: vi.fn() };
+});
+vi.mock("@/lib/services/event-templates", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/event-templates")>();
+  return {
+    ...actual,
+    readEventFormDefaults: vi.fn(),
+    readEventTemplate: vi.fn(),
+    listEventTemplates: vi.fn(),
+  };
 });
 // LAN-156. The event detail reads its change history; these screens are about
 // everything else on the page, so the reader is stubbed empty here and proved
@@ -76,6 +88,7 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
     ...actual,
     readApprovalPreview: vi.fn(),
     readEventAudience: vi.fn(),
+    readEventAudienceGroupSummary: vi.fn(),
     approveEvent: vi.fn(),
     saveEventAudience: vi.fn(),
   };
@@ -91,16 +104,20 @@ import {
   listCurrentSeasonEvents,
   listEventsForOperator,
   readEvent,
+  readEventQuestions,
   type EventDetail,
   type EventListEntry,
 } from "@/lib/services/events";
 import { listTermWindows } from "@/lib/services/seasons";
+import { readEventFormDefaults, readEventTemplate } from "@/lib/services/event-templates";
+import type { EventTypeFormDefaults } from "@/lib/services/event-template-input";
 import {
   readApprovalPreview,
   readEventAudience,
+  readEventAudienceGroupSummary,
   type AudienceMember,
 } from "@/lib/services/event-approval";
-import type { AudienceCandidate } from "@/lib/services/audience-selection";
+import { summariseAudienceGroups, type AudienceCandidate } from "@/lib/services/audience-selection";
 import {
   readEventAttendanceSummary,
   summariseAttendance,
@@ -198,6 +215,13 @@ function listProps(query: Record<string, string> = {}) {
   } as unknown as PageProps<"/operate/events">;
 }
 
+function newProps(query: Record<string, string> = {}) {
+  return {
+    params: Promise.resolve({}),
+    searchParams: Promise.resolve(query),
+  } as unknown as PageProps<"/operate/events/new">;
+}
+
 function detailProps(query: Record<string, string> = {}) {
   return {
     params: Promise.resolve({ id: EVENT_ID }),
@@ -215,6 +239,33 @@ function editProps() {
 /** Text with runs of whitespace collapsed, so wrapping cannot break a match. */
 function flatten(text: string | null): string {
   return (text ?? "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * C1/C2 — types digits into one section of a MUI X `DatePicker`/`TimePicker`
+ * field, the way an operator does: click the section, then type.
+ *
+ * The field renders as an accessible `role="group"` (named by its label —
+ * "Date", "Start", "End") holding one `role="spinbutton"` span per section
+ * ("Day", "Hours", …), so `groupLabel` disambiguates the Start and End
+ * TimePickers, which would otherwise both answer to "Hours". Digits fill the
+ * focused section and the field auto-advances, exactly as typing
+ * "24082026" fills Day, Month then Year in that order — which is itself
+ * part of what these tests are proving: a day-first sequence lands as a
+ * day-first date, not a month-first one.
+ */
+async function typeIntoField(groupLabel: string, firstSection: string, digits: string) {
+  const user = userEvent.setup();
+  const group = screen.getByRole("group", { name: groupLabel });
+  within(group).getByRole("spinbutton", { name: firstSection }).focus();
+  await user.keyboard(digits);
+}
+
+/** The raw string a named form control would post — including a hidden one. */
+function valueOf(name: string): string {
+  return (
+    document.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name="${name}"]`)?.value ?? ""
+  );
 }
 
 /**
@@ -245,8 +296,40 @@ beforeEach(() => {
       lastWeek: 8,
     },
   ]);
+  vi.mocked(readEventQuestions).mockResolvedValue([]);
+  // LAN-154. Seven templates, all of them undecided, so a test that is not
+  // about inheritance sees the form the operator sees before anybody has
+  // configured a type — every field empty and nothing arriving from anywhere.
+  vi.mocked(readEventFormDefaults).mockResolvedValue(
+    Object.fromEntries(EVENT_TYPES.map((type) => [type, formDefaults()])),
+  );
+  vi.mocked(readEventTemplate).mockResolvedValue({
+    eventType: "practice",
+    defaultVenue: null,
+    defaultDeliveryMode: null,
+    defaultDurationMinutes: null,
+    defaultDescription: null,
+    defaultRequiredEquipment: null,
+    defaultIsMandatory: null,
+    audienceGroups: [],
+    questions: [],
+  });
   givenAudience();
 });
+
+/** A template that has decided nothing, in the shape the form fills itself from. */
+function formDefaults(overrides: Partial<EventTypeFormDefaults> = {}): EventTypeFormDefaults {
+  return {
+    deliveryMode: "in_person",
+    venue: "",
+    description: "",
+    requiredEquipment: "",
+    attendance: "optional",
+    durationMinutes: null,
+    questions: [],
+    ...overrides,
+  };
+}
 
 /**
  * Three people the audience builder can offer — a player, a coach, and somebody
@@ -334,9 +417,19 @@ function givenAudience(
         player: candidates.filter((entry) => entry.capacity === "player").length,
         coach: candidates.filter((entry) => entry.capacity === "coach").length,
         committee: candidates.filter((entry) => entry.capacity === "committee").length,
+        recruit: candidates.filter((entry) => entry.capacity === "recruit").length,
       },
     },
     deadline: deadline ? { ...deadline, rule: { daysBefore: 2, atTime: "18:00" } } : null,
+    // LAN-154. The review reads all three: the questions it shows as a player
+    // will meet them, the group shape it leads with, and the completeness gate.
+    questions: [],
+    groupSummary: summariseAudienceGroups(
+      candidates,
+      audience.map((member) => `${member.capacity}:${member.anchorId}`),
+      "practice",
+    ),
+    missing: [],
   });
 }
 
@@ -820,7 +913,7 @@ describe("UX-30 — the current season's events", () => {
 
 describe("UX-31 — creating an event", () => {
   it("carries the wireframe's heading and its draft boundary note", async () => {
-    render(await NewEventPage());
+    render(await NewEventPage(newProps()));
 
     expect(screen.getByRole("heading", { name: "Create event" })).toBeVisible();
     expect(flatten(screen.getByTestId("draft-boundary-note").textContent)).toBe(
@@ -833,7 +926,7 @@ describe("UX-31 — creating an event", () => {
     // D20 replaced the response-solicited choice on this form. In person or
     // online is a property of the event, and it decides whether the venue field
     // takes an address or a destination (D21).
-    const { container } = render(await NewEventPage());
+    const { container } = render(await NewEventPage(newProps()));
 
     const inPerson = container.querySelector<HTMLInputElement>(
       'input[name="deliveryMode"][value="in_person"]',
@@ -861,15 +954,41 @@ describe("UX-31 — creating an event", () => {
     );
   });
 
-  it("leaves attendance unanswered too, rather than defaulting it", async () => {
-    const { container } = render(await NewEventPage());
+  it("starts attendance on the type's template answer, visibly", async () => {
+    // LAN-76 left this unanswered so that an event never quietly claimed
+    // attendance was expected. D15 and W8 moved the answer onto the template, so
+    // the control now starts on what the template says — visible, and one click
+    // from the other. The Practice template here says mandatory.
+    vi.mocked(readEventFormDefaults).mockResolvedValue(
+      Object.fromEntries(
+        EVENT_TYPES.map((type) => [
+          type,
+          formDefaults(type === "practice" ? { attendance: "mandatory" } : {}),
+        ]),
+      ),
+    );
 
-    const checked = container.querySelectorAll('input[name="attendance"]:checked');
-    expect(checked).toHaveLength(0);
+    const { container } = render(await NewEventPage(newProps()));
+
+    const checked = container.querySelectorAll<HTMLInputElement>(
+      'input[name="attendance"]:checked',
+    );
+    expect([...checked].map((input) => input.value)).toEqual(["mandatory"]);
+  });
+
+  it("starts attendance on optional where the template does not say", async () => {
+    // "Optional" claims nothing, which is the direction the original rule was
+    // protecting — an event never says the club expects you when nobody decided.
+    const { container } = render(await NewEventPage(newProps()));
+
+    const checked = container.querySelectorAll<HTMLInputElement>(
+      'input[name="attendance"]:checked',
+    );
+    expect([...checked].map((input) => input.value)).toEqual(["optional"]);
   });
 
   it("offers only the event types this form can fully describe", async () => {
-    const { container } = render(await NewEventPage());
+    const { container } = render(await NewEventPage(newProps()));
     const options = [...container.querySelectorAll('li[role="option"]')].map((node) =>
       node.getAttribute("data-value"),
     );
@@ -884,7 +1003,7 @@ describe("UX-31 — creating an event", () => {
     // All three are derived. Brian's clarification: "Do not allow operators to
     // independently choose date, term and week", and "do not expose an
     // unexplained Origin choice to the operator".
-    const { container } = render(await NewEventPage());
+    const { container } = render(await NewEventPage(newProps()));
 
     expect(container.querySelector('[name="termId"]')).toBeNull();
     expect(container.querySelector('[name="weekNumber"]')).toBeNull();
@@ -892,7 +1011,7 @@ describe("UX-31 — creating an event", () => {
   });
 
   it("does not print the operator's own name back at them", async () => {
-    const { container } = render(await NewEventPage());
+    const { container } = render(await NewEventPage(newProps()));
     const text = flatten(container.textContent);
 
     expect(text).not.toContain("Owner");
@@ -903,11 +1022,88 @@ describe("UX-31 — creating an event", () => {
     );
   });
 
-  it("says the audience is chosen during approval", async () => {
-    render(await NewEventPage());
+  it("offers a way straight on to the audience, and no lecture about it", async () => {
+    // The "who it goes to is chosen during approval" note went with D47: the
+    // audience arrives from the type's template, so the sentence was no longer
+    // true. Nothing replaced it — the second submit button is the route on.
+    render(await NewEventPage(newProps()));
 
-    expect(flatten(screen.getByTestId("audience-comes-later").textContent)).toContain(
-      "chosen and confirmed during the approval step",
+    expect(screen.queryByTestId("audience-comes-later")).toBeNull();
+    expect(screen.getByTestId("save-and-choose-audience")).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W154C-F1 — a date the browser's segmented editor can leave mid-edit must
+// not crash the form.
+// ---------------------------------------------------------------------------
+
+describe("W154C-F1 — a malformed date does not crash the derived-term alert", () => {
+  // Before C1, the date field was a native `<input type="date">`, and
+  // Chrome's segmented editor let an operator land on a value like
+  // `20261-12-11` — a five-digit year, mid-edit — which is neither empty nor
+  // a parseable date. `formatLongDate` only guards falsy input, so handing it
+  // a value like this threw `RangeError: Invalid time value` and took the
+  // whole form down with it. `scheduledOn === ""` was not a narrow enough
+  // guard; this is the value the walker used to reproduce the crash.
+  //
+  // C1 replaced that control with MUI X's `DatePicker`, whose field validates
+  // each section itself and can no longer be typed into this exact shape —
+  // there is no create-form reproduction of this any more, by construction.
+  // The guard this describes stays in place for the path that remains: a
+  // malformed `scheduledOn` already sitting in stored data, read back on the
+  // edit form.
+  const MALFORMED_DATE = "20261-12-11";
+
+  it("on the edit form: falls back to the placeholder instead of throwing", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ scheduledOn: MALFORMED_DATE }));
+
+    // If the guard regresses to `scheduledOn === ""`, this line throws inside
+    // React's render and the test fails with the RangeError itself, not an
+    // assertion mismatch.
+    render(await EditEventPage(editProps()));
+
+    expect(flatten(screen.getByTestId("derived-term").textContent)).toBe(
+      "Choose a date and the Oxford term and week are worked out from it.",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W154C-F3 — the opponent helper text only fits a Game.
+// ---------------------------------------------------------------------------
+
+describe("W154C-F3 — the Name field only mentions an opponent for a Game", () => {
+  it("says nothing about an opponent for the default type, Practice", async () => {
+    const { container } = render(await NewEventPage(newProps()));
+
+    expect(container.querySelector('input[name="eventType"]')?.getAttribute("value")).toBe(
+      "practice",
+    );
+    expect(
+      flatten(container.querySelector('[data-field="name"]')?.textContent ?? ""),
+    ).not.toContain("opponent");
+  });
+
+  it("says nothing about an opponent for Social, Meeting or any other non-Game type", async () => {
+    const { container } = render(await NewEventPage(newProps()));
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Type" }));
+    fireEvent.click(screen.getByRole("option", { name: "Social" }));
+
+    expect(
+      flatten(container.querySelector('[data-field="name"]')?.textContent ?? ""),
+    ).not.toContain("opponent");
+  });
+
+  it("names the opponent only once the type is Game", async () => {
+    const { container } = render(await NewEventPage(newProps()));
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Type" }));
+    fireEvent.click(screen.getByRole("option", { name: "Game" }));
+
+    expect(flatten(container.querySelector('[data-field="name"]')?.textContent ?? "")).toContain(
+      "The opponent goes in the name.",
     );
   });
 });
@@ -1006,14 +1202,18 @@ describe("UX-32 — a draft event", () => {
     );
   });
 
-  it("says the audience is not resolved and is required before approval", async () => {
+  it("says a draft with nobody in its audience has none yet", async () => {
+    // D47: a type whose template names groups arrives with an audience, so a
+    // draft with none has genuinely not had one chosen — by the template or by
+    // anybody. The fact says that, and explains nothing further.
     vi.mocked(readEvent).mockResolvedValue(detail());
 
     render(await EventDetailPage(detailProps()));
 
     const audience = flatten(screen.getByTestId("audience-fact").textContent);
-    expect(audience).toContain("Chosen at approval");
-    expect(audience).toContain("chosen and confirmed during the approval step");
+    expect(audience).toContain("Not chosen yet");
+    expect(audience).not.toContain("Chosen at approval");
+    expect(audience).not.toContain("approval step");
   });
 
   it("offers edit and the way in to approval, and no way to abandon", async () => {
@@ -1385,14 +1585,14 @@ describe("an operator without a calendar role reads the calendar and changes not
   });
 
   it("is refused the create form, and told what it needs", async () => {
-    render(await NewEventPage());
+    render(await NewEventPage(newProps()));
 
     expect(screen.getByTestId("operator-not-permitted")).toBeVisible();
     expect(flatten(screen.getByTestId("required-role").textContent)).toContain("General Manager");
   });
 
   it("is never told which roles it holds", async () => {
-    const { container } = render(await NewEventPage());
+    const { container } = render(await NewEventPage(newProps()));
 
     expect(container.innerHTML.toLowerCase()).not.toContain("treasurer");
   });
@@ -1408,7 +1608,7 @@ describe("each of the four calendar roles is offered the actions", () => {
       });
       vi.mocked(readEvent).mockResolvedValue(detail());
 
-      const editor = render(await NewEventPage());
+      const editor = render(await NewEventPage(newProps()));
       expect(editor.getByTestId("event-form")).toBeVisible();
       editor.unmount();
 
@@ -1425,7 +1625,7 @@ describe("each of the four calendar roles is offered the actions", () => {
 describe("every event route guards itself", () => {
   it.each([
     ["the list", () => EventsPage(listProps()), "%2Foperate%2Fevents"],
-    ["the editor", () => NewEventPage(), "%2Foperate%2Fevents"],
+    ["the editor", () => NewEventPage(newProps()), "%2Foperate%2Fevents"],
     ["the detail", () => EventDetailPage(detailProps()), "%2Foperate%2Fevents"],
     ["the edit view", () => EditEventPage(editProps()), "%2Foperate%2Fevents"],
   ])("%s redirects a request with no session", async (_name, page, encoded) => {
@@ -1436,7 +1636,7 @@ describe("every event route guards itself", () => {
 
   it.each([
     ["the list", () => EventsPage(listProps())],
-    ["the editor", () => NewEventPage()],
+    ["the editor", () => NewEventPage(newProps())],
     ["the detail", () => EventDetailPage(detailProps())],
     ["the edit view", () => EditEventPage(editProps())],
   ])("%s shows an unlinked account the account state and no club data", async (_name, page) => {
@@ -1847,12 +2047,18 @@ describe("UX-41 — confirming exactly who will be asked", () => {
     expect(text.toLowerCase()).not.toContain("paste");
   });
 
-  it("states that the audience is frozen by approval", async () => {
+  it("does not explain what approving does", async () => {
+    // Brian, 2026-08-21: "You don't really have to explain what approving does
+    // because we already know what it is ... That's over-explaining for no
+    // reason." The paragraph about confirming the list, creating invitations,
+    // queueing delivery and freezing the audience is gone, and nothing replaced
+    // it. The screen shows what is being approved; the button says what it does.
     await reachReview();
 
-    expect(flatten(screen.getByTestId("approval-review").textContent)).toContain(
-      "The audience is frozen once approved",
-    );
+    const review = flatten(screen.getByTestId("approval-review").textContent);
+    expect(review).not.toContain("The audience is frozen once approved");
+    expect(review).not.toContain("Approval is limited to the designated approver");
+    expect(review).not.toContain("queues automated delivery");
   });
 
   it("posts the event and no audience at all", async () => {
@@ -2103,6 +2309,13 @@ describe("a draft that already carries an audience", () => {
   it("shows who it is for, and that nothing has been sent", async () => {
     vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
     vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readEventAudienceGroupSummary).mockResolvedValue(
+      summariseAudienceGroups(
+        AUDIENCE,
+        SAVED_AUDIENCE.map((member) => `${member.capacity}:${member.anchorId}`),
+        "practice",
+      ),
+    );
 
     render(await EventDetailPage(detailProps()));
 
@@ -2111,5 +2324,563 @@ describe("a draft that already carries an audience", () => {
     );
     expect(within(screen.getByTestId("event-audience")).getByText("Avery Fielding")).toBeVisible();
     expect(screen.getByRole("link", { name: "Review audience and approve" })).toBeVisible();
+  });
+
+  /**
+   * D3 (round 2). Brian: "I do see where it got confused because I'm one of
+   * the pages the audience is listed above. On the pre-send, it says who's
+   * sent to all players, but I wanted it to be here." — "here" is this page,
+   * which used to show a count and then names with no group named anywhere.
+   */
+  it("names the audience's groups before its people, the same way the review does", async () => {
+    const twoPlayers: AudienceCandidate[] = [
+      candidate(),
+      candidate({
+        anchorId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+        personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp2",
+        displayName: "Samira Quinn",
+      }),
+      // An unselected coach in the catalogue, so "Everyone active" is not
+      // wholly present and "All active players" is the group that names.
+      candidate({
+        capacity: "coach",
+        anchorId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
+        personId: "pppppppp-pppp-4ppp-8ppp-ppppppppppp4",
+        displayName: "Casey North",
+      }),
+    ];
+    const bothPlayers = SAVED_AUDIENCE.slice(0, 2);
+    vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 2 }));
+    vi.mocked(readEventAudience).mockResolvedValue(bothPlayers);
+    // The exact function the approval review uses to name groups — reused,
+    // not reimplemented, so "All active players" only ever means one thing.
+    vi.mocked(readEventAudienceGroupSummary).mockResolvedValue(
+      summariseAudienceGroups(
+        twoPlayers,
+        bothPlayers.map((member) => `${member.capacity}:${member.anchorId}`),
+        "practice",
+      ),
+    );
+
+    const { container } = render(await EventDetailPage(detailProps()));
+
+    const shape = flatten(screen.getByTestId("audience-shape").textContent);
+    expect(shape).toBe("All active players — 2 people");
+    // At the head of the list — before the names, not instead of them.
+    expect(container.innerHTML.indexOf('data-testid="audience-shape"')).toBeLessThan(
+      container.innerHTML.indexOf('data-testid="event-audience"'),
+    );
+    expect(within(screen.getByTestId("event-audience")).getByText("Avery Fielding")).toBeVisible();
+  });
+
+  /**
+   * The other half of D3: a person added individually must still read
+   * truthfully. Two players plus one hand-picked coach is not "All active
+   * players" — the coach was never in that group, so naming it would claim
+   * something that was not chosen.
+   */
+  it("never claims a group that was not wholly chosen", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ audienceCount: 3 }));
+    vi.mocked(readEventAudience).mockResolvedValue(SAVED_AUDIENCE);
+    vi.mocked(readEventAudienceGroupSummary).mockResolvedValue(
+      summariseAudienceGroups(
+        AUDIENCE,
+        SAVED_AUDIENCE.map((member) => `${member.capacity}:${member.anchorId}`),
+        "practice",
+      ),
+    );
+
+    render(await EventDetailPage(detailProps()));
+
+    const shape = flatten(screen.getByTestId("audience-shape").textContent);
+    expect(shape).not.toContain("All active players");
+    expect(shape).toContain("All active coaches");
+    expect(shape).toContain("2 more chosen by hand");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-154 — questions, deleting a draft, duplicating one, and the review's shape
+// ---------------------------------------------------------------------------
+
+describe("the questions an event asks are read on its page (amendment W4-A1)", () => {
+  it("shows each one as a player will meet it", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    vi.mocked(readEventQuestions).mockResolvedValue([
+      {
+        id: "q1",
+        prompt: "Can you get yourself to the ground?",
+        answerType: "boolean",
+        choices: null,
+        isRequired: true,
+        sortOrder: 0,
+        fromTemplate: true,
+      },
+      {
+        id: "q2",
+        prompt: "Which shirt size?",
+        answerType: "choice",
+        choices: ["S", "M", "L"],
+        isRequired: false,
+        sortOrder: 1,
+        fromTemplate: false,
+      },
+    ]);
+
+    render(await EventDetailPage(detailProps()));
+
+    const panel = flatten(screen.getByTestId("event-questions").textContent);
+    expect(panel).toContain("Can you get yourself to the ground?");
+    expect(panel).toContain("Required");
+    expect(panel).toContain("S · M · L");
+  });
+
+  // C4: "Nothing extra is asked. Add a question if this event needs one."
+  // was filler Brian named directly — "I hate extra text like this." The
+  // panel's own heading already says what it is; an event with nothing
+  // extra to ask shows nothing beneath it.
+  it("shows no filler copy for an event that asks nothing extra", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("no-event-questions")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nothing extra is asked/)).not.toBeInTheDocument();
+    expect(screen.getByTestId("event-questions")).toBeVisible();
+  });
+});
+
+describe("the type's template fills the form in, field by field (D40-D47)", () => {
+  /** Two templates that disagree about everything the form inherits. */
+  function twoTemplates() {
+    vi.mocked(readEventFormDefaults).mockResolvedValue(
+      Object.fromEntries(
+        EVENT_TYPES.map((type) => [
+          type,
+          type === "practice"
+            ? formDefaults({
+                venue: "Iffley Road Astro",
+                description: "Full contact.",
+                requiredEquipment: "Gumshield",
+                attendance: "mandatory",
+                questions: [
+                  {
+                    prompt: "Bringing a gumshield?",
+                    answerType: "boolean",
+                    required: "optional",
+                    choices: "",
+                    fromTemplate: "true",
+                  },
+                ],
+              })
+            : type === "social"
+              ? formDefaults({
+                  venue: "The Kings Arms",
+                  description: "Come along.",
+                  requiredEquipment: "",
+                  attendance: "optional",
+                  questions: [
+                    {
+                      prompt: "Eating?",
+                      answerType: "boolean",
+                      required: "optional",
+                      choices: "",
+                      fromTemplate: "true",
+                    },
+                  ],
+                })
+              : formDefaults(),
+        ]),
+      ),
+    );
+  }
+
+  /** Switches the Type control the way an operator does. */
+  function chooseType(label: string) {
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Type" }));
+    fireEvent.click(screen.getByRole("option", { name: label }));
+  }
+
+  it("opens a blank create form on its type's template", async () => {
+    twoTemplates();
+
+    render(await NewEventPage(newProps()));
+
+    expect(valueOf("venue")).toBe("Iffley Road Astro");
+    expect(valueOf("requiredEquipment")).toBe("Gumshield");
+  });
+
+  it("swaps every untouched field when the type changes", async () => {
+    twoTemplates();
+    render(await NewEventPage(newProps()));
+
+    chooseType("Social");
+
+    expect(valueOf("venue")).toBe("The Kings Arms");
+    expect(valueOf("description")).toBe("Come along.");
+    expect(valueOf("requiredEquipment")).toBe("");
+  });
+
+  it("keeps a field the operator wrote, which is D41's whole point", async () => {
+    // Picking the wrong type first must not cost somebody the description they
+    // have just written.
+    twoTemplates();
+    render(await NewEventPage(newProps()));
+    fireEvent.change(screen.getByRole("textbox", { name: /Description/ }), {
+      target: { value: "Walkthrough only — the pitch is frozen." },
+    });
+
+    chooseType("Social");
+
+    expect(valueOf("description")).toBe("Walkthrough only — the pitch is frozen.");
+    // …while the fields nobody touched still move.
+    expect(valueOf("venue")).toBe("The Kings Arms");
+  });
+
+  it("swaps the template's questions and keeps the operator's own", async () => {
+    // D42: a question that came with the type leaves with it; one the operator
+    // wrote is theirs.
+    twoTemplates();
+    render(await NewEventPage(newProps()));
+    fireEvent.click(screen.getByTestId("add-question"));
+    const written = screen.getAllByRole("textbox", { name: /^Question$/ });
+    fireEvent.change(written[written.length - 1], { target: { value: "Need a lift?" } });
+
+    chooseType("Social");
+
+    const prompts = [
+      ...document.querySelectorAll<HTMLInputElement>('input[name="questionPrompt"]'),
+    ].map((input) => input.value);
+    expect(prompts).toContain("Need a lift?");
+    expect(prompts).toContain("Eating?");
+    expect(prompts).not.toContain("Bringing a gumshield?");
+  });
+
+  it("fills the end from the start and the type's default length (D78)", async () => {
+    vi.mocked(readEventFormDefaults).mockResolvedValue(
+      Object.fromEntries(EVENT_TYPES.map((type) => [type, formDefaults({ durationMinutes: 120 })])),
+    );
+    render(await NewEventPage(newProps()));
+
+    // 8:00 PM — Q-27's 12-hour AM/PM control. The derivation reads the
+    // stored 24-hour value regardless of which clock face typed it.
+    await typeTwelveHourTime("Start", "08", "00", "PM");
+
+    expect(valueOf("endsAt")).toBe("22:00");
+  });
+
+  it("leaves an end the operator set themselves", async () => {
+    vi.mocked(readEventFormDefaults).mockResolvedValue(
+      Object.fromEntries(EVENT_TYPES.map((type) => [type, formDefaults({ durationMinutes: 120 })])),
+    );
+    render(await NewEventPage(newProps()));
+
+    await typeTwelveHourTime("End", "09", "00", "PM");
+    await typeTwelveHourTime("Start", "08", "00", "PM");
+
+    expect(valueOf("endsAt")).toBe("21:00");
+  });
+});
+
+/**
+ * Types a 12-hour time into a `TimePicker` field: two digits for the hour
+ * (1-12), two for the minute — which auto-advance exactly as `typeIntoField`
+ * describes — then AM/PM typed as a letter into the Meridiem section, the way
+ * an operator with a keyboard sets it rather than an arrow-key toggle.
+ */
+async function typeTwelveHourTime(
+  groupLabel: string,
+  hour12: string,
+  minute: string,
+  meridiem: "AM" | "PM",
+) {
+  const user = userEvent.setup();
+  const group = screen.getByRole("group", { name: groupLabel });
+  within(group).getByRole("spinbutton", { name: "Hours" }).focus();
+  await user.keyboard(hour12 + minute);
+  within(group).getByRole("spinbutton", { name: "Meridiem" }).focus();
+  await user.keyboard(meridiem[0]);
+}
+
+describe("C1 + C2 — day-month-year, and (Q-27) a deliberate 12-hour AM/PM clock, not the browser's (D86)", () => {
+  /**
+   * W154C-F1's crash and Brian's C1/C2 findings share one root cause: a
+   * native `<input type="date">`/`<input type="time">` renders in the
+   * browser/OS locale and ignores the page entirely. These prove the
+   * replacement `DatePicker`/`TimePicker` do not — typing a day-first date
+   * and a 12-hour time the way an operator would produces exactly the value
+   * the server action expects, regardless of what locale this machine runs.
+   *
+   * D2 (round 2, Q-27) reversed which clock face C2 draws — 12-hour with
+   * AM/PM, not 24-hour — but not the reason C1/C2 exist: the control must
+   * still draw itself the same way on every machine. The trap named in the
+   * correction brief is a control that goes back to answering to the
+   * browser's own locale; the test below this one is aimed at exactly that,
+   * proving the control still offers AM/PM and the five-minute step on a
+   * machine whose own locale would natively show a 24-hour clock.
+   */
+  it("accepts a day-month-year typed date intact — 24/08/2026 becomes 2026-08-24", async () => {
+    render(await NewEventPage(newProps()));
+
+    // Typed exactly as an operator reading a British date would say it: day,
+    // then month, then year. A month-first control would reject "24" as
+    // month 24 or silently misread the sequence; this one does neither.
+    await typeIntoField("Date", "Day", "24082026");
+
+    expect(valueOf("scheduledOn")).toBe("2026-08-24");
+    // The group's accessible name (its own label, "Date") is a descendant
+    // MUI renders for assistive tech, so this checks the sections read the
+    // day-first sequence back rather than pinning the whole node's text.
+    expect(flatten(screen.getByRole("group", { name: "Date" }).textContent)).toContain(
+      "24/08/2026",
+    );
+  });
+
+  it("accepts a 12-hour AM/PM time in a five-minute step intact — 8:05 PM stays 20:05", async () => {
+    render(await NewEventPage(newProps()));
+
+    await typeTwelveHourTime("Start", "08", "05", "PM");
+
+    // The stored value behind the form is unaffected by D2 — still plain
+    // 24-hour `HH:mm`, exactly as `date-time-controls.ts` always spoke it.
+    expect(valueOf("startsAt")).toBe("20:05");
+    // What the operator actually sees is the 12-hour face the helper text
+    // now promises, not the 24-hour one the D2 correction retired.
+    expect(flatten(screen.getByRole("group", { name: "Start" }).textContent)).toContain("08:05 PM");
+  });
+
+  /**
+   * D2's own trap, proved rather than assumed: this locks the JSDOM/ICU
+   * default locale — the one `Intl`/`navigator.language` would answer with if
+   * nothing overrode it, and the one a real British operator's machine could
+   * easily NOT be — to `de-DE`, which natively renders a 24-hour clock with no
+   * AM/PM at all. If the control ever fell back to answering the browser's own
+   * locale (the reversal `date-time-controls.ts` and the D2 correction both
+   * warn against), the Meridiem section would not exist here and the value
+   * below would round-trip as a 24-hour "20:05" typed as such rather than as
+   * "08:05 PM". A run of this suite on an en-GB machine would not catch that
+   * regression; forcing a 24-hour-native locale here does.
+   */
+  it("offers a 12-hour AM/PM clock and the five-minute step even on a 24-hour-native locale", async () => {
+    const originalLanguage = window.navigator.language;
+    const originalLanguages = window.navigator.languages;
+    Object.defineProperty(window.navigator, "language", {
+      value: "de-DE",
+      configurable: true,
+    });
+    Object.defineProperty(window.navigator, "languages", {
+      value: ["de-DE"],
+      configurable: true,
+    });
+
+    try {
+      render(await NewEventPage(newProps()));
+
+      const start = screen.getByRole("group", { name: "Start" });
+      // Only present at all when `ampm` renders true — a 24-hour field has no
+      // Meridiem section to find.
+      expect(within(start).getByRole("spinbutton", { name: "Meridiem" })).toBeInTheDocument();
+
+      await typeTwelveHourTime("Start", "08", "00", "PM");
+
+      expect(valueOf("startsAt")).toBe("20:00");
+      expect(flatten(start.textContent)).toContain("08:00 PM");
+      expect(flatten(start.textContent)).not.toContain("20:00");
+
+      // The five-minute step holds too, regardless of locale. MUI enforces
+      // `timeSteps={{ minutes: 5 }}` on the minute section's up/down arrows —
+      // typed digits are free text and are not where the step lives — so
+      // this steps the Minutes section by keyboard and checks it lands on
+      // 05, not 01, confirming D2 left C3/C5-C7's five-minute step intact
+      // while proving AM/PM independently of locale in the same render.
+      within(start).getByRole("spinbutton", { name: "Minutes" }).focus();
+      await userEvent.setup().keyboard("{ArrowUp}");
+      expect(valueOf("startsAt")).toBe("20:05");
+      expect(flatten(start.textContent)).toContain("08:05 PM");
+    } finally {
+      Object.defineProperty(window.navigator, "language", {
+        value: originalLanguage,
+        configurable: true,
+      });
+      Object.defineProperty(window.navigator, "languages", {
+        value: originalLanguages,
+        configurable: true,
+      });
+    }
+  });
+});
+
+describe("deleting a draft — REQ-delete-draft, D29", () => {
+  it("offers Delete on the draft's own page", async () => {
+    // Brian, 2026-08-21: "there should be a Delete Event button ... I don't know
+    // where that button exists on this event."
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.getByTestId("open-delete-draft")).toBeVisible();
+  });
+
+  it("offers it nowhere on an approved event", async () => {
+    // An approved event is cancelled, never deleted, because people have been
+    // told about it. The rule is enforced in the service; this is the courtesy.
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("open-delete-draft")).toBeNull();
+  });
+
+  it("offers it nowhere on a cancelled event either", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "cancelled" }));
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("open-delete-draft")).toBeNull();
+  });
+
+  it("offers nothing to an operator who cannot manage the calendar", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue({
+      state: "active",
+      operator: operator(["treasurer"]),
+    });
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.queryByTestId("open-delete-draft")).toBeNull();
+  });
+
+  it("confirms first, naming the event", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    render(await EventDetailPage(detailProps()));
+
+    fireEvent.click(screen.getByTestId("open-delete-draft"));
+
+    expect(screen.getByTestId("delete-draft-dialog")).toBeVisible();
+    expect(flatten(screen.getByTestId("delete-draft-name").textContent)).toBe("Wednesday practice");
+  });
+
+  it("says it cannot be brought back, and that nobody will be told", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    render(await EventDetailPage(detailProps()));
+
+    fireEvent.click(screen.getByTestId("open-delete-draft"));
+
+    const dialog = flatten(screen.getByTestId("delete-draft-dialog").textContent);
+    expect(dialog).toContain("cannot be brought back");
+    expect(dialog).toContain("nobody will be told it is gone");
+  });
+
+  it("does not pre-announce the rule about approved events", async () => {
+    // Brian, 2026-08-21: "That warning should pop up if you try to delete an
+    // approved event ... I don't think it needs to be called out there
+    // specifically." It belongs where somebody runs into it.
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    render(await EventDetailPage(detailProps()));
+
+    fireEvent.click(screen.getByTestId("open-delete-draft"));
+
+    const dialog = flatten(screen.getByTestId("delete-draft-dialog").textContent).toLowerCase();
+    expect(dialog).not.toContain("approved");
+    expect(dialog).not.toContain("cancel");
+  });
+
+  it("offers a way out of the dialog that is not deleting", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    render(await EventDetailPage(detailProps()));
+
+    fireEvent.click(screen.getByTestId("open-delete-draft"));
+
+    expect(screen.getByRole("button", { name: "Keep it" })).toBeEnabled();
+  });
+
+  it("posts only which event, so a browser cannot widen what is deleted", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    render(await EventDetailPage(detailProps()));
+    fireEvent.click(screen.getByTestId("open-delete-draft"));
+
+    const form = screen.getByTestId("confirm-delete-draft").closest("form")!;
+    const names = [...form.querySelectorAll("input")].map((input) => input.getAttribute("name"));
+    expect(names).toEqual(["eventId"]);
+  });
+});
+
+describe("duplicating an event — D39", () => {
+  it("opens the create form prefilled, and writes nothing on the way", async () => {
+    // Brian, 2026-08-22: duplicate opens the create form prefilled, and nothing
+    // is written until the operator saves.
+    vi.mocked(readEvent).mockResolvedValue(detail());
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.getByTestId("duplicate-event").getAttribute("href")).toBe(
+      `/operate/events/new?from=${EVENT_ID}`,
+    );
+  });
+
+  it("is offered on a past event too, which is the one usually worth copying", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail({ status: "approved" }));
+
+    render(await EventDetailPage(detailProps()));
+
+    expect(screen.getByTestId("duplicate-event")).toBeVisible();
+  });
+
+  it("carries the source's facts into the form, and never its date", async () => {
+    // A duplicate is the next one of something. Carrying last Wednesday's date
+    // over would be the one field guaranteed to be wrong.
+    vi.mocked(readEvent).mockResolvedValue(
+      detail({ name: "vs Bath", venue: "Iffley Road Astro", scheduledOn: "2026-10-14" }),
+    );
+
+    const { container } = render(await NewEventPage(newProps({ from: EVENT_ID })));
+
+    expect(container.querySelector<HTMLInputElement>('input[name="name"]')?.value).toBe("vs Bath");
+    expect(container.querySelector<HTMLInputElement>('input[name="scheduledOn"]')?.value).toBe("");
+    expect(flatten(screen.getByTestId("duplicated-from").textContent)).toContain("vs Bath");
+  });
+
+  it("opens an empty form when the source has since been deleted", async () => {
+    // A link rendered before somebody deleted the draft is not a reason to
+    // refuse a new event.
+    vi.mocked(readEvent).mockRejectedValue(
+      new NotFound("That event no longer exists.", { rule: "event_not_found" }),
+    );
+
+    const { container } = render(await NewEventPage(newProps({ from: EVENT_ID })));
+
+    expect(container.querySelector<HTMLInputElement>('input[name="name"]')?.value).toBe("");
+    expect(screen.queryByTestId("duplicated-from")).toBeNull();
+  });
+});
+
+describe("the approval review leads with the audience's shape", () => {
+  it("names the groups before the people, with the headcount", async () => {
+    // Brian, 2026-08-21: "it should say at the very top what groups it would be
+    // ... You don't have to show me how it's done."
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    givenAudience(AUDIENCE, undefined, SAVED_AUDIENCE);
+
+    render(await EventDetailPage(detailProps({ step: "review" })));
+
+    const shape = flatten(screen.getByTestId("audience-shape").textContent);
+    expect(shape).toContain("Who will be asked");
+    expect(shape).toMatch(/\d+ (person|people)/);
+  });
+
+  it("puts the shape above the names, not instead of them", async () => {
+    vi.mocked(readEvent).mockResolvedValue(detail());
+    givenAudience(AUDIENCE, undefined, SAVED_AUDIENCE);
+
+    const { container } = render(await EventDetailPage(detailProps({ step: "review" })));
+
+    const html = container.innerHTML;
+    expect(html.indexOf('data-testid="audience-shape"')).toBeLessThan(
+      html.indexOf('data-testid="resolved-audience"'),
+    );
+    expect(
+      within(screen.getByTestId("resolved-audience")).getByText("Avery Fielding"),
+    ).toBeVisible();
   });
 });

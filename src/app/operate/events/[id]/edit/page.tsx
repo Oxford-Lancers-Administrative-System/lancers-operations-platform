@@ -6,12 +6,16 @@ import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import {
   EDIT_REFUSAL_MESSAGE,
+  joinQuestionChoices,
   readEvent,
+  readEventQuestions,
   type EventDetail,
   type RawEventDraft,
+  type RawEventQuestion,
   type TermWindow,
 } from "@/lib/services/events";
 import { listTermWindows } from "@/lib/services/seasons";
+import { readEventFormDefaults, type EventTypeFormDefaults } from "@/lib/services/event-templates";
 import { gateShellPage } from "../../../gate";
 import EventForm from "../../event-form";
 
@@ -37,8 +41,13 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
 
   let event: EventDetail;
   let terms: TermWindow[];
+  let templates: Record<string, EventTypeFormDefaults>;
   try {
-    [event, terms] = await Promise.all([readEvent(id), listTermWindows()]);
+    [event, terms, templates] = await Promise.all([
+      readEvent(id),
+      listTermWindows(),
+      readEventFormDefaults(),
+    ]);
   } catch (error) {
     if (!isServiceError(error)) throw error;
     return <Refusal message={error.message} />;
@@ -67,6 +76,19 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
     attendance: event.isMandatory ? "mandatory" : "optional",
   };
 
+  // The questions as stored, not the template's: this event's questions are its
+  // own from the moment it was created, and an operator who removed one (D42)
+  // must not find it back on the form.
+  const initialQuestions: RawEventQuestion[] = (await readEventQuestions(event.id)).map(
+    (question) => ({
+      prompt: question.prompt,
+      answerType: question.answerType,
+      required: question.isRequired ? "required" : "optional",
+      choices: joinQuestionChoices(question.choices),
+      fromTemplate: question.fromTemplate ? "true" : "false",
+    }),
+  );
+
   return (
     <Stack spacing={3}>
       <Box>
@@ -82,7 +104,9 @@ export default async function EditEventPage({ params }: PageProps<"/operate/even
         mode="edit"
         eventId={event.id}
         terms={terms}
+        templates={templates}
         initial={initial}
+        initialQuestions={initialQuestions}
         cancelHref={`/operate/events/${event.id}`}
       />
     </Stack>

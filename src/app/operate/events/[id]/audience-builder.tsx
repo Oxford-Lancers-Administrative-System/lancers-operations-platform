@@ -13,21 +13,23 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import {
-  AUDIENCE_GROUPS,
+  groupsForEventType,
   groupIsSelected,
   groupSize,
   toggleGroup,
   resolveSelection,
   type AudienceCandidate,
   type AudienceCapacity,
+  type AudienceGroupKey,
 } from "@/lib/services/audience-selection";
 import { saveEventAudienceAction } from "../actions";
 import { EMPTY_TRANSITION_STATE } from "../form-state";
 import {
-  AUDIENCE_BUILDER_DETAIL,
   AUDIENCE_BUILDER_HEADLINE,
   CAPACITY_LABELS,
+  describeBuilderDefault,
   labelFor,
+  TYPE_LABELS,
 } from "../presentation";
 
 /**
@@ -45,14 +47,19 @@ import {
  * component that holds the only copy of something valuable will eventually lose
  * it. Now the database holds it and this screen is a way to change it.
  *
- * ## Selection starts from what is saved, and otherwise from nothing
+ * ## Selection starts from what is stored — which since D47 may be the template's
  *
- * `initialKeys` is the audience already stored on the draft. On a draft that has
- * none it is empty — and *that* is ADR 0012's rule, which is about the system
- * never implying an audience. Restoring the operator's own saved work is not an
- * implied audience; it is the same audience they are coming back to. There is
- * still no default group, no whole-roster fallback, and no "if none selected
- * then everyone" anywhere below.
+ * `initialKeys` is the audience already stored on the draft. Two things put
+ * people there: the operator's own saved work, and the type's template, which
+ * supplies a default audience when the draft is created. Both are stored rows by
+ * the time this screen opens, so this component does not know or care which.
+ *
+ * That is the reversal D47 makes to LAN-77, and it is narrower than it looks.
+ * ADR 0012's rule is that the *system* never implies an audience, and nothing
+ * below implies one: there is still no default group, no whole-roster fallback,
+ * and no "if none selected then everyone". A template's default audience is a
+ * choice the club made once, on purpose, and the sentence under the heading says
+ * which template made it so the approver knows what they are checking.
  *
  * ## Group buttons are toggles, and say what they will do
  *
@@ -69,20 +76,30 @@ import {
 
 export interface AudienceBuilderProps {
   eventId: string;
+  /** Decides which groups are offered: recruits appear on Recruitment (D46). */
+  eventType: string;
   candidates: AudienceCandidate[];
   counts: Record<AudienceCapacity, number>;
   /** The audience already saved against this draft. Empty when there is none. */
   initialKeys: string[];
+  /** The groups this type's template supplies, for the sentence above (D47). */
+  templateGroups: AudienceGroupKey[];
 }
 
 const UNITS = ["Both", "Offence", "Defence", "Special teams"] as const;
 
 export function AudienceBuilder({
   eventId,
+  eventType,
   candidates,
   counts,
   initialKeys,
+  templateGroups,
 }: AudienceBuilderProps) {
+  const groups = groupsForEventType(eventType);
+  const templateGroupLabels = groups
+    .filter((group) => templateGroups.includes(group.key))
+    .map((group) => group.label);
   const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set(initialKeys));
   const [search, setSearch] = useState("");
   const [capacity, setCapacity] = useState<"all" | AudienceCapacity>("all");
@@ -146,8 +163,8 @@ export function AudienceBuilder({
           <Typography variant="h6" component="h2">
             {AUDIENCE_BUILDER_HEADLINE}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            {AUDIENCE_BUILDER_DETAIL}
+          <Typography variant="body2" color="text.secondary" data-testid="builder-default-note">
+            {describeBuilderDefault(labelFor(TYPE_LABELS, eventType), templateGroupLabels)}
           </Typography>
         </Box>
 
@@ -156,7 +173,7 @@ export function AudienceBuilder({
             Add a group
           </Typography>
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-            {AUDIENCE_GROUPS.map((group) => {
+            {groups.map((group) => {
               const size = groupSize(candidates, group.key);
               const on = groupIsSelected(candidates, group.key, selected);
               return (
@@ -206,6 +223,13 @@ export function AudienceBuilder({
             <MenuItem value="player">{`Players (${counts.player})`}</MenuItem>
             <MenuItem value="coach">{`Coaches (${counts.coach})`}</MenuItem>
             <MenuItem value="committee">{`Committee (${counts.committee})`}</MenuItem>
+            {/*
+              D46 again: recruits exist on a Recruitment event and nowhere else,
+              so the filter offers them only where there are any to filter to.
+            */}
+            {counts.recruit > 0 ? (
+              <MenuItem value="recruit">{`Recruits (${counts.recruit})`}</MenuItem>
+            ) : null}
           </TextField>
           <TextField
             select

@@ -9,7 +9,14 @@ import Typography from "@mui/material/Typography";
 import { isServiceError } from "@/lib/db";
 import { UnavailableScreen } from "@/app/operate/unavailable";
 import { operatorHasCapability } from "@/lib/auth/guards";
-import { derivedEventState, readEvent, type EventDetail } from "@/lib/services/events";
+import {
+  derivedEventState,
+  describeQuestionAnswer,
+  readEvent,
+  readEventQuestions,
+  type EventDetail,
+  type EventQuestion,
+} from "@/lib/services/events";
 import { todayInClubZone } from "@/lib/club-time";
 import {
   isRegisterAvailable,
@@ -18,10 +25,14 @@ import {
   type AttendanceSummary,
 } from "@/lib/services/attendance";
 import {
+  describeMissingForApproval,
   readApprovalPreview,
   readEventAudience,
+  readEventAudienceGroupSummary,
   type AudienceMember,
 } from "@/lib/services/event-approval";
+import type { AudienceGroupSummary } from "@/lib/services/audience-selection";
+import { readEventTemplate } from "@/lib/services/event-templates";
 import { readEventChangeHistory, type EventChangeEntry } from "@/lib/services/event-amendment";
 import { readEventClubLink, readOperatorParticipation } from "@/lib/services/participation";
 import {
@@ -44,15 +55,14 @@ import { SharePanel } from "./share-panel";
 import { gateShellPage } from "../../gate";
 import { ApproveEventForm } from "../event-actions";
 import { AudienceBuilder } from "./audience-builder";
+import DeleteDraft from "./delete-draft";
 import { ApprovedEventActions, CancelledPanel, ChangeHistoryPanel } from "./change-panels";
 import RenotifyPanel from "./renotify-panel";
 import { silentChangeNotice } from "./change-presentation";
 import {
-  APPROVAL_DETAIL,
   APPROVAL_HEADLINE_PREFIX,
   APPROVED_HEADLINE,
   APPROVED_NOTHING_SENT_YET,
-  AUDIENCE_COMES_LATER,
   AUDIENCE_FROZEN_AT_APPROVAL,
   CAPACITY_LABELS,
   DEADLINE_DUE_IMMEDIATELY,
@@ -80,6 +90,15 @@ import {
   STATUS_LABELS,
   TYPE_LABELS,
   venueLabel,
+  DUPLICATE_ACTION,
+  INCOMPLETE_EVENT_ACTION,
+  INCOMPLETE_EVENT_HEADLINE,
+  joinWithAnd,
+  NO_AUDIENCE_YET,
+  QUESTIONS_HEADLINE,
+  QUESTIONS_REVIEW_DETAIL,
+  RSVP_FIRST_QUESTION,
+  RSVP_FIRST_QUESTION_ANSWER,
 } from "../presentation";
 import {
   ATTENDANCE_OPEN_DETAIL,
@@ -179,13 +198,18 @@ export default async function EventDetailPage({
     const preview = await readApprovalPreview(event.id);
 
     if (step === "audience") {
+      // D47. Read for the sentence above the tick list only: what is *selected*
+      // is what is stored on the draft, which may since have been edited.
+      const template = await readEventTemplate(event.eventType);
       return (
         <ApprovalLayout event={event}>
           <AudienceBuilder
             eventId={event.id}
+            eventType={event.eventType}
             candidates={preview.catalogue.candidates}
             counts={preview.catalogue.counts}
             initialKeys={preview.audience.map((member) => `${member.capacity}:${member.anchorId}`)}
+            templateGroups={template.audienceGroups}
           />
         </ApprovalLayout>
       );
@@ -193,12 +217,18 @@ export default async function EventDetailPage({
 
     return (
       <ApprovalLayout event={event}>
+        {preview.missing.length > 0 ? (
+          <IncompleteRefusal eventId={event.id} missing={preview.missing} />
+        ) : null}
         {preview.audience.length === 0 ? (
           <EmptyAudienceRefusal eventId={event.id} />
         ) : (
           <ApprovalReview
             event={event}
             audience={preview.audience}
+            questions={preview.questions}
+            groupSummary={preview.groupSummary}
+            approvable={preview.missing.length === 0}
             deadline={
               preview.deadline
                 ? {
@@ -217,6 +247,10 @@ export default async function EventDetailPage({
   // draft carrying forty people says so rather than looking untouched — and an
   // approved event answers "who was actually invited?" without a second screen.
   const audience = event.audienceCount > 0 ? await readEventAudience(event.id) : [];
+
+  // Amendment W4-A1. Read on every status: a draft's questions are being written
+  // and an approved event's are what people were actually asked.
+  const questions = await readEventQuestions(event.id);
 
   // REQ-headline-numbers, LAN-152. Read once there is an audience to count,
   // which is from approval onward — invitations are what approval creates, so
@@ -241,6 +275,15 @@ export default async function EventDetailPage({
     "operator",
   );
 
+  // D3 (round 2): the audience is named by its groups before its people here
+  // too, the same rule the approval review already states — read only when
+  // `AudienceList` below will actually render, which is exactly when this
+  // section shows names at all.
+  const audienceGroupSummary =
+    audience.length > 0 && participation === null
+      ? await readEventAudienceGroupSummary(event.id)
+      : null;
+
   // The dialog reads the live link and never creates one; **Create the link**
   // is what creates one. A page render must not write.
   const clubLink = shareOpen && mayManage ? await readEventClubLink(event.id) : null;
@@ -253,6 +296,8 @@ export default async function EventDetailPage({
       mayAdministerDelivery={mayAdministerDelivery}
       justApproved={justApproved}
       audience={audience}
+      audienceGroupSummary={audienceGroupSummary}
+      questions={questions}
       summary={summary}
       history={history}
       participation={participation}
@@ -318,14 +363,106 @@ function EmptyAudienceRefusal({ eventId }: { eventId: string }) {
   );
 }
 
-/** UX-41 — the exact list, and what approving it will do. */
+/**
+ * D16's refusal, named — W4-06.
+ *
+ * The completeness gate is enforced in `approveEvent`, so this screen is what an
+ * operator sees rather than what stops them. It names the fields rather than
+ * disabling the button silently, and offers the route that fixes them, which is
+ * `docs/ux/standards.md` rules 4 and 5 over the same panel.
+ */
+function IncompleteRefusal({ eventId, missing }: { eventId: string; missing: string[] }) {
+  return (
+    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="incomplete-refusal">
+      <Stack spacing={2}>
+        <Typography variant="h6" component="h2">
+          {INCOMPLETE_EVENT_HEADLINE}
+        </Typography>
+        <Alert severity="warning">{describeMissingForApproval(missing)}</Alert>
+        <Box>
+          <Button
+            variant="contained"
+            href={`/operate/events/${eventId}/edit`}
+            sx={{ minHeight: 44 }}
+          >
+            {INCOMPLETE_EVENT_ACTION}
+          </Button>
+        </Box>
+      </Stack>
+    </Paper>
+  );
+}
+
+/**
+ * The questions, exactly as a player will meet them — amendment W4-A1.
+ *
+ * Shared by the approval review and the event page, because they are the same
+ * list and `docs/ux/standards.md` rule 7 is about exactly that. The review adds
+ * the RSVP's own first question at the top, because "are you coming?" is asked
+ * before any of these and an approver reading the list should see the page as it
+ * will arrive rather than the part of it this screen happens to own.
+ */
+function QuestionList({
+  questions,
+  leadWithRsvp,
+  testId,
+}: {
+  questions: readonly EventQuestion[];
+  leadWithRsvp: boolean;
+  testId: string;
+}) {
+  return (
+    <Stack component="ol" spacing={1} sx={{ listStyle: "none", p: 0, m: 0 }} data-testid={testId}>
+      {leadWithRsvp ? (
+        <Box component="li" sx={{ py: 1, borderBottom: 1, borderColor: "divider" }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {RSVP_FIRST_QUESTION}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {RSVP_FIRST_QUESTION_ANSWER}
+          </Typography>
+        </Box>
+      ) : null}
+      {questions.map((question) => (
+        <Box
+          component="li"
+          key={question.id}
+          sx={{ py: 1, borderBottom: 1, borderColor: "divider" }}
+          data-testid="question-row"
+        >
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {question.prompt}
+            </Typography>
+            <Chip
+              size="small"
+              color={question.isRequired ? "primary" : "default"}
+              label={question.isRequired ? "Required" : "Optional"}
+            />
+          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            {describeQuestionAnswer(question)}
+          </Typography>
+        </Box>
+      ))}
+    </Stack>
+  );
+}
+
+/** UX-41 — the event, the people and the questions, read once. */
 function ApprovalReview({
   event,
   audience,
+  questions,
+  groupSummary,
+  approvable,
   deadline,
 }: {
   event: EventDetail;
   audience: AudienceMember[];
+  questions: EventQuestion[];
+  groupSummary: AudienceGroupSummary;
+  approvable: boolean;
   deadline: { label: string; clamped: boolean } | null;
 }) {
   const stale = audience.filter((member) => !member.stillSelectable).length;
@@ -336,6 +473,21 @@ function ApprovalReview({
         <Typography variant="h6" component="h2">
           {`${APPROVAL_HEADLINE_PREFIX} ${event.name}`}
         </Typography>
+
+        {/*
+          The audience by its groups, before its people — Brian, 2026-08-21:
+          "it should say at the very top what groups it would be ... You don't
+          have to show me how it's done." An approver checks a shape faster than
+          they check a list of thirty-five, and the names are still underneath.
+        */}
+        <Box data-testid="audience-shape">
+          <Typography variant="overline" color="text.secondary" component="p">
+            Who will be asked
+          </Typography>
+          <Typography variant="h6" component="p">
+            {describeAudienceShape(groupSummary)}
+          </Typography>
+        </Box>
 
         <Box
           sx={{
@@ -408,25 +560,65 @@ function ApprovalReview({
           />
         </Box>
 
-        <AudienceList audience={audience} heading="Who will be asked" testId="resolved-audience" />
+        <AudienceList audience={audience} heading="By name" testId="resolved-audience" />
 
-        <Typography variant="body2" color="text.secondary">
-          {APPROVAL_DETAIL}
-        </Typography>
+        <Box>
+          <Typography variant="overline" color="text.secondary" component="p">
+            {`What they will be asked`}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            {QUESTIONS_REVIEW_DETAIL}
+          </Typography>
+          <QuestionList questions={questions} leadWithRsvp testId="review-questions" />
+        </Box>
 
-        <ApproveEventForm eventId={event.id} />
+        {approvable ? <ApproveEventForm eventId={event.id} /> : null}
       </Stack>
     </Paper>
   );
 }
 
-/** The named list, used by the confirmation and by the event detail alike. */
+/**
+ * "All active players, all coaches — 35 people".
+ *
+ * The groups first and the headcount after, which is the order Brian asked for.
+ * People chosen by hand belong to no group and are counted rather than named
+ * here; the list underneath is where they are read. A partly-selected group is
+ * never named, because naming it would say the whole group is invited.
+ */
+function describeAudienceShape(summary: AudienceGroupSummary): string {
+  const people = `${summary.total} ${summary.total === 1 ? "person" : "people"}`;
+  const parts = [...summary.groups];
+  if (summary.others > 0) {
+    parts.push(
+      parts.length === 0
+        ? `${summary.others} chosen by hand`
+        : `${summary.others} more chosen by hand`,
+    );
+  }
+  return parts.length === 0 ? people : `${joinWithAnd(parts)} — ${people}`;
+}
+
+/**
+ * The named list, used by the confirmation and by the event detail alike.
+ *
+ * D3 (round 2): the event detail page named a count and then people, with no
+ * group named anywhere — "I do see where it got confused because I'm one of
+ * the pages the audience is listed above. On the pre-send, it says who's sent
+ * to all players, but I wanted it to be here." `groupSummary` is optional
+ * because the approval review already states the shape in its own block
+ * above this list and does not repeat it here; the event detail has nowhere
+ * else to say it, so it passes one and this renders it — `describeAudienceShape`
+ * itself is the one place either surface knows how to say it.
+ */
 function AudienceList({
   audience,
+  groupSummary,
   heading,
   testId,
 }: {
   audience: AudienceMember[];
+  groupSummary?: AudienceGroupSummary;
   heading: string;
   testId: string;
 }) {
@@ -435,6 +627,11 @@ function AudienceList({
       <Typography variant="overline" color="text.secondary" component="p">
         {heading}
       </Typography>
+      {groupSummary ? (
+        <Typography variant="h6" component="p" sx={{ mb: 1 }} data-testid="audience-shape">
+          {describeAudienceShape(groupSummary)}
+        </Typography>
+      ) : null}
       <Stack component="ul" spacing={0} sx={{ listStyle: "none", p: 0, m: 0 }} data-testid={testId}>
         {audience.map((member) => (
           <Box
@@ -615,6 +812,8 @@ function EventDetailView({
   mayAdministerDelivery,
   justApproved,
   audience,
+  audienceGroupSummary,
+  questions,
   summary,
   history,
   participation,
@@ -627,6 +826,9 @@ function EventDetailView({
   mayAdministerDelivery: boolean;
   justApproved: boolean;
   audience: AudienceMember[];
+  /** D3 (round 2). `null` whenever `audience` is not about to be listed by name. */
+  audienceGroupSummary: AudienceGroupSummary | null;
+  questions: EventQuestion[];
   summary: AttendanceSummary | null;
   history: readonly EventChangeEntry[];
   /** `null` until approval creates invitations — invariant P1. */
@@ -808,14 +1010,14 @@ function EventDetailView({
             label="Audience"
             value={
               event.audienceCount === 0
-                ? "Chosen at approval"
+                ? NO_AUDIENCE_YET
                 : proposed
                   ? `${event.audienceCount} chosen, not yet approved`
                   : `${event.audienceCount} confirmed`
             }
             note={
               event.audienceCount === 0
-                ? AUDIENCE_COMES_LATER
+                ? undefined
                 : proposed
                   ? "Saved against this draft. Nothing is sent until it is approved."
                   : AUDIENCE_FROZEN_AT_APPROVAL
@@ -839,9 +1041,10 @@ function EventDetailView({
             chosen but not yet approved, which has no invitations, no answers
             and no attendance to put in columns (invariant P1).
           */}
-          {audience.length > 0 && participation === null ? (
+          {audience.length > 0 && participation === null && audienceGroupSummary !== null ? (
             <AudienceList
               audience={audience}
+              groupSummary={audienceGroupSummary}
               heading={proposed ? "Who this is for" : "Who was invited"}
               testId="event-audience"
             />
@@ -854,6 +1057,40 @@ function EventDetailView({
         question about the past and the buttons are about the future.
       */}
       {event.status !== "draft" ? <ChangeHistoryPanel entries={history} /> : null}
+
+      {/*
+        Amendment W4-A1. The questions are read here and written on the form:
+        "it's ingrained in the process, so you separated that inappropriately."
+        The RSVP's own first question is not repeated — this panel is about what
+        this event adds, and the approval review is where the whole page is read
+        in order.
+      */}
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="event-questions">
+        <Stack spacing={2}>
+          <Typography variant="h6" component="h2">
+            {QUESTIONS_HEADLINE}
+          </Typography>
+          {/*
+            C4. There was filler here — "Nothing extra is asked. Add a
+            question if this event needs one." — and Brian's reaction was
+            "I hate extra text like this." The heading above already says
+            what this panel is; an event with nothing extra to ask says so by
+            showing nothing.
+          */}
+          {questions.length === 0 ? null : (
+            <QuestionList questions={questions} leadWithRsvp={false} testId="event-question-list" />
+          )}
+        </Stack>
+      </Paper>
+
+      {/*
+        REQ-delete-draft, D29. On the draft's own page, low emphasis, and only
+        where the operator could actually do it — an approved event is cancelled
+        rather than deleted, and W6 owns that.
+      */}
+      {mayManage && event.status === "draft" ? (
+        <DeleteDraft eventId={event.id} name={event.name} />
+      ) : null}
 
       {/*
         REQ-participation-table — W7's centre. One row per person: who was
@@ -913,19 +1150,27 @@ function EventDetailView({
         ) : null}
 
         {mayManage && event.status === "draft" ? (
-          <>
-            <Button variant="contained" href={`/operate/events/${event.id}/edit`} fullWidth>
-              Edit draft
-            </Button>
-            {/*
-              **Abandon draft** was here and went with the `withdrawn` status it
-              produced. An abandoned draft is deleted (D29), permanently and
-              after a confirmation naming it, and that path belongs to this
-              mission's W4 work package. Until it lands a draft nobody wants
-              stays a draft rather than being parked in a status that says it
-              never happened.
-            */}
-          </>
+          <Button variant="contained" href={`/operate/events/${event.id}/edit`} fullWidth>
+            Edit draft
+          </Button>
+        ) : null}
+
+        {/*
+          D39, as Brian settled it on 2026-08-22: duplicate opens the create
+          form prefilled, and nothing is written until the operator saves. It is
+          offered on every status, because the event worth copying is usually one
+          that already happened.
+        */}
+        {mayManage ? (
+          <Button
+            variant="outlined"
+            href={`/operate/events/new?from=${event.id}`}
+            fullWidth
+            sx={{ minHeight: 44 }}
+            data-testid="duplicate-event"
+          >
+            {DUPLICATE_ACTION}
+          </Button>
         ) : null}
 
         {mayManage ? null : (

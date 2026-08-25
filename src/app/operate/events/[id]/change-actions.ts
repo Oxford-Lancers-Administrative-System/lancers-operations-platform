@@ -106,7 +106,19 @@ export async function amendEventAction(
 
   const validation = validateEventDraft(raw);
   if (!validation.ok) {
-    return { issues: validation.issues, error: null, values: raw };
+    // `EventFormState` grew `questionIssues`/`questions` under LAN-154's own
+    // amendment W4-A1, for the create/edit form's question editor. Amending an
+    // approved event never touches questions — W5 does not offer one, and the
+    // contract is explicit that questions are authored only on the create and
+    // edit form — so these are the same empty values `EMPTY_FORM_STATE` already
+    // carries, not a place this action has anything to report.
+    return {
+      issues: validation.issues,
+      questionIssues: [],
+      error: null,
+      values: raw,
+      questions: null,
+    };
   }
 
   try {
@@ -115,7 +127,13 @@ export async function amendEventAction(
       silenceConfirmed: checked(formData, "silenceConfirmed"),
     });
   } catch (error) {
-    return { issues: [], error: messageFor(error), values: raw };
+    return {
+      issues: [],
+      questionIssues: [],
+      error: messageFor(error),
+      values: raw,
+      questions: null,
+    };
   }
 
   revalidatePath("/operate/events");

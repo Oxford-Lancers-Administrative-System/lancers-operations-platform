@@ -96,10 +96,15 @@ import {
  *
  * `readDraft()` builds the diff from `new FormData(formRef.current)` at the
  * moment the operator presses **Save changes…**, so what the review panel shows
- * is what the submit will send — including the venue, which is an uncontrolled
- * combobox this component deliberately does not mirror into state. A review
- * built from a private copy is the shape that produces a screen agreeing with
- * itself and disagreeing with the database.
+ * is what the submit will send. `VenueField` became a controlled combobox
+ * under LAN-154 — every consumer now owns a `value`/`onValueChange` pair
+ * rather than an uncontrolled `defaultValue` — but `venue` state here is not a
+ * private copy in the sense this note used to warn about: React keeps the
+ * field's own DOM input in sync with that state on every render, so
+ * `readDraft()`'s `FormData` read and what the field visibly shows can never
+ * disagree. A review built from a private copy is the shape that produces a
+ * screen agreeing with itself and disagreeing with the database; a controlled
+ * field's state is not that copy, because nothing else can hold the truth.
  */
 
 type Step = "edit" | "review" | "silence";
@@ -169,6 +174,10 @@ export default function AmendForm({
 
   const [scheduledOn, setScheduledOn] = useState(value("scheduledOn"));
   const [deliveryMode, setDeliveryMode] = useState(value("deliveryMode") || "in_person");
+  // `VenueField` is a controlled combobox — see the doc comment above on
+  // "The review reads the form, not a copy of it" for why that no longer
+  // means what it once did here.
+  const [venue, setVenue] = useState(value("venue"));
 
   const issues = localIssues.length > 0 ? localIssues : state.issues;
 
@@ -396,7 +405,8 @@ export default function AmendForm({
 
                 <VenueField
                   name="venue"
-                  defaultValue={value("venue")}
+                  value={venue}
+                  onValueChange={setVenue}
                   errorMessage={issueFor(issues, "venue")}
                 />
 

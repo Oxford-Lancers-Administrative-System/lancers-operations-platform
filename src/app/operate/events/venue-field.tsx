@@ -42,6 +42,14 @@ import { MIN_QUERY_LENGTH, type VenueSuggestion } from "@/lib/venue-search/sugge
  * it. The abort is kept as well, so the club stops paying for answers nobody
  * will read.
  *
+ * ## Controlled, since LAN-154
+ *
+ * The value lives in the form rather than here. Changing an event's **Type**
+ * replaces the venue the old type's template supplied — but only where nobody
+ * has edited it (D41) — and a field holding its own copy could neither be told
+ * nor asked. Nothing else about the control changed: it still posts one
+ * `name="venue"` input carrying whatever is in it.
+ *
  * ## Failure never reaches the operator as a failure
  *
  * There is no state in which this component prevents the form being filled in
@@ -101,17 +109,21 @@ function readOutcome(payload: unknown): {
 
 export default function VenueField({
   name,
-  defaultValue,
+  value,
+  onValueChange,
   errorMessage,
 }: {
   /** The form field name. `venue`, so the action reads it exactly as before. */
   name: string;
-  /** The stored venue when editing, or what was typed before a refused submit. */
-  defaultValue: string;
+  /** The venue as the form currently holds it. Controlled — see below. */
+  value: string;
+  /** Called with every keystroke and with a chosen suggestion. */
+  onValueChange: (value: string) => void;
   /** A validation correction from the action, which outranks any search state. */
   errorMessage?: string;
 }) {
-  const [inputValue, setInputValue] = useState(defaultValue);
+  const inputValue = value;
+  const setInputValue = onValueChange;
   const [suggestions, setSuggestions] = useState<readonly VenueSuggestion[]>([]);
   const [status, setStatus] = useState<SearchStatus>("idle");
   const [open, setOpen] = useState(false);
@@ -130,7 +142,7 @@ export default function VenueField({
   // the address it had itself just displayed — a request per page load, on a
   // free service, for an answer nobody asked for. It is updated when a
   // suggestion is chosen, for the same reason in the other direction.
-  const chosenRef = useRef<string | null>(defaultValue.trim() === "" ? null : defaultValue.trim());
+  const chosenRef = useRef<string | null>(value.trim() === "" ? null : value.trim());
 
   const run = useCallback(async (query: string) => {
     controllerRef.current?.abort();

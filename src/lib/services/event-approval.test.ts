@@ -171,6 +171,7 @@ async function catalogueFor(event: {
       player: candidates.filter((candidate) => candidate.capacity === "player").length,
       coach: candidates.filter((candidate) => candidate.capacity === "coach").length,
       committee: candidates.filter((candidate) => candidate.capacity === "committee").length,
+      recruit: candidates.filter((candidate) => candidate.capacity === "recruit").length,
     },
   };
 }
@@ -265,7 +266,7 @@ describe("an empty audience is refused by the service layer", () => {
   it("reports the same refusal to the browser as the service does", () => {
     const catalogue: AudienceCatalogue = {
       candidates: [],
-      counts: { player: 0, coach: 0, committee: 0 },
+      counts: { player: 0, coach: 0, committee: 0, recruit: 0 },
     };
 
     // The builder reads the result form, so it can count people without a round
