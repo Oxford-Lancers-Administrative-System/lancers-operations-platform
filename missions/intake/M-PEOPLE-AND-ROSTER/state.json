@@ -1,12 +1,18 @@
 {
   "mission_id": "M-PEOPLE-AND-ROSTER",
   "ledger_version": 2,
-  "stage": "boundary",
+  "stage": "overview",
   "baseline": {
     "branch": "main",
     "commit": "2115bfed9d08ab9146fe00f002d6337cae9796a2"
   },
-  "approvals": {},
+  "approvals": {
+    "boundary": {
+      "words": "Yeah, looks fine. This is approved.",
+      "date": "2026-08-26",
+      "by": "Brian Schuster"
+    }
+  },
   "workflows": [],
   "mockup_hub": "generated",
   "decision_coverage": {
@@ -32,5 +38,5 @@
     ],
     "decisions": []
   },
-  "next_action": "Complete and approve 00-boundary.md"
+  "next_action": "Complete and approve 01-overview.md"
 }
