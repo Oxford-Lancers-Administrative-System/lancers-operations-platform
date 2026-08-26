@@ -576,9 +576,24 @@ describe("the schedule page's worked example", () => {
       const withPreview = await listMessagingSchedulesWithPreview();
       const practice = withPreview.find((row) => row.schedule.eventType === "practice")!;
       const lastRung = practice.preview.rungs[practice.preview.rungs.length - 1];
+      const gapMs = practice.preview.responseDeadlineAt.getTime() - lastRung.at.getTime();
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
       expect(practice.preview.lateApproval).toBe(false);
       expect(lastRung.at.getTime()).toBeLessThan(practice.preview.responseDeadlineAt.getTime());
+      // R3-B1: `toBeLessThan` alone is satisfied by the seeded default's own
+      // one-day gap (OWNER-LAN171-06 — the invitation now counts as WhatsApp
+      // #1 without a matching migration) whether or not the +5 edit above is
+      // honoured at all, which is exactly how a defect that ignores
+      // `invitation_lead_days` entirely shipped with this test green. The
+      // magnitude is what distinguishes them: the baseline gap is one day
+      // (deadline two days out, invitation five days out, two 24h rungs after
+      // it lands three days out); five *further* days of lead widens that to
+      // six. Bounding well clear of both the one-day baseline and any
+      // reasonable rounding is enough to fail red the moment the edit stops
+      // being read.
+      expect(gapMs).toBeGreaterThan(5 * ONE_DAY_MS);
+      expect(gapMs).toBeLessThan(7 * ONE_DAY_MS);
     } finally {
       await withTransaction((tx) =>
         tx.query(
