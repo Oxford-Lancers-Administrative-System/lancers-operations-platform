@@ -46,8 +46,8 @@ incidentally later.
 The durable person record and the two operator surfaces over it: **People**
 (every human the club holds — coaches, committee, prospects, alumni) and
 **Roster** (this season's players) plus player detail. Add-or-link without a
-membership; correction; audited merge; aliases; channel presence as dated group
-membership; alumni derivation and its override; the missing-data queue's
+membership; correction; audited merge; aliases, with known-as collapsed into
+them; alumni derivation and its override; the missing-data queue's
 definition and its working surface; per-person change history; the
 emergency-contact lockdown; read-only display of Mission 2's participation
 history; extension of the local synthetic seed where a journey needs a case it
@@ -60,7 +60,7 @@ recruitment-specific rows, coaching-adjacent fields included.
 ## Out of scope
 
 Messaging of any kind. Consent capture and lawful basis. Import, carry-forward
-and the season bootstrap. Season creation and lifecycle. Club-role assignment
+and the season bootstrap. Season creation and lifecycle. Channel presence. Club-role assignment
 and operator seats. A person editing their own record. The collection request
 itself. The recruits list, funnel and entry doors. Onboarding item behaviour and
 the chase. Football assignment semantics and availability behaviour. Destructive
@@ -101,12 +101,14 @@ restatement, not a second authority.
 - **The person-versus-season test.** Every field disposition in this mission
   answers one question: does it travel season to season, or does it live and die
   with the season? Durable facts belong to the person record; season-bound facts
-  belong to the membership. Worked once already: reachability and channel-group
-  membership are the person's, while approval to message is the season's, so
-  someone can be on WhatsApp, in the group, and still not have approved this
-  season — which is precisely the state onboarding exists to resolve. A field's
-  lifecycle class is **not** the same as its owning mission: DOB and emergency
-  contact are durable person facts captured at onboarding by Mission 7.
+  belong to the season. Applied twice in this intake, and the second time it
+  moved scope out: the phone number and the email are the person's, while
+  **membership of a season's communication group is the season's**, so channel
+  presence left this mission for Mission 6. Someone can be reachable on
+  WhatsApp, in this season's group, and still not have approved being messaged —
+  three separate facts with three different homes. A field's lifecycle class is
+  also **not** the same as its owning mission: DOB and emergency contact are
+  durable person facts captured at onboarding by Mission 7.
 
 - **State vocabulary.** The frozen model governs; this mission adds no club
   concept. Membership uses the eight-value `membership_status` enum unchanged,

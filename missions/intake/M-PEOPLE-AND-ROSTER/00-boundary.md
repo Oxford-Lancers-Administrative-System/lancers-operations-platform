@@ -46,8 +46,6 @@
   `recruitment_prospects_one_per_person_per_season` collision, and consent-record
   precedence.
 - Aliases as dedupe evidence; never roster display.
-- Channel presence as **group membership per channel, dated** — reachability is
-  already carried by `contact_points`.
 - Alumni standing: derivation from membership history plus the existing
   `past_member_override`.
 - The missing-data queue's definition and its working surface: required-field
@@ -76,6 +74,13 @@
 - **Import and carry-forward**, and with them the season bootstrap — moved to M7
   (see deviation below).
 - Season creation and all season lifecycle: open, close, rollover — M11.
+- **Channel presence — M6, extended by M7.** Amended 2026-08-26: a named
+  communication group is a season record, not a durable person fact. The number
+  and the email stay here; whether somebody is in this season's group does not.
+  Task 09 D3 fires the community-group invite at every recruit door, so Mission
+  6 is its first user. Anchored to person and season, so recruits are covered
+  through `recruitment_prospects` without holding a membership. This mission
+  keeps the contactability indicators built on the contact points it does own.
 - **Club-role assignment and operator seats — M1.** Recording who holds a club
   role is Mission 1's surface and is not reopened here. A coach or committee
   member added through this mission's add-or-link path is a Person on the People
@@ -140,8 +145,17 @@ entirely different workflow from this… there is no club role assignment here.
 That shouldn't be touched in this. It's already been done."_ Approval of the
 withdrawal: _"Approved, approved, go."_
 
-The observation that prompted it stands and is carried into the packet as a
-finding against Mission 1 rather than as scope here: `event-audience.ts:200`
+### Second amendment — 2026-08-26
+
+Channel presence leaves this mission, taking its durable person fields from
+sixteen to fifteen. Brian: _"If there's a channel presence, I think the channel
+presence deserves to be part of a season record… you may be on a platform. We
+may keep that contact information, but only the season knows if it's there."_
+And on named groups: _"Yes, we should have name groups, but that's part of the
+season."_ Approval of the move: _"Okay, I think that's fair."_
+
+The observation that prompted the first amendment stands and is carried into the
+packet as a finding against Mission 1 rather than as scope here: `event-audience.ts:200`
 resolves coaches and committee members to invitations only through
 `role_assignments`, and the sole writer of that table on `main` is
 operator-invitation acceptance (`operator-invitations.ts:1571`), so a club role

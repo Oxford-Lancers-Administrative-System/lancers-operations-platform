@@ -28,6 +28,11 @@
       "date": "2026-08-26",
       "by": "Brian Schuster",
       "count": 8
+    },
+    "field_inventory": {
+      "words": "Approved let's move on.",
+      "date": "2026-08-26",
+      "by": "Brian Schuster"
     }
   },
   "workflows": [
@@ -308,10 +313,18 @@
         "ref": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
         "version": "Owner working session with Brian Schuster, 2026-08-26, recorded in this ledger's stage commits.",
         "decision_ids": [
+          "OS-formalwear-is-seasonal",
+          "OS-whatsapp-is-the-channel",
+          "OS-blues-are-seasonal-awards",
+          "OS-pipeline-status-rebuilt",
+          "OS-supersede-od3-single-inactive",
+          "OS-recruit-standing-visible",
+          "OS-recruit-stage-fields-unenumerated",
           "OS-season-bootstrap-to-m7",
           "OS-no-club-role-assignment",
           "OS-self-service-to-m7",
           "OS-channel-presence-is-a-person-record",
+          "OS-channel-presence-is-a-season-record",
           "OS-four-role-narrowing-confirmed",
           "OS-seed-extension-in-scope",
           "OS-per-person-history-here",
@@ -411,23 +424,51 @@
       {
         "id": "T08-kit-ownership",
         "source_id": "SRC-task-08",
+        "disposition": "superseded",
+        "superseded_by": "SRC-owner-session:OS-formalwear-is-seasonal",
+        "reason": "Tie, bowtie and socks held as durable person facts. Brian moved them to the season on 2026-08-26.",
+        "approval": {
+          "words": "where this all belongs in the season is not a durable person record thing. We'll just reask them every season if they have this.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-formalwear-is-seasonal",
+        "source_id": "SRC-owner-session",
         "disposition": "workflow",
-        "workflow": "W2",
-        "reason": "Tie, bowtie and socks are durable operator-confirmed records that price the subs invoice."
+        "workflow": "W6",
+        "reason": "Formalwear ownership is asked each season rather than carried, matching Task 10 R1b's rule that the full checklist regenerates for everyone every season. Removes Task 10 item 3's 'not applicable if already recorded' carve-out for returners, which Mission 7's intake must reconcile.",
+        "approval": {
+          "words": "We'll just reask them every season if they have this.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-whatsapp-is-the-channel",
+        "source_id": "SRC-owner-session",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "Channel presence is named concretely: is the person on WhatsApp and in this season's group. Email is assumed, being universal and already a durable contact point.",
+        "evidence": "Brian, 2026-08-26: WhatsApp is the actual channel that matters and email should be assumed. The seam is Task 09 D3's community-group invite at every recruit door. Presence remains distinct from consent per Task 08 row 8 — it records where somebody already is, never that they agreed to be messaged, which stays Mission 8's."
       },
       {
         "id": "T08-blues-counts",
         "source_id": "SRC-task-08",
-        "disposition": "workflow",
-        "workflow": "W2",
-        "reason": "Half and Full Blue counts are passive durable record-keeping; the Blues workflow stays future scope."
+        "disposition": "superseded",
+        "superseded_by": "SRC-owner-session:OS-blues-are-seasonal-awards",
+        "reason": "Half and Full Blue held as cumulative durable counts. It was the inventory's only cumulative count and Brian rejected the shape.",
+        "approval": {
+          "words": "no other record here is a cumulative count at this point, so I don't really like that… I think for the season record, half blue, full blue for the season makes sense.",
+          "date": "2026-08-26"
+        }
       },
       {
         "id": "T08-channel-presence",
         "source_id": "SRC-task-08",
-        "disposition": "workflow",
-        "workflow": "W2",
-        "reason": "Dated per-channel presence, distinct from consent. Narrowed this session to group membership, because contact_points already carries reachability."
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "Dated per-channel presence, distinct from consent. Brian ruled 2026-08-26 that a named group is a season record: the number is durable, being in this season's group is not. Task 09 D3 fires the community-group invite at every recruit door, so Mission 6 is the first user and builds it; Mission 7 extends it for the season welcome, item 8's derivation and the Secretary's add/remove. Anchored to person and season, which recruits already have through recruitment_prospects.",
+        "evidence": "Dated per-channel presence, distinct from consent. Brian ruled 2026-08-26 that a named group is a season record: the number is durable, being in this season's group is not. Task 09 D3 fires the community-group invite at every recruit door, so Mission 6 is the first user and builds it; Mission 7 extends it for the season welcome, item 8's derivation and the Secretary's add/remove. Anchored to person and season, which recruits already have through recruitment_prospects."
       },
       {
         "id": "T08-emergency-contact-in-release-one",
@@ -463,6 +504,58 @@
         "disposition": "workflow",
         "workflow": "W2",
         "reason": "Every edit is attributable and audited (invariant M2)."
+      },
+      {
+        "id": "OS-blues-are-seasonal-awards",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "An award happens in a season, so it is two flags on the season record; the cumulative total the club looks at derives from history rather than being stored.",
+        "approval": {
+          "words": "for the season record, half blue, full blue for the season makes sense",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-pipeline-status-rebuilt",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "One status drives the whole pipeline, assembled from two records: the prospect record while somebody is a recruit, the membership from the flip onward. Recruit / Onboarding / Active / Inactive / Departed / Archived. carried_forward, confirmed and withdrawn are struck — entry already carries the returner fact, confirming is an action rather than a state, and a recruit who says no is declined on the prospect record and never receives a membership. Eight values become five. The frozen model's refusal to store recruits as memberships is honoured: the roster still means people on the team.",
+        "approval": {
+          "words": "there's one status that should tell us what the player is at, and it drives the entire thing… carried forward should be just struck entirely.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-supersede-od3-single-inactive",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W6",
+        "reason": "OD-3 (resolved 2026-08-18) confirmed single-inactive offboarding with withdrawn and departed unused. Superseded: inactive means still on the team and possibly returning; departed means gone, struck off, with an offboarding to run. Recorded as a dated supersession of a resolved owner decision, and it makes membership_status a frozen-model vocabulary change reaching event audiences, the weekly report, the roster and Mission 4's messaging, delivered as a new type and a data migration.",
+        "approval": {
+          "words": "Okay, yes, we're superseding that, and that should be decided.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-recruit-standing-visible",
+        "source_id": "SRC-owner-session",
+        "disposition": "workflow",
+        "workflow": "W1",
+        "reason": "Person detail shows that somebody is a recruit and where they stand, read-only. A person with no visible standing is a name floating in a list. Every stage transition, the notes and the recruits list stay Mission 6's.",
+        "approval": {
+          "words": "I want you to synthesize this and see what that looks like now.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-recruit-stage-fields-unenumerated",
+        "source_id": "SRC-owner-session",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "The 8/5 staged model's football background, experience and gear ownership have never been written down by anyone: Task 08 pushes them to Task 09, Task 09 references and never lists them, and the 2026-08-26 amendment defers enumeration to Mission 6's intake. Recorded here so the gap is not lost.",
+        "evidence": "The 8/5 staged model's football background, experience and gear ownership have never been written down by anyone: Task 08 pushes them to Task 09, Task 09 references and never lists them, and the 2026-08-26 amendment defers enumeration to Mission 6's intake. Recorded here so the gap is not lost."
       },
       {
         "id": "T08-authority-matrix",
@@ -846,10 +939,10 @@
       {
         "id": "T10-item-8-comms-group-access",
         "source_id": "SRC-task-10",
-        "disposition": "shared_cross_mission",
-        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
-        "reason": "The comms-group item derives from season consent plus presence in the season's groups. This mission owns the channel-presence records it reads; Mission 7 owns the derivation.",
-        "evidence": "The comms-group item derives from season consent plus presence in the season's groups. This mission owns the channel-presence records it reads; Mission 7 owns the derivation."
+        "disposition": "other_mission",
+        "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
+        "reason": "The comms-group item derives from season consent plus presence in the season's groups. Both the derivation and the group records it reads sit outside this mission after the 2026-08-26 ruling that a group is a season record.",
+        "evidence": "The comms-group item derives from season consent plus presence in the season's groups. Both the derivation and the group records it reads sit outside this mission after the 2026-08-26 ruling that a group is a season record."
       },
       {
         "id": "T10-roster-filters-by-item-status",
@@ -1385,10 +1478,21 @@
       {
         "id": "OS-channel-presence-is-a-person-record",
         "source_id": "SRC-owner-session",
-        "disposition": "shared_cross_mission",
-        "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
-        "reason": "Reachability and channel-group membership are the person's and durable; approval to message is the season's. Narrows this mission's build to dated group membership per channel.",
-        "evidence": "Reachability and channel-group membership are the person's and durable; approval to message is the season's. Narrows this mission's build to dated group membership per channel."
+        "disposition": "superseded",
+        "superseded_by": "SRC-owner-session:OS-channel-presence-is-a-season-record",
+        "reason": "An intermediate reading in the same session: reachability and group membership both treated as durable. Brian corrected it within the hour.",
+        "approval": {
+          "words": "If there's a channel presence, I think the channel presence deserves to be part of a season record.",
+          "date": "2026-08-26"
+        }
+      },
+      {
+        "id": "OS-channel-presence-is-a-season-record",
+        "source_id": "SRC-owner-session",
+        "disposition": "other_mission",
+        "other_mission": "M-RECRUITMENT",
+        "reason": "Contact information is durable; membership of a season's communication group is not. A named group is a season record, anchored to person and season so recruits are covered without a membership.",
+        "evidence": "Brian, 2026-08-26: a season will have an element saying we communicate via WhatsApp, and the record is grabbed then. The seam is Task 09 D3, which fires the community-group invite at every recruit door — Mission 6 is the first user, Mission 7 extends it. This mission keeps only the durable contact points and the contactability indicators built on them."
       },
       {
         "id": "OS-four-role-narrowing-confirmed",
@@ -1444,5 +1548,5 @@
       }
     ]
   },
-  "next_action": "Disposition all 27 inventory rows in one approved table, then specify W1"
+  "next_action": "Specify W1 — Look up any person the club holds"
 }
