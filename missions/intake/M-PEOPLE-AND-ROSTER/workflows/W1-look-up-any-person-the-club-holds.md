@@ -182,3 +182,50 @@ Approved after two rulings recorded above: a committee year pairs to the season
 sharing its label and dates are irrelevant, and there is no season picker
 anywhere in the application. One decision remains `proposed` by design — the
 list columns, which Brian approved in principle and asked to judge rendered.
+
+## Mockup review — round one, 2026-08-26
+
+Brian reviewed the ten screens. Nothing below overwrites the approved
+specification above; it records what his review decided and what it superseded.
+
+### Decided, and applied to the mockups
+
+| Decision                                                                                                           | His words                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| People is an **Administration** destination, not a fourth entry beside Roster                                      | "People should be considered an administrative task. It's not something that falls into the top left."                                                 |
+| An operator outside the four-role group never sees the entry; the server guard behind it is unchanged              | "If you're an operator outside the four roles, you just never see this page. It's just something that never pops up for you."                          |
+| The widen action is **See people outside this season**                                                             | "We need a more clear way of saying see people outside of the season… Everyone the club has ever held is a weird language there."                      |
+| **No narrative text in any surface.** Labels, values and states, plus the sentence an empty or refusal state needs | "The narrative text is I hate it. Every place I see it, I fucking hate it. The UI shouldn't have narrative text anywhere."                             |
+| The four source-and-confidence labels are replaced by who supplied the value, and a `Verified` mark                | "We don't need the labels. However, I like seeing if it's externally verified versus not… Who provided the detail would be important: who did it?"     |
+| A coach is part of the season. `No membership` is struck; standing is empty and the role names the tie             | "If a person gets added as a coach, they are part of this season. They are a member of this season. They're just not a player… I don't see the error." |
+| The `Open →` control on each season row is struck; the season label is the link and carries its own standing       | "I don't know what 'open' means… it's not clear to me what that 'open' button does."                                                                   |
+| The record's layout stands for now                                                                                 | "I don't like the record as it sits here. We'll keep it as is for now. The people record shouldn't be used that often, so I think that's fine."        |
+| `W1-02` is accepted as it stands                                                                                   | "The W1-02 is fine."                                                                                                                                   |
+
+### Superseded by this review
+
+**`disputed — awaiting verification` is struck from this surface.** Brian,
+2026-08-26: _"There shouldn't be a dispute here. It should just see the latest
+record… They're the operator. Nothing goes higher than the operator."_ The field
+shows the current value and who set it. This supersedes Task 08 §6's contested-value
+rule and the matching sentence in `01-overview.md`'s cross-cutting invariants,
+both of which predate it. Neither is overwritten; both need a dated amendment.
+
+**The recruitment facts leave the person record.** Brian, 2026-08-26: _"There's
+nothing on here related to recruits. There should be nothing here related to the
+recruit process. It's a person record."_ Source, first contact, committed and
+conversion were `display` on person detail in the approved field inventory and
+are now absent from this surface entirely; they are Mission 6's, on Mission 6's
+surface. The **standing** survives, because that is what the person is, and no
+control on the page moves it. `field-inventory.md` needs the dated amendment.
+
+### Still open after round one
+
+- **The list columns.** Unchanged since the specification: approved in principle,
+  to be judged rendered. `W1-01`'s table head.
+- **Widen-to-everyone: four-role or General-Manager-only.** Unchanged.
+- **Whether `W1-04` shows only the people outside the season, or one list of
+  everybody.** Drawn as outside-only, which is the literal reading of his words.
+- **Whether `W1-08` still earns a screen** now that the recruitment block is gone.
+- **One garbled dictation line** — "The player, certainly, the change to see what
+  it is shouldn't be here" — is unresolved and awaiting his restatement.

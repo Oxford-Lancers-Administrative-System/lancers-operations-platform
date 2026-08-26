@@ -41,7 +41,24 @@
       "name": "Look up any person the club holds",
       "state": "mock_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W1-01",
+          "text": "The five list columns stay proposed: approved in principle, to be judged rendered."
+        },
+        {
+          "screen_id": "W1-04",
+          "text": "Drawn as only the people outside the season. Decide whether it is that or one list of all 214. Also unresolved: four-role or General-Manager-only."
+        },
+        {
+          "screen_id": "W1-05",
+          "text": "One garbled dictation line - 'the player, certainly, the change to see what it is shouldn't be here' - awaiting his restatement."
+        },
+        {
+          "screen_id": "W1-08",
+          "text": "With the recruitment block gone this screen differs from W1-06 only by the standing chip. Decide whether it still earns a screen."
+        }
+      ],
       "approvals": {
         "spec": {
           "words": "Okay, here you go. I approve.",
@@ -1553,5 +1570,5 @@
       }
     ]
   },
-  "next_action": "Show Brian W1's ten mockup screens and take his decision on the list columns and on whether widen-to-everyone is four-role or GM-only"
+  "next_action": "Take Brian's round-two decisions on W1: the list columns, outside-only versus one list, four-role versus GM-only widening, whether W1-08 survives, and the garbled line"
 }
