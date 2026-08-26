@@ -128,7 +128,24 @@ further than anything else in this mission. Brian, on being told: _"Yeah, I know
 it's a data migration, but it's fucking wrong, so what else are we going to
 do?"_
 
-**The blast radius, measured rather than estimated (2026-08-26, at `2115bfe`).**
+**The scope of it, measured rather than estimated (2026-08-26, at `2115bfe`).**
+It is long but mechanical — volume, not difficulty — and it is **one migration
+file**: create the new type, drop the dependent views, `ALTER COLUMN … TYPE …
+USING` a total mapping on `season_memberships.status` and on both columns of
+`season_membership_status_events`, recreate the views, drop the old type. The
+`USING` clause converts the data in the same statement, production showcase rows
+included, so **nothing needs hand-fixing afterwards**. The mapping is obvious:
+`carried_forward` and `confirmed` both become `onboarding` — nobody was ever
+meant to rest in either — `withdrawn` becomes `departed`, and the rest are
+unchanged. The views carry 25 assertions across seven test files, so one
+recreated subtly wrong fails `npm run verify` rather than reaching production.
+
+**Note for whoever writes it: `recruit` is not one of the five stored values.**
+A recruit lives on the prospect record and never holds a membership, so the enum
+is `onboarding · active · inactive · departed · archived`. The ladder has six
+rungs; five of them are membership statuses.
+
+The dependencies:
 Postgres cannot alter an enum that a view depends on, so **every dependent view
 must be dropped and recreated inside the same migration**. Twelve views touch
 membership status: `person_standing`, `constitutional_membership`,
