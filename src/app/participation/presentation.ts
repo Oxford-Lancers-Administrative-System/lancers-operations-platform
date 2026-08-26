@@ -1,5 +1,7 @@
 import type { AttendancePresence } from "@/lib/services/attendance-vocabulary";
+import { formatDetailWhen } from "@/lib/services/event-vocabulary";
 import type {
+  EventFactsBase,
   ParticipationDiscrepancy,
   ParticipationPerson,
 } from "@/lib/services/participation-view";
@@ -258,3 +260,78 @@ export const CLUB_LINK_SUBTITLE = "Shared link";
  */
 export const CLUB_LINK_UNAVAILABLE_HEADLINE = "This link does not open anything.";
 export const CLUB_LINK_UNAVAILABLE_DETAIL = "Ask the club for a current link.";
+
+// ---------------------------------------------------------------------------
+// Recording an answer in person — W3, LAN-170
+// ---------------------------------------------------------------------------
+
+/**
+ * The row action, and the dialog's own submit button — the same word for the
+ * same act, which is what W3-02's wireframe does too.
+ */
+export const RECORD_ANSWER = "Record answer";
+
+export function recordAnswerDialogTitle(displayName: string): string {
+  return `Record ${displayName}'s answer`;
+}
+
+/**
+ * `vs Harewell Hawks · Sunday, 13 September 2026 · 14:00–16:30` — the
+ * dialog's event-identity subtitle.
+ *
+ * OWNER-LAN170-09 (correction round 4): `W3-02` and `W3-04` both draw a
+ * second line under the title naming which event the answer is being
+ * recorded against; the shipped dialog dropped it with nothing authorising
+ * the omission. Structure and copy are the mockup's — the event's own name
+ * (which already carries the "vs" the club writes into it,
+ * `event-csv.ts`'s own note) followed by when it is — but the date/time
+ * half is `formatDetailWhen`, the same service formatter the operator event
+ * page's own header uses for this exact fact (`operate/events/[id]/page.tsx`
+ * `data-testid="event-subtitle"`), per Q-23: style is the application's, not
+ * the mockup's own rendering of the date, and not a hand-rolled one here.
+ */
+export function recordAnswerEventSubtitle(
+  event: Pick<EventFactsBase, "name" | "scheduledOn" | "startsAt" | "endsAt">,
+): string {
+  return `${event.name} · ${formatDetailWhen(event)}`;
+}
+
+export const WHAT_DID_THEY_SAY = "What did they say?";
+export const RESPONSE_YES_LABEL = "Yes, attending";
+export const RESPONSE_NO_LABEL = "No, not attending";
+
+export const WHEN_DID_THEY_TELL_YOU = "When did they tell you?";
+export const WHEN_HELPER =
+  "Defaults to now. Earlier is allowed, later is not. Times are in the club's zone, Europe/London.";
+
+export const REASON_LABEL = "Reason";
+export const REASON_REQUIRED_FOR_NO = "Required for a No";
+export const REASON_PLACEHOLDER = "What they told you, in their words";
+
+/**
+ * The one warning the form carries about who reads a reason — required by
+ * W3's "Safety, privacy, and authority" section, because the operator is
+ * writing words a club-link holder will read, not only the coach who typed
+ * them.
+ */
+export const REASON_PRIVACY_NOTE =
+  "This reason is visible to anybody holding the club link for this event, the same as a " +
+  "player's own reason would be.";
+
+export const EVENT_QUESTIONS_HEADING = "This event's questions";
+export const EVENT_QUESTIONS_HELPER =
+  "Fill in whatever they told you. Partial answers are fine — the rest stays outstanding.";
+export const QUESTION_OPTIONAL = "Optional";
+
+/**
+ * OWNER-LAN170-08's wording check: a question the event marks
+ * `is_required` still says so here, so this label never reads as "optional
+ * for the player" — it says whose rule is whose. The player-facing
+ * requirement is a separate fact from whether the operator has to fill this
+ * field in before saving what was actually said.
+ */
+export const QUESTION_REQUIRED_OF_PLAYER_OPTIONAL_HERE =
+  "Required of the player, optional to record now";
+
+export const CANCEL = "Cancel";
+export const RECORDING = "Recording…";

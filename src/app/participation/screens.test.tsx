@@ -66,6 +66,17 @@ vi.mock("@/lib/services/participation", () => ({
 vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-forwarded-for": "203.0.113.7" }),
 }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// LAN-170. `recordOperatorAnswerAction` runs for real below — the same
+// pattern the attendance screen's own suite uses — with only the session
+// resolution and the database write stubbed. That proves the real action
+// wires the dialog's `FormData` through correctly, which a mock of the action
+// itself could not.
+vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
+vi.mock("@/lib/services/rsvp", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/rsvp")>();
+  return { ...actual, recordOperatorRsvpResponse: vi.fn() };
+});
 
 import {
   EMPTY_FILTERS,
@@ -84,6 +95,9 @@ import {
 } from "@/lib/rsvp/public-surface";
 
 import { labelFor, TYPE_LABELS } from "@/lib/services/event-vocabulary";
+import { resolveOperatorAccess } from "@/lib/auth/operator";
+import { recordOperatorRsvpResponse } from "@/lib/services/rsvp";
+import { ConstraintViolated } from "@/lib/db/errors";
 
 import ClubLinkPage from "../e/[token]/page";
 import { EventFacts, HeadlineNumbers } from "./event-facts";
@@ -92,15 +106,23 @@ import { ParticipationFilterBar } from "./participation-filters";
 import { ParticipationTable } from "./participation-table";
 import { QuestionCounts } from "./question-counts";
 import {
+  ANSWER_NONE,
   CLUB_LINK_UNAVAILABLE_HEADLINE,
   DELIVERY_NOT_QUEUED,
   DISCREPANCY_LEGEND,
   DISCREPANCY_MARK,
+  EVENT_QUESTIONS_HEADING,
   formatTermAndWeek,
   NO_MATCHING_PEOPLE,
   NOBODY_ASKED,
   NOT_RECORDED,
   NOTHING,
+  REASON_PLACEHOLDER,
+  RECORD_ANSWER,
+  RESPONSE_NO_LABEL,
+  RESPONSE_YES_LABEL,
+  recordAnswerDialogTitle,
+  recordAnswerEventSubtitle,
   SORTABLE_NOTE,
   TABLE_HEADINGS,
 } from "./presentation";
@@ -121,8 +143,12 @@ const EVENT = {
   status: "approved",
   eventType: "practice",
   scheduledOn: "2027-02-17",
-  startsAt: "20:00:00",
-  endsAt: "22:30:00",
+  // Minute precision, matching what `readEventIn`'s own `asTime` actually
+  // returns to `readEventFactsIn` (`events.ts`, `participation.ts`) — not a
+  // raw `time` column value with seconds, which nothing in the real payload
+  // ever carries this far.
+  startsAt: "20:00",
+  endsAt: "22:30",
   venue: "Iffley Road Astro",
   deliveryMode: "in_person",
   description: "Full contact.",
@@ -1162,5 +1188,356 @@ describe("a walk-up's row", () => {
       (element) => element.getAttribute("data-person") === "walkup:4",
     )!;
     expect(card.textContent).not.toContain(DELIVERY_NOT_QUEUED);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Recording an answer in person — W3, LAN-170
+// ---------------------------------------------------------------------------
+
+const UNANSWERED_INVITATION_ID = "99999999-9999-4999-8999-999999999999";
+
+function unanswered(
+  overrides: Partial<OperatorParticipationPerson> = {},
+): OperatorParticipationPerson {
+  return {
+    key: "player:unanswered",
+    displayName: "Gideon Thornbury",
+    capacity: "player",
+    isWalkUp: false,
+    invitedAt: "2027-02-15T18:00:00.000Z",
+    answer: null,
+    reason: null,
+    presence: null,
+    discrepancy: null,
+    answers: {},
+    delivery: null,
+    invitationId: UNANSWERED_INVITATION_ID,
+    ...overrides,
+  };
+}
+
+const OPERATOR_WITH_UNANSWERED: OperatorParticipation = {
+  ...OPERATOR,
+  people: [...PEOPLE, unanswered()],
+};
+
+/**
+ * The identical person, at the tier that never gets `invitationId` at all —
+ * matching what `buildClubLinkParticipationIn`'s field-by-field reassembly
+ * actually produces, rather than stripping the key off an operator fixture.
+ */
+const CLUB_WITH_UNANSWERED: ClubLinkParticipation = {
+  ...CLUB,
+  people: [
+    ...CLUB.people,
+    {
+      key: "player:unanswered",
+      displayName: "Gideon Thornbury",
+      capacity: "player",
+      isWalkUp: false,
+      invitedAt: "2027-02-15T18:00:00.000Z",
+      answer: null,
+      reason: null,
+      presence: null,
+      discrepancy: null,
+      answers: {},
+    },
+  ],
+};
+
+function resolvedOperator(personId = "operator-1") {
+  return {
+    state: "active" as const,
+    operator: {
+      authUserId: "auth-operator-1",
+      personId,
+      displayName: "Casey Operator",
+      roleCodes: ["secretary"],
+      isActive: true,
+    },
+  };
+}
+
+const RECORDED: Awaited<ReturnType<typeof recordOperatorRsvpResponse>> = {
+  responseId: "response-1",
+  response: "yes",
+  respondedAt: new Date("2027-02-16T10:00:00.000Z"),
+  invitationId: UNANSWERED_INVITATION_ID,
+  cancelledJobs: 0,
+};
+
+describe("recording an answer in person", () => {
+  beforeEach(() => {
+    vi.mocked(recordOperatorRsvpResponse).mockReset();
+    vi.mocked(resolveOperatorAccess).mockReset();
+  });
+
+  it("offers Record answer only on the row with no answer, at the operator tier", () => {
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    // The desktop row and the phone card both render it for the same person
+    // — two renderings of one control, never a second destination.
+    const buttons = container.querySelectorAll('[data-testid="record-answer-open"]');
+    expect(buttons.length).toBe(2);
+    for (const button of Array.from(buttons)) {
+      expect(button.textContent).toBe(RECORD_ANSWER);
+    }
+  });
+
+  // OWNER-LAN170-05 (correction round 3): the button replaces the chip, it
+  // never sits beside it — a stacked "No answer" chip above the control was
+  // exactly what Brian called awkward.
+  it("shows the button alone on an unanswered row — never a 'No answer' chip stacked above it", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    expect(screen.queryByText(ANSWER_NONE)).not.toBeInTheDocument();
+    // Every other row's answer is unaffected — an actual answer still shows
+    // its chip and no control, the same as before this correction.
+    expect(screen.getAllByText("Yes").length).toBeGreaterThan(0);
+  });
+
+  it("never offers it at the club-link tier, even for the identical unanswered person", () => {
+    const { container } = render(
+      <ParticipationTable
+        basePath="/e/token"
+        participation={CLUB_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    expect(container.querySelectorAll('[data-testid="record-answer-open"]').length).toBe(0);
+  });
+
+  it("never offers it for a walk-up, who was never invited and has no invitation to record against", () => {
+    const operatorWithWalkUp: OperatorParticipation = { ...OPERATOR, people: [...PEOPLE, WALK_UP] };
+    const { container } = render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={operatorWithWalkUp}
+        filters={filters()}
+      />,
+    );
+    expect(container.querySelectorAll('[data-testid="record-answer-open"]').length).toBe(0);
+  });
+
+  it("opens naming the person, with neither answer chosen and the submit button disabled", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+
+    expect(screen.getByText(recordAnswerDialogTitle("Gideon Thornbury"))).toBeInTheDocument();
+    expect(screen.getByText(RESPONSE_YES_LABEL)).toBeInTheDocument();
+    expect(screen.getByText(RESPONSE_NO_LABEL)).toBeInTheDocument();
+    expect(screen.getByTestId("response-yes")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("response-no")).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("record-answer-submit")).toBeDisabled();
+  });
+
+  // OWNER-LAN170-09 (correction round 4): `W3-02`/`W3-04` both draw a second
+  // line under the title naming the event; the shipped dialog dropped it
+  // with nothing authorising the omission. Structure/copy from the mockup,
+  // date/time style from the application's own `formatDetailWhen` (Q-23) —
+  // asserted via the same formatter the surface itself calls, not a second,
+  // independently hand-written date string that could drift from it.
+  it("names the event under the title, in the application's own date/time style", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+
+    expect(screen.getByTestId("record-answer-event-subtitle")).toHaveTextContent(
+      recordAnswerEventSubtitle(OPERATOR_WITH_UNANSWERED.event),
+    );
+    // Concretely: the event's own name, then its long-form date and time
+    // range — not the mockup's literal rendering, and not a bare ISO string.
+    expect(screen.getByTestId("record-answer-event-subtitle")).toHaveTextContent(
+      "Practice — hilary week 5 · Wednesday, 17 February 2027 · 20:00–22:30",
+    );
+  });
+
+  // OWNER-LAN170-06 (correction round 3): a standard exclusive toggle group,
+  // where the selected option looks selected whichever one it is — Brian
+  // could not tell which he had picked when only Yes was ever allowed to look
+  // chosen.
+  it("shows whichever answer is selected as selected, including No", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+
+    const yes = screen.getByTestId("response-yes");
+    const no = screen.getByTestId("response-no");
+    expect(yes.className).not.toContain("Mui-selected");
+    expect(no.className).not.toContain("Mui-selected");
+
+    fireEvent.click(no);
+    expect(no).toHaveAttribute("aria-pressed", "true");
+    expect(yes).toHaveAttribute("aria-pressed", "false");
+    // No is the one selected now, and it looks it — the exact fact Brian
+    // could not previously see.
+    expect(no.className).toContain("Mui-selected");
+    expect(yes.className).not.toContain("Mui-selected");
+
+    fireEvent.click(yes);
+    expect(yes).toHaveAttribute("aria-pressed", "true");
+    expect(no).toHaveAttribute("aria-pressed", "false");
+    expect(yes.className).toContain("Mui-selected");
+    expect(no.className).not.toContain("Mui-selected");
+  });
+
+  // OWNER-LAN170-07: one branch's fields at a time, and neither before a
+  // choice is made.
+  it("shows neither the reason nor the event's questions until an answer is chosen", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+
+    expect(screen.queryByPlaceholderText(REASON_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(screen.queryByText(EVENT_QUESTIONS_HEADING)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("response-yes"));
+    expect(screen.getByText(EVENT_QUESTIONS_HEADING)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(REASON_PLACEHOLDER)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("response-no"));
+    expect(screen.getByPlaceholderText(REASON_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.queryByText(EVENT_QUESTIONS_HEADING)).not.toBeInTheDocument();
+  });
+
+  it("records a Yes through the real action, and closes the dialog on success", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue(resolvedOperator());
+    vi.mocked(recordOperatorRsvpResponse).mockResolvedValue(RECORDED);
+
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+    fireEvent.click(screen.getByTestId("response-yes"));
+    fireEvent.click(screen.getByTestId("record-answer-submit"));
+
+    await waitFor(() => expect(recordOperatorRsvpResponse).toHaveBeenCalledTimes(1));
+    const [personId, eventId, invitationId, submission] = vi.mocked(recordOperatorRsvpResponse).mock
+      .calls[0];
+    expect(personId).toBe("operator-1");
+    expect(eventId).toBe("event-1");
+    expect(invitationId).toBe(UNANSWERED_INVITATION_ID);
+    expect(submission.response).toBe("yes");
+    expect(submission.respondedAtDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(submission.respondedAtTime).toMatch(/^\d{2}:\d{2}$/);
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("record-answer-submit")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("shows the server's refusal and keeps the dialog open with the choice intact", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue(resolvedOperator());
+    vi.mocked(recordOperatorRsvpResponse).mockRejectedValue(
+      new ConstraintViolated("Choose a reason before saving Not attending.", {
+        rule: "rsvp_responses_no_requires_a_reason",
+      }),
+    );
+
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+    fireEvent.click(screen.getByTestId("response-no"));
+    // Whitespace satisfies the browser's own `required` attribute, so the
+    // submit actually reaches the server action — exactly the case
+    // `composeReason`'s own test suite proves is not a reason.
+    fireEvent.change(screen.getByPlaceholderText(REASON_PLACEHOLDER), {
+      target: { value: "   " },
+    });
+    fireEvent.click(screen.getByTestId("record-answer-submit"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("record-answer-error")).toHaveTextContent(
+        "Choose a reason before saving Not attending.",
+      ),
+    );
+    // The dialog stayed open, and the operator's choice was not lost.
+    expect(screen.getByTestId("response-no")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("answers the event's own questions in the same form, and a blank one posts as blank rather than being dropped", async () => {
+    vi.mocked(resolveOperatorAccess).mockResolvedValue(resolvedOperator());
+    vi.mocked(recordOperatorRsvpResponse).mockResolvedValue(RECORDED);
+
+    const TRANSPORT: ParticipationQuestion = {
+      id: "question-transport",
+      prompt: "Transport there?",
+      answerType: "boolean",
+      sortOrder: 0,
+      appliesToCapacities: ["player"],
+    };
+    const SHIRT: ParticipationQuestion = {
+      id: "question-shirt",
+      prompt: "Shirt size",
+      answerType: "text",
+      sortOrder: 1,
+      appliesToCapacities: ["player"],
+    };
+    const payload: OperatorParticipation = {
+      ...OPERATOR_WITH_UNANSWERED,
+      questions: [TRANSPORT, SHIRT],
+    };
+
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={payload}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+    fireEvent.click(screen.getByTestId("response-yes"));
+    // The boolean question's own Yes button — distinct from the dialog's
+    // "Yes, attending", which carries a different accessible name.
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+    fireEvent.click(screen.getByTestId("record-answer-submit"));
+
+    await waitFor(() => expect(recordOperatorRsvpResponse).toHaveBeenCalledTimes(1));
+    const [, , , submission] = vi.mocked(recordOperatorRsvpResponse).mock.calls[0];
+    expect(submission.questionAnswers?.["question-transport"]).toBe("Yes");
+    // Left blank — partial answers are accepted, and this one stays
+    // outstanding rather than blocking the answer that was given.
+    expect(submission.questionAnswers?.["question-shirt"]).toBe("");
   });
 });

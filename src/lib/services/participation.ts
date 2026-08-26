@@ -201,6 +201,8 @@ interface QuestionRow {
   answer_type: string;
   sort_order: number;
   applies_to_capacities: string[];
+  choices: string[] | null;
+  is_required: boolean;
 }
 
 interface AnswerRow {
@@ -239,7 +241,7 @@ function participantKey(capacity: string, membershipId: string | null, personId:
 async function readQuestionsIn(tx: Tx, eventId: string): Promise<ParticipationQuestion[]> {
   const result = await tx.query<QuestionRow>(
     `select id, prompt, answer_type::text as answer_type, sort_order,
-            applies_to_capacities::text[] as applies_to_capacities
+            applies_to_capacities::text[] as applies_to_capacities, choices, is_required
        from public.event_questions
       where event_id = $1
       order by sort_order, prompt`,
@@ -251,6 +253,14 @@ async function readQuestionsIn(tx: Tx, eventId: string): Promise<ParticipationQu
     answerType: row.answer_type,
     sortOrder: row.sort_order,
     appliesToCapacities: row.applies_to_capacities,
+    // Present only for a `choice` question — the constraint the table already
+    // carries (`event_questions_choices_match_type`) makes `null` here mean
+    // exactly what it means in storage, never "not read yet".
+    choices: row.choices,
+    // OWNER-LAN170-08: required of the player, never of the operator
+    // recording it — `RecordAnswerControl` reads this to word the field so
+    // that fact is never misstated as "optional for the player" either.
+    isRequired: row.is_required,
   }));
 }
 
@@ -334,6 +344,10 @@ async function readPeopleIn(
       capacity: row.capacity,
       isWalkUp,
       invitedAt: asIsoString(row.issued_at),
+      // LAN-170: the invitation to record an answer against. `null` for a
+      // walk-up, who was never invited and has nothing `RecordAnswerControl`
+      // could write to.
+      invitationId: row.invitation_id,
       answer,
       // Invariant P3 makes a reason mandatory on a "no", so a reason attached
       // to anything else is a stored value that no longer describes the

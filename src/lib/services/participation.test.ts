@@ -555,6 +555,26 @@ describe("the club-link tier", () => {
     }
   });
 
+  it("carries an invitation id for LAN-170 to record against, while the club-link payload does not", async () => {
+    const staged = await scenario();
+
+    const [operator, club] = await withTransaction(async (tx) => [
+      await buildOperatorParticipationIn(tx, staged.eventId),
+      await buildClubLinkParticipationIn(tx, staged.eventId),
+    ]);
+
+    // The positive control: an invited, non-walk-up person carries a real id.
+    expect(operator.people.some((one) => typeof one.invitationId === "string")).toBe(true);
+
+    // The assertion — same shape as the `delivery` proof above, and for the
+    // same reason: a club-link reader records nothing, so nothing here should
+    // hand them the id `RecordAnswerControl` would write against.
+    expect(JSON.stringify(club)).not.toContain('"invitationId"');
+    for (const person of club.people) {
+      expect(Object.keys(person)).not.toContain("invitationId");
+    }
+  });
+
   it("carries no joining URL for an online event, while the operator payload does", async () => {
     const staged = await scenario({
       deliveryMode: "online",

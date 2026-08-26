@@ -74,6 +74,24 @@ const at = (date, time) => new Date(`${asDate(date)}T${time}Z`).toISOString();
 const isPast = (date) => date.getTime() < NOW.getTime();
 
 /**
+ * OWNER-LAN170-08 (correction round 3, Brian's second walkthrough): the
+ * events "an operator will review" are the ones `/operate/events` opens on —
+ * whatever sits nearest `NOW`, in either direction — and that is the narrow
+ * slice `readQuestionsIn`/`readOperatorParticipation` and the RSVP recording
+ * loop below both need to seed generously, rather than every one of the
+ * roughly seventy events this file creates. Three weeks either side covers
+ * the current week's practice, chalk and S&C alongside whichever fixture
+ * lands closest to it, without reaching into history or the far end of the
+ * season.
+ */
+const REVIEW_WINDOW_DAYS = 21;
+function isReviewWindowEvent(event) {
+  if (!event.scheduled_on || event.status === "cancelled") return false;
+  const distanceDays = Math.abs(day(event.scheduled_on).getTime() - NOW.getTime()) / 86400000;
+  return distanceDays <= REVIEW_WINDOW_DAYS;
+}
+
+/**
  * A housekeeping stamp pinned to the dataset's own now.
  *
  * `updated_at` on a row nobody has touched since is "when the club last looked
@@ -1346,6 +1364,32 @@ add("alternative_groups", fixtureOrPracticeGroup);
 const events = [];
 let eventOrder = 0;
 
+// LAN-170 (owner correction): approval nominally lands 12 days before the
+// event, but for an event scheduled more than 12 days past the frame's `NOW`
+// that lands `approved_at` — and therefore every invitation's `issued_at` and
+// every notification job's `scheduled_for`, both derived from it — in the
+// future. A future issue date is exactly why the owner could not record a Yes
+// against a seeded invitation (2,067 of 4,912 measured with `issued_at >
+// now()`). `response_deadline_at` is untouched: a deadline in the future is
+// legitimate and is not part of this defect.
+//
+// `pastStamp` clamps the fixed time-of-day `time` on `dateOnly` to strictly
+// before `NOW` whenever the naive value would land at or after it, spreading
+// clamped events across the fortnight before `NOW` using the existing
+// `eventOrder` counter so the spread is deterministic without any new PRNG
+// draw and nothing else in the dataset shifts. The clamped date is always at
+// least one full calendar day before `NOW`'s date, so the fixed time-of-day
+// stamp is guaranteed to fall before `NOW` regardless of `NOW`'s own
+// time-of-day.
+const APPROVAL_CLAMP_SPREAD_DAYS = 13;
+
+function pastStamp(dateOnly, time, order) {
+  const candidate = at(dateOnly, time);
+  if (new Date(candidate).getTime() <= NOW.getTime()) return candidate;
+  const clampedDate = addDays(NOW, -1 - (order % APPROVAL_CLAMP_SPREAD_DAYS));
+  return at(clampedDate, time);
+}
+
 function makeEvent(spec) {
   const scheduled = spec.date ? asDate(spec.date) : null;
   // LAN-151: three stored statuses. A past event is `approved` like any other —
@@ -1379,9 +1423,11 @@ function makeEvent(spec) {
     reminder_offsets_hours: approved ? "{72,24}" : "{}",
     aggregate_headcount: spec.headcount ?? null,
     owner_person_id: (spec.owner ?? people[1]).id,
-    audience_confirmed_at: approved ? at(addDays(spec.date, -12), "19:00:00") : null,
+    audience_confirmed_at: approved
+      ? pastStamp(addDays(spec.date, -12), "19:00:00", eventOrder)
+      : null,
     audience_confirmed_by_person_id: approved ? people[1].id : null,
-    approved_at: approved ? at(addDays(spec.date, -12), "19:05:00") : null,
+    approved_at: approved ? pastStamp(addDays(spec.date, -12), "19:05:00", eventOrder) : null,
     approved_by_person_id: approved ? people[1].id : null,
     decision_reason: spec.decision_reason ?? null,
     created_at: "2026-09-01T09:00:00Z",
@@ -1804,7 +1850,13 @@ for (const fixture of fixtures) {
     answer_type: "boolean",
     choices: null,
     applies_to_capacities: "{player,coach}",
-    is_required: false,
+    // OWNER-LAN170-08: nothing in the whole seed marked a question required
+    // before this, so there was no way to walk "a No records even when the
+    // event's questions are not optional" — already correct behaviour
+    // (`recordOperatorRsvpResponse` never gates on it), but unwalkable
+    // without a required question somewhere to try it against. The nearest
+    // fixture to the operator's own "now" carries the case.
+    is_required: isReviewWindowEvent(fixture.event),
     sort_order: 0,
   });
   add("event_questions", {
@@ -1908,6 +1960,17 @@ let changedAnswers = 0;
 let unsureCaptures = 0;
 let confidenceMarkers = 0;
 
+// OWNER-LAN170-08 (correction round 3): the ordinary ~7% silent rate left
+// only two unanswered invitations on the event nearest the operator's own
+// "now" — Brian's own count, walking it — and recording answers against them
+// consumed both within two recordings. A fixed floor, forced per event rather
+// than drawn, keeps every review-window event walkable through several
+// recordings without touching the weighted draw itself or any event outside
+// the window, so every other event's ladder of yes/no/unsure/silent/changed
+// states — which LAN-173 reads — is exactly as likely as it always was.
+const REVIEW_UNANSWERED_FLOOR = 10;
+const reviewWindowForcedSilent = new Map();
+
 for (const invitation of invitations) {
   const event = invitation._event;
 
@@ -1920,12 +1983,20 @@ for (const invitation of invitations) {
   invitation.issued_at = event.approved_at;
 
   // SDA §11.3: Yes ~70%, No ~17%, Unsure ~6%, no response ~7%.
-  const outcome = weighted([
+  let outcome = weighted([
     ["yes", 70],
     ["no", 17],
     ["unsure", 6],
     ["silent", 7],
   ]);
+
+  if (invitation.capacity === "player" && isReviewWindowEvent(event)) {
+    const forcedSoFar = reviewWindowForcedSilent.get(event.id) ?? 0;
+    if (forcedSoFar < REVIEW_UNANSWERED_FLOOR) {
+      outcome = "silent";
+      reviewWindowForcedSilent.set(event.id, forcedSoFar + 1);
+    }
+  }
   const deadline = event.response_deadline_at ? new Date(event.response_deadline_at) : null;
 
   if (outcome === "silent") {

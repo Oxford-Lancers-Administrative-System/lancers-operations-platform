@@ -1,6 +1,13 @@
 import "server-only";
 
-import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
+import {
+  Conflict,
+  ConstraintViolated,
+  InvalidTransition,
+  NotFound,
+  withTransaction,
+  type Tx,
+} from "@/lib/db";
 
 import { recordAudit } from "./audit";
 import { resolveRsvpTokenIn, type TokenState } from "./rsvp-tokens";
@@ -415,4 +422,313 @@ function closedWindowMessage(state: TokenState): string {
   return state === "cancelled"
     ? "This event has been cancelled, so there is nothing to respond to."
     : "This RSVP link can no longer be used to record a response.";
+}
+
+// ---------------------------------------------------------------------------
+// The operator's own write — W3, LAN-170
+// ---------------------------------------------------------------------------
+
+/**
+ * What an operator submits when they record what somebody told them in
+ * person. The date and time are the club's own local wall clock
+ * (`YYYY-MM-DD`, `HH:mm`) rather than an instant the browser already
+ * resolved — the operator's machine is not guaranteed to be set to
+ * `Europe/London`, and this module has exactly one zone. Postgres resolves the
+ * pair against that zone below, the same way `delivery.ts` and the domain
+ * tests already do (`(date + time) at time zone 'Europe/London'`), so this
+ * function never carries its own timezone arithmetic.
+ */
+export interface OperatorRsvpSubmission {
+  readonly response: "yes" | "no";
+  /** Required for `no`, ignored for `yes` — and never W2's default text. */
+  readonly reason?: string | null;
+  readonly respondedAtDate: string;
+  readonly respondedAtTime: string;
+  /**
+   * `event_questions.id` → the operator's raw answer, exactly as typed or
+   * chosen. A blank or missing entry means the operator was not told and the
+   * question stays outstanding — partial answers are accepted (W3's own
+   * acceptance evidence) and never block recording the answer itself.
+   */
+  readonly questionAnswers?: Readonly<Record<string, string>>;
+}
+
+export const RESPONDED_AT_INVALID_RULE = "rsvp_operator_responded_at_invalid";
+export const RESPONDED_AT_NOT_FUTURE_RULE = "rsvp_operator_responded_at_not_future";
+export const RESPONDED_AT_BEFORE_INVITATION_RULE = "rsvp_operator_responded_at_before_invitation";
+export const OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE = "rsvp_operator_cannot_supersede_player";
+
+/** The two shapes `respondedAtDate`/`respondedAtTime` must already be in. */
+const CLUB_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const CLUB_TIME_PATTERN = /^\d{2}:\d{2}$/;
+
+/**
+ * Records what an operator was told in person — W3
+ * (`missions/intake/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/workflows/W3-record-an-answer-somebody-gave-you-in-person.md`)
+ * and its acceptance, LAN-170.
+ *
+ * ## What this does not do
+ *
+ * **It never refuses because a prior *operator* answer already exists.**
+ * Two operators racing the same never-answered invitation, and both
+ * recording before either page reloads, is the workflow's own named
+ * exception — "both are kept in order; the latest stands, and the
+ * disagreement is visible rather than resolved" — not a case this function
+ * is asked to prevent.
+ *
+ * **It never checks whether the event has started.** `T03-gap-operator-correction`
+ * names the post-start correction as this workflow's, deliberately unlike the
+ * signed-link path above, which `resolveRsvpTokenIn` hard-cuts at event start.
+ * A post-start recording still writes here; it schedules no job and sends no
+ * message because nothing in this function does either of those things.
+ *
+ * ## What it does refuse
+ *
+ *   * an invitation that does not belong to `eventId`, or does not exist —
+ *     `NotFound`, the same shape as a mistyped id anywhere else in this layer;
+ *   * a withdrawn invitation (`INVITATION_WITHDRAWN_RULE`) — there is nothing
+ *     left to answer;
+ *   * an invitation that already carries the *player's own* answer
+ *     (`OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE`) — `DEC-no-supersede`, Brian,
+ *     25 August 2026: "We're not building this into the workflow. It's too
+ *     much. Cut it." `RecordAnswerControl` already offers itself only against
+ *     a row with no answer at all, but that render is a courtesy, not the
+ *     boundary — this check is what actually enforces it, re-checked inside
+ *     the same transaction that holds the invitation locked, so a player's
+ *     answer landing between this page's render and its submit is caught
+ *     rather than silently overwritten. A prior *operator* answer is not this
+ *     case; see above;
+ *   * a `no` with no reason, in the operator's own words rather than W2's
+ *     default (`NO_REQUIRES_A_REASON_RULE`) — R5 and the database constraint
+ *     have always required this; nothing here is a new rule;
+ *   * a `respondedAt` that cannot be parsed, that is later than now, or that
+ *     predates the invitation. **These three are enforced only here** — no
+ *     migration ships with this package, so there is no database constraint
+ *     backing them the way there is for the reason requirement. That is
+ *     recorded as a limitation in the pull request.
+ */
+export async function recordOperatorRsvpResponse(
+  operatorPersonId: string,
+  eventId: string,
+  invitationId: string,
+  submission: OperatorRsvpSubmission,
+): Promise<RecordedRsvpResponse> {
+  return withTransaction(async (tx) => {
+    const invitation = await tx.query<{
+      status: string;
+      event_id: string;
+      created_at: Date;
+    }>(
+      `select status::text as status, event_id, created_at
+         from public.invitations
+        where id = $1
+        for update`,
+      [invitationId],
+    );
+    const invitationRow = invitation.rows[0];
+    if (!invitationRow || invitationRow.event_id !== eventId) {
+      throw new NotFound("That invitation no longer exists.", {
+        rule: "rsvp_operator_requires_an_invitation",
+      });
+    }
+    if (invitationRow.status === "cancelled") {
+      throw new InvalidTransition(
+        "This invitation has been withdrawn, so a response can no longer be recorded.",
+        { rule: INVITATION_WITHDRAWN_RULE },
+      );
+    }
+
+    // DEC-no-supersede. Checked here, inside the transaction that already
+    // holds `invitations` locked `for update` above, so a player answering
+    // through their own signed link between this page's render and this
+    // submit is not a race this check can lose — `recordSignedLinkResponse`
+    // takes the same row lock before it inserts, so whichever of the two
+    // transactions gets here second sees the other's committed write. A
+    // prior *operator* answer does not trip this: two operators disagreeing
+    // over a never-answered invitation is the workflow's own named
+    // exception, and stays governed by "both are kept in order; the latest
+    // stands" rather than this refusal.
+    const existingPlayerResponse = await tx.query<{ id: string }>(
+      `select id from public.rsvp_responses
+        where invitation_id = $1 and source = 'signed_link'
+        limit 1`,
+      [invitationId],
+    );
+    if (existingPlayerResponse.rows.length > 0) {
+      throw new Conflict(
+        "This player has already answered for themselves, so an operator " +
+          "cannot record over it. Ask them to change their answer from " +
+          "their own RSVP link.",
+        { rule: OPERATOR_CANNOT_SUPERSEDE_PLAYER_RULE },
+      );
+    }
+
+    // Shaped here, before either string reaches SQL, so a blank or malformed
+    // field — which the picker never produces, but a direct post could —
+    // reads as this sentence rather than a raw `invalid input syntax` error
+    // from casting `''::date`.
+    if (!CLUB_DATE_PATTERN.test(submission.respondedAtDate)) {
+      throw new ConstraintViolated("Choose a date and time.", {
+        rule: RESPONDED_AT_INVALID_RULE,
+      });
+    }
+    if (!CLUB_TIME_PATTERN.test(submission.respondedAtTime)) {
+      throw new ConstraintViolated("Choose a date and time.", {
+        rule: RESPONDED_AT_INVALID_RULE,
+      });
+    }
+
+    // The club's one zone resolves the pair, and `now()` is read in the same
+    // statement so the two are compared on the database's clock rather than
+    // this process's — the only clock either bound can honestly be judged
+    // against.
+    const resolved = await tx.query<{ instant: Date | null; db_now: Date }>(
+      `select ($1::date + $2::time) at time zone 'Europe/London' as instant, now() as db_now`,
+      [submission.respondedAtDate, submission.respondedAtTime],
+    );
+    const resolvedRow = resolved.rows[0];
+    const respondedAt = resolvedRow?.instant ?? null;
+    if (!respondedAt || Number.isNaN(new Date(respondedAt).getTime())) {
+      throw new ConstraintViolated("Choose a date and time.", {
+        rule: RESPONDED_AT_INVALID_RULE,
+      });
+    }
+    if (respondedAt.getTime() > resolvedRow.db_now.getTime()) {
+      throw new ConstraintViolated(
+        "This can't be in the future. Choose a time that has already happened.",
+        {
+          rule: RESPONDED_AT_NOT_FUTURE_RULE,
+        },
+      );
+    }
+    // Floored to the minute before comparing: `respondedAt` only ever carries
+    // minute precision (the form asks for a date and a time, not seconds),
+    // while `created_at` carries whatever second the insert actually landed
+    // on. Comparing the two at full precision would refuse an operator
+    // recording "now" for an invitation created moments earlier in the very
+    // same minute — the seconds column losing to a value that was never
+    // asked for. Flooring `created_at` the same way makes "the same minute
+    // it was created" always answerable, which is what the workflow's own
+    // example (a player answering a coach at training) actually needs.
+    const invitationCreatedAtFloor = new Date(invitationRow.created_at);
+    invitationCreatedAtFloor.setSeconds(0, 0);
+    if (respondedAt.getTime() < invitationCreatedAtFloor.getTime()) {
+      throw new ConstraintViolated(
+        "This can't be before the invitation. The player cannot have answered before being asked.",
+        { rule: RESPONDED_AT_BEFORE_INVITATION_RULE },
+      );
+    }
+
+    const reason = submission.response === "no" ? composeReason(submission.reason) : null;
+    if (submission.response === "no" && reason === "") {
+      throw new ConstraintViolated("Choose a reason before saving Not attending.", {
+        rule: NO_REQUIRES_A_REASON_RULE,
+      });
+    }
+
+    const inserted = await tx.query<{ id: string; responded_at: Date }>(
+      `insert into public.rsvp_responses
+         (invitation_id, response, reason, source, responded_at, recorded_by_person_id)
+       values ($1, $2::public.rsvp_value, $3, 'operator', $4, $5)
+       returning id, responded_at`,
+      [invitationId, submission.response, reason, respondedAt, operatorPersonId],
+    );
+    const responseRow = inserted.rows[0];
+
+    await tx.query(
+      `update public.invitations set status = 'responded' where id = $1 and status <> 'responded'`,
+      [invitationId],
+    );
+
+    const { cancelledJobs } = await stopChasingIn(tx, invitationId, {
+      resolvedByPersonId: operatorPersonId,
+    });
+
+    const answeredQuestionIds = Object.entries(submission.questionAnswers ?? {})
+      .filter(([, value]) => value.trim() !== "")
+      .map(([questionId]) => questionId);
+
+    if (answeredQuestionIds.length > 0) {
+      // Looked up rather than trusted from the form: the answer type decides
+      // which of the three columns is written, and `event_questions` — never
+      // the browser — is what says which type a question is.
+      const questions = await tx.query<{
+        id: string;
+        answer_type: string;
+        choices: string[] | null;
+      }>(
+        `select id, answer_type::text as answer_type, choices
+           from public.event_questions
+          where event_id = $1 and id = any($2::uuid[])`,
+        [eventId, answeredQuestionIds],
+      );
+      const questionById = new Map(questions.rows.map((question) => [question.id, question]));
+
+      for (const [questionId, rawValue] of Object.entries(submission.questionAnswers ?? {})) {
+        const value = rawValue.trim();
+        if (value === "") continue;
+        // A question id naming somebody else's event, or that no longer
+        // exists, is skipped rather than failing the whole recording — the
+        // answer that arrived is real even if one stray field is not.
+        const question = questionById.get(questionId);
+        if (!question) continue;
+
+        let answerText: string | null = null;
+        let answerBoolean: boolean | null = null;
+        let answerChoice: string | null = null;
+
+        if (question.answer_type === "boolean") {
+          const normalized = value.toLowerCase();
+          if (normalized === "yes" || normalized === "true") answerBoolean = true;
+          else if (normalized === "no" || normalized === "false") answerBoolean = false;
+          else continue;
+        } else if (question.answer_type === "choice") {
+          if (!question.choices?.includes(value)) continue;
+          answerChoice = value;
+        } else {
+          answerText = value;
+        }
+
+        await tx.query(
+          `insert into public.question_responses
+             (invitation_id, event_id, event_question_id,
+              answer_text, answer_boolean, answer_choice, responded_at)
+           values ($1, $2, $3, $4, $5, $6, $7)
+           on conflict (invitation_id, event_question_id) do update
+             set answer_text = excluded.answer_text,
+                 answer_boolean = excluded.answer_boolean,
+                 answer_choice = excluded.answer_choice,
+                 responded_at = excluded.responded_at`,
+          [invitationId, eventId, questionId, answerText, answerBoolean, answerChoice, respondedAt],
+        );
+      }
+    }
+
+    // Provenance lives in the audit trail and nowhere else — Brian's
+    // amendment of 25 August 2026 to the 19 August decision. The row this
+    // produces reads exactly like a player's own answer; who typed it and
+    // when the player actually said it live here instead.
+    await recordAudit(tx, {
+      actorPersonId: operatorPersonId,
+      action: "invitation.response_recorded",
+      entityTable: "invitations",
+      entityId: invitationId,
+      fromState: invitationRow.status,
+      toState: "responded",
+      context: {
+        response: submission.response,
+        source: "operator",
+        cancelledNotificationJobs: cancelledJobs,
+        questionsAnswered: answeredQuestionIds.length,
+      },
+    });
+
+    return {
+      responseId: responseRow.id,
+      response: submission.response,
+      respondedAt: responseRow.responded_at,
+      invitationId,
+      cancelledJobs,
+    };
+  });
 }

@@ -16,6 +16,7 @@ import {
   applyParticipationView,
   participationSortHref,
   participationSortState,
+  type EventFactsBase,
   type OperatorParticipationPerson,
   type Participation,
   type ParticipationFilters,
@@ -41,6 +42,7 @@ import {
   SORTABLE_NOTE,
   TABLE_HEADINGS,
 } from "./presentation";
+import { RecordAnswerControl } from "./record-answer";
 
 /**
  * The participation table, at whichever tier is reading — W7's centre.
@@ -108,6 +110,53 @@ function AnswerChip({ person }: { person: ParticipationPerson }) {
       variant={label === ANSWER_YES || label === ANSWER_NO ? "filled" : "outlined"}
     />
   );
+}
+
+/**
+ * The Answer cell's whole story — W3, LAN-170.
+ *
+ * OWNER-LAN170-05 (correction round 3): `RecordAnswerControl` replaces the
+ * chip entirely on a row it offers itself against — it never stacks beside
+ * it. Brian: stacking a "No answer" chip above a control in one narrow cell
+ * "tries to fit the button there in some way," and the absence of an answer
+ * chip is itself the signal that there is no answer, so every cell in this
+ * column holds exactly one element. A row the control is not offered against
+ * — because it already carries an answer, is a walk-up, or the reader is not
+ * an operator — is unaffected and still renders the chip exactly as before.
+ * It renders only for an operator, only against a real invitation (never a
+ * walk-up, who was never asked), and only where `answer` is `null` — a row
+ * that already carries an answer never gets it, which is the whole of
+ * "superseding is out of scope" enforced at the surface that offers the
+ * control at all.
+ */
+function AnswerCell({
+  operator,
+  event,
+  person,
+  questions,
+}: {
+  operator: boolean;
+  event: Pick<EventFactsBase, "id" | "name" | "scheduledOn" | "startsAt" | "endsAt">;
+  person: ParticipationPerson;
+  questions: readonly ParticipationQuestion[];
+}) {
+  const invitationId = operator
+    ? ((person as OperatorParticipationPerson).invitationId ?? null)
+    : null;
+  const offerRecording = operator && person.answer === null && !person.isWalkUp && invitationId;
+
+  if (offerRecording) {
+    return (
+      <RecordAnswerControl
+        event={event}
+        invitationId={invitationId}
+        displayName={person.displayName}
+        questions={questions}
+      />
+    );
+  }
+
+  return <AnswerChip person={person} />;
 }
 
 function AttendanceChip({ presence }: { presence: AttendancePresence | null }) {
@@ -245,6 +294,11 @@ export function ParticipationTable({
   const { questions } = participation;
   const people = applyParticipationView(participation.people, filters, questions);
   const total = participation.people.length;
+  // Common to both tiers' event-facts shape (`EventFactsBase`) — LAN-170's
+  // recording dialog needs the event's identity (OWNER-LAN170-09: `id`, and
+  // now `name`/`scheduledOn`/`startsAt`/`endsAt` for its subtitle) and the
+  // table otherwise never reads any of it.
+  const event = participation.event;
 
   return (
     <Paper variant="outlined" data-testid="participation-table" data-tier={participation.tier}>
@@ -341,7 +395,12 @@ export function ParticipationTable({
                 </Stack>
                 <Stack direction="row" spacing={1.25} sx={{ mt: 0.5, flexWrap: "wrap", gap: 0.75 }}>
                   <LabeledField label={TABLE_HEADINGS.answer}>
-                    <AnswerChip person={person} />
+                    <AnswerCell
+                      operator={operator}
+                      event={event}
+                      person={person}
+                      questions={questions}
+                    />
                   </LabeledField>
                   <LabeledField label={TABLE_HEADINGS.attendance}>
                     <AttendanceChip presence={person.presence} />
@@ -461,7 +520,12 @@ export function ParticipationTable({
                       </TableCell>
                     ) : null}
                     <TableCell>
-                      <AnswerChip person={person} />
+                      <AnswerCell
+                        operator={operator}
+                        event={event}
+                        person={person}
+                        questions={questions}
+                      />
                     </TableCell>
                     <TableCell>
                       <Typography variant="body2" color="text.secondary">
