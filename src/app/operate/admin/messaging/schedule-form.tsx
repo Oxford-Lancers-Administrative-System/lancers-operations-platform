@@ -167,12 +167,16 @@ function ScheduleRow({
       <input type="hidden" name="eventType" value={row.eventType} />
 
       {/*
-        Q-22: checked against W7-02's own row heading, not styled from the
-        coordinator's dispatch prose alone. The mockup draws "Practice" in
-        plain title case, bold — not the all-caps `overline` variant this
-        card carried before that check.
+        Q-23: the row heading is a style question, not structure — the
+        mockup's own rendering does not govern it, the shipped application
+        does. `../roles/page.tsx` and `../operators/page.tsx` both draw
+        their per-card entity-name heading as `subtitle2`/700, not the
+        all-caps `overline` this card carried before that check (chosen on
+        the strength of the dispatch's own capitalised ASCII art) nor the
+        `subtitle1` a first pass at fixing it picked by eye from a mockup
+        screenshot rather than the real component.
       */}
-      <Typography variant="subtitle1" sx={{ fontWeight: 700 }} data-testid="schedule-row-label">
+      <Typography variant="subtitle2" sx={{ fontWeight: 700 }} data-testid="schedule-row-label">
         {row.label}
       </Typography>
 

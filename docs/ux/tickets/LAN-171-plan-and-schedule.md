@@ -139,10 +139,11 @@ Restated from `acceptance/W1.md` and `acceptance/W7.md` as what was built to sat
   `President`) is real product content on the event page; the mockup's `Proposed` chip is a
   mockup-authoring annotation marking new content for reviewers and was not carried into the
   shipped UI.
-- Round 2 (Q-22): `W7.html` and the `W7-02` image pair were opened and checked directly against
-  the rebuilt schedule row, not worked from dispatch prose alone. Three further divergences from
-  `W7-02`, each traced to Brian's round-2 instruction given today looking at the live page, which
-  governs over the packet mockup by the Lead's own resolution:
+- Round 2 (Q-22, refined the same round by Q-23 — the mockup owns structure, the shipped
+  application owns style): `W7.html` and the `W7-02` image pair were opened and checked directly
+  against the rebuilt schedule row, not worked from dispatch prose alone. Three **structural**
+  divergences from `W7-02`, each traced to Brian's round-2 instruction given today looking at the
+  live page, which governs over the packet mockup by the Lead's own resolution:
   - **One page-level "Save changes" button** in the mockup, over **one save button per row**
     here — Brian reversed this once he saw the single-button shape live (round 2, OWNER-LAN171-04).
   - **One combined "Reminders" column** (`2 WA, 1 email`) in the mockup, over **separate WhatsApp
@@ -150,7 +151,12 @@ Restated from `acceptance/W1.md` and `acceptance/W7.md` as what was built to sat
   - The mockup's worked example assumes the **pre-Q19 four-message ladder** (invitation, two
     WhatsApp reminders, one email); the shipped worked example reflects **Q-19's ruling** that the
     invitation counts as WhatsApp #1, producing a three-message ladder for the default policy.
-  - Also caught by this check, and corrected before it reached anyone else: the row heading had
-    been set in MUI's `overline` (all-caps) variant on the strength of the dispatch's own
-    capitalised ASCII art; `W7-02` and the `W7-current-admin` reference both draw the row/card
-    heading in plain title case, bold, and the shipped heading now matches that.
+
+  One **style** correction, caught by the same check and fixed twice before it reached anyone
+  else: the row heading had been set in MUI's `overline` (all-caps) variant on the strength of the
+  dispatch's own capitalised ASCII art. A first fix picked `subtitle1`/bold by eye from the
+  mockup's own screenshot rendering — the wrong authority under Q-23, which is explicit that
+  typography is a style question the shipped application decides, never the mockup's rendering.
+  The second fix instead read the actual component: `../roles/page.tsx` and
+  `../operators/page.tsx` both draw their per-card entity-name heading as `subtitle2`/700, and the
+  shipped heading now matches that.
