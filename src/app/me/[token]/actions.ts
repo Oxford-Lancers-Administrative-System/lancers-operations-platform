@@ -16,7 +16,7 @@ import {
   recordPlayerHomeAnswerIn,
   type QuestionAnswerSubmission,
 } from "@/lib/services/player-home";
-import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
+import { NO_REASON_GIVEN_DEFAULT, resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
 
 /**
  * Writes made from the durable page. LAN-172.
@@ -88,16 +88,27 @@ export async function changeToYes(form: FormData): Promise<void> {
 /**
  * "No, I'm not attending" / "Change to No" / "Give a reason and continue" —
  * one action, because all three are the same write: record No with whatever
- * reason the form carries. A blank reason here is refused with the same
- * message LAN-79 already uses, because unlike the WhatsApp button this form
- * has no one-tap mechanic to preserve — a player filling in a page has a text
- * field in front of them, so there is no honest default to fall back to.
+ * reason the form carries.
+ *
+ * Correction LAN-172-c2 (Q-22, `REQ-no-reason-given`): the click itself must
+ * be enough for a **player's** own No, exactly as it already is on the
+ * WhatsApp answer link — a page with a text field in front of the player is
+ * not a reason to demand one before the answer stands. `defaultOk` is set by
+ * the two side-by-side row controls and by "Plans changed?", which submit no
+ * `reason` at all; a blank reason there is filled with the same
+ * `NO_REASON_GIVEN_DEFAULT` the WhatsApp path already records, never refused.
+ * The *separate* "Give a reason and continue" form — replacing an already-
+ * standing default with the player's real explanation — sends no `defaultOk`
+ * and keeps the original refusal: nothing meaningful was submitted, so the
+ * player sees the same recoverable error LAN-79 already used.
  */
 export async function submitNo(form: FormData): Promise<void> {
   const startedAt = startUniformClock();
   const token = tokenFrom(form);
   const invitationId = str(form, "invitationId");
-  const reason = str(form, "reason");
+  const defaultOk = str(form, "defaultOk") === "1";
+  const typedReason = str(form, "reason");
+  const reason = typedReason === "" && defaultOk ? NO_REASON_GIVEN_DEFAULT : typedReason;
   const encodedToken = encodeURIComponent(token);
 
   if (await throttled(token)) await refuse(`/me/${encodedToken}`, startedAt);

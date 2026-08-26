@@ -19,6 +19,7 @@ import {
 } from "@/lib/rsvp/public-surface";
 import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
 import {
+  needsFollowUp,
   readPlayerAnswerLandingIn,
   readPlayerHomeIn,
   type EventQuestionForAnswer,
@@ -29,20 +30,37 @@ import {
 
 import { changeToYes, submitNo, submitQuestions } from "./actions";
 import {
-  ANSWER_NO,
-  ANSWER_YES,
+  ADD_REASON,
   ANSWERED_HEADING,
+  ANSWERED_HELP,
+  ANSWER_NO,
+  ANSWER_QUESTIONS,
+  ANSWER_YES,
+  attendingSentence,
+  AWAITING_ANSWER_CHIP,
   BANNER,
-  CHANGE,
   CHANGE_TO_NO,
   CHANGE_TO_YES,
   CLOSE_DETAIL,
-  NEEDS_ANSWER_HEADING,
-  NO_OUTSTANDING_EVENTS,
+  EDIT_REASON,
+  EMPTY_HELP,
+  FOLLOW_UP_HEADING,
+  FOLLOW_UP_NO_REASON_SENTENCE,
+  FOLLOW_UP_QUESTIONS_SENTENCE,
+  formatDeadline,
+  formatEventDate,
+  formatEventTime,
+  FURTHER_OUT_HEADING,
+  FURTHER_OUT_HELP,
+  FURTHER_OUT_SUMMARY,
+  HEADING_HELP,
+  NEW_INVITATIONS_HEADING,
+  NEXT_CHIP,
   NO_REASON_GIVEN,
+  otherOutstandingSentence,
   OUTSTANDING_QUESTIONS,
-  PAGE_HEADING,
   PLANS_CHANGED,
+  pageHeading,
   PRIVACY_NOTE,
   PUBLIC_CALENDAR_LINK,
   QUESTIONS_HEADING,
@@ -51,9 +69,11 @@ import {
   REASON_PROMPT,
   SAVE_QUESTIONS,
   SAVE_REASON,
-  SEE_ANSWERED,
   STANDING_NO,
   STANDING_YES,
+  STILL_NEED_ANSWER_HEADING,
+  STILL_NEED_ANSWER_SENTENCE,
+  answeredSentence,
   eventTypeLabel,
 } from "./presentation";
 
@@ -75,12 +95,22 @@ interface Resolved {
   readonly focused: PlayerAnswerLanding | null;
 }
 
+/** Every invitation across the four near-term buckets plus further-out, flattened once. */
+function allEntries(home: PlayerHome): readonly PlayerHomeInvitation[] {
+  return [
+    ...home.newInvitations,
+    ...home.stillNeedAnswer,
+    ...home.followUpNeeded,
+    ...home.answeredUpcoming,
+    ...home.furtherOut,
+  ];
+}
+
 export default async function PlayerHomePage({ params, searchParams }: PageProps) {
   const { token } = await params;
   const query = await searchParams;
   const openInvitationId = firstValue(query.open);
   const reasonError = firstValue(query.reasonError) !== null;
-  const changingToNo = firstValue(query.changingToNo) !== null;
 
   const resolved = await withUniformTerminalTiming<Resolved>(
     async () => {
@@ -99,9 +129,7 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
         const home = await readPlayerHomeIn(tx, resolution.resolved.personId);
         const belongsToThisPerson =
           openInvitationId !== null &&
-          [...home.needsAnswer, ...home.answeredUpcoming].some(
-            (entry) => entry.invitationId === openInvitationId,
-          );
+          allEntries(home).some((entry) => entry.invitationId === openInvitationId);
         const focused = belongsToThisPerson
           ? await readPlayerAnswerLandingIn(tx, openInvitationId as string)
           : null;
@@ -115,12 +143,10 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
     notFound();
   }
 
-  const { needsAnswer, answeredUpcoming } = resolved.home;
+  const home = resolved.home;
   const focusedInvitation =
     openInvitationId !== null
-      ? ([...needsAnswer, ...answeredUpcoming].find(
-          (entry) => entry.invitationId === openInvitationId,
-        ) ?? null)
+      ? (allEntries(home).find((entry) => entry.invitationId === openInvitationId) ?? null)
       : null;
 
   return (
@@ -139,10 +165,26 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
           {BANNER}
         </Typography>
         <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2, mb: 3 }}>
+          {/*
+            Brian, 2026-08-26: the player's own name at the top, so they know
+            they are on the right page. Nothing else personal — the approved
+            mockup's own heading (a count of outstanding work) still leads.
+          */}
+          {home.playerName ? (
+            <Typography
+              component="p"
+              sx={{ fontSize: 13, fontWeight: 700, color: "text.secondary", mb: 0.5 }}
+            >
+              {home.playerName}
+            </Typography>
+          ) : null}
           <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-            {PAGE_HEADING}
+            {pageHeading(home.outstandingCount)}
           </Typography>
-          <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 1 }}>
+          <Typography sx={{ fontSize: 14, color: "text.secondary", mt: 1 }}>
+            {home.outstandingCount === 0 ? EMPTY_HELP : HEADING_HELP}
+          </Typography>
+          <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 1.5 }}>
             {PRIVACY_NOTE}
           </Typography>
         </Paper>
@@ -153,66 +195,262 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
             invitation={focusedInvitation}
             landing={resolved.focused}
             reasonError={reasonError}
-            changingToNo={changingToNo || reasonError}
           />
         ) : null}
 
-        {needsAnswer.length === 0 && answeredUpcoming.length === 0 ? (
-          <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 4 }, borderRadius: 2 }}>
-            <Typography component="h2" sx={{ fontSize: 18, fontWeight: 700 }}>
-              {NO_OUTSTANDING_EVENTS}
-            </Typography>
-            <Button href="/calendar" variant="outlined" sx={{ mt: 2, minHeight: 44 }}>
-              {PUBLIC_CALENDAR_LINK}
-            </Button>
-          </Paper>
-        ) : null}
-
-        {needsAnswer.length > 0 ? (
-          <Section heading={NEEDS_ANSWER_HEADING}>
-            {needsAnswer.map((entry, index) => (
+        {home.newInvitations.length > 0 ? (
+          <Section heading={NEW_INVITATIONS_HEADING}>
+            {home.newInvitations.map((entry) => (
               <SummaryRow
                 key={entry.invitationId}
                 token={token}
                 entry={entry}
-                dominant={index === 0}
+                dominant={entry.invitationId === home.nextInvitationId}
               />
             ))}
           </Section>
         ) : null}
 
-        {answeredUpcoming.length > 0 ? (
-          <Section heading={ANSWERED_HEADING}>
-            {answeredUpcoming.map((entry) => (
+        {home.stillNeedAnswer.length > 0 ? (
+          <Section heading={STILL_NEED_ANSWER_HEADING}>
+            {home.stillNeedAnswer.map((entry) => (
+              <SummaryRow
+                key={entry.invitationId}
+                token={token}
+                entry={entry}
+                dominant={entry.invitationId === home.nextInvitationId}
+              />
+            ))}
+          </Section>
+        ) : null}
+
+        {home.followUpNeeded.length > 0 ? (
+          <Section heading={FOLLOW_UP_HEADING}>
+            {home.followUpNeeded.map((entry) => (
               <SummaryRow key={entry.invitationId} token={token} entry={entry} dominant={false} />
             ))}
           </Section>
         ) : null}
 
-        {needsAnswer.length === 0 && answeredUpcoming.length > 0 ? (
-          <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2 }}>
-            {SEE_ANSWERED}
-          </Typography>
+        {home.answeredUpcoming.length > 0 ? (
+          <Section heading={ANSWERED_HEADING} help={ANSWERED_HELP}>
+            {home.answeredUpcoming.map((entry) => (
+              <SummaryRow key={entry.invitationId} token={token} entry={entry} dominant={false} />
+            ))}
+          </Section>
+        ) : null}
+
+        {home.furtherOut.length > 0 ? (
+          <Box
+            component="details"
+            sx={{
+              mb: 3,
+              borderRadius: 2,
+              bgcolor: "background.paper",
+              "& summary": {
+                cursor: "pointer",
+                listStyle: "none",
+                p: { xs: 2.5, sm: 3 },
+                borderRadius: 2,
+                fontWeight: 700,
+                fontSize: 16,
+              },
+              "& summary::-webkit-details-marker": { display: "none" },
+            }}
+          >
+            <Box component="summary">{FURTHER_OUT_SUMMARY}</Box>
+            <Box sx={{ px: { xs: 2.5, sm: 3 }, pb: { xs: 2.5, sm: 3 } }}>
+              <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 0.5 }}>
+                {FURTHER_OUT_HEADING}
+              </Typography>
+              <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 2 }}>
+                {FURTHER_OUT_HELP}
+              </Typography>
+              <Stack spacing={2}>
+                {home.furtherOut.map((entry) => (
+                  <SummaryRow
+                    key={entry.invitationId}
+                    token={token}
+                    entry={entry}
+                    dominant={false}
+                  />
+                ))}
+              </Stack>
+            </Box>
+          </Box>
+        ) : null}
+
+        {home.outstandingCount === 0 ? (
+          <Button href="/calendar" variant="outlined" sx={{ mt: 1, minHeight: 44 }}>
+            {PUBLIC_CALENDAR_LINK}
+          </Button>
         ) : null}
       </Box>
     </Box>
   );
 }
 
-function Section({ heading, children }: { heading: string; children: React.ReactNode }) {
+function Section({
+  heading,
+  help,
+  children,
+}: {
+  heading: string;
+  help?: string;
+  children: React.ReactNode;
+}) {
   return (
     <Paper elevation={0} sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2, mb: 3 }}>
-      <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 2 }}>
+      <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: help ? 0.5 : 2 }}>
         {heading}
       </Typography>
+      {help ? (
+        <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 2 }}>{help}</Typography>
+      ) : null}
       <Stack spacing={2}>{children}</Stack>
     </Paper>
   );
 }
 
-function when(entry: PlayerHomeInvitation): string {
-  const parts = [entry.scheduledOn, entry.startsAt].filter(Boolean);
-  return parts.join(" · ");
+function when(entry: PlayerHomeInvitation): string | null {
+  const date = formatEventDate(entry.scheduledOn);
+  const time = formatEventTime(entry.startsAt, entry.endsAt);
+  return [date, time].filter(Boolean).join(" · ") || null;
+}
+
+/** The row's own one-line state sentence — Q-23's "what the copy says". */
+function rowSentence(entry: PlayerHomeInvitation): string | null {
+  if (entry.standingAnswer === null) {
+    // The club has already followed up once — that fact is what separates
+    // `Still need your answer` from `New invitations`, so it leads the row
+    // rather than being crowded out by the count/deadline line every
+    // unanswered row also carries.
+    if (entry.reminderSent) return STILL_NEED_ANSWER_SENTENCE;
+    const deadline = formatDeadline(entry.responseDeadline);
+    const proof = attendingSentence(entry.attendingCount);
+    const bits = [proof, deadline ? `Answer by ${deadline}` : null].filter(Boolean);
+    return bits.length > 0 ? bits.join(" · ") : null;
+  }
+  if (needsFollowUp(entry)) {
+    return entry.standingAnswer === "no" && entry.reasonIsDefault
+      ? FOLLOW_UP_NO_REASON_SENTENCE
+      : FOLLOW_UP_QUESTIONS_SENTENCE;
+  }
+  return answeredSentence(entry.standingAnswer, entry.reason);
+}
+
+/**
+ * Inline, one-tap Yes/No — the approved row control (`W2.html:956`
+ * `mini-actions`), not a navigation button. A player's own No stands from
+ * this click with the honest default: `defaultOk` tells `submitNo` there is
+ * no text field on this row to demand a reason from — Q-22, REQ-no-reason-given.
+ */
+function MiniYesNo({ token, invitationId }: { token: string; invitationId: string }) {
+  return (
+    <Stack direction="row" spacing={1}>
+      <Box component="form" action={changeToYes} sx={{ flex: 1 }}>
+        <input type="hidden" name="token" value={token} />
+        <input type="hidden" name="invitationId" value={invitationId} />
+        <Button type="submit" variant="contained" color="success" fullWidth sx={{ minHeight: 40 }}>
+          {ANSWER_YES}
+        </Button>
+      </Box>
+      <Box component="form" action={submitNo} sx={{ flex: 1 }}>
+        <input type="hidden" name="token" value={token} />
+        <input type="hidden" name="invitationId" value={invitationId} />
+        <input type="hidden" name="defaultOk" value="1" />
+        <Button type="submit" variant="outlined" color="inherit" fullWidth sx={{ minHeight: 40 }}>
+          {ANSWER_NO}
+        </Button>
+      </Box>
+    </Stack>
+  );
+}
+
+function ChangeToNoButton({ token, invitationId }: { token: string; invitationId: string }) {
+  return (
+    <Box component="form" action={submitNo} sx={{ flex: 1, minWidth: 0 }}>
+      <input type="hidden" name="token" value={token} />
+      <input type="hidden" name="invitationId" value={invitationId} />
+      <input type="hidden" name="defaultOk" value="1" />
+      <Button type="submit" variant="outlined" color="inherit" fullWidth sx={{ minHeight: 40 }}>
+        {CHANGE_TO_NO}
+      </Button>
+    </Box>
+  );
+}
+
+function ChangeToYesButton({ token, invitationId }: { token: string; invitationId: string }) {
+  return (
+    <Box component="form" action={changeToYes} sx={{ flex: 1, minWidth: 0 }}>
+      <input type="hidden" name="token" value={token} />
+      <input type="hidden" name="invitationId" value={invitationId} />
+      <Button type="submit" variant="contained" color="success" fullWidth sx={{ minHeight: 40 }}>
+        {CHANGE_TO_YES}
+      </Button>
+    </Box>
+  );
+}
+
+function OpenLink({
+  token,
+  invitationId,
+  label,
+  emphasis,
+}: {
+  token: string;
+  invitationId: string;
+  label: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <Button
+      href={`/me/${encodeURIComponent(token)}?open=${encodeURIComponent(invitationId)}`}
+      variant={emphasis ? "contained" : "outlined"}
+      color={emphasis ? "primary" : "inherit"}
+      fullWidth
+      sx={{ minHeight: 40, flex: 1, minWidth: 0 }}
+    >
+      {label}
+    </Button>
+  );
+}
+
+/** Two direct actions per row (standards rule — never a bare navigation button doing the work of two taps). */
+function RowActions({ token, entry }: { token: string; entry: PlayerHomeInvitation }) {
+  if (entry.standingAnswer === null) {
+    return <MiniYesNo token={token} invitationId={entry.invitationId} />;
+  }
+  if (needsFollowUp(entry)) {
+    if (entry.standingAnswer === "no" && entry.reasonIsDefault) {
+      return (
+        <Stack direction="row" spacing={1}>
+          <ChangeToYesButton token={token} invitationId={entry.invitationId} />
+          <OpenLink token={token} invitationId={entry.invitationId} label={ADD_REASON} />
+        </Stack>
+      );
+    }
+    return (
+      <Stack direction="row" spacing={1}>
+        <OpenLink
+          token={token}
+          invitationId={entry.invitationId}
+          label={ANSWER_QUESTIONS}
+          emphasis
+        />
+        <ChangeToNoButton token={token} invitationId={entry.invitationId} />
+      </Stack>
+    );
+  }
+  if (entry.standingAnswer === "yes") {
+    return <ChangeToNoButton token={token} invitationId={entry.invitationId} />;
+  }
+  return (
+    <Stack direction="row" spacing={1}>
+      <ChangeToYesButton token={token} invitationId={entry.invitationId} />
+      <OpenLink token={token} invitationId={entry.invitationId} label={EDIT_REASON} />
+    </Stack>
+  );
 }
 
 function SummaryRow({
@@ -224,12 +462,7 @@ function SummaryRow({
   entry: PlayerHomeInvitation;
   dominant: boolean;
 }) {
-  const followUp =
-    entry.standingAnswer === "no" && entry.reasonIsDefault
-      ? NO_REASON_GIVEN
-      : entry.outstandingRequiredQuestions > 0
-        ? OUTSTANDING_QUESTIONS
-        : null;
+  const sentence = rowSentence(entry);
 
   return (
     <Box
@@ -243,9 +476,9 @@ function SummaryRow({
       <Stack
         direction={{ xs: "column", sm: "row" }}
         spacing={1.5}
-        sx={{ justifyContent: "space-between" }}
+        sx={{ justifyContent: "space-between", alignItems: { sm: "center" } }}
       >
-        <Box>
+        <Box sx={{ minWidth: 0 }}>
           <Chip
             label={eventTypeLabel(entry.eventType)}
             size="small"
@@ -256,28 +489,37 @@ function SummaryRow({
             {entry.eventName}
           </Typography>
           <Typography sx={{ fontSize: 13, color: "text.secondary" }}>{when(entry)}</Typography>
-          {entry.standingAnswer ? (
+          {entry.standingAnswer === null ? (
             <Chip
-              label={entry.standingAnswer === "yes" ? STANDING_YES : STANDING_NO}
+              label={dominant ? NEXT_CHIP : AWAITING_ANSWER_CHIP}
+              size="small"
+              variant="outlined"
+              color="primary"
+              sx={{ mt: 0.75, mr: 0.75 }}
+            />
+          ) : (
+            <Chip
+              label={
+                entry.standingAnswer === "no" && entry.reasonIsDefault
+                  ? NO_REASON_GIVEN
+                  : entry.standingAnswer === "yes"
+                    ? STANDING_YES
+                    : STANDING_NO
+              }
               size="small"
               color={entry.standingAnswer === "yes" ? "success" : "error"}
-              sx={{ mt: 0.75 }}
+              sx={{ mt: 0.75, mr: 0.75 }}
             />
-          ) : null}
-          {followUp ? (
-            <Typography sx={{ fontSize: 12, color: "warning.main", mt: 0.5, fontWeight: 600 }}>
-              {followUp}
+          )}
+          {sentence ? (
+            <Typography sx={{ fontSize: 12.5, color: "text.secondary", mt: 0.5 }}>
+              {sentence}
             </Typography>
           ) : null}
         </Box>
-        <Button
-          href={`/me/${encodeURIComponent(token)}?open=${encodeURIComponent(entry.invitationId)}`}
-          variant={entry.standingAnswer === null ? "contained" : "outlined"}
-          color={entry.standingAnswer === null ? "primary" : "inherit"}
-          sx={{ minHeight: 44, alignSelf: { xs: "stretch", sm: "center" } }}
-        >
-          {entry.standingAnswer === null ? "Answer" : CHANGE}
-        </Button>
+        <Box sx={{ minWidth: { sm: 220 } }}>
+          <RowActions token={token} entry={entry} />
+        </Box>
       </Stack>
     </Box>
   );
@@ -351,27 +593,27 @@ function QuestionField({ question }: { question: EventQuestionForAnswer }) {
   );
 }
 
+/**
+ * The one answer surface Q-21 requires, entered with the answer already
+ * taken — restored to the full W2-03/W2-04 richness (Q-22): the event's own
+ * facts, live social proof, the other-invitations notice, then the follow-up
+ * a Yes or a No still owes.
+ */
 function FocusedPanel({
   token,
   invitation,
   landing,
   reasonError,
-  changingToNo,
 }: {
   token: string;
   invitation: PlayerHomeInvitation;
   landing: PlayerAnswerLanding;
   reasonError: boolean;
-  changingToNo: boolean;
 }) {
-  // A standing Yes shows "changing your mind" as a lightly framed secondary
-  // link rather than a permanently visible reason form — the wireframe's own
-  // words: "visually secondary and lightly framed: 'Plans changed? You can
-  // change your answer.'" A blank-looking mandatory field sitting under an
-  // already-attending status the moment the page loads is exactly the
-  // opposite of that, and independent visual review caught it in the
-  // preflight screenshot before this comment existed.
-  const showNoForm = invitation.standingAnswer !== "yes" || changingToNo;
+  const deadline = formatDeadline(invitation.responseDeadline);
+  const attending = attendingSentence(landing.attendingCount);
+  const otherOutstanding = otherOutstandingSentence(landing.otherOutstandingCount);
+
   return (
     <Paper
       elevation={0}
@@ -392,13 +634,51 @@ function FocusedPanel({
       <Typography component="h2" sx={{ fontSize: 20, fontWeight: 700 }}>
         {invitation.eventName}
       </Typography>
-      <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 2 }}>
-        {when(invitation)}
-      </Typography>
+      <Typography sx={{ fontSize: 13, color: "text.secondary" }}>{when(invitation)}</Typography>
+
+      <Box
+        component="dl"
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+          gap: 1.5,
+          mt: 1.5,
+          mb: 2,
+        }}
+      >
+        {invitation.venue ? (
+          <Box>
+            <Typography
+              component="dt"
+              sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}
+            >
+              Venue
+            </Typography>
+            <Typography component="dd" sx={{ m: 0, fontSize: 14 }}>
+              {invitation.venue}
+            </Typography>
+          </Box>
+        ) : null}
+        {deadline ? (
+          <Box>
+            <Typography
+              component="dt"
+              sx={{ fontSize: 12, fontWeight: 700, color: "text.secondary" }}
+            >
+              Response deadline
+            </Typography>
+            <Typography component="dd" sx={{ m: 0, fontSize: 14 }}>
+              {deadline}
+            </Typography>
+          </Box>
+        ) : null}
+      </Box>
 
       {invitation.standingAnswer === "yes" ? (
         <Alert severity="success" sx={{ mb: 2 }}>
-          {STANDING_YES}
+          {invitation.outstandingRequiredQuestions > 0
+            ? `${STANDING_YES} — ${OUTSTANDING_QUESTIONS}`
+            : STANDING_YES}
         </Alert>
       ) : invitation.standingAnswer === "no" ? (
         <Alert severity="error" sx={{ mb: 2 }}>
@@ -408,7 +688,22 @@ function FocusedPanel({
         </Alert>
       ) : null}
 
-      {invitation.standingAnswer !== "yes" ? (
+      {attending ? (
+        <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 1 }}>{attending}</Typography>
+      ) : null}
+      {otherOutstanding ? (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {otherOutstanding}
+        </Alert>
+      ) : null}
+
+      {invitation.standingAnswer === null ? (
+        <Box sx={{ mb: 2 }}>
+          <MiniYesNo token={token} invitationId={invitation.invitationId} />
+        </Box>
+      ) : null}
+
+      {invitation.standingAnswer !== "yes" && invitation.standingAnswer !== null ? (
         <Box component="form" action={changeToYes} sx={{ mb: 2 }}>
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="invitationId" value={invitation.invitationId} />
@@ -419,29 +714,35 @@ function FocusedPanel({
             fullWidth
             sx={{ minHeight: 48 }}
           >
-            {invitation.standingAnswer === null ? ANSWER_YES : CHANGE_TO_YES}
+            {CHANGE_TO_YES}
           </Button>
         </Box>
       ) : null}
 
-      {!showNoForm ? (
-        <Button
-          href={`/me/${encodeURIComponent(token)}?open=${encodeURIComponent(invitation.invitationId)}&changingToNo=1`}
-          variant="text"
-          color="inherit"
-          sx={{ minHeight: 40, fontWeight: 400, textTransform: "none" }}
-        >
-          {PLANS_CHANGED}
-        </Button>
-      ) : (
+      {invitation.standingAnswer === "yes" ? (
         <Box component="form" action={submitNo}>
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="invitationId" value={invitation.invitationId} />
-          {invitation.standingAnswer !== null ? (
-            <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 1 }}>
-              {REASON_PROMPT}
-            </Typography>
-          ) : null}
+          <input type="hidden" name="reason" value="" />
+          <input type="hidden" name="defaultOk" value="1" />
+          <Button
+            type="submit"
+            variant="text"
+            color="inherit"
+            sx={{ minHeight: 40, fontWeight: 400, textTransform: "none" }}
+          >
+            {PLANS_CHANGED}
+          </Button>
+        </Box>
+      ) : null}
+
+      {invitation.standingAnswer === "no" ? (
+        <Box component="form" action={submitNo}>
+          <input type="hidden" name="token" value={token} />
+          <input type="hidden" name="invitationId" value={invitation.invitationId} />
+          <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 1 }}>
+            {REASON_PROMPT}
+          </Typography>
           <Stack spacing={1.5}>
             <TextField
               name="reason"
@@ -453,22 +754,12 @@ function FocusedPanel({
               helperText={reasonError ? "Choose a reason before saving." : undefined}
               slotProps={{ htmlInput: { maxLength: 200 } }}
             />
-            <Button
-              type="submit"
-              variant={invitation.standingAnswer === null ? "outlined" : "contained"}
-              color={invitation.standingAnswer === "yes" ? "inherit" : undefined}
-              fullWidth
-              sx={{ minHeight: 44 }}
-            >
-              {invitation.standingAnswer === "no"
-                ? SAVE_REASON
-                : invitation.standingAnswer === null
-                  ? ANSWER_NO
-                  : CHANGE_TO_NO}
+            <Button type="submit" variant="outlined" fullWidth sx={{ minHeight: 44 }}>
+              {SAVE_REASON}
             </Button>
           </Stack>
         </Box>
-      )}
+      ) : null}
 
       {invitation.standingAnswer === "yes" && landing.questions.length > 0 ? (
         <Box component="form" action={submitQuestions} sx={{ mt: 3 }}>

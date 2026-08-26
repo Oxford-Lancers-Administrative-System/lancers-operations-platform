@@ -25,6 +25,7 @@ import {
   readPlayerHomeIn,
   recordPlayerHomeAnswerIn,
 } from "./player-home";
+import { NO_REASON_GIVEN_DEFAULT } from "./player-answer-tokens";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const MARKER = "LAN172HomeSuite";
@@ -247,6 +248,20 @@ async function answer(invitationId: string, response: "yes" | "no", reason: stri
   ]);
 }
 
+/**
+ * Records a completed reminder rung against an invitation — the fact
+ * `readPlayerHomeIn` now reads to tell `New invitations` apart from `Still
+ * need your answer` (LAN-172 correction round 2, Q-22/Q-23).
+ */
+async function markReminderSent(invitationId: string, eventId: string | null, personId: string) {
+  await observer.query(
+    `insert into public.notification_jobs
+       (idempotency_key, job_type, status, invitation_id, event_id, person_id, ladder_rung)
+     values ($1, 'reminder', 'completed', $2, $3, $4, 1)`,
+    [`${MARKER}-reminder-${invitationId}`, invitationId, eventId, personId],
+  );
+}
+
 async function caught(run: () => Promise<unknown>): Promise<ServiceError> {
   try {
     await run();
@@ -437,39 +452,122 @@ describe("saving event questions", () => {
 });
 
 describe("the durable page's own view", () => {
-  it("splits unanswered work from already-answered upcoming events", async () => {
+  it("puts a fresh, unanswered invitation in New invitations, and already-answered work below", async () => {
     const unanswered = await fixture(48, "-home-1");
     const answeredInvitationId = await secondInvitationFor(unanswered.personId, 72, "-home-2");
     await answer(answeredInvitationId, "yes");
 
     const home = await withTransaction((tx) => readPlayerHomeIn(tx, unanswered.personId));
-    expect(home.needsAnswer.map((e) => e.invitationId)).toEqual([unanswered.invitationId]);
+    expect(home.newInvitations.map((e) => e.invitationId)).toEqual([unanswered.invitationId]);
+    expect(home.stillNeedAnswer).toHaveLength(0);
     expect(home.answeredUpcoming.map((e) => e.invitationId)).toEqual([answeredInvitationId]);
   });
 
-  it("flags a standing No's unreplaced default reason", async () => {
-    const { invitationId, personId } = await fixture(48, "-default");
-    await answer(invitationId, "no", "No reason given");
+  it("moves an unanswered invitation to Still need your answer once the club has chased it — Q-22", async () => {
+    const chased = await fixture(48, "-chased");
+    await markReminderSent(chased.invitationId, chased.eventId, chased.personId);
 
-    const home = await withTransaction((tx) => readPlayerHomeIn(tx, personId));
-    expect(home.answeredUpcoming[0].reasonIsDefault).toBe(true);
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, chased.personId));
+    expect(home.newInvitations).toHaveLength(0);
+    expect(home.stillNeedAnswer.map((e) => e.invitationId)).toEqual([chased.invitationId]);
   });
 
-  it("does not flag a No that already carries a real reason, and shows it verbatim", async () => {
+  it("moves a standing No's unreplaced default reason to Follow-up needed, not the answered archive", async () => {
+    const { invitationId, personId } = await fixture(48, "-default");
+    await answer(invitationId, "no", NO_REASON_GIVEN_DEFAULT);
+
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, personId));
+    expect(home.answeredUpcoming).toHaveLength(0);
+    expect(home.followUpNeeded).toHaveLength(1);
+    expect(home.followUpNeeded[0].reasonIsDefault).toBe(true);
+  });
+
+  it("moves a standing Yes with an outstanding required question to Follow-up needed", async () => {
+    const { invitationId, personId, eventId } = await fixture(48, "-yes-outstanding");
+    await observer.query(
+      `insert into public.event_questions (event_id, prompt, answer_type, is_required, applies_to_capacities)
+       values ($1, 'Transport needed?', 'boolean', true, '{player}')`,
+      [eventId],
+    );
+    await answer(invitationId, "yes");
+
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, personId));
+    expect(home.answeredUpcoming).toHaveLength(0);
+    expect(home.followUpNeeded).toHaveLength(1);
+    expect(home.followUpNeeded[0].outstandingRequiredQuestions).toBe(1);
+  });
+
+  it("does not flag a No that already carries a real reason, and keeps it in the answered archive", async () => {
     const { invitationId, personId } = await fixture(48, "-real-reason");
     await answer(invitationId, "no", "Academic conflict");
 
     const home = await withTransaction((tx) => readPlayerHomeIn(tx, personId));
+    expect(home.followUpNeeded).toHaveLength(0);
     expect(home.answeredUpcoming[0].reasonIsDefault).toBe(false);
     expect(home.answeredUpcoming[0].reason).toBe("Academic conflict");
+  });
+
+  it("moves anything beyond the 21-day horizon into furtherOut, whatever its answer state — Q-20", async () => {
+    const near = await fixture(48, "-near");
+    const farUnanswered = await secondInvitationFor(near.personId, 24 * 30, "-far-unanswered");
+    const farAnswered = await secondInvitationFor(near.personId, 24 * 35, "-far-answered");
+    await answer(farAnswered, "yes");
+
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, near.personId));
+    const nearIds = [...home.newInvitations, ...home.stillNeedAnswer, ...home.answeredUpcoming].map(
+      (e) => e.invitationId,
+    );
+    expect(nearIds).toEqual([near.invitationId]);
+    const furtherIds = home.furtherOut.map((e) => e.invitationId).sort();
+    expect(furtherIds).toEqual([farAnswered, farUnanswered].sort());
+  });
+
+  it("counts every unanswered invitation, near and beyond the horizon, in outstandingCount", async () => {
+    const near = await fixture(48, "-count-near");
+    await secondInvitationFor(near.personId, 24 * 30, "-count-far");
+
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, near.personId));
+    expect(home.outstandingCount).toBe(2);
+  });
+
+  it("names the single soonest unanswered invitation across New and Still-need-your-answer", async () => {
+    const soonest = await fixture(24, "-dominant-soonest");
+    const laterUnanswered = await secondInvitationFor(
+      soonest.personId,
+      48,
+      "-dominant-later-unanswered",
+    );
+    await markReminderSent(laterUnanswered, null, soonest.personId);
+
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, soonest.personId));
+    expect(home.nextInvitationId).toBe(soonest.invitationId);
+  });
+
+  it("leaves nextInvitationId null once nothing needs an answer", async () => {
+    const { invitationId, personId } = await fixture(48, "-dominant-none");
+    await answer(invitationId, "yes");
+
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, personId));
+    expect(home.nextInvitationId).toBeNull();
+  });
+
+  it("returns the player's own display name", async () => {
+    const { personId } = await fixture(48, "-name");
+
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, personId));
+    expect(home.playerName).toContain(MARKER);
   });
 
   it("excludes an event whose start has already passed", async () => {
     const { personId } = await fixture(-2, "-past");
 
     const home = await withTransaction((tx) => readPlayerHomeIn(tx, personId));
-    expect(home.needsAnswer).toHaveLength(0);
+    expect(home.newInvitations).toHaveLength(0);
+    expect(home.stillNeedAnswer).toHaveLength(0);
+    expect(home.followUpNeeded).toHaveLength(0);
     expect(home.answeredUpcoming).toHaveLength(0);
+    expect(home.furtherOut).toHaveLength(0);
+    expect(home.outstandingCount).toBe(0);
   });
 
   it("returns nothing for a person with no invitations — the empty state", async () => {
@@ -479,8 +577,9 @@ describe("the durable page's own view", () => {
       [MARKER],
     );
     const home = await withTransaction((tx) => readPlayerHomeIn(tx, lonely.rows[0].id));
-    expect(home.needsAnswer).toHaveLength(0);
+    expect(home.newInvitations).toHaveLength(0);
     expect(home.answeredUpcoming).toHaveLength(0);
+    expect(home.outstandingCount).toBe(0);
   });
 
   it("returns only this person's own work — REQ-cross-person-isolation", async () => {
@@ -488,7 +587,7 @@ describe("the durable page's own view", () => {
     const somebodyElse = await fixture(48, "-else");
 
     const home = await withTransaction((tx) => readPlayerHomeIn(tx, mine.personId));
-    const ids = home.needsAnswer.map((e) => e.invitationId);
+    const ids = home.newInvitations.map((e) => e.invitationId);
     expect(ids).toContain(mine.invitationId);
     expect(ids).not.toContain(somebodyElse.invitationId);
   });

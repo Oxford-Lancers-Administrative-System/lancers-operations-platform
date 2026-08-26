@@ -27,6 +27,7 @@ vi.mock("@/lib/services/player-home", () => ({
 }));
 vi.mock("@/lib/services/player-answer-tokens", () => ({
   resolvePersonTokenIn: vi.fn(),
+  NO_REASON_GIVEN_DEFAULT: "No reason given",
 }));
 
 import { ConstraintViolated } from "@/lib/db";
@@ -137,6 +138,46 @@ describe("submitNo", () => {
 
     const target = await redirectFrom(() => submitNo(formFor({ reason: "" })));
 
+    expect(target).toBe(
+      `/me/${encodeURIComponent(TOKEN)}?open=${encodeURIComponent(INVITATION_ID)}&reasonError=1`,
+    );
+  });
+
+  it("records the honest default when the row's own No control carries no reason at all — Q-22, REQ-no-reason-given", async () => {
+    const target = await redirectFrom(() => submitNo(formFor({ reason: "", defaultOk: "1" })));
+
+    expect(recordPlayerHomeAnswerIn).toHaveBeenCalledWith(
+      expect.anything(),
+      PERSON_ID,
+      INVITATION_ID,
+      {
+        response: "no",
+        reason: "No reason given",
+      },
+    );
+    expect(target).toBe(
+      `/me/${encodeURIComponent(TOKEN)}?open=${encodeURIComponent(INVITATION_ID)}`,
+    );
+  });
+
+  it("still requires real text from the dedicated 'give a reason' form, which never sends defaultOk", async () => {
+    vi.mocked(recordPlayerHomeAnswerIn).mockRejectedValueOnce(
+      new ConstraintViolated("Choose a reason before saving Not attending.", {
+        rule: "rsvp_responses_no_requires_a_reason",
+      }),
+    );
+
+    const target = await redirectFrom(() => submitNo(formFor({ reason: "  " })));
+
+    expect(recordPlayerHomeAnswerIn).toHaveBeenCalledWith(
+      expect.anything(),
+      PERSON_ID,
+      INVITATION_ID,
+      {
+        response: "no",
+        reason: "  ",
+      },
+    );
     expect(target).toBe(
       `/me/${encodeURIComponent(TOKEN)}?open=${encodeURIComponent(INVITATION_ID)}&reasonError=1`,
     );

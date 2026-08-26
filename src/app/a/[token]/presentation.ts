@@ -35,7 +35,20 @@ export function confirmLabel(answer: "yes" | "no"): string {
 }
 
 export const YES_HEADING = "You're attending";
-export const NO_HEADING = "You're not attending — no reason given";
+/**
+ * Correction LAN-172-c2 (Q-22, `REQ-click-is-the-answer`): this heading
+ * renders on the side-effect-free GET, before the page's own control has been
+ * tapped and before anything is recorded. The mockup's No page
+ * (`W2.html:952`) leads with "You're not attending — no reason given" as a
+ * *settled* fact because in the approved journey that page only ever renders
+ * after the click already recorded it. Q-11's accepted no-JavaScript
+ * deviation makes this page's own control the thing that actually writes, so
+ * asserting the standing-No default here — before that tap — was a past-tense
+ * claim about a response that did not yet exist. Dropping the reason clause
+ * leaves the heading naming the choice being taken, not a state already
+ * standing; `NO_EXPLANATION` below still carries the club's reason for asking.
+ */
+export const NO_HEADING = "You're not attending";
 export const NO_EXPLANATION =
   "The club plans numbers, transport and coaching from these responses. Tell the club why if you can.";
 export const CHANGE_TO_YES = "Change to Yes";

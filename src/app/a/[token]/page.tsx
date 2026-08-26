@@ -21,6 +21,7 @@ import {
   type PlayerAnswer,
 } from "@/lib/services/player-answer-tokens";
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
+import { formatDeadline, formatEventDate, formatEventTime } from "@/app/rsvp/[token]/presentation";
 
 import { submitAnswer } from "./actions";
 import { ERROR_PARAM } from "./params";
@@ -200,7 +201,10 @@ function Confirm({
   landing: PlayerAnswerLanding;
   busy: boolean;
 }) {
-  const when = [base.scheduledOn, base.startsAt].filter(Boolean).join(" · ") || null;
+  const date = formatEventDate(base.scheduledOn);
+  const time = formatEventTime(base.startsAt, base.endsAt);
+  const when = [date, time].filter(Boolean).join(" · ") || null;
+  const deadline = formatDeadline(base.responseDeadline);
   const attending = attendingSentence(landing.attendingCount);
   const otherOutstanding = otherOutstandingSentence(landing.otherOutstandingCount);
 
@@ -242,9 +246,14 @@ function Confirm({
           mb: 1,
         }}
       >
+        {base.playerName ? <Fact label="Player" value={base.playerName} /> : null}
         {base.venue ? <Fact label="Venue" value={base.venue} /> : null}
-        {attending ? <Fact label="Attendance so far" value={attending} /> : null}
+        {deadline ? <Fact label="Response deadline" value={deadline} /> : null}
+        <Fact label="Your answer" value={answer === "yes" ? YES_HEADING : NO_HEADING} />
       </Box>
+      {attending ? (
+        <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 1 }}>{attending}</Typography>
+      ) : null}
       {otherOutstanding ? (
         <Alert severity="info" sx={{ mt: 1, mb: 1 }}>
           {otherOutstanding}

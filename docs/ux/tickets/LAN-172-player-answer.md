@@ -34,17 +34,34 @@ not duplicated here.
 | W2-05  | `/me/[token]`                              | Invited player |
 | W2-06  | `/me/[token]`                              | Invited player |
 
-**W2-03 and W2-04 are two steps, not two routes.** `/a/[token]` is
-deliberately the minimum a side-effect-free GET can show — the answer-specific
-heading, the event's facts, the aggregate count, and the one control Q-11's
-accepted no-JavaScript deviation calls for. The rich per-invitation content the
-workflow describes for those screens — the questions a Yes still owes, the
-reason box a No still owes, the other-invitations notice — lives on `/me/[token]`
-in a focused panel opened by `?open=<invitationId>`, because that content
-requires a write authorization the one-time answer token has already spent by
-the time it is needed. This is a deliberate implementation shape within the
-delegated authority Q-11 leaves open ("exact safe implementation... delegated
-to Mission Lead"), not a narrower reading of the workflow's screens.
+**Correction round 2 (Q-22).** The paragraph this replaces quoted W2's
+delegation as _"exact safe implementation... delegated to Mission Lead"_. The
+ellipsis dropped the scope and the constraint the real clause carries —
+`W2-answer-an-invitation.md:391`: _"Exact safe implementation **of one-time
+actions, sessions and scanner resistance** — must satisfy the visible and
+security acceptance **without changing meaning**."_ That narrower, security-
+only delegation was then cited to justify stripping the fact block, social
+proof and other-invitations notice off `/a/[token]`, and collapsing the
+workflow's four-section durable page to two. Neither reduction was ever put to
+Brian, and a note in this ticket is not the same thing as his approval — the
+harness has an `owner-checked` milestone precisely so that a rendering
+departure becomes an owner question before it is built, not a paragraph the
+implementer wrote for itself. Both reductions are corrected in this round; see
+the sections below for what each screen now shows.
+
+**W2-03 and W2-04 are two steps, not two routes**, and that division is what
+Q-11 actually delegates: the GET (`/a/[token]`) stays entirely side-effect-free
+per `REQ-no-false-rsvp`, so it can never carry a form that writes — the event's
+own questions, or a No's reason — before the one-time token has been consumed.
+What it can and now does show is every fact the mockup draws for these two
+screens: the player's name, venue, response deadline and standing answer, live
+social proof, and the other-invitations notice. The write-bearing follow-up —
+the event's questions after a Yes, the reason box after a No — lives on
+`/me/[token]` in a focused panel opened by `?open=<invitationId>`, entered with
+the answer already taken (Q-21: "the same answer surface, opened in place").
+That panel now carries the same full fact block and notices, so it is the one
+richly detailed answer surface the mockup draws — not the stripped-down
+confirmation the first draft of this ticket shipped instead.
 
 ## Wireframes
 
@@ -63,11 +80,12 @@ packet mockup is the named source per the brief.
   resolves the token, renders the answer-specific state, and writes nothing,
   not even a use counter. A cookie-gated POST that consumes the token, records
   the response, and mints a fresh durable credential in the same transaction.
-- `/me/[token]` — the player's durable, season-scoped page. Work needing an
-  answer above (next invitation visually dominant), already-answered upcoming
-  events below (Yes and No alike, each changeable), a focused panel for one
-  invitation's follow-up work (event questions, a No's reason), and the empty
-  state.
+- `/me/[token]` — the player's durable, season-scoped page. The four approved
+  sections in order (New invitations, Still need your answer, Follow-up
+  needed, Your answers — still to come), the single soonest unanswered
+  invitation visually dominant, a 21-day horizon with everything beyond in one
+  openable further-out section, a focused panel for one invitation's
+  follow-up work (event questions, a No's reason), and the empty state.
 - The credential module (`src/lib/services/player-answer-tokens.ts`): mint,
   resolve and consume for the one-time answer token; mint (reissue), resolve
   and revoke for the durable person token. Both live in `person_access_tokens`,
@@ -150,23 +168,55 @@ every answer path already used.
 
 ## The player's own page
 
-`/me/[token]`: **Needs your answer**, most urgent (nearest deadline) event
-visually dominant, above **Your answers — still to come** (Yes and No alike,
-each with a **Change** control). An approved event is visible here before its
-invitation is ever dispatched — the query has no dispatch condition, only
-`events.status = 'approved'` — so answering early naturally suppresses rung 0
-through the same `stopChasingIn` cancellation every other answer triggers.
-Empty state reads **"No outstanding events"** and links to the public calendar
-(`/calendar`, LAN-153).
+`/me/[token]` carries the player's own name at the top (Brian, 2026-08-26: "it
+should have the player's name so it knows that I'm on the right page" — no
+other personal detail), then the approved heading — a count of outstanding
+work, **"You have N invitations to answer"** — never invented copy.
 
-**Simplification recorded here rather than hidden**: the workflow's three-way
-split ("New invitations", "Still need your answer", "Follow-up needed") is
-implemented as two sections (needs an answer; already answered) with
-follow-up work — a missing reason, outstanding questions — shown as a qualifier
-chip on the relevant row rather than as a third physically separate section.
-This satisfies the acceptance list's actual checkable items (needs-answer
-above already-answered, both directions changeable, follow-up visible) without
-an "opened/unopened" tracking column this package has no migration to add.
+**Correction round 2 (Q-22): the four approved sections, restored.** The first
+draft collapsed the workflow's three-way split of unanswered work to two
+sections and recorded the collapse as a note in this ticket rather than an
+owner question — exactly the shape Q-22 exists to catch. `readPlayerHomeIn`
+now builds all four, in the approved order:
+
+- **New invitations** — unanswered, and the club has not yet chased it.
+- **Still need your answer** — unanswered, and a reminder has gone out.
+  LAN-169's messaging ladder makes this a real, derivable fact
+  (`notification_jobs.job_type = 'reminder'` completed for the invitation) —
+  not the literal "opened the link" the mockup's copy suggests, which Q-11
+  keeps untrackable on purpose (the answer link's GET stays side-effect-free).
+- **Follow-up needed** — a standing No still carrying the honest default, or a
+  standing Yes with required questions outstanding.
+- **Your answers — still to come** — everything else already answered, Yes and
+  No alike, each with a **Change** control.
+
+The single soonest unanswered invitation, across the first two sections, is
+visually dominant — never more than one per page. Every row carries a status
+chip (`Next` / `Awaiting answer` / `No reason given` / `Attending` / `Not
+attending`) alongside the event's own type chip, and two direct actions —
+side-by-side Yes/No for unanswered rows, matching the approved `mini-actions`
+control, never a single navigation button that costs a second tap.
+
+**Q-20's 21-day horizon.** The four sections above show only events within 21
+days (`PLAYER_HOME_HORIZON_DAYS`, a single named constant); everything beyond
+sits in one further "Further ahead" section the player opens themselves.
+Nothing is hidden — `REQ-approved-means-visible` stands unchanged — an
+approved event is visible here before its invitation is ever dispatched, the
+query has no dispatch condition, only `events.status = 'approved'`, so
+answering early naturally suppresses rung 0 through the same `stopChasingIn`
+cancellation every other answer triggers.
+
+Empty state reads **"No outstanding events"** the moment nothing needs an
+answer, whether or not answered history remains below it, and links to the
+public calendar (`/calendar`, LAN-153).
+
+**A player's own No stands from the click, on this page too (Q-22,
+`REQ-no-reason-given`).** The row and focused-panel No controls submit no
+reason at all; `submitNo` fills the honest default (`"No reason given"`,
+`NO_REASON_GIVEN_DEFAULT`) exactly as the WhatsApp/email answer link already
+does, rather than refusing a blank field. Only the dedicated "Give a reason
+and continue" form — replacing an already-standing default with the player's
+real explanation — still requires actual text.
 
 ## The credential
 
@@ -226,6 +276,14 @@ ticket), `REQ-attendance-not-absence`, `REQ-plain-first-contact`,
 - [x] Desktop and true 375px conform; no horizontal scrolling — see the visual
       preflight evidence in the pull request.
 - [x] `npm run verify`.
+- [x] **Correction round 2 (Q-22):** the answer link's fact block, social
+      proof and other-invitations notice, the focused panel's same content,
+      the four-section durable page in approved order, the single dominant
+      row, side-by-side row Yes/No, and Q-20's 21-day horizon all render as
+      specified above, compared state-by-state against
+      `missions/packets/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/mockups/W2.html`'s
+      `yesPage()`, `noPage()`, `inbox()` and `emptyPage()` — see the pull
+      request for the exact states compared and their screenshots.
 
 ## Boundaries
 

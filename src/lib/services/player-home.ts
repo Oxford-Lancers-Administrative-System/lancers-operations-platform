@@ -3,6 +3,7 @@ import "server-only";
 import { ConstraintViolated, InvalidTransition, type Tx } from "@/lib/db";
 
 import { recordAnswerIn, type SignedRsvpSubmission } from "./rsvp";
+import { NO_REASON_GIVEN_DEFAULT } from "./player-answer-tokens";
 
 /**
  * Reads and writes for the two pages LAN-172 adds beyond the answer link
@@ -255,8 +256,13 @@ export interface PlayerHomeInvitation {
   readonly eventType: string;
   readonly scheduledOn: string | null;
   readonly startsAt: string | null;
+  readonly endsAt: string | null;
   readonly venue: string | null;
   readonly responseDeadline: Date | null;
+  /** The live Yes count for this event — the same aggregate the answer link shows. */
+  readonly attendingCount: number;
+  /** Whether the club has already chased this invitation with a reminder rung — see `PlayerHome`'s own doc comment. */
+  readonly reminderSent: boolean;
   readonly standingAnswer: "yes" | "no" | null;
   /** The No's reason, verbatim — the default or whatever real reason replaced it. */
   readonly reason: string | null;
@@ -264,9 +270,68 @@ export interface PlayerHomeInvitation {
   readonly outstandingRequiredQuestions: number;
 }
 
+/**
+ * Owner correction round 2 (LAN-172, Q-22/Q-23): the approved W2-05 mockup
+ * draws four sections, not two — `New invitations`, `Still need your
+ * answer`, `Follow-up needed`, `Your answers — still to come`
+ * (`W2-answer-an-invitation.md:201-210`). The first ticket collapsed this to
+ * two sections on the reasoning that "new" versus "still need an answer"
+ * needs an opened/unopened column no table carries. That reasoning was never
+ * put to Brian, and LAN-169 has since shipped the messaging ladder: whether
+ * this player has already been *chased* — a WhatsApp reminder or the email
+ * rung has actually gone out — is now a real, derivable fact
+ * (`notification_jobs.job_type = 'reminder'`, the same predicate
+ * `stopChasingIn` already uses for Q-12's cancellation scope). An invitation
+ * still on its first contact is `New`; one the club has already chased once
+ * moves to `Still need your answer`. This is not literal "the player opened
+ * the link" — Q-11 keeps the answer link's GET side-effect-free, so that
+ * literal fact can never be tracked without violating the release gate — but
+ * it is a genuine structural distinction the data supports, not an invented
+ * one.
+ */
 export interface PlayerHome {
-  readonly needsAnswer: readonly PlayerHomeInvitation[];
+  readonly playerName: string;
+  /** Every unanswered invitation, near-term and further out — the heading's own count. */
+  readonly outstandingCount: number;
+  /**
+   * The single soonest unanswered invitation across `newInvitations` and
+   * `stillNeedAnswer` combined — "the next invitation is visually dominant"
+   * (`W2-answer-an-invitation.md:204`). Null when nothing needs an answer.
+   */
+  readonly nextInvitationId: string | null;
+  readonly newInvitations: readonly PlayerHomeInvitation[];
+  readonly stillNeedAnswer: readonly PlayerHomeInvitation[];
+  readonly followUpNeeded: readonly PlayerHomeInvitation[];
   readonly answeredUpcoming: readonly PlayerHomeInvitation[];
+  /** Everything past the horizon, of any kind, in one openable section — Q-20. */
+  readonly furtherOut: readonly PlayerHomeInvitation[];
+}
+
+/**
+ * Q-20's ruling: the main sections show only events within this many days;
+ * everything beyond sits in one separate section the player can open.
+ * `REQ-approved-means-visible` is unaffected — nothing is hidden, only moved
+ * further down the same page. A single named constant, not a setting: Brian,
+ * 2026-08-26, "I'd rather get this out and see what the functionality looks
+ * like rather than change it."
+ */
+export const PLAYER_HOME_HORIZON_DAYS = 21;
+
+/**
+ * A standing No still carrying the honest default, or a Yes still owing
+ * questions. Exported so the page can classify a mixed `furtherOut` entry the
+ * same way the four near-term sections already were.
+ */
+export function needsFollowUp(
+  entry: Pick<
+    PlayerHomeInvitation,
+    "standingAnswer" | "reasonIsDefault" | "outstandingRequiredQuestions"
+  >,
+): boolean {
+  return (
+    (entry.standingAnswer === "no" && entry.reasonIsDefault) ||
+    entry.outstandingRequiredQuestions > 0
+  );
 }
 
 /**
@@ -279,6 +344,16 @@ export interface PlayerHome {
  * moment its event is approved — whether or not any message has gone out yet.
  */
 export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<PlayerHome> {
+  const person = await tx.query<{ player_name: string }>(
+    `select concat_ws(' ',
+              coalesce(nullif(btrim(p.known_as), ''), p.given_name),
+              nullif(btrim(coalesce(p.family_name, '')), '')) as player_name
+       from public.people p
+      where p.id = $1`,
+    [personId],
+  );
+  const playerName = person.rows[0]?.player_name ?? "";
+
   const result = await tx.query<{
     invitation_id: string;
     event_id: string;
@@ -286,21 +361,37 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
     event_type: string;
     scheduled_on: string | null;
     starts_at: string | null;
+    ends_at: string | null;
     venue: string | null;
     response_deadline: Date | null;
     response: "yes" | "no" | null;
     reason: string | null;
     capacity: string;
+    attending_count: string;
+    reminder_sent: boolean;
+    beyond_horizon: boolean;
   }>(
     `select i.id as invitation_id, e.id as event_id, e.name as event_name,
             e.event_type::text as event_type,
             to_char(e.scheduled_on, 'YYYY-MM-DD') as scheduled_on,
             to_char(e.starts_at, 'HH24:MI') as starts_at,
+            to_char(e.ends_at, 'HH24:MI') as ends_at,
             e.venue,
             i.expires_at as response_deadline,
             r.response::text as response,
             r.reason,
-            i.capacity::text as capacity
+            i.capacity::text as capacity,
+            (select count(*)
+               from public.current_rsvp r2
+               join public.invitations i2 on i2.id = r2.invitation_id
+              where i2.event_id = e.id and r2.response = 'yes') as attending_count,
+            exists (
+              select 1 from public.notification_jobs nj
+               where nj.invitation_id = i.id
+                 and nj.job_type = 'reminder'
+                 and nj.status = 'completed'
+            ) as reminder_sent,
+            ${EVENT_START_EXPRESSION} > now() + make_interval(days => ${PLAYER_HOME_HORIZON_DAYS}) as beyond_horizon
        from public.invitations i
        join public.events e on e.id = i.event_id
        left join public.season_memberships m on m.id = i.season_membership_id
@@ -312,8 +403,13 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
     [personId],
   );
 
-  const needsAnswer: PlayerHomeInvitation[] = [];
+  const newInvitations: PlayerHomeInvitation[] = [];
+  const stillNeedAnswer: PlayerHomeInvitation[] = [];
+  const followUpNeeded: PlayerHomeInvitation[] = [];
   const answeredUpcoming: PlayerHomeInvitation[] = [];
+  const furtherOut: PlayerHomeInvitation[] = [];
+  let outstandingCount = 0;
+  let nextInvitationId: string | null = null;
 
   for (const row of result.rows) {
     const outstanding = await tx.query<{ count: string }>(
@@ -335,19 +431,46 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
       eventType: row.event_type,
       scheduledOn: row.scheduled_on,
       startsAt: row.starts_at,
+      endsAt: row.ends_at,
       venue: row.venue,
       responseDeadline: row.response_deadline,
+      attendingCount: Number(row.attending_count ?? 0),
+      reminderSent: row.reminder_sent,
       standingAnswer: row.response,
       reason: row.response === "no" ? row.reason : null,
-      reasonIsDefault: row.response === "no" && (row.reason ?? "").trim() === "No reason given",
+      reasonIsDefault:
+        row.response === "no" && (row.reason ?? "").trim() === NO_REASON_GIVEN_DEFAULT,
       outstandingRequiredQuestions: Number(outstanding.rows[0]?.count ?? 0),
     };
 
-    if (row.response === null) needsAnswer.push(entry);
-    else answeredUpcoming.push(entry);
+    if (row.response === null) outstandingCount += 1;
+
+    if (row.beyond_horizon) {
+      furtherOut.push(entry);
+      continue;
+    }
+
+    if (row.response === null) {
+      if (nextInvitationId === null) nextInvitationId = entry.invitationId;
+      if (row.reminder_sent) stillNeedAnswer.push(entry);
+      else newInvitations.push(entry);
+    } else if (needsFollowUp(entry)) {
+      followUpNeeded.push(entry);
+    } else {
+      answeredUpcoming.push(entry);
+    }
   }
 
-  return { needsAnswer, answeredUpcoming };
+  return {
+    playerName,
+    outstandingCount,
+    nextInvitationId,
+    newInvitations,
+    stillNeedAnswer,
+    followUpNeeded,
+    answeredUpcoming,
+    furtherOut,
+  };
 }
 
 export const INVITATION_NOT_OWNED_RULE = "player_home_invitation_not_owned";
