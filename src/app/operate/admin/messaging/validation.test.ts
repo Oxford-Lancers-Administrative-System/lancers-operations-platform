@@ -108,6 +108,19 @@ describe("SCHEDULE_FIELDS", () => {
       expect(field.label).not.toMatch(/…/);
     }
   });
+
+  it("explains what cadence, President escalation, WhatsApp and Email actually count (OWNER-LAN171-08)", () => {
+    const byKey = Object.fromEntries(SCHEDULE_FIELDS.map((field) => [field.key, field]));
+
+    expect(byKey.reminderCadenceHours.helperText).toMatch(/between messages/i);
+    expect(byKey.escalationHours.helperText).toMatch(/after the rsvp deadline/i);
+    expect(byKey.escalationHours.helperText).toMatch(/president is told/i);
+    // Q-19: the WhatsApp count includes the invitation, so its explanation
+    // must say so and must never call the invitation a reminder.
+    expect(byKey.whatsappReminderCount.helperText).toMatch(/including the invitation/i);
+    expect(byKey.whatsappReminderCount.helperText).not.toMatch(/reminder/i);
+    expect(byKey.emailReminderCount.helperText).toBeTruthy();
+  });
 });
 
 describe("scheduleChanged", () => {

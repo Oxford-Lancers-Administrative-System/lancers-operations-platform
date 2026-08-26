@@ -89,18 +89,15 @@ export default function MessagingScheduleForm({ rows }: { rows: readonly Schedul
       </Alert>
 
       <Stack spacing={1.5}>
-        {rows.map((row, index) => (
-          <ScheduleRow
-            key={row.eventType}
-            row={row}
-            // Practice, first in the table, opens by default so a reader
-            // sees a worked example without hunting for one — the same
-            // reasoning `guide-faq.tsx` gives its own first entry. A row
-            // whose own configuration already produces the gap warning
-            // opens too, regardless of position: the preview's whole job
-            // is to make a wrong value visible, which it cannot do closed.
-            defaultOpen={index === 0 || row.preview.warning !== null}
-          />
+        {rows.map((row) => (
+          // Every row's worked example starts closed, on every row, every
+          // load (OWNER-LAN171-09, round 3). Brian: "all examples should be
+          // hidden by default." Round 2 had opened the first row (and any
+          // row already carrying the gap warning) so a reader saw a worked
+          // example without hunting for one; Brian reversed both once he saw
+          // the page live. Opening one is now entirely the operator's own
+          // choice.
+          <ScheduleRow key={row.eventType} row={row} />
         ))}
       </Stack>
 
@@ -130,6 +127,7 @@ function ScheduleField({
         type="number"
         size="small"
         defaultValue={defaultValue}
+        helperText={field.helperText}
         fullWidth
         slotProps={{
           htmlInput: { min: field.min, max: field.max, step: 1 },
@@ -142,15 +140,14 @@ function ScheduleField({
   );
 }
 
-/** One event type — its own form, its six editable fields, and its own save. */
-function ScheduleRow({
-  row,
-  defaultOpen = false,
-}: {
-  row: ScheduleRowData;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
+/**
+ * One event type — its own form, its six editable fields, and its own save.
+ *
+ * The worked example always starts closed (OWNER-LAN171-09) — there is no
+ * `defaultOpen` prop to override that, on any row.
+ */
+function ScheduleRow({ row }: { row: ScheduleRowData }) {
+  const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState(
     updateOneMessagingScheduleAction,
     EMPTY_ADMIN_ACTION_STATE,
@@ -253,11 +250,21 @@ function ScheduleRow({
                 </Box>
               ))}
             </Stack>
-            {row.preview.warning ? (
-              <Alert severity="warning" sx={{ mt: 1.5 }} data-testid="schedule-row-warning">
-                {row.preview.warning}
-              </Alert>
-            ) : null}
+            {/*
+              OWNER-LAN171-07, round 3: the gap-before-the-deadline callout is
+              deliberately not rendered here. Brian: "get rid of this
+              callout. The last reminder lands 1 day before the deadline it
+              is chasing. Nobody is contacted in the 1 day that actually
+              matter. I don't know why that's there. That's confusing." Under
+              the corrected ladder arithmetic (Q-19) it fires on the shipped
+              defaults, so a warning that should flag a misconfigured
+              schedule instead fires on the normal case and trains an
+              operator to ignore it. `row.preview.warning` itself is still
+              computed by `buildSchedulePreview` and still proved by
+              `presentation.test.ts` and R3-B1 in
+              `messaging-schedule.test.ts` — only this surface stopped
+              drawing it.
+            */}
           </Box>
         </Collapse>
       </Stack>

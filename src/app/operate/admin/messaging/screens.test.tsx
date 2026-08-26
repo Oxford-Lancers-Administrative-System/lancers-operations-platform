@@ -201,27 +201,27 @@ describe("the table", () => {
     expect(screen.getByTestId("schedule-rule").textContent).toMatch(/no quiet hours/i);
   });
 
-  it("opens the first row's worked example by default, and the rest stay closed", async () => {
+  it("keeps every row's worked example closed by default, on every row (OWNER-LAN171-09)", async () => {
     render(await MessagingSchedulePage());
 
-    const [first, second] = screen.getAllByTestId("schedule-row");
-    expect(first.textContent).toContain("Player RSVP deadline");
-    expect(second.textContent).not.toContain("Player RSVP deadline");
+    for (const row of screen.getAllByTestId("schedule-row")) {
+      expect(row.textContent).not.toContain("Player RSVP deadline");
+    }
   });
 
   it("reveals the worked example only once a row is opened", async () => {
     render(await MessagingSchedulePage());
 
-    const second = screen.getAllByTestId("schedule-row")[1];
-    expect(second.textContent).not.toContain("Player RSVP deadline");
+    const first = screen.getAllByTestId("schedule-row")[0];
+    expect(first.textContent).not.toContain("Player RSVP deadline");
 
-    fireEvent.click(second.querySelector('[data-testid="schedule-row-toggle"]')!);
+    fireEvent.click(first.querySelector('[data-testid="schedule-row-toggle"]')!);
 
-    expect(second.textContent).toContain("Player RSVP deadline");
-    expect(second.textContent).toContain("The event");
+    expect(first.textContent).toContain("Player RSVP deadline");
+    expect(first.textContent).toContain("The event");
   });
 
-  it("warns when a row's own configuration leaves a gap before the deadline", async () => {
+  it("never draws the gap-before-the-deadline callout, even when a row's own configuration leaves one (OWNER-LAN171-07)", async () => {
     const withGap = rows();
     const gameIndex = withGap.findIndex((row) => row.schedule.eventType === "game");
     const invitationAt = new Date("2026-09-01T19:00:00Z");
@@ -242,12 +242,19 @@ describe("the table", () => {
 
     render(await MessagingSchedulePage());
 
-    // A row carrying a warning opens by default — the preview's whole job is
-    // to make a wrong value visible, which a closed row cannot do.
+    // The row carrying the gap does not open itself (OWNER-LAN171-09 governs
+    // every row, with no exception for one that would have warned), and
+    // opening it by hand never surfaces the retired callout, though the
+    // worked example around it still renders.
     const rowsFound = screen.getAllByTestId("schedule-row");
     const gameCard = rowsFound.find((row) => row.textContent?.includes("Game"))!;
+    expect(gameCard.textContent).not.toContain("Player RSVP deadline");
 
-    expect(gameCard.textContent).toMatch(/lands \d+ days? before the deadline/);
+    fireEvent.click(gameCard.querySelector('[data-testid="schedule-row-toggle"]')!);
+
+    expect(gameCard.textContent).toContain("Player RSVP deadline");
+    expect(gameCard.querySelector('[data-testid="schedule-row-warning"]')).toBeNull();
+    expect(gameCard.textContent).not.toMatch(/lands \d+ days? before the deadline/);
   });
 });
 
@@ -276,6 +283,23 @@ describe("the grid shape — OWNER-LAN171-03", () => {
     );
 
     expect(adornments).toEqual(expect.arrayContaining(["days", "days", "h", "h"]));
+  });
+});
+
+describe("field explanations — OWNER-LAN171-08", () => {
+  it("says what cadence, President escalation, WhatsApp and Email actually count, at the field", async () => {
+    render(await MessagingSchedulePage());
+
+    const practiceRow = screen.getAllByTestId("schedule-row")[0];
+
+    expect(practiceRow.textContent).toMatch(/gap between messages/i);
+    expect(practiceRow.textContent).toMatch(
+      /hours after the rsvp deadline before the president is told/i,
+    );
+    expect(practiceRow.textContent).toMatch(/including the invitation/i);
+    // Q-19: the WhatsApp count includes the invitation, so nothing reading
+    // "reminders" may describe it — including this new explanation.
+    expect(practiceRow.textContent).not.toMatch(/whatsapp reminder/i);
   });
 });
 

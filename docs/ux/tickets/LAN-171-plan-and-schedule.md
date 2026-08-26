@@ -2,11 +2,12 @@
 
 Status: implemented. This is the **as-built** contract, written as part of delivery because the
 mission packet supplied the design authority (workflows, acceptance evidence and mockups) rather
-than a pre-implementation wireframe ticket. The current live LAN-171 issue, its two dispatch
-corrections, `docs/adr/0036-messaging-schedule-configuration.md`, and Brian's round-2 walkthrough
-findings (Q-19; OWNER-LAN171-01 through -05) remain authoritative; this file records what was
-actually shipped and does not restate `docs/ux/slice-ux.md` or the shared Administration contract
-in `docs/ux/tickets/LAN-73-shell-and-access.md`.
+than a pre-implementation wireframe ticket. The current live LAN-171 issue, its dispatch
+corrections, `docs/adr/0036-messaging-schedule-configuration.md`, Brian's round-2 walkthrough
+findings (Q-19; OWNER-LAN171-01 through -05), and his round-3 findings (OWNER-LAN171-06 through
+-09) remain authoritative; this file records what was actually shipped and does not restate
+`docs/ux/slice-ux.md` or the shared Administration contract in
+`docs/ux/tickets/LAN-73-shell-and-access.md`.
 
 > **Synthetic scenario data:** every displayed people, date and count in this mission's mockups is
 > synthetic and does not correspond to real members.
@@ -54,9 +55,19 @@ anything, and where the rules behind that plan are read and changed.
   (round 2, OWNER-LAN171-04 — a page-level save read as "one act" over seven independent rows,
   which Brian rejected once he saw it live). Two rows of three labelled fields per card — RSVP by
   / First inv. / Cadence, then WhatsApp / Email / President — each carrying its unit (`days`,
-  `h`) beside the value, or no unit for the two plain counts (round 2, OWNER-LAN171-03). A per-row
-  worked example previews the dates the policy produces for an event four weeks out, and warns
-  when the last reminder lands well before the deadline.
+  `h`) beside the value, or no unit for the two plain counts (round 2, OWNER-LAN171-03). Cadence,
+  President, WhatsApp and Email also carry a short `helperText` at the field itself, naming what
+  the number does — the gap between messages, the hours after the RSVP deadline before the
+  President is told, and what each channel's count includes (round 3, OWNER-LAN171-08; Brian: "it
+  just says 12 hours, but that doesn't explain what 12 hours after the deadline... is"). A per-row
+  worked example previews the dates the policy produces for an event four weeks out, and starts
+  closed on every row, every load — opening one is the operator's own choice, with no row
+  exempted (round 3, OWNER-LAN171-09; Brian: "all examples should be hidden by default"). It no
+  longer carries a callout naming a gap before the deadline: round 2 built that callout to flag a
+  badly-configured schedule, but under the Q-19 ladder correction it fires on the shipped
+  defaults, warning about the normal case (round 3, OWNER-LAN171-07). The gap is still computed
+  and still proved by test — `messaging-schedule.ts` and `presentation.ts` are unchanged — only
+  the row stopped drawing it.
 - **WhatsApp counts the invitation as message #1** (round 2, Q-19: `REQ-ladder-order` governs over
   W7's looser "reminders" wording). The schedule's WhatsApp count and its grid label ("WhatsApp",
   never "WhatsApp reminders") both reflect this; a policy of 2 WhatsApp + 1 email therefore sends
@@ -117,8 +128,8 @@ Restated from `acceptance/W1.md` and `acceptance/W7.md` as what was built to sat
   affected person revealed on request; no manual-send control is offered.
 - The messaging schedule is editable per event type and offers no per-event override anywhere in
   its markup.
-- Every schedule row previews the dates it produces and warns when the last reminder lands well
-  before the deadline it is chasing.
+- Every schedule row previews the dates it produces, starts closed, and does not draw a callout
+  for the gap before the deadline — that arithmetic is still computed and tested, only not shown.
 - Each event type saves independently, through its own button; saving one row never touches
   another's.
 - The WhatsApp count includes the invitation, and its label never calls the invitation a reminder.

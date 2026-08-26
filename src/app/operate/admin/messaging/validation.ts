@@ -24,6 +24,17 @@ export interface ScheduleFieldBounds {
   readonly label: string;
   /** Shown beside the input — "days", "h", or "" for a plain count. */
   readonly unit: string;
+  /**
+   * What the number does, read at the field itself — MUI `helperText`, the
+   * same idiom `invite-form.tsx` and `operator-actions.tsx` already use to
+   * explain a field without a reader having to go elsewhere for it.
+   * OWNER-LAN171-08, round 3: the grid label alone left what a number
+   * actually governs unstated — Brian, on the President field: "it just
+   * says 12 hours, but that doesn't explain what 12 hours after the deadline
+   * before the meeting is." Present only on the fields Brian named; the two
+   * day-count fields' short labels already say what they count.
+   */
+  readonly helperText?: string;
   /** The fuller phrase a validation message names, where the grid label alone would read clipped. */
   readonly fullLabel: string;
   readonly min: number;
@@ -56,6 +67,7 @@ export const SCHEDULE_FIELDS: readonly ScheduleFieldBounds[] = Object.freeze([
     label: "Cadence",
     unit: "h",
     fullLabel: "Reminder cadence",
+    helperText: "The gap between messages.",
     min: 1,
     max: 720,
   },
@@ -68,6 +80,7 @@ export const SCHEDULE_FIELDS: readonly ScheduleFieldBounds[] = Object.freeze([
     label: "WhatsApp",
     unit: "",
     fullLabel: "WhatsApp count, including the invitation",
+    helperText: "WhatsApp messages sent, including the invitation.",
     min: 0,
     max: 10,
   },
@@ -77,6 +90,7 @@ export const SCHEDULE_FIELDS: readonly ScheduleFieldBounds[] = Object.freeze([
     label: "Email",
     unit: "",
     fullLabel: "Email reminders",
+    helperText: "Email reminders sent once WhatsApp finishes.",
     min: 0,
     max: 10,
   },
@@ -86,6 +100,7 @@ export const SCHEDULE_FIELDS: readonly ScheduleFieldBounds[] = Object.freeze([
     label: "President",
     unit: "h",
     fullLabel: "President escalation",
+    helperText: "Hours after the RSVP deadline before the President is told.",
     min: 0,
     max: 720,
   },
