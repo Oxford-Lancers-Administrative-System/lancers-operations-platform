@@ -169,9 +169,10 @@ export interface ParticipationQuestion {
    * `event_questions.is_required` — whether the event marks this question
    * required *of the player*. OWNER-LAN170-08 (correction round 3): the
    * recording form has to say so without implying the same is true of
-   * recording it, since it never is (`REQ-operator-questions-never-block`).
-   * Optional, defaulting to `false`, for the same fixture-compatibility
-   * reason `choices` is.
+   * recording it, since it never is — `REQ-questions-in-the-same-form`
+   * itself says the event's questions "never block the answer". Optional,
+   * defaulting to `false`, for the same fixture-compatibility reason
+   * `choices` is.
    */
   readonly isRequired?: boolean;
 }
