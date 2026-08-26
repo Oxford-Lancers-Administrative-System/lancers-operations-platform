@@ -27,11 +27,16 @@ vi.mock("@/lib/services/player-answer-tokens", () => ({
   consumeAnswerTokenIn: vi.fn(),
   issuePersonTokenIn: vi.fn(),
 }));
+vi.mock("@/lib/services/player-home", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/player-home")>();
+  return { ...actual, answerEventQuestionsIn: vi.fn() };
+});
 
 import { cookies } from "next/headers";
 import { ANSWER_GATE_COOKIE } from "@/lib/rsvp/answer-gate";
 import { resetRsvpRateLimit } from "@/lib/rsvp/public-surface";
 import { consumeAnswerTokenIn, issuePersonTokenIn } from "@/lib/services/player-answer-tokens";
+import { answerEventQuestionsIn } from "@/lib/services/player-home";
 import { submitAnswer } from "./actions";
 import { ERROR_PARAM } from "./params";
 import { BUSY_ERROR } from "./presentation";
@@ -90,7 +95,7 @@ describe("the cookie gate", () => {
 
   it("proceeds to record the answer once the cookie is present", async () => {
     await redirectFrom(() => submitAnswer(formFor()));
-    expect(consumeAnswerTokenIn).toHaveBeenCalledWith(expect.anything(), TOKEN);
+    expect(consumeAnswerTokenIn).toHaveBeenCalledWith(expect.anything(), TOKEN, expect.anything());
   });
 });
 
@@ -140,7 +145,11 @@ describe("a closed answer link", () => {
 
     const target = await redirectFrom(() => submitAnswer(form));
 
-    expect(consumeAnswerTokenIn).toHaveBeenCalledWith(expect.anything(), injected);
+    expect(consumeAnswerTokenIn).toHaveBeenCalledWith(
+      expect.anything(),
+      injected,
+      expect.anything(),
+    );
     expect(target).toBe(`/a/${encodeURIComponent(injected)}`);
     expect(target).not.toContain("unknown");
   });
@@ -157,5 +166,77 @@ describe("a throttled submission", () => {
 
     expect(target).toContain(`${ERROR_PARAM}=${BUSY_ERROR}`);
     expect(consumeAnswerTokenIn).not.toHaveBeenCalled();
+  });
+});
+
+describe("OWNER-LAN172-12 — the landing page's own questions save with the answer", () => {
+  it("saves the event's own questions in the same submit that records Yes", async () => {
+    const form = formFor();
+    form.set("q_q1", "true");
+    form.set("qkind_q1", "boolean");
+
+    await redirectFrom(() => submitAnswer(form));
+
+    expect(answerEventQuestionsIn).toHaveBeenCalledWith(
+      expect.anything(),
+      "00000000-0000-4000-8000-000000000003",
+      "00000000-0000-4000-8000-000000000002",
+      [{ questionId: "q1", boolean: true }],
+    );
+  });
+
+  it("never saves questions against a No — there is nothing to ask", async () => {
+    vi.mocked(consumeAnswerTokenIn).mockResolvedValue({
+      invitationId: "00000000-0000-4000-8000-000000000002",
+      answer: "no",
+      personId: "00000000-0000-4000-8000-000000000003",
+      seasonId: "00000000-0000-4000-8000-000000000004",
+      recorded: true,
+    });
+    const form = formFor();
+    form.set("q_q1", "true");
+    form.set("qkind_q1", "boolean");
+
+    await redirectFrom(() => submitAnswer(form));
+
+    expect(answerEventQuestionsIn).not.toHaveBeenCalled();
+  });
+});
+
+describe("OWNER-LAN172-13 — the landing page's own reason and its two forward controls", () => {
+  it("passes the player's own typed reason through to the recording write", async () => {
+    const form = formFor();
+    form.set("reason", "Family commitment");
+
+    await redirectFrom(() => submitAnswer(form));
+
+    expect(consumeAnswerTokenIn).toHaveBeenCalledWith(expect.anything(), TOKEN, {
+      response: undefined,
+      reason: "Family commitment",
+    });
+  });
+
+  it("records Yes instead of No when 'Change to Yes' is the control that was clicked", async () => {
+    const form = formFor();
+    form.set("intent", "change-to-yes");
+
+    await redirectFrom(() => submitAnswer(form));
+
+    expect(consumeAnswerTokenIn).toHaveBeenCalledWith(expect.anything(), TOKEN, {
+      response: "yes",
+      reason: "",
+    });
+  });
+
+  it("records No instead of Yes when the Yes page's 'Plans changed?' shortcut is used", async () => {
+    const form = formFor();
+    form.set("intent", "change-to-no");
+
+    await redirectFrom(() => submitAnswer(form));
+
+    expect(consumeAnswerTokenIn).toHaveBeenCalledWith(expect.anything(), TOKEN, {
+      response: "no",
+      reason: "",
+    });
   });
 });

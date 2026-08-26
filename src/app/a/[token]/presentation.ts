@@ -51,23 +51,46 @@ export const YES_CONFIRM_NO_QUESTIONS = "Go see other events";
 
 export const YES_HEADING = "You're attending";
 /**
- * Correction LAN-172-c2 (Q-22, `REQ-click-is-the-answer`): this heading
- * renders on the side-effect-free GET, before the page's own control has been
- * tapped and before anything is recorded. The mockup's No page
- * (`W2.html:952`) leads with "You're not attending — no reason given" as a
- * *settled* fact because in the approved journey that page only ever renders
- * after the click already recorded it. Q-11's accepted no-JavaScript
- * deviation makes this page's own control the thing that actually writes, so
- * asserting the standing-No default here — before that tap — was a past-tense
- * claim about a response that did not yet exist. Dropping the reason clause
- * leaves the heading naming the choice being taken, not a state already
- * standing; `NO_EXPLANATION` below still carries the club's reason for asking.
+ * Owner correction round 5 (OWNER-LAN172-13), overriding correction
+ * LAN-172-c2's earlier reasoning. W2's No-path section, read in full per the
+ * Mission Lead's instruction: "Lead with You're not attending — no reason
+ * given... The wording must never suggest the No is unrecorded until a
+ * reason arrives. The click already recorded it" — this is the spec's own
+ * words for the page the player lands on immediately after tapping No in
+ * WhatsApp, describing their own stated choice and the reason field's honest
+ * current value, not a claim about which HTTP request has completed. Q-11 is
+ * unchanged by this: the GET underneath this heading still writes nothing;
+ * only the page's own form submission (`submitAnswer`) records anything, and
+ * does so whether or not the reason field was ever touched.
  */
-export const NO_HEADING = "You're not attending";
+export const NO_HEADING = "You're not attending — no reason given";
 export const NO_EXPLANATION =
   "The club plans numbers, transport and coaching from these responses. Tell the club why if you can.";
 export const CHANGE_TO_YES = "Change to Yes";
 export const OUTSTANDING_QUESTIONS = "Additional questions outstanding";
+
+// ---------------------------------------------------------------------------
+// Owner correction round 5 (OWNER-LAN172-12, OWNER-LAN172-13): the follow-up
+// itself now lives on this landing page, not a second page reached after a
+// click. W2 line 61 (the approved landing-page table): the Yes landing
+// "asks applicable event questions"; the No-path section: "the reason field
+// belongs on that page" and "Give a reason and continue is the single
+// forward action, with no separate continue control competing with it."
+// ---------------------------------------------------------------------------
+
+export const QUESTIONS_HEADING = "A couple of questions for this event";
+export const REASON_LABEL = "Reason";
+export const REASON_PLACEHOLDER = "e.g. clashes with a family commitment";
+export const REASON_PROMPT =
+  "The club plans numbers, transport and coaching from these responses. Tell the club why if you can.";
+export const GIVE_REASON_AND_CONTINUE = "Give a reason and continue";
+/**
+ * W2's own Yes-path bullet, quoted verbatim: "Changing to No remains
+ * available but visually secondary and lightly framed." The same shortcut
+ * `/me/[token]`'s focused panel already offers a standing Yes, now also
+ * offered here, before the RSVP has even been recorded yet.
+ */
+export const PLANS_CHANGED = "Plans changed? You can change your answer.";
 
 export function attendingSentence(count: number): string | null {
   if (count <= 0) return null;

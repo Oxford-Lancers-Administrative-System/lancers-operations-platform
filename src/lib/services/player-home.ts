@@ -31,6 +31,30 @@ function eventStartExpression(alias: string): string {
 
 const EVENT_START_EXPRESSION = eventStartExpression("e");
 
+/**
+ * Q-20's ruling: the main sections show only events within this many days;
+ * everything beyond sits in one separate section the player can open.
+ * `REQ-approved-means-visible` is unaffected — nothing is hidden, only moved
+ * further down the same page. A single named constant, not a setting: Brian,
+ * 2026-08-26, "I'd rather get this out and see what the functionality looks
+ * like rather than change it."
+ */
+export const PLAYER_HOME_HORIZON_DAYS = 21;
+
+/**
+ * Owner correction round 5 (OWNER-LAN172-15): the one shared definition of
+ * "within Q-26's horizon", so every count that claims to agree with the
+ * horizon-scoped heading (`outstandingCount` in `readPlayerHomeIn`,
+ * `otherOutstandingCount` in `readPlayerAnswerLandingIn`) reads it from here
+ * rather than each restating its own `make_interval`. Brian's own report was
+ * exactly this disagreement: a heading that said nothing was outstanding
+ * beside a sentence that said three invitations were still waiting — two
+ * windows, each individually correct, disagreeing on the same page.
+ */
+function eventWithinHorizonExpression(alias: string): string {
+  return `${eventStartExpression(alias)} <= now() + make_interval(days => ${PLAYER_HOME_HORIZON_DAYS})`;
+}
+
 // ---------------------------------------------------------------------------
 // The answer-specific landing content
 // ---------------------------------------------------------------------------
@@ -98,6 +122,10 @@ export async function readPlayerAnswerLandingIn(
     [row.event_id],
   );
 
+  // Owner correction round 5 (OWNER-LAN172-15): scoped to the same 21-day
+  // horizon `outstandingCount` uses (Q-26), via the one shared expression, so
+  // the two numbers can no longer drift — Brian's report was this exact
+  // sentence disagreeing with an already horizon-scoped heading.
   const outstanding = row.person_id
     ? await tx.query<{ count: string }>(
         `select count(*) as count
@@ -109,7 +137,8 @@ export async function readPlayerAnswerLandingIn(
             and i2.id <> $2
             and r2.response is null
             and e2.status = 'approved'
-            and ${eventStartExpression("e2")} > now()`,
+            and ${eventStartExpression("e2")} > now()
+            and ${eventWithinHorizonExpression("e2")}`,
         [row.person_id, invitationId],
       )
     : { rows: [{ count: "0" }] };
@@ -165,6 +194,32 @@ export interface QuestionAnswerSubmission {
   readonly text?: string | null;
   readonly boolean?: boolean | null;
   readonly choice?: string | null;
+}
+
+/**
+ * Reads every `q_<questionId>` / `qkind_<questionId>` pair a `QuestionField`
+ * put on a form — shared between `/a/[token]`'s own landing-page form (owner
+ * correction round 5, OWNER-LAN172-12) and `/me/[token]`'s focused panel, so
+ * the two surfaces that ask an event's questions parse the same submitted
+ * shape identically rather than each hand-rolling the same loop.
+ */
+export function parseQuestionSubmissions(form: FormData): QuestionAnswerSubmission[] {
+  const submissions: QuestionAnswerSubmission[] = [];
+  for (const [key, value] of form.entries()) {
+    const match = /^q_(.+)$/.exec(key);
+    if (!match || typeof value !== "string" || value === "") continue;
+    const questionId = match[1];
+    const kindValue = form.get(`qkind_${questionId}`);
+    const kind = typeof kindValue === "string" ? kindValue : "";
+    if (kind === "boolean") {
+      submissions.push({ questionId, boolean: value === "true" });
+    } else if (kind === "choice") {
+      submissions.push({ questionId, choice: value });
+    } else {
+      submissions.push({ questionId, text: value });
+    }
+  }
+  return submissions;
 }
 
 /**
@@ -316,16 +371,6 @@ export interface PlayerHome {
 }
 
 /**
- * Q-20's ruling: the main sections show only events within this many days;
- * everything beyond sits in one separate section the player can open.
- * `REQ-approved-means-visible` is unaffected — nothing is hidden, only moved
- * further down the same page. A single named constant, not a setting: Brian,
- * 2026-08-26, "I'd rather get this out and see what the functionality looks
- * like rather than change it."
- */
-export const PLAYER_HOME_HORIZON_DAYS = 21;
-
-/**
  * A standing No still carrying the honest default, or a Yes still owing
  * questions. Exported so the page can classify a mixed `furtherOut` entry the
  * same way the four near-term sections already were.
@@ -399,7 +444,7 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
                  and nj.job_type = 'reminder'
                  and nj.status = 'completed'
             ) as reminder_sent,
-            ${EVENT_START_EXPRESSION} > now() + make_interval(days => ${PLAYER_HOME_HORIZON_DAYS}) as beyond_horizon
+            not (${eventWithinHorizonExpression("e")}) as beyond_horizon
        from public.invitations i
        join public.events e on e.id = i.event_id
        left join public.season_memberships m on m.id = i.season_membership_id

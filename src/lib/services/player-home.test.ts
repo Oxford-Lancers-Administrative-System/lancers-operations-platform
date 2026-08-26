@@ -318,6 +318,35 @@ describe("the answer-specific landing content", () => {
     expect(landing.otherOutstandingCount).toBe(1);
   });
 
+  it("scopes otherOutstandingCount to the same 21-day horizon outstandingCount uses — OWNER-LAN172-15", async () => {
+    // Brian's own report: a heading reading "No outstanding events" beside a
+    // sentence reading "You have 3 other invitations still waiting" — each
+    // individually correct against a different window. Q-26 already scoped
+    // outstandingCount to the horizon in round 3; this pins the landing
+    // page's own count to the same one shared definition.
+    const { invitationId, personId } = await fixture(48, "-out-horizon");
+    await secondInvitationFor(personId, 24 * 30, "-out-horizon-far");
+
+    const landing = await withTransaction((tx) => readPlayerAnswerLandingIn(tx, invitationId));
+    expect(landing.otherOutstandingCount).toBe(0);
+  });
+
+  it("keeps otherOutstandingCount and outstandingCount counting the exact same set of other invitations", async () => {
+    const { invitationId, personId } = await fixture(48, "-out-agree");
+    await secondInvitationFor(personId, 72, "-out-agree-near");
+    await secondInvitationFor(personId, 24 * 30, "-out-agree-far");
+
+    const landing = await withTransaction((tx) => readPlayerAnswerLandingIn(tx, invitationId));
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, personId));
+    // This invitation itself is answered-for by being "the one asked about"
+    // on the landing side, but is otherwise unanswered on the home side, so
+    // outstandingCount (which counts every unanswered near-term invitation,
+    // including this one) is exactly one more than otherOutstandingCount
+    // (which excludes it) — the two windows agree once that one invitation
+    // is accounted for.
+    expect(home.outstandingCount).toBe(landing.otherOutstandingCount + 1);
+  });
+
   it("returns the event's questions filtered by capacity, with current answers", async () => {
     const { invitationId, eventId } = await fixture(48, "-q");
     const applicable = await observer.query<{ id: string }>(

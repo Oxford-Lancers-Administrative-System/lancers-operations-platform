@@ -37,15 +37,31 @@ export {
 // so they know they are on the right page. No other personal detail.
 // ---------------------------------------------------------------------------
 
-export function pageHeading(outstandingCount: number): string {
-  if (outstandingCount === 0) return NO_OUTSTANDING_EVENTS;
-  return outstandingCount === 1
-    ? "You have 1 invitation to answer"
-    : `You have ${outstandingCount} invitations to answer`;
+/**
+ * Owner correction round 5 (OWNER-LAN172-14). Brian saw "No outstanding
+ * events — you have answered every invitation waiting for you" directly
+ * above an open, required question. `outstandingCount` (Q-26) counts only
+ * unanswered invitations, on purpose, and stays that way — this finding does
+ * not touch its horizon scoping. What changes is the heading's own claim:
+ * "nothing else needs an answer" is false whenever `Follow-up needed` is
+ * non-empty, so a second, honest heading covers that case instead of
+ * silently reusing the empty-queue one.
+ */
+export function pageHeading(outstandingCount: number, hasFollowUpNeeded: boolean): string {
+  if (outstandingCount > 0) {
+    return outstandingCount === 1
+      ? "You have 1 invitation to answer"
+      : `You have ${outstandingCount} invitations to answer`;
+  }
+  return hasFollowUpNeeded ? FOLLOW_UP_ONLY_HEADING : NO_OUTSTANDING_EVENTS;
 }
+
+export const FOLLOW_UP_ONLY_HEADING = "You have follow-up work to finish";
 
 export const HEADING_HELP =
   "Answer the next one now. Below that, everything you have already answered and that is still to come.";
+export const FOLLOW_UP_ONLY_HELP =
+  "Nothing new needs an answer, but a standing answer below still needs a reason or a question finished.";
 export const EMPTY_HELP =
   "You have answered every invitation waiting for you. Nothing else needs an answer right now.";
 

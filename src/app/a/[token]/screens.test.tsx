@@ -145,16 +145,20 @@ describe("OWNER-LAN172-01 — the restored fact block", () => {
   });
 });
 
-describe("OWNER-LAN172-01 — the No heading no longer over-claims before the tap", () => {
-  it("does not assert the standing-No default before the answer is recorded — REQ-click-is-the-answer", async () => {
+describe("OWNER-LAN172-13 — the No heading, restored to W2's own words", () => {
+  it("leads with 'You're not attending — no reason given', per W2's No-path section verbatim", async () => {
+    // Owner correction round 5 supersedes round 2's LAN-172-c2: the Mission
+    // Lead read W2-answer-an-invitation.md lines 160-190 in full and quoted
+    // it directly — "Lead with You're not attending — no reason given... The
+    // wording must never suggest the No is unrecorded until a reason
+    // arrives. The click already recorded it." Q-11 is unaffected: this GET
+    // still writes nothing; the heading describes the player's own WhatsApp
+    // choice and the reason field's honest current value, not a database row.
     givenAnswer("no");
     const text = (await renderPage()).container.textContent ?? "";
 
     expect(text).toContain(NO_HEADING);
-    // The regression this proves: the heading used to read "You're not
-    // attending — no reason given" on the side-effect-free GET, asserting a
-    // standing-No default that does not exist until the POST records it.
-    expect(text).not.toMatch(/no reason given/i);
+    expect(NO_HEADING).toBe("You're not attending — no reason given");
   });
 });
 
@@ -174,10 +178,73 @@ describe("OWNER-LAN172-10 — the on-page confirm button names what happens next
     expect(text).toContain(YES_CONFIRM_NO_QUESTIONS);
   });
 
-  it("leaves the No button reusing the message's own label — Brian did not single it out", async () => {
+  it("no longer shows a single confirm button reusing the message's own No label — OWNER-LAN172-13 replaced it", async () => {
+    // The round-3 single "No give reason" confirm button (reusing
+    // NO_BUTTON_LABEL, Q-10's message-only contract) no longer exists on
+    // this page: round 5 replaces it with the reason field and the two
+    // forward controls W2's No-path section names.
     givenAnswer("no");
     const text = (await renderPage()).container.textContent ?? "";
 
-    expect(text).toContain(NO_BUTTON_LABEL);
+    expect(text).not.toContain(NO_BUTTON_LABEL);
+  });
+});
+
+describe("OWNER-LAN172-12 — the Yes landing asks the event's own questions itself", () => {
+  it("renders the applicable question inline, in the same page as the confirm button — no second click to a second page", async () => {
+    // Brian: "If I have the yes option, the answers should be yes. I
+    // shouldn't have to click twice to get to the answers." W2 line 61: the
+    // Yes landing "asks applicable event questions."
+    givenAnswer("yes", [QUESTION]);
+    const { container } = await renderPage();
+    const text = container.textContent ?? "";
+
+    expect(text).toContain(QUESTION.prompt);
+    // One <form>, one submit — the question field and the confirm button
+    // share it, so one click saves both.
+    const form = container.querySelector("form");
+    expect(form?.textContent ?? "").toContain(QUESTION.prompt);
+    expect(form?.textContent ?? "").toContain(YES_CONFIRM_WITH_QUESTIONS);
+  });
+
+  it("renders no question section for a Yes with no applicable questions", async () => {
+    givenAnswer("yes", []);
+    const { container } = await renderPage();
+    const text = container.textContent ?? "";
+
+    expect(text).not.toContain("A couple of questions");
+  });
+
+  it("still offers 'Plans changed?' to change to No, visually secondary, per W2's Yes-path section", async () => {
+    givenAnswer("yes", [QUESTION]);
+    const text = (await renderPage()).container.textContent ?? "";
+
+    expect(text).toContain("Plans changed? You can change your answer.");
+  });
+});
+
+describe("OWNER-LAN172-13 — the No landing takes the reason itself", () => {
+  it("renders the reason field, 'Give a reason and continue', and 'Change to Yes' as the two forward controls", async () => {
+    // Brian: "If I click no on the answer, I should go to the page, and I
+    // should have the reason sit in there."
+    givenAnswer("no");
+    const { container } = await renderPage();
+    const text = container.textContent ?? "";
+
+    expect(container.querySelector('input[name="reason"], textarea[name="reason"]')).not.toBeNull();
+    expect(text).toContain("Give a reason and continue");
+    expect(text).toContain("Change to Yes");
+  });
+
+  it("offers no separate continue control competing with 'Give a reason and continue'", async () => {
+    givenAnswer("no");
+    const { container } = await renderPage();
+    const buttons = Array.from(container.querySelectorAll("button")).map(
+      (button) => button.textContent,
+    );
+
+    // Exactly two forward controls on the No page: the reason form's own
+    // pair. No third "confirm"/"continue" button competes with either.
+    expect(buttons.filter((label) => /continue/i.test(label ?? ""))).toHaveLength(1);
   });
 });

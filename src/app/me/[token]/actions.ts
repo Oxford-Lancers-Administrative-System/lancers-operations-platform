@@ -13,8 +13,8 @@ import {
 } from "@/lib/rsvp/public-surface";
 import {
   answerEventQuestionsIn,
+  parseQuestionSubmissions,
   recordPlayerHomeAnswerIn,
-  type QuestionAnswerSubmission,
 } from "@/lib/services/player-home";
 import { NO_REASON_GIVEN_DEFAULT, resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
 
@@ -59,11 +59,28 @@ function homeUrl(token: string, invitationId: string): string {
   return `/me/${encodeURIComponent(token)}?open=${encodeURIComponent(invitationId)}`;
 }
 
+/**
+ * Owner correction round 5 (OWNER-LAN172-16). Brian: "Once I click Save, the
+ * box should go away, and I should just go back to the normal page." /
+ * "If I click save or change to yes, that should be at the end of it." A
+ * successful save is a completed interaction, not an invitation to keep the
+ * panel open — the plain page, with the result already reflected in its
+ * list, is the confirmation. Only a *revising* Change to Yes (an existing
+ * standing answer, from `ChangeToYesButton`) and the panel's own Save
+ * actions set `close=1`; a brand-new answer from `MiniYesNo` does not, so a
+ * fresh Yes with required questions still opens the panel to ask them —
+ * that path is untouched by this finding.
+ */
+function plainHomeUrl(token: string): string {
+  return `/me/${encodeURIComponent(token)}`;
+}
+
 /** The one-click "Yes, I'm attending" / "Change to Yes" control. */
 export async function changeToYes(form: FormData): Promise<void> {
   const startedAt = startUniformClock();
   const token = tokenFrom(form);
   const invitationId = str(form, "invitationId");
+  const close = str(form, "close") === "1";
   const encodedToken = encodeURIComponent(token);
 
   if (await throttled(token)) await refuse(`/me/${encodedToken}`, startedAt);
@@ -82,7 +99,7 @@ export async function changeToYes(form: FormData): Promise<void> {
     await refuse(`/me/${encodedToken}`, startedAt);
   }
 
-  redirect(homeUrl(token, invitationId));
+  redirect(close ? plainHomeUrl(token) : homeUrl(token, invitationId));
 }
 
 /**
@@ -109,6 +126,7 @@ export async function submitNo(form: FormData): Promise<void> {
   const defaultOk = str(form, "defaultOk") === "1";
   const typedReason = str(form, "reason");
   const reason = typedReason === "" && defaultOk ? NO_REASON_GIVEN_DEFAULT : typedReason;
+  const close = str(form, "close") === "1";
   const encodedToken = encodeURIComponent(token);
 
   if (await throttled(token)) await refuse(`/me/${encodedToken}`, startedAt);
@@ -128,10 +146,12 @@ export async function submitNo(form: FormData): Promise<void> {
     // A blank reason is exactly as recoverable as LAN-79's own decline step,
     // so it returns to the same focused panel rather than the uniform
     // refusal — the player is mid-answer and should not lose their place.
+    // Owner correction round 5 (OWNER-LAN172-16): never closed on a failed
+    // save, `close` or not — the panel stays open to show the error.
     redirect(`${homeUrl(token, invitationId)}&reasonError=1`);
   }
 
-  redirect(homeUrl(token, invitationId));
+  redirect(close ? plainHomeUrl(token) : homeUrl(token, invitationId));
 }
 
 /** Saves the event's own questions for one already-standing Yes. */
@@ -143,20 +163,7 @@ export async function submitQuestions(form: FormData): Promise<void> {
 
   if (await throttled(token)) await refuse(`/me/${encodedToken}`, startedAt);
 
-  const submissions: QuestionAnswerSubmission[] = [];
-  for (const [key, value] of form.entries()) {
-    const match = /^q_(.+)$/.exec(key);
-    if (!match || typeof value !== "string" || value === "") continue;
-    const questionId = match[1];
-    const kind = str(form, `qkind_${questionId}`);
-    if (kind === "boolean") {
-      submissions.push({ questionId, boolean: value === "true" });
-    } else if (kind === "choice") {
-      submissions.push({ questionId, choice: value });
-    } else {
-      submissions.push({ questionId, text: value });
-    }
-  }
+  const submissions = parseQuestionSubmissions(form);
 
   try {
     await withTransaction(async (tx) => {
@@ -170,5 +177,8 @@ export async function submitQuestions(form: FormData): Promise<void> {
     await refuse(`/me/${encodedToken}`, startedAt);
   }
 
-  redirect(homeUrl(token, invitationId));
+  // Owner correction round 5 (OWNER-LAN172-16): a successful save always
+  // closes the panel — the only caller of this action is the panel's own
+  // questions form, so there is no "fresh answer" case to preserve here.
+  redirect(plainHomeUrl(token));
 }

@@ -320,12 +320,31 @@ function closedAnswerLinkMessage(): string {
  * whatever `current_rsvp` says, so a reload after consumption is not stale —
  * it is simply not this function's job to report it; the caller reads the page
  * fresh either way.
+ *
+ * Owner correction round 5 (OWNER-LAN172-12, OWNER-LAN172-13). `options`
+ * lets the landing page's own single combined submit both record what the
+ * token itself encodes (the ordinary case — `options` omitted, `response`
+ * defaults to the token's own `y`/`n`) and the two same-page shortcuts W2
+ * asks for: "Plans changed?" on the Yes page and "Change to Yes" on the No
+ * page each record the *opposite* of what this specific token encodes.
+ * Nothing about this widens what a token can prove — every lookup below is
+ * still keyed on this exact token's hash and this exact invitation, so
+ * `options.response` only ever changes *what this already-authenticated
+ * person's own click means*, never *whose* click it is. `options.reason`
+ * carries the player's own typed text, if any, from the same page's reason
+ * field, replacing the earlier hardcoded default — a blank or omitted reason
+ * still falls back to `NO_REASON_GIVEN_DEFAULT`, exactly as before.
  */
-export async function consumeAnswerTokenIn(tx: Tx, token: string): Promise<RecordedPlayerAnswer> {
+export async function consumeAnswerTokenIn(
+  tx: Tx,
+  token: string,
+  options: { response?: PlayerAnswer; reason?: string | null } = {},
+): Promise<RecordedPlayerAnswer> {
   const parsed = parseAnswerToken(token);
   if (!parsed) {
     throw new InvalidTransition(closedAnswerLinkMessage(), { rule: ANSWER_TOKEN_CLOSED_RULE });
   }
+  const response = options.response ?? parsed.answer;
 
   const result = await tx.query<{
     token_id: string;
@@ -369,7 +388,7 @@ export async function consumeAnswerTokenIn(tx: Tx, token: string): Promise<Recor
   if (row.single_use_at !== null) {
     return {
       invitationId: parsed.invitationId,
-      answer: parsed.answer,
+      answer: response,
       personId: row.person_id,
       seasonId: row.season_id,
       recorded: false,
@@ -384,15 +403,15 @@ export async function consumeAnswerTokenIn(tx: Tx, token: string): Promise<Recor
     tx,
     parsed.invitationId,
     {
-      response: parsed.answer,
-      reason: parsed.answer === "no" ? NO_REASON_GIVEN_DEFAULT : null,
+      response,
+      reason: response === "no" ? options.reason?.trim() || NO_REASON_GIVEN_DEFAULT : null,
     },
     { actorLabel: "player: WhatsApp/email answer link", source: "signed_link" },
   );
 
   return {
     invitationId: parsed.invitationId,
-    answer: parsed.answer,
+    answer: response,
     personId: row.person_id,
     seasonId: row.season_id,
     recorded: true,

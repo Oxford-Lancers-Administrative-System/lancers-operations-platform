@@ -441,6 +441,55 @@ describe("consuming an answer token", () => {
     );
     expect(Number(responses.rows[0].count)).toBe(0);
   });
+
+  it("records the opposite of what the token itself encodes when `options.response` overrides it — OWNER-LAN172-13's 'Change to Yes'", async () => {
+    // The No page's own "Change to Yes" and the Yes page's own "Plans
+    // changed?" both submit through this exact one-time token, asking for
+    // the opposite answer. The token's identity proof (whose hash matched,
+    // which invitation) is untouched — only what gets recorded changes.
+    const { invitationId } = await fixture(48);
+    const no = await withTransaction((tx) => issueAnswerTokenIn(tx, invitationId, "no"));
+
+    const recorded = await withTransaction((tx) =>
+      consumeAnswerTokenIn(tx, no.token, { response: "yes" }),
+    );
+    expect(recorded.answer).toBe("yes");
+
+    const response = await observer.query<{ response: string; reason: string | null }>(
+      "select response::text as response, reason from public.rsvp_responses where invitation_id = $1",
+      [invitationId],
+    );
+    expect(response.rows[0].response).toBe("yes");
+    expect(response.rows[0].reason).toBeNull();
+  });
+
+  it("records the player's own typed reason instead of the default when the landing page's own reason field carried one — OWNER-LAN172-13", async () => {
+    const { invitationId } = await fixture(48);
+    const no = await withTransaction((tx) => issueAnswerTokenIn(tx, invitationId, "no"));
+
+    await withTransaction((tx) =>
+      consumeAnswerTokenIn(tx, no.token, { reason: "Family commitment" }),
+    );
+
+    const response = await observer.query<{ reason: string | null }>(
+      "select reason from public.rsvp_responses where invitation_id = $1",
+      [invitationId],
+    );
+    expect(response.rows[0].reason).toBe("Family commitment");
+  });
+
+  it("still defaults to the honest 'No reason given' when the reason field was left blank", async () => {
+    const { invitationId } = await fixture(48);
+    const no = await withTransaction((tx) => issueAnswerTokenIn(tx, invitationId, "no"));
+
+    await withTransaction((tx) => consumeAnswerTokenIn(tx, no.token, { reason: "" }));
+
+    const response = await observer.query<{ reason: string | null }>(
+      "select reason from public.rsvp_responses where invitation_id = $1",
+      [invitationId],
+    );
+    expect(response.rows[0].reason).toBe(NO_REASON_GIVEN_DEFAULT);
+  });
 });
 
 describe("the durable person credential", () => {

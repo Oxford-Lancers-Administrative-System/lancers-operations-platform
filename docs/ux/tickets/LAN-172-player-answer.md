@@ -51,17 +51,30 @@ the sections below for what each screen now shows.
 
 **W2-03 and W2-04 are two steps, not two routes**, and that division is what
 Q-11 actually delegates: the GET (`/a/[token]`) stays entirely side-effect-free
-per `REQ-no-false-rsvp`, so it can never carry a form that writes — the event's
-own questions, or a No's reason — before the one-time token has been consumed.
-What it can and now does show is every fact the mockup draws for these two
-screens: the player's name, venue, response deadline and standing answer, live
-social proof, and the other-invitations notice. The write-bearing follow-up —
-the event's questions after a Yes, the reason box after a No — lives on
-`/me/[token]` in a focused panel opened by `?open=<invitationId>`, entered with
-the answer already taken (Q-21: "the same answer surface, opened in place").
-That panel now carries the same full fact block and notices, so it is the one
-richly detailed answer surface the mockup draws — not the stripped-down
-confirmation the first draft of this ticket shipped instead.
+per `REQ-no-false-rsvp`, so it can never write on its own — the event's own
+questions, or a No's reason, are never recorded merely by the page rendering.
+What the GET shows is every fact the mockup draws for these two screens: the
+player's name, venue, response deadline and standing answer, live social
+proof, and the other-invitations notice.
+
+**Correction round 5 (OWNER-LAN172-12, OWNER-LAN172-13) moves the follow-up
+itself onto this same GET's page**, superseding round 2's placement of it on
+`/me/[token]` alone. Brian, more than once: _"I shouldn't have to click twice
+to get to the answers"_ and _"If I click no on the answer, I should go to the
+page, and I should have the reason sit in there."_ W2 line 61 already said
+this: the Yes landing "asks applicable event questions"; the No-path section:
+"the reason field belongs on that page." The event's questions (Yes) or the
+reason field (No) now render directly on `/a/[token]`'s own page, inside the
+**same `<form>`** as the confirm button — one submit records the RSVP and
+saves the follow-up together. This does not touch Q-11: the GET is exactly as
+side-effect-free as before (the form is markup, not a write), and the POST is
+still the one, single, cookie-gated action (`submitAnswer`) that already
+protected the RSVP recording — no second gate was added, and no existing one
+was widened. `/me/[token]`'s own focused panel is unchanged and still exists:
+it is where a player who used "New invitations"/"Still need your answer" on
+their own durable page (never touched a WhatsApp link) answers the same
+follow-up, and where anyone can return later to finish what the landing page's
+one visit did not (an optional question left blank, for instance).
 
 ## Wireframes
 
@@ -77,9 +90,11 @@ packet mockup is the named source per the brief.
   body copy, no count on the first message, an accurate live Yes count from the
   second rung onward.
 - `/a/[token]` — the one-time answer link. A side-effect-free GET (Q-11):
-  resolves the token, renders the answer-specific state, and writes nothing,
-  not even a use counter. A cookie-gated POST that consumes the token, records
-  the response, and mints a fresh durable credential in the same transaction.
+  resolves the token, renders the answer-specific state and, since round 5,
+  the applicable event questions (Yes) or the reason field (No) inline, and
+  writes nothing, not even a use counter. A cookie-gated POST that consumes
+  the token, records the response, saves whatever follow-up the same form
+  carried, and mints a fresh durable credential, all in the same transaction.
 - `/me/[token]` — the player's durable, season-scoped page. The four approved
   sections in order (New invitations, Still need your answer, Follow-up
   needed, Your answers — still to come), the single soonest unanswered
@@ -123,7 +138,15 @@ cookie returns; the token is single-use at POST; no user-agent sniffing. The
 accepted deviation is the no-JavaScript single control on `/a/[token]`, worded
 as the answer action and never as a confirmation. Untouched by correction
 round 3: the GET still writes nothing, the POST is still cookie-gated and
-single-use.
+single-use. Untouched by correction round 5 too, which folds the event's
+questions (Yes) or the reason field (No) into that same one control's own
+`<form>` rather than adding a second write path: still one cookie check
+before any transaction opens, still one action (`submitAnswer`), still a
+single-use token. The two same-page shortcuts round 5 adds — "Plans changed?"
+on the Yes page, "Change to Yes" on the No page — post through this identical
+action with an `intent` field the way `submitAnswer` already reads any other
+form field; they do not create, weaken or bypass a gate, because there is
+still only the one.
 
 Implementation: the cookie is set by `src/proxy.ts`, not by the page — a
 Server Component's render may not mutate cookies in this framework — scoped by
@@ -149,8 +172,14 @@ message's own labels; the on-page button is a second, separate control the
 player only sees after already arriving, and is free to name what happens
 next. It now reads **"Save options"** when the event has questions waiting, or
 **"Go see other events"** when it does not (`confirmLabel`, `hasQuestions`
-param). The No button is untouched — Brian did not ask to change it — and
-still reuses `NO_BUTTON_LABEL` verbatim.
+param).
+
+**Correction round 5 (OWNER-LAN172-13) replaces the No page's single
+confirm button entirely.** The button that used to read `NO_BUTTON_LABEL`
+verbatim ("No give reason") is gone — Brian: _"'No, give reason' is a dumb
+thing"_ — not renamed but removed, replaced by the reason field and its own
+two controls (below). `NO_BUTTON_LABEL` itself is untouched as the message's
+own Q-10 contract; it simply has no on-page button reusing it any more.
 
 ## Owner-resolved contract — Q-12, the cancellation scope
 
@@ -164,21 +193,28 @@ every answer path already used.
 
 - **A No is standing from the click**, with the visible default **"No reason
   given"**. The `/a/[token]` POST records exactly this default
-  (`NO_REASON_GIVEN_DEFAULT`); no copy anywhere implies the No is unrecorded
-  until a reason arrives. Adding a real reason from the durable page's focused
-  panel appends a new `rsvp_responses` row (via the same `recordAnswerIn`) and
-  never edits history.
+  (`NO_REASON_GIVEN_DEFAULT`) when the reason field was left blank — round 5
+  puts that field on the same page and the same submit, so a real reason typed
+  there is recorded immediately instead of defaulting. No copy anywhere
+  implies the No is unrecorded until a reason arrives. Adding or changing a
+  reason later, from the durable page's focused panel, appends a new
+  `rsvp_responses` row (via the same `recordAnswerIn`) and never edits history.
 - **A Yes is standing while required event questions remain outstanding**,
   qualified separately as "Additional questions outstanding" on both the
-  durable page's summary rows and its focused panel.
+  durable page's summary rows and its focused panel. Round 5 lets a Yes
+  answer those questions in the same submit that records the RSVP, on
+  `/a/[token]` itself; the focused panel still asks whatever was left
+  unanswered.
 - Either click **cancels every later player-facing job and clears an
   un-actioned nonresponse flag in the same transaction** — inherited from
   `recordAnswerIn`/`stopChasingIn`, not reimplemented here.
 - **Emphasis always points at Yes.** The Yes control is filled (`success`) on
-  every surface this ticket ships; every No control is unfilled, including on
-  `/a/[token]` where it is the only control in its row. Standing-answer colour
-  follows `src/app/participation/participation-table.tsx`: Yes `success`, No
-  `error`.
+  every surface this ticket ships; every No control is unfilled. On
+  `/a/[token]`'s No page (round 5), that means **"Give a reason and
+  continue"** (unfilled) beside **"Change to Yes"** (filled) — two controls
+  now, not one, with the rule applied to each by what it means, not by which
+  row it sits in. Standing-answer colour follows
+  `src/app/participation/participation-table.tsx`: Yes `success`, No `error`.
 
 ## The player's own page
 
@@ -200,6 +236,29 @@ invitations that are both approved and within the horizon — exactly the set
 outstanding work sits beyond the horizon sees a heading of **zero** and their
 work in Further ahead — that is intended, not a bug. Beyond-horizon events
 stay fully reachable there, so `REQ-approved-means-visible` is unaffected.
+
+**Correction round 5 (OWNER-LAN172-14): the heading never denies live
+follow-up work.** Brian saw **"No outstanding events — you have answered
+every invitation waiting for you. Nothing else needs an answer right now."**
+directly above an open, required question. `outstandingCount` legitimately
+reads zero in that state — it counts only `response === null`, unchanged by
+this finding — but the heading's own sentence was false: something did still
+need finishing. `pageHeading` now takes a second signal,
+`followUpNeeded.length > 0`, and reads **"You have follow-up work to
+finish"** with its own honest help text whenever there is no new work but a
+standing answer still owes a reason or a question. The genuinely empty
+state — no outstanding count and no follow-up — is unchanged.
+
+**Correction round 5 (OWNER-LAN172-15): two counters, one shared
+definition.** Brian, on one screen: the heading read zero outstanding while
+the panel below it read "You have 3 other invitations still waiting for an
+answer." `otherOutstandingCount` (`readPlayerAnswerLandingIn`) had no horizon
+at all, while `outstandingCount` had been scoped to Q-26's 21 days since
+round 3 — two correct numbers, two different windows, reading as one bug.
+Both now read the same `eventWithinHorizonExpression` helper in
+`player-home.ts`, so they cannot drift apart again; `otherOutstandingSentence`
+on `/a/[token]` inherits the fix from the same source, with no separate change
+needed there.
 
 **Correction round 2 (Q-22): the four approved sections, restored.** The first
 draft collapsed the workflow's three-way split of unanswered work to two
@@ -291,6 +350,24 @@ question at all, so an all-optional event's questions are shown (and can be
 answered and saved) at least once, while a mixed event's approved behaviour —
 collapsing once the required ones are done, optional or not — is unchanged.
 
+**Correction round 5 (OWNER-LAN172-16): saving ends the interaction, not just
+the form.** Brian: _"Once I click Save, the box should go away, and I should
+just go back to the normal page."_ and _"If I click save or change to yes,
+that should be at the end of it."_ Rounds 3 and 4 replaced the re-shown form
+with an acknowledgement inside the still-open panel; Brian's own words go
+further — the panel itself should close, returning the player to the ordinary
+page with the result already reflected in its list. `submitNo`'s own Save
+form, `submitQuestions`, and the panel's own "Change to Yes" now redirect to
+the plain `/me/[token]` (no `open=`) on success, instead of reopening the same
+panel. A failed save is not a success: `submitNo`'s `reasonError` path is
+unchanged and still reopens the same panel with the error visible — closing
+is the confirmation a write actually happened, never a way to hide that it
+did not. `ChangeToYesButton` (the row's own control) always closes, since it
+only ever revises an _existing_ standing answer; `MiniYesNo`'s one-tap Yes for
+a _brand-new_ invitation is untouched and still opens the panel when there are
+questions to ask, because that is the only place left to ask them once
+`/a/[token]`'s own token has already been spent.
+
 **Correction round 3 (OWNER-LAN172-11): the row's secondary control.** Brian:
 _"Change to 'no' should just say 'change answer.' It should not say 'change to
 no.'"_ `REQ-emphasis-points-at-yes` governs the control's fill and weight, not
@@ -313,9 +390,16 @@ already lives with.
 
 **Cross-person isolation is proved by test.** `resolveAnswerTokenIn` cross-checks
 the token's own `person_id` against the invitation it names before returning
-anything; `recordPlayerHomeAnswerIn` re-proves ownership inside the write
-transaction for every durable-page write; `readPlayerHomeIn` is scoped
-entirely by the resolved `personId`. All three are exercised in
+anything; `consumeAnswerTokenIn` re-proves the same match inside the write
+transaction (`for update of t`) before recording anything, whatever `response`
+override or reason `submitAnswer` passes it — round 5's "Change to Yes" and
+"Plans changed?" shortcuts change _what_ gets recorded, never _whose_ token
+resolved; `recordPlayerHomeAnswerIn` re-proves ownership inside the write
+transaction for every durable-page write; `answerEventQuestionsIn` re-proves
+the invitation belongs to the resolved `personId` before saving any question
+answer, on both call sites that now use it (`/a/[token]`'s own submit and
+`/me/[token]`'s focused panel); `readPlayerHomeIn` is scoped entirely by the
+resolved `personId`. All of these are exercised in
 `src/lib/services/player-answer-tokens.test.ts` and
 `src/lib/services/player-home.test.ts`, including a token whose invitation id
 has been substituted for somebody else's.
@@ -385,6 +469,22 @@ ticket), `REQ-attendance-not-absence`, `REQ-plain-first-contact`,
       "Answer recorded" once they are — a mixed event's approved behaviour
       (collapse once the required ones are done, regardless of an unanswered
       optional one) is unchanged (`screens.test.tsx`).
+- [x] **Correction round 5, from Brian's continued walkthrough (five
+      findings):** the Yes landing on `/a/[token]` asks the event's own
+      questions inline, in the same form as the confirm button
+      (OWNER-LAN172-12); the No landing takes the reason itself, with "Give a
+      reason and continue" and "Change to Yes" as its only two forward
+      controls (OWNER-LAN172-13); the durable page's heading never denies
+      live follow-up work (OWNER-LAN172-14); the heading's count and the
+      landing page's other-outstanding sentence read the same horizon-scoped
+      number and cannot drift apart (OWNER-LAN172-15); saving a reason, saving
+      questions, or changing to Yes each end at the plain page, not a
+      re-opened panel (OWNER-LAN172-16) — Q-11's release gate, cross-person
+      isolation and `/me/[token]`'s own focused panel are all unchanged;
+      compared state-by-state against the mockup's `yesPage()` and `noPage()`
+      and the durable page's heading and focused panel, at desktop and true
+      375px, including the post-save closed state — see the pull request for
+      the exact states compared and their screenshots.
 
 ## Boundaries
 

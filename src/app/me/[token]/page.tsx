@@ -4,7 +4,6 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
-import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
@@ -22,12 +21,12 @@ import {
   needsFollowUp,
   readPlayerAnswerLandingIn,
   readPlayerHomeIn,
-  type EventQuestionForAnswer,
   type PlayerAnswerLanding,
   type PlayerHome,
   type PlayerHomeInvitation,
 } from "@/lib/services/player-home";
 
+import { QuestionField } from "@/app/a/[token]/question-field";
 import { changeToYes, submitNo, submitQuestions } from "./actions";
 import {
   ADD_REASON,
@@ -46,6 +45,7 @@ import {
   EMPTY_HELP,
   FOLLOW_UP_HEADING,
   FOLLOW_UP_NO_REASON_SENTENCE,
+  FOLLOW_UP_ONLY_HELP,
   FOLLOW_UP_QUESTIONS_SENTENCE,
   formatDeadline,
   formatEventDate,
@@ -180,10 +180,14 @@ export default async function PlayerHomePage({ params, searchParams }: PageProps
             </Typography>
           ) : null}
           <Typography component="h1" sx={{ fontSize: { xs: 24, sm: 28 }, fontWeight: 700 }}>
-            {pageHeading(home.outstandingCount)}
+            {pageHeading(home.outstandingCount, home.followUpNeeded.length > 0)}
           </Typography>
           <Typography sx={{ fontSize: 14, color: "text.secondary", mt: 1 }}>
-            {home.outstandingCount === 0 ? EMPTY_HELP : HEADING_HELP}
+            {home.outstandingCount > 0
+              ? HEADING_HELP
+              : home.followUpNeeded.length > 0
+                ? FOLLOW_UP_ONLY_HELP
+                : EMPTY_HELP}
           </Typography>
           <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 1.5 }}>
             {PRIVACY_NOTE}
@@ -386,6 +390,10 @@ function ChangeToYesButton({ token, invitationId }: { token: string; invitationI
     <Box component="form" action={changeToYes} sx={{ flex: 1, minWidth: 0 }}>
       <input type="hidden" name="token" value={token} />
       <input type="hidden" name="invitationId" value={invitationId} />
+      {/* Owner correction round 5 (OWNER-LAN172-16): this button always
+          revises an existing standing answer, never a fresh one — Brian's
+          "if I click ... change to yes, that should be at the end of it." */}
+      <input type="hidden" name="close" value="1" />
       <Button type="submit" variant="contained" color="success" fullWidth sx={{ minHeight: 40 }}>
         {CHANGE_TO_YES}
       </Button>
@@ -523,74 +531,6 @@ function SummaryRow({
         </Box>
       </Stack>
     </Box>
-  );
-}
-
-function QuestionField({ question }: { question: EventQuestionForAnswer }) {
-  const name = `q_${question.id}`;
-  const kindField = (
-    <input type="hidden" name={`qkind_${question.id}`} value={question.answerType} />
-  );
-
-  if (question.answerType === "boolean") {
-    return (
-      <>
-        {kindField}
-        <TextField
-          select
-          name={name}
-          label={question.prompt}
-          required={question.isRequired}
-          fullWidth
-          defaultValue={
-            question.currentAnswer?.boolean === true
-              ? "true"
-              : question.currentAnswer?.boolean === false
-                ? "false"
-                : ""
-          }
-        >
-          <MenuItem value="">(no answer)</MenuItem>
-          <MenuItem value="true">Yes</MenuItem>
-          <MenuItem value="false">No</MenuItem>
-        </TextField>
-      </>
-    );
-  }
-  if (question.answerType === "choice") {
-    return (
-      <>
-        {kindField}
-        <TextField
-          select
-          name={name}
-          label={question.prompt}
-          required={question.isRequired}
-          fullWidth
-          defaultValue={question.currentAnswer?.choice ?? ""}
-        >
-          <MenuItem value="">(no answer)</MenuItem>
-          {(question.choices ?? []).map((choice) => (
-            <MenuItem key={choice} value={choice}>
-              {choice}
-            </MenuItem>
-          ))}
-        </TextField>
-      </>
-    );
-  }
-  return (
-    <>
-      {kindField}
-      <TextField
-        name={name}
-        label={question.prompt}
-        required={question.isRequired}
-        fullWidth
-        defaultValue={question.currentAnswer?.text ?? ""}
-        slotProps={{ htmlInput: { maxLength: 500 } }}
-      />
-    </>
   );
 }
 
@@ -765,6 +705,11 @@ function FocusedPanel({
         <Box component="form" action={submitNo} sx={{ mb: 2 }}>
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="invitationId" value={invitation.invitationId} />
+          {/* Owner correction round 5 (OWNER-LAN172-16): "once I click Save,
+              the box should go away" — a successful save closes the panel; a
+              failed one (reasonError) still reopens it, unaffected by this
+              flag (the catch branch in submitNo never reads `close`). */}
+          <input type="hidden" name="close" value="1" />
           <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 1 }}>
             {REASON_PROMPT}
           </Typography>
@@ -789,6 +734,9 @@ function FocusedPanel({
         <Box component="form" action={changeToYes} sx={{ mb: 2 }}>
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="invitationId" value={invitation.invitationId} />
+          {/* Owner correction round 5 (OWNER-LAN172-16): "that should be at
+              the end of it" — close the panel on a successful change. */}
+          <input type="hidden" name="close" value="1" />
           <Button
             type="submit"
             variant="contained"

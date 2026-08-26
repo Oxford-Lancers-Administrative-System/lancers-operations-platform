@@ -21,10 +21,14 @@ vi.mock("@/lib/db", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/db")>();
   return { ...actual, withTransaction: async (fn: (tx: unknown) => unknown) => fn({}) };
 });
-vi.mock("@/lib/services/player-home", () => ({
-  answerEventQuestionsIn: vi.fn(),
-  recordPlayerHomeAnswerIn: vi.fn(),
-}));
+vi.mock("@/lib/services/player-home", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/player-home")>();
+  return {
+    ...actual,
+    answerEventQuestionsIn: vi.fn(),
+    recordPlayerHomeAnswerIn: vi.fn(),
+  };
+});
 vi.mock("@/lib/services/player-answer-tokens", () => ({
   resolvePersonTokenIn: vi.fn(),
   NO_REASON_GIVEN_DEFAULT: "No reason given",
@@ -109,6 +113,16 @@ describe("changeToYes", () => {
     expect(target).toBe(`/me/${encodeURIComponent(injected)}`);
     expect(recordPlayerHomeAnswerIn).not.toHaveBeenCalled();
   });
+
+  it("closes the panel on a successful change — OWNER-LAN172-16", async () => {
+    // Brian: "If I click save or change to yes, that should be at the end
+    // of it." `ChangeToYesButton` always sends close=1; the row-list's
+    // MiniYesNo (a brand-new, never-answered invitation) does not, and is
+    // proved unaffected by the very first test in this block.
+    const target = await redirectFrom(() => changeToYes(formFor({ close: "1" })));
+
+    expect(target).toBe(`/me/${encodeURIComponent(TOKEN)}`);
+  });
 });
 
 describe("submitNo", () => {
@@ -182,6 +196,30 @@ describe("submitNo", () => {
       `/me/${encodeURIComponent(TOKEN)}?open=${encodeURIComponent(INVITATION_ID)}&reasonError=1`,
     );
   });
+
+  it("closes the panel on a successful save — OWNER-LAN172-16", async () => {
+    // Brian: "Once I click Save, the box should go away, and I should just
+    // go back to the normal page." The panel's own Save form sends close=1.
+    const target = await redirectFrom(() =>
+      submitNo(formFor({ reason: "Academic conflict", close: "1" })),
+    );
+
+    expect(target).toBe(`/me/${encodeURIComponent(TOKEN)}`);
+  });
+
+  it("never closes on a failed save, close=1 or not — the error must stay visible", async () => {
+    vi.mocked(recordPlayerHomeAnswerIn).mockRejectedValueOnce(
+      new ConstraintViolated("Choose a reason before saving Not attending.", {
+        rule: "rsvp_responses_no_requires_a_reason",
+      }),
+    );
+
+    const target = await redirectFrom(() => submitNo(formFor({ reason: "", close: "1" })));
+
+    expect(target).toBe(
+      `/me/${encodeURIComponent(TOKEN)}?open=${encodeURIComponent(INVITATION_ID)}&reasonError=1`,
+    );
+  });
 });
 
 describe("submitQuestions", () => {
@@ -221,6 +259,15 @@ describe("submitQuestions", () => {
       INVITATION_ID,
       [],
     );
+  });
+
+  it("always closes the panel on a successful save — OWNER-LAN172-16", async () => {
+    // Brian: "Once I click Save, the box should go away." Unlike submitNo,
+    // this action has only one caller — the panel's own questions form —
+    // so there is no "fresh answer" case that needs to stay open.
+    const target = await redirectFrom(() => submitQuestions(formFor()));
+
+    expect(target).toBe(`/me/${encodeURIComponent(TOKEN)}`);
   });
 });
 

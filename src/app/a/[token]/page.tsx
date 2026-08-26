@@ -5,6 +5,8 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
 import { withTransaction } from "@/lib/db";
@@ -23,6 +25,7 @@ import {
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
 import { formatDeadline, formatEventDate, formatEventTime } from "@/app/rsvp/[token]/presentation";
 
+import { QuestionField } from "./question-field";
 import { submitAnswer } from "./actions";
 import { ERROR_PARAM } from "./params";
 import {
@@ -33,9 +36,16 @@ import {
   BUSY_MESSAGE,
   CANCELLED_HEADING,
   CANCELLED_NOTE,
+  CHANGE_TO_YES,
+  GIVE_REASON_AND_CONTINUE,
   NO_EXPLANATION,
   NO_HEADING,
+  PLANS_CHANGED,
   PRIVACY_NOTE,
+  QUESTIONS_HEADING,
+  REASON_LABEL,
+  REASON_PLACEHOLDER,
+  REASON_PROMPT,
   YES_HEADING,
   attendingSentence,
   cancelledSentence,
@@ -249,7 +259,7 @@ function Confirm({
         {base.playerName ? <Fact label="Player" value={base.playerName} /> : null}
         {base.venue ? <Fact label="Venue" value={base.venue} /> : null}
         {deadline ? <Fact label="Response deadline" value={deadline} /> : null}
-        <Fact label="Your answer" value={answer === "yes" ? YES_HEADING : NO_HEADING} />
+        <Fact label="Your answer" value={answer === "yes" ? YES_HEADING : "You're not attending"} />
       </Box>
       {attending ? (
         <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 1 }}>{attending}</Typography>
@@ -259,36 +269,114 @@ function Confirm({
           {otherOutstanding}
         </Alert>
       ) : null}
-      {answer === "yes" && landing.questions.length > 0 ? (
-        <Alert severity="info" sx={{ mt: 1, mb: 1 }}>
-          This event has {landing.questions.length === 1 ? "a question" : "questions"} for you to
-          answer next, on your own page.
-        </Alert>
-      ) : null}
 
       <Typography sx={{ fontSize: 13, color: "text.secondary", mt: 2, mb: 2 }}>
         {PRIVACY_NOTE}
       </Typography>
 
+      {/*
+        Owner correction round 5 (OWNER-LAN172-12, OWNER-LAN172-13): the
+        follow-up itself — the event's own questions for a Yes, the reason
+        field for a No — is asked right here, in the same form as the
+        confirm button, so one submit both records the answer and saves it.
+        W2 line 61: the Yes landing "asks applicable event questions"; the
+        No-path section: "the reason field belongs on that page."
+      */}
       <Box component="form" action={submitAnswer}>
         <input type="hidden" name="token" value={token} />
+
+        {answer === "yes" && landing.questions.length > 0 ? (
+          <Stack spacing={2} sx={{ mb: 3 }}>
+            <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700 }}>
+              {QUESTIONS_HEADING}
+            </Typography>
+            {landing.questions.map((question) => (
+              <QuestionField key={question.id} question={question} />
+            ))}
+          </Stack>
+        ) : null}
+
+        {answer === "no" ? (
+          <Stack spacing={1.5} sx={{ mb: 3 }}>
+            <Typography sx={{ fontSize: 13, color: "text.secondary" }}>{REASON_PROMPT}</Typography>
+            <TextField
+              name="reason"
+              label={REASON_LABEL}
+              placeholder={REASON_PLACEHOLDER}
+              fullWidth
+              slotProps={{ htmlInput: { maxLength: 200 } }}
+            />
+          </Stack>
+        ) : null}
+
         {/*
           Emphasis always points at Yes (Brian, 2026-08-25): the Yes button is
-          filled, and the No button — even though it is the only control on
-          this page, with nothing to be visually secondary *to* — stays
-          unfilled. The rule is chosen by what the action means, not by
-          whether it is sharing the row with something else.
+          filled. On the No page, `REQ-emphasis-points-at-yes` puts the same
+          rule on two controls at once — "Give a reason and continue"
+          completes the No and stays unfilled; "Change to Yes" is the
+          affirmative action and gets W2's own "primary treatment." Neither
+          is a second continue control competing with the other — W2: "Give
+          a reason and continue is the single forward action."
         */}
-        <Button
-          type="submit"
-          variant={answer === "yes" ? "contained" : "outlined"}
-          color={answer === "yes" ? "success" : "inherit"}
-          fullWidth
-          sx={{ minHeight: 48 }}
-        >
-          {confirmLabel(answer, landing.questions.length > 0)}
-        </Button>
+        {answer === "no" ? (
+          <Stack direction="row" spacing={1.5}>
+            <Button
+              type="submit"
+              name="intent"
+              value="answer"
+              variant="outlined"
+              color="inherit"
+              fullWidth
+              sx={{ minHeight: 48 }}
+            >
+              {GIVE_REASON_AND_CONTINUE}
+            </Button>
+            <Button
+              type="submit"
+              name="intent"
+              value="change-to-yes"
+              variant="contained"
+              color="success"
+              fullWidth
+              sx={{ minHeight: 48 }}
+            >
+              {CHANGE_TO_YES}
+            </Button>
+          </Stack>
+        ) : (
+          <Button
+            type="submit"
+            variant="contained"
+            color="success"
+            fullWidth
+            sx={{ minHeight: 48 }}
+          >
+            {confirmLabel(answer, landing.questions.length > 0)}
+          </Button>
+        )}
       </Box>
+
+      {/*
+        W2's Yes-path bullet, quoted verbatim: "Changing to No remains
+        available but visually secondary and lightly framed." A separate,
+        small form — abandoning the questions being filled above is exactly
+        what choosing this does, the same trade `/me/[token]`'s own "Plans
+        changed?" already makes.
+      */}
+      {answer === "yes" ? (
+        <Box component="form" action={submitAnswer} sx={{ mt: 2 }}>
+          <input type="hidden" name="token" value={token} />
+          <input type="hidden" name="intent" value="change-to-no" />
+          <Button
+            type="submit"
+            variant="text"
+            color="inherit"
+            sx={{ minHeight: 40, fontWeight: 400, textTransform: "none" }}
+          >
+            {PLANS_CHANGED}
+          </Button>
+        </Box>
+      ) : null}
     </Shell>
   );
 }

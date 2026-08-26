@@ -53,9 +53,13 @@ import {
   ANSWERED_HEADING,
   CHANGE_TO_NO,
   CHANGE_TO_YES,
+  EMPTY_HELP,
   FOLLOW_UP_HEADING,
+  FOLLOW_UP_ONLY_HEADING,
+  FOLLOW_UP_ONLY_HELP,
   FURTHER_OUT_HEADING,
   NEW_INVITATIONS_HEADING,
+  NO_OUTSTANDING_EVENTS,
   NO_REASON_GIVEN,
   pageHeading,
   QUESTIONS_RECORDED,
@@ -253,7 +257,7 @@ describe("OWNER-LAN172-07 — the heading count matches the rendered main list",
 
     const rendered = HOME.newInvitations.length + HOME.stillNeedAnswer.length;
     expect(HOME.outstandingCount).toBe(rendered);
-    expect(text).toContain(pageHeading(HOME.outstandingCount));
+    expect(text).toContain(pageHeading(HOME.outstandingCount, HOME.followUpNeeded.length > 0));
   });
 
   it("shows zero outstanding when the only unanswered work is beyond the horizon, in Further ahead", async () => {
@@ -271,8 +275,56 @@ describe("OWNER-LAN172-07 — the heading count matches the rendered main list",
     const { container } = await renderPage();
     const text = container.textContent ?? "";
 
-    expect(text).toContain(pageHeading(0));
+    expect(text).toContain(pageHeading(0, false));
     expect(text).toContain(FURTHER_OUT_ENTRY.eventName);
+  });
+});
+
+describe("OWNER-LAN172-14 — the heading never denies live follow-up work", () => {
+  it("shows a follow-up heading, not 'No outstanding events', when nothing new is unanswered but a standing answer still owes a reason or a question", async () => {
+    // Brian saw "No outstanding events — you have answered every invitation
+    // waiting for you. Nothing else needs an answer right now." directly
+    // above an open, required question form. outstandingCount counts only
+    // response === null, so it is legitimately zero here — the heading's
+    // own claim is what was false.
+    const followUpOnly: PlayerHome = {
+      playerName: "Avery Fielding",
+      outstandingCount: 0,
+      nextInvitationId: null,
+      newInvitations: [],
+      stillNeedAnswer: [],
+      followUpNeeded: [FOLLOW_UP_ENTRY],
+      answeredUpcoming: [],
+      furtherOut: [],
+    };
+    givenHome(followUpOnly);
+    const { container } = await renderPage();
+    const text = container.textContent ?? "";
+
+    expect(text).toContain(FOLLOW_UP_ONLY_HEADING);
+    expect(text).toContain(FOLLOW_UP_ONLY_HELP);
+    expect(text).not.toContain(NO_OUTSTANDING_EVENTS);
+    expect(text).not.toContain(EMPTY_HELP);
+    expect(text).not.toMatch(/nothing else needs an answer/i);
+  });
+
+  it("keeps the genuinely empty heading when there is no outstanding work and no follow-up either", async () => {
+    const trulyEmpty: PlayerHome = {
+      playerName: "Avery Fielding",
+      outstandingCount: 0,
+      nextInvitationId: null,
+      newInvitations: [],
+      stillNeedAnswer: [],
+      followUpNeeded: [],
+      answeredUpcoming: [],
+      furtherOut: [],
+    };
+    givenHome(trulyEmpty);
+    const { container } = await renderPage();
+    const text = container.textContent ?? "";
+
+    expect(text).toContain(NO_OUTSTANDING_EVENTS);
+    expect(text).toContain(EMPTY_HELP);
   });
 });
 
