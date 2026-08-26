@@ -480,8 +480,8 @@ async function main() {
         fail("Usage: mission review <mission-id> <package-id> --receipt <file> [--check]");
       }
       const receipt = readJson(flags.receipt);
-      if (receipt.review_mode === "security-tier") {
-        requireNonEmptyFile(receipt.report, "Security-tier review report");
+      if (["security-tier", "package-gate"].includes(receipt.review_mode)) {
+        requireNonEmptyFile(receipt.report, "Package-gate review report");
       }
       const event = {
         type: "review-receipt",

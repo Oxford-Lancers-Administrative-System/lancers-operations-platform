@@ -134,15 +134,19 @@ describe("mission CLI", () => {
     ).toBe(0);
     expect(m.run("pr", MISSION, "WP-attendance-export", "41", "a".repeat(40)).status).toBe(0);
     const review = path.join(m.repo, "review.json");
+    const reviewReport = path.join(m.repo, "package-gate.md");
+    fs.writeFileSync(reviewReport, "No sensitive or visual scope.\n");
     fs.writeFileSync(
       review,
       JSON.stringify({
-        review_mode: "full",
+        review_mode: "package-gate",
         full_review_sha: "a".repeat(40),
         reviewed_head_sha: "a".repeat(40),
         round: 1,
         result: "clear",
         ci_state: "green",
+        sensitive_paths: [],
+        report: reviewReport,
       }),
     );
     const beforeReviewCheck = readJournal(journal).length;

@@ -153,14 +153,16 @@ the Linear issue, required outcome, linked criterion or gate, remaining human
 and agent work, and next actor. Questions Brian can answer in the conversation
 remain in **Need from Brian** and never enter the owner-action section.
 
-**Visual review keeps ADR 0020's protected environment and follows ADR 0035.**
-Targeted checks, exact-head CI, and any triggered security review finish before
-Brian opens a visual package's live `review-ready` environment, with one URL,
-the fixed login and zero commands. `visual-approve` records the exact package
-head he checked. At that unchanged head no reviewer or worker runs afterwards;
-the deterministic merge gate is next. A rendered head change returns through
-machine checks and one affected-surface walkthrough, while a classifier-proven
-non-rendered delta carries the owner evidence forward.
+**Visual review keeps ADR 0020's protected environment and follows ADR 0037.**
+Targeted checks and exact-head CI precede one package gate. It reviews the union
+of sensitive paths and, for visual work, every approved mockup state at desktop
+and measured 375px. Mockups govern structure and copy; application conventions
+govern styling. An empty union launches no reviewer. Only then does Brian open
+the live `review-ready` environment with one URL, the fixed login and zero
+commands. `visual-approve` records the exact package head he checked. At that
+unchanged head no reviewer or worker runs afterwards; the deterministic merge
+gate is next. A rendered head change repeats the affected evidence, while a
+classifier-proven non-rendered delta carries the owner approval forward.
 
 Each approved issue merges immediately. After all mission issues are on `main`,
 one bounded Sonnet walker smoke-tests the predetermined end-to-end journeys and

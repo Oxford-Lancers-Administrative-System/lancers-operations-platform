@@ -123,10 +123,14 @@ route-changing path before owner review.
 
 For each package, run affected tests and `npm run typecheck`; exact-head CI is
 the per-PR backstop. Before owner handoff, derive the PR diff's sensitive-path
-intersection. An empty intersection is recorded directly and launches no
-reviewer. A non-empty intersection receives one bounded Sonnet security-tier
-review at that package head. Non-security code receives no independent review.
-Security review allows one full pass and at most two correction passes.
+intersection and visual class. When both are empty, record deterministic
+clearance without a reviewer. Otherwise run one bounded Sonnet `package-gate`
+review at that package head: sensitive paths receive security review; visual
+work is rendered and compared with every approved mockup state at desktop and
+measured 375px. Mockups govern structure and copy; application conventions
+govern styling. A structural or copy departure without an answered `Q-` decision
+blocks. One review covers the union and allows one full pass plus at most two
+correction passes.
 Authentication, authorization, privacy, security, integrity, migration, RLS,
 transaction, and unauthorized external-effect findings block; an unresolved
 blocker never ages into approval.
@@ -143,7 +147,7 @@ review gate disposition, and never authorizes correction of an advisory. Re-run
 `correction` for the same active worker to replace its scope in place; never
 abandon a healthy worker merely to re-scope it.
 
-Only after targeted checks, required security review, exact-head CI, and the
+Only after targeted checks, required package-gate review, exact-head CI, and the
 prepared environment are clear may the package enter owner walkthrough. A head
 change returns to these machine checks. The classifier alone carries owner
 approval across a proven non-rendered delta; a rendered or unclassifiable delta
