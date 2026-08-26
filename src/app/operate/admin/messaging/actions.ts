@@ -3,24 +3,31 @@
 import { revalidatePath } from "next/cache";
 import { requireCapability } from "@/lib/auth/guards";
 import { isServiceError, withTransaction } from "@/lib/db";
+import { TYPE_LABELS } from "@/lib/services/event-vocabulary";
 import {
-  listMessagingSchedulesIn,
+  readMessagingScheduleIn,
   updateMessagingScheduleIn,
-  type MessagingSchedule,
 } from "@/lib/services/messaging-schedule";
 import { EMPTY_ADMIN_ACTION_STATE, type AdminActionState } from "../action-state";
-import { NO_SCHEDULE_CHANGES_NOTICE, scheduleChangesSavedNotice } from "./presentation";
-import { readScheduleChanges, scheduleChanged } from "./validation";
+import {
+  NO_SCHEDULE_CHANGES_NOTICE,
+  scheduleSavedNotice,
+  scheduleSaveFailedNotice,
+} from "./presentation";
+import { readOneScheduleChange, scheduleChanged } from "./validation";
 
 /**
- * Saving the messaging schedule — W7, LAN-171.
+ * Saving one event type's messaging schedule — W7, LAN-171, round 2.
  *
- * One action for the whole page's one form, because the approved mockup is
- * one "Save changes" button over seven rows rather than seven separate
- * confirmations — `/operate/admin/roles` needed one action per decision
- * because each decision is its own irreversible fact (who holds a seat, from
- * when); this page edits reference data, and a single edit is "this is the
- * club's schedule now", whichever rows changed to produce it.
+ * One action per row, not one action for the whole page (OWNER-LAN171-04):
+ * Brian, on the approved-then-reversed shape, "I think there should be a save
+ * button per event. Having one group save at the top doesn't really make a
+ * lot of sense." Each of the seven rows on `/operate/admin/messaging` posts
+ * its own `<form>`, carrying a hidden `eventType` alongside its six fields, to
+ * this one action — which is what "one action per row" actually needs to mean
+ * for a Server Action: the function is shared, but each row's `useActionState`
+ * call is independent, so one row's pending/error/notice state can never leak
+ * onto another's.
  *
  * `requireCapability("delivery_administration")` resolves the actor from the
  * verified session, exactly as every other Administration action does — a
@@ -28,50 +35,60 @@ import { readScheduleChanges, scheduleChanged } from "./validation";
  * action that trusted a hidden field for "who is asking" would trust whatever
  * was sent.
  *
- * Only rows that actually changed are written. `updateMessagingScheduleIn`
+ * A row is written only if it actually changed. `updateMessagingScheduleIn`
  * records an audit row carrying both the old and the new values every time it
  * is called, and calling it for a row nobody touched would misreport the
  * club's history — as attributed as a genuine change, when nothing changed.
  */
-export async function updateMessagingSchedulesAction(
+export async function updateOneMessagingScheduleAction(
   _previous: AdminActionState,
   formData: FormData,
 ): Promise<AdminActionState> {
   const operator = await requireCapability("delivery_administration");
 
-  const validated = readScheduleChanges(formData);
+  const eventType = formData.get("eventType");
+  if (typeof eventType !== "string" || eventType.trim() === "") {
+    // Not a reachable state from the page's own markup — every row's form
+    // carries this hidden field — but a malformed direct POST names the
+    // actual problem rather than crashing on a `null` event type below.
+    return {
+      ...EMPTY_ADMIN_ACTION_STATE,
+      error: "This submission did not say which event type it was for, so nothing was saved.",
+    };
+  }
+
+  const validated = readOneScheduleChange(eventType, formData);
   if (!validated.ok) {
     return { ...EMPTY_ADMIN_ACTION_STATE, error: validated.message };
   }
 
-  try {
-    const updated = await withTransaction(async (tx) => {
-      const current = await listMessagingSchedulesIn(tx);
-      const byType = new Map<string, MessagingSchedule>(
-        current.map((schedule) => [schedule.eventType, schedule]),
-      );
+  const label = TYPE_LABELS[eventType] ?? eventType;
 
-      let count = 0;
-      for (const [eventType, change] of validated.changes) {
-        const existing = byType.get(eventType);
-        if (existing && !scheduleChanged(existing, change)) continue;
-        await updateMessagingScheduleIn(tx, operator.personId, eventType, change);
-        count += 1;
-      }
-      return count;
+  try {
+    const wrote = await withTransaction(async (tx) => {
+      const current = await readMessagingScheduleIn(tx, eventType);
+      if (!scheduleChanged(current, validated.change)) return false;
+      await updateMessagingScheduleIn(tx, operator.personId, eventType, validated.change);
+      return true;
     });
 
     revalidatePath("/operate/admin/messaging");
 
     return {
       ...EMPTY_ADMIN_ACTION_STATE,
-      notice: updated === 0 ? NO_SCHEDULE_CHANGES_NOTICE : scheduleChangesSavedNotice(updated),
+      notice: wrote ? scheduleSavedNotice(label) : NO_SCHEDULE_CHANGES_NOTICE,
     };
   } catch (error) {
     if (!isServiceError(error)) throw error;
     if (error.kind === "not_permitted") {
       return { ...EMPTY_ADMIN_ACTION_STATE, refusal: error.message };
     }
-    return { ...EMPTY_ADMIN_ACTION_STATE, error: error.message };
+    // OWNER-LAN171-02: name the row and the values that were rejected, rather
+    // than the generic "please try again" — a deterministic rejection cannot
+    // be fixed by retrying the same submission unchanged.
+    return {
+      ...EMPTY_ADMIN_ACTION_STATE,
+      error: scheduleSaveFailedNotice(label, validated.change),
+    };
   }
 }

@@ -3,9 +3,10 @@
 Status: implemented. This is the **as-built** contract, written as part of delivery because the
 mission packet supplied the design authority (workflows, acceptance evidence and mockups) rather
 than a pre-implementation wireframe ticket. The current live LAN-171 issue, its two dispatch
-corrections, and `docs/adr/0036-messaging-schedule-configuration.md` remain authoritative; this
-file records what was actually shipped and does not restate `docs/ux/slice-ux.md` or the shared
-Administration contract in `docs/ux/tickets/LAN-73-shell-and-access.md`.
+corrections, `docs/adr/0036-messaging-schedule-configuration.md`, and Brian's round-2 walkthrough
+findings (Q-19; OWNER-LAN171-01 through -05) remain authoritative; this file records what was
+actually shipped and does not restate `docs/ux/slice-ux.md` or the shared Administration contract
+in `docs/ux/tickets/LAN-73-shell-and-access.md`.
 
 > **Synthetic scenario data:** every displayed people, date and count in this mission's mockups is
 > synthetic and does not correspond to real members.
@@ -49,10 +50,25 @@ anything, and where the rules behind that plan are read and changed.
 - The same disclosure, frozen, on the approved event page — `event_messaging_plans`' stored
   anchor and counts replayed through the same ladder arithmetic, never a second copy of it.
 - `/operate/admin/messaging`, **Messaging schedule**, under Administration between Operators and
-  Roles: one editable row per event type (player RSVP by, first invitation sent, reminder
-  cadence, WhatsApp and email reminder counts, President escalation), a single **Save changes**
-  for the whole table, and a per-row worked example that previews the dates a policy produces for
-  an event four weeks out, with a warning when the last reminder lands well before the deadline.
+  Roles: one editable card per event type, each with its own **Save `<event type>`** button
+  (round 2, OWNER-LAN171-04 — a page-level save read as "one act" over seven independent rows,
+  which Brian rejected once he saw it live). Two rows of three labelled fields per card — RSVP by
+  / First inv. / Cadence, then WhatsApp / Email / President — each carrying its unit (`days`,
+  `h`) beside the value, or no unit for the two plain counts (round 2, OWNER-LAN171-03). A per-row
+  worked example previews the dates the policy produces for an event four weeks out, and warns
+  when the last reminder lands well before the deadline.
+- **WhatsApp counts the invitation as message #1** (round 2, Q-19: `REQ-ladder-order` governs over
+  W7's looser "reminders" wording). The schedule's WhatsApp count and its grid label ("WhatsApp",
+  never "WhatsApp reminders") both reflect this; a policy of 2 WhatsApp + 1 email therefore sends
+  the invitation, one further WhatsApp reminder, one email reminder, then the President — four
+  messages, not five.
+- Saving a schedule change writes an attributed `audit_events` row even though
+  `messaging_schedules`' own key (`public.event_type`) is not a uuid: `entity_id` is a UUIDv5
+  derived deterministically from the event type (round 2, OWNER-LAN171-01 — the literal event
+  type text was rejected by `audit_events.entity_id`'s `uuid` column, silently rolling back every
+  save since the page shipped).
+- A write that genuinely fails names the row and the submitted values rather than suggesting a
+  retry that cannot fix a deterministic rejection (round 2, OWNER-LAN171-02).
 - One card per event type below the table breakpoint; no horizontal scrolling at 375px.
 
 ## Explicitly not in this ticket
@@ -66,6 +82,13 @@ anything, and where the rules behind that plan are read and changed.
   (`/operate/events/[id]/delivery`), and the Meta cutover — LAN-170, LAN-172, LAN-173 and LAN-168
   respectively.
 - A second superseding ADR. ADR 0036 already records both reversals this package relies on.
+- Widening `audit_events.entity_id` to accept non-uuid values, or any other migration — the
+  seeded rows in `public.messaging_schedules` are untouched by round 2; only the arithmetic that
+  reads `whatsapp_reminder_count` changed. The seven event types' derived `invitation_lead_days`
+  defaults are unchanged and remain provisional: under the corrected count they now leave a
+  visible one-day gap on the row preview for every type, by design — that gap is what makes Brian
+  confirming a new value (before the first real dispatch) necessary and visible, not a bug to
+  paper over here.
 
 ## Ticket interaction contract
 
@@ -96,7 +119,12 @@ Restated from `acceptance/W1.md` and `acceptance/W7.md` as what was built to sat
   its markup.
 - Every schedule row previews the dates it produces and warns when the last reminder lands well
   before the deadline it is chasing.
-- Changing the schedule leaves already-approved events untouched, and every change is attributed.
+- Each event type saves independently, through its own button; saving one row never touches
+  another's.
+- The WhatsApp count includes the invitation, and its label never calls the invitation a reminder.
+- Changing the schedule leaves already-approved events untouched, and every change is attributed —
+  including that the write itself succeeds: a schedule change actually persists, and its audit row
+  actually exists, for every event type (round 2, OWNER-LAN171-01).
 - One card per event type below the table breakpoint; no horizontal scrolling; desktop and true
   375px both conform.
 - `npm run verify` passes.
@@ -111,3 +139,18 @@ Restated from `acceptance/W1.md` and `acceptance/W7.md` as what was built to sat
   `President`) is real product content on the event page; the mockup's `Proposed` chip is a
   mockup-authoring annotation marking new content for reviewers and was not carried into the
   shipped UI.
+- Round 2 (Q-22): `W7.html` and the `W7-02` image pair were opened and checked directly against
+  the rebuilt schedule row, not worked from dispatch prose alone. Three further divergences from
+  `W7-02`, each traced to Brian's round-2 instruction given today looking at the live page, which
+  governs over the packet mockup by the Lead's own resolution:
+  - **One page-level "Save changes" button** in the mockup, over **one save button per row**
+    here — Brian reversed this once he saw the single-button shape live (round 2, OWNER-LAN171-04).
+  - **One combined "Reminders" column** (`2 WA, 1 email`) in the mockup, over **separate WhatsApp
+    and Email fields** here — Brian's own round-2 grid instruction names them as two fields.
+  - The mockup's worked example assumes the **pre-Q19 four-message ladder** (invitation, two
+    WhatsApp reminders, one email); the shipped worked example reflects **Q-19's ruling** that the
+    invitation counts as WhatsApp #1, producing a three-message ladder for the default policy.
+  - Also caught by this check, and corrected before it reached anyone else: the row heading had
+    been set in MUI's `overline` (all-caps) variant on the strength of the dispatch's own
+    capitalised ASCII art; `W7-02` and the `W7-current-admin` reference both draw the row/card
+    heading in plain title case, bold, and the shipped heading now matches that.

@@ -1,15 +1,16 @@
 // @vitest-environment node
 /**
- * `updateMessagingSchedulesAction` exercised unmocked — SEC-171-01, round 1
- * correction.
+ * `updateOneMessagingScheduleAction` exercised unmocked — SEC-171-01 (round 1
+ * correction), carried forward to the per-row action OWNER-LAN171-04 replaced
+ * it with.
  *
- * This file exists because independent review deleted the action's
+ * This file exists because independent review once deleted the action's
  * `requireCapability("delivery_administration")` call outright — the entire
  * authorization check for the endpoint that decides what the club sends every
  * member — and reran this feature's whole suite: `screens.test.tsx` renders
  * the page with `./actions` mocked out, and `validation.test.ts` /
- * `presentation.test.ts` only exercise pure helpers. All three stayed green,
- * 35/35. No file imported the real action and let it run.
+ * `presentation.test.ts` only exercise pure helpers. All three stayed green.
+ * No file imported the real action and let it run.
  *
  * `src/app/operate/admin/actions.test.ts` exists for the identical reason —
  * `not_permitted` handling in a sibling server action once regressed under a
@@ -21,23 +22,18 @@
  * runs for real on every case below.
  *
  * What is proved: a caller without `delivery_administration` is refused
- * before the transaction opens and the write functions are never called; a
- * caller who holds it reaches the write loop, and only a row that actually
- * changed is written, attributed to the resolved operator's own `personId`.
- * The write loop's SQL is proved against the real database elsewhere
- * (`messaging-schedule.test.ts`); what was missing, and what was invisible to
- * a deleted capability check, is here.
+ * before the transaction opens and the write function is never called; a
+ * caller who holds it writes only when the row actually changed, attributed
+ * to the resolved operator's own `personId`; and a genuine write failure
+ * names the row and the values rather than offering a retry (OWNER-LAN171-02).
+ * The write's SQL and its audit row are proved against the real database
+ * elsewhere (`messaging-schedule.test.ts`).
  *
- * One thing this file deliberately does *not* change: `requireCapability`
- * is called before the `try` block, exactly as every action in the sibling
+ * One thing this file deliberately does *not* change: `requireCapability` is
+ * called before the `try` block, exactly as every action in the sibling
  * `admin/actions.ts` calls its own floor check — so a caller who reaches this
  * action without the capability at all gets `NotPermitted` as a rejection,
- * not a graceful `state.refusal`. That is this codebase's established shape
- * for the floor check (the `refusal` field is for a *target-aware* refusal
- * raised from inside the service, during the write); reshaping it is
- * authorization redesign, which this correction is explicitly told not to do.
- * What matters for SEC-171-01 either way: the caller is stopped, and nothing
- * is written.
+ * not a graceful `state.refusal`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -53,7 +49,7 @@ vi.mock("@/lib/db", async (importOriginal) => {
     // this file has no lease for and does not need — nothing under test
     // touches SQL. It joins no in-flight transaction here, so without this
     // seam every "authorized" case below would hang on a connection attempt.
-    // The fake `tx` is never read: `listMessagingSchedulesIn` and
+    // The fake `tx` is never read: `readMessagingScheduleIn` and
     // `updateMessagingScheduleIn` are mocked below and ignore it.
     withTransaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({})),
   };
@@ -63,28 +59,28 @@ vi.mock("@/lib/services/messaging-schedule", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/messaging-schedule")>();
   return {
     ...actual,
-    listMessagingSchedulesIn: vi.fn(),
+    readMessagingScheduleIn: vi.fn(),
     updateMessagingScheduleIn: vi.fn(),
   };
 });
 
 import { revalidatePath } from "next/cache";
-import { isServiceError } from "@/lib/db";
+import { ConstraintViolated, isServiceError } from "@/lib/db";
 import {
   resolveOperatorAccess,
   type OperatorAccess,
   type ResolvedOperator,
 } from "@/lib/auth/operator";
 import {
-  listMessagingSchedulesIn,
+  readMessagingScheduleIn,
   updateMessagingScheduleIn,
   type MessagingSchedule,
   type MessagingScheduleChange,
 } from "@/lib/services/messaging-schedule";
-import { updateMessagingSchedulesAction } from "./actions";
+import { updateOneMessagingScheduleAction } from "./actions";
 import { EMPTY_ADMIN_ACTION_STATE } from "../action-state";
-import { NO_SCHEDULE_CHANGES_NOTICE, scheduleChangesSavedNotice } from "./presentation";
-import { SCHEDULE_EVENT_TYPES, SCHEDULE_FIELDS, scheduleFieldName } from "./validation";
+import { NO_SCHEDULE_CHANGES_NOTICE, scheduleSavedNotice } from "./presentation";
+import { SCHEDULE_FIELDS } from "./validation";
 
 const CHALK = "chalk";
 
@@ -116,46 +112,36 @@ function scheduleRow(eventType: string, change: MessagingScheduleChange): Messag
   return { eventType, ...change, updatedAt: new Date("2026-08-01T00:00:00Z") };
 }
 
-/** Every event type currently holding `BASE_CHANGE`, except one override. */
-function currentSchedules(
-  overrides: Record<string, MessagingScheduleChange> = {},
-): readonly MessagingSchedule[] {
-  return SCHEDULE_EVENT_TYPES.map((eventType) =>
-    scheduleRow(eventType, overrides[eventType] ?? BASE_CHANGE),
-  );
-}
-
-/** A submission proposing `BASE_CHANGE` for every event type, except one override. */
-function submittedForm(overrides: Record<string, Partial<MessagingScheduleChange>> = {}): FormData {
+/** One row's own form: `eventType` plus its six fields. */
+function rowForm(eventType: string, change: Partial<MessagingScheduleChange> = {}): FormData {
   const data = new FormData();
-  for (const eventType of SCHEDULE_EVENT_TYPES) {
-    const change = { ...BASE_CHANGE, ...overrides[eventType] };
-    for (const bound of SCHEDULE_FIELDS) {
-      data.set(scheduleFieldName(eventType, bound.key), String(change[bound.field]));
-    }
+  data.set("eventType", eventType);
+  const values = { ...BASE_CHANGE, ...change };
+  for (const bound of SCHEDULE_FIELDS) {
+    data.set(bound.key, String(values[bound.field]));
   }
   return data;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(listMessagingSchedulesIn).mockResolvedValue(currentSchedules());
+  vi.mocked(readMessagingScheduleIn).mockResolvedValue(scheduleRow(CHALK, BASE_CHANGE));
   vi.mocked(updateMessagingScheduleIn).mockImplementation(
     async (_tx, _actorId, eventType, change) => scheduleRow(eventType, change),
   );
 });
 
 describe("without delivery_administration", () => {
-  it("is refused before the write loop, and writes nothing", async () => {
+  it("is refused before the write, and writes nothing", async () => {
     // Treasurer: a real committee seat, not on delivery_administration's list
     // (president, vice_president, secretary, general_manager, it_officer).
     givenSession({ state: "active", operator: actor(["treasurer"]) });
 
     let thrown: unknown;
     try {
-      await updateMessagingSchedulesAction(
+      await updateOneMessagingScheduleAction(
         EMPTY_ADMIN_ACTION_STATE,
-        submittedForm({ [CHALK]: { escalationHours: 48 } }),
+        rowForm(CHALK, { escalationHours: 48 }),
       );
     } catch (error) {
       thrown = error;
@@ -163,7 +149,7 @@ describe("without delivery_administration", () => {
 
     expect(isServiceError(thrown)).toBe(true);
     expect((thrown as { kind: string }).kind).toBe("not_permitted");
-    expect(listMessagingSchedulesIn).not.toHaveBeenCalled();
+    expect(readMessagingScheduleIn).not.toHaveBeenCalled();
     expect(updateMessagingScheduleIn).not.toHaveBeenCalled();
     expect(revalidatePath).not.toHaveBeenCalled();
   });
@@ -172,45 +158,76 @@ describe("without delivery_administration", () => {
     givenSession({ state: "no_session" });
 
     await expect(
-      updateMessagingSchedulesAction(EMPTY_ADMIN_ACTION_STATE, submittedForm()),
+      updateOneMessagingScheduleAction(EMPTY_ADMIN_ACTION_STATE, rowForm(CHALK)),
     ).rejects.toMatchObject({ kind: "not_permitted" });
     expect(updateMessagingScheduleIn).not.toHaveBeenCalled();
   });
 });
 
 describe("holding delivery_administration", () => {
-  it("writes only the row that changed, attributed to the resolved operator", async () => {
+  it("writes the row that changed, attributed to the resolved operator", async () => {
     const operator = actor(["secretary"]);
     givenSession({ state: "active", operator });
-    vi.mocked(listMessagingSchedulesIn).mockResolvedValue(
-      currentSchedules({ [CHALK]: { ...BASE_CHANGE, escalationHours: 48 } }),
-    );
+    vi.mocked(readMessagingScheduleIn).mockResolvedValue(scheduleRow(CHALK, BASE_CHANGE));
 
-    const state = await updateMessagingSchedulesAction(
+    const state = await updateOneMessagingScheduleAction(
       EMPTY_ADMIN_ACTION_STATE,
-      submittedForm({ [CHALK]: { escalationHours: 24 } }),
+      rowForm(CHALK, { escalationHours: 6 }),
     );
 
     expect(state.refusal).toBeNull();
     expect(state.error).toBeNull();
-    expect(state.notice).toBe(scheduleChangesSavedNotice(1));
+    expect(state.notice).toBe(scheduleSavedNotice("Chalk"));
 
     expect(updateMessagingScheduleIn).toHaveBeenCalledTimes(1);
     expect(updateMessagingScheduleIn).toHaveBeenCalledWith(
       expect.anything(),
       operator.personId,
       CHALK,
-      expect.objectContaining({ escalationHours: 24 }),
+      expect.objectContaining({ escalationHours: 6 }),
     );
     expect(revalidatePath).toHaveBeenCalledWith("/operate/admin/messaging");
   });
 
-  it("reports no changes and writes nothing when every row already matches", async () => {
+  it("reports no change and writes nothing when the row already matches", async () => {
     givenSession({ state: "active", operator: actor(["president"]) });
 
-    const state = await updateMessagingSchedulesAction(EMPTY_ADMIN_ACTION_STATE, submittedForm());
+    const state = await updateOneMessagingScheduleAction(EMPTY_ADMIN_ACTION_STATE, rowForm(CHALK));
 
     expect(state.notice).toBe(NO_SCHEDULE_CHANGES_NOTICE);
     expect(updateMessagingScheduleIn).not.toHaveBeenCalled();
+  });
+
+  it("refuses a malformed field before it reaches the database, naming the row", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+
+    const state = await updateOneMessagingScheduleAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      rowForm(CHALK, { whatsappReminderCount: 99 }),
+    );
+
+    expect(state.error).toMatch(/Chalk/);
+    expect(state.error).toMatch(/between/i);
+    expect(updateMessagingScheduleIn).not.toHaveBeenCalled();
+  });
+
+  it("names the row and the submitted values when a write genuinely fails, and offers no retry", async () => {
+    givenSession({ state: "active", operator: actor(["president"]) });
+    vi.mocked(updateMessagingScheduleIn).mockRejectedValue(
+      new ConstraintViolated("a database rule refused this", { rule: "some_rule" }),
+    );
+
+    const state = await updateOneMessagingScheduleAction(
+      EMPTY_ADMIN_ACTION_STATE,
+      rowForm(CHALK, { escalationHours: 6 }),
+    );
+
+    // OWNER-LAN171-02: names the row…
+    expect(state.error).toMatch(/Chalk/);
+    // …and the values it tried to save…
+    expect(state.error).toMatch(/RSVP by 2 days/);
+    expect(state.error).toMatch(/President 6 h/);
+    // …and never suggests a retry that cannot work.
+    expect(state.error).not.toMatch(/try again/i);
   });
 });

@@ -218,10 +218,12 @@ async function approve(eventId: string, keys: readonly string[]) {
  * `jobs` counts **invitation** jobs specifically, not every notification job.
  * It counted all of them until LAN-169, when that stopped being a useful
  * number: approval now commits the whole ladder, so an audience of four
- * produces sixteen jobs and "jobs: 16" tells a reader nothing about whether
- * every audience member got an invitation — which is the property every
- * assertion here is actually making. `reminders` carries the rest, so a ladder
- * that silently stopped being created still fails a test.
+ * produces twelve jobs (round 2, Q-19, OWNER-LAN171-05 — three rungs per
+ * person, the invitation counting as WhatsApp #1) and "jobs: 12" tells a
+ * reader nothing about whether every audience member got an invitation —
+ * which is the property every assertion here is actually making. `reminders`
+ * carries the rest, so a ladder that silently stopped being created still
+ * fails a test.
  */
 async function countsFor(eventId: string) {
   const row = await observer.query<{
@@ -414,8 +416,11 @@ describe("a successful approval", () => {
 
     expect(outcome.members).toHaveLength(4);
     expect(outcome.invitationCount).toBe(4);
-    // Four invitees on a four-rung ladder. LAN-169: approval commits the plan.
-    expect(outcome.notificationJobCount).toBe(16);
+    // Four invitees on a three-rung ladder: invitation (WhatsApp #1), one
+    // WhatsApp reminder, one email (round 2, Q-19, OWNER-LAN171-05 — the
+    // invitation counts against `whatsappReminderCount`). LAN-169: approval
+    // commits the plan.
+    expect(outcome.notificationJobCount).toBe(12);
 
     const stored = await observer.query<{
       status: string;
@@ -440,9 +445,10 @@ describe("a successful approval", () => {
       audience: 4,
       invitations: 4,
       jobs: 4,
-      // Three rungs each — two WhatsApp reminders and the email — scheduled at
+      // Two reminders each — one WhatsApp, one email (round 2, Q-19,
+      // OWNER-LAN171-05: the invitation itself is WhatsApp #1) — scheduled at
       // approval and dispatched by the sweep when each moment arrives.
-      reminders: 12,
+      reminders: 8,
       // Invariant P7's approval defect. Empty is the whole point: everyone the
       // approver confirmed was actually asked.
       uninvited: 0,
@@ -515,16 +521,17 @@ describe("a successful approval", () => {
       [event.id],
     );
 
-    // LAN-169. Five invitees, four rungs each: the invitation, two WhatsApp
-    // reminders and the email. Approval used to create one job per person and
-    // stop, because there was no ladder to create — it commits the whole plan
-    // now, and every rung is a job carrying its own moment.
+    // LAN-169. Five invitees, three rungs each: the invitation (WhatsApp #1),
+    // one WhatsApp reminder and the email (round 2, Q-19, OWNER-LAN171-05).
+    // Approval used to create one job per person and stop, because there was
+    // no ladder to create — it commits the whole plan now, and every rung
+    // after the invitation is its own reminder job carrying its own moment.
     const invitationJobs = jobs.rows.filter((job) => job.job_type === "invitation");
     const reminderJobs = jobs.rows.filter((job) => job.job_type === "reminder");
 
     expect(invitationJobs).toHaveLength(5);
-    expect(reminderJobs).toHaveLength(15);
-    expect(new Set(jobs.rows.map((job) => job.idempotency_key)).size).toBe(20);
+    expect(reminderJobs).toHaveLength(10);
+    expect(new Set(jobs.rows.map((job) => job.idempotency_key)).size).toBe(15);
 
     // The exact shape, asserted rather than left implicit. Invariant M1 wants a
     // key derived from facts that do not change, and this is the derivation:
@@ -546,10 +553,14 @@ describe("a successful approval", () => {
       (member) => `event:${event.id}:invitation:${member.capacity}:${member.participant_id}`,
     );
     expect(invitationJobs.map((job) => job.idempotency_key).sort()).toEqual(expected.sort());
+    // Two reminder rungs per person, not three (round 2, Q-19,
+    // OWNER-LAN171-05): the invitation counts as WhatsApp #1, so the default
+    // policy of 2 WhatsApp + 1 email produces one further WhatsApp reminder
+    // and one email reminder — rungs 1 and 2.
     expect(reminderJobs.map((job) => job.idempotency_key).sort()).toEqual(
       members.rows
         .flatMap((member) =>
-          [1, 2, 3].map(
+          [1, 2].map(
             (rung) =>
               `event:${event.id}:reminder:${member.capacity}:${member.participant_id}:${rung}`,
           ),
@@ -567,9 +578,10 @@ describe("a successful approval", () => {
     // as this slice's delivery path, which LAN-77 explicitly forbids.
     //
     // The ladder order is fixed and not configurable (REQ-ladder-order):
-    // WhatsApp, WhatsApp again, then email. The channels are therefore asserted
-    // per rung rather than uniformly — a ladder that sent the email first would
-    // otherwise pass a test that only checked "never manual".
+    // WhatsApp (the invitation), WhatsApp again, then email. The channels are
+    // therefore asserted per rung rather than uniformly — a ladder that sent
+    // the email first would otherwise pass a test that only checked "never
+    // manual".
     expect(invitationJobs.every((job) => job.channel === "whatsapp")).toBe(true);
     const byRung = await observer.query<{ ladder_rung: number; channel: string }>(
       `select ladder_rung, channel::text as channel
@@ -578,10 +590,12 @@ describe("a successful approval", () => {
         group by ladder_rung, channel order by ladder_rung`,
       [event.id],
     );
+    // Rung 1 is the one further WhatsApp reminder after the invitation
+    // (itself WhatsApp #1); rung 2 is the email (round 2, Q-19,
+    // OWNER-LAN171-05).
     expect(byRung.rows).toEqual([
       { ladder_rung: 1, channel: "whatsapp" },
-      { ladder_rung: 2, channel: "whatsapp" },
-      { ladder_rung: 3, channel: "email" },
+      { ladder_rung: 2, channel: "email" },
     ]);
   });
 
@@ -616,10 +630,12 @@ describe("a successful approval", () => {
     expect(approved?.context).toMatchObject({
       audienceSize: 3,
       invitationsCreated: 3,
-      // Three invitees, four rungs each. LAN-169: approval commits the plan
-      // rather than performing the send, so what it created is the whole ladder.
-      notificationJobsCreated: 12,
-      remindersScheduled: 9,
+      // Three invitees, three rungs each: invitation (WhatsApp #1), one
+      // WhatsApp reminder, one email (round 2, Q-19, OWNER-LAN171-05).
+      // LAN-169: approval commits the plan rather than performing the send,
+      // so what it created is the whole ladder.
+      notificationJobsCreated: 9,
+      remindersScheduled: 6,
       lateApproval: false,
     });
   });
@@ -713,8 +729,9 @@ describe("approving twice", () => {
       invitations: 3,
       jobs: 3,
       // One ladder, not two: the losing approval committed nothing, so its
-      // reminders do not exist either.
-      reminders: 9,
+      // reminders do not exist either. Three invitees, one WhatsApp reminder
+      // and one email reminder each (round 2, Q-19, OWNER-LAN171-05).
+      reminders: 6,
       uninvited: 0,
     });
   });
@@ -904,10 +921,12 @@ describe("the approval preview", () => {
 
     expect(preview.plan).not.toBeNull();
     expect(preview.plan?.responseDeadlineAt.toISOString()).toBe(preview.deadline?.at.toISOString());
-    // Practice, unconfigured on this event's row: invitation + 2 WhatsApp + 1
-    // email, none of it clamped by a short runway this far out.
+    // Practice, unconfigured on this event's row: invitation (WhatsApp #1) +
+    // 1 further WhatsApp + 1 email (round 2, Q-19, OWNER-LAN171-05 — the
+    // invitation counts against `whatsappReminderCount`), none of it clamped
+    // by a short runway this far out.
     expect(preview.plan?.lateApproval).toBe(false);
-    expect(preview.plan?.rungs).toHaveLength(4);
+    expect(preview.plan?.rungs).toHaveLength(3);
     expect(preview.plan?.rungs[0].kind).toBe("invitation");
     expect(preview.plan?.escalationAt).not.toBeNull();
   });

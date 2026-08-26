@@ -1,5 +1,9 @@
 import { shortMonthOf } from "@/lib/services/event-vocabulary";
-import type { MessagingPlan, MessagingSchedule } from "@/lib/services/messaging-schedule";
+import type {
+  MessagingPlan,
+  MessagingSchedule,
+  MessagingScheduleChange,
+} from "@/lib/services/messaging-schedule";
 
 /**
  * The messaging schedule page's own words — W7, LAN-171.
@@ -30,14 +34,53 @@ export const MESSAGING_SCHEDULE_FOOTER =
   "Changes take effect for events approved afterwards. Events already approved keep the " +
   "schedule they were approved with. Every change is recorded against your name.";
 
-export const SAVE_CHANGES = "Save changes";
 export const SHOW_EXAMPLE = "Show an example";
 export const HIDE_EXAMPLE = "Hide an example";
 export const NO_SCHEDULE_CHANGES_NOTICE = "Nothing had changed, so there was nothing to save.";
-export function scheduleChangesSavedNotice(count: number): string {
-  return count === 1
-    ? "1 event type's schedule was updated."
-    : `${count} event types' schedules were updated.`;
+
+/**
+ * One save button per event type (OWNER-LAN171-04) — Brian: "I think there
+ * should be a save button per event. Having one group save at the top
+ * doesn't really make a lot of sense." `label` is `TYPE_LABELS`' own
+ * capitalised form ("Practice"); this lowercases only its first letter, so
+ * the button reads "Save practice" rather than restating the row's own
+ * heading in full capitals.
+ */
+export function saveRowButtonLabel(label: string): string {
+  return `Save ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+}
+
+export function scheduleSavedNotice(label: string): string {
+  return `${label}'s schedule was updated.`;
+}
+
+/**
+ * The values one row's form actually submitted, in the club's units — for
+ * {@link scheduleSaveFailedNotice}, which names them rather than making the
+ * operator guess what was lost.
+ */
+export function summarizeScheduleValues(change: MessagingScheduleChange): string {
+  return (
+    `RSVP by ${change.rsvpByDays} days, first invitation ${change.invitationLeadDays} days, ` +
+    `cadence ${change.reminderCadenceHours} h, WhatsApp ${change.whatsappReminderCount}, ` +
+    `email ${change.emailReminderCount}, President ${change.escalationHours} h`
+  );
+}
+
+/**
+ * A write that genuinely failed — OWNER-LAN171-02. The generic
+ * `UnexpectedDatabaseError` sentence ("The database could not complete this
+ * change... Please try again") is deliberately vague everywhere else in this
+ * codebase, because most callers have no safe, non-PII detail to add. This
+ * screen does: which row, and which values it tried to save. Retrying without
+ * changing anything cannot help a deterministic rejection, so this never
+ * suggests it.
+ */
+export function scheduleSaveFailedNotice(label: string, change: MessagingScheduleChange): string {
+  return (
+    `${label}'s schedule could not be saved as submitted (${summarizeScheduleValues(change)}). ` +
+    "Nothing was changed. If this keeps happening, this needs a developer."
+  );
 }
 
 /**

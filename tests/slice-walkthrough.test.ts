@@ -865,14 +865,17 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
 
     expect(outcome.event.status).toBe("approved");
     expect(outcome.invitationCount).toBe(2);
-    // Two invitees on a four-rung ladder: the invitation, two WhatsApp
-    // reminders and the email. LAN-169 changed what approval means — it commits
-    // the plan rather than performing the send (Brian, 2026-08-22: "Yes,
-    // approval commits the plan rather than sending") — and the audience freeze
-    // this test goes on to prove is unchanged by that.
-    expect(outcome.notificationJobCount).toBe(8);
+    // Two invitees on a three-rung ladder: the invitation (WhatsApp #1), one
+    // further WhatsApp reminder, and the email (LAN-171 round 2, Q-19,
+    // OWNER-LAN171-05 — the invitation counts against `whatsappReminderCount`,
+    // so the default policy of 2 WhatsApp + 1 email sends one WhatsApp
+    // reminder after the invitation, not two). LAN-169 changed what approval
+    // means — it commits the plan rather than performing the send (Brian,
+    // 2026-08-22: "Yes, approval commits the plan rather than sending") — and
+    // the audience freeze this test goes on to prove is unchanged by that.
+    expect(outcome.notificationJobCount).toBe(6);
     // This event is a whole term away, further out than a chalk session's
-    // five-day invitation lead, so nothing goes today and the plan says so.
+    // four-day invitation lead, so nothing goes today and the plan says so.
     expect(outcome.plan?.dispatchesImmediately).toBe(false);
     expect(outcome.plan?.lateApproval).toBe(false);
 
@@ -993,9 +996,11 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     // dispatcher can produce — `delivery_attempts` refuses it at the database.
     //
     // `email` joined `whatsapp` with LAN-169's ladder: the fixed order is
-    // WhatsApp, WhatsApp again, then email (`REQ-ladder-order`), so the fourth
-    // rung of every plan is an email job created at approval. What has not
-    // changed, and is the claim this assertion exists to make, is that no
+    // WhatsApp, WhatsApp again, then email (`REQ-ladder-order`), so the third
+    // rung of every plan is an email job created at approval (round 2, Q-19:
+    // the invitation itself is the first WhatsApp, so the ladder is
+    // invitation, one WhatsApp reminder, one email — three rungs). What has
+    // not changed, and is the claim this assertion exists to make, is that no
     // channel here is a human.
     const channels = await db.query<{ channel: string }>(
       `select distinct channel::text as channel

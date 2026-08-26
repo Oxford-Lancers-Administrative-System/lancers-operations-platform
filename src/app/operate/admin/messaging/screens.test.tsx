@@ -23,7 +23,7 @@ vi.mock("@/lib/services/messaging-schedule", async (importOriginal) => {
   return { ...actual, listMessagingSchedulesWithPreview: vi.fn() };
 });
 vi.mock("./actions", () => ({
-  updateMessagingSchedulesAction: vi.fn(() =>
+  updateOneMessagingScheduleAction: vi.fn(() =>
     Promise.resolve({ notice: null, error: null, refusal: null, candidates: null }),
   ),
 }));
@@ -57,7 +57,9 @@ function schedule(overrides: Partial<MessagingSchedule> = {}): MessagingSchedule
   return {
     eventType: "practice",
     rsvpByDays: 2,
-    invitationLeadDays: 5,
+    // `rsvpByDays + 2` — the corrected default (round 2, Q-19,
+    // OWNER-LAN171-05): two reminders after the invitation, not three.
+    invitationLeadDays: 4,
     reminderCadenceHours: 24,
     whatsappReminderCount: 2,
     emailReminderCount: 1,
@@ -75,18 +77,24 @@ const HOUR_MS = 60 * 60 * 1000;
  * gap warning by construction — exactly what the derived defaults produce for
  * real. A test that wants a gap overrides `invitationAt` and `rungs`
  * explicitly, as "warns when a row's own configuration leaves a gap…" does.
+ *
+ * `whatsappReminderCount` counts the invitation as WhatsApp #1 (Q-19,
+ * OWNER-LAN171-05), so the number of WhatsApp *reminder* rungs after it is
+ * one fewer — the same arithmetic `resolveMessagingPlanIn` now applies.
  */
 function plan(base: MessagingSchedule, overrides: Partial<MessagingPlan> = {}): MessagingPlan {
   const eventStartsAt = new Date("2026-09-22T19:00:00Z");
   const responseDeadlineAt = new Date(eventStartsAt.getTime() - base.rsvpByDays * DAY_MS);
   const invitationAt = new Date(eventStartsAt.getTime() - base.invitationLeadDays * DAY_MS);
-  const wanted = base.whatsappReminderCount + base.emailReminderCount;
+  const whatsappRemindersAfterInvitation = Math.max(0, base.whatsappReminderCount - 1);
+  const wanted = whatsappRemindersAfterInvitation + base.emailReminderCount;
   const rungs = [
     { rung: 0, kind: "invitation" as const, channel: "whatsapp" as const, at: invitationAt },
     ...Array.from({ length: wanted }, (_, index) => ({
       rung: index + 1,
       kind: "reminder" as const,
-      channel: (index < base.whatsappReminderCount ? "whatsapp" : "email") as "whatsapp" | "email",
+      channel: (index < whatsappRemindersAfterInvitation ? "whatsapp" : "email") as
+        "whatsapp" | "email",
       at: new Date(invitationAt.getTime() + (index + 1) * base.reminderCadenceHours * HOUR_MS),
     })),
   ];
@@ -177,16 +185,12 @@ describe("the table", () => {
 
     const practiceRow = screen.getAllByTestId("schedule-row")[0];
     expect(practiceRow).toHaveTextContent("Practice");
-    expect(practiceRow.querySelector('input[name="practice.rsvpByDays"]')).toHaveValue(2);
-    expect(practiceRow.querySelector('input[name="practice.invitationLeadDays"]')).toHaveValue(5);
-    expect(practiceRow.querySelector('input[name="practice.reminderCadenceHours"]')).toHaveValue(
-      24,
-    );
-    expect(practiceRow.querySelector('input[name="practice.whatsappReminderCount"]')).toHaveValue(
-      2,
-    );
-    expect(practiceRow.querySelector('input[name="practice.emailReminderCount"]')).toHaveValue(1);
-    expect(practiceRow.querySelector('input[name="practice.escalationHours"]')).toHaveValue(12);
+    expect(practiceRow.querySelector('input[name="rsvpByDays"]')).toHaveValue(2);
+    expect(practiceRow.querySelector('input[name="invitationLeadDays"]')).toHaveValue(4);
+    expect(practiceRow.querySelector('input[name="reminderCadenceHours"]')).toHaveValue(24);
+    expect(practiceRow.querySelector('input[name="whatsappReminderCount"]')).toHaveValue(2);
+    expect(practiceRow.querySelector('input[name="emailReminderCount"]')).toHaveValue(1);
+    expect(practiceRow.querySelector('input[name="escalationHours"]')).toHaveValue(12);
   });
 
   it("states there are no quiet hours", async () => {
@@ -242,5 +246,57 @@ describe("the table", () => {
     const gameCard = rowsFound.find((row) => row.textContent?.includes("Game"))!;
 
     expect(gameCard.textContent).toMatch(/lands \d+ days? before the deadline/);
+  });
+});
+
+describe("the grid shape — OWNER-LAN171-03", () => {
+  it("shows a short, untruncated label and a unit for every day/hour field", async () => {
+    render(await MessagingSchedulePage());
+
+    const practiceRow = screen.getAllByTestId("schedule-row")[0];
+
+    for (const label of ["RSVP by", "First inv.", "Cadence", "WhatsApp", "Email", "President"]) {
+      expect(practiceRow.textContent).toContain(label);
+    }
+    // Brian's screenshot: "WhatsApp reminde…", truncated. The count label is
+    // "WhatsApp" alone now (it counts the invitation, Q-19), never
+    // "WhatsApp reminders".
+    expect(practiceRow.textContent).not.toMatch(/WhatsApp reminder/i);
+    expect(practiceRow.textContent).not.toContain("…");
+  });
+
+  it("carries units in the input group beside RSVP by, First inv., Cadence and President", async () => {
+    render(await MessagingSchedulePage());
+
+    const practiceRow = screen.getAllByTestId("schedule-row")[0];
+    const adornments = Array.from(practiceRow.querySelectorAll(".MuiInputAdornment-root")).map(
+      (node) => node.textContent,
+    );
+
+    expect(adornments).toEqual(expect.arrayContaining(["days", "days", "h", "h"]));
+  });
+});
+
+describe("one save button per row — OWNER-LAN171-04", () => {
+  it("gives every row its own form and its own save button, not one for the page", async () => {
+    const { container } = render(await MessagingSchedulePage());
+
+    const forms = container.querySelectorAll("form");
+    expect(forms).toHaveLength(7);
+
+    const rowsFound = screen.getAllByTestId("schedule-row");
+    const practiceRow = rowsFound[0];
+    expect(practiceRow.querySelector('button[type="submit"]')).toHaveTextContent("Save practice");
+    const gameRow = rowsFound.find((row) => row.textContent?.includes("Game"))!;
+    expect(gameRow.querySelector('button[type="submit"]')).toHaveTextContent("Save game");
+  });
+
+  it("scopes each row's hidden event type to its own form", async () => {
+    const { container } = render(await MessagingSchedulePage());
+
+    const hiddenInputs = container.querySelectorAll('input[name="eventType"]');
+    expect(Array.from(hiddenInputs).map((input) => (input as HTMLInputElement).value)).toEqual(
+      EVENT_TYPES,
+    );
   });
 });

@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  readScheduleChanges,
-  scheduleChanged,
-  scheduleFieldName,
-  SCHEDULE_EVENT_TYPES,
-} from "./validation";
+import { readOneScheduleChange, scheduleChanged, SCHEDULE_FIELDS } from "./validation";
 import type { MessagingScheduleChange } from "@/lib/services/messaging-schedule";
 
 const VALID: MessagingScheduleChange = {
@@ -16,41 +11,30 @@ const VALID: MessagingScheduleChange = {
   escalationHours: 12,
 };
 
-/** A complete, valid form submission — every one of the seven types, unchanged. */
-function completeFormData(overrides: Record<string, string> = {}): FormData {
+/** One row's own form submission — every one of its six fields, well formed. */
+function rowFormData(overrides: Record<string, string> = {}): FormData {
   const data = new FormData();
-  for (const eventType of SCHEDULE_EVENT_TYPES) {
-    data.set(scheduleFieldName(eventType, "rsvpByDays"), String(VALID.rsvpByDays));
-    data.set(scheduleFieldName(eventType, "invitationLeadDays"), String(VALID.invitationLeadDays));
-    data.set(
-      scheduleFieldName(eventType, "reminderCadenceHours"),
-      String(VALID.reminderCadenceHours),
-    );
-    data.set(
-      scheduleFieldName(eventType, "whatsappReminderCount"),
-      String(VALID.whatsappReminderCount),
-    );
-    data.set(scheduleFieldName(eventType, "emailReminderCount"), String(VALID.emailReminderCount));
-    data.set(scheduleFieldName(eventType, "escalationHours"), String(VALID.escalationHours));
-  }
+  data.set("rsvpByDays", String(VALID.rsvpByDays));
+  data.set("invitationLeadDays", String(VALID.invitationLeadDays));
+  data.set("reminderCadenceHours", String(VALID.reminderCadenceHours));
+  data.set("whatsappReminderCount", String(VALID.whatsappReminderCount));
+  data.set("emailReminderCount", String(VALID.emailReminderCount));
+  data.set("escalationHours", String(VALID.escalationHours));
   for (const [key, value] of Object.entries(overrides)) data.set(key, value);
   return data;
 }
 
-describe("readScheduleChanges", () => {
-  it("reads all seven event types when every field is well formed", () => {
-    const result = readScheduleChanges(completeFormData());
+describe("readOneScheduleChange", () => {
+  it("reads one event type's row when every field is well formed", () => {
+    const result = readOneScheduleChange("practice", rowFormData());
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected ok");
-    expect(result.changes.size).toBe(7);
-    expect(result.changes.get("practice")).toEqual(VALID);
+    expect(result.change).toEqual(VALID);
   });
 
   it("refuses a blank field, naming the type and the field", () => {
-    const result = readScheduleChanges(
-      completeFormData({ [scheduleFieldName("game", "rsvpByDays")]: "" }),
-    );
+    const result = readOneScheduleChange("game", rowFormData({ rsvpByDays: "" }));
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected a refusal");
@@ -59,9 +43,7 @@ describe("readScheduleChanges", () => {
   });
 
   it("refuses a non-integer value", () => {
-    const result = readScheduleChanges(
-      completeFormData({ [scheduleFieldName("social", "reminderCadenceHours")]: "24.5" }),
-    );
+    const result = readOneScheduleChange("social", rowFormData({ reminderCadenceHours: "24.5" }));
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected a refusal");
@@ -77,9 +59,7 @@ describe("readScheduleChanges", () => {
     ["emailReminderCount", "-1"],
     ["escalationHours", "721"],
   ])("refuses %s out of its bounds (%s)", (field, value) => {
-    const result = readScheduleChanges(
-      completeFormData({ [scheduleFieldName("chalk", field)]: value }),
-    );
+    const result = readOneScheduleChange("chalk", rowFormData({ [field]: value }));
 
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected a refusal");
@@ -87,11 +67,9 @@ describe("readScheduleChanges", () => {
   });
 
   it("refuses an invitation lead shorter than the RSVP deadline it precedes", () => {
-    const result = readScheduleChanges(
-      completeFormData({
-        [scheduleFieldName("meeting", "rsvpByDays")]: "5",
-        [scheduleFieldName("meeting", "invitationLeadDays")]: "3",
-      }),
+    const result = readOneScheduleChange(
+      "meeting",
+      rowFormData({ rsvpByDays: "5", invitationLeadDays: "3" }),
     );
 
     expect(result.ok).toBe(false);
@@ -100,14 +78,35 @@ describe("readScheduleChanges", () => {
   });
 
   it("accepts the invitation lead exactly equal to the RSVP deadline", () => {
-    const result = readScheduleChanges(
-      completeFormData({
-        [scheduleFieldName("recruitment", "rsvpByDays")]: "5",
-        [scheduleFieldName("recruitment", "invitationLeadDays")]: "5",
-      }),
+    const result = readOneScheduleChange(
+      "recruitment",
+      rowFormData({ rsvpByDays: "5", invitationLeadDays: "5" }),
     );
 
     expect(result.ok).toBe(true);
+  });
+});
+
+describe("SCHEDULE_FIELDS", () => {
+  it("carries a short grid label and a unit for every day/hour field, and no unit for a plain count", () => {
+    const byKey = Object.fromEntries(SCHEDULE_FIELDS.map((field) => [field.key, field]));
+
+    expect(byKey.rsvpByDays).toMatchObject({ label: "RSVP by", unit: "days" });
+    expect(byKey.invitationLeadDays).toMatchObject({ label: "First inv.", unit: "days" });
+    expect(byKey.reminderCadenceHours).toMatchObject({ label: "Cadence", unit: "h" });
+    expect(byKey.escalationHours).toMatchObject({ label: "President", unit: "h" });
+
+    // Q-19 / OWNER-LAN171-05: the count includes the invitation, so the grid
+    // label is "WhatsApp" alone, never "WhatsApp reminders".
+    expect(byKey.whatsappReminderCount.label).toBe("WhatsApp");
+    expect(byKey.whatsappReminderCount.label).not.toMatch(/reminder/i);
+    expect(byKey.emailReminderCount.label).toBe("Email");
+
+    // No label is truncated to an ellipsis anywhere in this table — Brian's
+    // "WhatsApp reminde…" screenshot.
+    for (const field of SCHEDULE_FIELDS) {
+      expect(field.label).not.toMatch(/…/);
+    }
   });
 });
 

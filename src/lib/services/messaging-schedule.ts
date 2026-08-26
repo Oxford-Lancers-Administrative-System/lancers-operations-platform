@@ -3,7 +3,7 @@ import "server-only";
 import { addClubDays, CLUB_TIME_ZONE, todayInClubZone } from "@/lib/club-time";
 import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 
-import { recordAudit } from "./audit";
+import { deriveEntityIdFromNaturalKey, recordAudit } from "./audit";
 
 /**
  * The club's messaging schedule, and the plan one approval freezes. LAN-169.
@@ -76,7 +76,15 @@ export interface MessagingSchedule {
   readonly invitationLeadDays: number;
   /** Hours between successive rungs. Reminders count forward from the invitation. */
   readonly reminderCadenceHours: number;
+  /**
+   * Every WhatsApp message the ladder sends, **counting the invitation
+   * itself as the first one** (Q-19, `REQ-ladder-order` governs over W7's
+   * looser "reminders" wording). A club that wants one further WhatsApp
+   * reminder after the invitation sets this to 2, not 1 — the count column
+   * never calls the invitation a reminder, but it does count it.
+   */
   readonly whatsappReminderCount: number;
+  /** Email reminders after the invitation. The invitation is never email. */
   readonly emailReminderCount: number;
   /** Hours after the RSVP deadline before the President is told. Zero is legal. */
   readonly escalationHours: number;
@@ -275,11 +283,22 @@ export async function updateMessagingScheduleIn(
   // change stops being a reviewed pull request and becomes a runtime edit. The
   // audit row is the whole of what replaces version control here, so it carries
   // both the old and the new values rather than only the new ones.
+  //
+  // `entityId` is derived, not `eventType` itself (OWNER-LAN171-01):
+  // `audit_events.entity_id` is `uuid not null`, and `messaging_schedules` is
+  // keyed by `public.event_type` — a plain enum label such as `"practice"`,
+  // which Postgres rejects outright as a uuid. That rejection used to roll
+  // back this whole transaction, discarding the schedule UPDATE above along
+  // with the audit insert, so every save silently failed. `entity_table`
+  // still says `messaging_schedules` and `context` carries the full before
+  // and after, so the derived id and that pair together still identify
+  // exactly which row changed. See `deriveEntityIdFromNaturalKey`'s own
+  // comment for why this is not a migration.
   await recordAudit(tx, {
     actorPersonId,
     action: "messaging_schedule.changed",
     entityTable: "messaging_schedules",
-    entityId: eventType,
+    entityId: deriveEntityIdFromNaturalKey("messaging_schedules", eventType),
     context: { before, after: change },
   });
 
@@ -366,6 +385,14 @@ const HOUR_MS = 60 * 60 * 1000;
  * event's committed ladder, since `event_messaging_plans` stores the counts and
  * the anchor but not each rung's own instant. Both callers get the one
  * arithmetic rather than a second copy of it.
+ *
+ * `whatsappReminders` and `emailReminders` are rungs **after** the invitation
+ * — the invitation is rung 0, built unconditionally below. Neither caller
+ * passes `schedule.whatsappReminderCount` unchanged: `resolveMessagingPlanIn`
+ * passes `schedule.whatsappReminderCount - 1`, because that column counts the
+ * invitation as WhatsApp #1 (Q-19); the event page passes a frozen plan's own
+ * `whatsappRemindersScheduled`, which was computed the same way at approval
+ * and already excludes it.
  */
 export function buildLadder(
   invitationAt: Date,
@@ -479,7 +506,12 @@ export async function resolveMessagingPlanIn(
   const runwayMs = responseDeadlineAt.getTime() - invitationAt.getTime();
   const available = runwayMs <= 0 ? 0 : Math.floor(runwayMs / cadenceMs);
 
-  const wanted = schedule.whatsappReminderCount + schedule.emailReminderCount;
+  // `schedule.whatsappReminderCount` counts the invitation as WhatsApp #1
+  // (Q-19, OWNER-LAN171-05): the invitation itself is rung 0, unconditional,
+  // built below regardless of any count. What `buildLadder` wants here is how
+  // many *further* WhatsApp rungs follow it, which is one fewer.
+  const whatsappRemindersAfterInvitation = Math.max(0, schedule.whatsappReminderCount - 1);
+  const wanted = whatsappRemindersAfterInvitation + schedule.emailReminderCount;
 
   // A late approval is one whose runway cannot carry the ladder the club
   // configured — not merely one that dispatches immediately. The two differ:
@@ -489,8 +521,8 @@ export async function resolveMessagingPlanIn(
   const lateApproval = available < wanted;
 
   const whatsappScheduled = lateApproval
-    ? Math.max(0, Math.min(schedule.whatsappReminderCount, available))
-    : schedule.whatsappReminderCount;
+    ? Math.max(0, Math.min(whatsappRemindersAfterInvitation, available))
+    : whatsappRemindersAfterInvitation;
 
   // WhatsApp only. Brian, 2026-08-25: "Late events should be WhatsApp only."
   // On a short runway the club uses the channel everybody has and does not add
