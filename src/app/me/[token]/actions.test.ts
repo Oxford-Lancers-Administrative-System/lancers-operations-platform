@@ -155,11 +155,16 @@ describe("submitQuestions", () => {
 
     await redirectFrom(() => submitQuestions(form));
 
-    expect(answerEventQuestionsIn).toHaveBeenCalledWith(expect.anything(), INVITATION_ID, [
-      { questionId: "q1", text: "Vegetarian" },
-      { questionId: "q2", boolean: true },
-      { questionId: "q3", choice: "M" },
-    ]);
+    expect(answerEventQuestionsIn).toHaveBeenCalledWith(
+      expect.anything(),
+      PERSON_ID,
+      INVITATION_ID,
+      [
+        { questionId: "q1", text: "Vegetarian" },
+        { questionId: "q2", boolean: true },
+        { questionId: "q3", choice: "M" },
+      ],
+    );
   });
 
   it("skips a question the player left blank rather than saving an empty answer", async () => {
@@ -169,7 +174,12 @@ describe("submitQuestions", () => {
 
     await redirectFrom(() => submitQuestions(form));
 
-    expect(answerEventQuestionsIn).toHaveBeenCalledWith(expect.anything(), INVITATION_ID, []);
+    expect(answerEventQuestionsIn).toHaveBeenCalledWith(
+      expect.anything(),
+      PERSON_ID,
+      INVITATION_ID,
+      [],
+    );
   });
 });
 

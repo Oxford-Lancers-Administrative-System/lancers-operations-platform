@@ -22,10 +22,13 @@ import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
  * Writes made from the durable page. LAN-172.
  *
  * Every action re-resolves the durable token inside its own transaction and
- * re-proves that the target invitation belongs to the resolved person —
- * `recordPlayerHomeAnswerIn` and the ownership check in this file both do
- * this, so an invitation id taken from a request that does not belong to the
- * token holder is refused identically to one that does not exist at all.
+ * passes the resolved `personId` — never the form's own values — into the
+ * service call that re-proves the target invitation belongs to that person.
+ * `recordPlayerHomeAnswerIn` and `answerEventQuestionsIn` each do this proof
+ * themselves, so an invitation id taken from a request that does not belong
+ * to the token holder is refused identically to one that does not exist at
+ * all. Correction LAN-172-c1: `answerEventQuestionsIn` previously took no
+ * `personId` and skipped this proof entirely.
  */
 
 function str(form: FormData, field: string): string {
@@ -150,7 +153,7 @@ export async function submitQuestions(form: FormData): Promise<void> {
       if (resolution.state !== "valid" || !resolution.resolved) {
         throw new Error("unresolved");
       }
-      await answerEventQuestionsIn(tx, invitationId, submissions);
+      await answerEventQuestionsIn(tx, resolution.resolved.personId, invitationId, submissions);
     });
   } catch {
     await refuse(`/me/${encodedToken}`, startedAt);

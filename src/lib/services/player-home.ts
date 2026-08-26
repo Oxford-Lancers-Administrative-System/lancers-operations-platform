@@ -173,24 +173,43 @@ export interface QuestionAnswerSubmission {
  * forced failure must leave no partial completed answer, per LAN-172's
  * acceptance list. Everything commits together because the caller wraps this
  * in the same transaction as everything else on the request.
+ *
+ * `personId` must come from a resolved, verified credential — never from the
+ * request — and is re-proved against the invitation here, the same way
+ * `recordPlayerHomeAnswerIn` proves it for the standing-answer write. Without
+ * this, `invitationId` alone is enough to overwrite anyone's answers, because
+ * an invitation's existence says nothing about who is submitting the form.
  */
 export async function answerEventQuestionsIn(
   tx: Tx,
+  personId: string,
   invitationId: string,
   submissions: readonly QuestionAnswerSubmission[],
 ): Promise<void> {
   if (submissions.length === 0) return;
 
-  const eventContext = await tx.query<{ event_id: string }>(
-    `select event_id from public.invitations where id = $1`,
+  const eventContext = await tx.query<{
+    event_id: string;
+    resolved_person_id: string | null;
+  }>(
+    `select i.event_id, coalesce(i.person_id, m.person_id) as resolved_person_id
+       from public.invitations i
+       left join public.season_memberships m on m.id = i.season_membership_id
+      where i.id = $1`,
     [invitationId],
   );
-  const eventId = eventContext.rows[0]?.event_id;
-  if (!eventId) {
+  const row = eventContext.rows[0];
+  if (!row) {
     throw new ConstraintViolated("That invitation no longer exists.", {
       rule: "event_question_answer_requires_an_invitation",
     });
   }
+  if (row.resolved_person_id !== personId) {
+    throw new ConstraintViolated("That invitation does not belong to this page.", {
+      rule: INVITATION_NOT_OWNED_RULE,
+    });
+  }
+  const eventId = row.event_id;
 
   for (const submission of submissions) {
     const provided = [submission.text, submission.boolean, submission.choice].filter(

@@ -20,6 +20,7 @@ import type { Client } from "pg";
 import { closePool, isServiceError, withTransaction, type ServiceError } from "@/lib/db";
 import {
   answerEventQuestionsIn,
+  INVITATION_NOT_OWNED_RULE,
   readPlayerAnswerLandingIn,
   readPlayerHomeIn,
   recordPlayerHomeAnswerIn,
@@ -342,7 +343,7 @@ describe("the answer-specific landing content", () => {
 
 describe("saving event questions", () => {
   it("saves a text, a boolean and a choice answer together", async () => {
-    const { invitationId, eventId } = await fixture(48, "-save");
+    const { personId, invitationId, eventId } = await fixture(48, "-save");
     const text = await observer.query<{ id: string }>(
       `insert into public.event_questions (event_id, prompt, answer_type, applies_to_capacities)
        values ($1, 'Dietary needs?', 'text', '{player}') returning id`,
@@ -360,7 +361,7 @@ describe("saving event questions", () => {
     );
 
     await withTransaction((tx) =>
-      answerEventQuestionsIn(tx, invitationId, [
+      answerEventQuestionsIn(tx, personId, invitationId, [
         { questionId: text.rows[0].id, text: "Vegetarian" },
         { questionId: boolean.rows[0].id, boolean: true },
         { questionId: choice.rows[0].id, choice: "M" },
@@ -379,7 +380,7 @@ describe("saving event questions", () => {
   });
 
   it("updates an existing answer rather than duplicating it", async () => {
-    const { invitationId, eventId } = await fixture(48, "-update");
+    const { personId, invitationId, eventId } = await fixture(48, "-update");
     const question = await observer.query<{ id: string }>(
       `insert into public.event_questions (event_id, prompt, answer_type, applies_to_capacities)
        values ($1, 'Dietary needs?', 'text', '{player}') returning id`,
@@ -387,12 +388,12 @@ describe("saving event questions", () => {
     );
 
     await withTransaction((tx) =>
-      answerEventQuestionsIn(tx, invitationId, [
+      answerEventQuestionsIn(tx, personId, invitationId, [
         { questionId: question.rows[0].id, text: "Vegetarian" },
       ]),
     );
     await withTransaction((tx) =>
-      answerEventQuestionsIn(tx, invitationId, [
+      answerEventQuestionsIn(tx, personId, invitationId, [
         { questionId: question.rows[0].id, text: "Vegan" },
       ]),
     );
@@ -403,6 +404,35 @@ describe("saving event questions", () => {
     );
     expect(saved.rows).toHaveLength(1);
     expect(saved.rows[0].answer_text).toBe("Vegan");
+  });
+
+  it("refuses to save another person's answers even though the form names their invitation — REQ-cross-person-isolation", async () => {
+    const personA = await fixture(48, "-cross-a");
+    const personB = await fixture(48, "-cross-b");
+    const question = await observer.query<{ id: string }>(
+      `insert into public.event_questions (event_id, prompt, answer_type, applies_to_capacities)
+       values ($1, 'Dietary needs?', 'text', '{player}') returning id`,
+      [personB.eventId],
+    );
+
+    // Person A's durable token has resolved to personA.personId; the form
+    // nonetheless carries person B's invitationId — exactly what a player
+    // editing the hidden field, or calling the action directly, can do.
+    const error = await caught(() =>
+      withTransaction((tx) =>
+        answerEventQuestionsIn(tx, personA.personId, personB.invitationId, [
+          { questionId: question.rows[0].id, text: "Overwritten by a stranger" },
+        ]),
+      ),
+    );
+    expect(error.rule).toBe(INVITATION_NOT_OWNED_RULE);
+
+    // Refused, and nothing was written to person B's answers.
+    const saved = await observer.query(
+      "select count(*) as count from public.question_responses where invitation_id = $1",
+      [personB.invitationId],
+    );
+    expect(Number(saved.rows[0].count)).toBe(0);
   });
 });
 
