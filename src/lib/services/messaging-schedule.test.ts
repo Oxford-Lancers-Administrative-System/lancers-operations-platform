@@ -20,6 +20,7 @@ import { closePool, withTransaction } from "@/lib/db";
 
 import {
   buildLadder,
+  listMessagingSchedulesIn,
   listMessagingSchedulesWithPreview,
   resolveMessagingPlanIn,
   readMessagingScheduleIn,
@@ -258,6 +259,26 @@ describe("the configuration itself", () => {
       // ladder, or the last reminder lands well before the deadline it chases.
       expect(schedule.invitationLeadDays).toBe(schedule.rsvpByDays + 3);
     }
+  });
+
+  it("lists every schedule in the enum's own declared order, not alphabetically", async () => {
+    // A regression on its own right: the column list casts `event_type` to
+    // text for its output alias, and an unqualified `order by event_type`
+    // resolves against that same-named output alias rather than the
+    // underlying enum column — sorting "chalk, game, meeting, practice…"
+    // instead of the declared "practice, strength_and_conditioning, chalk,
+    // game…". LAN-171's settings page groups its rows in this order.
+    const rows = await withTransaction((tx) => listMessagingSchedulesIn(tx));
+
+    expect(rows.map((row) => row.eventType)).toEqual([
+      "practice",
+      "strength_and_conditioning",
+      "chalk",
+      "game",
+      "social",
+      "recruitment",
+      "meeting",
+    ]);
   });
 
   it("refuses an event type nobody has agreed a schedule for", async () => {

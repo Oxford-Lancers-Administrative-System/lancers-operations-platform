@@ -157,10 +157,23 @@ export async function readMessagingScheduleIn(
   return toSchedule(row);
 }
 
-/** Every configured schedule, for the settings page and the approval panel. */
+/**
+ * Every configured schedule, for the settings page and the approval panel.
+ *
+ * `order by t.event_type` — the table-qualified, still-enum-typed column —
+ * deliberately, and not the bare `event_type` the `select` list also produces.
+ * `SCHEDULE_COLUMNS` casts the column to text for its output alias, and
+ * PostgreSQL resolves a bare `ORDER BY` name against an output alias of the
+ * same name before it considers the source column: unqualified, this sorted
+ * alphabetically by the cast text ("chalk, game, meeting, practice…") rather
+ * than by `public.event_type`'s own declared order ("practice,
+ * strength_and_conditioning, chalk, game…") — the order LAN-171's settings
+ * page groups by, and the order the seed inserts in. Qualifying it is what
+ * makes `ORDER BY` see the real enum column instead of the aliased text.
+ */
 export async function listMessagingSchedulesIn(tx: Tx): Promise<readonly MessagingSchedule[]> {
   const result = await tx.query<ScheduleRow>(
-    `select ${SCHEDULE_COLUMNS} from public.messaging_schedules order by event_type`,
+    `select ${SCHEDULE_COLUMNS} from public.messaging_schedules t order by t.event_type`,
   );
   return result.rows.map(toSchedule);
 }
