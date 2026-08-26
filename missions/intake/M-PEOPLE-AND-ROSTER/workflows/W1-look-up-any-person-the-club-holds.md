@@ -190,17 +190,18 @@ specification above; it records what his review decided and what it superseded.
 
 ### Decided, and applied to the mockups
 
-| Decision                                                                                                           | His words                                                                                                                                              |
-| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| People is an **Administration** destination, not a fourth entry beside Roster                                      | "People should be considered an administrative task. It's not something that falls into the top left."                                                 |
-| An operator outside the four-role group never sees the entry; the server guard behind it is unchanged              | "If you're an operator outside the four roles, you just never see this page. It's just something that never pops up for you."                          |
-| The widen action is **See people outside this season**                                                             | "We need a more clear way of saying see people outside of the season… Everyone the club has ever held is a weird language there."                      |
-| **No narrative text in any surface.** Labels, values and states, plus the sentence an empty or refusal state needs | "The narrative text is I hate it. Every place I see it, I fucking hate it. The UI shouldn't have narrative text anywhere."                             |
-| The four source-and-confidence labels are replaced by who supplied the value, and a `Verified` mark                | "We don't need the labels. However, I like seeing if it's externally verified versus not… Who provided the detail would be important: who did it?"     |
-| A coach is part of the season. `No membership` is struck; standing is empty and the role names the tie             | "If a person gets added as a coach, they are part of this season. They are a member of this season. They're just not a player… I don't see the error." |
-| The `Open →` control on each season row is struck; the season label is the link and carries its own standing       | "I don't know what 'open' means… it's not clear to me what that 'open' button does."                                                                   |
-| The record's layout stands for now                                                                                 | "I don't like the record as it sits here. We'll keep it as is for now. The people record shouldn't be used that often, so I think that's fine."        |
-| `W1-02` is accepted as it stands                                                                                   | "The W1-02 is fine."                                                                                                                                   |
+| Decision                                                                                                                | His words                                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| People is an **Administration** destination, not a fourth entry beside Roster                                           | "People should be considered an administrative task. It's not something that falls into the top left."                                                                           |
+| An operator outside the four-role group never sees the entry; the server guard behind it is unchanged                   | "If you're an operator outside the four roles, you just never see this page. It's just something that never pops up for you."                                                    |
+| The widen action is **See people outside this season**                                                                  | "We need a more clear way of saying see people outside of the season… Everyone the club has ever held is a weird language there."                                                |
+| **No narrative text in any surface.** Labels, values and states, plus the sentence an empty or refusal state needs      | "The narrative text is I hate it. Every place I see it, I fucking hate it. The UI shouldn't have narrative text anywhere."                                                       |
+| The four source-and-confidence labels are replaced by who supplied the value, and a `Verified` mark                     | "We don't need the labels. However, I like seeing if it's externally verified versus not… Who provided the detail would be important: who did it?"                               |
+| A coach is part of the season. `No membership` is struck; standing is empty and the role names the tie                  | "If a person gets added as a coach, they are part of this season. They are a member of this season. They're just not a player… I don't see the error."                           |
+| The `Open →` control on each season row is struck; the season label is the link and carries its own standing            | "I don't know what 'open' means… it's not clear to me what that 'open' button does."                                                                                             |
+| The record's layout stands for now                                                                                      | "I don't like the record as it sits here. We'll keep it as is for now. The people record shouldn't be used that often, so I think that's fine."                                  |
+| `W1-02` is accepted as it stands                                                                                        | "The W1-02 is fine."                                                                                                                                                             |
+| **Contact** is struck as a category of person. A person is a player, a coach, an executive committee member, or nothing | "We wouldn't have a contact there. Contacts are just addresses and something else. They're either somebody who is a player, a coach, an executive committee member, or nothing." |
 
 ### Superseded by this review
 
@@ -227,5 +228,9 @@ control on the page moves it. `field-inventory.md` needs the dated amendment.
 - **Whether `W1-04` shows only the people outside the season, or one list of
   everybody.** Drawn as outside-only, which is the literal reading of his words.
 - **Whether `W1-08` still earns a screen** now that the recruitment block is gone.
+- **`00-boundary.md` and this specification still say "outside contact"** where
+  they describe an unassigned Person. The word is now wrong and needs the same
+  dated amendment as the two supersessions above. Deferred on his word: "You can
+  just update this after the fact."
 - **One garbled dictation line** — "The player, certainly, the change to see what
   it is shouldn't be here" — is unresolved and awaiting his restatement.
