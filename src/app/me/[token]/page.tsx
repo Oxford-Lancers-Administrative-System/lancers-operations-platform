@@ -64,6 +64,7 @@ import {
   PRIVACY_NOTE,
   PUBLIC_CALENDAR_LINK,
   QUESTIONS_HEADING,
+  QUESTIONS_RECORDED,
   REASON_LABEL,
   REASON_PLACEHOLDER,
   REASON_PROMPT,
@@ -678,10 +679,17 @@ function FocusedPanel({
         <Alert severity="success" sx={{ mb: 2 }}>
           {invitation.outstandingRequiredQuestions > 0
             ? `${STANDING_YES} — ${OUTSTANDING_QUESTIONS}`
-            : STANDING_YES}
+            : landing.questions.length > 0
+              ? `${STANDING_YES} — ${QUESTIONS_RECORDED}`
+              : STANDING_YES}
         </Alert>
       ) : invitation.standingAnswer === "no" ? (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        // Owner correction round 3 (OWNER-LAN172-09): a standing No carrying
+        // the honest default is a recorded answer, not a fault — Brian:
+        // "the reason in default is very, very odd" (referring to the alarm,
+        // not the reason itself). `info` reads as a neutral fact, matching
+        // the tone `otherOutstanding` already uses below.
+        <Alert severity="info" sx={{ mb: 2 }}>
           {invitation.reasonIsDefault
             ? `${STANDING_NO} — ${NO_REASON_GIVEN}`
             : `${STANDING_NO} — ${invitation.reason}`}
@@ -703,22 +711,6 @@ function FocusedPanel({
         </Box>
       ) : null}
 
-      {invitation.standingAnswer !== "yes" && invitation.standingAnswer !== null ? (
-        <Box component="form" action={changeToYes} sx={{ mb: 2 }}>
-          <input type="hidden" name="token" value={token} />
-          <input type="hidden" name="invitationId" value={invitation.invitationId} />
-          <Button
-            type="submit"
-            variant="contained"
-            color="success"
-            fullWidth
-            sx={{ minHeight: 48 }}
-          >
-            {CHANGE_TO_YES}
-          </Button>
-        </Box>
-      ) : null}
-
       {invitation.standingAnswer === "yes" ? (
         <Box component="form" action={submitNo}>
           <input type="hidden" name="token" value={token} />
@@ -736,8 +728,17 @@ function FocusedPanel({
         </Box>
       ) : null}
 
+      {/*
+        Owner correction round 3 (OWNER-LAN172-09): the reason field now
+        leads, "Change to Yes" follows as the standing exit — Brian's panel
+        opened for him to explain a No, not to be routed toward reconsidering
+        it first. The reason stays optional (REQ-no-reason-given: the No
+        already stands without it), so the field carries no `required` marker
+        — only the dedicated Save action still refuses a submitted-but-blank
+        real reason, exactly as it always has (LAN-79's own recoverable error).
+      */}
       {invitation.standingAnswer === "no" ? (
-        <Box component="form" action={submitNo}>
+        <Box component="form" action={submitNo} sx={{ mb: 2 }}>
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="invitationId" value={invitation.invitationId} />
           <Typography sx={{ fontSize: 13, color: "text.secondary", mb: 1 }}>
@@ -748,7 +749,6 @@ function FocusedPanel({
               name="reason"
               label={REASON_LABEL}
               placeholder={REASON_PLACEHOLDER}
-              required
               fullWidth
               error={reasonError}
               helperText={reasonError ? "Choose a reason before saving." : undefined}
@@ -761,7 +761,30 @@ function FocusedPanel({
         </Box>
       ) : null}
 
-      {invitation.standingAnswer === "yes" && landing.questions.length > 0 ? (
+      {invitation.standingAnswer !== "yes" && invitation.standingAnswer !== null ? (
+        <Box component="form" action={changeToYes} sx={{ mb: 2 }}>
+          <input type="hidden" name="token" value={token} />
+          <input type="hidden" name="invitationId" value={invitation.invitationId} />
+          <Button
+            type="submit"
+            variant="contained"
+            color="success"
+            fullWidth
+            sx={{ minHeight: 48 }}
+          >
+            {CHANGE_TO_YES}
+          </Button>
+        </Box>
+      ) : null}
+
+      {/*
+        Owner correction round 3 (OWNER-LAN172-08): once nothing required
+        remains outstanding, stop re-rendering the identical form — the top
+        Alert above already reads "Attending — Answer recorded" in that
+        state. Brian: "it should close it up and say 'Answer recorded'...
+        right now, it just goes blank."
+      */}
+      {invitation.standingAnswer === "yes" && invitation.outstandingRequiredQuestions > 0 ? (
         <Box component="form" action={submitQuestions} sx={{ mt: 3 }}>
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="invitationId" value={invitation.invitationId} />

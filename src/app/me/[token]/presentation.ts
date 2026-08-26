@@ -97,7 +97,18 @@ export const FURTHER_OUT_HELP =
 export const ANSWER_YES = "Yes";
 export const ANSWER_NO = "No";
 export const CHANGE_TO_YES = "Change to Yes";
-export const CHANGE_TO_NO = "Change to No";
+/**
+ * Owner correction round 3 (LAN-172, OWNER-LAN172-11). Brian, verbatim:
+ * "Change to 'no' should just say 'change answer.' It should not say 'change
+ * to no.'" `REQ-emphasis-points-at-yes` governs the control's fill/weight,
+ * not its wording — this control stays unfilled exactly as before, and a
+ * neutral label on an already-unfilled control is strictly less directional
+ * toward No than naming it, never more. `CHANGE_TO_YES` keeps its filled
+ * treatment and its own wording untouched; only this secondary control's
+ * copy changes, converging on the wording `PLANS_CHANGED` already uses
+ * ("change your answer") rather than inventing a second pattern.
+ */
+export const CHANGE_TO_NO = "Change answer";
 export const ANSWER_QUESTIONS = "Answer questions";
 export const ADD_REASON = "Add reason";
 export const EDIT_REASON = "Edit reason";
@@ -125,12 +136,34 @@ export const NEXT_CHIP = "Next";
 export const AWAITING_ANSWER_CHIP = "Awaiting answer";
 
 export const REASON_LABEL = "Reason";
-export const REASON_PLACEHOLDER = "Academic conflict";
+/**
+ * Owner correction round 3 (OWNER-LAN172-09). Brian: the previous placeholder,
+ * "Academic conflict", "reads as a real answer rather than an example" — a
+ * ghost value on a field a player might not read closely enough to notice is
+ * unfilled. An "e.g." prefix makes clear this is instructional text, not a
+ * pre-loaded excuse the club already assumed.
+ */
+export const REASON_PLACEHOLDER = "e.g. clashes with a family commitment";
 export const REASON_PROMPT =
   "The club plans numbers, transport and coaching from these responses. Tell the club why if you can.";
-export const SAVE_REASON = "Give a reason and continue";
+/**
+ * Owner correction round 3 (OWNER-LAN172-09). Brian, verbatim: "It should
+ * have an answer and should go to 'Save.'" Renamed from "Give a reason and
+ * continue" — there is nothing left to "continue" to once the No already
+ * stands (Q-22, `REQ-no-reason-given`); this action only ever saves an
+ * optional reason against an answer already recorded.
+ */
+export const SAVE_REASON = "Save";
 
 export const QUESTIONS_HEADING = "A couple of questions for this event";
 export const SAVE_QUESTIONS = "Save answers";
+/**
+ * Owner correction round 3 (OWNER-LAN172-08). Brian: "it should close it up
+ * and say 'Answer recorded'... right now, it just goes blank." Shown in place
+ * of the questions form once nothing required remains outstanding, so a
+ * successful save reads as recorded rather than re-showing the identical
+ * form.
+ */
+export const QUESTIONS_RECORDED = "Answer recorded";
 
 export const CLOSE_DETAIL = "Done";

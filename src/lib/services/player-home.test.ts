@@ -522,12 +522,31 @@ describe("the durable page's own view", () => {
     expect(furtherIds).toEqual([farAnswered, farUnanswered].sort());
   });
 
-  it("counts every unanswered invitation, near and beyond the horizon, in outstandingCount", async () => {
+  it("scopes outstandingCount to the 21-day horizon, excluding further-out unanswered work — Q-26", async () => {
     const near = await fixture(48, "-count-near");
     await secondInvitationFor(near.personId, 24 * 30, "-count-far");
 
     const home = await withTransaction((tx) => readPlayerHomeIn(tx, near.personId));
-    expect(home.outstandingCount).toBe(2);
+    expect(home.outstandingCount).toBe(1);
+  });
+
+  it("counts nothing outstanding when the only unanswered work is beyond the horizon — Q-26", async () => {
+    const far = await fixture(24 * 30, "-count-only-far");
+
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, far.personId));
+    expect(home.outstandingCount).toBe(0);
+    expect(home.furtherOut.map((e) => e.invitationId)).toEqual([far.invitationId]);
+  });
+
+  it("keeps outstandingCount identical to the size of the rendered near-term unanswered lists — Q-26 pin", async () => {
+    const near = await fixture(48, "-count-agree-near");
+    await secondInvitationFor(near.personId, 24 * 30, "-count-agree-far");
+    const chased = await secondInvitationFor(near.personId, 72, "-count-agree-chased");
+    await markReminderSent(chased, null, near.personId);
+
+    const home = await withTransaction((tx) => readPlayerHomeIn(tx, near.personId));
+    const renderedUnanswered = home.newInvitations.length + home.stillNeedAnswer.length;
+    expect(home.outstandingCount).toBe(renderedUnanswered);
   });
 
   it("names the single soonest unanswered invitation across New and Still-need-your-answer", async () => {

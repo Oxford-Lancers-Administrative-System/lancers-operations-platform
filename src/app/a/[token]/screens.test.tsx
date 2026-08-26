@@ -42,10 +42,29 @@ import {
   resolveAnswerTokenIn,
   type AnswerTokenResolution,
 } from "@/lib/services/player-answer-tokens";
-import { readPlayerAnswerLandingIn, type PlayerAnswerLanding } from "@/lib/services/player-home";
+import {
+  readPlayerAnswerLandingIn,
+  type EventQuestionForAnswer,
+  type PlayerAnswerLanding,
+} from "@/lib/services/player-home";
 import { readSignedRsvpPageIn, type SignedRsvpPage } from "@/lib/services/rsvp";
+import { NO_BUTTON_LABEL } from "@/lib/delivery/templates";
 import AnswerLinkPage from "./page";
-import { NO_HEADING, YES_HEADING } from "./presentation";
+import {
+  NO_HEADING,
+  YES_CONFIRM_NO_QUESTIONS,
+  YES_CONFIRM_WITH_QUESTIONS,
+  YES_HEADING,
+} from "./presentation";
+
+const QUESTION: EventQuestionForAnswer = {
+  id: "00000000-0000-4000-8000-0000000000aa",
+  prompt: "Can you drive?",
+  answerType: "boolean",
+  choices: null,
+  isRequired: true,
+  currentAnswer: null,
+};
 
 const TOKEN = "y.00000000-0000-4000-8000-000000000079.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM01";
 
@@ -71,7 +90,7 @@ const LANDING: PlayerAnswerLanding = {
   outstandingRequiredQuestions: 0,
 };
 
-function givenAnswer(answer: "yes" | "no") {
+function givenAnswer(answer: "yes" | "no", questions: readonly EventQuestionForAnswer[] = []) {
   const resolution: AnswerTokenResolution = {
     state: "valid",
     answer,
@@ -87,7 +106,7 @@ function givenAnswer(answer: "yes" | "no") {
   };
   vi.mocked(resolveAnswerTokenIn).mockResolvedValue(resolution);
   vi.mocked(readSignedRsvpPageIn).mockResolvedValue(BASE);
-  vi.mocked(readPlayerAnswerLandingIn).mockResolvedValue(LANDING);
+  vi.mocked(readPlayerAnswerLandingIn).mockResolvedValue({ ...LANDING, questions });
 }
 
 async function renderPage(): Promise<ReturnType<typeof render>> {
@@ -136,5 +155,29 @@ describe("OWNER-LAN172-01 — the No heading no longer over-claims before the ta
     // attending — no reason given" on the side-effect-free GET, asserting a
     // standing-No default that does not exist until the POST records it.
     expect(text).not.toMatch(/no reason given/i);
+  });
+});
+
+describe("OWNER-LAN172-10 — the on-page confirm button names what happens next, not the message's own label", () => {
+  it("says 'Save options' for a Yes with questions still waiting, not the WhatsApp link text", async () => {
+    givenAnswer("yes", [QUESTION]);
+    const text = (await renderPage()).container.textContent ?? "";
+
+    expect(text).toContain(YES_CONFIRM_WITH_QUESTIONS);
+    expect(text).not.toContain("view details");
+  });
+
+  it("says 'Go see other events' for a Yes with no questions", async () => {
+    givenAnswer("yes", []);
+    const text = (await renderPage()).container.textContent ?? "";
+
+    expect(text).toContain(YES_CONFIRM_NO_QUESTIONS);
+  });
+
+  it("leaves the No button reusing the message's own label — Brian did not single it out", async () => {
+    givenAnswer("no");
+    const text = (await renderPage()).container.textContent ?? "";
+
+    expect(text).toContain(NO_BUTTON_LABEL);
   });
 });

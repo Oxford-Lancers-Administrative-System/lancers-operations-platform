@@ -43,6 +43,7 @@ import { resolvePersonTokenIn } from "@/lib/services/player-answer-tokens";
 import {
   readPlayerAnswerLandingIn,
   readPlayerHomeIn,
+  type EventQuestionForAnswer,
   type PlayerAnswerLanding,
   type PlayerHome,
   type PlayerHomeInvitation,
@@ -50,10 +51,18 @@ import {
 import PlayerHomePage from "./page";
 import {
   ANSWERED_HEADING,
+  CHANGE_TO_NO,
+  CHANGE_TO_YES,
   FOLLOW_UP_HEADING,
   FURTHER_OUT_HEADING,
   NEW_INVITATIONS_HEADING,
   NO_REASON_GIVEN,
+  pageHeading,
+  QUESTIONS_RECORDED,
+  REASON_LABEL,
+  REASON_PLACEHOLDER,
+  SAVE_QUESTIONS,
+  SAVE_REASON,
   STILL_NEED_ANSWER_HEADING,
 } from "./presentation";
 
@@ -196,5 +205,132 @@ describe("OWNER-LAN172-05 — the focused panel is the one richly detailed answe
     expect(text).toMatch(/not attending/i);
     expect(text).toMatch(/no reason given/i);
     expect(text).toContain("2 other invitations");
+  });
+});
+
+const QUESTION: EventQuestionForAnswer = {
+  id: "00000000-0000-4000-8000-0000000000aa",
+  prompt: "Can you drive?",
+  answerType: "boolean",
+  choices: null,
+  isRequired: true,
+  currentAnswer: null,
+};
+
+const YES_ENTRY = invitation({
+  invitationId: "66666666-6666-4666-8666-666666666666",
+  eventName: "Yes with questions",
+  standingAnswer: "yes",
+});
+
+function homeWithFocused(entry: PlayerHomeInvitation): PlayerHome {
+  return {
+    playerName: "Avery Fielding",
+    outstandingCount: 0,
+    nextInvitationId: null,
+    newInvitations: [],
+    stillNeedAnswer: [],
+    followUpNeeded: [],
+    answeredUpcoming: [entry],
+    furtherOut: [],
+  };
+}
+
+describe("OWNER-LAN172-07 — the heading count matches the rendered main list", () => {
+  it("keeps outstandingCount and the visible near-term rows in agreement", async () => {
+    givenHome();
+    const { container } = await renderPage();
+    const text = container.textContent ?? "";
+
+    const rendered = HOME.newInvitations.length + HOME.stillNeedAnswer.length;
+    expect(HOME.outstandingCount).toBe(rendered);
+    expect(text).toContain(pageHeading(HOME.outstandingCount));
+  });
+
+  it("shows zero outstanding when the only unanswered work is beyond the horizon, in Further ahead", async () => {
+    const farOnly: PlayerHome = {
+      playerName: "Avery Fielding",
+      outstandingCount: 0,
+      nextInvitationId: null,
+      newInvitations: [],
+      stillNeedAnswer: [],
+      followUpNeeded: [],
+      answeredUpcoming: [],
+      furtherOut: [FURTHER_OUT_ENTRY],
+    };
+    givenHome(farOnly);
+    const { container } = await renderPage();
+    const text = container.textContent ?? "";
+
+    expect(text).toContain(pageHeading(0));
+    expect(text).toContain(FURTHER_OUT_ENTRY.eventName);
+  });
+});
+
+describe("OWNER-LAN172-08 — saving questions ends in a plain acknowledgement, not the same form", () => {
+  it("shows the questions form while a required question is still outstanding", async () => {
+    givenHome(homeWithFocused({ ...YES_ENTRY, outstandingRequiredQuestions: 1 }));
+    vi.mocked(readPlayerAnswerLandingIn).mockResolvedValue({
+      attendingCount: 0,
+      otherOutstandingCount: 0,
+      questions: [QUESTION],
+      outstandingRequiredQuestions: 1,
+    });
+
+    const { container } = await renderPage({ open: YES_ENTRY.invitationId });
+    const text = container.textContent ?? "";
+
+    expect(text).toContain(SAVE_QUESTIONS);
+    expect(text).not.toContain(QUESTIONS_RECORDED);
+  });
+
+  it("replaces the form with 'Answer recorded' once nothing required remains — Brian: 'it just goes blank'", async () => {
+    givenHome(homeWithFocused({ ...YES_ENTRY, outstandingRequiredQuestions: 0 }));
+    vi.mocked(readPlayerAnswerLandingIn).mockResolvedValue({
+      attendingCount: 0,
+      otherOutstandingCount: 0,
+      questions: [{ ...QUESTION, currentAnswer: { text: null, boolean: true, choice: null } }],
+      outstandingRequiredQuestions: 0,
+    });
+
+    const { container } = await renderPage({ open: YES_ENTRY.invitationId });
+    const text = container.textContent ?? "";
+
+    expect(text).toContain(QUESTIONS_RECORDED);
+    expect(text).not.toContain(SAVE_QUESTIONS);
+  });
+});
+
+describe("OWNER-LAN172-09 — the standing-No panel leads with the reason, not the exit", () => {
+  it("puts the reason field ahead of Change to Yes, drops the error alert, renames Save, and drops the answer-like placeholder", async () => {
+    givenHome();
+    const { container } = await renderPage({ open: FOLLOW_UP_ENTRY.invitationId });
+    const text = container.textContent ?? "";
+
+    const reasonPosition = text.indexOf(REASON_LABEL);
+    const changeToYesPosition = text.indexOf(CHANGE_TO_YES);
+    expect(reasonPosition).toBeGreaterThan(-1);
+    expect(changeToYesPosition).toBeGreaterThan(-1);
+    expect(reasonPosition).toBeLessThan(changeToYesPosition);
+
+    expect(text).toContain(SAVE_REASON);
+    expect(SAVE_REASON).toBe("Save");
+    expect(container.querySelector(".MuiAlert-colorError")).toBeNull();
+    expect(text).not.toContain("Academic conflict");
+    expect(REASON_PLACEHOLDER).not.toBe("Academic conflict");
+  });
+});
+
+describe("OWNER-LAN172-11 — the row's secondary control reads 'Change answer'", () => {
+  it("labels the plain Attending row's secondary control 'Change answer', not 'Change to No'", async () => {
+    givenHome();
+    const { container } = await renderPage();
+    const text = container.textContent ?? "";
+
+    expect(CHANGE_TO_NO).toBe("Change answer");
+    expect(text).toContain("Change answer");
+    expect(text).not.toContain("Change to No");
+    // The paired affirmative control keeps its own wording and filled treatment.
+    expect(container.querySelector(".MuiButton-contained.MuiButton-colorSuccess")).not.toBeNull();
   });
 });

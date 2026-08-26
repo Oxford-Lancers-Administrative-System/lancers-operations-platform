@@ -121,8 +121,9 @@ LAN-172: the WhatsApp URL button carries a one-time token; the GET is entirely
 side-effect-free; the GET sets a cookie; the POST is accepted only when that
 cookie returns; the token is single-use at POST; no user-agent sniffing. The
 accepted deviation is the no-JavaScript single control on `/a/[token]`, worded
-as the answer action (it reuses the exact WhatsApp button label — Q-10) and
-never as a confirmation.
+as the answer action and never as a confirmation. Untouched by correction
+round 3: the GET still writes nothing, the POST is still cookie-gated and
+single-use.
 
 Implementation: the cookie is set by `src/proxy.ts`, not by the page — a
 Server Component's render may not mutate cookies in this framework — scoped by
@@ -134,9 +135,22 @@ presence alone, with no value comparison, is the whole check.
 
 Alphanumerics and spaces only, no em dashes: **"Yes view details"** and
 **"No give reason"**, declared once in `src/lib/delivery/templates.ts` as
-`YES_BUTTON_LABEL` / `NO_BUTTON_LABEL` and reused verbatim by `/a/[token]`'s
-own control, so the WhatsApp button and the page it opens never say two
-different things for the same action.
+`YES_BUTTON_LABEL` / `NO_BUTTON_LABEL`. This is the message's own contract —
+what Meta's WhatsApp URL buttons must say, 25 characters and alphanumeric
+because Meta enforces it.
+
+**Correction round 3 (OWNER-LAN172-10).** The first two rounds also reused
+these exact strings verbatim on `/a/[token]`'s own on-page button, on the
+reasoning that message and page should never say two different things for the
+same action. Brian: _"the bottom of the screen says something like 'Yes, go
+see it'... the text is weird"_ — reusing "view details" once the details are
+already on screen is a category error, not consistency. Q-10 governs only the
+message's own labels; the on-page button is a second, separate control the
+player only sees after already arriving, and is free to name what happens
+next. It now reads **"Save options"** when the event has questions waiting, or
+**"Go see other events"** when it does not (`confirmLabel`, `hasQuestions`
+param). The No button is untouched — Brian did not ask to change it — and
+still reuses `NO_BUTTON_LABEL` verbatim.
 
 ## Owner-resolved contract — Q-12, the cancellation scope
 
@@ -172,6 +186,20 @@ every answer path already used.
 should have the player's name so it knows that I'm on the right page" — no
 other personal detail), then the approved heading — a count of outstanding
 work, **"You have N invitations to answer"** — never invented copy.
+
+**Correction round 3 (OWNER-LAN172-07): the count is scoped to the horizon.**
+Brian saw "You have 6 invitations to answer" on a page rendering nothing
+outstanding — every one of the six sat beyond the 21-day horizon, in the
+closed-by-default Further ahead section. His ruling, Q-26, overrides an
+earlier decision to keep the count total and label the section instead:
+_"The six outstanding should just be the ones within the 21-day time horizon.
+I want the ones that are approved and within 21 days, and that's what it
+should be built around."_ `outstandingCount` now counts only unanswered
+invitations that are both approved and within the horizon — exactly the set
+`newInvitations` and `stillNeedAnswer` render inline. A player whose only
+outstanding work sits beyond the horizon sees a heading of **zero** and their
+work in Further ahead — that is intended, not a bug. Beyond-horizon events
+stay fully reachable there, so `REQ-approved-means-visible` is unaffected.
 
 **Correction round 2 (Q-22): the four approved sections, restored.** The first
 draft collapsed the workflow's three-way split of unanswered work to two
@@ -214,9 +242,47 @@ public calendar (`/calendar`, LAN-153).
 `REQ-no-reason-given`).** The row and focused-panel No controls submit no
 reason at all; `submitNo` fills the honest default (`"No reason given"`,
 `NO_REASON_GIVEN_DEFAULT`) exactly as the WhatsApp/email answer link already
-does, rather than refusing a blank field. Only the dedicated "Give a reason
-and continue" form — replacing an already-standing default with the player's
-real explanation — still requires actual text.
+does, rather than refusing a blank field. Only the dedicated **"Save"** form
+(renamed from "Give a reason and continue" — correction round 3, below) —
+replacing an already-standing default with the player's real explanation —
+still requires actual text server-side; the field itself carries no `required`
+marker, since the No already stands without it.
+
+**Correction round 3 (OWNER-LAN172-09): the standing-No panel reordered and
+de-alarmed.** Brian: _"the callout at the top, 'No reason given,' is very
+confusing... As soon as I click No, there should be a callout on this page for
+me to show the reason I'm giving. I should be able to give a reason."_ The
+panel foregrounded "Change to Yes" ahead of the reason field, and rendered the
+honest default as an `error`-severity Alert — reading as a fault rather than a
+recorded answer. Now, top to bottom: the plain acknowledgement (an `info`
+Alert, not `error`), the optional reason field with an honestly instructional
+placeholder (`"e.g. clashes with a family commitment"`, not the answer-shaped
+`"Academic conflict"`) and its **Save** button, then **"Change to Yes"** as
+the standing exit. `REQ-emphasis-points-at-yes` is unaffected — Change to Yes
+keeps its filled treatment; only the order and tone of what precedes it
+changed.
+
+**Correction round 3 (OWNER-LAN172-08): saving questions ends in an
+acknowledgement, not the same form.** Brian: _"as soon as I save answers, it
+saves, but the page should do something after that... it should close it up
+and say 'Answer recorded'... right now, it just goes blank."_ `submitQuestions`
+always redirected to the same `open=` URL, and the form rendered whenever the
+event had any questions at all, regardless of what remained outstanding — a
+successful save just re-showed the identical, now pre-filled form. The
+focused panel now stops rendering the questions form once nothing required
+remains outstanding (`outstandingRequiredQuestions === 0`); its own top Alert
+already reads **"Attending — Answer recorded"** in that state, the same "then
+a plain acknowledgement" Q-21 asks for on the No side too — one rule, built
+once, in both places.
+
+**Correction round 3 (OWNER-LAN172-11): the row's secondary control.** Brian:
+_"Change to 'no' should just say 'change answer.' It should not say 'change to
+no.'"_ `REQ-emphasis-points-at-yes` governs the control's fill and weight, not
+its wording — the control stays unfilled exactly as before. Renamed to
+**"Change answer"** everywhere it appears as the secondary, unfilled control
+on an established Yes, converging on the wording `PLANS_CHANGED` already used
+("change your answer"). `CHANGE_TO_YES` and the reason-management labels (Add
+reason, Edit reason) are untouched — Brian named only this one control.
 
 ## The credential
 
@@ -284,6 +350,19 @@ ticket), `REQ-attendance-not-absence`, `REQ-plain-first-contact`,
       `missions/packets/M-AUTOMATED-COMMUNICATIONS-REMINDERS-RECOVERY/mockups/W2.html`'s
       `yesPage()`, `noPage()`, `inbox()` and `emptyPage()` — see the pull
       request for the exact states compared and their screenshots.
+- [x] **Correction round 3, from Brian's second walkthrough:** the heading
+      count is scoped to the 21-day horizon and never disagrees with the
+      rendered near-term rows (`player-home.test.ts`); saving the focused
+      panel's questions ends in "Answer recorded", not a re-shown blank form
+      (`screens.test.tsx`); the on-page confirm button names what a Yes does
+      next instead of reusing the WhatsApp message's own label
+      (`screens.test.tsx`); the standing-No panel leads with the reason field
+      and an `info`-severity acknowledgement, its Save button is renamed, and
+      its placeholder no longer reads as a real answer; the row's secondary
+      control reads "Change answer" — compared state-by-state against the
+      mockup's `yesPage()`, `noPage()`, `inbox()` and the durable page's
+      heading and focused panel — see the pull request for the exact states
+      compared and their screenshots.
 
 ## Boundaries
 

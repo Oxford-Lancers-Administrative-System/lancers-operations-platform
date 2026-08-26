@@ -291,7 +291,15 @@ export interface PlayerHomeInvitation {
  */
 export interface PlayerHome {
   readonly playerName: string;
-  /** Every unanswered invitation, near-term and further out — the heading's own count. */
+  /**
+   * Owner correction round 3 (LAN-172, Q-26): scoped to approved and within
+   * the horizon — the same set the near-term sections render, never
+   * further-out unanswered work. Brian's ruling overrides the count's
+   * original horizon-independent definition: "The six outstanding should
+   * just be the ones within the 21-day time horizon." A player whose only
+   * outstanding work sits beyond the horizon sees zero here and their work
+   * in `furtherOut` — that is intended, not a bug.
+   */
   readonly outstandingCount: number;
   /**
    * The single soonest unanswered invitation across `newInvitations` and
@@ -443,14 +451,13 @@ export async function readPlayerHomeIn(tx: Tx, personId: string): Promise<Player
       outstandingRequiredQuestions: Number(outstanding.rows[0]?.count ?? 0),
     };
 
-    if (row.response === null) outstandingCount += 1;
-
     if (row.beyond_horizon) {
       furtherOut.push(entry);
       continue;
     }
 
     if (row.response === null) {
+      outstandingCount += 1;
       if (nextInvitationId === null) nextInvitationId = entry.invitationId;
       if (row.reminder_sent) stillNeedAnswer.push(entry);
       else newInvitations.push(entry);

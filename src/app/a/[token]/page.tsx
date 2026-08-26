@@ -286,7 +286,7 @@ function Confirm({
           fullWidth
           sx={{ minHeight: 48 }}
         >
-          {confirmLabel(answer)}
+          {confirmLabel(answer, landing.questions.length > 0)}
         </Button>
       </Box>
     </Shell>

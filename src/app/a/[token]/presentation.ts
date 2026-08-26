@@ -1,15 +1,17 @@
 /**
  * Every word the answer-link page says. LAN-172, W2-01 through W2-04.
  *
- * Button labels are Brian's Q-10 decision, quoted verbatim from
+ * The No button's label is Brian's Q-10 decision, quoted verbatim from
  * `src/lib/delivery/templates.ts` rather than restated, so the WhatsApp
  * message and the page it opens can never drift into two different labels for
- * the same action. Everything else is new copy for this ticket and is
+ * that action. The Yes button's on-page label no longer reuses the message's
+ * own text — owner correction round 3, `confirmLabel`'s own doc comment below
+ * has the reasoning. Everything else is new copy for this ticket and is
  * reviewed alongside the mockup, same as LAN-79's was.
  */
 
 import { TYPE_LABELS } from "@/app/operate/events/presentation";
-import { NO_BUTTON_LABEL, YES_BUTTON_LABEL } from "@/lib/delivery/templates";
+import { NO_BUTTON_LABEL } from "@/lib/delivery/templates";
 
 export const BANNER = "LANCERS OPERATIONS";
 
@@ -25,14 +27,27 @@ export const PRIVACY_NOTE =
 // ---------------------------------------------------------------------------
 
 /**
- * Worded as the answer itself, never as a confirmation — the WhatsApp tap
- * already is the answer, and this page must not imply otherwise. Reusing the
- * exact button label the message carried is what makes that true rather than
- * merely stated.
+ * Owner correction round 3 (LAN-172, OWNER-LAN172-10): this on-page button is
+ * a second, separate control from the WhatsApp/email message's own link —
+ * the player has already arrived by the time they see it, so naming "what
+ * tapping this does" by repeating the message's own "view details" reads as
+ * a category error once the details are already on screen. Q-10 governs only
+ * the message's own `YES_BUTTON_LABEL` / `NO_BUTTON_LABEL` (Meta enforces
+ * their 25-character, alphanumeric shape); an on-page button carries no such
+ * constraint and is free to say what actually happens next.
+ *
+ * Brian, verbatim: "If I have options, it should say 'Save options.' If I
+ * don't have options, it should say 'Go see other events'." He did not ask
+ * to change the No button's own wording — only what a Yes does next — so No
+ * keeps reusing the message's own label.
  */
-export function confirmLabel(answer: "yes" | "no"): string {
-  return answer === "yes" ? YES_BUTTON_LABEL : NO_BUTTON_LABEL;
+export function confirmLabel(answer: "yes" | "no", hasQuestions: boolean): string {
+  if (answer === "no") return NO_BUTTON_LABEL;
+  return hasQuestions ? YES_CONFIRM_WITH_QUESTIONS : YES_CONFIRM_NO_QUESTIONS;
 }
+
+export const YES_CONFIRM_WITH_QUESTIONS = "Save options";
+export const YES_CONFIRM_NO_QUESTIONS = "Go see other events";
 
 export const YES_HEADING = "You're attending";
 /**
