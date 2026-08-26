@@ -74,6 +74,24 @@ const at = (date, time) => new Date(`${asDate(date)}T${time}Z`).toISOString();
 const isPast = (date) => date.getTime() < NOW.getTime();
 
 /**
+ * OWNER-LAN170-08 (correction round 3, Brian's second walkthrough): the
+ * events "an operator will review" are the ones `/operate/events` opens on —
+ * whatever sits nearest `NOW`, in either direction — and that is the narrow
+ * slice `readQuestionsIn`/`readOperatorParticipation` and the RSVP recording
+ * loop below both need to seed generously, rather than every one of the
+ * roughly seventy events this file creates. Three weeks either side covers
+ * the current week's practice, chalk and S&C alongside whichever fixture
+ * lands closest to it, without reaching into history or the far end of the
+ * season.
+ */
+const REVIEW_WINDOW_DAYS = 21;
+function isReviewWindowEvent(event) {
+  if (!event.scheduled_on || event.status === "cancelled") return false;
+  const distanceDays = Math.abs(day(event.scheduled_on).getTime() - NOW.getTime()) / 86400000;
+  return distanceDays <= REVIEW_WINDOW_DAYS;
+}
+
+/**
  * A housekeeping stamp pinned to the dataset's own now.
  *
  * `updated_at` on a row nobody has touched since is "when the club last looked
@@ -1832,7 +1850,13 @@ for (const fixture of fixtures) {
     answer_type: "boolean",
     choices: null,
     applies_to_capacities: "{player,coach}",
-    is_required: false,
+    // OWNER-LAN170-08: nothing in the whole seed marked a question required
+    // before this, so there was no way to walk "a No records even when the
+    // event's questions are not optional" — already correct behaviour
+    // (`recordOperatorRsvpResponse` never gates on it), but unwalkable
+    // without a required question somewhere to try it against. The nearest
+    // fixture to the operator's own "now" carries the case.
+    is_required: isReviewWindowEvent(fixture.event),
     sort_order: 0,
   });
   add("event_questions", {
@@ -1936,6 +1960,17 @@ let changedAnswers = 0;
 let unsureCaptures = 0;
 let confidenceMarkers = 0;
 
+// OWNER-LAN170-08 (correction round 3): the ordinary ~7% silent rate left
+// only two unanswered invitations on the event nearest the operator's own
+// "now" — Brian's own count, walking it — and recording answers against them
+// consumed both within two recordings. A fixed floor, forced per event rather
+// than drawn, keeps every review-window event walkable through several
+// recordings without touching the weighted draw itself or any event outside
+// the window, so every other event's ladder of yes/no/unsure/silent/changed
+// states — which LAN-173 reads — is exactly as likely as it always was.
+const REVIEW_UNANSWERED_FLOOR = 10;
+const reviewWindowForcedSilent = new Map();
+
 for (const invitation of invitations) {
   const event = invitation._event;
 
@@ -1948,12 +1983,20 @@ for (const invitation of invitations) {
   invitation.issued_at = event.approved_at;
 
   // SDA §11.3: Yes ~70%, No ~17%, Unsure ~6%, no response ~7%.
-  const outcome = weighted([
+  let outcome = weighted([
     ["yes", 70],
     ["no", 17],
     ["unsure", 6],
     ["silent", 7],
   ]);
+
+  if (invitation.capacity === "player" && isReviewWindowEvent(event)) {
+    const forcedSoFar = reviewWindowForcedSilent.get(event.id) ?? 0;
+    if (forcedSoFar < REVIEW_UNANSWERED_FLOOR) {
+      outcome = "silent";
+      reviewWindowForcedSilent.set(event.id, forcedSoFar + 1);
+    }
+  }
   const deadline = event.response_deadline_at ? new Date(event.response_deadline_at) : null;
 
   if (outcome === "silent") {

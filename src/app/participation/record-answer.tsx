@@ -11,6 +11,8 @@ import DialogTitle from "@mui/material/DialogTitle";
 import FormLabel from "@mui/material/FormLabel";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -33,6 +35,7 @@ import {
   EVENT_QUESTIONS_HEADING,
   EVENT_QUESTIONS_HELPER,
   QUESTION_OPTIONAL,
+  QUESTION_REQUIRED_OF_PLAYER_OPTIONAL_HERE,
   REASON_LABEL,
   REASON_PLACEHOLDER,
   REASON_PRIVACY_NOTE,
@@ -85,6 +88,17 @@ function nowInClubZoneAsLocalDate(): Date {
 }
 
 /**
+ * OWNER-LAN170-08 (correction round 3): the event's own rule and this form's
+ * are two different facts, and this label has to carry both without
+ * confusing them. A question the event marks `is_required` is still required
+ * *of the player* — that has not changed — but it is never required to record
+ * it here, so saying only "Optional" would misstate whose rule this is.
+ */
+function questionOptionalLabel(question: ParticipationQuestion): string {
+  return question.isRequired ? QUESTION_REQUIRED_OF_PLAYER_OPTIONAL_HERE : QUESTION_OPTIONAL;
+}
+
+/**
  * One question's answer, inline in the recording form — W3's own acceptance
  * evidence: "the event's own questions are answerable in the same form",
  * never required here even when the event marks them required of the player.
@@ -116,7 +130,7 @@ function QuestionField({
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
           {question.prompt}{" "}
           <Typography component="span" color="text.secondary">
-            {QUESTION_OPTIONAL}
+            {questionOptionalLabel(question)}
           </Typography>
         </Typography>
         <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
@@ -145,7 +159,7 @@ function QuestionField({
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
           {question.prompt}{" "}
           <Typography component="span" color="text.secondary">
-            {QUESTION_OPTIONAL}
+            {questionOptionalLabel(question)}
           </Typography>
         </Typography>
         <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: "wrap", gap: 1 }}>
@@ -170,7 +184,7 @@ function QuestionField({
 
   return (
     <TextField
-      label={`${question.prompt} (${QUESTION_OPTIONAL})`}
+      label={`${question.prompt} (${questionOptionalLabel(question)})`}
       name={fieldName}
       value={value}
       onChange={(event) => onChange(event.target.value)}
@@ -185,21 +199,33 @@ function QuestionField({
  * **Record answer** — the row action with no answer at all, and the dialog it
  * opens. W3, LAN-170.
  *
- * ## Yes is always the filled control
+ * ## The answer choice is one exclusive toggle, not two buttons
  *
- * A gate condition of this package, not a rendering preference: the affirmative
- * choice always carries the filled treatment and the negative choice never
- * does, so which button is filled never depends on which the operator has
- * picked. Picking a state that keeps that true and still shows the operator
- * which one they chose rules out swapping `variant`/`color` between the two —
- * doing that would make "No" filled the moment it was selected, exactly the
- * toggle this package's brief forbids. Selection is shown with `aria-pressed`
- * for assistive technology; Yes needs no further sighted cue because it is
- * already the one filled control, and No — always outlined — takes the
- * `action.selected` background tint the app already uses elsewhere for "this
- * is the chosen one" (see `calendar/year-column.tsx`), not a bespoke ring or
- * dimmed sibling. The base treatment — filled success on Yes, outlined error
- * on No — never changes underneath it.
+ * OWNER-LAN170-06 (Brian's second walkthrough): the earlier hand-styled pair
+ * of `Button`s looked invented and did not read as chosen either way — "when
+ * I click yes or no, the UI doesn't really change at all, so I can't tell
+ * which answer I picked." This is one choice from a fixed set of two, which is
+ * what `ToggleButtonGroup exclusive` means, not two independent actions. The
+ * selected option carries MUI's own selected treatment whichever option it
+ * is, including No — there is no rule making Yes the only one allowed to look
+ * chosen. `REQ-emphasis-points-at-yes` never applied here: Brian, 26 August
+ * 2026, corrected the packet that carried it onto this surface — it is a
+ * player-facing rule from W2, about the landing pages and a player's own
+ * page, and it does not govern a coach or operator surface. `REQ-answer-colour`
+ * is the rule that still binds, and does not depend on selection: Yes keeps
+ * `color="success"`, No keeps `color="error"`, on both the unselected and the
+ * selected treatment. `ToggleButton` sets `aria-pressed` itself from
+ * `selected`, so a screen reader gets the same fact a sighted operator does —
+ * the hand-rolled pair set neither `aria-pressed` nor `aria-checked` at all.
+ *
+ * ## Only one branch's fields show at a time
+ *
+ * OWNER-LAN170-07: Brian's decision, and it scopes `REQ-questions-in-the-same-
+ * form` to the case where the event's own questions mean anything. Yes shows
+ * the questions and not the reason; No shows the required reason and not the
+ * questions; nothing selected shows neither. The event's questions never
+ * block the answer either way — that has not changed, and `REQ-operator-no-
+ * needs-a-reason` has not either.
  *
  * ## The form is inside the dialog, not around it
  *
@@ -262,12 +288,24 @@ export function RecordAnswerControl({
 
   return (
     <>
+      {/*
+       * OWNER-LAN170-05 (correction round 3): the previous round dropped
+       * `variant`/`color` and left this reading as bare text, which Brian
+       * called out directly — "it's just awkward." Restored to the
+       * repository's ordinary bordered row-action treatment (matching, for
+       * instance, `attendance-row.tsx`'s row actions), not a new style. The
+       * "No answer" chip this used to sit beside is gone from this row
+       * entirely now — see `AnswerCell` in `participation-table.tsx` — so
+       * this is the only thing the Answer cell renders here.
+       */}
       <Button
         type="button"
+        variant="outlined"
+        color="inherit"
         size="small"
         onClick={openDialog}
         data-testid="record-answer-open"
-        sx={{ minHeight: 44, textTransform: "none" }}
+        sx={{ minHeight: 44 }}
       >
         {RECORD_ANSWER}
       </Button>
@@ -295,44 +333,35 @@ export function RecordAnswerControl({
               ) : null}
 
               <Box>
-                <FormLabel component="legend">{WHAT_DID_THEY_SAY}</FormLabel>
-                <Stack direction="row" spacing={1.5} sx={{ mt: 1 }}>
-                  <Button
-                    type="button"
-                    variant="contained"
+                <FormLabel component="legend" id="what-did-they-say-label">
+                  {WHAT_DID_THEY_SAY}
+                </FormLabel>
+                <ToggleButtonGroup
+                  exclusive
+                  fullWidth
+                  value={response}
+                  onChange={(_event, next: "yes" | "no" | null) => setResponse(next)}
+                  disabled={pending}
+                  aria-labelledby="what-did-they-say-label"
+                  sx={{ mt: 1 }}
+                >
+                  <ToggleButton
+                    value="yes"
                     color="success"
-                    disabled={pending}
-                    onClick={() => setResponse("yes")}
-                    aria-pressed={response === "yes"}
                     data-testid="response-yes"
                     sx={{ minHeight: 44, flex: 1 }}
                   >
                     {RESPONSE_YES_LABEL}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outlined"
+                  </ToggleButton>
+                  <ToggleButton
+                    value="no"
                     color="error"
-                    disabled={pending}
-                    onClick={() => setResponse("no")}
-                    aria-pressed={response === "no"}
                     data-testid="response-no"
-                    sx={{
-                      minHeight: 44,
-                      flex: 1,
-                      // Yes is unmistakable because it is always the filled
-                      // control (REQ-emphasis-points-at-yes); No is always
-                      // outlined, so it needs its own quiet confirmation that
-                      // it is the one currently chosen. `action.selected` is
-                      // the shipped idiom for "this is the selected one"
-                      // (see calendar/year-column.tsx) rather than the
-                      // bespoke ring-and-dim treatment this replaces.
-                      bgcolor: response === "no" ? "action.selected" : undefined,
-                    }}
+                    sx={{ minHeight: 44, flex: 1 }}
                   >
                     {RESPONSE_NO_LABEL}
-                  </Button>
-                </Stack>
+                  </ToggleButton>
+                </ToggleButtonGroup>
               </Box>
 
               <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={enGB}>
@@ -395,28 +424,34 @@ export function RecordAnswerControl({
                 </Box>
               </LocalizationProvider>
 
-              <Box>
-                <TextField
-                  label={REASON_LABEL}
-                  name="reason"
-                  value={reason}
-                  onChange={(event) => setReason(event.target.value)}
-                  disabled={pending}
-                  multiline
-                  minRows={2}
-                  fullWidth
-                  placeholder={REASON_PLACEHOLDER}
-                  helperText={REASON_REQUIRED_FOR_NO}
-                  required={response === "no"}
-                />
-                {response === "no" ? (
+              {/*
+               * OWNER-LAN170-07: one branch's fields at a time. The reason
+               * only ever means anything once No is chosen, so it is not in
+               * the form at all until then — never shown alongside the
+               * event's own questions, which a No makes meaningless.
+               */}
+              {response === "no" ? (
+                <Box>
+                  <TextField
+                    label={REASON_LABEL}
+                    name="reason"
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    disabled={pending}
+                    multiline
+                    minRows={2}
+                    fullWidth
+                    placeholder={REASON_PLACEHOLDER}
+                    helperText={REASON_REQUIRED_FOR_NO}
+                    required
+                  />
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
                     {REASON_PRIVACY_NOTE}
                   </Typography>
-                ) : null}
-              </Box>
+                </Box>
+              ) : null}
 
-              {questions.length > 0 ? (
+              {response === "yes" && questions.length > 0 ? (
                 <Box>
                   <Typography variant="overline" color="text.secondary" component="h3">
                     {EVENT_QUESTIONS_HEADING}

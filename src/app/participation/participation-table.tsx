@@ -114,13 +114,19 @@ function AnswerChip({ person }: { person: ParticipationPerson }) {
 /**
  * The Answer cell's whole story — W3, LAN-170.
  *
- * `RecordAnswerControl` is offered beside the chip, never instead of it: the
- * chip still says the row has no answer, exactly as it always has, and the
- * control is the one addition this package makes. It renders only for an
- * operator, only against a real invitation (never a walk-up, who was never
- * asked), and only where `answer` is `null` — a row that already carries an
- * answer never gets it, which is the whole of "superseding is out of scope"
- * enforced at the surface that offers the control at all.
+ * OWNER-LAN170-05 (correction round 3): `RecordAnswerControl` replaces the
+ * chip entirely on a row it offers itself against — it never stacks beside
+ * it. Brian: stacking a "No answer" chip above a control in one narrow cell
+ * "tries to fit the button there in some way," and the absence of an answer
+ * chip is itself the signal that there is no answer, so every cell in this
+ * column holds exactly one element. A row the control is not offered against
+ * — because it already carries an answer, is a walk-up, or the reader is not
+ * an operator — is unaffected and still renders the chip exactly as before.
+ * It renders only for an operator, only against a real invitation (never a
+ * walk-up, who was never asked), and only where `answer` is `null` — a row
+ * that already carries an answer never gets it, which is the whole of
+ * "superseding is out of scope" enforced at the surface that offers the
+ * control at all.
  */
 function AnswerCell({
   operator,
@@ -138,19 +144,18 @@ function AnswerCell({
     : null;
   const offerRecording = operator && person.answer === null && !person.isWalkUp && invitationId;
 
-  return (
-    <Stack spacing={0.75} sx={{ alignItems: "flex-start" }}>
-      <AnswerChip person={person} />
-      {offerRecording ? (
-        <RecordAnswerControl
-          eventId={eventId}
-          invitationId={invitationId}
-          displayName={person.displayName}
-          questions={questions}
-        />
-      ) : null}
-    </Stack>
-  );
+  if (offerRecording) {
+    return (
+      <RecordAnswerControl
+        eventId={eventId}
+        invitationId={invitationId}
+        displayName={person.displayName}
+        questions={questions}
+      />
+    );
+  }
+
+  return <AnswerChip person={person} />;
 }
 
 function AttendanceChip({ presence }: { presence: AttendancePresence | null }) {

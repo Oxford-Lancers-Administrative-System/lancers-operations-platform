@@ -106,10 +106,12 @@ import { ParticipationFilterBar } from "./participation-filters";
 import { ParticipationTable } from "./participation-table";
 import { QuestionCounts } from "./question-counts";
 import {
+  ANSWER_NONE,
   CLUB_LINK_UNAVAILABLE_HEADLINE,
   DELIVERY_NOT_QUEUED,
   DISCREPANCY_LEGEND,
   DISCREPANCY_MARK,
+  EVENT_QUESTIONS_HEADING,
   formatTermAndWeek,
   NO_MATCHING_PEOPLE,
   NOBODY_ASKED,
@@ -1283,6 +1285,23 @@ describe("recording an answer in person", () => {
     }
   });
 
+  // OWNER-LAN170-05 (correction round 3): the button replaces the chip, it
+  // never sits beside it — a stacked "No answer" chip above the control was
+  // exactly what Brian called awkward.
+  it("shows the button alone on an unanswered row — never a 'No answer' chip stacked above it", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    expect(screen.queryByText(ANSWER_NONE)).not.toBeInTheDocument();
+    // Every other row's answer is unaffected — an actual answer still shows
+    // its chip and no control, the same as before this correction.
+    expect(screen.getAllByText("Yes").length).toBeGreaterThan(0);
+  });
+
   it("never offers it at the club-link tier, even for the identical unanswered person", () => {
     const { container } = render(
       <ParticipationTable
@@ -1324,7 +1343,11 @@ describe("recording an answer in person", () => {
     expect(screen.getByTestId("record-answer-submit")).toBeDisabled();
   });
 
-  it("keeps Yes filled and No unfilled regardless of which is selected", () => {
+  // OWNER-LAN170-06 (correction round 3): a standard exclusive toggle group,
+  // where the selected option looks selected whichever one it is — Brian
+  // could not tell which he had picked when only Yes was ever allowed to look
+  // chosen.
+  it("shows whichever answer is selected as selected, including No", () => {
     render(
       <ParticipationTable
         basePath="/operate/events/event-1"
@@ -1336,15 +1359,46 @@ describe("recording an answer in person", () => {
 
     const yes = screen.getByTestId("response-yes");
     const no = screen.getByTestId("response-no");
-    // The gate condition itself: emphasis never depends on selection.
-    expect(yes.className).toContain("MuiButton-contained");
-    expect(no.className).toContain("MuiButton-outlined");
+    expect(yes.className).not.toContain("Mui-selected");
+    expect(no.className).not.toContain("Mui-selected");
 
     fireEvent.click(no);
     expect(no).toHaveAttribute("aria-pressed", "true");
-    // Selecting No must not turn it filled, or unfill Yes.
-    expect(yes.className).toContain("MuiButton-contained");
-    expect(no.className).toContain("MuiButton-outlined");
+    expect(yes).toHaveAttribute("aria-pressed", "false");
+    // No is the one selected now, and it looks it — the exact fact Brian
+    // could not previously see.
+    expect(no.className).toContain("Mui-selected");
+    expect(yes.className).not.toContain("Mui-selected");
+
+    fireEvent.click(yes);
+    expect(yes).toHaveAttribute("aria-pressed", "true");
+    expect(no).toHaveAttribute("aria-pressed", "false");
+    expect(yes.className).toContain("Mui-selected");
+    expect(no.className).not.toContain("Mui-selected");
+  });
+
+  // OWNER-LAN170-07: one branch's fields at a time, and neither before a
+  // choice is made.
+  it("shows neither the reason nor the event's questions until an answer is chosen", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+
+    expect(screen.queryByPlaceholderText(REASON_PLACEHOLDER)).not.toBeInTheDocument();
+    expect(screen.queryByText(EVENT_QUESTIONS_HEADING)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("response-yes"));
+    expect(screen.getByText(EVENT_QUESTIONS_HEADING)).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(REASON_PLACEHOLDER)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("response-no"));
+    expect(screen.getByPlaceholderText(REASON_PLACEHOLDER)).toBeInTheDocument();
+    expect(screen.queryByText(EVENT_QUESTIONS_HEADING)).not.toBeInTheDocument();
   });
 
   it("records a Yes through the real action, and closes the dialog on success", async () => {

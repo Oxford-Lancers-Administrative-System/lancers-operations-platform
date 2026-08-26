@@ -1176,6 +1176,30 @@ describe("recordOperatorRsvpResponse", () => {
     expect(await questionResponsesFor(invitationId)).toHaveLength(0);
   });
 
+  // OWNER-LAN170-08 -- correction round 3. The seed carried zero required
+  // questions, so Brian could never walk this on the real surface; the
+  // behaviour itself was already correct and this proves it directly instead.
+  it("records a No successfully against an event carrying a required, unanswered question", async () => {
+    const { invitationId, eventId } = await fixture(48);
+    const operator = await operatorPersonId();
+    await observer.query(
+      `insert into public.event_questions (event_id, prompt, answer_type, sort_order, is_required)
+       values ($1, 'Transport there?', 'boolean', 0, true)`,
+      [eventId],
+    );
+
+    const recorded = await recordOperatorRsvpResponse(operator, eventId, invitationId, {
+      response: "no",
+      reason: "Clash with a supervision that week",
+      ...clubNow(),
+    });
+
+    expect(recorded.response).toBe("no");
+    // The required question was left outstanding -- recording a No neither
+    // required nor invented an answer to it.
+    expect(await questionResponsesFor(invitationId)).toHaveLength(0);
+  });
+
   // SEC-LAN170-01 / DEC-no-supersede -- correction round 1.
   it("refuses to record over a player's own answer, and their answer stands", async () => {
     const { invitationId, eventId } = await fixture(48);

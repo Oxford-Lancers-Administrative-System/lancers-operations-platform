@@ -165,6 +165,15 @@ export interface ParticipationQuestion {
    * question's own defined options are not the kind of fact D3 gates.
    */
   readonly choices?: readonly string[] | null;
+  /**
+   * `event_questions.is_required` — whether the event marks this question
+   * required *of the player*. OWNER-LAN170-08 (correction round 3): the
+   * recording form has to say so without implying the same is true of
+   * recording it, since it never is (`REQ-operator-questions-never-block`).
+   * Optional, defaulting to `false`, for the same fixture-compatibility
+   * reason `choices` is.
+   */
+  readonly isRequired?: boolean;
 }
 
 /** One line of the collapsed Questions section — D68. */

@@ -300,5 +300,15 @@ export const EVENT_QUESTIONS_HELPER =
   "Fill in whatever they told you. Partial answers are fine — the rest stays outstanding.";
 export const QUESTION_OPTIONAL = "Optional";
 
+/**
+ * OWNER-LAN170-08's wording check: a question the event marks
+ * `is_required` still says so here, so this label never reads as "optional
+ * for the player" — it says whose rule is whose. The player-facing
+ * requirement is a separate fact from whether the operator has to fill this
+ * field in before saving what was actually said.
+ */
+export const QUESTION_REQUIRED_OF_PLAYER_OPTIONAL_HERE =
+  "Required of the player, optional to record now";
+
 export const CANCEL = "Cancel";
 export const RECORDING = "Recording…";
