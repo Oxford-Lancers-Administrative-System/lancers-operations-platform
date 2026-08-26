@@ -221,6 +221,13 @@ export function extractReceipt(body, rules) {
 
 const isNonEmptyString = (value) => typeof value === "string" && value.trim() !== "";
 
+const clearUxConformance = (review) =>
+  review?.ux_conformance?.result === "clear" &&
+  Array.isArray(review.ux_conformance.mockup_states) &&
+  review.ux_conformance.mockup_states.length > 0 &&
+  review.ux_conformance.mockup_states.every(isNonEmptyString) &&
+  isNonEmptyString(review.ux_conformance.comparison_method);
+
 /** An answered owner question naming this package: the durable record that
  * Brian heard about it at the hour. */
 export function answeredQuestionNames(state, packageId) {
@@ -262,9 +269,13 @@ export function receiptDefects(receipt) {
       "Receipt risk_class is highest. It may travel this lane only when it cites the answered owner question (owner_decision: question_id, answered_by, date) recorded at Brian's checkpoint.",
     );
   }
-  if (!["full", "correction", "security-tier", "mission-security"].includes(receipt.review_mode)) {
+  if (
+    !["full", "correction", "security-tier", "package-gate", "mission-security"].includes(
+      receipt.review_mode,
+    )
+  ) {
     defects.push(
-      "Receipt review_mode must be full, correction, security-tier, or mission-security.",
+      "Receipt review_mode must be full, correction, security-tier, package-gate, or mission-security.",
     );
   }
   if (!/^[0-9a-f]{40}$/.test(receipt.full_review_sha ?? "")) {
@@ -293,6 +304,13 @@ export function receiptDefects(receipt) {
   }
   if (!["approved", "nonvisual"].includes(receipt.visual)) {
     defects.push('Receipt visual must be "approved" or "nonvisual".');
+  }
+  if (receipt.visual === "approved") {
+    if (!clearUxConformance(receipt)) {
+      defects.push(
+        "Approved visual work requires clear ux_conformance naming every compared mockup state and the desktop/375px comparison method.",
+      );
+    }
   }
   if (receipt.visual !== "approved" && receipt.visual_evidence !== undefined) {
     defects.push("Only an approved visual receipt may carry visual_evidence.");
@@ -347,26 +365,30 @@ export function buildMissionReceipt(state, packageId, headSha) {
     pkg.review.reviewed_head_sha === headSha
       ? pkg.review
       : null;
-  const review = missionReview
-    ? {
-        review_mode: "mission-security",
-        full_review_sha: missionReview.head_sha,
-        reviewed_head_sha: headSha,
-        review_result: "clear",
-        mission_review: {
-          integrated_head_sha: missionReview.head_sha,
-          package_head_sha: headSha,
-          result: missionReview.result,
-          sensitive_paths: missionReview.sensitive_paths,
-          report: missionReview.report,
-        },
-      }
-    : {
-        review_mode: packageReview?.review_mode,
-        full_review_sha: packageReview?.full_review_sha ?? packageReview?.reviewed_head_sha,
-        reviewed_head_sha: packageReview?.reviewed_head_sha,
-        review_result: packageReview?.result,
-      };
+  const review =
+    missionReview && pkg.visual === "nonvisual"
+      ? {
+          review_mode: "mission-security",
+          full_review_sha: missionReview.head_sha,
+          reviewed_head_sha: headSha,
+          review_result: "clear",
+          mission_review: {
+            integrated_head_sha: missionReview.head_sha,
+            package_head_sha: headSha,
+            result: missionReview.result,
+            sensitive_paths: missionReview.sensitive_paths,
+            report: missionReview.report,
+          },
+        }
+      : {
+          review_mode: packageReview?.review_mode,
+          full_review_sha: packageReview?.full_review_sha ?? packageReview?.reviewed_head_sha,
+          reviewed_head_sha: packageReview?.reviewed_head_sha,
+          review_result: packageReview?.result,
+          ...(packageReview?.ux_conformance
+            ? { ux_conformance: packageReview.ux_conformance }
+            : {}),
+        };
   const missionApproval = (state.missionVisualApprovals ?? []).find(
     (approval) => approval.package_heads?.[packageId],
   );
@@ -522,14 +544,15 @@ export function journalConjuncts(state, packageId, headSha, options = {}) {
   const packageReviewCovers =
     pkg.review?.result === "clear" &&
     pkg.review.ci_state === "green" &&
-    pkg.review.reviewed_head_sha === headSha;
+    pkg.review.reviewed_head_sha === headSha &&
+    (pkg.visual === "nonvisual" || clearUxConformance(pkg.review));
   const missionReviewCovers = (state.integratedReviews ?? []).some(
     (review) =>
       review.mode === "security-tier" &&
       review.result === "clear" &&
       review.package_heads?.[packageId] === headSha,
   );
-  if (!packageReviewCovers && !missionReviewCovers) {
+  if (!packageReviewCovers && !(pkg.visual === "nonvisual" && missionReviewCovers)) {
     reasons.push(
       `${packageId} has no clear package review or mission-level security-tier review that covers ${headSha}.`,
     );

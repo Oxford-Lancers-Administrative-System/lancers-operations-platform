@@ -1,6 +1,6 @@
 # 0035 — Owner package walkthroughs and one final smoke
 
-**Status:** Accepted · **Date:** 2026-08-24 · **Supersedes:** the owner/walker
+**Status:** Accepted; pre-owner review scope amended by [0037](0037-package-gate-includes-mockup-conformance.md) · **Date:** 2026-08-24 · **Supersedes:** the owner/walker
 ordering and separate cross-surface pass in
 [0034](0034-mission-level-review-and-security-tier.md)
 

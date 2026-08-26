@@ -187,16 +187,28 @@ export function missionReviewCovers(state, pkg, headSha = pkg?.head_sha) {
   );
 }
 
+function uxConformanceClear(review) {
+  return Boolean(
+    review?.ux_conformance?.result === "clear" &&
+    Array.isArray(review.ux_conformance.mockup_states) &&
+    review.ux_conformance.mockup_states.length > 0 &&
+    review.ux_conformance.mockup_states.every(isNonEmptyString) &&
+    isNonEmptyString(review.ux_conformance.comparison_method),
+  );
+}
+
 export function missionVisualApprovalCovers(state, pkg, headSha = pkg?.head_sha) {
   return state.missionVisualApprovals.some((approval) => packageHeadCovers(approval, pkg, headSha));
 }
 
 function reviewCovers(state, pkg, headSha = pkg?.head_sha) {
+  const packageReview =
+    pkg?.review?.result === "clear" &&
+    pkg.review.ci_state === "green" &&
+    pkg.review.reviewed_head_sha === headSha &&
+    (pkg.visual === "nonvisual" || uxConformanceClear(pkg.review));
   return Boolean(
-    (pkg?.review?.result === "clear" &&
-      pkg.review.ci_state === "green" &&
-      pkg.review.reviewed_head_sha === headSha) ||
-    missionReviewCovers(state, pkg, headSha),
+    packageReview || (pkg?.visual === "nonvisual" && missionReviewCovers(state, pkg, headSha)),
   );
 }
 
@@ -286,6 +298,32 @@ function uxDefects(receipt, packageId) {
     defects.push(
       `${packageId}: ux_sources.ticket_contract must be a durable contract at docs/ux/tickets/<LINEAR-ID>-<slug>.md. If the packet was the only contract, delivery writes the implemented one there.`,
     );
+  }
+  return defects;
+}
+
+function uxConformanceDefects(receipt, packageId) {
+  const evidence = receipt.ux_conformance;
+  if (evidence === null || typeof evidence !== "object" || Array.isArray(evidence)) {
+    return [
+      `${packageId}: a clear visual review records \`ux_conformance\` with the approved mockup states and comparison method.`,
+    ];
+  }
+  const defects = [];
+  if (
+    !Array.isArray(evidence.mockup_states) ||
+    evidence.mockup_states.length === 0 ||
+    !evidence.mockup_states.every(isNonEmptyString)
+  ) {
+    defects.push(`${packageId}: ux_conformance.mockup_states names every compared state.`);
+  }
+  if (!isNonEmptyString(evidence.comparison_method)) {
+    defects.push(
+      `${packageId}: ux_conformance.comparison_method says how desktop and measured 375px were compared.`,
+    );
+  }
+  if (evidence.result !== "clear") {
+    defects.push(`${packageId}: ux_conformance.result is \"clear\" before owner handoff.`);
   }
   return defects;
 }
@@ -920,8 +958,10 @@ export function validateEvent(event, state) {
           `Review receipt covers ${receipt.reviewed_head_sha ?? "no head"}, not current package head ${pkg.head_sha ?? "no head"}.`,
         );
       }
-      if (!["full", "correction", "security-tier"].includes(receipt.review_mode)) {
-        errors.push('Review receipt mode is "full", "correction", or "security-tier".');
+      if (!["full", "correction", "security-tier", "package-gate"].includes(receipt.review_mode)) {
+        errors.push(
+          'Review receipt mode is "full", "correction", "security-tier", or "package-gate".',
+        );
       }
       if (!Number.isInteger(receipt.round) || receipt.round < 1) {
         errors.push("Review receipt round is a positive integer.");
@@ -932,13 +972,16 @@ export function validateEvent(event, state) {
       if (receipt.ci_state !== "green") {
         errors.push('Review receipt ci_state is "green" at reviewed_head_sha.');
       }
-      if (receipt.review_mode === "security-tier") {
+      if (["security-tier", "package-gate"].includes(receipt.review_mode)) {
         if (!Array.isArray(receipt.sensitive_paths)) {
-          errors.push("A security-tier receipt records its sensitive-path intersection.");
+          errors.push("A package-gate receipt records its sensitive-path intersection.");
         }
         if (!isNonEmptyString(receipt.report)) {
-          errors.push("A security-tier receipt records its on-disk report path.");
+          errors.push("A package-gate receipt records its on-disk report path.");
         }
+      }
+      if (pkg.visual !== "nonvisual" && receipt.result === "clear") {
+        errors.push(...uxConformanceDefects(receipt, event.package_id));
       }
       break;
     }
@@ -2028,10 +2071,10 @@ export function nextActions(state) {
       pkg.pr_number
     ) {
       actions.push({
-        action: "security-clearance",
+        action: "package-gate",
         package_id: pkg.id,
         detail:
-          "Before owner handoff, derive this exact-head diff's sensitive-path intersection. Record an empty deterministic clearance without a reviewer, or run one bounded Sonnet security review when the intersection is non-empty.",
+          "Derive the exact-head sensitive-path intersection and visual class. Record deterministic clearance only when both are empty; otherwise run one bounded Sonnet package-gate review.",
       });
     }
     if (

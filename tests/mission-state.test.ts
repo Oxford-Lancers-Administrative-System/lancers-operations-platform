@@ -81,6 +81,12 @@ const uxSources = {
   wireframes: "docs/ux/wireframes/events-filter-desktop.png, events-filter-375.png",
 };
 
+const uxConformance = {
+  mockup_states: ["events filter — desktop", "events filter — measured 375px"],
+  comparison_method: "Rendered both live states and compared structure and copy.",
+  result: "clear",
+};
+
 const workerReceipt = (result: string) => ({
   branch: "feat/synthetic",
   worktree: ".claude/worktrees/synthetic",
@@ -115,6 +121,7 @@ const reviewReceipt = (result: string, sha = SHA) => ({
   round: 1,
   result,
   ci_state: "green",
+  ux_conformance: uxConformance,
   blocking_finding_ids: result === "blocked" ? ["R-001"] : [],
 });
 
@@ -1836,7 +1843,59 @@ describe("drift, stops, and resumption", () => {
 });
 
 describe("owner-last review and the final mission smoke", () => {
-  it("withholds owner walkthrough until exact-head security coverage exists", async () => {
+  it.each([
+    ["no conformance evidence", undefined, /clear visual review records/],
+    [
+      "no mockup states",
+      { ...uxConformance, mockup_states: [] },
+      /mockup_states names every compared state/,
+    ],
+    [
+      "no comparison method",
+      { ...uxConformance, comparison_method: "" },
+      /comparison_method says how desktop and measured 375px were compared/,
+    ],
+  ])("refuses visual package-gate clearance with %s", async (_label, evidence, refusal) => {
+    const m = fixture();
+    await readyMission(m);
+    await m.append({
+      type: "worker-dispatched",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      worktree: ".claude/worktrees/wp-events",
+      branch: "feat/wp-events",
+    });
+    await m.append({
+      type: "worker-receipt",
+      package_id: "WP-events-filter",
+      worker_id: "worker-1",
+      receipt: workerReceipt("completed"),
+    });
+    await m.append({
+      type: "pr-opened",
+      package_id: "WP-events-filter",
+      pr_number: 42,
+      head_sha: SHA,
+    });
+    await expect(
+      m.append({
+        type: "review-receipt",
+        package_id: "WP-events-filter",
+        receipt: {
+          review_mode: "package-gate",
+          reviewed_head_sha: SHA,
+          round: 1,
+          result: "clear",
+          ci_state: "green",
+          sensitive_paths: [],
+          report: "reviews/package-gate.json",
+          ...(evidence ? { ux_conformance: evidence } : {}),
+        },
+      }),
+    ).rejects.toThrow(refusal);
+  });
+
+  it("withholds owner walkthrough until the exact-head package gate is clear", async () => {
     const m = fixture();
     await readyMission(m);
     await m.append({
@@ -1860,7 +1919,7 @@ describe("owner-last review and the final mission smoke", () => {
     });
     expect(nextActions(implemented)).toContainEqual(
       expect.objectContaining({
-        action: "security-clearance",
+        action: "package-gate",
         package_id: "WP-events-filter",
       }),
     );
@@ -1880,14 +1939,15 @@ describe("owner-last review and the final mission smoke", () => {
       type: "review-receipt",
       package_id: "WP-events-filter",
       receipt: {
-        review_mode: "security-tier",
+        review_mode: "package-gate",
         full_review_sha: SHA,
         reviewed_head_sha: SHA,
         round: 1,
         result: "clear",
         ci_state: "green",
         sensitive_paths: [],
-        report: "reviews/security-tier.json",
+        report: "reviews/package-gate.json",
+        ux_conformance: uxConformance,
       },
     });
     expect(nextActions(reviewed)).toContainEqual(

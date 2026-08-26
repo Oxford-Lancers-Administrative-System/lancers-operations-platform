@@ -90,6 +90,12 @@ const uxSources = {
   wireframes: "docs/ux/wireframes/events-filter-desktop.png, events-filter-375.png",
 };
 
+const uxConformance = {
+  mockup_states: ["events filter — desktop", "events filter — measured 375px"],
+  comparison_method: "Rendered both live states and compared structure and copy.",
+  result: "clear",
+};
+
 async function implementedAt(m: ReturnType<typeof mission>, head: string) {
   await m.append({
     type: "worker-dispatched",
@@ -130,6 +136,7 @@ async function reviewedAndApproved(m: ReturnType<typeof mission>, head: string, 
       round,
       result: "clear",
       ci_state: "green",
+      ux_conformance: uxConformance,
     },
   });
   await m.append({
@@ -229,6 +236,7 @@ describe("representative mission rehearsals", () => {
         round: 2,
         result: "clear",
         ci_state: "green",
+        ux_conformance: uxConformance,
       },
     });
     expect(carried.packages[PACKAGE].visual_approved).toBe(true);
