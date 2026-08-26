@@ -106,8 +106,13 @@ anything a stale render passed it.
 - **Emphasis always points at Yes.** The affirmative response button always
   carries the filled treatment (`contained`, `success`); the negative one is
   always unfilled (`outlined`, `error`) — regardless of which one is currently
-  selected. Selection itself is shown with `aria-pressed`, a visible ring, and
-  a dimmed sibling, never by swapping which button looks filled.
+  selected, never by swapping which button looks filled. Selection itself is
+  shown with `aria-pressed` for assistive technology; for sighted operators,
+  Yes needs no extra cue because it is already the filled control, and No
+  takes the `action.selected` background tint the app already uses elsewhere
+  for "this is the chosen one" (`calendar/year-column.tsx`) rather than a
+  bespoke ring or a dimmed sibling (corrected after Brian's owner walkthrough
+  found the ring-and-dim treatment read as invented — OWNER-LAN170-03).
 - **Answer colour follows `participation-table.tsx`:** once recorded, the row
   reads through the same `AnswerChip` every other row uses — Yes is `success`,
   No is `error` — because the recorded answer is, deliberately, an ordinary

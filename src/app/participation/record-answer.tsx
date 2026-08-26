@@ -72,7 +72,16 @@ function nowInClubZoneAsLocalDate(): Date {
   }).formatToParts(new Date());
   const part = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find((one) => one.type === type)?.value ?? "0");
-  return new Date(part("year"), part("month") - 1, part("day"), part("hour"), part("minute"));
+  // Floored to the TimePicker's own five-minute step (`minutesStep`/
+  // `timeSteps` below). The real current minute is almost never itself a
+  // multiple of five, and MUI treats a value that does not land on an offered
+  // step as invalid — a permanent, unrelated red state on the Time field that
+  // has nothing to do with whether an answer can be recorded
+  // (OWNER-LAN170-04's second cause, found alongside the future/past one).
+  // Flooring, not rounding, also keeps this function's promise that its
+  // result is never later than the real "now" it is reading.
+  const flooredMinutes = Math.floor((part("hour") * 60 + part("minute")) / 5) * 5;
+  return new Date(part("year"), part("month") - 1, part("day"), 0, flooredMinutes);
 }
 
 /**
@@ -116,7 +125,6 @@ function QuestionField({
               key={option}
               type="button"
               variant={value === option ? "contained" : "outlined"}
-              color="inherit"
               disabled={disabled}
               onClick={() => onChange(value === option ? "" : option)}
               sx={{ minHeight: 44, flex: 1 }}
@@ -146,7 +154,6 @@ function QuestionField({
               key={choice}
               type="button"
               variant={value === choice ? "contained" : "outlined"}
-              color="inherit"
               disabled={disabled}
               onClick={() => onChange(value === choice ? "" : choice)}
               sx={{ minHeight: 44 }}
@@ -187,9 +194,12 @@ function QuestionField({
  * which one they chose rules out swapping `variant`/`color` between the two —
  * doing that would make "No" filled the moment it was selected, exactly the
  * toggle this package's brief forbids. Selection is shown with `aria-pressed`
- * for assistive technology and a visible ring plus a dimmed sibling for
- * sighted operators instead, and the base treatment — filled success on Yes,
- * outlined error on No — never changes underneath it.
+ * for assistive technology; Yes needs no further sighted cue because it is
+ * already the one filled control, and No — always outlined — takes the
+ * `action.selected` background tint the app already uses elsewhere for "this
+ * is the chosen one" (see `calendar/year-column.tsx`), not a bespoke ring or
+ * dimmed sibling. The base treatment — filled success on Yes, outlined error
+ * on No — never changes underneath it.
  *
  * ## The form is inside the dialog, not around it
  *
@@ -254,12 +264,10 @@ export function RecordAnswerControl({
     <>
       <Button
         type="button"
-        variant="outlined"
         size="small"
-        color="inherit"
         onClick={openDialog}
         data-testid="record-answer-open"
-        sx={{ minHeight: 44 }}
+        sx={{ minHeight: 44, textTransform: "none" }}
       >
         {RECORD_ANSWER}
       </Button>
@@ -297,14 +305,7 @@ export function RecordAnswerControl({
                     onClick={() => setResponse("yes")}
                     aria-pressed={response === "yes"}
                     data-testid="response-yes"
-                    sx={{
-                      minHeight: 44,
-                      flex: 1,
-                      opacity: response === "no" ? 0.6 : 1,
-                      outline: response === "yes" ? "3px solid" : "none",
-                      outlineColor: "success.dark",
-                      outlineOffset: 2,
-                    }}
+                    sx={{ minHeight: 44, flex: 1 }}
                   >
                     {RESPONSE_YES_LABEL}
                   </Button>
@@ -319,10 +320,14 @@ export function RecordAnswerControl({
                     sx={{
                       minHeight: 44,
                       flex: 1,
-                      opacity: response === "yes" ? 0.6 : 1,
-                      outline: response === "no" ? "3px solid" : "none",
-                      outlineColor: "error.main",
-                      outlineOffset: 2,
+                      // Yes is unmistakable because it is always the filled
+                      // control (REQ-emphasis-points-at-yes); No is always
+                      // outlined, so it needs its own quiet confirmation that
+                      // it is the one currently chosen. `action.selected` is
+                      // the shipped idiom for "this is the selected one"
+                      // (see calendar/year-column.tsx) rather than the
+                      // bespoke ring-and-dim treatment this replaces.
+                      bgcolor: response === "no" ? "action.selected" : undefined,
                     }}
                   >
                     {RESPONSE_NO_LABEL}
@@ -344,7 +349,20 @@ export function RecordAnswerControl({
                           merged.setHours(when.getHours(), when.getMinutes(), 0, 0);
                           setWhen(merged);
                         }}
-                        disableFuture
+                        // Not `disableFuture`: MUI computes "today" from the
+                        // browser's own real clock and zone, but this
+                        // control's value is deliberately the *club's* wall
+                        // clock (see `nowInClubZoneAsLocalDate` above) held in
+                        // a `Date` whose local getters echo London's day, not
+                        // the operator's. Whenever the operator's machine
+                        // sits west of London and it is already past midnight
+                        // there, `disableFuture` reads that as "tomorrow" and
+                        // permanently flags the field as an error with
+                        // nothing the operator did wrong (OWNER-LAN170-04).
+                        // `maxDate` computed the same club-zone way compares
+                        // like with like regardless of the operator's own
+                        // time zone.
+                        maxDate={nowInClubZoneAsLocalDate()}
                         disabled={pending}
                         format="dd/MM/yyyy"
                         slotProps={{ textField: { fullWidth: true } }}
