@@ -1,6 +1,12 @@
 # 0021 — RSVP response deadlines are central configuration, not per-event input
 
-**Status:** Accepted · **Date:** 2026-08-13
+**Status:** Accepted · **Date:** 2026-08-13 ·
+**Partly superseded by [0036](0036-messaging-schedule-configuration.md)**
+(2026-08-25): decision 3's prohibition on a configuration-administration surface
+is reversed, and every deadline is now measured from the event's own start
+rather than from a fixed 18:00 wall clock. The day counts below, the complete
+table with no default arm, the clamp, and the refusal of a per-event override
+all survive.
 
 ## Context
 

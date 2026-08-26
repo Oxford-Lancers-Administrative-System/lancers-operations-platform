@@ -265,11 +265,48 @@ and delivery status will follow from the results of those jobs."
 
 ## 7. Automated WhatsApp delivery
 
-Approval creates one invitation per confirmed audience member and queues one
-delivery job for each. The application then dispatches them through the official
-1:1 WhatsApp Business Platform adapter. **No step anywhere in this workflow asks
-an operator to copy, send, post or mark a link as sent, and no such control
-exists on any screen.**
+Approval creates one invitation per confirmed audience member and **commits the
+whole messaging plan**: the invitation, two WhatsApp reminders and an email, each
+as a job carrying its own moment. The application dispatches them through the
+official 1:1 WhatsApp Business Platform adapter and, on the email rung, through
+Resend. **No step anywhere in this workflow asks an operator to copy, send, post
+or mark a link as sent, and no such control exists on any screen.**
+
+### What approval does, and what the anchor holds back
+
+LAN-169 changed what approval means — Brian, 2026-08-22: "Yes, approval commits
+the plan rather than sending." The audience still freezes at approval and
+nothing can be added afterwards; only the **moment of dispatch** moved.
+
+The invitation goes at `max(now, event start − invitation lead)`, where the lead
+is five days for a practice and ten for a game. So:
+
+- **A practice a fortnight away sends nothing today.** Its jobs are queued with
+  a `scheduled_for` nine days out, and the sweep collects them when that arrives.
+- **A practice two days away goes immediately**, because the rule never sends
+  into the past and never delays an event that is already close. The approval
+  panel says so in those words.
+
+Reminders then count **forward** from the invitation on a 24-hour cadence, in a
+fixed order that is not configurable: WhatsApp, WhatsApp again, email, and then
+an escalation to whoever currently holds the President's seat, twelve hours
+after the response deadline. There are **no quiet hours** — an early-morning
+event produces early-morning messages and nothing delays them.
+
+### Nothing advances unless something sweeps
+
+The ladder is driven by `POST /api/scheduler/messaging`, authenticated by
+`SCHEDULER_TRIGGER_TOKEN`. Cloud Scheduler makes that request in the deployed
+environment. **On a developer machine nobody does**, so run the ticker beside
+`npm run dev`:
+
+```bash
+npm run messaging:ticker
+```
+
+Without it, an approved event's invitation sits at its anchor, no reminder is
+ever sent, and nothing escalates — which looks exactly like a broken ladder and
+is not one. The ticker refuses any target that is not loopback.
 
 Open **Delivery** from the event.
 

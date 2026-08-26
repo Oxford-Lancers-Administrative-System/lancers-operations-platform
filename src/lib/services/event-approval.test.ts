@@ -37,7 +37,7 @@ import {
   type AudienceCatalogue,
 } from "./event-audience";
 import { createEventDraft, readEvent, updateEventDraft, type EventDraftInput } from "./events";
-import { responseDeadlineRule, RESPONSE_DEADLINE_RULES } from "./response-deadline";
+import { readMessagingScheduleIn } from "./messaging-schedule";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN77ApprovalSuite";
@@ -70,6 +70,17 @@ beforeAll(async () => {
 afterEach(async () => {
   const scope = `${NAME_MARKER}%`;
   const events = "(select id from public.events where name like $1)";
+  // LAN-169. The plan an approval freezes, and any flag its chase raised,
+  // both reference their event with `on delete restrict` — so they go before
+  // the event does, in the same dependency order the lines below already keep.
+  await observer.query(
+    `delete from public.nonresponse_flags where invitation_id in
+         (select id from public.invitations where event_id in ${events})`,
+    [scope],
+  );
+  await observer.query(`delete from public.event_messaging_plans where event_id in ${events}`, [
+    scope,
+  ]);
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.invitations where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.event_audience_members where event_id in ${events}`, [
@@ -201,25 +212,41 @@ async function approve(eventId: string, keys: readonly string[]) {
   return approveEvent(actorPersonId, eventId);
 }
 
+/**
+ * The four counts an approval is judged by.
+ *
+ * `jobs` counts **invitation** jobs specifically, not every notification job.
+ * It counted all of them until LAN-169, when that stopped being a useful
+ * number: approval now commits the whole ladder, so an audience of four
+ * produces sixteen jobs and "jobs: 16" tells a reader nothing about whether
+ * every audience member got an invitation — which is the property every
+ * assertion here is actually making. `reminders` carries the rest, so a ladder
+ * that silently stopped being created still fails a test.
+ */
 async function countsFor(eventId: string) {
   const row = await observer.query<{
     audience: string;
     invitations: string;
     jobs: string;
+    reminders: string;
     uninvited: string;
   }>(
     `select
        (select count(*) from public.event_audience_members where event_id = $1) as audience,
        (select count(*) from public.invitations where event_id = $1) as invitations,
-       (select count(*) from public.notification_jobs where event_id = $1) as jobs,
+       (select count(*) from public.notification_jobs
+         where event_id = $1 and job_type = 'invitation') as jobs,
+       (select count(*) from public.notification_jobs
+         where event_id = $1 and job_type = 'reminder') as reminders,
        (select count(*) from public.uninvited_audience_members where event_id = $1) as uninvited`,
     [eventId],
   );
-  const { audience, invitations, jobs, uninvited } = row.rows[0];
+  const { audience, invitations, jobs, reminders, uninvited } = row.rows[0];
   return {
     audience: Number(audience),
     invitations: Number(invitations),
     jobs: Number(jobs),
+    reminders: Number(reminders),
     uninvited: Number(uninvited),
   };
 }
@@ -259,6 +286,7 @@ describe("an empty audience is refused by the service layer", () => {
       audience: 0,
       invitations: 0,
       jobs: 0,
+      reminders: 0,
       uninvited: 0,
     });
   });
@@ -331,7 +359,8 @@ describe("a successful approval", () => {
 
     expect(outcome.members).toHaveLength(4);
     expect(outcome.invitationCount).toBe(4);
-    expect(outcome.notificationJobCount).toBe(4);
+    // Four invitees on a four-rung ladder. LAN-169: approval commits the plan.
+    expect(outcome.notificationJobCount).toBe(16);
 
     const stored = await observer.query<{
       status: string;
@@ -356,6 +385,9 @@ describe("a successful approval", () => {
       audience: 4,
       invitations: 4,
       jobs: 4,
+      // Three rungs each — two WhatsApp reminders and the email — scheduled at
+      // approval and dispatched by the sweep when each moment arrives.
+      reminders: 12,
       // Invariant P7's approval defect. Empty is the whole point: everyone the
       // approver confirmed was actually asked.
       uninvited: 0,
@@ -428,8 +460,16 @@ describe("a successful approval", () => {
       [event.id],
     );
 
-    expect(jobs.rows).toHaveLength(5);
-    expect(new Set(jobs.rows.map((job) => job.idempotency_key)).size).toBe(5);
+    // LAN-169. Five invitees, four rungs each: the invitation, two WhatsApp
+    // reminders and the email. Approval used to create one job per person and
+    // stop, because there was no ladder to create — it commits the whole plan
+    // now, and every rung is a job carrying its own moment.
+    const invitationJobs = jobs.rows.filter((job) => job.job_type === "invitation");
+    const reminderJobs = jobs.rows.filter((job) => job.job_type === "reminder");
+
+    expect(invitationJobs).toHaveLength(5);
+    expect(reminderJobs).toHaveLength(15);
+    expect(new Set(jobs.rows.map((job) => job.idempotency_key)).size).toBe(20);
 
     // The exact shape, asserted rather than left implicit. Invariant M1 wants a
     // key derived from facts that do not change, and this is the derivation:
@@ -437,6 +477,11 @@ describe("a successful approval", () => {
     // scenario plants a colliding key in this format to make rollback
     // observable by hand, and `tests/pilot-scenario-lan-77.test.ts` asserts the
     // same shape from the other side, so a change here fails in both places.
+    //
+    // A reminder's key carries the rung as well, because the rung is also a
+    // fact that does not change — reminder two is not reminder three — and
+    // without it every rung of one person's ladder would collide on a single
+    // key and only the first would ever exist.
     const members = await observer.query<{ capacity: string; participant_id: string }>(
       `select capacity::text as capacity, participant_id
          from public.event_audience_members where event_id = $1`,
@@ -445,16 +490,44 @@ describe("a successful approval", () => {
     const expected = members.rows.map(
       (member) => `event:${event.id}:invitation:${member.capacity}:${member.participant_id}`,
     );
-    expect(jobs.rows.map((job) => job.idempotency_key).sort()).toEqual(expected.sort());
+    expect(invitationJobs.map((job) => job.idempotency_key).sort()).toEqual(expected.sort());
+    expect(reminderJobs.map((job) => job.idempotency_key).sort()).toEqual(
+      members.rows
+        .flatMap((member) =>
+          [1, 2, 3].map(
+            (rung) =>
+              `event:${event.id}:reminder:${member.capacity}:${member.participant_id}:${rung}`,
+          ),
+        )
+        .sort(),
+    );
+
     for (const job of jobs.rows) {
-      expect(job.job_type).toBe("invitation");
       expect(job.status).toBe("pending");
-      // Provider-neutral and automated. `manual` here would encode copy-and-post
-      // as this slice's delivery path, which LAN-77 explicitly forbids.
-      expect(job.channel).toBe("whatsapp");
       expect(job.invitation_id).not.toBeNull();
       expect(job.person_id).not.toBeNull();
     }
+
+    // Provider-neutral and automated. `manual` here would encode copy-and-post
+    // as this slice's delivery path, which LAN-77 explicitly forbids.
+    //
+    // The ladder order is fixed and not configurable (REQ-ladder-order):
+    // WhatsApp, WhatsApp again, then email. The channels are therefore asserted
+    // per rung rather than uniformly — a ladder that sent the email first would
+    // otherwise pass a test that only checked "never manual".
+    expect(invitationJobs.every((job) => job.channel === "whatsapp")).toBe(true);
+    const byRung = await observer.query<{ ladder_rung: number; channel: string }>(
+      `select ladder_rung, channel::text as channel
+         from public.notification_jobs
+        where event_id = $1 and job_type = 'reminder'
+        group by ladder_rung, channel order by ladder_rung`,
+      [event.id],
+    );
+    expect(byRung.rows).toEqual([
+      { ladder_rung: 1, channel: "whatsapp" },
+      { ladder_rung: 2, channel: "whatsapp" },
+      { ladder_rung: 3, channel: "email" },
+    ]);
   });
 
   it("records who approved it, and what they approved, in the audit trail", async () => {
@@ -488,7 +561,11 @@ describe("a successful approval", () => {
     expect(approved?.context).toMatchObject({
       audienceSize: 3,
       invitationsCreated: 3,
-      notificationJobsCreated: 3,
+      // Three invitees, four rungs each. LAN-169: approval commits the plan
+      // rather than performing the send, so what it created is the whole ladder.
+      notificationJobsCreated: 12,
+      remindersScheduled: 9,
+      lateApproval: false,
     });
   });
 });
@@ -580,6 +657,9 @@ describe("approving twice", () => {
       audience: 3,
       invitations: 3,
       jobs: 3,
+      // One ladder, not two: the losing approval committed nothing, so its
+      // reminders do not exist either.
+      reminders: 9,
       uninvited: 0,
     });
   });
@@ -597,7 +677,7 @@ describe("the deadline every approval computes", () => {
     const outcome = await approve(event.id, keys);
     expect(outcome.deadline).not.toBeNull();
     expect(outcome.deadline?.clamped).toBe(false);
-    expect(outcome.deadline?.rule).toEqual(RESPONSE_DEADLINE_RULES.practice);
+    expect(outcome.deadline?.rule).toEqual({ daysBefore: 2 });
 
     const rows = await observer.query<{ expires_at: Date | null; deadline: Date | null }>(
       `select i.expires_at, e.response_deadline_at as deadline
@@ -613,7 +693,10 @@ describe("the deadline every approval computes", () => {
     // Brian's rule for a practice: two days before, at 18:00 Europe/London.
     // 18 October 2026 is inside British Summer Time, so 18:00 local is 17:00Z —
     // which is exactly the case a fixed offset would get wrong.
-    expect(rows.rows[0].expires_at?.toISOString()).toBe("2026-10-16T17:00:00.000Z");
+    // 10:00 on the practice's own day, two days earlier — 09:00Z in British
+    // Summer Time. LAN-169 measures the deadline from the event's start rather
+    // than from a fixed 18:00 clock (REQ-deadline-from-event-start).
+    expect(rows.rows[0].expires_at?.toISOString()).toBe("2026-10-16T09:00:00.000Z");
   });
 
   /*
@@ -738,7 +821,7 @@ describe("the approval preview", () => {
     // "today" in this dataset — a catalogue resolved as of now would show none.
     expect(preview.catalogue.counts.coach).toBeGreaterThan(0);
     expect(preview.catalogue.counts.player).toBeGreaterThan(0);
-    expect(preview.deadline?.at.toISOString()).toBe("2026-10-16T17:00:00.000Z");
+    expect(preview.deadline?.at.toISOString()).toBe("2026-10-16T09:00:00.000Z");
   });
 
   it("shows no deadline for an event that has no date yet", async () => {
@@ -758,28 +841,41 @@ describe("the approval preview", () => {
 
 describe("every event type in the enum gets the deadline Brian configured", () => {
   /**
-   * The whole table, not a sample. `RESPONSE_DEADLINE_RULES` is complete over
+   * The whole table, not a sample. `public.messaging_schedules` is complete over
    * `public.event_type` on purpose — there is no default arm — so proving it
    * type by type is what stops a future enum value being added with no rule and
    * silently inheriting two days from somebody's `??`.
    *
-   * The event date is fixed at 18 October 2026, inside British Summer Time, so
-   * every expectation below is 17:00Z for an 18:00 local deadline. A rule that
-   * subtracted a fixed offset instead of resolving the wall clock would pass a
-   * winter test and fail all seven of these.
+   * ## These values changed with LAN-169, and the change is the point
    *
-   * Seven, since LAN-151 narrowed the enum. `camp` folded into `practice`,
-   * `fixture` and `varsity` into `game`, and `other` into `meeting`; every
-   * surviving value keeps the duration Brian decided on 13 August 2026.
+   * Brian's **day counts are unchanged**: two days for the routine events,
+   * seven for a game, five for a social, decided 13 August 2026. What changed is
+   * the anchor. ADR 0021 fixed every deadline at 18:00 Europe/London whatever
+   * time the event started; `REQ-deadline-from-event-start` measures it from the
+   * event's own start instead. Brian, 2026-08-25: "'by 18:00' is a little bit
+   * confusing. It should just be '2 days before the start of the event' because
+   * the event is going to be different."
+   *
+   * These drafts start at **19:00**, so the expectations below are 19:00 local
+   * rather than 18:00 — 18:00Z inside British Summer Time. A rule that had kept
+   * the fixed clock would produce 17:00Z and fail all seven, which is exactly
+   * what this table is for.
+   *
+   * The British Summer Time requirement did not go away with the fixed clock:
+   * "two days before this event's start" still has to be resolved in the club's
+   * zone, and the test below asserts both offsets.
+   *
+   * Seven types, since LAN-151 narrowed the enum. `camp` folded into `practice`,
+   * `fixture` and `varsity` into `game`, and `other` into `meeting`.
    */
   const EXPECTED: ReadonlyArray<readonly [type: string, expiresAt: string]> = [
-    ["practice", "2026-10-16T17:00:00.000Z"],
-    ["strength_and_conditioning", "2026-10-16T17:00:00.000Z"],
-    ["chalk", "2026-10-16T17:00:00.000Z"],
-    ["game", "2026-10-11T17:00:00.000Z"],
-    ["social", "2026-10-13T17:00:00.000Z"],
-    ["recruitment", "2026-10-16T17:00:00.000Z"],
-    ["meeting", "2026-10-16T17:00:00.000Z"],
+    ["practice", "2026-10-16T18:00:00.000Z"],
+    ["strength_and_conditioning", "2026-10-16T18:00:00.000Z"],
+    ["chalk", "2026-10-16T18:00:00.000Z"],
+    ["game", "2026-10-11T18:00:00.000Z"],
+    ["social", "2026-10-13T18:00:00.000Z"],
+    ["recruitment", "2026-10-16T18:00:00.000Z"],
+    ["meeting", "2026-10-16T18:00:00.000Z"],
   ];
 
   it("covers the enum exactly, with no type left untested", async () => {
@@ -789,7 +885,13 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     expect(declared.rows.map((row) => row.value).sort()).toEqual(
       EXPECTED.map(([type]) => type).sort(),
     );
-    expect(Object.keys(RESPONSE_DEADLINE_RULES).sort()).toEqual(
+    // Read from the table the scheduler actually obeys, never transcribed.
+    // W7 is explicit about that, and a constant mirroring these rows would be
+    // a second source of truth one edit away from disagreeing with the first.
+    const configured = await observer.query<{ event_type: string }>(
+      "select event_type::text as event_type from public.messaging_schedules order by 1",
+    );
+    expect(configured.rows.map((row) => row.event_type).sort()).toEqual(
       EXPECTED.map(([type]) => type).sort(),
     );
   });
@@ -814,11 +916,14 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     expect(stored.rows[0].expires_at.toISOString()).toBe(expiresAt);
   });
 
-  it("anchors to the date alone, so an event with no start time still gets one", async () => {
+  it("falls back to midnight when an event has no start time", async () => {
     // `events.starts_at` is nullable and the club relies on it: a confirmed
-    // fixture date routinely arrives long before a kick-off time. A deadline
-    // rule expressed relative to the start would have nothing to subtract from
-    // here; this one never reads `starts_at` at all.
+    // fixture date routinely arrives long before a kick-off time. Counting from
+    // the event's own start (`REQ-deadline-from-event-start`) therefore needs an
+    // answer for an event that has no start, and the answer is the beginning of
+    // its day — the earliest instant the event could possibly begin, so the
+    // deadline is never later than the rule intends. A time added later moves
+    // the deadline forward, which is the safe direction.
     const event = await insertDraftDirectly({
       name: `${NAME_MARKER} Dateless kickoff`,
       eventType: "practice",
@@ -829,7 +934,7 @@ describe("every event type in the enum gets the deadline Brian configured", () =
 
     const outcome = await approve(event.id, keys);
 
-    expect(outcome.deadline?.at.toISOString()).toBe("2026-10-16T17:00:00.000Z");
+    expect(outcome.deadline?.at.toISOString()).toBe("2026-10-15T23:00:00.000Z");
 
     const stored = await observer.query<{ starts_at: string | null; expires_at: Date }>(
       `select e.starts_at::text as starts_at, i.expires_at
@@ -838,12 +943,14 @@ describe("every event type in the enum gets the deadline Brian configured", () =
       [event.id],
     );
     expect(stored.rows[0].starts_at).toBeNull();
-    expect(stored.rows[0].expires_at.toISOString()).toBe("2026-10-16T17:00:00.000Z");
+    expect(stored.rows[0].expires_at.toISOString()).toBe("2026-10-15T23:00:00.000Z");
   });
 
   it("resolves the wall clock either side of a British Summer Time change", async () => {
-    // 18:00 local is 17:00Z in October and 18:00Z in January. One rule, two
-    // offsets — which is why the arithmetic is PostgreSQL's and not a constant.
+    // 19:00 local is 18:00Z in October and 19:00Z in January. One rule, two
+    // offsets — which is why the arithmetic is PostgreSQL's and not a constant,
+    // and why moving the anchor off a fixed clock did not remove the need for
+    // it.
     const summer = await insertDraftDirectly({
       name: `${NAME_MARKER} Summer time`,
       eventType: "practice",
@@ -858,17 +965,21 @@ describe("every event type in the enum gets the deadline Brian configured", () =
     const summerOutcome = await approve(summer.id, await keysFor(summer, "player", 1));
     const winterOutcome = await approve(winter.id, await keysFor(winter, "player", 1));
 
-    expect(summerOutcome.deadline?.at.toISOString()).toBe("2026-10-16T17:00:00.000Z");
-    expect(winterOutcome.deadline?.at.toISOString()).toBe("2027-01-18T18:00:00.000Z");
+    expect(summerOutcome.deadline?.at.toISOString()).toBe("2026-10-16T18:00:00.000Z");
+    expect(winterOutcome.deadline?.at.toISOString()).toBe("2027-01-18T19:00:00.000Z");
   });
 
-  it("refuses an event type nobody has agreed a deadline for", () => {
+  it("refuses an event type nobody has agreed a schedule for", async () => {
     // The absence of a default arm, as a behaviour rather than as a code
-    // reading. Widening `public.event_type` without deciding its deadline makes
+    // reading. Widening `public.event_type` without deciding its schedule makes
     // approval fail loudly here instead of inheriting two days.
-    expect(() => responseDeadlineRule("kit_collection")).toThrowError(
-      /No response deadline has been agreed/,
-    );
+    //
+    // ADR 0021's rule survives its own reversal: the values moved from a frozen
+    // TypeScript table into `public.messaging_schedules`, and a type with no row
+    // is still a refusal that names itself.
+    await expect(
+      withTransaction((tx) => readMessagingScheduleIn(tx, "kit_collection")),
+    ).rejects.toThrowError(/No messaging schedule has been agreed/);
   });
 });
 

@@ -24,13 +24,17 @@ model wins and the difference is a defect here.
 | Role-catalogue migrations                              | 2 — structure, then the twenty approved seats (LAN-128)                                     |
 | Invitation-state migration                             | 1 — invitation state on `operator_accounts` (LAN-131)                                       |
 | Email re-home migration                                | 1 — `email_rehome_pending_at` on `operator_accounts` (LAN-132)                              |
-| **Files applied by a rebuild from empty**              | **22**                                                                                      |
+| Events target-state migration                          | 1 — the seven-type model, templates and the club link (LAN-151)                             |
+| Attendance-survives-cancellation migration             | 1 — attendance outlives a cancelled event (LAN-159)                                         |
+| Messaging schedule and chase migration                 | 1 — the schedule, the frozen plan, person tokens and flags (LAN-169)                        |
+| **Files applied by a rebuild from empty**              | **25**                                                                                      |
 
-The schema is **40 tables, 9 views and 31 enum types** in `public`, plus **3
-tables** in the unexposed `staging` schema. (The published totals had been left
-at the domain baseline's 36 tables and 16 files through two later migrations;
-they are counted from the catalogue here, and the two missing rows above are
-restored.) Constraint, foreign-key and index
+The schema is **49 tables, 9 views and 33 enum types** in `public`, plus **3
+tables** in the unexposed `staging` schema. Counted from the catalogue rather
+than from the migrations, because hand-listing has been wrong here twice: the
+totals were last left at 40 tables and 22 files while three later migrations had
+already landed, and the three rows above are restored along with the count.
+Constraint, foreign-key and index
 totals are deliberately not published here: they change with every migration,
 nothing depends on the number, and a stale count is worse than none. Query the
 catalogue if you need them.
@@ -256,6 +260,10 @@ These are physical necessities, not new product scope.
 | `event_template_questions`           | D42's default questions. Copied onto a new event and marked `from_template`, so removing one per event never touches the template.                                                                                                                                                                                                                        |
 | `event_template_audience_groups`     | D47's default audience, stored as **groups** rather than people — a group is a way of selecting people, and the resolved list stays `event_audience_members`. D46 keeps `recruits` to the Recruitment type, as a check.                                                                                                                                   |
 | `club_link_tokens`                   | D2's signed club link: one event's participation table, for coaches who hold no operator account. A separate table from `rsvp_access_tokens` because that token names one **invitation** and this one names one **event**; stored as a digest, same shape check.                                                                                          |
+| `messaging_schedules`                | The club's messaging policy, one row per `event_type`: RSVP-by days, invitation lead, reminder cadence, rung counts and escalation hours. Reference data, complete with **no default arm**, created by migration and never created or deleted by an operator. See [below](#the-messaging-schedule-and-the-chase).                                         |
+| `event_messaging_plans`              | That policy frozen onto one event at approval, because a schedule change is never retroactive. A **copy** of what was decided, never a place to decide something different.                                                                                                                                                                               |
+| `person_access_tokens`               | The player's season-scoped credential for their own page, on the `club_link_tokens` pattern: digest only, revocable per person without waiting for a season close. Not a club concept — the mechanism that reaches one.                                                                                                                                   |
+| `nonresponse_flags`                  | One flag per invitation per crossed chase threshold, so the same exception is never raised twice however often the scheduler reruns. The typed home invariant P7's exception stream needed once something began chasing.                                                                                                                                  |
 
 #### The role catalogue
 
@@ -455,6 +463,64 @@ initially deferred`.
 its own verdict, and admits only rows whose signature verified — so "nothing
 unsigned is ever stored" is checkable by reading rows rather than by reading the
 route.
+
+#### The messaging schedule, and the chase
+
+LAN-169 added four tables and three columns, and
+[ADR 0036](../adr/0036-messaging-schedule-configuration.md) records the owner
+decisions behind them. None is a new club concept: the frozen model already has
+an Event that solicits a response, an Invitation that may go unanswered, and a
+Notification Job that carries a message. What it had no home for was **when**.
+
+- **`messaging_schedules`** — one row per `public.event_type`, holding
+  `rsvp_by_days`, `invitation_lead_days`, `reminder_cadence_hours`,
+  `whatsapp_reminder_count`, `email_reminder_count` and `escalation_hours`.
+  Complete over the enum with **no default arm**: an event type with no row is a
+  refusal that names itself, never an inherited two days. It carries no
+  `updated_by_person_id` — attribution is in `audit_events`, as it is for
+  `event_type_settings`, and reference data must not hold a foreign key to
+  `public.people` because the synthetic seed truncates that table with `cascade`
+  and would take the club's whole messaging policy with it.
+
+  The **order** of the ladder is deliberately not in this table. WhatsApp,
+  WhatsApp again, email, then the President is fixed policy expressed as code;
+  only the spacing and the counts are configurable, and rows would make the
+  order look tunable.
+
+- **`event_messaging_plans`** — the plan frozen at approval: the six policy
+  values copied verbatim, plus the resolved `response_deadline_at`,
+  `invitation_at` and `escalation_at`, and the two facts an approver was shown
+  (`dispatches_immediately`, `late_approval`). A copy rather than a foreign key,
+  because the point is that a later edit does not reach it. `escalation_at` is
+  null exactly when the event will never escalate, which is the late-approval
+  case and nothing else; three check constraints hold that shape.
+
+- **`person_access_tokens`** — the player's durable, season-scoped credential,
+  and the one-time answer tokens that share its storage rule. Digest only, under
+  the same 64-hex check `rsvp_access_tokens` and `club_link_tokens` carry.
+  Season scope is a **live read of `seasons`**, never a stamped expiry, so
+  closing a season early really does close its credentials; `revoked_at` makes
+  one person revocable without waiting for one. At most one live durable
+  credential per person per season, as a partial unique index.
+
+- **`nonresponse_flags`** — `unique (invitation_id, threshold)` is what makes
+  the escalation idempotent under reruns, and it has to be the constraint rather
+  than a check-then-insert because two scheduler instances can cross a threshold
+  concurrently and only the database can adjudicate that. A flag is cleared **by
+  resolution and never by time**: nothing sweeps this table, resolution is an
+  update, and `service_role` holds no `delete` — so "a cleared flag stays
+  readable in history" is a property of the grant rather than of the service
+  layer being careful. `escalation_job_id` is null where the President's office
+  was vacant and the escalation is held and visibly unsent.
+
+On `notification_jobs`, three columns and no seventh status — invariant M4 locks
+the vocabulary at six, exactly as LAN-156's `held_at` did. `next_attempt_at`
+carries the time-based backoff and is distinct from `scheduled_for`, which is
+the rung's own place on the ladder; collapsing the two would lose a rung's real
+time the moment it failed once. `ladder_rung` records the fixed position — 0 the
+invitation, then the reminders — rather than leaving it to insertion order.
+`automatic_attempts` is what the delivery surface reads for "attempt 2 of 5"
+without joining to `delivery_attempts` and taking a maximum.
 
 ### Derived views
 

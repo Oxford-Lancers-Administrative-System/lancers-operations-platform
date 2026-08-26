@@ -172,8 +172,34 @@ export interface LocalTestOverrides {
   readonly messageMode: "template" | "text";
 }
 
+/** What the email transport needs in order to send. LAN-169. */
+export interface EmailConfig {
+  /** Resend's API host, without a trailing slash. Configurable so a test can point elsewhere. */
+  readonly apiBaseUrl: string;
+  /** Secret. The provider API key. Never rendered, logged or returned. */
+  readonly apiKey: string;
+  /** The verified sending address, e.g. `Oxford Lancers <events@…>`. */
+  readonly fromAddress: string;
+  /** Where a reply goes, where the club sets one. */
+  readonly replyToAddress: string | null;
+  /**
+   * The only addresses this deployment may email, lowercased.
+   *
+   * Never empty on a configured deployment: an allowlist that parsed to nothing
+   * is treated as absent, so `resolveEmailConfig` returns
+   * `{ configured: false }` rather than a configuration permitting nobody.
+   */
+  readonly recipientAllowlist: readonly string[];
+  /** Loopback-only. Redirects every email to one inbox. Never set off loopback. */
+  readonly recipientOverride: string | null;
+}
+
 export type OutboundResolution =
   | { readonly configured: true; readonly config: OutboundConfig }
+  | { readonly configured: false; readonly missing: readonly string[] };
+
+export type EmailResolution =
+  | { readonly configured: true; readonly config: EmailConfig }
   | { readonly configured: false; readonly missing: readonly string[] };
 
 export type WebhookResolution =
@@ -203,12 +229,35 @@ export const WEBHOOK_ENVIRONMENT_VARIABLES = Object.freeze([
   "WHATSAPP_WEBHOOK_VERIFY_TOKEN",
 ] as const);
 
+/**
+ * Variables the email path refuses to run without. LAN-169.
+ *
+ * `DELIVERY_EMAIL_ALLOWLIST` is here for exactly the reason
+ * `DELIVERY_RECIPIENT_ALLOWLIST` is in the outbound list: it is the one
+ * variable whose absence would *widen* what the deployment does. An absent
+ * email allowlist meaning "email anybody" would make the fallback channel the
+ * one hole in a control the club relies on, and the fallback is automatic —
+ * nobody presses anything before it sends.
+ */
+export const EMAIL_ENVIRONMENT_VARIABLES = Object.freeze([
+  "EMAIL_API_KEY",
+  "EMAIL_FROM_ADDRESS",
+  "DELIVERY_EMAIL_ALLOWLIST",
+] as const);
+
 /** Variables with a safe, non-secret default. Absence is not a refusal. */
 const DEFAULTS = Object.freeze({
   WHATSAPP_GRAPH_BASE_URL: "https://graph.facebook.com",
-  WHATSAPP_GRAPH_VERSION: "v21.0",
+  // LAN-169, mission decision Q-1/Q-2: target the latest Graph version Meta
+  // supports rather than the version this was pinned at when LAN-92 wrote it.
+  // Meta retires a version roughly two years after release and answers a
+  // retired one with an error rather than a redirect, so a pin that is never
+  // moved becomes an outage on a date nobody has in a calendar. The value is
+  // still a variable, so a deployment that needs to hold a version can.
+  WHATSAPP_GRAPH_VERSION: "v26.0",
   WHATSAPP_TEMPLATE_LANGUAGE: "en_GB",
   DELIVERY_DEFAULT_CALLING_CODE: "44",
+  EMAIL_API_BASE_URL: "https://api.resend.com",
 });
 
 function trimmed(name: string, source: EnvironmentSource): string {
@@ -345,6 +394,68 @@ export function resolveOutboundConfig(source: EnvironmentSource = process.env): 
       localTest: resolveLocalTestOverrides(appBaseUrl, source),
     },
   };
+}
+
+/**
+ * Resolves the email configuration, or names what is absent. LAN-169.
+ *
+ * A third readiness question with its own answer, for the reason the other two
+ * are separate: a deployment can legitimately have WhatsApp and not email while
+ * the club's sending domain is still being verified, and demanding all three
+ * before any of them works would make that state impossible to configure
+ * honestly. An unconfigured email path records a failed, retryable attempt
+ * naming the missing settings and sends nothing.
+ */
+export function resolveEmailConfig(source: EnvironmentSource = process.env): EmailResolution {
+  const missing = EMAIL_ENVIRONMENT_VARIABLES.filter((name) => trimmed(name, source) === "");
+  if (missing.length > 0) return { configured: false, missing };
+
+  const appBaseUrl = trimmed("APP_BASE_URL", source).replace(/\/+$/, "");
+
+  // Parsed before the configuration is declared complete, exactly as the
+  // telephone allowlist is: an allowlist of "," is present as a string and
+  // absent as a control, and treating it as configured would produce a
+  // deployment that refuses every recipient while reporting itself ready.
+  const recipientAllowlist = parseEmailAllowlist(trimmed("DELIVERY_EMAIL_ALLOWLIST", source));
+  if (recipientAllowlist.length === 0) {
+    return { configured: false, missing: ["DELIVERY_EMAIL_ALLOWLIST"] };
+  }
+
+  const replyTo = trimmed("EMAIL_REPLY_TO", source);
+
+  // Loopback-only, and the same guard `resolveLocalTestOverrides` applies for
+  // the same reason: redirecting every message to one inbox is a development
+  // affordance, and there is no reading under which a deployed revision should
+  // silently send somebody else's message to a different mailbox.
+  const override = isLoopbackBaseUrl(appBaseUrl) ? trimmed("EMAIL_TEST_RECIPIENT", source) : "";
+
+  return {
+    configured: true,
+    config: {
+      apiBaseUrl: withDefault("EMAIL_API_BASE_URL", source).replace(/\/+$/, ""),
+      apiKey: trimmed("EMAIL_API_KEY", source),
+      fromAddress: trimmed("EMAIL_FROM_ADDRESS", source),
+      replyToAddress: replyTo === "" ? null : replyTo,
+      recipientAllowlist,
+      recipientOverride: override === "" ? null : override.toLowerCase(),
+    },
+  };
+}
+
+/**
+ * Parses the email allowlist into lowercase addresses.
+ *
+ * Comma, semicolon and newline separate; the space does not, for the same
+ * reason it does not in the telephone allowlist. Sorted and deduplicated so two
+ * orderings produce the same allowlist.
+ */
+export function parseEmailAllowlist(raw: string): readonly string[] {
+  const entries = raw
+    .split(/[,;\n\r\s]+/)
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry !== "" && entry.includes("@"));
+
+  return Object.freeze([...new Set(entries)].sort());
 }
 
 /** Resolves the callback configuration, or names what is absent. */

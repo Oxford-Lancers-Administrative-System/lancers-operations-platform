@@ -302,10 +302,22 @@ export async function approveEventAction(
     return { error: messageFor(error) };
   }
 
-  // LAN-78. Approval is what makes distribution automatic — "event approval
-  // automatically queues or initiates one WhatsApp invitation per approved
-  // opted-in audience member", and there is no operator action anywhere that
-  // means "now send them".
+  // LAN-78, as amended by LAN-169. Approval is what makes distribution
+  // automatic — "event approval automatically queues or initiates one WhatsApp
+  // invitation per approved opted-in audience member", and there is no operator
+  // action anywhere that means "now send them".
+  //
+  // What changed is *when*. `approveEvent` has already frozen the messaging
+  // plan and created every rung of the ladder; this call dispatches only what
+  // is **due now**, which is the invitation of an event closer than its own
+  // invitation lead and nothing else. An event a fortnight out sends nothing
+  // here, and the scheduler sweep collects it when its anchor arrives.
+  //
+  // The call stays rather than moving wholly to the sweep because W1's
+  // guarantee depends on it: "if practice happens in 2 days and we're approving
+  // and we're sending it out, that needs to go out now." Waiting for the next
+  // tick would make that guarantee true to within the tick interval instead of
+  // immediately.
   //
   // Deliberately outside the try above, and deliberately not able to fail this
   // action. The approval is committed; a provider that is down, unconfigured or

@@ -758,6 +758,95 @@ export type Database = {
           },
         ]
       }
+      event_messaging_plans: {
+        Row: {
+          dispatches_immediately: boolean
+          email_reminder_count: number
+          email_reminders_scheduled: number
+          escalation_at: string | null
+          escalation_hours: number
+          event_id: string
+          frozen_at: string
+          frozen_by_person_id: string | null
+          id: string
+          invitation_at: string
+          invitation_lead_days: number
+          late_approval: boolean
+          reminder_cadence_hours: number
+          response_deadline_at: string
+          rsvp_by_days: number
+          whatsapp_reminder_count: number
+          whatsapp_reminders_scheduled: number
+        }
+        Insert: {
+          dispatches_immediately: boolean
+          email_reminder_count: number
+          email_reminders_scheduled: number
+          escalation_at?: string | null
+          escalation_hours: number
+          event_id: string
+          frozen_at?: string
+          frozen_by_person_id?: string | null
+          id?: string
+          invitation_at: string
+          invitation_lead_days: number
+          late_approval: boolean
+          reminder_cadence_hours: number
+          response_deadline_at: string
+          rsvp_by_days: number
+          whatsapp_reminder_count: number
+          whatsapp_reminders_scheduled: number
+        }
+        Update: {
+          dispatches_immediately?: boolean
+          email_reminder_count?: number
+          email_reminders_scheduled?: number
+          escalation_at?: string | null
+          escalation_hours?: number
+          event_id?: string
+          frozen_at?: string
+          frozen_by_person_id?: string | null
+          id?: string
+          invitation_at?: string
+          invitation_lead_days?: number
+          late_approval?: boolean
+          reminder_cadence_hours?: number
+          response_deadline_at?: string
+          rsvp_by_days?: number
+          whatsapp_reminder_count?: number
+          whatsapp_reminders_scheduled?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_messaging_plans_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_messaging_plans_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "rsvp_attendance_mismatches"
+            referencedColumns: ["event_id"]
+          },
+          {
+            foreignKeyName: "event_messaging_plans_frozen_by_person_id_fkey"
+            columns: ["frozen_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_messaging_plans_frozen_by_person_id_fkey"
+            columns: ["frozen_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       event_questions: {
         Row: {
           answer_type: Database["public"]["Enums"]["question_answer_type"]
@@ -1448,9 +1537,122 @@ export type Database = {
           },
         ]
       }
+      messaging_schedules: {
+        Row: {
+          email_reminder_count: number
+          escalation_hours: number
+          event_type: Database["public"]["Enums"]["event_type"]
+          invitation_lead_days: number
+          reminder_cadence_hours: number
+          rsvp_by_days: number
+          updated_at: string
+          whatsapp_reminder_count: number
+        }
+        Insert: {
+          email_reminder_count?: number
+          escalation_hours?: number
+          event_type: Database["public"]["Enums"]["event_type"]
+          invitation_lead_days: number
+          reminder_cadence_hours?: number
+          rsvp_by_days: number
+          updated_at?: string
+          whatsapp_reminder_count?: number
+        }
+        Update: {
+          email_reminder_count?: number
+          escalation_hours?: number
+          event_type?: Database["public"]["Enums"]["event_type"]
+          invitation_lead_days?: number
+          reminder_cadence_hours?: number
+          rsvp_by_days?: number
+          updated_at?: string
+          whatsapp_reminder_count?: number
+        }
+        Relationships: []
+      }
+      nonresponse_flags: {
+        Row: {
+          created_at: string
+          escalation_job_id: string | null
+          id: string
+          invitation_id: string
+          raised_at: string
+          resolution: string | null
+          resolved_at: string | null
+          resolved_by_person_id: string | null
+          threshold: Database["public"]["Enums"]["nonresponse_threshold"]
+        }
+        Insert: {
+          created_at?: string
+          escalation_job_id?: string | null
+          id?: string
+          invitation_id: string
+          raised_at?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by_person_id?: string | null
+          threshold: Database["public"]["Enums"]["nonresponse_threshold"]
+        }
+        Update: {
+          created_at?: string
+          escalation_job_id?: string | null
+          id?: string
+          invitation_id?: string
+          raised_at?: string
+          resolution?: string | null
+          resolved_at?: string | null
+          resolved_by_person_id?: string | null
+          threshold?: Database["public"]["Enums"]["nonresponse_threshold"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nonresponse_flags_escalation_job_id_fkey"
+            columns: ["escalation_job_id"]
+            isOneToOne: false
+            referencedRelation: "notification_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nonresponse_flags_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "invitation_response_state"
+            referencedColumns: ["invitation_id"]
+          },
+          {
+            foreignKeyName: "nonresponse_flags_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "invitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nonresponse_flags_invitation_id_fkey"
+            columns: ["invitation_id"]
+            isOneToOne: false
+            referencedRelation: "nonresponse_queue"
+            referencedColumns: ["invitation_id"]
+          },
+          {
+            foreignKeyName: "nonresponse_flags_resolved_by_person_id_fkey"
+            columns: ["resolved_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nonresponse_flags_resolved_by_person_id_fkey"
+            columns: ["resolved_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+        ]
+      }
       notification_jobs: {
         Row: {
           attempt_count: number
+          automatic_attempts: number
           cancelled_reason: string | null
           channel: Database["public"]["Enums"]["notification_channel"] | null
           claimed_at: string | null
@@ -1464,7 +1666,9 @@ export type Database = {
           idempotency_key: string
           invitation_id: string | null
           job_type: Database["public"]["Enums"]["notification_job_type"]
+          ladder_rung: number | null
           last_error: string | null
+          next_attempt_at: string | null
           person_id: string | null
           scheduled_for: string | null
           status: Database["public"]["Enums"]["notification_job_status"]
@@ -1473,6 +1677,7 @@ export type Database = {
         }
         Insert: {
           attempt_count?: number
+          automatic_attempts?: number
           cancelled_reason?: string | null
           channel?: Database["public"]["Enums"]["notification_channel"] | null
           claimed_at?: string | null
@@ -1486,7 +1691,9 @@ export type Database = {
           idempotency_key: string
           invitation_id?: string | null
           job_type: Database["public"]["Enums"]["notification_job_type"]
+          ladder_rung?: number | null
           last_error?: string | null
+          next_attempt_at?: string | null
           person_id?: string | null
           scheduled_for?: string | null
           status?: Database["public"]["Enums"]["notification_job_status"]
@@ -1495,6 +1702,7 @@ export type Database = {
         }
         Update: {
           attempt_count?: number
+          automatic_attempts?: number
           cancelled_reason?: string | null
           channel?: Database["public"]["Enums"]["notification_channel"] | null
           claimed_at?: string | null
@@ -1508,7 +1716,9 @@ export type Database = {
           idempotency_key?: string
           invitation_id?: string | null
           job_type?: Database["public"]["Enums"]["notification_job_type"]
+          ladder_rung?: number | null
           last_error?: string | null
+          next_attempt_at?: string | null
           person_id?: string | null
           scheduled_for?: string | null
           status?: Database["public"]["Enums"]["notification_job_status"]
@@ -1825,6 +2035,90 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "person_standing"
             referencedColumns: ["person_id"]
+          },
+        ]
+      }
+      person_access_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          issued_at: string
+          issued_by_person_id: string | null
+          last_used_at: string | null
+          person_id: string
+          revoked_at: string | null
+          revoked_reason: string | null
+          season_id: string
+          single_use: boolean
+          single_use_at: string | null
+          token_hash: string
+          use_count: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          issued_at?: string
+          issued_by_person_id?: string | null
+          last_used_at?: string | null
+          person_id: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          season_id: string
+          single_use?: boolean
+          single_use_at?: string | null
+          token_hash: string
+          use_count?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          issued_at?: string
+          issued_by_person_id?: string | null
+          last_used_at?: string | null
+          person_id?: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          season_id?: string
+          single_use?: boolean
+          single_use_at?: string | null
+          token_hash?: string
+          use_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_access_tokens_issued_by_person_id_fkey"
+            columns: ["issued_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_access_tokens_issued_by_person_id_fkey"
+            columns: ["issued_by_person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "person_access_tokens_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_access_tokens_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "person_standing"
+            referencedColumns: ["person_id"]
+          },
+          {
+            foreignKeyName: "person_access_tokens_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3500,6 +3794,7 @@ export type Database = {
         | "withdrawn"
         | "departed"
         | "archived"
+      nonresponse_threshold: "escalation"
       notification_channel: "whatsapp" | "email" | "sms" | "manual"
       notification_job_status:
         | "pending"
@@ -3737,6 +4032,7 @@ export const Constants = {
         "departed",
         "archived",
       ],
+      nonresponse_threshold: ["escalation"],
       notification_channel: ["whatsapp", "email", "sms", "manual"],
       notification_job_status: [
         "pending",

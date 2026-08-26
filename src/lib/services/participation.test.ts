@@ -66,6 +66,17 @@ afterEach(async () => {
      (select id from public.notification_jobs where event_id in ${events})`,
     [scope],
   );
+  // LAN-169. The plan an approval freezes, and any flag its chase raised,
+  // both reference their event with `on delete restrict` — so they go before
+  // the event does, in the same dependency order the lines below already keep.
+  await observer.query(
+    `delete from public.nonresponse_flags where invitation_id in
+         (select id from public.invitations where event_id in ${events})`,
+    [scope],
+  );
+  await observer.query(`delete from public.event_messaging_plans where event_id in ${events}`, [
+    scope,
+  ]);
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.attendance_records where event_id in ${events}`, [
     scope,

@@ -81,10 +81,13 @@ with the text it illustrates.
 - **Superseding a player's own answer.** Cut by Brian on 25 August 2026 —
   _"We're not building this into the workflow. It's too much. Cut it."_
   **Record answer** therefore appears only on a row with no answer at all.
-- **Clearing an un-actioned `nonresponse_flags` row.** That table does not
-  exist on this package's base; `WP-messaging-foundation` (LAN-169) owns it and
-  is expected to extend the shared job-cancellation function this package
-  factored out of `recordSignedLinkResponse`.
+- **Clearing an un-actioned `nonresponse_flags` row was never this package's
+  own write.** It comes for free: `WP-messaging-foundation` (LAN-169) landed
+  after this ticket was drafted and extended the shared `stopChasingIn`
+  function this package factored out of `recordSignedLinkResponse` (merged in
+  at correction round 2) to also clear the flag, so an operator's recorded
+  answer clears it exactly as a player's own answer does, with no code in this
+  package aware of the flag's existence.
 - **Attendance.** A recorded RSVP never marks or implies attendance — Task 04's
   axis, untouched here.
 - **Delivery, scheduling, or sending anything.** This write never queues a

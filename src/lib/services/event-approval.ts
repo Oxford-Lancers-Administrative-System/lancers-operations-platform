@@ -17,6 +17,12 @@ import { readEventQuestionsIn, type EventQuestion } from "./event-questions";
 import { joinWithAnd } from "./event-vocabulary";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
 import { readCurrentSeasonIn } from "./seasons";
+import {
+  freezeMessagingPlanIn,
+  resolveMessagingPlanIn,
+  type MessagingPlan,
+} from "./messaging-schedule";
+import { scheduleEventLadderIn } from "./messaging-scheduler";
 import { resolveResponseDeadlineIn, type ResolvedResponseDeadline } from "./response-deadline";
 
 /**
@@ -134,6 +140,14 @@ export interface ApprovalOutcome {
   invitationCount: number;
   notificationJobCount: number;
   deadline: ResolvedResponseDeadline | null;
+  /**
+   * LAN-169. The whole plan this approval committed — the dispatch anchor, the
+   * ladder and the escalation threshold — so the confirmation can restate what
+   * was actually set in motion rather than only when an answer is due.
+   *
+   * Null on the preview path, which has no approval to describe.
+   */
+  plan?: MessagingPlan | null;
 }
 
 export const APPROVAL_INCOMPLETE_RULE = "event_approval_requires_complete_event";
@@ -475,10 +489,21 @@ export async function approveEvent(
     const moment = await tx.query<{ at: Date }>("select now() as at");
     const approvedAt = moment.rows[0].at;
 
+    // LAN-169. The whole plan, not only the deadline: the dispatch anchor, the
+    // ladder and the escalation threshold are all computed from one arithmetic,
+    // at one moment, so the panel the approver read and the schedule that then
+    // runs cannot disagree.
+    //
     // Every approved event carries a deadline (D23). Invariant E1a has already
     // guaranteed the date it is computed from, because approval is refused
     // without one.
-    const deadline = await resolveResponseDeadlineIn(tx, before, approvedAt);
+    const plan = await resolveMessagingPlanIn(tx, before, approvedAt);
+    const deadline: ResolvedResponseDeadline = {
+      at: plan.responseDeadlineAt,
+      configuredAt: plan.configuredDeadlineAt,
+      clamped: plan.deadlineClamped,
+      rule: { daysBefore: plan.schedule.rsvpByDays },
+    };
 
     const updated = await tx.query<{ id: string }>(
       `update public.events
@@ -539,6 +564,17 @@ export async function approveEvent(
       [eventId],
     );
 
+    // LAN-169. Approval commits the plan rather than performing the send.
+    //
+    // Brian, 2026-08-22: "Yes, approval commits the plan rather than sending."
+    // The audience freeze R4 protects is unchanged — nothing below writes
+    // `invitations` or `event_audience_members` — and only the moment of
+    // dispatch moves. Frozen first so that `REQ-schedule-not-retroactive` is
+    // true from the instant the event becomes approved: an operator who edits
+    // the club's schedule a second later changes nothing about this event.
+    await freezeMessagingPlanIn(tx, eventId, plan, actorPersonId);
+    const ladder = await scheduleEventLadderIn(tx, eventId, plan);
+
     const byCapacity = countByCapacity(members);
 
     // Two rows, not one per invitee. Where a transition has a typed first-class
@@ -571,9 +607,18 @@ export async function approveEvent(
         audienceSize: members.length,
         byCapacity,
         invitationsCreated: invitations.rowCount,
-        notificationJobsCreated: jobs.rowCount,
+        notificationJobsCreated: (jobs.rowCount ?? 0) + ladder.reminders,
         responseDeadlineAt: deadline.at.toISOString(),
         responseDeadlineClamped: deadline.clamped,
+        // LAN-169. What this approval actually set in motion, recorded so the
+        // confirmation can restate it and so a later question about why an
+        // event chased the way it did is answerable from the audit trail rather
+        // than by re-deriving a plan from a schedule that may since have moved.
+        invitationAt: plan.invitationAt.toISOString(),
+        dispatchesImmediately: plan.dispatchesImmediately,
+        lateApproval: plan.lateApproval,
+        remindersScheduled: ladder.reminders,
+        escalationAt: plan.escalationAt?.toISOString() ?? null,
       },
     });
 
@@ -581,8 +626,9 @@ export async function approveEvent(
       event: await readEventIn(tx, eventId),
       members,
       invitationCount: invitations.rowCount ?? 0,
-      notificationJobCount: jobs.rowCount ?? 0,
+      notificationJobCount: (jobs.rowCount ?? 0) + ladder.reminders,
       deadline,
+      plan,
     };
   });
 }

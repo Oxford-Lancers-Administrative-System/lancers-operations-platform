@@ -36,6 +36,7 @@
     "db:seed-user": "node scripts/local-supabase-command.mjs seed-user",
     "db:seed-user:ci": "node scripts/ci-local-command.mjs seed-user",
     "db:seed": "node scripts/local-supabase-command.mjs seed",
+    "messaging:ticker": "node scripts/messaging-ticker.mjs",
     "db:seed:ci": "node scripts/ci-local-command.mjs seed",
     "db:link-operator": "node scripts/local-supabase-command.mjs link-operator",
     "db:link-coach": "node scripts/local-supabase-command.mjs link-coach",

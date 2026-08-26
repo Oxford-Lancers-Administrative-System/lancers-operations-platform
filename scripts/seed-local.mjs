@@ -438,8 +438,10 @@ const rows = {
   rsvp_responses: [],
   question_responses: [],
   attendance_records: [],
+  event_messaging_plans: [],
   notification_jobs: [],
   delivery_results: [],
+  nonresponse_flags: [],
   weekly_reports: [],
   follow_up_actions: [],
   audit_events: [],
@@ -2203,6 +2205,17 @@ for (const event of jobEvents) {
       cancelled_reason: kind === "cancelled" ? "RSVP arrived before the reminder was due" : null,
       created_at: scheduledFor,
       updated_at: scheduledFor,
+      // LAN-169. Rung 0 of the ladder — an invitation is the first message and
+      // it is always WhatsApp. `automatic_attempts` counts what the sweep did
+      // rather than what a person pressed, and `not null` means the seed has to
+      // say so rather than leaving it to a default the insert would override
+      // with an explicit null.
+      held_at: null,
+      held_reason: null,
+      held_by_person_id: null,
+      next_attempt_at: null,
+      ladder_rung: 0,
+      automatic_attempts: kind === "completed" ? 1 : kind === "failed" ? 3 : 0,
     };
     add("notification_jobs", job);
 
@@ -2246,6 +2259,342 @@ for (const event of jobEvents) {
     }
   }
 }
+
+// --- The messaging plan, the chase ladder and its flags ---------------------
+//
+// LAN-169. Before this, `scripts/seed-local.mjs` created people, events and
+// invitations and nothing sent — which is why `/operate/events/[id]/delivery`
+// read **Audience 47 · Delivered 0 · Queued 0 · Failed 0** on a database full
+// of events. Every state W5 and W6 exist to show was unreachable by looking.
+//
+// What follows seeds the ladder itself: a plan frozen on each event, the three
+// reminder rungs behind every invitation, and one event in each of the states
+// somebody has to be able to look at.
+//
+// It is deliberately **assigned rather than random**. The messiness elsewhere in
+// this file is the point of the synthetic dataset, but a reviewer opening the
+// delivery page needs the failure, the fallback and the escalation to be there
+// every time, not four runs out of five.
+
+/** The club's seeded defaults, so a plan reads as a plan rather than as offsets. */
+const MESSAGING_DEFAULTS = {
+  practice: { rsvpByDays: 2, leadDays: 5 },
+  strength_and_conditioning: { rsvpByDays: 2, leadDays: 5 },
+  chalk: { rsvpByDays: 2, leadDays: 5 },
+  game: { rsvpByDays: 7, leadDays: 10 },
+  social: { rsvpByDays: 5, leadDays: 8 },
+  recruitment: { rsvpByDays: 2, leadDays: 5 },
+  meeting: { rsvpByDays: 2, leadDays: 5 },
+};
+
+const shiftHours = (iso, count) =>
+  new Date(new Date(iso).getTime() + count * 3600000).toISOString();
+
+/**
+ * The six states a reviewer has to be able to see, one per seeded event.
+ *
+ * Named rather than numbered so the intent survives somebody reordering
+ * `jobEvents`, and so a state that stops being produced is visible here.
+ */
+const LADDER_STORIES = [
+  "mid_chase",
+  "fully_delivered",
+  "queued",
+  "genuine_failure",
+  "whatsapp_carried_by_email",
+  "escalated",
+];
+
+/** Whoever currently holds the President's seat. Escalation resolves an office. */
+const escalationRecipient = people[1];
+
+let laddersSeeded = 0;
+let remindersSeeded = 0;
+let flagsSeeded = 0;
+let heldJobs = 0;
+let noChannelJobs = 0;
+let escalationsSeeded = 0;
+
+jobEvents.forEach((event, index) => {
+  const story = LADDER_STORIES[index % LADDER_STORIES.length];
+  const defaults = MESSAGING_DEFAULTS[event.event_type] ?? MESSAGING_DEFAULTS.practice;
+  const invitations = invitationsByEvent.get(event.id) ?? [];
+  if (invitations.length === 0 || event.scheduled_on === null) return;
+
+  const startsAt = at(day(event.scheduled_on), event.starts_at ?? "19:00:00");
+  const deadlineAt = shiftHours(startsAt, -24 * defaults.rsvpByDays);
+  const invitationAt = shiftHours(startsAt, -24 * defaults.leadDays);
+  // Twelve hours after the deadline, for every type — REQ-schedule-defaults.
+  const escalationAt = shiftHours(deadlineAt, 12);
+
+  add("event_messaging_plans", {
+    id: uuid(),
+    event_id: event.id,
+    rsvp_by_days: defaults.rsvpByDays,
+    invitation_lead_days: defaults.leadDays,
+    reminder_cadence_hours: 24,
+    whatsapp_reminder_count: 2,
+    email_reminder_count: 1,
+    escalation_hours: 12,
+    response_deadline_at: deadlineAt,
+    invitation_at: invitationAt,
+    escalation_at: escalationAt,
+    dispatches_immediately: false,
+    late_approval: false,
+    whatsapp_reminders_scheduled: 2,
+    email_reminders_scheduled: 1,
+    frozen_at: event.approved_at,
+    frozen_by_person_id: event.approved_by_person_id ?? null,
+  });
+  laddersSeeded += 1;
+
+  invitations.forEach((invitation, position) => {
+    // The fixed ladder: WhatsApp, WhatsApp again, then email
+    // (`REQ-ladder-order`), counting forward from the invitation on the cadence
+    // (`REQ-count-forward`).
+    for (const rung of [1, 2, 3]) {
+      const channel = rung <= 2 ? "whatsapp" : "email";
+      const dueAt = shiftHours(invitationAt, rung * 24);
+      const due = new Date(dueAt).getTime() <= NOW.getTime();
+
+      // What a rung looks like depends on the story and on whether its moment
+      // has passed. A rung still ahead is `pending` whatever the story, because
+      // that is what the sweep would see.
+      let status = due ? "completed" : "pending";
+      let lastError = null;
+      let attempts = due ? 1 : 0;
+      let automatic = due ? 1 : 0;
+      let nextAttemptAt = null;
+      let heldAt = null;
+      let heldReason = null;
+      let heldBy = null;
+      let cancelledReason = null;
+
+      if (!due) {
+        // Queued, and there is nothing else to say about it.
+      } else if (story === "queued") {
+        status = "pending";
+        attempts = 0;
+        automatic = 0;
+      } else if (story === "genuine_failure" && rung === 1 && position === 0) {
+        // Retries exhausted. Terminal, so no automatic attempt is pending and
+        // the delivery page gives a human the reason rather than a button that
+        // cannot work.
+        status = "failed";
+        attempts = 5;
+        automatic = 5;
+        lastError =
+          "The provider refused this message five times. Somebody needs to read the reason " +
+          "before it is retried.";
+      } else if (story === "genuine_failure" && rung === 2 && position === 0) {
+        // Mid-backoff: attempted, failed, waiting for its next automatic
+        // attempt. `REQ-retries-have-no-actor` — the page shows the attempt and
+        // the next due time and offers nothing to press.
+        status = "failed";
+        attempts = 2;
+        automatic = 2;
+        lastError = "The provider is not responding. This will be attempted again.";
+        nextAttemptAt = shiftHours(NOW.toISOString(), 1);
+      } else if (
+        story === "whatsapp_carried_by_email" &&
+        channel === "whatsapp" &&
+        position === 0
+      ) {
+        // `REQ-whatsapp-outage-visible`. The person WAS reached — the email rung
+        // below carried the message — and the club's primary channel still
+        // failed. It stays a recorded failure and it stays counted.
+        status = "failed";
+        attempts = 5;
+        automatic = 5;
+        lastError = "WhatsApp did not accept this message.";
+      } else if (story === "mid_chase" && rung >= 2) {
+        // Still climbing: the first reminder went, the rest have not.
+        status = "pending";
+        attempts = 0;
+        automatic = 0;
+      }
+
+      // One held message, on one rung of one event, so the amendment hold has
+      // something to render. A hold outranks whatever the job was doing.
+      if (story === "fully_delivered" && rung === 2 && position === 0) {
+        heldAt = event.approved_at;
+        heldReason = "The venue changed after this reminder was queued.";
+        heldBy = event.approved_by_person_id ?? people[1].id;
+        status = "pending";
+        attempts = 0;
+        automatic = 0;
+        lastError = null;
+        nextAttemptAt = null;
+      }
+
+      // One rung called off by an answer that arrived, so `REQ-chase-stopped` is
+      // visible as a state rather than only as a transition.
+      if (story === "mid_chase" && rung === 3 && position === 1) {
+        status = "cancelled";
+        attempts = 0;
+        automatic = 0;
+        cancelledReason = "The invitee responded, so this reminder is no longer needed.";
+      }
+
+      const job = {
+        id: uuid(),
+        idempotency_key: `invitation:${invitation.id}:reminder:${rung}`,
+        job_type: "reminder",
+        status,
+        invitation_id: invitation.id,
+        event_id: event.id,
+        person_id: null,
+        channel,
+        scheduled_for: dueAt,
+        claimed_at: attempts > 0 ? dueAt : null,
+        claimed_by: attempts > 0 ? "system: automated delivery" : null,
+        attempt_count: attempts,
+        last_error: lastError,
+        template_variables: JSON.stringify({
+          event_name: event.name,
+          scheduled_on: event.scheduled_on,
+        }),
+        cancelled_reason: cancelledReason,
+        created_at: event.approved_at,
+        updated_at: dueAt,
+        held_at: heldAt,
+        held_reason: heldReason,
+        held_by_person_id: heldBy,
+        next_attempt_at: nextAttemptAt,
+        ladder_rung: rung,
+        automatic_attempts: automatic,
+      };
+      add("notification_jobs", job);
+      remindersSeeded += 1;
+      if (heldAt) heldJobs += 1;
+
+      if (status === "completed") {
+        add("delivery_results", {
+          id: uuid(),
+          notification_job_id: job.id,
+          attempt_number: 1,
+          outcome: "delivered",
+          channel,
+          provider: channel === "email" ? "resend" : "whatsapp-business",
+          provider_message_id: channel === "email" ? uuid() : `wamid.${uuid().replace(/-/g, "")}`,
+          actor_person_id: null,
+          detail: null,
+          occurred_at: dueAt,
+        });
+      }
+
+      if (status === "failed") {
+        add("delivery_results", {
+          id: uuid(),
+          notification_job_id: job.id,
+          attempt_number: attempts,
+          outcome: "failed",
+          channel,
+          provider: channel === "email" ? "resend" : "whatsapp-business",
+          provider_message_id: null,
+          actor_person_id: null,
+          detail: lastError,
+          occurred_at: dueAt,
+        });
+      }
+    }
+
+    // `REQ-no-channel-backstop`. One person the club cannot reach at all: no
+    // usable route, nothing to retry and nothing to fall back to. The only
+    // delivery state that requires a human, and what it requires is a roster
+    // fix rather than a message.
+    if (story === "genuine_failure" && position === 1) {
+      const invitationJob = rows.notification_jobs.find(
+        (candidate) =>
+          candidate.invitation_id === invitation.id && candidate.job_type === "invitation",
+      );
+      if (invitationJob) {
+        invitationJob.status = "failed";
+        invitationJob.channel = "whatsapp";
+        invitationJob.attempt_count = 1;
+        invitationJob.automatic_attempts = 1;
+        invitationJob.next_attempt_at = null;
+        invitationJob.last_error =
+          "This person has no usable mobile number on their record, so nothing could be sent. " +
+          "Adding one is a change to their roster entry, not a delivery repair.";
+        noChannelJobs += 1;
+      }
+    }
+  });
+
+  // One event past its escalation threshold, with a flag on every unanswered
+  // invitation and exactly one escalation sent to the President.
+  //
+  // `REQ-one-flag-per-threshold`: one flag per invitation per threshold, and one
+  // escalation for the event however often the scheduler reruns.
+  if (story === "escalated") {
+    const unanswered = invitations.filter(
+      (invitation) => !rows.rsvp_responses.some((row) => row.invitation_id === invitation.id),
+    );
+
+    if (unanswered.length > 0) {
+      const escalationJob = {
+        id: uuid(),
+        idempotency_key: `event:${event.id}:escalation`,
+        job_type: "escalation",
+        status: "completed",
+        invitation_id: null,
+        event_id: event.id,
+        person_id: escalationRecipient.id,
+        channel: "whatsapp",
+        scheduled_for: escalationAt,
+        claimed_at: escalationAt,
+        claimed_by: "system: messaging scheduler",
+        attempt_count: 1,
+        last_error: null,
+        template_variables: JSON.stringify({ outstanding: unanswered.length }),
+        cancelled_reason: null,
+        created_at: escalationAt,
+        updated_at: escalationAt,
+        held_at: null,
+        held_reason: null,
+        held_by_person_id: null,
+        next_attempt_at: null,
+        ladder_rung: null,
+        automatic_attempts: 1,
+      };
+      add("notification_jobs", escalationJob);
+      escalationsSeeded += 1;
+
+      add("delivery_results", {
+        id: uuid(),
+        notification_job_id: escalationJob.id,
+        attempt_number: 1,
+        outcome: "delivered",
+        channel: "whatsapp",
+        provider: "whatsapp-business",
+        provider_message_id: `wamid.${uuid().replace(/-/g, "")}`,
+        actor_person_id: null,
+        detail: null,
+        occurred_at: escalationAt,
+      });
+
+      unanswered.forEach((invitation, position) => {
+        // One flag is already resolved, so the follow-up queue carries both an
+        // open exception and the history a cleared one leaves behind — which is
+        // the half of `REQ-one-flag-per-threshold` a live queue cannot show.
+        const resolved = position === 0 && unanswered.length > 1;
+        add("nonresponse_flags", {
+          id: uuid(),
+          invitation_id: invitation.id,
+          threshold: "escalation",
+          raised_at: escalationAt,
+          escalation_job_id: escalationJob.id,
+          resolved_at: resolved ? shiftHours(escalationAt, 3) : null,
+          resolution: resolved ? "The invitee answered." : null,
+          resolved_by_person_id: null,
+          created_at: escalationAt,
+        });
+        flagsSeeded += 1;
+      });
+    }
+  }
+});
 
 // --- Monday review ---------------------------------------------------------
 
@@ -3107,6 +3456,31 @@ const WRITE_PLAN = [
     "attendance_records",
   ],
   [
+    // LAN-169. Before the jobs, because a plan references only its event; and
+    // before the flags, which reference an invitation and a job.
+    "public.event_messaging_plans",
+    [
+      "id",
+      "event_id",
+      "rsvp_by_days",
+      "invitation_lead_days",
+      "reminder_cadence_hours",
+      "whatsapp_reminder_count",
+      "email_reminder_count",
+      "escalation_hours",
+      "response_deadline_at",
+      "invitation_at",
+      "escalation_at",
+      "dispatches_immediately",
+      "late_approval",
+      "whatsapp_reminders_scheduled",
+      "email_reminders_scheduled",
+      "frozen_at",
+      "frozen_by_person_id",
+    ],
+    "event_messaging_plans",
+  ],
+  [
     "public.notification_jobs",
     [
       "id",
@@ -3126,6 +3500,16 @@ const WRITE_PLAN = [
       "cancelled_reason",
       "created_at",
       "updated_at",
+      // LAN-156's amendment hold, and LAN-169's ladder and backoff. Seeded so
+      // the delivery and follow-up surfaces have a held message, a message
+      // waiting on its backoff, and a real chase ladder to render — every one
+      // of which read as "Nothing queued" before.
+      "held_at",
+      "held_reason",
+      "held_by_person_id",
+      "next_attempt_at",
+      "ladder_rung",
+      "automatic_attempts",
     ],
     "notification_jobs",
   ],
@@ -3144,6 +3528,21 @@ const WRITE_PLAN = [
       "occurred_at",
     ],
     "delivery_results",
+  ],
+  [
+    "public.nonresponse_flags",
+    [
+      "id",
+      "invitation_id",
+      "threshold",
+      "raised_at",
+      "escalation_job_id",
+      "resolved_at",
+      "resolution",
+      "resolved_by_person_id",
+      "created_at",
+    ],
+    "nonresponse_flags",
   ],
   [
     "public.weekly_reports",
@@ -3400,6 +3799,15 @@ try {
   console.log(counts("notification jobs", rows.notification_jobs.length));
   console.log(counts("  failed with retry history", failedJobs));
   console.log(counts("  manual recoveries", manualRecoveries));
+  // LAN-169. The ladder, so a reviewer can tell at a glance whether the states
+  // W5 and W6 exist to show are actually in this dataset — rather than opening
+  // the delivery page and finding the zeros this seed used to produce.
+  console.log(counts("  chase ladders", laddersSeeded));
+  console.log(counts("  reminder rungs", remindersSeeded));
+  console.log(counts("  held by an amendment", heldJobs));
+  console.log(counts("  nobody could be reached", noChannelJobs));
+  console.log(counts("  escalations to the President", escalationsSeeded));
+  console.log(counts("nonresponse flags", flagsSeeded));
   console.log(counts("weekly report snapshots", rows.weekly_reports.length));
   console.log(
     counts(
