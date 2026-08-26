@@ -245,11 +245,29 @@ export function allowRsvpRequest(
  * bucket — their tokens come from different derivations, and a collision would
  * spend one surface's allowance on the other's traffic.
  */
-export type PublicLinkSurface = "rsvp" | "club_link";
+export type PublicLinkSurface = "rsvp" | "club_link" | "player_answer" | "player_home";
+
+/**
+ * The player-answer and player-home allowances — LAN-172.
+ *
+ * `player_answer` is a one-time token: one player, one invitation, one button.
+ * It takes the same allowance as `rsvp` for the same reason — the render, the
+ * POST and the confirmation reload are a handful of requests, not thirty.
+ *
+ * `player_home` is the durable per-season page, and it is meant to be reopened
+ * — the whole point of W2's durable page is that a player returns to it across
+ * a season to work through everything still outstanding. It takes the higher
+ * per-link allowance the club link uses, for the same reason: a page meant to
+ * be revisited needs more headroom than a page meant to be used once.
+ */
+export const RATE_LIMIT_MAX_PER_ANSWER_LINK = 20;
+export const RATE_LIMIT_MAX_PER_HOME_LINK = 240;
 
 const PER_LINK_ALLOWANCE: Readonly<Record<PublicLinkSurface, number>> = Object.freeze({
   rsvp: RATE_LIMIT_MAX_PER_LINK,
   club_link: CLUB_LINK_MAX_PER_LINK,
+  player_answer: RATE_LIMIT_MAX_PER_ANSWER_LINK,
+  player_home: RATE_LIMIT_MAX_PER_HOME_LINK,
 });
 
 /**
@@ -315,6 +333,38 @@ export function logThrottledClubLinkRequest(reason: ThrottleReason): void {
   console.warn(
     `[club-link] a request was refused by the ${reason} rate limit. ` +
       "If a squad reports that a shared event link will not load, this is the first thing to check.",
+  );
+}
+
+/** `/a/[token]` — LAN-172's one-time WhatsApp/email answer link. */
+export function allowPlayerAnswerRequest(
+  address: string,
+  token: string,
+  now: number = Date.now(),
+): RsvpRequestDecision {
+  return allowPublicLinkRequest("player_answer", address, token, now);
+}
+
+export function logThrottledPlayerAnswerRequest(reason: ThrottleReason): void {
+  console.warn(
+    `[player-answer] a request was refused by the ${reason} rate limit. ` +
+      "If a player reports that a valid answer link will not load, this is the first thing to check.",
+  );
+}
+
+/** `/me/[token]` — LAN-172's durable, season-scoped player page. */
+export function allowPlayerHomeRequest(
+  address: string,
+  token: string,
+  now: number = Date.now(),
+): RsvpRequestDecision {
+  return allowPublicLinkRequest("player_home", address, token, now);
+}
+
+export function logThrottledPlayerHomeRequest(reason: ThrottleReason): void {
+  console.warn(
+    `[player-home] a request was refused by the ${reason} rate limit. ` +
+      "If a player reports that their own page will not load, this is the first thing to check.",
   );
 }
 

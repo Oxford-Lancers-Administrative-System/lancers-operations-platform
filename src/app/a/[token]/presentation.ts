@@ -1,0 +1,90 @@
+/**
+ * Every word the answer-link page says. LAN-172, W2-01 through W2-04.
+ *
+ * Button labels are Brian's Q-10 decision, quoted verbatim from
+ * `src/lib/delivery/templates.ts` rather than restated, so the WhatsApp
+ * message and the page it opens can never drift into two different labels for
+ * the same action. Everything else is new copy for this ticket and is
+ * reviewed alongside the mockup, same as LAN-79's was.
+ */
+
+import { TYPE_LABELS } from "@/app/operate/events/presentation";
+import { NO_BUTTON_LABEL, YES_BUTTON_LABEL } from "@/lib/delivery/templates";
+
+export const BANNER = "LANCERS OPERATIONS";
+
+export function eventTypeLabel(eventType: string): string {
+  return TYPE_LABELS[eventType] ?? eventType;
+}
+
+export const PRIVACY_NOTE =
+  "This secure page records only your response. Other players’ responses are never visible.";
+
+// ---------------------------------------------------------------------------
+// The single control — Brian's accepted no-JavaScript deviation from Q-11
+// ---------------------------------------------------------------------------
+
+/**
+ * Worded as the answer itself, never as a confirmation — the WhatsApp tap
+ * already is the answer, and this page must not imply otherwise. Reusing the
+ * exact button label the message carried is what makes that true rather than
+ * merely stated.
+ */
+export function confirmLabel(answer: "yes" | "no"): string {
+  return answer === "yes" ? YES_BUTTON_LABEL : NO_BUTTON_LABEL;
+}
+
+export const YES_HEADING = "You're attending";
+export const NO_HEADING = "You're not attending — no reason given";
+export const NO_EXPLANATION =
+  "The club plans numbers, transport and coaching from these responses. Tell the club why if you can.";
+export const CHANGE_TO_YES = "Change to Yes";
+export const OUTSTANDING_QUESTIONS = "Additional questions outstanding";
+
+export function attendingSentence(count: number): string | null {
+  if (count <= 0) return null;
+  return count === 1
+    ? "One other person is already attending."
+    : `${count} other people are already attending.`;
+}
+
+export function otherOutstandingSentence(count: number): string | null {
+  if (count <= 0) return null;
+  return count === 1
+    ? "You have one other invitation still waiting for an answer."
+    : `You have ${count} other invitations still waiting for an answer.`;
+}
+
+// ---------------------------------------------------------------------------
+// Cancelled — the one non-uniform terminal state, same rule as LAN-79
+// ---------------------------------------------------------------------------
+
+export const CANCELLED_HEADING = "This event has been cancelled";
+export const CANCELLED_NOTE = "No response is needed.";
+
+export function cancelledSentence(eventName: string): string {
+  return `${eventName} will not take place.`;
+}
+
+// ---------------------------------------------------------------------------
+// Already answered through this exact link
+// ---------------------------------------------------------------------------
+
+export const ALREADY_RECORDED_HEADING = "This response is already recorded";
+export const ALREADY_RECORDED_NOTE =
+  "Check the most recent message from the club for a link to your own page, where you can see and change any of your answers.";
+
+// ---------------------------------------------------------------------------
+// The one uniform terminal response — same shape LAN-79 established
+// ---------------------------------------------------------------------------
+
+export const TERMINAL_HEADING = "This link can’t be used";
+export const TERMINAL_BODY =
+  "Request the latest message from the club. If the event has already started, response changes are closed.";
+export const TERMINAL_PRIVACY_NOTE =
+  "For privacy, we can’t provide more information about this link.";
+export const CLOSE = "Close";
+
+export const BUSY_ERROR = "busy";
+export const BUSY_MESSAGE =
+  "Your response could not be saved just now because the club received a lot of requests at once. Please try again in a minute.";

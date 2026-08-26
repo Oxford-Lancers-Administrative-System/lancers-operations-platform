@@ -45,6 +45,8 @@ function message(overrides: Partial<OutboundMessage> = {}): OutboundMessage {
     eventName: "Michaelmas week 3",
     whenLabel: "Wednesday 14 October, 20:00",
     rsvpUrl: "https://lancers.example/rsvp/abc",
+    yesUrl: "https://lancers.example/a/y.11111111-1111-1111-1111-111111111111.abc",
+    noUrl: "https://lancers.example/a/n.11111111-1111-1111-1111-111111111111.xyz",
     venue: "Iffley Road Sports Centre",
     deadlineLabel: "Tuesday 13 October, 20:00",
     attendingCount: 18,
@@ -96,23 +98,34 @@ describe("every declared template", () => {
 });
 
 describe("the invitation", () => {
-  it("keeps LAN-78's four parameters in their shipped order", () => {
-    // The club's approved template already matches this contract. Reordering it
-    // would need Meta's review again, and would deliver a correctly-formatted
-    // message reading "Please confirm you can make it to 20:00, on Michaelmas
-    // week 3" in the meantime.
+  it("keeps three body parameters and carries no raw URL in body copy", () => {
+    // LAN-172: the approved W2-01 shape carries no raw link as body text at
+    // all. The two answers are WhatsApp URL buttons, declared through
+    // `buttonUrls`, not template body parameters.
     expect(MESSAGE_TEMPLATES.invitation.parameterNames).toEqual([
       "inviteeName",
       "eventName",
       "whenLabel",
-      "rsvpUrl",
     ]);
     expect(MESSAGE_TEMPLATES.invitation.parameters(message({ kind: "invitation" }))).toEqual([
       "Jamie",
       "Michaelmas week 3",
       "Wednesday 14 October, 20:00",
-      "https://lancers.example/rsvp/abc",
     ]);
+  });
+
+  it("declares the two answer buttons in Yes-then-No order", () => {
+    const buttons = MESSAGE_TEMPLATES.invitation.buttonUrls?.(message({ kind: "invitation" }));
+    expect(buttons).toEqual([
+      "https://lancers.example/a/y.11111111-1111-1111-1111-111111111111.abc",
+      "https://lancers.example/a/n.11111111-1111-1111-1111-111111111111.xyz",
+    ]);
+  });
+
+  it("refuses to render its buttons when a Yes or No link is missing", () => {
+    expect(() =>
+      MESSAGE_TEMPLATES.invitation.buttonUrls?.(message({ kind: "invitation", yesUrl: null })),
+    ).toThrowError(/Yes link/);
   });
 
   it("is what an unset kind resolves to", () => {

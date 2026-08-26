@@ -104,6 +104,15 @@ export interface MessageTemplate {
   subject(message: OutboundMessage): string;
   /** The email body, as plain text. Rendered to HTML by the transport. */
   body(message: OutboundMessage): readonly string[];
+  /**
+   * The two WhatsApp URL buttons this kind carries — LAN-172, Q-11. `[yes, no]`
+   * order, matching the two approved actions. `undefined` for every kind
+   * besides `invitation` and `reminder`, which still carry `rsvpUrl` as body
+   * copy or a single CTA. Declared on the template registry, not read off
+   * `message.kind` a second time somewhere else, for the same reason
+   * `parameterNames` is declared here rather than implied.
+   */
+  buttonUrls?(message: OutboundMessage): readonly [string, string] | null;
 }
 
 function required(value: string | null | undefined, name: string): string {
@@ -144,36 +153,50 @@ function attendingSentence(message: OutboundMessage): string | null {
     : `${count} other people have already said yes.`;
 }
 
+/**
+ * The two Yes/No URL buttons — LAN-172, Q-11. Required on `invitation` and
+ * `reminder`: a player-facing rung with no answer link is a message nobody
+ * can act on, so a missing URL is refused here rather than sent as a template
+ * with a blank button.
+ */
+function answerButtonUrls(message: OutboundMessage): readonly [string, string] {
+  return [required(message.yesUrl, "Yes link"), required(message.noUrl, "No link")];
+}
+
 const INVITATION: MessageTemplate = {
   kind: "invitation",
-  // Four parameters, in this order, exactly as the shipped template takes them.
-  // Unchanged from LAN-78 on purpose: the club's approved template already
-  // matches this contract and reordering it would need Meta's review again.
-  parameterNames: ["inviteeName", "eventName", "whenLabel", "rsvpUrl"],
+  // Three body parameters. `rsvpUrl` left this list with LAN-172: the approved
+  // W2-01 shape carries no raw URL in body copy at all — the two answers are
+  // WhatsApp URL buttons, declared below in `buttonUrls`, not text.
+  parameterNames: ["inviteeName", "eventName", "whenLabel"],
   parameters: (message) => [
     required(message.inviteeName, "name"),
     required(message.eventName, "event name"),
     required(message.whenLabel, "date and time"),
-    required(message.rsvpUrl, "link"),
   ],
   subject: (message) => `You are invited: ${message.eventName}`,
   body: (message) => [
     `${message.inviteeName}, you are invited to ${message.eventName}.`,
     ...whereAndWhen(message),
     deadlineSentence(message),
-    "Answer here:",
-    message.rsvpUrl,
+    // Email's "equivalent calls to action" (W2's own words) rather than one
+    // raw link: two distinct URLs, each already the answer, matching what the
+    // WhatsApp buttons do. `REQ-no-false-rsvp` covers both — the destination
+    // `/a/[token]` GET is side-effect-free for a mail client's link scanner
+    // exactly as it is for WhatsApp's own crawler.
+    `${YES_BUTTON_LABEL}: ${message.yesUrl}`,
+    `${NO_BUTTON_LABEL}: ${message.noUrl}`,
   ],
+  buttonUrls: answerButtonUrls,
 };
 
 const REMINDER: MessageTemplate = {
   kind: "reminder",
-  parameterNames: ["inviteeName", "eventName", "whenLabel", "rsvpUrl"],
+  parameterNames: ["inviteeName", "eventName", "whenLabel"],
   parameters: (message) => [
     required(message.inviteeName, "name"),
     required(message.eventName, "event name"),
     required(message.whenLabel, "date and time"),
-    required(message.rsvpUrl, "link"),
   ],
   // The approved W2-02 wording: the chase gets stronger rather than repeating
   // itself, and it states plainly what the club is waiting for.
@@ -185,10 +208,11 @@ const REMINDER: MessageTemplate = {
       ...whereAndWhen(message),
       ...(attending ? [attending] : []),
       "Please respond now. Your answer affects numbers, transport and coaching plans.",
-      `${YES_BUTTON_LABEL} or ${NO_BUTTON_LABEL}:`,
-      message.rsvpUrl,
+      `${YES_BUTTON_LABEL}: ${message.yesUrl}`,
+      `${NO_BUTTON_LABEL}: ${message.noUrl}`,
     ];
   },
+  buttonUrls: answerButtonUrls,
 };
 
 const NUDGE: MessageTemplate = {
