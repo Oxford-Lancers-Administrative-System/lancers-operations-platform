@@ -1,0 +1,36 @@
+{
+  "mission_id": "M-PEOPLE-AND-ROSTER",
+  "ledger_version": 2,
+  "stage": "boundary",
+  "baseline": {
+    "branch": "main",
+    "commit": "2115bfed9d08ab9146fe00f002d6337cae9796a2"
+  },
+  "approvals": {},
+  "workflows": [],
+  "mockup_hub": "generated",
+  "decision_coverage": {
+    "sources": [
+      {
+        "id": "SRC-task-08",
+        "ref": "https://app.notion.com/p/3bd488886d57812e9534cb00102abef8",
+        "version": "approved 2026-08-15; owner note added 2026-08-26",
+        "decision_ids": []
+      },
+      {
+        "id": "SRC-portfolio-v2-row-5",
+        "ref": "https://app.notion.com/p/3bb488886d578126a88cdd747f590a01",
+        "version": "Portfolio v2 approved 2026-08-26",
+        "decision_ids": []
+      },
+      {
+        "id": "SRC-lan-174",
+        "ref": "https://linear.app/brian-schuster/issue/LAN-174",
+        "version": "Done 2026-08-26",
+        "decision_ids": []
+      }
+    ],
+    "decisions": []
+  },
+  "next_action": "Complete and approve 00-boundary.md"
+}
