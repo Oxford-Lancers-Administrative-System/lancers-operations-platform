@@ -1379,7 +1379,7 @@
        */
       const SEASON_PEOPLE = [
         { name: "Alaric Ashcombe", standing: "Active", is: "Player", mob: 1, mail: 1, missing: 0 },
-        { name: "Bertram", standing: "Active", is: "Player", mob: 1, mail: 0, missing: 7 },
+        { name: "Bertram", standing: "Active", is: "Player", mob: 1, mail: 0, missing: 8 },
         {
           name: "Caspian Hallowfield",
           standing: null,
@@ -1832,7 +1832,7 @@
         roles: NR,
         seasons: seasonRow("2026-27", "Active", "No jersey recorded"),
         history: changeRow("Person created", "2 September 2026, 08:31", "Norbert Mereworth"),
-        banner: alert("warn", "7 required facts are missing."),
+        banner: alert("warn", "8 required facts are missing."),
       };
 
       const W106 = operatorShell(personRecord(BERTRAM));
@@ -2074,7 +2074,7 @@
             "Acceptance 2: every absent field states <em>not recorded</em>. Nothing is blank and nothing is defaulted",
             "<strong>Changed:</strong> the banner is now five words. The paragraph explaining what is required and why last name is not counted has moved to the specification, where it belongs",
             "<strong>Changed:</strong> Under 18 reads <em>not recorded</em> rather than a sentence about why it cannot be derived",
-            "Last name is absent and is not counted as missing: a quarter of the club's records are first-name-only",
+            "<strong>Changed:</strong> last name is now required at every rung, so Bertram counts eight missing facts rather than seven. Roughly a quarter of the club flags for it the day the queue opens, which is now the intent rather than the objection",
           ],
           clockTag: CLOCK,
           url: "oxfordlancers.example/operate/people/7b1e04d9",

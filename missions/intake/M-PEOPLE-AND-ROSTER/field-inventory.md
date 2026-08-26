@@ -32,7 +32,7 @@ it is given alongside.
 | #   | Field               | This mission | Surfaces                                      | Notes                                                                                                                                                                                                                                                                 |
 | --- | ------------------- | ------------ | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | First name          | build        | People list · person detail · roster · player | Required to mint. Column `given_name`; never a key.                                                                                                                                                                                                                   |
-| 2   | Last name           | build        | People list · person detail · roster · player | Column `family_name`. Nullable by design — 26% of real records are first-name-only.                                                                                                                                                                                   |
+| 2   | Last name           | build        | People list · person detail · roster · player | Column `family_name`. **Stays nullable**, and is **required by the missing-data queue** from 2026-08-26. Those are different things: 26% of real records lack it, so a NOT NULL constraint would refuse the club's own data. The queue is how they get filled.        |
 | 3–4 | Aliases             | build        | person detail · merge comparison              | **One concept, two of Task 08's collapsed into it.** Known-as is gone; an alias may instead be flagged as the display name. Dedupe evidence; never roster display. Drops the shipped `known_as` column.                                                               |
 | 5   | College email       | build        | person detail · player detail                 | Era-scoped, expires around graduation, superseded never overwritten. Needs the contact-kind split.                                                                                                                                                                    |
 | 6   | Personal email      | build        | person detail · player detail                 | The durable/alumni channel. Same migration.                                                                                                                                                                                                                           |
@@ -220,17 +220,28 @@ Task 11 §2.1 says coaches and committee members are chased for contact points
 "and academic fields **where applicable**", which implies required-ness differs by
 who the person is but never says how.
 
-**Recommendation — required-ness depends on where the person stands on the
-ladder:**
+**Required-ness depends on where the person stands on the ladder.** Approved
+2026-08-26 and amended the same day; see the note under the table.
 
-| Person                                    | Required                                                                                                                           |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Onboarding, active or inactive            | First name · mobile · personal email · college · matriculation year · expected graduation · degree field · DOB · emergency contact |
-| Recruit                                   | First name · mobile — Task 09 D2's minimum at every door, and nothing more is chased of them                                       |
-| Everyone else (coach, committee, alumnus) | First name · mobile · personal email                                                                                               |
+| Person                                    | Required                                                                                                                                       |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Onboarding, active or inactive            | First name · last name · mobile · personal email · college · matriculation year · expected graduation · degree field · DOB · emergency contact |
+| Recruit                                   | First name · last name · mobile                                                                                                                |
+| Everyone else (coach, committee, alumnus) | First name · last name · mobile · personal email                                                                                               |
 
-Last name is deliberately **not** required — a quarter of real records are
-first-name-only, and flagging them all would make the queue useless on day one.
+**Last name is required at every rung, amended 2026-08-26.** Brian: _"Last name
+should be mandatory, and this is the right place to handle that… first name,
+last name, mobile. Then we can go chase the other stuff."_ This supersedes the
+recommendation approved earlier the same day, which left last name out because a
+quarter of the club's records are first-name-only and flagging them all would
+have made the queue useless on day one. That consequence is unchanged and is now
+the intent: roughly a quarter of the club flags for a missing last name the day
+the queue opens, and the queue is where they get chased.
+
+The recruit row also loses its carve-out. Task 09 D2's minimum at every door is a
+first name and a mobile; a last name is now chased of a recruit as well, which is
+one fact more than any recruitment door captures today.
+
 Aliases and Blues are recorded when known and never chased. Formalwear is asked each season through Mission 7's checklist, not through this queue.
 
 ## Brian approval

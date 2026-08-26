@@ -202,6 +202,7 @@ specification above; it records what his review decided and what it superseded.
 | The record's layout stands for now                                                                                      | "I don't like the record as it sits here. We'll keep it as is for now. The people record shouldn't be used that often, so I think that's fine."                                  |
 | `W1-02` is accepted as it stands                                                                                        | "The W1-02 is fine."                                                                                                                                                             |
 | **Contact** is struck as a category of person. A person is a player, a coach, an executive committee member, or nothing | "We wouldn't have a contact there. Contacts are just addresses and something else. They're either somebody who is a player, a coach, an executive committee member, or nothing." |
+| **Last name is required at every rung**, superseding the same-day recommendation that left it out                       | "Last name should be mandatory, and this is the right place to handle that… first name, last name, mobile. Then we can go chase the other stuff."                                |
 
 ### Superseded by this review
 
