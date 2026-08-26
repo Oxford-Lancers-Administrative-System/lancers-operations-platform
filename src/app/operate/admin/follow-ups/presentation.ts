@@ -45,3 +45,22 @@ export const STATUS_COLOURS: Readonly<Record<string, "default" | "warning" | "er
 
 export const DEADLINE_UNSET = "No deadline recorded";
 export const CHASE_NONE = "—";
+
+/**
+ * The mockup's own vocabulary, W5-01/OWNER-LAN173-01.
+ *
+ * The Status dropdown is built exactly as drawn — search plus a Status filter
+ * over the same chip vocabulary the last column already shows. The mockup's
+ * second dropdown, "Entry", is dropped rather than guessed at: no W5 spec text
+ * defines what it filters and Brian has not defined it, so building it would
+ * be inventing a meaning nobody approved. Labels come from `STATUS_LABELS`
+ * rather than a second copy of the same four words, so the filter and the
+ * chip can never say a status differently.
+ */
+export const STATUS_FILTER_OPTIONS: readonly { value: string; label: string }[] = Object.freeze([
+  Object.freeze({ value: "", label: "All" }),
+  Object.freeze({ value: "delivery_problem", label: STATUS_LABELS.delivery_problem }),
+  Object.freeze({ value: "escalated", label: STATUS_LABELS.escalated }),
+  Object.freeze({ value: "escalation_held", label: STATUS_LABELS.escalation_held }),
+  Object.freeze({ value: "chasing", label: STATUS_LABELS.chasing }),
+]);

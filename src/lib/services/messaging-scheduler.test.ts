@@ -25,7 +25,7 @@ import type { Client } from "pg";
 import { closePool, withTransaction } from "@/lib/db";
 import type { EnvironmentSource } from "@/lib/delivery/config";
 
-import { MAX_ATTEMPTS, backoffFrom, BACKOFF_MINUTES } from "./delivery";
+import { MAX_ATTEMPTS, backoffFrom, BACKOFF_MINUTES, dispatchJob } from "./delivery";
 import { currentPresidentIn, runMessagingSweep } from "./messaging-scheduler";
 import { stopChasingIn } from "./rsvp";
 import { escalationCarriesNoPersonalData } from "@/lib/delivery/templates";
@@ -130,6 +130,7 @@ afterEach(async () => {
     [scope],
   );
   await observer.query(`delete from public.notification_jobs where event_id in ${events}`, [scope]);
+  await observer.query(`delete from public.schedule_changes where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.event_messaging_plans where event_id in ${events}`, [
     scope,
   ]);
@@ -901,5 +902,339 @@ describe("an answer, from any source", () => {
 
     expect(second.clearedFlags).toBe(0);
     expect(second.cancelledJobs).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OWNER-LAN173-03 -- dispatching the change and cancellation notices
+// ---------------------------------------------------------------------------
+
+interface NoticeFixture {
+  personId: string;
+  eventId: string;
+  invitationId: string;
+  jobId: string;
+}
+
+/**
+ * One invitee, one event and one notice job, built directly the same way
+ * fixture() is above -- event-amendment.ts's recordNoticesOwedIn is what
+ * would normally write this row (idempotency_key, job_type, 'pending',
+ * invitation_id, event_id, person_id, template_variables = '{}'), and this
+ * suite is proving what happens once it exists, not exercising that write
+ * path again.
+ *
+ * For a cancellation notice the event is cancelled *after* the job is
+ * inserted, matching cancelEvent's own ordering ("cancelled before the
+ * notices are written, so this statement cannot reach the cancellation
+ * notices it is about to create") -- and carrying a distinct, invented
+ * internal decision_reason so a test can prove that text never reaches the
+ * recipient (D76).
+ */
+async function noticeFixture(
+  options: {
+    jobType: "cancellation_notice" | "schedule_change_notice";
+    cancelled?: boolean;
+    phone?: string | null;
+    email?: string | null;
+    scheduleChange?: { previousVenue: string; newVenue: string };
+  } = { jobType: "cancellation_notice" },
+): Promise<NoticeFixture> {
+  const phone = options.phone === undefined ? PHONE : options.phone;
+  const email = options.email === undefined ? EMAIL : options.email;
+  const cancelled = options.cancelled ?? options.jobType === "cancellation_notice";
+
+  await observer.query("begin");
+  try {
+    const person = await observer.query<{ id: string }>(
+      `insert into public.people (given_name, family_name, created_at)
+       values ($1, 'Invitee', now() + interval '100 years') returning id`,
+      [MARKER],
+    );
+    const personId = person.rows[0].id;
+
+    if (phone !== null) {
+      await observer.query(
+        `insert into public.contact_points (person_id, kind, raw_value, is_preferred)
+         values ($1, 'phone', $2, true)`,
+        [personId, phone],
+      );
+    }
+    if (email !== null) {
+      await observer.query(
+        `insert into public.contact_points (person_id, kind, raw_value, normalised_value)
+         values ($1, 'email', $2, $2)`,
+        [personId, email],
+      );
+    }
+
+    const membership = await observer.query<{ id: string }>(
+      `insert into public.season_memberships
+         (person_id, season_id, status, entry, confirmed_on, activated_on)
+       values ($1, $2, 'active', 'returning', current_date, current_date) returning id`,
+      [personId, seasonId],
+    );
+
+    const event = await observer.query<{ id: string }>(
+      `with target as (select (now() + interval '72 hours') at time zone 'Europe/London' as local)
+       insert into public.events
+         (season_id, name, event_type, status, scheduled_on, starts_at,
+          response_deadline_at,
+          audience_confirmed_at, audience_confirmed_by_person_id,
+          approved_at, approved_by_person_id)
+       select $1, $2, 'practice', 'approved',
+              (select local::date from target), (select local::time from target),
+              now() + interval '24 hours', now(), $3, now(), $3
+       returning id`,
+      [seasonId, `${MARKER} notice ${crypto.randomUUID().slice(0, 8)}`, personId],
+    );
+    const eventId = event.rows[0].id;
+
+    const audience = await observer.query<{ id: string }>(
+      `insert into public.event_audience_members
+         (event_id, season_id, capacity, season_membership_id, added_by_person_id)
+       values ($1, $2, 'player', $3, $4) returning id`,
+      [eventId, seasonId, membership.rows[0].id, personId],
+    );
+
+    const invitation = await observer.query<{ id: string }>(
+      `insert into public.invitations
+         (event_id, event_status, season_id, capacity, season_membership_id,
+          status, expires_at, audience_member_id)
+       values ($1, 'approved', $2, 'player', $3, 'pending', now() + interval '24 hours', $4)
+       returning id`,
+      [eventId, seasonId, membership.rows[0].id, audience.rows[0].id],
+    );
+    const invitationId = invitation.rows[0].id;
+
+    if (options.scheduleChange) {
+      await observer.query(
+        `insert into public.schedule_changes
+           (event_id, source, previous_venue, new_venue, notified, recorded_by_person_id)
+         values ($1, 'club', $2, $3, true, $4)`,
+        [eventId, options.scheduleChange.previousVenue, options.scheduleChange.newVenue, personId],
+      );
+    }
+
+    const job = await observer.query<{ id: string }>(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, person_id, template_variables)
+       values ($1, $2::public.notification_job_type, 'pending', $3, $4, $5, '{}'::jsonb)
+       returning id`,
+      [`${MARKER}:${eventId}:${options.jobType}`, options.jobType, invitationId, eventId, personId],
+    );
+
+    if (cancelled) {
+      // Deliberately distinct from the recipient-facing sentence, so D76's
+      // test below has an operator's actual words to prove absent.
+      await observer.query(
+        `update public.events
+            set status = 'cancelled',
+                decision_reason = $2
+          where id = $1`,
+        [eventId, "INTERNAL-ONLY: the groundsman quit and the pitch is condemned as unsafe."],
+      );
+    }
+
+    await observer.query("commit");
+    return { personId, eventId, invitationId, jobId: job.rows[0].id };
+  } catch (error) {
+    await observer.query("rollback");
+    throw error;
+  }
+}
+
+async function jobRow(jobId: string) {
+  const result = await observer.query<{
+    id: string;
+    status: string;
+    attempt_count: number;
+    next_attempt_at: Date | null;
+  }>(
+    `select id, status::text as status, attempt_count, next_attempt_at
+       from public.notification_jobs
+      where id = $1`,
+    [jobId],
+  );
+  return result.rows[0];
+}
+
+describe("OWNER-LAN173-03 -- the cancellation notice's token-free dispatch", () => {
+  it("sends a cancellation notice for a cancelled event, minting no RSVP token", async () => {
+    const target = await noticeFixture({ jobType: "cancellation_notice" });
+    const { sent, transport } = acceptingTransport();
+
+    const summary = await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(summary.accepted).toBeGreaterThanOrEqual(1);
+    expect(sent.length).toBeGreaterThanOrEqual(1);
+
+    const job = await jobRow(target.jobId);
+    expect(job.status).toBe("processing");
+    expect(job.attempt_count).toBe(1);
+
+    // No RSVP token exists for this invitation at all -- not merely absent
+    // from the message. `issueTokenIn` was never called.
+    const tokens = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.rsvp_access_tokens where invitation_id = $1",
+      [target.invitationId],
+    );
+    expect(Number(tokens.rows[0].count)).toBe(0);
+
+    // The attempt row itself carries no token reference either.
+    const attempts = await observer.query<{ rsvp_access_token_id: string | null }>(
+      "select rsvp_access_token_id from public.delivery_attempts where notification_job_id = $1",
+      [target.jobId],
+    );
+    expect(attempts.rows[0].rsvp_access_token_id).toBeNull();
+  });
+
+  it("never puts the operator's internal cancellation reason in the recipient's message", async () => {
+    // W8's D76. The fixture's decision_reason is deliberately distinct from
+    // the sentence the dispatcher actually sends.
+    const target = await noticeFixture({ jobType: "cancellation_notice" });
+    const { sent, transport } = acceptingTransport();
+
+    await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(sent.length).toBeGreaterThanOrEqual(1);
+    const bodies = sent.map((request) => JSON.stringify(request.body));
+    for (const body of bodies) {
+      expect(body).not.toContain("groundsman");
+      expect(body).not.toContain("condemned");
+      expect(body).not.toContain("INTERNAL-ONLY");
+    }
+
+    const event = await observer.query<{ decision_reason: string }>(
+      "select decision_reason from public.events where id = $1",
+      [target.eventId],
+    );
+    // The reason really was recorded -- proving the assertion above tests
+    // something real rather than an empty column.
+    expect(event.rows[0].decision_reason).toContain("groundsman");
+  });
+
+  it("reaches a terminal state on the first sweep rather than looping, and a second sweep touches it no further", async () => {
+    const target = await noticeFixture({ jobType: "cancellation_notice" });
+
+    const first = await runMessagingSweep({
+      source: CONFIGURED,
+      transport: acceptingTransport().transport,
+    });
+    expect(first.refused).toBe(0);
+
+    const afterFirst = await jobRow(target.jobId);
+    expect(afterFirst.status).toBe("processing");
+    expect(afterFirst.attempt_count).toBe(1);
+
+    const { sent: sentSecond, transport: secondTransport } = acceptingTransport();
+    const second = await runMessagingSweep({ source: CONFIGURED, transport: secondTransport });
+
+    // `processing` is terminal from the sweep's point of view -- readDueJobs
+    // only selects `pending`/`ready`/a backed-off `failed`, so a job the first
+    // tick already claimed is never claimed again. Proves the "forever" half
+    // of the hazard this dispatcher exists to avoid: one attempt, not an
+    // unbounded reclaim.
+    expect(sentSecond).toHaveLength(0);
+    const afterSecond = await jobRow(target.jobId);
+    expect(afterSecond.attempt_count).toBe(1);
+    expect(afterSecond.status).toBe("processing");
+    expect(second.dispatched).toBe(0);
+  });
+
+  it("demonstrates the hazard directly: the ordinary claimJobIn throws on a cancelled event's token, and rolls back", async () => {
+    // Not the correction's own dispatch path -- `dispatchJob` is the general
+    // one every invitation and reminder uses, driven here on purpose against
+    // a cancellation notice to reconstruct the exact failure OWNER-LAN173-03
+    // exists to avoid, rather than merely asserting the reasoning in prose.
+    const target = await noticeFixture({ jobType: "cancellation_notice" });
+
+    await expect(
+      dispatchJob(target.jobId, { source: CONFIGURED, transport: acceptingTransport().transport }),
+    ).rejects.toThrow();
+
+    // The throw rolled the claim back inside its own transaction: no attempt
+    // was recorded and the job is exactly as due as it was before.
+    const job = await jobRow(target.jobId);
+    expect(job.status).toBe("pending");
+    expect(job.attempt_count).toBe(0);
+  });
+
+  it("fails terminally, not retryably, when the recipient has no usable route", async () => {
+    const target = await noticeFixture({
+      jobType: "cancellation_notice",
+      phone: null,
+      email: null,
+    });
+    const { sent, transport } = acceptingTransport();
+
+    // No route means the claim itself finds nothing to send -- the same
+    // shape `dispatchEscalationJob` already has for the identical case, so
+    // this is "skipped" rather than "refused" (refused means the provider was
+    // asked and said no). What actually matters is the job's own state below.
+    const summary = await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(sent).toHaveLength(0);
+    expect(summary.skipped).toBeGreaterThanOrEqual(1);
+
+    const job = await jobRow(target.jobId);
+    expect(job.status).toBe("failed");
+    expect(job.next_attempt_at).toBeNull();
+  });
+});
+
+describe("OWNER-LAN173-03 -- the schedule-change notice's ordinary dispatch", () => {
+  it("sends a change notice through the normal path, with a real RSVP link and a summary of what changed", async () => {
+    const target = await noticeFixture({
+      jobType: "schedule_change_notice",
+      scheduleChange: { previousVenue: "Iffley Road Astro", newVenue: "University Parks" },
+    });
+    const { sent, transport } = acceptingTransport();
+
+    const summary = await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(summary.accepted).toBeGreaterThanOrEqual(1);
+    expect(sent.length).toBeGreaterThanOrEqual(1);
+
+    const job = await jobRow(target.jobId);
+    expect(job.status).toBe("processing");
+    expect(job.attempt_count).toBe(1);
+
+    // A real token this time -- `schedule_change_notice` is not exempt from
+    // the normal claim, and the point of admitting it is exactly this link.
+    const tokens = await observer.query<{ count: string }>(
+      "select count(*)::text as count from public.rsvp_access_tokens where invitation_id = $1",
+      [target.invitationId],
+    );
+    expect(Number(tokens.rows[0].count)).toBe(1);
+
+    const bodies = sent.map((request) => JSON.stringify(request.body));
+    expect(bodies.some((body) => /venue/i.test(body))).toBe(true);
+  });
+
+  it("leaves a schedule-change notice whose event has since been cancelled, rather than looping", async () => {
+    // The same guard `readDueJobs` already gives invitation/reminder, and
+    // deliberately NOT a new special case: schedule_change_notice is absent
+    // from the escalation/cancellation_notice exemption, so this predicate
+    // alone keeps it away from `issueTokenIn`'s refusal.
+    const target = await noticeFixture({
+      jobType: "schedule_change_notice",
+      cancelled: false,
+      scheduleChange: { previousVenue: "Iffley Road Astro", newVenue: "University Parks" },
+    });
+    await observer.query(
+      "update public.events set status = 'cancelled', decision_reason = $2 where id = $1",
+      [target.eventId, "Cancelled after the change notice was already owed."],
+    );
+
+    const { sent, transport } = acceptingTransport();
+    const summary = await runMessagingSweep({ source: CONFIGURED, transport });
+
+    expect(sent).toHaveLength(0);
+    expect(summary.refused).toBe(0);
+
+    const job = await jobRow(target.jobId);
+    expect(job.status).toBe("pending");
+    expect(job.attempt_count).toBe(0);
   });
 });

@@ -47,6 +47,7 @@ import {
   readEventDelivery,
   readEventDeliveryDiagnostics,
   type DeliveryRow,
+  type DiagnosticsAttempt,
   type EventDelivery,
 } from "@/lib/services/delivery";
 import DeliveryPage from "./page";
@@ -264,46 +265,90 @@ describe("UX-50 — the overview", () => {
   });
 });
 
+/**
+ * OWNER-LAN173-02, W6-02. The per-invitee table this describe block used to
+ * pin (`delivery-row`, its own Retry and RSVP columns, "Open selected issue")
+ * is gone — replaced by the single per-attempt table the mockup draws. RSVP
+ * is no longer this page's business at all; it stays on the overview's own
+ * vocabulary.
+ */
 describe("UX-51 — the diagnostics table", () => {
   beforeEach(() => signedInAs(["secretary"]));
 
-  it("keeps delivery and RSVP as separate columns", async () => {
-    const { container } = await renderPage({ view: "diagnostics" });
-    const line = container.querySelector('[data-testid="delivery-row"]');
+  const ATTEMPT: DiagnosticsAttempt = {
+    attemptId: "attempt-1",
+    inviteeName: "Zephyr",
+    channel: "whatsapp",
+    attemptNumber: 1,
+    requestedAt: new Date("2026-08-14T20:05:00Z"),
+    outcome: "failed",
+    providerReference: "wamid.HBgLNDQ",
+  };
 
-    expect(line?.textContent).toContain("Retryable");
-    // "Delivered never means responded" — slice-ux.md § 6.
-    expect(line?.textContent).toContain("Outstanding");
-  });
-
-  it.each([
-    ["queued", "Queued"],
-    ["attempted", "Attempted"],
-    ["delivered", "Delivered"],
-    ["failed", "Failed"],
-    ["retryable", "Retryable"],
-  ])("labels the %s state as %s", async (state, label) => {
-    vi.mocked(readEventDelivery).mockResolvedValue(
-      delivery({ rows: [row({ state: state as DeliveryRow["state"] })] }),
-    );
+  it("shows one row per attempt with exactly the mockup's six columns", async () => {
+    vi.mocked(readEventDeliveryDiagnostics).mockResolvedValue([ATTEMPT]);
     const { container } = await renderPage({ view: "diagnostics" });
 
-    expect(container.querySelector('[data-testid="delivery-row"]')?.textContent).toContain(label);
+    const headers = [...(container.querySelectorAll('[data-testid="attempt-log-table"] th') ?? [])];
+    expect(headers.map((cell) => cell.textContent)).toEqual([
+      "Person",
+      "Channel",
+      "Attempt",
+      "When",
+      "Outcome",
+      "Provider reference",
+    ]);
+
+    const dataRow = container.querySelector('[data-testid="attempt-log-row"]');
+    expect(dataRow?.textContent).toContain("Zephyr");
+    expect(dataRow?.textContent).toContain("WhatsApp");
+    expect(dataRow?.textContent).toContain("Failed");
+    expect(dataRow?.textContent).toContain("wamid.HBgLNDQ");
   });
 
-  it("narrows to the two states an operator can act on", async () => {
-    vi.mocked(readEventDelivery).mockResolvedValue(
-      delivery({
-        rows: [
-          row({ jobId: "a", inviteeName: "Delivered Person", state: "delivered" }),
-          row({ jobId: "b", inviteeName: "Failed Person", state: "failed" }),
-        ],
-      }),
-    );
+  it("no longer offers the per-invitee table or its Open selected issue control", async () => {
+    vi.mocked(readEventDeliveryDiagnostics).mockResolvedValue([ATTEMPT]);
+    const { container } = await renderPage({ view: "diagnostics" });
+
+    expect(container.querySelector('[data-testid="delivery-table"]')).toBeNull();
+    expect(container.querySelector('[data-testid="delivery-card"]')).toBeNull();
+    expect(container.querySelector('[data-testid="delivery-row"]')).toBeNull();
+    expect(within(container).queryByRole("link", { name: "Open selected issue" })).toBeNull();
+  });
+
+  it("narrows via Status to the outcomes an operator can act on", async () => {
+    vi.mocked(readEventDeliveryDiagnostics).mockResolvedValue([
+      { ...ATTEMPT, attemptId: "a", inviteeName: "Failed Person", outcome: "failed" },
+      { ...ATTEMPT, attemptId: "b", inviteeName: "Rejected Person", outcome: "rejected" },
+      { ...ATTEMPT, attemptId: "c", inviteeName: "Delivered Person", outcome: "delivered" },
+    ]);
     const { container } = await renderPage({ view: "diagnostics", status: "attention" });
 
     expect(container.textContent).toContain("Failed Person");
+    expect(container.textContent).toContain("Rejected Person");
     expect(container.textContent).not.toContain("Delivered Person");
+  });
+
+  it("shows every outcome by default, with Status left at All", async () => {
+    vi.mocked(readEventDeliveryDiagnostics).mockResolvedValue([
+      { ...ATTEMPT, attemptId: "a", inviteeName: "Failed Person", outcome: "failed" },
+      { ...ATTEMPT, attemptId: "b", inviteeName: "Delivered Person", outcome: "delivered" },
+    ]);
+    const { container } = await renderPage({ view: "diagnostics" });
+
+    expect(container.textContent).toContain("Failed Person");
+    expect(container.textContent).toContain("Delivered Person");
+  });
+
+  it("narrows Status to Delivered only, on the attempt's own outcome", async () => {
+    vi.mocked(readEventDeliveryDiagnostics).mockResolvedValue([
+      { ...ATTEMPT, attemptId: "a", inviteeName: "Failed Person", outcome: "failed" },
+      { ...ATTEMPT, attemptId: "b", inviteeName: "Delivered Person", outcome: "delivered" },
+    ]);
+    const { container } = await renderPage({ view: "diagnostics", status: "delivered" });
+
+    expect(container.textContent).toContain("Delivered Person");
+    expect(container.textContent).not.toContain("Failed Person");
   });
 });
 
@@ -472,7 +517,10 @@ const PERMITTED_CONTROLS: Readonly<Record<string, readonly string[]>> = {
   // this inventory renders every `ROW_SHAPES` entry against every state, and
   // the one that sets `noUsableRoute` renders it on the overview too.
   overview: ["View diagnostics", "Open their record", "Delivery overview", "Back to event"],
-  diagnostics: ["Open selected issue", "Delivery overview", "Back to event"],
+  // OWNER-LAN173-02, W6-02. "Open selected issue" was the per-invitee table's
+  // own control, and that table is gone — the per-attempt table replacing it
+  // renders no interactive control on any row at all.
+  diagnostics: ["Delivery overview", "Back to event"],
   /**
    * The status filter with its menu open.
    *
@@ -482,7 +530,6 @@ const PERMITTED_CONTROLS: Readonly<Record<string, readonly string[]>> = {
    * invisible. The presence assertion below is what surfaced it.
    */
   "diagnostics (filter open)": [
-    "Open selected issue",
     "Delivery overview",
     "Back to event",
     "All",
@@ -626,11 +673,37 @@ describe("every delivery view offers only the controls it is meant to", () => {
   };
 
   /**
+   * One representative attempt, so the diagnostics states below render the
+   * per-attempt table's own row rather than only its empty state.
+   *
+   * OWNER-LAN173-02: an earlier version of this matrix left
+   * `readEventDeliveryDiagnostics` mocked to `[]` for every state, including
+   * "diagnostics" itself — so a control added to an attempt row was invisible
+   * to this inventory no matter what it was. Injecting a `wa.me` button into
+   * that row's own cell confirmed it: the whole suite stayed green. Excluded
+   * from "diagnostics (nothing matches)" on purpose — that state's entire
+   * point is a search that matches nobody, and giving it a row would defeat it.
+   */
+  const REPRESENTATIVE_ATTEMPT = {
+    attemptId: "attempt-shape-1",
+    inviteeName: "Leo Hartwell",
+    channel: "whatsapp",
+    attemptNumber: 1,
+    requestedAt: new Date("2026-10-12T17:04:00Z"),
+    outcome: "failed",
+    providerReference: "wamid.HBgLNDQ",
+  };
+
+  const STATES_WITH_ATTEMPTS = new Set(["diagnostics", "diagnostics (filter open)"]);
+
+  /**
    * Every state of these screens that renders a control, including the two that
    * appear only after an interaction or a failure.
    */
   async function renderState(state: string, shape: Partial<DeliveryRow> | null = {}) {
-    vi.mocked(readEventDeliveryDiagnostics).mockResolvedValue([]);
+    vi.mocked(readEventDeliveryDiagnostics).mockResolvedValue(
+      STATES_WITH_ATTEMPTS.has(state) ? [REPRESENTATIVE_ATTEMPT] : [],
+    );
     if (state === "unavailable") {
       vi.mocked(readEventDelivery).mockRejectedValue(new NotFound("That event no longer exists."));
     } else {
@@ -822,8 +895,8 @@ describe("the delivery screens say what they are supposed to say", () => {
   it("pins the diagnostics note", async () => {
     const { container } = await renderPage({ view: "diagnostics" });
     expect(container.textContent).toContain(
-      "Provider-neutral statuses are queued, attempted, delivered, failed and retryable. " +
-        "RSVP remains independent.",
+      "Every attempt on every channel, including the automatic email fallback. No message " +
+        "content is shown.",
     );
   });
 
@@ -835,25 +908,13 @@ describe("the delivery screens say what they are supposed to say", () => {
   });
 });
 
-describe("UX-51 — the Retry column says what the wireframe says", () => {
+/**
+ * UX-52's own Retry fact. Its sibling table's ("queued" reads "Scheduled")
+ * lived on the per-invitee diagnostics table OWNER-LAN173-02 removed — the
+ * per-attempt table W6-02 replaced it with carries no Retry column at all.
+ */
+describe("UX-52 — the Retry fact says what the wireframe says", () => {
   beforeEach(() => signedInAs(["secretary"]));
-
-  it.each([
-    ["queued", true, "Scheduled"],
-    ["retryable", true, "Retryable"],
-    ["delivered", false, "—"],
-    ["attempted", false, "—"],
-  ])("shows %s as %s", async (state, retryable, expected) => {
-    vi.mocked(readEventDelivery).mockResolvedValue(
-      delivery({ rows: [row({ state: state as DeliveryRow["state"], retryable })] }),
-    );
-    const { container } = await renderPage({ view: "diagnostics" });
-
-    const cells = [...(container.querySelector('[data-testid="delivery-row"]')?.children ?? [])];
-    // The wireframe distinguishes a queued row waiting for its first send from
-    // a failed one that will be tried again.
-    expect(cells[4]?.textContent).toBe(expected);
-  });
 
   it("never contradicts the result shown beside it", async () => {
     vi.mocked(readEventDelivery).mockResolvedValue(

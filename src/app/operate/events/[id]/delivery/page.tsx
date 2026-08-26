@@ -28,24 +28,22 @@ import {
   deliveryRowColour,
   deliveryRowLabel,
   describeRetryability,
-  describeRetryColumn,
   DIAGNOSTICS_HEADING,
   DIAGNOSTICS_NOTE,
   FALLBACK_NOTE,
   FALLBACK_VALUE,
   formatAttemptTime,
+  matchesAttemptStatusFilter,
   matchesStatusFilter,
   NEEDS_ATTENTION_HEADING,
   NEEDS_ATTENTION_NOTE,
   NO_ACTION_NEEDED,
-  OPEN_SELECTED_ISSUE,
   OPEN_THEIR_RECORD,
   OVERVIEW_FACTS,
   OVERVIEW_NOTE,
   OVERVIEW_SUBTITLE,
   REPAIR_HEADING,
   REPAIR_NOTE,
-  RESPONSE_LABELS,
   SAFE_REASON_PREFIX,
   TOKEN_LABELS,
   VIEW_DIAGNOSTICS,
@@ -370,7 +368,24 @@ function NeedsAttention({ delivery }: { delivery: EventDelivery }) {
   );
 }
 
-/** UX-51 — every invitee, their delivery state, and their RSVP separately. */
+/**
+ * UX-51 — W6-02's own table, one row per attempt per channel, replacing the
+ * per-invitee table this screen drew before OWNER-LAN173-02: Person, Channel,
+ * Attempt, When, Outcome, Provider reference, exactly as the mockup draws it,
+ * and nothing this screen shows an RSVP column for any more — RSVP stays on
+ * the per-invitee overview's own vocabulary instead of being repeated here
+ * against data this table was never the RSVP's source of truth for.
+ *
+ * Includes the automatic email fallback's own attempts, which a per-invitee
+ * table could not show at all: that shape is one row per invitee, and a
+ * fallback is a second job for the same person, not a second invitee.
+ *
+ * No message content, ever. Status narrows by the attempt's own recorded
+ * outcome ({@link matchesAttemptStatusFilter}) and Search narrows by name, the
+ * same two controls W6-02 draws and no others — the mockup's second dropdown,
+ * "Entry", is dropped rather than guessed at (OWNER-LAN173-01's reasoning
+ * applies here too: no spec text defines what it would filter).
+ */
 function Diagnostics({
   delivery,
   attempts,
@@ -385,10 +400,10 @@ function Diagnostics({
   status: string;
 }) {
   const needle = search.trim().toLowerCase();
-  const rows = delivery.rows.filter(
-    (row) =>
-      matchesStatusFilter(row.state, status) &&
-      (needle === "" || row.inviteeName.toLowerCase().includes(needle)),
+  const rows = attempts.filter(
+    (attempt) =>
+      matchesAttemptStatusFilter(attempt.outcome, status) &&
+      (needle === "" || attempt.inviteeName.toLowerCase().includes(needle)),
   );
 
   return (
@@ -407,136 +422,6 @@ function Diagnostics({
       </Typography>
 
       <DeliveryFilters basePath={basePath} search={search} status={status} />
-
-      {rows.length === 0 ? (
-        <Alert severity="info" data-testid="diagnostics-empty">
-          {delivery.rows.length === 0
-            ? "No invitations exist for this event yet."
-            : "No invitee matches this search and filter."}
-        </Alert>
-      ) : null}
-
-      {/* Desktop: the wide scannable table the contract asks operator screens
-          for. It scrolls inside its own container rather than making the page
-          scroll sideways. */}
-      <TableContainer
-        component={Paper}
-        variant="outlined"
-        sx={{ display: { xs: "none", md: "block" }, overflowX: "auto" }}
-      >
-        <Table size="small" data-testid="delivery-table">
-          <TableHead>
-            <TableRow>
-              <TableCell>Invitee</TableCell>
-              <TableCell>Channel</TableCell>
-              <TableCell>Result</TableCell>
-              <TableCell>Last attempt</TableCell>
-              <TableCell>Retry</TableCell>
-              <TableCell>RSVP</TableCell>
-              <TableCell />
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.jobId} data-testid="delivery-row" data-state={row.state}>
-                <TableCell sx={{ fontWeight: 600 }}>{row.inviteeName}</TableCell>
-                <TableCell>{describeChannel(row.channel)}</TableCell>
-                <TableCell>
-                  <StateChip row={row} />
-                </TableCell>
-                <TableCell>{formatAttemptTime(row.lastAttemptAt)}</TableCell>
-                <TableCell>{describeRetryColumn(row.state, row.retryable)}</TableCell>
-                <TableCell>{RESPONSE_LABELS[row.responseState] ?? row.responseState}</TableCell>
-                <TableCell align="right">
-                  <Button size="small" href={`${basePath}?invitation=${row.invitationId}`}>
-                    {OPEN_SELECTED_ISSUE}
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* Phone: cards, per § 7. Same information, no horizontal scrolling. */}
-      <Stack spacing={1} sx={{ display: { xs: "flex", md: "none" } }}>
-        {rows.map((row) => (
-          <Paper
-            key={row.jobId}
-            variant="outlined"
-            sx={{ p: 2 }}
-            data-testid="delivery-card"
-            data-state={row.state}
-          >
-            <Stack spacing={1}>
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}
-              >
-                <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                  {row.inviteeName}
-                </Typography>
-                <StateChip row={row} />
-              </Stack>
-              <Typography variant="body2" color="text.secondary">
-                {`${describeChannel(row.channel)} · ${formatAttemptTime(row.lastAttemptAt)}`}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {`RSVP: ${RESPONSE_LABELS[row.responseState] ?? row.responseState}`}
-              </Typography>
-              <Button
-                size="small"
-                variant="outlined"
-                href={`${basePath}?invitation=${row.invitationId}`}
-                sx={{ minHeight: 44 }}
-              >
-                {OPEN_SELECTED_ISSUE}
-              </Button>
-            </Stack>
-          </Paper>
-        ))}
-      </Stack>
-
-      <AttemptLog attempts={attempts} search={search} />
-    </Stack>
-  );
-}
-
-/**
- * W6, R15's individual evidence: one row per attempt per channel — person,
- * channel, attempt number, when, outcome, provider reference. Includes the
- * automatic email fallback's own attempts, which is exactly the row the
- * per-invitee table above cannot show: that table is one row per invitee,
- * and a fallback is a second job for the same person, not a second invitee.
- *
- * No message content, ever, on either table. This one carries the same
- * search the invitee table does, so an operator narrowing to one name sees
- * both views agree.
- */
-function AttemptLog({
-  attempts,
-  search,
-}: {
-  attempts: readonly DiagnosticsAttempt[];
-  search: string;
-}) {
-  const needle = search.trim().toLowerCase();
-  const rows = attempts.filter(
-    (attempt) => needle === "" || attempt.inviteeName.toLowerCase().includes(needle),
-  );
-
-  return (
-    <Stack spacing={1.5}>
-      <Box>
-        <Typography variant="h6" component="h2">
-          Every attempt
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          One row per attempt per channel, including the automatic email fallback. No message
-          content is shown.
-        </Typography>
-      </Box>
 
       {rows.length === 0 ? (
         <Alert severity="info" data-testid="attempt-log-empty">
@@ -730,10 +615,6 @@ function RepairPanel({
       </Stack>
     </Paper>
   );
-}
-
-function StateChip({ row }: { row: DeliveryRow }) {
-  return <Chip size="small" color={deliveryRowColour(row)} label={deliveryRowLabel(row)} />;
 }
 
 /** The wireframe's "WhatsApp" and "Email fallback", from the neutral channel. */

@@ -167,6 +167,43 @@ describe("the queue itself", () => {
     expect(container.textContent).not.toContain("Gideon Thornbury");
   });
 
+  /**
+   * OWNER-LAN173-01, W5-01. The mockup draws search plus a Status dropdown,
+   * and the data already backs the chip in the last column — this is that
+   * dropdown, filtering the same flattened rows the table renders.
+   */
+  it.each([
+    ["escalated", "Gideon Thornbury"],
+    ["delivery_problem", "Marlowe Fairhurst"],
+    ["escalation_held", "Peregrine Oakhanger"],
+    ["chasing", "Rufus"],
+  ])("narrows to the %s status via Status", async (status, expectedName) => {
+    const { container } = await renderPage({ status });
+    const rows = screen.getAllByTestId("follow-ups-row");
+    expect(rows).toHaveLength(1);
+    expect(container.textContent).toContain(expectedName);
+  });
+
+  it("shows everybody when Status is left at All", async () => {
+    const { container } = await renderPage({ status: "" });
+    expect(screen.getAllByTestId("follow-ups-row")).toHaveLength(4);
+    expect(container.textContent).toContain("Gideon Thornbury");
+    expect(container.textContent).toContain("Rufus");
+  });
+
+  it("combines Status and search rather than either alone", async () => {
+    const { container } = await renderPage({ status: "escalated", q: "Rufus" });
+    expect(container.querySelector('[data-testid="follow-ups-empty"]')).not.toBeNull();
+    expect(container.textContent).toContain("No one matches this search.");
+  });
+
+  it("never builds the mockup's undefined Entry dropdown", async () => {
+    const { container } = await renderPage();
+    // OWNER-LAN173-01: W5-01 draws a second dropdown, "Entry", with no spec
+    // text defining what it filters. Dropped rather than guessed at.
+    expect(container.textContent).not.toContain("Entry");
+  });
+
   it("never prints a raw ISO date", async () => {
     const { container } = await renderPage();
     expect(container.innerHTML).not.toMatch(/\d{4}-\d{2}-\d{2}/);

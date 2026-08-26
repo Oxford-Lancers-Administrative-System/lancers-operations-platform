@@ -24,6 +24,7 @@ import type { Client } from "pg";
 
 import { closePool, withTransaction } from "@/lib/db";
 import { todayInClubZone } from "@/lib/club-time";
+import { NO_USABLE_NUMBER_REASON } from "@/lib/delivery/phone";
 import { approveEvent, saveEventAudience } from "./event-approval";
 import { listAudienceCatalogueIn, type AudienceCatalogue } from "./event-audience";
 import { createEventDraft, type EventDraftInput } from "./events";
@@ -34,7 +35,7 @@ import {
   readClubLinkParticipation,
 } from "./participation";
 import { issueClubLinkIn, deriveClubLinkToken } from "./club-link";
-import { summariseQuestion } from "./participation-view";
+import { summariseQuestion, type OperatorParticipation } from "./participation-view";
 import { openObserver, seededIdentityCreatedAt } from "../../../tests/helpers/service-layer";
 
 const NAME_MARKER = "LAN157ParticipationSuite";
@@ -437,6 +438,156 @@ describe("the participation table", () => {
     const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
     expect(view.people).toHaveLength(5);
     expect(view.headline.invited).toBe(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-173-r1-F1 -- the automatic email fallback's exclusion from the new
+// chase-position and delivery-exception derivations. Independent review found
+// `readChaseJobsIn`, `readEscalatedInvitationsIn`, and the
+// noUsableRoute/whatsappUnresponsive/chasePosition derivation with zero
+// database-backed coverage: `participation.test.ts`'s own diff was empty and
+// `participation/screens.test.tsx` mocks the service outright.
+// ---------------------------------------------------------------------------
+
+describe("the automatic email fallback is excluded from the chase and delivery-exception reads", () => {
+  /**
+   * `rows[1]` deliberately, not `rows[0]` -- `scenario()` gives `rows[0]` its
+   * own completed job, and this describe block writes its own jobs onto a
+   * fresh invitee to avoid the two colliding.
+   */
+  async function personFor(staged: Scenario, view: OperatorParticipation) {
+    const target = staged.invitations[1];
+    return {
+      target,
+      row: () => view.people.find((person) => person.invitationId === target.id)!,
+    };
+  }
+
+  it("reads the same chase position with or without the fallback shadow job -- readChaseJobsIn excludes it", async () => {
+    const staged = await scenario();
+    const invitationId = staged.invitations[1].id;
+
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel, ladder_rung)
+       values ($1, 'invitation', 'failed', $2, $3, 'whatsapp', 0)`,
+      [`${NAME_MARKER}:${invitationId}:original`, invitationId, staged.eventId],
+    );
+    await observer.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       select id, 1, 'rejected', 'whatsapp', 'meta-whatsapp-cloud', 'not a WhatsApp account'
+         from public.notification_jobs where idempotency_key = $1`,
+      [`${NAME_MARKER}:${invitationId}:original`],
+    );
+
+    const before = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const beforePosition = (await personFor(staged, before)).row().chasePosition;
+
+    // The fallback shadow job, keyed by convention exactly as
+    // `scheduleWhatsAppFallbackIn` keys it -- a second job for the same
+    // invitation, on a different channel, that `readChaseJobsIn` must not
+    // count as a second rung of the ladder.
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel, ladder_rung,
+          claimed_at, claimed_by)
+       values ($1, 'invitation', 'processing', $2, $3, 'email', 0, now(), $4)`,
+      [
+        `${NAME_MARKER}:${invitationId}:original:email-fallback`,
+        invitationId,
+        staged.eventId,
+        NAME_MARKER,
+      ],
+    );
+
+    const after = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const afterPosition = (await personFor(staged, after)).row().chasePosition;
+
+    expect(afterPosition).toBe(beforePosition);
+  });
+
+  it("derives noUsableRoute from the original job's own recorded failure, not the fallback's", async () => {
+    const staged = await scenario();
+    const invitationId = staged.invitations[1].id;
+
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel, last_error)
+       values ($1, 'invitation', 'failed', $2, $3, 'whatsapp', $4)`,
+      [
+        `${NAME_MARKER}:${invitationId}:original`,
+        invitationId,
+        staged.eventId,
+        NO_USABLE_NUMBER_REASON,
+      ],
+    );
+    await observer.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       select id, 1, 'rejected', 'whatsapp', 'meta-whatsapp-cloud', $2
+         from public.notification_jobs where idempotency_key = $1`,
+      [`${NAME_MARKER}:${invitationId}:original`, NO_USABLE_NUMBER_REASON],
+    );
+
+    const view = await withTransaction((tx) => buildOperatorParticipationIn(tx, staged.eventId));
+    const row = (await personFor(staged, view)).row();
+    expect(row.noUsableRoute).toBe(true);
+    // W4's exceptions table: nothing to chase for somebody the club has never
+    // reached at all.
+    expect(row.chasePosition).toBeNull();
+  });
+
+  it("reads whatsappUnresponsive only once the fallback job itself completes, not merely exists", async () => {
+    const staged = await scenario();
+    const invitationId = staged.invitations[1].id;
+
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel)
+       values ($1, 'invitation', 'failed', $2, $3, 'whatsapp')`,
+      [`${NAME_MARKER}:${invitationId}:original`, invitationId, staged.eventId],
+    );
+    await observer.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       select id, 1, 'rejected', 'whatsapp', 'meta-whatsapp-cloud', 'not a WhatsApp account'
+         from public.notification_jobs where idempotency_key = $1`,
+      [`${NAME_MARKER}:${invitationId}:original`],
+    );
+    await observer.query(
+      `insert into public.notification_jobs
+         (idempotency_key, job_type, status, invitation_id, event_id, channel,
+          claimed_at, claimed_by)
+       values ($1, 'invitation', 'processing', $2, $3, 'email', now(), $4)`,
+      [
+        `${NAME_MARKER}:${invitationId}:original:email-fallback`,
+        invitationId,
+        staged.eventId,
+        NAME_MARKER,
+      ],
+    );
+
+    const stillSending = await withTransaction((tx) =>
+      buildOperatorParticipationIn(tx, staged.eventId),
+    );
+    expect((await personFor(staged, stillSending)).row().whatsappUnresponsive).toBe(false);
+
+    await observer.query(
+      `update public.notification_jobs set status = 'completed'
+        where idempotency_key = $1`,
+      [`${NAME_MARKER}:${invitationId}:original:email-fallback`],
+    );
+
+    const delivered = await withTransaction((tx) =>
+      buildOperatorParticipationIn(tx, staged.eventId),
+    );
+    const row = (await personFor(staged, delivered)).row();
+    expect(row.whatsappUnresponsive).toBe(true);
+    // The person was reached -- the club's primary channel failed and that
+    // stays visible, distinct from noUsableRoute (nobody reached at all).
+    expect(row.noUsableRoute).toBe(false);
   });
 });
 

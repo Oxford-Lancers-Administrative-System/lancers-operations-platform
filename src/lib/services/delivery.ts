@@ -304,6 +304,11 @@ async function claimJobIn(
     given_name: string;
     known_as: string | null;
     person_id: string;
+    changed_name: boolean | null;
+    changed_scheduled_on: boolean | null;
+    changed_starts_at: boolean | null;
+    changed_ends_at: boolean | null;
+    changed_venue: boolean | null;
   }>(
     `select i.id as invitation_id,
             e.id as event_id,
@@ -330,11 +335,32 @@ async function claimJobIn(
                join public.invitations o on o.id = r.invitation_id
               where o.event_id = e.id and o.id <> i.id and r.response = 'yes')
               as attending_count,
-            p.id as person_id, p.given_name, p.known_as
+            p.id as person_id, p.given_name, p.known_as,
+            -- OWNER-LAN173-03. change_notice's only extra ingredient: which
+            -- of a schedule change's fields actually moved, read from the
+            -- most recent schedule_changes row for this event so the
+            -- summary names what changed without restating the internal
+            -- reason (there is none to restate -- this table has no reason
+            -- column) or a raw date (when_label/venue above already carry
+            -- the current values, formatted).
+            sc.previous_name is distinct from sc.new_name as changed_name,
+            sc.previous_scheduled_on is distinct from sc.new_scheduled_on as changed_scheduled_on,
+            sc.previous_starts_at is distinct from sc.new_starts_at as changed_starts_at,
+            sc.previous_ends_at is distinct from sc.new_ends_at as changed_ends_at,
+            sc.previous_venue is distinct from sc.new_venue as changed_venue
        from public.invitations i
        join public.events e on e.id = i.event_id
        left join public.season_memberships m on m.id = i.season_membership_id
        join public.people p on p.id = coalesce(i.person_id, m.person_id)
+       left join lateral (
+         select previous_name, new_name, previous_scheduled_on, new_scheduled_on,
+                previous_starts_at, new_starts_at, previous_ends_at, new_ends_at,
+                previous_venue, new_venue
+           from public.schedule_changes
+          where event_id = e.id
+          order by changed_at desc
+          limit 1
+       ) sc on true
       where i.id = $1`,
     [job.invitation_id],
   );
@@ -419,12 +445,50 @@ async function claimJobIn(
         // that there is "no social proof: first contact is a plain invitation",
         // and the count only appears on the chase that follows it.
         attendingCount: kind === "invitation" ? null : detail.attending_count,
+        // OWNER-LAN173-03. Only `change_notice` reads this; every other kind
+        // gets `undefined`, exactly as before.
+        changeSummary: kind === "change_notice" ? describeScheduleChange(detail) : undefined,
         // The one place the plaintext token becomes a URL, and the last place
         // it exists at all.
         rsvpUrl: rsvpUrl(context.appBaseUrl, token.token),
       },
     },
   };
+}
+
+/**
+ * OWNER-LAN173-03. What a `schedule_change_notice` says changed, in the
+ * club's own field names — never the raw before/after values, which
+ * `whenLabel`/`venue` already carry, formatted, for the event's *current*
+ * state. A person reads "The date and venue have changed", then the current
+ * date and venue below it, not a diff.
+ *
+ * Falls back to one generic sentence when no `schedule_changes` row joined at
+ * all (the lateral join found none) or somehow named nothing — a notice job
+ * exists, so something is owed, and `required()` in `templates.ts` refuses a
+ * blank `changeSummary` outright. Silence is not the honest fallback for
+ * "changed, but I cannot say how"; this sentence is.
+ */
+function describeScheduleChange(detail: {
+  changed_name: boolean | null;
+  changed_scheduled_on: boolean | null;
+  changed_starts_at: boolean | null;
+  changed_ends_at: boolean | null;
+  changed_venue: boolean | null;
+}): string {
+  const labels: string[] = [];
+  if (detail.changed_scheduled_on) labels.push("the date");
+  if (detail.changed_starts_at || detail.changed_ends_at) labels.push("the time");
+  if (detail.changed_venue) labels.push("the venue");
+  if (detail.changed_name) labels.push("the name");
+
+  if (labels.length === 0) return "Some details of this event have changed.";
+
+  const joined =
+    labels.length === 1
+      ? labels[0]
+      : `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+  return `${joined.charAt(0).toUpperCase()}${joined.slice(1)} ${labels.length === 1 ? "has" : "have"} changed.`;
 }
 
 /** One contact row, as both selectors read it. */

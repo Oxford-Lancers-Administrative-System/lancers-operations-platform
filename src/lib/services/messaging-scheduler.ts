@@ -390,19 +390,15 @@ async function readDueJobs(limit: number): Promise<readonly { id: string; jobTyp
       `select id, job_type::text as job_type
          from public.notification_jobs
         where held_at is null
-          -- The rungs this package schedules, and the escalation it raises.
-          --
-          -- Deliberately NOT every job type. A cancellation notice and a
-          -- schedule-change notice are created by event-amendment.ts as notices
-          -- *owed*, and W8 owns deciding what they say: a cancellation needs a
-          -- reason and a change notice needs a summary of what changed, neither
-          -- of which this sweep has. Claiming them here would strand a notice
-          -- in "processing" with nothing able to conclude it, which is worse
-          -- than the honest "pending" they sit in today.
+          -- The rungs this package schedules, the escalation it raises, and
+          -- OWNER-LAN173-03's two notices.
           --
           -- Named as an allow-list rather than an exclusion so a seventh job
           -- type is not silently swept the day somebody adds one.
-          and job_type in ('invitation', 'reminder', 'escalation')
+          and job_type in (
+            'invitation', 'reminder', 'escalation',
+            'schedule_change_notice', 'cancellation_notice'
+          )
           -- A player-facing rung whose event has already begun is
           -- undispatchable, and this predicate is what stops the sweep
           -- discovering that forever.
@@ -415,10 +411,34 @@ async function readDueJobs(limit: number): Promise<readonly { id: string; jobTyp
           -- seeded database, where a synthetic event with a past date carries
           -- pending rungs.
           --
-          -- An escalation is exempt: it mints no token, it is addressed to a
-          -- committee officer rather than a player, and an event whose start has
-          -- passed with nobody having answered is exactly when the President
-          -- most needs telling.
+          -- Three job types are exempt from this check, for three different
+          -- reasons:
+          --
+          --   * escalation mints no token, is addressed to a committee
+          --     officer rather than a player, and an event whose start has
+          --     passed with nobody having answered is exactly when the
+          --     President most needs telling.
+          --   * cancellation_notice's event is cancelled by definition -- that
+          --     is the only reason the job exists -- so e.status = 'approved'
+          --     could never hold for it. Dispatched by dispatchNoticeJob
+          --     below, which mints no token either, for the identical reason
+          --     escalation does not: issueTokenIn refuses a cancelled
+          --     event's token every time, and that refusal rolling back the
+          --     claim inside one transaction is what would turn this into the
+          --     unbounded retry readDueJobs's own history already documents
+          --     for a started event's player rungs, reached here by a
+          --     different door.
+          --   * schedule_change_notice is deliberately NOT exempt. Its event
+          --     is ordinarily still approved and future when the notice is
+          --     dispatched (it is created in the same transaction as the
+          --     amendment that leaves the event that way), so it takes the
+          --     same dispatchJob/claimJobIn path invitation and reminder
+          --     do, minting a real, working link. The rare case where the
+          --     event became cancelled or started before dispatch is not a
+          --     special case to detect -- this same predicate already excludes
+          --     it, exactly as it does for a stale invitation, so the notice
+          --     simply is not selected rather than being claimed and thrown
+          --     against.
           --
           -- The status test excludes a cancelled event's rungs too. cancelEvent
           -- already cancels them, so this is belt and braces rather than the
@@ -426,6 +446,7 @@ async function readDueJobs(limit: number): Promise<readonly { id: string; jobTyp
           -- that path is not chased about an event that is not happening.
           and (
             job_type = 'escalation'
+            or job_type = 'cancellation_notice'
             or exists (
               select 1
                 from public.events e
@@ -475,7 +496,9 @@ export async function runMessagingSweep(
       const outcome =
         job.jobType === "escalation"
           ? await dispatchEscalationJob(job.id, options)
-          : await dispatchJob(job.id, { ...options, automatic: true });
+          : job.jobType === "cancellation_notice"
+            ? await dispatchNoticeJob(job.id, options)
+            : await dispatchJob(job.id, { ...options, automatic: true });
 
       if (outcome === "accepted") accepted += 1;
       else if (outcome === "refused") refused += 1;
@@ -623,7 +646,7 @@ export async function dispatchEscalationJob(
         : selectMobileNumber(rows, context.defaultCallingCode);
 
     if (!recipient) {
-      await failEscalationIn(
+      await failClaimTerminallyIn(
         tx,
         jobId,
         context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
@@ -640,7 +663,7 @@ export async function dispatchEscalationJob(
         : recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode);
 
     if (!permitted) {
-      await failEscalationIn(
+      await failClaimTerminallyIn(
         tx,
         jobId,
         context.channel === "email" ? EMAIL_NOT_PERMITTED_REASON : RECIPIENT_NOT_PERMITTED_REASON,
@@ -750,8 +773,12 @@ export async function dispatchEscalationJob(
   return outcome.status === "accepted" ? "accepted" : "refused";
 }
 
-/** Records an escalation that could not be attempted at all. */
-async function failEscalationIn(
+/**
+ * Records a claim that could not be attempted at all — no usable route, or
+ * one this deployment may not message. Shared by the escalation dispatcher
+ * and {@link dispatchNoticeJob} below; nothing in it is escalation-specific.
+ */
+async function failClaimTerminallyIn(
   tx: Tx,
   jobId: string,
   reason: string,
@@ -773,4 +800,261 @@ async function failEscalationIn(
      on conflict (notification_job_id, attempt_number) do nothing`,
     [jobId, attemptNumber, channel, provider, reason],
   );
+}
+
+// ---------------------------------------------------------------------------
+// The cancellation notice's own dispatch — OWNER-LAN173-03
+// ---------------------------------------------------------------------------
+
+/**
+ * Fixed, generic, and never `events.decision_reason`.
+ *
+ * W8's `D76` is a hard boundary: the internal reason an operator records for
+ * cancelling an event stays behind the operator login, in
+ * `events.decision_reason` and in the audit trail, and goes nowhere near a
+ * recipient-facing payload. This sentence is what a cancellation notice says
+ * instead — true of every cancellation, and no operator's actual words.
+ */
+export const CANCELLATION_NOTICE_SAFE_REASON = "The club has cancelled this event.";
+
+/**
+ * Sends one cancellation notice, with no RSVP token minted. OWNER-LAN173-03.
+ *
+ * A cancellation notice's event is cancelled by definition — that is the only
+ * reason `recordNoticesOwedIn` ever writes one — so the ordinary claim
+ * (`claimJobIn`, in `./delivery`, used by every invitation and reminder) is
+ * the wrong tool for it: it mints an RSVP token through `issueTokenIn`, which
+ * refuses a cancelled event's token every time. That refusal rolls back the
+ * claim's own `attempt_count` increment inside the same transaction, so a job
+ * that hit it would be reclaimed and rethrown by every following sweep tick,
+ * forever, without ever reaching its attempt ceiling — the identical
+ * unbounded-retry failure `readDueJobs`'s own history above documents for a
+ * started event's player rungs, reached here by a different door.
+ *
+ * Modelled on `dispatchEscalationJob`'s shape for the same reason that
+ * function exists: claim, send, record — no token, no invitation lookup, no
+ * ladder rung. `schedule_change_notice` does not need this: its event is
+ * ordinarily still approved when the notice is dispatched, so it takes the
+ * normal `dispatchJob` path and gets a real, working link (see the comment on
+ * `readDueJobs`'s job-type filter above).
+ */
+export async function dispatchNoticeJob(
+  jobId: string,
+  options: { source?: EnvironmentSource; transport?: Transport } = {},
+): Promise<"accepted" | "refused" | "skipped"> {
+  const resolution = resolveDeliveryProvider(options.source ?? process.env, options.transport);
+
+  if (!resolution.ok) {
+    await withTransaction(async (tx) => {
+      await tx.query(
+        `update public.notification_jobs
+            set status = 'failed', last_error = $2, updated_at = now()
+          where id = $1 and status in ('pending', 'ready', 'failed')`,
+        [jobId, resolution.reason],
+      );
+    });
+    return "refused";
+  }
+
+  const context = resolution.context;
+
+  const claim = await withTransaction(async (tx) => {
+    const claimed = await tx.query<{
+      id: string;
+      invitation_id: string;
+      event_id: string;
+      person_id: string;
+      attempt_count: number;
+    }>(
+      // No `issueTokenIn` call anywhere in this claim — that is the whole of
+      // what makes this dispatcher safe against a cancelled event. `held_at`
+      // is still checked: an amendment that held this job's siblings before
+      // the event was ever cancelled should not have this one slip past that
+      // hold through a different door.
+      `update public.notification_jobs
+          set status = 'processing', claimed_at = now(), claimed_by = $2,
+              attempt_count = attempt_count + 1, last_error = null, updated_at = now()
+        where id = $1
+          and job_type = 'cancellation_notice'
+          and status in ('pending', 'ready', 'failed')
+          and held_at is null
+          and attempt_count < $3
+          and invitation_id is not null
+        returning id, invitation_id, event_id, person_id, attempt_count`,
+      [jobId, `${SWEEP_ACTOR_LABEL}:${jobId}`, MAX_ATTEMPTS],
+    );
+
+    const job = claimed.rows[0];
+    if (!job) return null;
+
+    const details = await tx.query<{
+      event_name: string;
+      when_label: string;
+      given_name: string;
+      known_as: string | null;
+    }>(
+      `select e.name as event_name,
+              to_char(
+                (e.scheduled_on + coalesce(e.starts_at, '00:00'::time)) at time zone 'Europe/London',
+                'FMDay FMDD FMMonth, HH24:MI') as when_label,
+              p.given_name, p.known_as
+         from public.invitations i
+         join public.events e on e.id = i.event_id
+         left join public.season_memberships m on m.id = i.season_membership_id
+         join public.people p on p.id = coalesce(i.person_id, m.person_id)
+        where i.id = $1`,
+      [job.invitation_id],
+    );
+
+    const detail = details.rows[0];
+    if (!detail) return null;
+
+    const contacts = await tx.query<{
+      kind: string;
+      raw_value: string;
+      normalised_value: string | null;
+      is_preferred: boolean;
+    }>(
+      `select kind::text as kind, raw_value, normalised_value, is_preferred
+         from public.contact_points
+        where person_id = $1
+          and valid_from <= current_date
+          and (valid_until is null or valid_until > current_date)
+        order by is_preferred desc, valid_from desc, created_at desc, id`,
+      [job.person_id],
+    );
+
+    const rows = contacts.rows.map((row) => ({
+      kind: row.kind,
+      rawValue: row.raw_value,
+      normalisedValue: row.normalised_value,
+      isPreferred: row.is_preferred,
+    }));
+
+    const recipient =
+      context.channel === "email"
+        ? (rows.find((row) => row.kind === "email")?.normalisedValue ??
+          rows.find((row) => row.kind === "email")?.rawValue ??
+          null)
+        : selectMobileNumber(rows, context.defaultCallingCode);
+
+    if (!recipient) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        context.channel === "email" ? NO_USABLE_EMAIL_REASON : NO_USABLE_NUMBER_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return null;
+    }
+
+    const permitted =
+      context.channel === "email"
+        ? emailPermitted(recipient, context.emailAllowlist)
+        : recipientPermitted(recipient, context.recipientAllowlist, context.defaultCallingCode);
+
+    if (!permitted) {
+      await failClaimTerminallyIn(
+        tx,
+        jobId,
+        context.channel === "email" ? EMAIL_NOT_PERMITTED_REASON : RECIPIENT_NOT_PERMITTED_REASON,
+        job.attempt_count,
+        context.channel,
+        context.provider.name,
+      );
+      return null;
+    }
+
+    const attempt = await tx.query<{ id: string }>(
+      `insert into public.delivery_attempts
+         (notification_job_id, attempt_number, channel, provider)
+       values ($1, $2, $3, $4)
+       returning id`,
+      [jobId, job.attempt_count, context.channel, context.provider.name],
+    );
+
+    const known = detail.known_as?.trim();
+
+    return {
+      attemptId: attempt.rows[0].id,
+      attemptNumber: job.attempt_count,
+      message: {
+        kind: "cancellation" as const,
+        recipient,
+        inviteeName: known && known !== "" ? known : detail.given_name,
+        eventName: detail.event_name,
+        whenLabel: detail.when_label.replace(/\s+/g, " ").trim(),
+        // D76/D59. Fixed and generic — never the operator's own recorded
+        // reason. See `CANCELLATION_NOTICE_SAFE_REASON`.
+        cancellationReason: CANCELLATION_NOTICE_SAFE_REASON,
+        // No token was minted and none is offered. `CANCELLATION`'s own
+        // template has no rsvpUrl parameter at all — there is nothing left to
+        // answer, and the wireframe rule against a control that cannot act
+        // applies to a link exactly as it does to a button.
+        rsvpUrl: "",
+      },
+    };
+  });
+
+  if (claim === null) return "skipped";
+
+  const outcome = await context.provider.send(claim.message);
+
+  await withTransaction(async (tx) => {
+    if (outcome.status === "accepted") {
+      await tx.query(
+        `update public.delivery_attempts
+            set accepted_at = now(), provider_message_id = $2 where id = $1`,
+        [claim.attemptId, outcome.providerMessageId],
+      );
+      await tx.query("update public.notification_jobs set next_attempt_at = null where id = $1", [
+        jobId,
+      ]);
+      await recordAudit(tx, {
+        actorLabel: DISPATCH_ACTOR_LABEL,
+        action: "delivery.attempted",
+        entityTable: "notification_jobs",
+        entityId: jobId,
+        context: {
+          attemptNumber: claim.attemptNumber,
+          provider: context.provider.name,
+          channel: context.channel,
+          providerMessageId: outcome.providerMessageId,
+        },
+      });
+      return;
+    }
+
+    await tx.query(
+      "update public.delivery_attempts set concluded_at = now(), failure_reason = $2 where id = $1",
+      [claim.attemptId, outcome.reason],
+    );
+    await tx.query(
+      `insert into public.delivery_results
+         (notification_job_id, attempt_number, outcome, channel, provider, detail)
+       values ($1, $2, $3, $4, $5, $6)
+       on conflict (notification_job_id, attempt_number) do nothing`,
+      [
+        jobId,
+        claim.attemptNumber,
+        outcome.retryable ? "failed" : "rejected",
+        context.channel,
+        context.provider.name,
+        outcome.reason,
+      ],
+    );
+    await tx.query(
+      `update public.notification_jobs
+          set status = 'failed', last_error = $2, claimed_at = null, claimed_by = null,
+              next_attempt_at = case when $3 then now() + interval '15 minutes' else null end,
+              automatic_attempts = automatic_attempts + 1,
+              updated_at = now()
+        where id = $1`,
+      [jobId, outcome.reason, outcome.retryable],
+    );
+  });
+
+  return outcome.status === "accepted" ? "accepted" : "refused";
 }

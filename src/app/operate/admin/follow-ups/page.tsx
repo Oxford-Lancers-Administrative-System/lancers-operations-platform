@@ -93,6 +93,7 @@ export default async function FollowUpsPage({
 
   const query = await searchParams;
   const search = typeof query.q === "string" ? query.q : "";
+  const status = typeof query.status === "string" ? query.status : "";
 
   let events: readonly FollowUpEvent[];
   try {
@@ -110,8 +111,11 @@ export default async function FollowUpsPage({
 
   const rows = flatten(events);
   const needle = search.trim().toLowerCase();
-  const filtered =
-    needle === "" ? rows : rows.filter((row) => row.personName.toLowerCase().includes(needle));
+  const filtered = rows.filter(
+    (row) =>
+      (status === "" || row.status === status) &&
+      (needle === "" || row.personName.toLowerCase().includes(needle)),
+  );
 
   return (
     <Stack spacing={3} data-testid="follow-ups-screen">
@@ -120,7 +124,7 @@ export default async function FollowUpsPage({
         subtitle={subheading(countPeople(events), events.length)}
       />
 
-      <FollowUpsFilter basePath="/operate/admin/follow-ups" search={search} />
+      <FollowUpsFilter basePath="/operate/admin/follow-ups" search={search} status={status} />
 
       {filtered.length === 0 ? (
         <Alert severity="info" data-testid="follow-ups-empty">
