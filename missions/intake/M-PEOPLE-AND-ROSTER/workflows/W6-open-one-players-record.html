@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W6 · Open one player's record</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --warn: #663c00;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--grey100);
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #212121;
+        color: #fff;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .sheet {
+        max-width: 880px;
+        margin: 26px auto 100px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 10px 30px 34px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.12rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 1rem;
+        margin: 20px 0 6px;
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+        margin: 14px 0;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+        white-space: nowrap;
+      }
+      a {
+        color: var(--primary);
+      }
+      @media (max-width: 720px) {
+        .sheet {
+          margin: 14px 10px 60px;
+          padding: 6px 16px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W6 · Open one player's record<span>M-PEOPLE-AND-ROSTER · specification</span>
+      </div>
+      <div>
+        <a href="../mockups/W6-open-one-players-record.html">Mockup</a
+        ><a href="../mockups/index.html">Hub</a
+        ><a href="../specifications.html">All specifications</a>
+      </div>
+    </div>
+    <div class="sheet">
+      <h1>W6 — Open one player&#39;s record</h1>
+      <ul>
+        <li>
+          Purpose/intended outcome: an operator needs everything the club knows about one player in
+          this season, in one place, and needs to be able to tell a durable fact from a seasonal
+          one.
+        </li>
+        <li>
+          Primary actor: a four-role operator — President, Vice-President, Secretary, General
+          Manager.
+        </li>
+        <li>
+          Trigger: a question about one person that the grid cannot answer — where they are on
+          onboarding, what they were awarded, why they went inactive, what they have been to the
+          club across four seasons.
+        </li>
+        <li>
+          Entry point: a row on the roster (<code>W5</code>), and a season row on the person record
+          (<code>W1-05</code>).
+        </li>
+        <li>
+          Route/placement: <code>/operate/roster/[membershipId]</code>.
+          <strong>This surface exists on <code>main</code></strong> and is redesigned, not extended.
+        </li>
+        <li>
+          Controlling source: Task 08 §5 (the authoritative individual view and its contents); §6
+          (authority, and what a coach never sees); the field inventory approved 2026-08-26; the
+          owner session of 2026-08-26 for the rebuilt ladder, seasonal formalwear and seasonal
+          Blues.
+        </li>
+        <li>
+          User-visible result: one season&#39;s membership in full, with the durable person facts
+          shown as the person&#39;s and linked to the person record rather than duplicated onto the
+          season.
+        </li>
+      </ul>
+      <h2>Required actions</h2>
+      <ul>
+        <li>
+          <strong>Separate the person from the season, visibly.</strong> Durable facts render as the
+          person&#39;s, with a route to <code>W1-05</code>; everything else belongs to this
+          membership. A player with four seasons has one person record and four of these.
+        </li>
+        <li>
+          Show the season&#39;s <strong>standing on the rebuilt ladder</strong>, its milestone dates
+          — confirmed, activated, departed, expected return — and its exit labels.
+        </li>
+        <li>
+          Show the <strong>full status history</strong> for this membership: from, to, when, who,
+          why.
+        </li>
+        <li>
+          Show <strong>onboarding items with per-item provenance</strong>, and the completeness the
+          grid summarises.
+        </li>
+        <li>
+          Show
+          <strong>positions, jersey, availability, eligibility, formalwear and Blues</strong> for
+          this season.
+        </li>
+        <li>
+          Show this season&#39;s <strong>RSVP and attendance history</strong>, read-only, from
+          Mission 2.
+        </li>
+        <li>
+          Preserve the <strong>shipped activation control</strong>, which is the one thing on this
+          surface that writes.
+        </li>
+        <li>
+          Show the derived <strong>Blues total</strong> across seasons, and the derived
+          <strong>constitutional membership</strong>.
+        </li>
+        <li>Link to the person&#39;s change history (<code>W8</code>).</li>
+      </ul>
+      <h2>State transitions</h2>
+      <ul>
+        <li>
+          <strong>Activation only</strong>, and only through the control that already exists:
+          onboarding to active, writing one status event with actor, timestamp and reason.
+        </li>
+        <li>
+          Everything else on this surface is read-only. Correcting a durable fact is
+          <code>W2</code>, on the person.
+        </li>
+      </ul>
+      <h2>Handoffs</h2>
+      <ul>
+        <li>To <code>W1-05</code> for the person behind the season.</li>
+        <li>To <code>W5</code> back to the grid.</li>
+        <li>To <code>W8</code> for the change history.</li>
+        <li>To <code>W2</code> for correcting a durable person fact.</li>
+        <li>To Mission 7 for onboarding behaviour and the collection request.</li>
+        <li>To Mission 9 for what positions, jersey, coach group and availability mean.</li>
+        <li>To Mission 11 for eligibility records.</li>
+        <li>To Mission 2, whose RSVP and attendance history is displayed and never edited.</li>
+      </ul>
+      <h2>Dependencies and mission boundaries</h2>
+      <ul>
+        <li>
+          <strong>Formalwear is seasonal</strong>, asked each season rather than carried. This
+          removes Task 10 item 3&#39;s &quot;not applicable if already recorded&quot; carve-out for
+          returners and matches its own R1b — the checklist regenerates for everyone every season.
+          Mission 7&#39;s intake reconciles it.
+        </li>
+        <li>
+          <strong>Half and Full Blue are seasonal awards</strong>, two flags on the season record;
+          the cumulative total the club actually looks at derives from history.
+        </li>
+        <li>
+          <strong>The ladder is rebuilt</strong>: <code>recruit</code> is not a stored membership
+          status, and the stored set is onboarding · active · inactive · departed · archived. This
+          supersedes OD-3&#39;s single-inactive offboarding, because inactive now means still on the
+          team and possibly returning while departed means gone with an offboarding to run.
+        </li>
+        <li>
+          Coaching group, responsible coach, consent state and channel presence have no substrate on
+          <code>main</code> and do not render at this mission&#39;s acceptance.
+        </li>
+        <li>
+          Eligibility records need competition, status, determining authority, checked-at date, an
+          external evidence reference — never academic or medical evidence — and effective dates
+          with an exclusion constraint. Mission 11 owns them.
+        </li>
+      </ul>
+      <h2>Exceptions and recovery</h2>
+      <ul>
+        <li>
+          <strong>A membership with no onboarding items at all.</strong> A real configuration state,
+          not a failure, and it says so in its own words rather than reading as incomplete.
+        </li>
+        <li>
+          <strong>A departed or archived membership.</strong> Renders in full, read-only, with the
+          activation control absent rather than disabled. Nothing about a past season is editable
+          from here.
+        </li>
+        <li>
+          <strong>A person with almost nothing recorded.</strong> Every absent field states
+          <code>not recorded</code>, and the person&#39;s missing-data flag is visible with a route
+          to <code>W2</code>.
+        </li>
+        <li>
+          <strong>A membership whose person was merged away.</strong> The route resolves to the
+          survivor&#39;s membership, matching <code>W1-09</code>.
+        </li>
+        <li>
+          <strong>A coach reaching this route.</strong> Refused. Coaches never see contact values,
+          academic detail, date of birth, emergency contact, consent or administrative data, and
+          this page is nothing but those.
+        </li>
+      </ul>
+      <h2>Safety, privacy, consent, and authority boundaries</h2>
+      <ul>
+        <li>Four-role only.</li>
+        <li>
+          <strong>This is the most complete view of one human in the application</strong>, which is
+          why it is four-role and why the coach refusal is explicit rather than incidental.
+        </li>
+        <li>
+          Emergency contact renders here under its structural lockdown and is out of leadership
+          exports by default.
+        </li>
+        <li>Date of birth renders here and on no list.</li>
+        <li>
+          Nothing here sends a message or records a lawful basis. The activation control writes a
+          status event and nothing else.
+        </li>
+        <li>No destructive action.</li>
+      </ul>
+      <h2>Acceptance evidence</h2>
+      <p>Against seeded synthetic data, an operator can:</p>
+      <ol>
+        <li>
+          tell a <strong>durable fact from a seasonal one</strong> without being told which is
+          which;
+        </li>
+        <li>
+          read the <strong>full status history</strong> for the membership, with actor and reason;
+        </li>
+        <li>see <strong>onboarding items with per-item provenance</strong>;</li>
+        <li>
+          see <strong>formalwear and Blues as this season&#39;s</strong>, and the
+          <strong>Blues total</strong> derived across seasons;
+        </li>
+        <li>
+          <strong>activate</strong> an onboarding membership through the shipped control, and find
+          the event on the history;
+        </li>
+        <li>
+          open a <strong>departed</strong> membership and find it complete and read-only, with no
+          activation control;
+        </li>
+        <li>reach the <strong>person record</strong> and come back;</li>
+        <li>confirm a <strong>coach is refused</strong> with no player data in the payload;</li>
+        <li>
+          see the record at a <strong>measured 375px</strong> without losing the person/season
+          distinction.
+        </li>
+      </ol>
+      <h2>Core decisions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Decision</th>
+            <th>Classification</th>
+            <th>Governing evidence or recommended default</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Durable facts render as the person&#39;s, with a route to the person record</td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              The person-versus-season test made visible. The alternative duplicates thirteen fields
+              onto every season
+            </td>
+            <td>Recommend as drawn</td>
+          </tr>
+          <tr>
+            <td>
+              The rebuilt five-value stored ladder, with <code>recruit</code> living on the prospect
+              record
+            </td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-26; supersedes OD-3</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Formalwear is seasonal and reasked each season</td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-26; matches Task 10 R1b</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Blues are seasonal awards; the total derives</td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-26</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>The shipped activation control is preserved as the only write</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §5</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>A departed membership hides the activation control rather than disabling it</td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              A disabled control invites the question of how to enable it; an absent one answers it
+            </td>
+            <td>Recommend absent</td>
+          </tr>
+          <tr>
+            <td>Section order on the page</td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              Drawn person-first, then this season&#39;s standing, then football, then history
+            </td>
+            <td>Confirm at the mockup</td>
+          </tr>
+          <tr>
+            <td>Which of Mission 9&#39;s football fields render read-only versus not at all</td>
+            <td><code>delegated to Mission Lead</code></td>
+            <td>The rule is substrate-on-<code>main</code>; the enumeration is mechanical</td>
+            <td>Delegated</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Brian approval</h2>
+      <ul>
+        <li>Exact words:</li>
+        <li>Date:</li>
+      </ul>
+    </div>
+  </body>
+</html>

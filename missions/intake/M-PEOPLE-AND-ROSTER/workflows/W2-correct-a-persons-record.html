@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W2 · Correct a person's record</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --warn: #663c00;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--grey100);
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #212121;
+        color: #fff;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .sheet {
+        max-width: 880px;
+        margin: 26px auto 100px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 10px 30px 34px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.12rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 1rem;
+        margin: 20px 0 6px;
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+        margin: 14px 0;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+        white-space: nowrap;
+      }
+      a {
+        color: var(--primary);
+      }
+      @media (max-width: 720px) {
+        .sheet {
+          margin: 14px 10px 60px;
+          padding: 6px 16px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W2 · Correct a person's record<span>M-PEOPLE-AND-ROSTER · specification</span>
+      </div>
+      <div>
+        <a href="../mockups/W2-correct-a-persons-record.html">Mockup</a
+        ><a href="../mockups/index.html">Hub</a
+        ><a href="../specifications.html">All specifications</a>
+      </div>
+    </div>
+    <div class="sheet">
+      <h1>W2 — Correct a person&#39;s record</h1>
+      <ul>
+        <li>
+          Purpose/intended outcome: an operator learns that something the club holds about a person
+          is wrong, missing or out of date, and fixes it — attributably, audibly, and without
+          destroying what was there before.
+        </li>
+        <li>
+          Primary actor: a four-role operator — President, Vice-President, Secretary, General
+          Manager.
+        </li>
+        <li>
+          Trigger: somebody changes their number; a name was mis-keyed at a sign-up table; the
+          missing-data queue says seven facts are absent; a graduate&#39;s college address stops
+          working.
+        </li>
+        <li>
+          Entry point: <strong>Correct this record</strong> on the person record
+          (<code>W1-05</code>), and every row of the missing-data queue (<code>W7</code>).
+        </li>
+        <li>
+          Route/placement: <code>/operate/people/[personId]/edit</code>. Neither the route nor its
+          parent exists on <code>main</code>; nothing occupies the path.
+        </li>
+        <li>
+          Controlling source: Task 08 §4 (the field inventory), §6 (the authority matrix); Task 07
+          §3 (operator-executable correction with actor, before/after and reason audited); LAN-147
+          questions 1, 4 and 5; the field inventory approved 2026-08-26 and amended the same day.
+        </li>
+        <li>
+          User-visible result: the record now says the right thing, the change is on the
+          person&#39;s history with a name and a date against it, and no previous contact value has
+          been destroyed.
+        </li>
+      </ul>
+      <h2>Required actions</h2>
+      <ul>
+        <li>
+          Edit every durable person fact the field inventory marks <code>build</code>: first name,
+          last name, aliases, the two email kinds, mobile, the four academic fields, date of birth,
+          and the five emergency-contact fields.
+        </li>
+        <li>
+          <strong>One edit surface, sectioned exactly as the record reads</strong> — who they are,
+          how to reach them, academic, restricted. An operator who has just looked at a section
+          corrects it without learning a second layout.
+        </li>
+        <li>
+          <strong>Contact values supersede rather than overwrite.</strong> Replacing a mobile or an
+          email keeps the previous value, dated, with the new one preferred. One preferred value per
+          kind.
+        </li>
+        <li>
+          <strong>Every other field overwrites</strong>, because a corrected date of birth is not a
+          second date of birth. The previous value survives in the change history, which is what
+          makes it recoverable.
+        </li>
+        <li>
+          Fill a field that reads <code>not recorded</code> without a reason.
+          <strong>Change a field that already has a value only with a reason</strong>, recorded and
+          shown on the history.
+        </li>
+        <li>Flag an alias as the display name, add an alias, and remove one.</li>
+        <li>Return to where the operator came from — the record, or the next row of the queue.</li>
+      </ul>
+      <h2>State transitions</h2>
+      <ul>
+        <li>
+          A person fact goes from <code>not recorded</code> to a value, or from one value to
+          another. Nothing else on the person moves.
+        </li>
+        <li>
+          A contact point goes from preferred to superseded, and a new one becomes preferred. The
+          superseded row is never deleted.
+        </li>
+        <li>
+          Every save appends one audit event: actor, timestamp, field, before, after, and the reason
+          where one was required.
+        </li>
+        <li>
+          <strong>No membership, prospect, role or seat state changes here.</strong> Correcting a
+          person never moves them on the ladder.
+        </li>
+      </ul>
+      <h2>Handoffs</h2>
+      <ul>
+        <li>
+          To <code>W1</code> on save, or to <code>W7</code> when the operator arrived from the
+          queue.
+        </li>
+        <li>
+          To <code>W4</code> when the reason a value looks wrong is that this is the same human
+          twice.
+        </li>
+        <li>To <code>W8</code> when the question is what the value used to be.</li>
+        <li>To Mission 1 when the correction wanted is to a login or a club role.</li>
+        <li>
+          To Mission 7 when the correction is a person editing their own record through the signed
+          link — that path is theirs and does not exist here.
+        </li>
+        <li>
+          To Mission 8 when the request is erasure or a subject-access export rather than a
+          correction.
+        </li>
+      </ul>
+      <h2>Dependencies and mission boundaries</h2>
+      <ul>
+        <li>
+          <strong>The two email kinds need a migration.</strong> <code>contact_point_kind</code> on
+          <code>main</code> is <code>(&#39;email&#39;,&#39;phone&#39;)</code>; college and personal
+          email are distinct dated kinds and this mission carries the split.
+        </li>
+        <li>
+          The five emergency-contact fields do not exist on <code>main</code> at all and are built
+          here, under the structural lockdown <code>01-overview.md</code> makes an invariant.
+        </li>
+        <li>
+          Consent state and channel presence are not editable here because they do not exist on
+          <code>main</code>; they are Missions 8 and 6.
+        </li>
+        <li>
+          Seasonal facts — jersey, positions, onboarding items, formalwear, Blues, eligibility — are
+          corrected on player detail, not here. A person with four seasons has one person record and
+          four season records.
+        </li>
+        <li>
+          Recruitment facts are Mission 6&#39;s and are absent from this surface entirely, which
+          follows <code>W1</code>&#39;s round-one decision that the recruit process appears nowhere
+          on a person record.
+        </li>
+      </ul>
+      <h2>Exceptions and recovery</h2>
+      <ul>
+        <li>
+          <strong>A value that two people disagree about.</strong> The operator enters what they
+          believe is right and records the reason. There is no held state and no queue for it.
+          Brian, 2026-08-26:
+          <em
+            >&quot;There shouldn&#39;t be a dispute here. It should just see the latest record…
+            They&#39;re the operator. Nothing goes higher than the operator.&quot;</em
+          >
+          <strong
+            >This supersedes Task 08 §6&#39;s contested-value rule, the matching invariant in
+            <code>01-overview.md</code>, and this workflow&#39;s own line in the frozen
+            inventory</strong
+          >, all of which predate it.
+        </li>
+        <li>
+          <strong>A phone number that will not normalise.</strong> The raw value is preserved
+          alongside the E.164 form, and the operator sees the normalised value read back before
+          saving. An unparseable number is saved raw and flagged in the queue.
+        </li>
+        <li>
+          <strong>An email that already belongs to another person.</strong> The save is refused and
+          the duplicate check offers <code>W4</code>, because two records sharing a contact point is
+          the commonest signal of the same human twice.
+        </li>
+        <li>
+          <strong>A concurrent edit.</strong> The second save is refused with what changed
+          underneath it, rather than silently winning. Nothing about a person is important enough to
+          lose to a race.
+        </li>
+        <li>
+          <strong>An operator outside the four-role group.</strong> They never reach this route: the
+          destination is absent from their navigation and the action refuses on the query, exposing
+          nothing.
+        </li>
+      </ul>
+      <h2>Safety, privacy, consent, and authority boundaries</h2>
+      <ul>
+        <li>Four-role only, for every field.</li>
+        <li>
+          Emergency contact is third-party personal data. It is never a Person row, never a contact
+          point, never reachable by any audience or messaging machinery, and out of leadership
+          exports by default.
+        </li>
+        <li>
+          Date of birth and emergency contact are four-role only and never appear on any list.
+        </li>
+        <li>Nothing here sends a message, records a lawful basis, or offers a channel action.</li>
+        <li>
+          No field on this surface is destructive. Removing an alias hides it from display and keeps
+          it as dedupe evidence; there is no delete for a person.
+        </li>
+        <li>
+          Every edit is attributable and audited — invariant M2, and Task 07 §3&#39;s actor, before,
+          after and reason.
+        </li>
+      </ul>
+      <h2>Acceptance evidence</h2>
+      <p>Against seeded synthetic data, an operator can:</p>
+      <ol>
+        <li>
+          fill a first-name-only legacy record&#39;s <strong>last name</strong> and watch its
+          missing-data count fall;
+        </li>
+        <li>
+          <strong>change a mobile number</strong>, be shown the normalised value before saving, and
+          find the previous number still present and dated;
+        </li>
+        <li>
+          <strong>change a personal email</strong> and be required to give a reason, where filling
+          an empty one required none;
+        </li>
+        <li>
+          <strong>add an alias and flag it as the display name</strong>, and see the list&#39;s name
+          column follow it;
+        </li>
+        <li>
+          be <strong>refused</strong> when saving an email that already belongs to another person,
+          and be offered the merge;
+        </li>
+        <li>
+          be <strong>refused</strong> a concurrent save, and be told what moved underneath them;
+        </li>
+        <li>
+          read the whole edit back on the person&#39;s history with their own name against it;
+        </li>
+        <li>confirm that nothing they did moved the person on the ladder.</li>
+      </ol>
+      <h2>Core decisions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Decision</th>
+            <th>Classification</th>
+            <th>Governing evidence or recommended default</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>disputed — awaiting verification</code> is struck; the record shows the current
+              value and who set it
+            </td>
+            <td><code>locked</code></td>
+            <td>
+              Brian, 2026-08-26. Supersedes Task 08 §6, <code>01-overview.md</code>&#39;s invariant,
+              and this workflow&#39;s frozen-inventory line
+            </td>
+            <td>Settled, amendments pending</td>
+          </tr>
+          <tr>
+            <td>
+              One edit surface at <code>/operate/people/[personId]/edit</code>, sectioned as the
+              record reads
+            </td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              The alternative is editing each field in place on the record. One surface is fewer
+              moving parts and one audit boundary; in-place is fewer clicks for one typo
+            </td>
+            <td>Recommend one surface</td>
+          </tr>
+          <tr>
+            <td>
+              A reason is required to change an existing value, and never to fill an empty one
+            </td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              Task 07 §3 requires a reason audited. Demanding one to fill a blank would make the
+              missing-data queue miserable to work
+            </td>
+            <td>Recommend as drawn</td>
+          </tr>
+          <tr>
+            <td>
+              Contact values supersede; every other field overwrites, with the previous value in the
+              history
+            </td>
+            <td><code>locked</code></td>
+            <td>Task 08 §4</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>An email already held by another person refuses the save and offers the merge</td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              Task 09 D7 locks dedup-before-create at every door; this is the same rule on the
+              correction path
+            </td>
+            <td>Recommend yes</td>
+          </tr>
+          <tr>
+            <td>A concurrent edit refuses rather than wins</td>
+            <td><code>proposed for owner approval</code></td>
+            <td>Nothing here is high-frequency enough to justify last-write-wins</td>
+            <td>Recommend yes</td>
+          </tr>
+          <tr>
+            <td>Emergency contact is edited here and locked down structurally</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §4 and §6</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>The college/personal email split is a migration this mission carries</td>
+            <td><code>locked</code></td>
+            <td>
+              <code>contact_point_kind</code> on <code>main</code> is
+              <code>(&#39;email&#39;,&#39;phone&#39;)</code>
+            </td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Field-level permissioning within the four-role group</td>
+            <td><code>delegated to Mission Lead</code></td>
+            <td>Task 08 §6 grants the group uniformly; no source splits it further</td>
+            <td>Delegated</td>
+          </tr>
+          <tr>
+            <td>
+              Validation messages, field order within a section, and the save control&#39;s
+              placement
+            </td>
+            <td><code>delegated to Mission Lead</code></td>
+            <td>No product meaning</td>
+            <td>Delegated</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Brian approval</h2>
+      <ul>
+        <li>Exact words:</li>
+        <li>Date:</li>
+      </ul>
+    </div>
+  </body>
+</html>

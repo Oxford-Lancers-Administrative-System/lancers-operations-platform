@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>W5 · Work this season's roster</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --warn: #663c00;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--grey100);
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #212121;
+        color: #fff;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .sheet {
+        max-width: 880px;
+        margin: 26px auto 100px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 10px 30px 34px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.12rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 1rem;
+        margin: 20px 0 6px;
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+        margin: 14px 0;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+        white-space: nowrap;
+      }
+      a {
+        color: var(--primary);
+      }
+      @media (max-width: 720px) {
+        .sheet {
+          margin: 14px 10px 60px;
+          padding: 6px 16px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">
+        W5 · Work this season's roster<span>M-PEOPLE-AND-ROSTER · specification</span>
+      </div>
+      <div>
+        <a href="../mockups/W5-work-this-seasons-roster.html">Mockup</a
+        ><a href="../mockups/index.html">Hub</a
+        ><a href="../specifications.html">All specifications</a>
+      </div>
+    </div>
+    <div class="sheet">
+      <h1>W5 — Work this season&#39;s roster</h1>
+      <ul>
+        <li>
+          Purpose/intended outcome: an operator sees the whole squad at once and works across it —
+          who is where on the ladder, who is missing something, who plays what — instead of opening
+          forty records one at a time.
+        </li>
+        <li>
+          Primary actor: a four-role operator — President, Vice-President, Secretary, General
+          Manager.
+        </li>
+        <li>
+          Trigger: Monday review; the week before a fixture; subs chasing; kit ordering; &quot;how
+          many actives do we actually have?&quot;
+        </li>
+        <li>
+          Entry point: <strong>Roster</strong> in the operate navigation, where it already is.
+        </li>
+        <li>
+          Route/placement: <code>/operate/roster</code>.
+          <strong>This surface exists on <code>main</code></strong> and is redesigned, not extended
+          — portfolio rule 3, backwards-looking.
+        </li>
+        <li>
+          Controlling source: Task 08 §5 (the wide command surface, its column set, search,
+          combinable filters, sortable columns, and the condensed mobile view); §6 (four-role only;
+          column visibility as a function of category grants); the field inventory approved
+          2026-08-26; LAN-174 (roster is season-scoped without needing the season lifecycle).
+        </li>
+        <li>
+          User-visible result: the season&#39;s squad as a working command surface, carrying the
+          approved column set rather than the six columns the slice shipped.
+        </li>
+      </ul>
+      <h2>Required actions</h2>
+      <ul>
+        <li>Show every membership in the season in view, in any status.</li>
+        <li>
+          <strong>Carry the approved column set</strong>: player, standing, entry, college,
+          positions, jersey, onboarding completeness, contactability, and the missing-data flag —
+          replacing today&#39;s Member · Status · Entry · Email · Phone · Onboarding.
+        </li>
+        <li>
+          <strong>Take the raw email and phone off the grid.</strong> Task 08 §5 puts contactability
+          indicators there, not values. This is a deliberate narrowing of what a routine screen
+          discloses.
+        </li>
+        <li>Search by first name, last name and alias.</li>
+        <li>
+          <strong>Combinable filters</strong>, applied immediately: standing, entry, onboarding
+          completeness, missing data, college, position.
+        </li>
+        <li>Sort on every column that can be meaningfully ordered.</li>
+        <li>
+          Open a player (<code>W6</code>), and add a player through the door that already exists.
+        </li>
+        <li>
+          Render column visibility from the viewer&#39;s category grants, so widening access later
+          drops restricted columns rather than needing a special case.
+        </li>
+      </ul>
+      <h2>State transitions</h2>
+      <p>
+        <strong>None. This workflow is read-only.</strong> Nothing on the grid moves a membership.
+        Activation, correction and every status change happen on player detail or in
+        <code>W2</code>.
+      </p>
+      <h2>Handoffs</h2>
+      <ul>
+        <li>To <code>W6</code> on opening a player.</li>
+        <li>To <code>W7</code> from the missing-data flag.</li>
+        <li>To <code>W1</code> when the person being looked for is not a player.</li>
+        <li>To the shipped returner intake for adding a player, which is not rebuilt here.</li>
+        <li>
+          To Mission 9 for what positions, jersey and availability mean; this workflow places them
+          and Mission 9 gives them semantics.
+        </li>
+        <li>
+          To Mission 7 for onboarding behaviour; the grid shows completeness and the filter, and
+          owns neither.
+        </li>
+        <li>
+          To Mission 11 for anything about the season itself — opening it, closing it, rolling it
+          over.
+        </li>
+      </ul>
+      <h2>Dependencies and mission boundaries</h2>
+      <ul>
+        <li>
+          <strong>The status enum changes underneath this surface.</strong> The rebuilt ladder is
+          five stored values, and twelve views depend on the column, so the migration drops and
+          recreates every one of them. Measured, not estimated, in <code>field-inventory.md</code>.
+        </li>
+        <li>
+          <strong>No season picker.</strong> The roster follows the active season as ambient
+          context, which is how it already behaves. Choosing an arbitrary season is Mission
+          11&#39;s.
+        </li>
+        <li>
+          Jersey is not one value — two kits, several numbers per player in one kit, numbers that
+          are not unique, a predominant designation and a note. Mission 9 owns the model; this grid
+          shows the predominant number.
+        </li>
+        <li>
+          Availability renders only for a viewer holding availability read, which is moot while the
+          roster is four-role. The mechanism is built anyway, because it is what makes the
+          grant-driven column visibility real.
+        </li>
+        <li>
+          Coaching group and responsible coach have no substrate on <code>main</code> and do not
+          render at this mission&#39;s acceptance.
+        </li>
+        <li>Consent state and channel presence likewise.</li>
+      </ul>
+      <h2>Exceptions and recovery</h2>
+      <ul>
+        <li>
+          <strong>A filter matches nothing</strong>, and
+          <strong>the season has no memberships at all</strong>. Different copy for each, both
+          carrying the smallest authorized recovery, which is what the shipped surface already does
+          and what the state contract requires.
+        </li>
+        <li>
+          <strong>A player with almost nothing recorded.</strong> They appear with
+          <code>not recorded</code> in each empty cell and the missing flag set, never as a blank
+          row.
+        </li>
+        <li>
+          <strong>A very wide grid on a narrow screen.</strong> The condensed card view Task 08 §5
+          describes, and the mobile quick action is <strong>voice call only</strong> — a one-tap
+          WhatsApp link would be manual sending outside the pipeline&#39;s consent checks, which R12
+          and R15 prohibit.
+        </li>
+        <li>
+          <strong>An operator outside the four-role group.</strong> Refused, exposing nothing. A
+          coach keeps the narrow LAN-110 attendance tool and reaches nothing here.
+        </li>
+      </ul>
+      <h2>Safety, privacy, consent, and authority boundaries</h2>
+      <ul>
+        <li>Four-role only, for the grid and every column on it.</li>
+        <li><strong>Contact values leave this surface.</strong> Indicators only.</li>
+        <li>Date of birth and emergency contact never appear on any list, this one included.</li>
+        <li>
+          Column visibility is a function of the viewer&#39;s category grants; anything not granted
+          is absent from the DOM and the payload, not hidden in it.
+        </li>
+        <li>
+          The only channel action is a voice call. Nothing here composes, schedules or sends a
+          message.
+        </li>
+        <li>No destructive action.</li>
+      </ul>
+      <h2>Acceptance evidence</h2>
+      <p>Against seeded synthetic data, an operator can:</p>
+      <ol>
+        <li>
+          see the <strong>approved column set</strong>, and confirm raw email and phone are gone;
+        </li>
+        <li>
+          <strong>combine filters</strong> — onboarding incomplete <em>and</em> missing data
+          <em>and</em> active — and get a real list;
+        </li>
+        <li>
+          <strong>sort every sortable column</strong>, and keep the sort through a refresh and the
+          back button;
+        </li>
+        <li>search by an <strong>alias</strong> and find the player;</li>
+        <li>open a player and come back;</li>
+        <li>
+          see the <strong>condensed view at a measured 375px</strong>, with voice call as the only
+          quick action;
+        </li>
+        <li>see both <strong>empty states</strong> and tell them apart;</li>
+        <li>confirm a coach reaches <strong>nothing</strong> here.</li>
+      </ol>
+      <h2>Core decisions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Decision</th>
+            <th>Classification</th>
+            <th>Governing evidence or recommended default</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>The default column set</td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              Task 08 §5 approves a set; the field inventory names which fields reach the grid. The
+              exact order and width are drawn
+            </td>
+            <td>Confirm at the mockup</td>
+          </tr>
+          <tr>
+            <td>Raw email and phone come off the grid, replaced by indicators</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §5</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Filters combine and apply immediately</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §5</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>No season picker; the roster follows the active season</td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-26</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Column visibility is derived from category grants, not special-cased</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §6</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>The mobile quick action is voice call only</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §5; R12 and R15 prohibit manual sending outside the pipeline</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>The grid shows the predominant jersey number, not every number a player holds</td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              Roughly 8% hold several in one kit. Showing all makes the column unreadable for the
+              92%
+            </td>
+            <td>Recommend predominant</td>
+          </tr>
+          <tr>
+            <td>Availability renders only under an availability grant</td>
+            <td><code>locked</code></td>
+            <td>Task 08 §6</td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>Page size, column widths, and the sort&#39;s default column</td>
+            <td><code>delegated to Mission Lead</code></td>
+            <td>No product meaning</td>
+            <td>Delegated</td>
+          </tr>
+        </tbody>
+      </table>
+      <h2>Brian approval</h2>
+      <ul>
+        <li>Exact words:</li>
+        <li>Date:</li>
+      </ul>
+    </div>
+  </body>
+</html>

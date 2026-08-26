@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Boundary</title>
+    <style>
+      :root {
+        --primary: #0b3d91;
+        --text: rgba(0, 0, 0, 0.87);
+        --sec: rgba(0, 0, 0, 0.6);
+        --divider: rgba(0, 0, 0, 0.12);
+        --grey50: #fafafa;
+        --grey100: #f5f5f5;
+        --warn: #663c00;
+        --font:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--grey100);
+        line-height: 1.65;
+      }
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #212121;
+        color: #fff;
+        padding: 10px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .bar .who {
+        font-weight: 700;
+        font-size: 0.95rem;
+      }
+      .bar .who span {
+        color: #bdbdbd;
+        font-weight: 400;
+        margin-left: 8px;
+        font-size: 0.8rem;
+      }
+      .bar a {
+        color: #fff;
+        text-decoration: none;
+        font-size: 0.85rem;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 6px;
+        padding: 4px 10px;
+        margin-left: 8px;
+      }
+      .bar a:hover {
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .sheet {
+        max-width: 880px;
+        margin: 26px auto 100px;
+        background: #fff;
+        border: 1px solid var(--divider);
+        border-radius: 10px;
+        padding: 10px 30px 34px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 22px 0 10px;
+        letter-spacing: -0.01em;
+      }
+      h2 {
+        font-size: 1.12rem;
+        margin: 30px 0 8px;
+        padding-top: 16px;
+        border-top: 1px solid var(--divider);
+      }
+      h3 {
+        font-size: 1rem;
+        margin: 20px 0 6px;
+      }
+      p,
+      li {
+        font-size: 0.95rem;
+      }
+      ul {
+        padding-left: 22px;
+      }
+      li {
+        margin: 5px 0;
+      }
+      code {
+        background: var(--grey100);
+        padding: 1px 5px;
+        border-radius: 4px;
+        font-size: 0.85em;
+      }
+      pre {
+        background: var(--grey100);
+        padding: 12px 14px;
+        border-radius: 8px;
+        overflow-x: auto;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      blockquote {
+        margin: 12px 0;
+        padding: 6px 16px;
+        border-left: 3px solid var(--divider);
+        color: var(--sec);
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        display: block;
+        overflow-x: auto;
+        margin: 14px 0;
+        font-size: 0.875rem;
+      }
+      th,
+      td {
+        border: 1px solid var(--divider);
+        padding: 8px 10px;
+        text-align: left;
+        vertical-align: top;
+      }
+      thead th {
+        background: var(--grey50);
+        font-size: 0.78rem;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--sec);
+        white-space: nowrap;
+      }
+      a {
+        color: var(--primary);
+      }
+      @media (max-width: 720px) {
+        .sheet {
+          margin: 14px 10px 60px;
+          padding: 6px 16px 24px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="who">Boundary<span>M-PEOPLE-AND-ROSTER · specification</span></div>
+      <div>
+        <a href="mockups/index.html">Hub</a><a href="specifications.html">All specifications</a>
+      </div>
+    </div>
+    <div class="sheet">
+      <h1>Boundary — M-PEOPLE-AND-ROSTER</h1>
+      <ul>
+        <li>
+          Portfolio mission number: 5 (Release One Mission Portfolio <strong>v2</strong>, approved
+          2026-08-26). Portfolio v1&#39;s Missions 5 and 6 are retired; this is the v2 base mission,
+          not a resumption of the v1 intake.
+        </li>
+        <li>
+          Commissioned outcome: <strong>People &amp; Roster</strong> — the durable person record and
+          the two operator surfaces over it. Every human the club holds is findable, readable,
+          correctable and de-duplicable; this season&#39;s squad is a working command surface.
+          Recruitment (M6) and Onboarding (M7) layer their stages on top of what is built here.
+        </li>
+        <li>
+          Portfolio row URL and observed version:
+          <a href="https://app.notion.com/p/3bb488886d578126a88cdd747f590a01"
+            >Lancers Current Project Status</a
+          >, Release One Mission Portfolio row 5, Portfolio v2 approved by Brian Schuster
+          2026-08-26; fetched 2026-08-26T13:41Z.
+        </li>
+        <li>
+          Observed <code>main</code> SHA:
+          <code>2115bfed9d08ab9146fe00f002d6337cae9796a2</code> (&quot;Schedule the club&#39;s
+          messaging instead of waiting for a person (#91)&quot;).
+        </li>
+        <li>
+          Primary coverage: Task 08 (Person, Roster &amp; Player Profile) · R3 roster side (season
+          side shared with M11) · Scope 4 people/roster half.
+        </li>
+        <li>
+          Deliberately shared coverage:
+          <ul>
+            <li>R2 record side — recruitment side is M6&#39;s primary.</li>
+            <li>The People surface is consumed by M9&#39;s coach registry.</li>
+            <li>
+              The missing-data queue is <strong>defined here</strong>, chased in M7, surfaced in
+              M10.
+            </li>
+            <li>
+              LAN-147 is absorbed into this mission&#39;s acceptance criteria; destructive removal
+              stays M8 (owner decision 2026-08-25).
+            </li>
+            <li>
+              LAN-146 A1 (member-facing duplicate check unbound by tests) is absorbed here, because
+              the duplicate check is core M5 machinery.
+            </li>
+            <li>
+              LAN-146 A2 / journal Q-21 (any-operator contact reads) was an interim slice ruling;
+              Task 08 §6&#39;s four-role matrix supersedes it when this mission ships. Not a
+              conflict.
+            </li>
+            <li>
+              The G4 complete-data export <strong>contract</strong> — full inventory minus emergency
+              contact — is defined here and built in M10.
+            </li>
+          </ul>
+        </li>
+      </ul>
+      <h2>In scope</h2>
+      <ul>
+        <li>
+          The durable person record: every field in Task 08 §4&#39;s inventory that is neither
+          onboarding-specific nor recruitment-specific, coaching-adjacent fields included. M9 layers
+          football semantics on top.
+        </li>
+        <li>
+          Two operator surfaces, both four-role only: <strong>People</strong> (every human the club
+          holds — coaches, committee, prospects, alumni) and <strong>Roster</strong> (this
+          season&#39;s players) plus player detail.
+        </li>
+        <li>Add-or-link a person with no membership, with a deliberate duplicate check.</li>
+        <li>
+          Correction: attributable, audited; contact values supersede rather than overwrite;
+          <code>disputed — awaiting verification</code> as a first-class state.
+        </li>
+        <li>
+          Audited person merge (invariant I6), including its three unresolved edges: an operator
+          seat on the losing record, the
+          <code>recruitment_prospects_one_per_person_per_season</code> collision, and consent-record
+          precedence.
+        </li>
+        <li>Aliases as dedupe evidence; never roster display.</li>
+        <li>
+          Alumni standing: derivation from membership history plus the existing
+          <code>past_member_override</code>.
+        </li>
+        <li>
+          The missing-data queue&#39;s definition and its working surface: required-field
+          definition, <code>not recorded</code> explicit and never defaulted, per-field indicators,
+          a roster flag, and a filter that produces a real list.
+        </li>
+        <li>Per-person change history on the person and player detail surfaces.</li>
+        <li>
+          Emergency contact&#39;s structural lockdown as a locked invariant: never a Person row,
+          never a contact point, never reachable by any audience or messaging machinery, out of
+          leadership exports by default.
+        </li>
+        <li>Read-only display of M2&#39;s RSVP, attendance and event history on player detail.</li>
+        <li>
+          <strong>Redesign, not extension</strong>, of the shipped <code>/operate/roster</code> and
+          <code>/operate/roster/[membershipId]</code> surfaces (portfolio rule 3, backwards-looking
+          and progressive).
+        </li>
+        <li>
+          Extending the local synthetic seed wherever a People or Roster journey needs a case it
+          lacks — a duplicate pair for the merge journey, a first-name-only record. The seed already
+          carries players, leavers, staff, role assignments, aliases and prospects.
+        </li>
+      </ul>
+      <h2>Out of scope</h2>
+      <ul>
+        <li>
+          <strong>Messaging of any kind.</strong> No send, no compose, no transport. First contact
+          is always the WhatsApp accept, built in M6 (recruit doors) and M7 (onboarding).
+        </li>
+        <li>
+          <strong>Consent capture and lawful basis.</strong> M6 owns recruit-door opt-in, M7 owns
+          season-membership consent, M8 owns policy, wording, versioning and rights. Nothing here
+          may send without a basis, so nothing here sends.
+        </li>
+        <li>
+          <strong>Import and carry-forward</strong>, and with them the season bootstrap — moved to
+          M7 (see deviation below).
+        </li>
+        <li>Season creation and all season lifecycle: open, close, rollover — M11.</li>
+        <li>
+          <strong>Channel presence — M6, extended by M7.</strong> Amended 2026-08-26: a named
+          communication group is a season record, not a durable person fact. The number and the
+          email stay here; whether somebody is in this season&#39;s group does not. Task 09 D3 fires
+          the community-group invite at every recruit door, so Mission 6 is its first user. Anchored
+          to person and season, so recruits are covered through
+          <code>recruitment_prospects</code> without holding a membership. This mission keeps the
+          contactability indicators built on the contact points it does own.
+        </li>
+        <li>
+          <strong>Club-role assignment and operator seats — M1.</strong> Recording who holds a club
+          role is Mission 1&#39;s surface and is not reopened here. A coach or committee member
+          added through this mission&#39;s add-or-link path is a Person on the People surface;
+          granting them a role or a login stays where it already lives.
+        </li>
+        <li>
+          <strong>A person editing their own record — M7.</strong> Task 11 §2.1 and its decision log
+          of 2026-08-15 already place coaches and committee members in the collection loop for
+          person-level data, and §7 records that players, coaches and committee &quot;supply and
+          correct their own data via signed links&quot;. Moment M5 covers a season-associated
+          person&#39;s data going stale mid-season and M6 covers a targeted correction request. No
+          settings surface is needed and none is built here; until M7 ships, a four-role operator
+          corrects the record for them.
+        </li>
+        <li>
+          <strong>The collection request itself — M7.</strong> Task 11 §1 states the division
+          directly: Task 08 defined the missing-data state and queue, Task 11 defines the chase, and
+          §7 consumes this queue rather than redefining it. The request record, the one-open-request
+          rule, its states including per-fact <code>refused</code>, and all cadence are Mission
+          7&#39;s. This mission owns the fact-level states and the queue only.
+        </li>
+        <li>
+          The recruits list, funnel stages, recruit notes and the four entry doors — M6. This
+          mission builds the duplicate-check and merge machinery those doors call.
+        </li>
+        <li>
+          Onboarding item behaviour, the checklist, nudges, the chase — M7. This mission displays
+          items and their per-item provenance.
+        </li>
+        <li>
+          Football-assignment semantics and availability behaviour — M9. This mission fixes only
+          surface placement and the read restriction.
+        </li>
+        <li>
+          Destructive person removal, erasure, retention execution, subject-access export — M8.
+        </li>
+        <li>
+          The general audit reading surface — M3. Per-person change history is here because it is
+          inseparable from correction and merge.
+        </li>
+        <li>
+          Player-facing logins; fields with no source evidence and no decision (home address,
+          nationality, kit size) — Task 08 §1 exclusions stand.
+        </li>
+      </ul>
+      <h2>Split decision</h2>
+      <p>
+        <strong>No split.</strong> People and Roster are two views over one record and one field
+        inventory; building the inventory twice yields two versions of what
+        <code>not recorded</code> means. No safety, authority, readiness, dependency or
+        outcome-coherence problem requires separation.
+      </p>
+      <h2>Portfolio deviation</h2>
+      <p>One exact amendment to the 2026-08-26 row, from Brian in this session:</p>
+      <p>
+        <strong
+          >The minimal season bootstrap moves out of Mission 5 and into Mission 7, delivered as the
+          import.</strong
+        >
+        The row currently assigns M5 &quot;a minimal season bootstrap (a season row so the roster
+        has a scope)&quot; and records the mechanism as an open owner decision with a seed-only
+        default. Brian:
+        <em
+          >&quot;the import is the season bootstrap for now… Season Bootstrap will move with 7,
+          basically, right to get it open, but it&#39;ll be done with an import, so that settles it
+          one way or the other.&quot;</em
+        >
+        This closes that open decision and removes season creation from this mission. Consequence
+        recorded: <strong>this mission closes walkable only against seeded data</strong>, since no
+        path for real records to arrive exists until M7.
+      </p>
+      <p>
+        Unchanged from the row and explicitly reconfirmed this session:
+        <strong>this mission ships no messaging of any kind</strong>, and surfaces render a field
+        only where its substrate exists on <code>main</code> at build time.
+      </p>
+      <h3>Amendment to this approved boundary — 2026-08-26</h3>
+      <p>
+        A second deviation was drafted and approved, then withdrawn the same day on Brian&#39;s
+        correction. It had named club-role assignment for a person with no operator seat as Mission
+        5 scope. Brian:
+        <em
+          >&quot;an operator is almost like an entirely different workflow from this… there is no
+          club role assignment here. That shouldn&#39;t be touched in this. It&#39;s already been
+          done.&quot;</em
+        >
+        Approval of the withdrawal: <em>&quot;Approved, approved, go.&quot;</em>
+      </p>
+      <h3>Second amendment — 2026-08-26</h3>
+      <p>
+        Channel presence leaves this mission, taking its durable person fields from sixteen to
+        fifteen. Brian:
+        <em
+          >&quot;If there&#39;s a channel presence, I think the channel presence deserves to be part
+          of a season record… you may be on a platform. We may keep that contact information, but
+          only the season knows if it&#39;s there.&quot;</em
+        >
+        And on named groups:
+        <em>&quot;Yes, we should have name groups, but that&#39;s part of the season.&quot;</em>
+        Approval of the move: <em>&quot;Okay, I think that&#39;s fair.&quot;</em>
+      </p>
+      <p>
+        The observation that prompted the first amendment stands and is carried into the packet as a
+        finding against Mission 1 rather than as scope here: <code>event-audience.ts:200</code>
+        resolves coaches and committee members to invitations only through
+        <code>role_assignments</code>, and the sole writer of that table on <code>main</code> is
+        operator-invitation acceptance (<code>operator-invitations.ts:1571</code>), so a club role
+        cannot be recorded without also granting a login. In this club&#39;s practice coaches hold
+        seats already, because LAN-110&#39;s attendance tool requires one.
+      </p>
+      <h2>Repository drift</h2>
+      <p>
+        Mission 4 (LAN-169–173) is executing and will move <code>main</code> during this intake.
+        Tolerable by the portfolio&#39;s own note and confirmed by inspection: its surface is
+        messaging and scheduling, which this mission does not touch.
+      </p>
+      <h2>Brian approval words</h2>
+      <p>&quot;Yeah, looks fine. This is approved.&quot;</p>
+      <h2>Approval date</h2>
+      <p>2026-08-26</p>
+    </div>
+  </body>
+</html>
