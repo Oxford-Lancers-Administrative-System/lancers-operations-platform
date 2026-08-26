@@ -1,0 +1,76 @@
+{
+  "screens": [
+    {
+      "id": "W5-01",
+      "route": "/operate/roster",
+      "headSha": "c15049636073841f040c5e034948803e68529bac",
+      "slot": "overflow",
+      "proposal": {
+        "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-01.js",
+        "sha256": "a207408f31de3d063d525bb6cf5812a52970a56131f9aa108afd036c27a42e46",
+        "bytes": 7168
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-01-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-01-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-01-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-01-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-08-26T21:15:40.949Z"
+    },
+    {
+      "id": "W6-01",
+      "route": "/operate/roster/31dfc005-a9c9-45c1-8082-2012c9d3a6de",
+      "headSha": "c15049636073841f040c5e034948803e68529bac",
+      "slot": "overflow",
+      "proposal": null,
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W6-01-current-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W6-01-current-phone375.png"
+        }
+      ],
+      "at": "2026-08-26T21:16:25.538Z"
+    }
+  ]
+}
