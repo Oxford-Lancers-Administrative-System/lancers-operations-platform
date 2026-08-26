@@ -1690,11 +1690,10 @@
         <section class="doc" id="W1">
           <header class="doc-head">
             <h2>W1 · Look up any person the club holds</h2>
-            <span class="chip inf">mock draft</span>
+            <span class="chip ok">done</span>
             <a class="golink" href="mockups/W1-look-up-any-person-the-club-holds.html"
               >Open the mockup →</a
             >
-            <span class="chip warn">4 open</span>
           </header>
           <div class="md">
             <h1>W1 — Look up any person the club holds</h1>
@@ -2393,6 +2392,56 @@
                 appears nowhere on a person record.
               </li>
             </ul>
+            <h2>The mobile-number seam — recorded 2026-08-26, inherited by Mission 6</h2>
+            <p>
+              <strong
+                >Superseding a mobile number invalidates a season fact this mission does not
+                own.</strong
+              >
+              The number is the person&#39;s and is corrected here. <strong>On WhatsApp</strong> —
+              being reachable on WhatsApp and in this season&#39;s group — is a
+              <em>season</em> record, and it left this mission for Mission 6 on 2026-08-26 under the
+              person-versus-season test. Nothing today notices that one depends on the other, so a
+              corrected number leaves Mission 4 scheduling against a presence that was verified for
+              a different number.
+            </p>
+            <p>
+              Brian raised it, 2026-08-26:
+              <em
+                >&quot;The phone number changes, which means WhatsApp will be impacted, which is a
+                big part of what the app does.&quot;</em
+              >
+            </p>
+            <p>The division that follows from the same test that split them:</p>
+            <ul>
+              <li>
+                <strong>This workflow raises the flag.</strong> Superseding a mobile marks that
+                person&#39;s On WhatsApp presence for the current season
+                <strong>unverified</strong>. It is the only place that knows the number changed. It
+                is deliberately not <code>not on WhatsApp</code>: the new number may well be on
+                WhatsApp, and nothing here can know.
+              </li>
+              <li>
+                <strong>Mission 6 verifies.</strong> It owns On WhatsApp and already fires the
+                community group invite at every recruit door; re-confirming an existing member is
+                that machinery pointed at somebody who is already on the roster.
+              </li>
+              <li>
+                <strong>Mission 4 must not send into an unverified presence.</strong> An unverified
+                presence is not a green light.
+              </li>
+              <li>
+                <strong><code>W7</code> is where it becomes work</strong>, if the required set grows
+                to include it. That is an owner decision and is not assumed here.
+              </li>
+            </ul>
+            <p>
+              <strong>Nothing of this is built in this mission.</strong> On WhatsApp has no
+              substrate on <code>main</code>, so there is no flag to set and no state to write. This
+              is recorded as a seam — the same treatment <code>W4</code> gives the prospect
+              collision — so Mission 6 inherits it rather than rediscovering it.
+              <code>W2-04</code>&#39;s read-back is the natural moment for the operator to be told.
+            </p>
             <h2>Exceptions and recovery</h2>
             <ul>
               <li>

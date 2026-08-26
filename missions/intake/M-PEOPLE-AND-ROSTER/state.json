@@ -39,30 +39,18 @@
     {
       "id": "W1",
       "name": "Look up any person the club holds",
-      "state": "mock_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W1-01",
-          "text": "The five list columns stay proposed: approved in principle, to be judged rendered."
-        },
-        {
-          "screen_id": "W1-04",
-          "text": "Drawn as only the people outside the season. Decide whether it is that or one list of all 214. Also unresolved: four-role or General-Manager-only."
-        },
-        {
-          "screen_id": "W1-05",
-          "text": "One garbled dictation line - 'the player, certainly, the change to see what it is shouldn't be here' - awaiting his restatement."
-        },
-        {
-          "screen_id": "W1-08",
-          "text": "With the recruitment block gone this screen differs from W1-06 only by the standing chip. Decide whether it still earns a screen."
-        }
-      ],
+      "feedback": [],
       "approvals": {
         "spec": {
           "words": "Okay, here you go. I approve.",
           "date": "2026-08-26"
+        },
+        "mock": {
+          "words": "Otherwise, Workflow 1 looks good to me. I approve.",
+          "date": "2026-08-26",
+          "by": "Brian Schuster"
         }
       }
     },
@@ -1570,5 +1558,5 @@
       }
     ]
   },
-  "next_action": "Review the eight workflows. W1 has round-two decisions pending; W2-W8 are drafted and awaiting their first read. Approval stays serial from W1"
+  "next_action": "W1 is done. Work W2 next: read its specification and mockup, take the two decisions it carries, and settle the mobile-number seam recorded against it"
 }

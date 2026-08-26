@@ -79,6 +79,39 @@
   which follows `W1`'s round-one decision that the recruit process appears
   nowhere on a person record.
 
+## The mobile-number seam — recorded 2026-08-26, inherited by Mission 6
+
+**Superseding a mobile number invalidates a season fact this mission does not
+own.** The number is the person's and is corrected here. **On WhatsApp** — being
+reachable on WhatsApp and in this season's group — is a _season_ record, and it
+left this mission for Mission 6 on 2026-08-26 under the person-versus-season
+test. Nothing today notices that one depends on the other, so a corrected number
+leaves Mission 4 scheduling against a presence that was verified for a different
+number.
+
+Brian raised it, 2026-08-26: _"The phone number changes, which means WhatsApp
+will be impacted, which is a big part of what the app does."_
+
+The division that follows from the same test that split them:
+
+- **This workflow raises the flag.** Superseding a mobile marks that person's
+  On WhatsApp presence for the current season **unverified**. It is the only
+  place that knows the number changed. It is deliberately not `not on WhatsApp`:
+  the new number may well be on WhatsApp, and nothing here can know.
+- **Mission 6 verifies.** It owns On WhatsApp and already fires the community
+  group invite at every recruit door; re-confirming an existing member is that
+  machinery pointed at somebody who is already on the roster.
+- **Mission 4 must not send into an unverified presence.** An unverified
+  presence is not a green light.
+- **`W7` is where it becomes work**, if the required set grows to include it.
+  That is an owner decision and is not assumed here.
+
+**Nothing of this is built in this mission.** On WhatsApp has no substrate on
+`main`, so there is no flag to set and no state to write. This is recorded as a
+seam — the same treatment `W4` gives the prospect collision — so Mission 6
+inherits it rather than rediscovering it. `W2-04`'s read-back is the natural
+moment for the operator to be told.
+
 ## Exceptions and recovery
 
 - **A value that two people disagree about.** The operator enters what they
