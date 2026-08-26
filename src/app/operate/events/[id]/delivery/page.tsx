@@ -16,15 +16,17 @@ import { UnavailableScreen } from "@/app/operate/unavailable";
 import {
   MAX_ATTEMPTS,
   readEventDelivery,
+  readEventDeliveryDiagnostics,
   type DeliveryRow,
+  type DiagnosticsAttempt,
   type EventDelivery,
 } from "@/lib/services/delivery";
 import { gateShellPage } from "../../../gate";
 import DeliveryFilters from "./delivery-filters";
 import { RetryDeliveryForm, RevokeAndReissueForm } from "./repair-forms";
 import {
-  DELIVERY_STATE_COLOURS,
-  DELIVERY_STATE_LABELS,
+  deliveryRowColour,
+  deliveryRowLabel,
   describeRetryability,
   describeRetryColumn,
   DIAGNOSTICS_HEADING,
@@ -33,7 +35,11 @@ import {
   FALLBACK_VALUE,
   formatAttemptTime,
   matchesStatusFilter,
+  NEEDS_ATTENTION_HEADING,
+  NEEDS_ATTENTION_NOTE,
+  NO_ACTION_NEEDED,
   OPEN_SELECTED_ISSUE,
+  OPEN_THEIR_RECORD,
   OVERVIEW_FACTS,
   OVERVIEW_NOTE,
   OVERVIEW_SUBTITLE,
@@ -123,9 +129,22 @@ export default async function DeliveryPage({
   }
 
   if (view === "diagnostics") {
+    // A second read rather than folding attempts into `readEventDelivery`:
+    // that reader is scoped to `job_type = 'invitation'` on purpose (the
+    // overview counts an *invitation*, once, per invitee) and this one is
+    // scoped to nothing — every job type, every attempt, R15's evidence.
+    // Widening the first to carry both would mean one row sometimes meaning
+    // an invitee and sometimes meaning an attempt.
+    const attempts = await readEventDeliveryDiagnostics(id);
     return (
       <DeliveryLayout delivery={delivery} basePath={basePath}>
-        <Diagnostics delivery={delivery} basePath={basePath} search={search} status={status} />
+        <Diagnostics
+          delivery={delivery}
+          attempts={attempts}
+          basePath={basePath}
+          search={search}
+          status={status}
+        />
       </DeliveryLayout>
     );
   }
@@ -242,6 +261,8 @@ function Overview({ delivery, basePath }: { delivery: EventDelivery; basePath: s
         ))}
       </Box>
 
+      <NeedsAttention delivery={delivery} />
+
       <Box>
         <Button
           variant="contained"
@@ -256,14 +277,109 @@ function Overview({ delivery, basePath }: { delivery: EventDelivery; basePath: s
   );
 }
 
+/**
+ * W6's own screen: everybody `matchesStatusFilter(row.state, "attention")`
+ * selects, and what — if anything — an operator does about each. Brian,
+ * 2026-08-25: retries and the email fallback are automatic and offer no
+ * action; only a missing route is a person's job, and what it needs is a
+ * roster fix rather than a message.
+ *
+ * Renders nothing when nobody needs attention — an event with every message
+ * delivered has nothing here to say, and a heading over an empty list would
+ * be a fact about nothing.
+ */
+function NeedsAttention({ delivery }: { delivery: EventDelivery }) {
+  const rows = delivery.rows.filter((row) => matchesStatusFilter(row.state, "attention"));
+  if (rows.length === 0) return null;
+
+  return (
+    <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }} data-testid="needs-attention">
+      <Stack spacing={2}>
+        <Box>
+          <Typography variant="h6" component="h2">
+            {NEEDS_ATTENTION_HEADING}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {NEEDS_ATTENTION_NOTE}
+          </Typography>
+        </Box>
+        {/*
+          No `divider` prop — MUI v9's `Stack` divider throws during server
+          rendering ("Element type is invalid… got: undefined"), a defect
+          `participation-table.tsx` already hit and documented. Borders do
+          the same job.
+        */}
+        <Stack spacing={0}>
+          {rows.map((row) => (
+            <Stack
+              key={row.jobId}
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              sx={{
+                py: 1.5,
+                justifyContent: "space-between",
+                alignItems: { sm: "center" },
+                borderBottom: 1,
+                borderColor: "divider",
+                "&:last-of-type": { borderBottom: 0 },
+              }}
+              data-testid="needs-attention-row"
+            >
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {row.inviteeName}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {row.noUsableRoute
+                    ? "No usable contact detail on their record — nothing to retry, nothing to fall back to"
+                    : row.whatsappUnresponsive
+                      ? "WhatsApp did not deliver · reached by email instead"
+                      : row.nextAttemptAt
+                        ? `Attempt ${row.attemptCount} of ${MAX_ATTEMPTS} · next attempt ${formatAttemptTime(
+                            row.nextAttemptAt,
+                          )}`
+                        : `Attempt ${row.attemptCount} of ${MAX_ATTEMPTS} used`}
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                <Chip
+                  size="small"
+                  color={deliveryRowColour(row)}
+                  label={deliveryRowLabel(row)}
+                  data-testid="needs-attention-state"
+                />
+                {row.noUsableRoute && row.seasonMembershipId ? (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    href={`/operate/roster/${row.seasonMembershipId}`}
+                  >
+                    {OPEN_THEIR_RECORD}
+                  </Button>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    {NO_ACTION_NEEDED}
+                  </Typography>
+                )}
+              </Stack>
+            </Stack>
+          ))}
+        </Stack>
+      </Stack>
+    </Paper>
+  );
+}
+
 /** UX-51 — every invitee, their delivery state, and their RSVP separately. */
 function Diagnostics({
   delivery,
+  attempts,
   basePath,
   search,
   status,
 }: {
   delivery: EventDelivery;
+  attempts: readonly DiagnosticsAttempt[];
   basePath: string;
   search: string;
   status: string;
@@ -381,8 +497,144 @@ function Diagnostics({
           </Paper>
         ))}
       </Stack>
+
+      <AttemptLog attempts={attempts} search={search} />
     </Stack>
   );
+}
+
+/**
+ * W6, R15's individual evidence: one row per attempt per channel — person,
+ * channel, attempt number, when, outcome, provider reference. Includes the
+ * automatic email fallback's own attempts, which is exactly the row the
+ * per-invitee table above cannot show: that table is one row per invitee,
+ * and a fallback is a second job for the same person, not a second invitee.
+ *
+ * No message content, ever, on either table. This one carries the same
+ * search the invitee table does, so an operator narrowing to one name sees
+ * both views agree.
+ */
+function AttemptLog({
+  attempts,
+  search,
+}: {
+  attempts: readonly DiagnosticsAttempt[];
+  search: string;
+}) {
+  const needle = search.trim().toLowerCase();
+  const rows = attempts.filter(
+    (attempt) => needle === "" || attempt.inviteeName.toLowerCase().includes(needle),
+  );
+
+  return (
+    <Stack spacing={1.5}>
+      <Box>
+        <Typography variant="h6" component="h2">
+          Every attempt
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          One row per attempt per channel, including the automatic email fallback. No message
+          content is shown.
+        </Typography>
+      </Box>
+
+      {rows.length === 0 ? (
+        <Alert severity="info" data-testid="attempt-log-empty">
+          {attempts.length === 0
+            ? "Nothing has been attempted for this event yet."
+            : "No attempt matches this search."}
+        </Alert>
+      ) : (
+        <TableContainer
+          component={Paper}
+          variant="outlined"
+          sx={{ display: { xs: "none", md: "block" }, overflowX: "auto" }}
+        >
+          <Table size="small" data-testid="attempt-log-table">
+            <TableHead>
+              <TableRow>
+                <TableCell>Person</TableCell>
+                <TableCell>Channel</TableCell>
+                <TableCell>Attempt</TableCell>
+                <TableCell>When</TableCell>
+                <TableCell>Outcome</TableCell>
+                <TableCell>Provider reference</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {rows.map((attempt) => (
+                <TableRow key={attempt.attemptId} data-testid="attempt-log-row">
+                  <TableCell sx={{ fontWeight: 600 }}>{attempt.inviteeName}</TableCell>
+                  <TableCell>{describeChannel(attempt.channel)}</TableCell>
+                  <TableCell>{attempt.attemptNumber}</TableCell>
+                  <TableCell>{formatAttemptTime(attempt.requestedAt)}</TableCell>
+                  <TableCell>
+                    <Chip size="small" label={describeAttemptOutcome(attempt.outcome)} />
+                  </TableCell>
+                  <TableCell sx={{ fontFamily: "monospace", fontSize: "0.8em" }}>
+                    {attempt.providerReference ?? "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+
+      {/* Phone: cards, per § 7. */}
+      {rows.length > 0 ? (
+        <Stack spacing={1} sx={{ display: { xs: "flex", md: "none" } }}>
+          {rows.map((attempt) => (
+            <Paper
+              key={attempt.attemptId}
+              variant="outlined"
+              sx={{ p: 2 }}
+              data-testid="attempt-log-card"
+            >
+              <Stack spacing={0.5}>
+                <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between" }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {attempt.inviteeName}
+                  </Typography>
+                  <Chip size="small" label={describeAttemptOutcome(attempt.outcome)} />
+                </Stack>
+                <Typography variant="body2" color="text.secondary">
+                  {`${describeChannel(attempt.channel)} · attempt ${attempt.attemptNumber} · ${formatAttemptTime(
+                    attempt.requestedAt,
+                  )}`}
+                </Typography>
+                {attempt.providerReference ? (
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ fontFamily: "monospace" }}
+                  >
+                    {attempt.providerReference}
+                  </Typography>
+                ) : null}
+              </Stack>
+            </Paper>
+          ))}
+        </Stack>
+      ) : null}
+    </Stack>
+  );
+}
+
+/** The attempt-level outcome, in the same words as the five-state vocabulary. */
+function describeAttemptOutcome(outcome: string): string {
+  switch (outcome) {
+    case "delivered":
+      return "Delivered";
+    case "failed":
+      return "Failed";
+    case "rejected":
+      return "Failed";
+    case "attempted":
+      return "Attempted";
+    default:
+      return "Sent";
+  }
 }
 
 /** UX-52 — one invitee, what happened, and the two repairs. */
@@ -425,7 +677,7 @@ function RepairPanel({
         >
           <Fact
             label="Latest result"
-            value={DELIVERY_STATE_LABELS[row.state]}
+            value={deliveryRowLabel(row)}
             note={
               row.failureReason
                 ? `${SAFE_REASON_PREFIX}: ${row.failureReason}`
@@ -481,13 +733,7 @@ function RepairPanel({
 }
 
 function StateChip({ row }: { row: DeliveryRow }) {
-  return (
-    <Chip
-      size="small"
-      color={DELIVERY_STATE_COLOURS[row.state]}
-      label={DELIVERY_STATE_LABELS[row.state]}
-    />
-  );
+  return <Chip size="small" color={deliveryRowColour(row)} label={deliveryRowLabel(row)} />;
 }
 
 /** The wireframe's "WhatsApp" and "Email fallback", from the neutral channel. */

@@ -487,7 +487,18 @@ function selectEmailAddress(rows: readonly ContactRow[], context: DeliveryContex
   return { ok: true, recipient };
 }
 
-/** Marks a job failed without having attempted a send — no number, no event. */
+/**
+ * Marks a job failed without having attempted a send — no number, no email.
+ *
+ * `outcome` is `'rejected'`, not `'failed'`: nothing was ever offered to a
+ * provider for it to be unhappy about, and a missing route is never fixed by
+ * trying again. `DELIVERY_STATE_EXPRESSION`'s `attempt_count < MAX_ATTEMPTS`
+ * arm exists for a provider that is briefly unhappy — before `'rejected'` was
+ * written here, a permanently unroutable person read **Retryable** for the
+ * whole of their remaining attempt ceiling, which is the opposite of
+ * `REQ-no-channel-backstop`'s "counted and visible", not "counted and
+ * retried".
+ */
 async function recordUndeliverableIn(
   tx: Tx,
   jobId: string,
@@ -518,7 +529,7 @@ async function recordUndeliverableIn(
   await tx.query(
     `insert into public.delivery_results
        (notification_job_id, attempt_number, outcome, channel, provider, detail)
-     values ($1, $2, 'failed', $3, $4, $5)
+     values ($1, $2, 'rejected', $3, $4, $5)
      on conflict (notification_job_id, attempt_number) do nothing`,
     [jobId, row.attempt_count, context.channel, context.provider.name, detail],
   );
@@ -531,6 +542,91 @@ async function recordUndeliverableIn(
     reason: detail,
     context: { attemptNumber: row.attempt_count, provider: context.provider.name },
   });
+}
+
+/**
+ * The suffix that marks a job as the automatic email carrier for a WhatsApp
+ * failure, rather than a rung of the ladder in its own right.
+ *
+ * A naming convention rather than a column, because `notification_jobs` has no
+ * spare foreign key for "carries the same message as", and this mission adds no
+ * migration. Every read that must not double-count a person's row —
+ * `readEventDelivery`'s per-invitee listing, `participation.ts`'s "most recent
+ * job" lateral — excludes `idempotency_key like '%' || EMAIL_FALLBACK_SUFFIX`,
+ * so a fallback is visible in diagnostics (every attempt, every channel) and
+ * invisible everywhere a person is counted once.
+ */
+export const EMAIL_FALLBACK_SUFFIX = ":email-fallback";
+
+/**
+ * REQ-fallback-is-automatic, REQ-whatsapp-outage-visible — W6.
+ *
+ * Called from `dispatchJob`'s two failure paths the moment a WhatsApp-channel
+ * job becomes **terminal**: no usable route at all, or the attempt that just
+ * exhausted its ceiling or was refused outright. Neither case is one more
+ * automatic retry of the same channel — `REQ-no-quiet-hours`'s neighbour,
+ * `REQ-fallback-is-automatic`, is that the *other* channel carries the message
+ * without anybody pressing anything.
+ *
+ * The new job is a shadow of the one that failed — same invitee, same content
+ * (`messageKindFor` reads `job_type`, which this copies), one channel over —
+ * keyed so a second sweep, or a second call from a retried transaction, creates
+ * it once. Dispatch is attempted inline, in the same call, so "the person was
+ * reached" is true by the time this function returns rather than true on the
+ * next tick: an operator who opens Delivery a second after the failure sees
+ * the fallback already under way, not a gap `REQ-whatsapp-outage-visible`
+ * would otherwise leave unexplained for one sweep interval.
+ *
+ * Returns the new job's id, or `null` where none was created — the job that
+ * failed was not a WhatsApp job, or a fallback for it already exists. The
+ * caller dispatches it once this function's transaction has committed: network
+ * I/O must never happen with a transaction open, the module header's own rule
+ * for every send in this file, and inserting here rather than sending here is
+ * what keeps that rule intact for this new path too.
+ *
+ * A fallback that itself fails is a delivery failure like any other — W6's
+ * exceptions state the identical rule one channel over, for the escalation's
+ * own send — and is recorded by the ordinary failure path `dispatchJob` takes
+ * for it. There is deliberately no second fallback from an email failure:
+ * email is the last rung this function ever reaches for.
+ */
+async function scheduleWhatsAppFallbackIn(tx: Tx, jobId: string): Promise<string | null> {
+  const created = await tx.query<{ id: string }>(
+    `insert into public.notification_jobs
+       (idempotency_key, job_type, status, invitation_id, event_id, person_id,
+        channel, scheduled_for, ladder_rung, template_variables)
+     select j.idempotency_key || '${EMAIL_FALLBACK_SUFFIX}', j.job_type, 'pending',
+            j.invitation_id, j.event_id, j.person_id,
+            'email'::public.notification_channel, now(), j.ladder_rung, '{}'::jsonb
+       from public.notification_jobs j
+      where j.id = $1 and j.invitation_id is not null and j.channel = 'whatsapp'
+     on conflict (idempotency_key) do nothing
+     returning id`,
+    [jobId],
+  );
+
+  return created.rows[0]?.id ?? null;
+}
+
+/**
+ * Dispatches a just-created fallback job, swallowing its own failure.
+ *
+ * Called after the transaction that created it has committed, so the fallback
+ * row is real by the time anything tries to send it. Failure is swallowed for
+ * `recordDispatchFailure`'s own reason: this runs on a path where the original
+ * WhatsApp send has already failed, the fallback's outcome is already durable
+ * on its own job row by the time `dispatchJob` returns, and a caller mid-sweep
+ * or mid-approval must not have the rest of its batch stopped by one message.
+ */
+async function dispatchFallbackBestEffort(
+  fallbackId: string,
+  options: { source?: EnvironmentSource; transport?: Transport },
+): Promise<void> {
+  try {
+    await dispatchJob(fallbackId, { ...options, automatic: true });
+  } catch {
+    // See the doc comment above.
+  }
 }
 
 /**
@@ -624,23 +720,33 @@ export async function dispatchJob(
 
   const claim = await withTransaction(async (tx) => {
     const outcome = await claimJobIn(tx, jobId, context, claimToken);
+    let fallbackId: string | null = null;
     if (!outcome.claimed && outcome.reason === "undeliverable") {
       await recordUndeliverableIn(tx, jobId, outcome.detail, context);
+      // A no-route refusal is terminal by construction — there is no ceiling
+      // to exhaust and nothing to retry — so it is a fallback trigger on its
+      // first and only failure, not merely on some later exhaustion.
+      if (channel === "whatsapp") fallbackId = await scheduleWhatsAppFallbackIn(tx, jobId);
     }
-    return outcome;
+    return { outcome, fallbackId };
   });
 
-  if (!claim.claimed) return claim.reason === "undeliverable" ? "refused" : "skipped";
+  if (claim.fallbackId) await dispatchFallbackBestEffort(claim.fallbackId, options);
 
-  const outcome = await provider.send(claim.attempt.message);
+  if (!claim.outcome.claimed) {
+    return claim.outcome.reason === "undeliverable" ? "refused" : "skipped";
+  }
+  const claimedAttempt = claim.outcome.attempt;
 
-  await withTransaction(async (tx) => {
+  const outcome = await provider.send(claimedAttempt.message);
+
+  const secondFallbackId = await withTransaction(async (tx) => {
     if (outcome.status === "accepted") {
       await tx.query(
         `update public.delivery_attempts
             set accepted_at = now(), provider_message_id = $2
           where id = $1`,
-        [claim.attempt.attemptId, outcome.providerMessageId],
+        [claimedAttempt.attemptId, outcome.providerMessageId],
       );
 
       // LAN-169. No automatic attempt is pending against an accepted message.
@@ -653,7 +759,7 @@ export async function dispatchJob(
             set next_attempt_at = null,
                 automatic_attempts = automatic_attempts + $2::integer
           where id = $1`,
-        [claim.attempt.jobId, options.automatic ? 1 : 0],
+        [claimedAttempt.jobId, options.automatic ? 1 : 0],
       );
 
       // The job stays `processing`. Meta accepting a message is not Meta
@@ -665,23 +771,23 @@ export async function dispatchJob(
         actorLabel: DISPATCH_ACTOR_LABEL,
         action: "delivery.attempted",
         entityTable: "notification_jobs",
-        entityId: claim.attempt.jobId,
+        entityId: claimedAttempt.jobId,
         context: {
-          attemptNumber: claim.attempt.attemptNumber,
+          attemptNumber: claimedAttempt.attemptNumber,
           provider: provider.name,
           channel: provider.channel,
           // The identifier, never the message and never the link.
           providerMessageId: outcome.providerMessageId,
         },
       });
-      return;
+      return null;
     }
 
     await tx.query(
       `update public.delivery_attempts
           set concluded_at = now(), failure_reason = $2
         where id = $1`,
-      [claim.attempt.attemptId, outcome.reason],
+      [claimedAttempt.attemptId, outcome.reason],
     );
 
     await tx.query(
@@ -690,8 +796,8 @@ export async function dispatchJob(
        values ($1, $2, $3, $4, $5, $6)
        on conflict (notification_job_id, attempt_number) do nothing`,
       [
-        claim.attempt.jobId,
-        claim.attempt.attemptNumber,
+        claimedAttempt.jobId,
+        claimedAttempt.attemptNumber,
         // `rejected` is the provider declining; `failed` is it not working.
         // The distinction is what the operator's retryable/terminal split reads.
         outcome.retryable ? "failed" : "rejected",
@@ -711,7 +817,12 @@ export async function dispatchJob(
     // something first, and scheduling an automatic retry for them would burn
     // the ceiling and hide the real problem behind "failed 5 times", which is
     // exactly what `SendOutcome.retryable` exists to prevent.
-    const nextAttemptAt = outcome.retryable ? backoffFrom(claim.attempt.attemptNumber) : null;
+    const nextAttemptAt = outcome.retryable ? backoffFrom(claimedAttempt.attemptNumber) : null;
+
+    // W6, `REQ-fallback-is-automatic`. Terminal exactly when there is nothing
+    // further this channel will do on its own: the provider refused outright,
+    // or this was the attempt that reached the ceiling.
+    const terminal = !outcome.retryable || claimedAttempt.attemptNumber >= MAX_ATTEMPTS;
 
     await tx.query(
       `update public.notification_jobs
@@ -720,17 +831,17 @@ export async function dispatchJob(
               automatic_attempts = automatic_attempts + $4::integer,
               updated_at = now()
         where id = $1`,
-      [claim.attempt.jobId, outcome.reason, nextAttemptAt, options.automatic ? 1 : 0],
+      [claimedAttempt.jobId, outcome.reason, nextAttemptAt, options.automatic ? 1 : 0],
     );
 
     await recordAudit(tx, {
       actorLabel: DISPATCH_ACTOR_LABEL,
       action: "delivery.failed",
       entityTable: "notification_jobs",
-      entityId: claim.attempt.jobId,
+      entityId: claimedAttempt.jobId,
       reason: outcome.reason,
       context: {
-        attemptNumber: claim.attempt.attemptNumber,
+        attemptNumber: claimedAttempt.attemptNumber,
         provider: provider.name,
         retryable: outcome.retryable,
         // `REQ-retries-have-no-actor`: the delivery surface shows the attempt
@@ -739,7 +850,13 @@ export async function dispatchJob(
         nextAttemptAt: nextAttemptAt?.toISOString() ?? null,
       },
     });
+
+    return terminal && channel === "whatsapp"
+      ? await scheduleWhatsAppFallbackIn(tx, claimedAttempt.jobId)
+      : null;
   });
+
+  if (secondFallbackId) await dispatchFallbackBestEffort(secondFallbackId, options);
 
   return outcome.status === "accepted" ? "accepted" : "refused";
 }
@@ -1255,12 +1372,35 @@ export interface DeliveryRow {
   readonly channel: string;
   readonly state: DeliveryState;
   readonly lastAttemptAt: Date | null;
+  /**
+   * W6, `REQ-retries-have-no-actor`. When the next automatic retry is due,
+   * for a `retryable` row — `null` for every other state, including a
+   * terminal `failed`, which by definition has none scheduled.
+   */
+  readonly nextAttemptAt: Date | null;
   readonly attemptCount: number;
   /** Safe, provider-neutral. Never raw provider text. */
   readonly failureReason: string | null;
   readonly tokenState: "live" | "revoked" | "none";
   readonly responseState: string;
   readonly retryable: boolean;
+  /**
+   * `REQ-no-channel-backstop`, W6. `state` is still `failed` — nothing about
+   * the provider-neutral vocabulary changes — this is the one fact that turns
+   * a generic failure into **Not dispatched — no channel**: there was never a
+   * route to try, so nothing here is a candidate for a retry or a fallback.
+   */
+  readonly noUsableRoute: boolean;
+  /**
+   * W6, `REQ-whatsapp-outage-visible`. True only when this WhatsApp-channel
+   * job is terminally `failed` **and** the automatic email fallback it
+   * triggered has since delivered — the person was reached, and the club's
+   * primary channel still failed, which is a fact the club must see rather
+   * than a silent substitution.
+   */
+  readonly whatsappUnresponsive: boolean;
+  /** Where **Open their record** goes for `noUsableRoute`. `null` for a walk-up. */
+  readonly seasonMembershipId: string | null;
 }
 
 export interface EventDelivery {
@@ -1361,9 +1501,12 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
       state: DeliveryState;
       attempt_count: number;
       last_attempt_at: Date | null;
+      next_attempt_at: Date | null;
       failure_reason: string | null;
       token_state: "live" | "revoked" | "none";
       response_state: string | null;
+      fallback_status: string | null;
+      season_membership_id: string | null;
     }>(
       `select j.id as job_id,
               j.invitation_id,
@@ -1373,6 +1516,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
               j.attempt_count,
               (select max(a.requested_at) from public.delivery_attempts a
                 where a.notification_job_id = j.id) as last_attempt_at,
+              j.next_attempt_at,
               j.last_error as failure_reason,
               case
                 when exists (
@@ -1385,7 +1529,15 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
                      and t.revoked_at is not null) then 'revoked'
                 else 'none'
               end as token_state,
-              s.response_state
+              s.response_state,
+              i.season_membership_id,
+              -- W6. The fallback job this one's failure triggered, if any —
+              -- named by convention (EMAIL_FALLBACK_SUFFIX), never a second
+              -- foreign key. Its own status decides WhatsApp unresponsive.
+              (select f.status::text
+                 from public.notification_jobs f
+                where f.idempotency_key = j.idempotency_key || '${EMAIL_FALLBACK_SUFFIX}'
+                limit 1) as fallback_status
          from public.notification_jobs j
          ${DELIVERY_LATEST_RESULT_JOIN}
          join public.invitations i on i.id = j.invitation_id
@@ -1393,6 +1545,7 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
          join public.people p on p.id = coalesce(i.person_id, m.person_id)
          left join public.invitation_response_state s on s.invitation_id = i.id
         where j.event_id = $1 and j.job_type = 'invitation'
+          and j.idempotency_key not like '%${EMAIL_FALLBACK_SUFFIX}'
         order by p.family_name nulls last, p.given_name`,
       [eventId],
     );
@@ -1400,6 +1553,10 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
     const mapped = rows.rows.map((row): DeliveryRow => {
       const known = row.known_as?.trim();
       const first = known && known !== "" ? known : row.given_name;
+      const noUsableRoute =
+        row.state === "failed" &&
+        (row.failure_reason === NO_USABLE_NUMBER_REASON ||
+          row.failure_reason === NO_USABLE_EMAIL_REASON);
       return {
         jobId: row.job_id,
         invitationId: row.invitation_id,
@@ -1407,10 +1564,17 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         channel: row.channel ?? "whatsapp",
         state: row.state,
         lastAttemptAt: row.last_attempt_at,
+        nextAttemptAt: row.next_attempt_at,
         attemptCount: row.attempt_count,
         failureReason: row.failure_reason,
         tokenState: row.token_state,
         responseState: row.response_state ?? "not_solicited",
+        noUsableRoute,
+        whatsappUnresponsive:
+          row.channel === "whatsapp" &&
+          row.state === "failed" &&
+          row.fallback_status === "completed",
+        seasonMembershipId: row.season_membership_id,
         // Independent of `state`, and deliberately so: UX-51 shows Result and
         // Retry as separate columns because a **Failed** delivery whose cause a
         // human has since fixed is still worth one more attempt.
@@ -1431,6 +1595,14 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
         // 'pending', 'ready' or 'failed', and a 'cancelled' job is none of
         // those — so a Retry button here would be offered, pressed and
         // refused, exactly like a held one.
+        //
+        // A `rejected` outcome — including `noUsableRoute` below — stays
+        // retryable up to the ceiling, on purpose: "still offered, because a
+        // human may have corrected the roster [or the cause] since" is this
+        // file's own settled answer, proved by
+        // `delivery.test.ts`'s "records a terminal refusal as Failed even
+        // with attempts remaining". A roster fix for **Not dispatched — no
+        // channel** is exactly this shape: fix the record, then press Retry.
         retryable:
           row.attempt_count < MAX_ATTEMPTS &&
           row.state !== "delivered" &&
@@ -1457,5 +1629,99 @@ export async function readEventDelivery(eventId: string): Promise<EventDelivery>
       },
       rows: mapped,
     };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostics — W6, "View diagnostics"
+// ---------------------------------------------------------------------------
+
+/** One send attempt, on one channel, for one person. R15's evidence. */
+export interface DiagnosticsAttempt {
+  readonly attemptId: string;
+  readonly inviteeName: string;
+  readonly channel: string;
+  readonly attemptNumber: number;
+  readonly requestedAt: Date;
+  /** `'delivered' | 'failed' | 'rejected' | 'attempted' | 'sent'` — never a guess. */
+  readonly outcome: string;
+  /** Never a phone number, a template id, or a message body. */
+  readonly providerReference: string | null;
+}
+
+/**
+ * Every attempt, on every channel, for one event — the individual detail
+ * behind the summary counts, and the evidence `R15`'s "documented recovery
+ * procedure" asks be checkable rather than asserted.
+ *
+ * Unlike `readEventDelivery`, this reads every job type, not only
+ * `invitation` — W6 acceptance #8 names "the fallback email that carried a
+ * failed WhatsApp" as a row this page must show, and a fallback is never a
+ * `job_type = 'invitation'` row `readEventDelivery` would count twice. Nothing
+ * here excludes the fallback shadow job the way the summary screens do; a
+ * shadow job is exactly the kind of attempt this page exists to make visible.
+ *
+ * One row per `delivery_attempts` row, which is already deduplicated at
+ * storage — `delivery_results`' `on conflict (notification_job_id,
+ * attempt_number) do nothing` is what makes a provider reporting the same
+ * result twice appear once, so this reader adds no deduplication of its own.
+ *
+ * `j.person_id` rather than a join through `invitations` — every job, escalation
+ * included, already carries the person it is about (`scheduleEventLadderIn`,
+ * the approval insert, and the escalation dispatch all set it), so one join
+ * covers every job type rather than three different paths to a name.
+ */
+export async function readEventDeliveryDiagnostics(
+  eventId: string,
+): Promise<readonly DiagnosticsAttempt[]> {
+  return withTransaction(async (tx) => {
+    const rows = await tx.query<{
+      attempt_id: string;
+      given_name: string;
+      family_name: string | null;
+      known_as: string | null;
+      channel: string;
+      attempt_number: number;
+      requested_at: Date;
+      recorded_outcome: string | null;
+      accepted_at: Date | null;
+      concluded_at: Date | null;
+      provider_message_id: string | null;
+    }>(
+      `select a.id as attempt_id,
+              p.given_name, p.family_name, p.known_as,
+              a.channel::text as channel,
+              a.attempt_number,
+              a.requested_at,
+              r.outcome::text as recorded_outcome,
+              a.accepted_at,
+              a.concluded_at,
+              a.provider_message_id
+         from public.notification_jobs j
+         join public.delivery_attempts a on a.notification_job_id = j.id
+         left join public.delivery_results r
+           on r.notification_job_id = j.id and r.attempt_number = a.attempt_number
+         join public.people p on p.id = j.person_id
+        where j.event_id = $1
+        order by p.family_name nulls last, p.given_name, a.requested_at`,
+      [eventId],
+    );
+
+    return rows.rows.map((row): DiagnosticsAttempt => {
+      const known = row.known_as?.trim();
+      const first = known && known !== "" ? known : row.given_name;
+      const outcome =
+        row.recorded_outcome ??
+        (row.accepted_at ? "attempted" : row.concluded_at ? "failed" : "sent");
+      return {
+        attemptId: row.attempt_id,
+        inviteeName: row.family_name ? `${first} ${row.family_name}` : first,
+        channel: row.channel,
+        attemptNumber: row.attempt_number,
+        requestedAt: row.requested_at,
+        outcome,
+        providerReference: row.provider_message_id,
+      };
+    });
   });
 }

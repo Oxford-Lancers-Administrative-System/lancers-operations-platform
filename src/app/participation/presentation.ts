@@ -157,6 +157,19 @@ export const DELIVERY_LABELS: Readonly<Record<string, string>> = Object.freeze({
 
 export const DELIVERY_NOT_QUEUED = "Nothing queued";
 
+/**
+ * W4/W6's two named exceptions to the plain five-state vocabulary above —
+ * `REQ-no-channel-backstop` and `REQ-whatsapp-outage-visible`. Both replace
+ * what would otherwise read as an undifferentiated **Failed**: one because
+ * there is nothing left to try, the other because the message got through on
+ * the other channel and the failure is still worth seeing.
+ */
+export const NOT_DISPATCHED_NO_CHANNEL = "Not dispatched — no channel";
+export const WHATSAPP_UNRESPONSIVE = "WhatsApp unresponsive";
+
+/** The Delivery filter's own entry for W4's acceptance #3, above the five states. */
+export const NEEDS_ATTENTION_FILTER_LABEL = "Needs attention";
+
 // ---------------------------------------------------------------------------
 // The discrepancy marker — D64
 // ---------------------------------------------------------------------------

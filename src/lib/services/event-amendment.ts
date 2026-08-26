@@ -6,6 +6,7 @@ import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
 import { deriveTermCoordinate, type EventDraftInput } from "./event-input";
 import { lockEventIn, readEventIn, type EventDetail } from "./events";
+import { freezeMessagingPlanIn, resolveMessagingPlanIn } from "./messaging-schedule";
 import {
   cancellationSilenceNeedsConfirmation,
   chaseThresholdOn,
@@ -181,6 +182,18 @@ function holdReason(changes: readonly AmendmentChange[]): string {
  * `events.decision_reason` and in the audit record, and goes nowhere near here.
  */
 const JOB_CANCELLED_BY_CANCELLATION = "The event was cancelled.";
+
+/**
+ * Recorded on a rung a reschedule's shortened runway no longer has room for.
+ *
+ * W8, `REQ-reschedule-recomputes`. Not a failure — the runway shrank the same
+ * way a late approval's does, and `REQ-late-approval`'s own rule applies: the
+ * ladder loses its email rung first, then its later WhatsApp reminders, before
+ * it loses the invitation. A job cancelled for this reason must never appear
+ * as a delivery failure, exactly as `JOB_CANCELLED_BY_CANCELLATION`'s jobs
+ * must not.
+ */
+const JOB_CANCELLED_BY_RESCHEDULE = "The rescheduled runway no longer has room for this reminder.";
 
 // ---------------------------------------------------------------------------
 // Reads
@@ -432,6 +445,12 @@ export interface AmendmentOutcome {
   noticesOwed: number;
   /** OD-1/Q6 — where the chase lands against the new date. */
   chaseThresholdOn: string | null;
+  /** W8, `REQ-reschedule-recomputes`. True when this amendment moved the date or start. */
+  rescheduled: boolean;
+  /** The recomputed response deadline, where `rescheduled` is true — else `null`. */
+  recomputedDeadlineAt: Date | null;
+  /** Held jobs this save released — resumed as they were, or onto a recomputed schedule. */
+  messagesResumed: number;
 }
 
 /**
@@ -548,6 +567,22 @@ export async function amendApprovedEvent(
       reason: holdReason(changes),
     });
 
+    // W8, REQ-reschedule-recomputes. `startsAt` is here as well as
+    // `scheduledOn` because the anchor every offset is measured from is the
+    // event's start instant, not its date alone — moving the start two hours
+    // later without moving the date is exactly as much a reschedule as moving
+    // the date is. `endsAt` is not: nothing in the messaging plan reads it.
+    const rescheduled = changes.some(
+      (change) => change.field === "scheduledOn" || change.field === "startsAt",
+    );
+    const recomputed = rescheduled
+      ? await recomputeScheduleOnRescheduleIn(tx, eventId, input)
+      : null;
+
+    // W8, "Held is never a resting state". Unconditional, and after the
+    // recompute above so a resumed job already carries its correct time.
+    const messagesResumed = await resumeHeldMessagesIn(tx, eventId);
+
     const audience = await readNotifyAudienceIn(tx, eventId);
     const noticesOwed = options.notify
       ? await recordNoticesOwedIn(tx, {
@@ -573,6 +608,7 @@ export async function amendApprovedEvent(
         recipients: audience.invited,
         silenceConfirmed: options.notify ? false : options.silenceConfirmed === true,
         messagesHeld,
+        messagesResumed,
         noticesOwed,
         scheduleChangeId,
         // OD-1/Q6, recorded rather than merely computed, so that "the chase was
@@ -580,7 +616,8 @@ export async function amendApprovedEvent(
         // three weeks later rather than an assertion about code.
         chaseThresholdDays: thresholdDays,
         chaseThresholdOn: threshold,
-        rescheduled: changes.some((change) => change.field === "scheduledOn"),
+        rescheduled,
+        recomputedDeadlineAt: recomputed?.responseDeadlineAt.toISOString() ?? null,
       },
     });
 
@@ -590,8 +627,11 @@ export async function amendApprovedEvent(
       notified: options.notify,
       recipients: audience.invited,
       messagesHeld,
+      messagesResumed,
       noticesOwed,
       chaseThresholdOn: threshold,
+      rescheduled,
+      recomputedDeadlineAt: recomputed?.responseDeadlineAt ?? null,
     };
   });
 }
@@ -891,6 +931,127 @@ async function holdUnsentMessagesIn(
 }
 
 /**
+ * W8, `REQ-resume-follows-notify` and "Held is never a resting state".
+ *
+ * Releases the hold `holdUnsentMessagesIn` places, unconditionally — the
+ * operator's notify choice decides whether a *change notice* is owed
+ * (`recordNoticesOwedIn`, above), never whether the held jobs themselves come
+ * back. W8's own workflow document is explicit that both branches resume the
+ * same way: "Re-notify chosen — the held messages resume… Re-notify not
+ * chosen — the held messages resume unchanged." The difference the notify
+ * choice makes is entirely in the extra notice job; this function does not
+ * read `options.notify` because there is nothing here for it to decide.
+ *
+ * Runs after `recomputeScheduleOnRescheduleIn` when this amendment is a
+ * reschedule, so a job resumes at its recomputed `scheduled_for` rather than
+ * at the one it was queued with before the date moved.
+ */
+async function resumeHeldMessagesIn(tx: Tx, eventId: string): Promise<number> {
+  // All three, together — `notification_jobs_held_pairing`'s own constraint
+  // (LAN-151) requires `held_reason` and `held_by_person_id` to be null
+  // exactly when `held_at` is, so a resumed job has to read as "never held"
+  // by every column at once rather than carrying history the database itself
+  // refuses to store half of. The audit trail (`messagesHeld`,
+  // `messagesResumed` on the amendment's own audit row) is where that history
+  // lives instead.
+  const resumed = await tx.query<{ id: string }>(
+    `update public.notification_jobs
+        set held_at = null, held_reason = null, held_by_person_id = null, updated_at = now()
+      where event_id = $1 and held_at is not null
+     returning id`,
+    [eventId],
+  );
+  return resumed.rowCount ?? 0;
+}
+
+/**
+ * W8, `REQ-reschedule-recomputes` and `OD-1`/`Q6`. The deliberate answer ADR
+ * 0021 left open: a reschedule recomputes the response deadline and
+ * everything counted from it, using W7's own rules — `resolveMessagingPlanIn`,
+ * the identical arithmetic approval runs, resolved `asOf` the amendment's own
+ * moment rather than the original approval's. A game moved three weeks later
+ * gets its full runway back rather than inheriting a deadline that has
+ * already passed, and one moved to next week gets `REQ-late-approval`'s
+ * WhatsApp-only shortened ladder for exactly the reason a late approval does:
+ * the runway is what it is, computed from now.
+ *
+ * Three things move together:
+ *
+ *   * `events.response_deadline_at` and every `invitations.expires_at` —
+ *     the single deadline every invitee's answer is measured against.
+ *   * `event_messaging_plans` — re-frozen via `freezeMessagingPlanIn`'s own
+ *     `on conflict (event_id) do update`, which exists for exactly this call.
+ *     `raiseDueEscalations` reads this row fresh on every sweep tick, so
+ *     re-freezing it is the whole of fixing the escalation's own timing going
+ *     forward — nothing else references the old one.
+ *   * The **held** invitation/reminder jobs' `scheduled_for` (and
+ *     `next_attempt_at`, if a backoff was already ticking), moved onto the
+ *     new plan's own rung times, matched by `ladder_rung`. A rung the new,
+ *     shorter runway no longer schedules is cancelled rather than left to
+ *     fire against a ladder that no longer has it — never as a failure
+ *     (`JOB_CANCELLED_BY_RESCHEDULE`), for the identical reason a
+ *     cancelled event's jobs are not.
+ *
+ * Called before `resumeHeldMessagesIn`, so a job resumes already carrying its
+ * correct time rather than resuming once and moving again a statement later.
+ */
+async function recomputeScheduleOnRescheduleIn(
+  tx: Tx,
+  eventId: string,
+  input: EventDraftInput,
+): Promise<{ responseDeadlineAt: Date }> {
+  const plan = await resolveMessagingPlanIn(
+    tx,
+    { eventType: input.eventType, scheduledOn: input.scheduledOn, startsAt: input.startsAt },
+    new Date(),
+  );
+
+  await tx.query(
+    `update public.events set response_deadline_at = $2::timestamptz, updated_at = now() where id = $1`,
+    [eventId, plan.responseDeadlineAt],
+  );
+  await tx.query(`update public.invitations set expires_at = $2::timestamptz where event_id = $1`, [
+    eventId,
+    plan.responseDeadlineAt,
+  ]);
+
+  // Re-freezes `event_messaging_plans` and fixes the escalation threshold
+  // for every future sweep — no actor to attribute this write to, since a
+  // reschedule is not itself an approval.
+  await freezeMessagingPlanIn(tx, eventId, plan, null);
+
+  const keptRungs = plan.rungs.map((rung) => rung.rung);
+  for (const rung of plan.rungs) {
+    await tx.query(
+      `update public.notification_jobs
+          set scheduled_for = $3::timestamptz,
+              next_attempt_at = case when next_attempt_at is not null then $3::timestamptz
+                                      else next_attempt_at end,
+              channel = $4::public.notification_channel,
+              updated_at = now()
+        where event_id = $1 and ladder_rung = $2
+          and status in ('pending', 'ready', 'failed')`,
+      [eventId, rung.rung, rung.at, rung.channel],
+    );
+  }
+
+  // A rung the shortened runway dropped entirely — `ladder_rung <> all(kept)`
+  // is true of everything when `kept` is empty, which is correct: a runway
+  // with room for nothing but the invitation cancels every reminder.
+  await tx.query(
+    `update public.notification_jobs
+        set status = 'cancelled', cancelled_reason = $2, claimed_at = null, claimed_by = null,
+            updated_at = now()
+      where event_id = $1 and job_type in ('invitation', 'reminder') and ladder_rung is not null
+        and ladder_rung <> all($3::smallint[])
+        and status in ('pending', 'ready', 'failed')`,
+    [eventId, JOB_CANCELLED_BY_RESCHEDULE, keptRungs],
+  );
+
+  return { responseDeadlineAt: plan.responseDeadlineAt };
+}
+
+/**
  * One obligation per invitation — the whole invited audience, decliners
  * included (OD-1/Q9).
  *
@@ -901,9 +1062,21 @@ async function holdUnsentMessagesIn(
  * None of that is a flag here, because none of it changes what this mission
  * writes — it changes what Mission 4 says, which is Mission 4's.
  *
- * `channel` and `scheduled_for` are left null on purpose. Which channel, and
- * when, are the two questions whose answers would change if the club moved to
- * email tomorrow.
+ * `channel` and `scheduled_for` are left null on purpose, and — checked while
+ * building W8 — that purpose still holds. The obvious next step, giving these
+ * a channel and letting the sweep claim them, runs the same `claimJobIn` path
+ * every other job takes, and that path unconditionally mints an RSVP token
+ * (`issueTokenIn`) before it will send anything. `issueTokenIn` refuses a
+ * **cancelled** event exactly as it refuses a started one — so a
+ * `cancellation_notice`, whose event is cancelled by definition, would throw
+ * on every claim, roll back before `attempt_count` increments, and be
+ * reclaimed by the very next tick forever: the identical unbounded-retry
+ * failure `readDueJobs`'s own comment documents for a started event's player
+ * rungs, reached here by a different door. A notice needs a send path that
+ * mints no token — the escalation's `dispatchEscalationJob` is the existing
+ * precedent for exactly that shape — and building one is real, undone work
+ * this package did not reach; see the PR for the limitation recorded against
+ * it rather than a silent implementation here.
  */
 async function recordNoticesOwedIn(
   tx: Tx,

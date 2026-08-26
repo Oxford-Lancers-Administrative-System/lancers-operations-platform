@@ -38,12 +38,17 @@ vi.mock("@/lib/auth/operator", () => ({ resolveOperatorAccess: vi.fn() }));
 vi.mock("../../../../login/actions", () => ({ signOut: vi.fn() }));
 vi.mock("@/lib/services/delivery", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/delivery")>();
-  return { ...actual, readEventDelivery: vi.fn() };
+  return { ...actual, readEventDelivery: vi.fn(), readEventDeliveryDiagnostics: vi.fn() };
 });
 
 import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
-import { readEventDelivery, type DeliveryRow, type EventDelivery } from "@/lib/services/delivery";
+import {
+  readEventDelivery,
+  readEventDeliveryDiagnostics,
+  type DeliveryRow,
+  type EventDelivery,
+} from "@/lib/services/delivery";
 import DeliveryPage from "./page";
 
 const EVENT = "00780078-0078-4078-8078-000000000050";
@@ -73,11 +78,15 @@ function row(overrides: Partial<DeliveryRow> = {}): DeliveryRow {
     channel: "whatsapp",
     state: "retryable",
     lastAttemptAt: new Date("2026-10-12T17:04:00Z"),
+    nextAttemptAt: null,
     attemptCount: 1,
     failureReason: "The provider is rate-limiting the club's account.",
     tokenState: "live",
     responseState: "awaiting_response",
     retryable: true,
+    noUsableRoute: false,
+    whatsappUnresponsive: false,
+    seasonMembershipId: null,
     ...overrides,
   };
 }
@@ -114,6 +123,7 @@ async function renderPage(query: Record<string, string> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(readEventDelivery).mockResolvedValue(delivery());
+  vi.mocked(readEventDeliveryDiagnostics).mockResolvedValue([]);
 });
 
 describe("who may open the delivery surface", () => {
@@ -297,6 +307,151 @@ describe("UX-51 — the diagnostics table", () => {
   });
 });
 
+describe("W6 — Needs attention and the attempt log", () => {
+  beforeEach(() => signedInAs(["secretary"]));
+
+  it("renders nothing when nobody needs attention", async () => {
+    vi.mocked(readEventDelivery).mockResolvedValue(
+      delivery({ rows: [row({ state: "delivered" })] }),
+    );
+    const { container } = await renderPage();
+    expect(container.querySelector('[data-testid="needs-attention"]')).toBeNull();
+  });
+
+  it("reads Not dispatched — no channel, offers Open their record, and never Failed", async () => {
+    vi.mocked(readEventDelivery).mockResolvedValue(
+      delivery({
+        rows: [
+          row({
+            state: "failed",
+            noUsableRoute: true,
+            seasonMembershipId: "membership-9",
+            retryable: false,
+          }),
+        ],
+      }),
+    );
+    const { container } = await renderPage();
+    const attentionRow = container.querySelector('[data-testid="needs-attention-row"]')!;
+    expect(attentionRow.textContent).toContain("Not dispatched — no channel");
+    expect(attentionRow.textContent).not.toContain("Failed");
+    const openRecord = within(attentionRow as HTMLElement).getByRole("link", {
+      name: "Open their record",
+    });
+    expect(openRecord.getAttribute("href")).toBe("/operate/roster/membership-9");
+  });
+
+  it("reads WhatsApp unresponsive and offers no action", async () => {
+    vi.mocked(readEventDelivery).mockResolvedValue(
+      delivery({ rows: [row({ state: "failed", whatsappUnresponsive: true, retryable: false })] }),
+    );
+    const { container } = await renderPage();
+    const attentionRow = container.querySelector('[data-testid="needs-attention-row"]')!;
+    expect(attentionRow.textContent).toContain("WhatsApp unresponsive");
+    expect(attentionRow.textContent).toContain("No action needed");
+    expect(within(attentionRow as HTMLElement).queryByRole("link")).toBeNull();
+    expect(within(attentionRow as HTMLElement).queryByRole("button")).toBeNull();
+  });
+
+  it("offers no action for an ordinary retrying failure, only the attempt and the next due time", async () => {
+    vi.mocked(readEventDelivery).mockResolvedValue(
+      delivery({
+        rows: [
+          row({
+            state: "retryable",
+            retryable: true,
+            attemptCount: 2,
+            nextAttemptAt: new Date("2026-10-13T09:40:00Z"),
+          }),
+        ],
+      }),
+    );
+    const { container } = await renderPage();
+    const attentionRow = container.querySelector('[data-testid="needs-attention-row"]')!;
+    // REQ-retries-have-no-actor: the *next* attempt's own time, never the
+    // last one's — `formatAttemptTime(row.lastAttemptAt)` read here until a
+    // real held event's preflight screenshot showed "next attempt Not
+    // attempted yet" for every retrying row, because `nextAttemptAt` was not
+    // being read at all.
+    expect(attentionRow.textContent).toContain("Attempt 2 of 5");
+    expect(attentionRow.textContent).toContain("next attempt");
+    expect(attentionRow.textContent).not.toContain("Not attempted yet");
+    expect(attentionRow.textContent).toContain("No action needed");
+    expect(within(attentionRow as HTMLElement).queryByRole("link")).toBeNull();
+    expect(within(attentionRow as HTMLElement).queryByRole("button")).toBeNull();
+  });
+
+  it("says the attempts are used, with no next attempt time, when none is scheduled", async () => {
+    vi.mocked(readEventDelivery).mockResolvedValue(
+      delivery({
+        rows: [row({ state: "failed", retryable: false, attemptCount: 5, nextAttemptAt: null })],
+      }),
+    );
+    const { container } = await renderPage();
+    const attentionRow = container.querySelector('[data-testid="needs-attention-row"]')!;
+    expect(attentionRow.textContent).toContain("Attempt 5 of 5 used");
+    expect(attentionRow.textContent).not.toContain("next attempt");
+  });
+
+  it("shows every attempt per channel, including the fallback, with no message content", async () => {
+    vi.mocked(readEventDeliveryDiagnostics).mockResolvedValue([
+      {
+        attemptId: "attempt-1",
+        inviteeName: "Zephyr",
+        channel: "whatsapp",
+        attemptNumber: 1,
+        requestedAt: new Date("2026-08-14T20:05:00Z"),
+        outcome: "failed",
+        providerReference: "wamid.HBgLNDQ",
+      },
+      {
+        attemptId: "attempt-2",
+        inviteeName: "Zephyr",
+        channel: "email",
+        attemptNumber: 1,
+        requestedAt: new Date("2026-08-14T21:05:00Z"),
+        outcome: "delivered",
+        providerReference: "re_9xKq",
+      },
+    ]);
+    const { container } = await renderPage({ view: "diagnostics" });
+    const rows = container.querySelectorAll('[data-testid="attempt-log-row"]');
+    expect(rows.length).toBe(2);
+    expect(rows[0].textContent).toContain("WhatsApp");
+    expect(rows[0].textContent).toContain("Failed");
+    expect(rows[1].textContent).toContain("Email fallback");
+    expect(rows[1].textContent).toContain("Delivered");
+    expect(container.textContent).toContain("No message content is shown");
+  });
+
+  it("narrows the attempt log to the same search as the invitee table", async () => {
+    vi.mocked(readEventDeliveryDiagnostics).mockResolvedValue([
+      {
+        attemptId: "attempt-1",
+        inviteeName: "Zephyr",
+        channel: "whatsapp",
+        attemptNumber: 1,
+        requestedAt: new Date("2026-08-14T20:05:00Z"),
+        outcome: "failed",
+        providerReference: null,
+      },
+      {
+        attemptId: "attempt-2",
+        inviteeName: "Rufus",
+        channel: "whatsapp",
+        attemptNumber: 1,
+        requestedAt: new Date("2026-08-14T20:05:00Z"),
+        outcome: "delivered",
+        providerReference: null,
+      },
+    ]);
+    const { container } = await renderPage({ view: "diagnostics", q: "zephyr" });
+    const rows = container.querySelectorAll('[data-testid="attempt-log-row"]');
+    expect(rows.length).toBe(1);
+    expect(rows[0].textContent).toContain("Zephyr");
+  });
+});
+
 /**
  * A complete inventory of every control on every delivery view, not a blocklist.
  *
@@ -312,7 +467,11 @@ describe("UX-51 — the diagnostics table", () => {
  * it is called, and whoever adds one has to widen the list on purpose.
  */
 const PERMITTED_CONTROLS: Readonly<Record<string, readonly string[]>> = {
-  overview: ["View diagnostics", "Delivery overview", "Back to event"],
+  // W6. "Open their record" only where `noUsableRoute` is set, which is why
+  // it has to be permitted here rather than only asserted in its own test:
+  // this inventory renders every `ROW_SHAPES` entry against every state, and
+  // the one that sets `noUsableRoute` renders it on the overview too.
+  overview: ["View diagnostics", "Open their record", "Delivery overview", "Back to event"],
   diagnostics: ["Open selected issue", "Delivery overview", "Back to event"],
   /**
    * The status filter with its menu open.
@@ -440,6 +599,20 @@ describe("every delivery view offers only the controls it is meant to", () => {
     { state: "queued", responseState: "expired_without_response", tokenState: "none" },
     { state: "delivered", responseState: "cancelled", tokenState: "revoked", retryable: false },
     { state: "queued", responseState: "not_solicited", tokenState: "none" },
+    // W6. The one delivery state that is a roster fix rather than a retry —
+    // `retryable: false` matches what `readEventDelivery` actually computes
+    // for it (a rejected outcome is never offered a Retry), and the overview
+    // is where "Open their record" lives.
+    {
+      state: "failed",
+      tokenState: "none",
+      retryable: false,
+      noUsableRoute: true,
+      seasonMembershipId: "membership-shape-1",
+    },
+    // W6. Reached by the automatic email fallback — counted, visible, and
+    // still offered nothing to press.
+    { state: "failed", tokenState: "live", retryable: false, whatsappUnresponsive: true },
   ];
 
   const QUERIES: Readonly<Record<string, Record<string, string>>> = {
@@ -457,6 +630,7 @@ describe("every delivery view offers only the controls it is meant to", () => {
    * appear only after an interaction or a failure.
    */
   async function renderState(state: string, shape: Partial<DeliveryRow> | null = {}) {
+    vi.mocked(readEventDeliveryDiagnostics).mockResolvedValue([]);
     if (state === "unavailable") {
       vi.mocked(readEventDelivery).mockRejectedValue(new NotFound("That event no longer exists."));
     } else {

@@ -269,6 +269,28 @@ export interface OperatorParticipationPerson extends ParticipationPerson {
    * `screens.test.tsx` keeps compiling — the real payload always sets it.
    */
   readonly invitationId?: string | null;
+  /**
+   * W4's chase position: the rung already sent and the next one due, for a
+   * person who has not answered — `null` for an answered row, a walk-up, or
+   * anybody whose delivery itself needs attention first (there is nothing to
+   * chase somebody the club has not reached). See `./chase-position.ts`.
+   *
+   * Optional for the reason `invitationId` is: every existing fixture keeps
+   * compiling without it.
+   */
+  readonly chasePosition?: string | null;
+  /**
+   * `REQ-no-channel-backstop`. True only when this person's most recent job
+   * failed for want of any usable contact detail — the one delivery state
+   * that is a roster fix rather than a retry.
+   */
+  readonly noUsableRoute?: boolean;
+  /**
+   * `REQ-whatsapp-outage-visible`. True when the automatic email fallback
+   * carried a WhatsApp failure through — the person was reached; the club's
+   * primary channel still failed, and stays visible for it.
+   */
+  readonly whatsappUnresponsive?: boolean;
 }
 
 /**
@@ -500,6 +522,11 @@ function matchesDelivery(person: ParticipationPerson, delivery: string): boolean
   if (delivery === "") return true;
   const state = (person as OperatorParticipationPerson).delivery ?? null;
   if (delivery === "none") return state === null;
+  // W4 acceptance #3: "Needs attention" returns exactly the failed and
+  // retryable people — the same predicate `delivery/presentation.ts`'s
+  // `matchesStatusFilter` uses, so the two screens' filter of the same name
+  // select the same population.
+  if (delivery === "attention") return state === "failed" || state === "retryable";
   return state === delivery;
 }
 

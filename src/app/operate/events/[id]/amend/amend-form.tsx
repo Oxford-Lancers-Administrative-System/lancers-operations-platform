@@ -54,6 +54,7 @@ import {
   notifyDefaultDetail,
   QUEUED_MESSAGES_HEADING,
   queuedMessagesDetail,
+  RESCHEDULE_RECOMPUTES_NOTE,
   REVIEW_HEADLINE_PREFIX,
   saveAndNotifyLabel,
   silenceConsequence,
@@ -277,6 +278,12 @@ export default function AmendForm({
   }
 
   const material = changes.some((change) => change.material);
+  // W8, REQ-reschedule-recomputes. `startsAt` moves the anchor exactly as
+  // `scheduledOn` does — see `recomputeScheduleOnRescheduleIn`'s own note on
+  // why `endsAt` is not here.
+  const isReschedule = changes.some(
+    (change) => change.field === "scheduledOn" || change.field === "startsAt",
+  );
 
   return (
     <Box component="form" action={formAction} ref={formRef} data-testid="amend-form">
@@ -565,6 +572,12 @@ export default function AmendForm({
                     {queuedMessagesDetail(unsentMessages)}
                   </Typography>
                 </Box>
+              ) : null}
+
+              {isReschedule ? (
+                <Alert severity="info" data-testid="reschedule-recomputes-note">
+                  {RESCHEDULE_RECOMPUTES_NOTE}
+                </Alert>
               ) : null}
 
               <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>

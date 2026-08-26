@@ -130,16 +130,30 @@ export function cancelNotifyDefaultDetail(isFuture: boolean): string | null {
  *
  * R156-B3. This used to end "… held until you tell people about this
  * change", which promised that notifying — now or later, at Save or at
- * Re-notify — released the hold. Nothing in the repository ever clears
- * `held_at`: whether a held job resumes as it was, resumes corrected, or is
- * replaced is Mission 4's decision, not this one's, and the module header on
- * `event-amendment.ts` says so. The sentence now says only what this build
- * actually does to these messages, and stops.
+ * Re-notify — released the hold. At the time nothing in the repository ever
+ * cleared `held_at`; W8 is Mission 4's decision arriving, and
+ * `resumeHeldMessagesIn` in `event-amendment.ts` now releases every held job
+ * in the same save that holds it — held is never a resting state a page
+ * reload can observe. The sentence says that, and stops: which held messages
+ * and when each was due is the panel's own list, not this one line.
  */
 export function queuedMessagesDetail(unsent: number): string | null {
   if (unsent === 0) return null;
-  return `Saving holds ${unsent} queued ${unsent === 1 ? "message" : "messages"}.`;
+  const plural = unsent === 1 ? "message" : "messages";
+  const pronoun = unsent === 1 ? "it" : "them";
+  return `Saving holds ${unsent} queued ${plural}, then resumes ${pronoun}.`;
 }
+
+/**
+ * W8, `REQ-reschedule-recomputes`, acceptance #7 — "the application says a
+ * reschedule is happening". The mockup's own sentence: a reschedule
+ * recomputes the response deadline and every reminder counted from it, using
+ * W7's rules, and this is the one place the operator is told so before they
+ * commit to it.
+ */
+export const RESCHEDULE_RECOMPUTES_NOTE =
+  "You changed the date or start, so the RSVP deadline and every reminder are recalculated from " +
+  "the new one. The app will say a reschedule is happening.";
 
 // ---------------------------------------------------------------------------
 // Silencing — W5-03b and W6-03

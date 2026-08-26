@@ -2,8 +2,11 @@ import "server-only";
 
 import { NotFound, withTransaction, type Tx } from "@/lib/db";
 import { requireCapability, requireGeneralOperator } from "@/lib/auth/guards";
+import { NO_USABLE_EMAIL_REASON } from "@/lib/delivery/email";
+import { NO_USABLE_NUMBER_REASON } from "@/lib/delivery/phone";
 
 import { isAttendancePresence, type AttendancePresence } from "./attendance-vocabulary";
+import { chasePositionLabel, type ChaseJobFact } from "./chase-position";
 import {
   deriveClubLinkToken,
   issueClubLinkIn,
@@ -16,6 +19,7 @@ import {
 import {
   DELIVERY_LATEST_RESULT_JOIN,
   DELIVERY_STATE_EXPRESSION,
+  EMAIL_FALLBACK_SUFFIX,
   type DeliveryState,
 } from "./delivery";
 import { readEventIn } from "./events";
@@ -110,6 +114,9 @@ interface PersonRow {
   reason: string | null;
   presence: string | null;
   delivery_state: DeliveryState | null;
+  delivery_channel: string | null;
+  delivery_failure_reason: string | null;
+  delivery_fallback_status: string | null;
 }
 
 /**
@@ -118,19 +125,34 @@ interface PersonRow {
  * A lateral over the invitation's most recent job rather than a plain join:
  * `notification_jobs` has no unique constraint on `invitation_id`, and a second
  * job for one invitee — a reissue, a second channel — would otherwise duplicate
- * that person's row in the table.
+ * that person's row in the table. `j.idempotency_key not like` excludes W6's
+ * automatic email-fallback shadow job for the same reason — it is not a second
+ * channel this person was invited on, it is the same message one channel over.
  *
  * The `j.id is null` guard is load-bearing. `DELIVERY_STATE_EXPRESSION` ends in
  * `else 'failed'`, which is right for a job and very wrong for the absence of
  * one: without it, every invitee nobody has queued anything for would read
  * **Failed**.
+ *
+ * `channel`, `failure_reason` and the fallback's own status travel alongside
+ * `state` for W4's two named exceptions to the plain vocabulary — **Not
+ * dispatched — no channel** and **WhatsApp unresponsive** — which `presentation.ts`
+ * derives from exactly these facts rather than from a sixth and seventh state
+ * invented for this table alone.
  */
 const DELIVERY_LATERAL = `
   left join lateral (
-    select case when j.id is null then null else ${DELIVERY_STATE_EXPRESSION} end as state
+    select case when j.id is null then null else ${DELIVERY_STATE_EXPRESSION} end as state,
+           j.channel::text as channel,
+           j.last_error as failure_reason,
+           (select f.status::text
+              from public.notification_jobs f
+             where f.idempotency_key = j.idempotency_key || '${EMAIL_FALLBACK_SUFFIX}'
+             limit 1) as fallback_status
       from public.notification_jobs j
       ${DELIVERY_LATEST_RESULT_JOIN}
      where j.invitation_id = inv.invitation_id
+       and j.idempotency_key not like '%${EMAIL_FALLBACK_SUFFIX}'
      order by j.created_at desc
      limit 1
   ) delivery on true`;
@@ -184,7 +206,14 @@ function participantQuery(tier: ParticipationTier): string {
          inv.issued_at,
          r.response::text as rsvp,
          r.reason,
-         rec.presence${operator ? ",\n         delivery.state as delivery_state" : ""}
+         rec.presence${
+           operator
+             ? ",\n         delivery.state as delivery_state" +
+               ",\n         delivery.channel as delivery_channel" +
+               ",\n         delivery.failure_reason as delivery_failure_reason" +
+               ",\n         delivery.fallback_status as delivery_fallback_status"
+             : ""
+         }
     from invited inv
     full outer join recorded rec on rec.anchor_id = inv.anchor_id
     left join public.people p
@@ -308,6 +337,60 @@ async function readHeadlineIn(tx: Tx, eventId: string): Promise<ParticipationHea
   };
 }
 
+interface ChaseJobRow {
+  invitation_id: string;
+  job_type: string;
+  channel: string;
+  ladder_rung: number | null;
+  status: string;
+  scheduled_for: Date | null;
+}
+
+/**
+ * Every invitation/reminder/escalation job for this event, one invitation's
+ * worth to a key — W4's raw material for `chasePositionLabel`. The fallback
+ * shadow job is excluded for the identical reason `DELIVERY_LATERAL` excludes
+ * it: it is not a rung of the ladder, it is the same message one channel over.
+ */
+async function readChaseJobsIn(tx: Tx, eventId: string): Promise<Map<string, ChaseJobFact[]>> {
+  const rows = await tx.query<ChaseJobRow>(
+    `select invitation_id, job_type::text as job_type, channel::text as channel,
+            ladder_rung, status::text as status, scheduled_for
+       from public.notification_jobs
+      where event_id = $1
+        and invitation_id is not null
+        and job_type in ('invitation', 'reminder', 'escalation')
+        and idempotency_key not like '%${EMAIL_FALLBACK_SUFFIX}'`,
+    [eventId],
+  );
+
+  const byInvitation = new Map<string, ChaseJobFact[]>();
+  for (const row of rows.rows) {
+    const list = byInvitation.get(row.invitation_id) ?? [];
+    list.push({
+      jobType: row.job_type as ChaseJobFact["jobType"],
+      channel: row.channel,
+      ladderRung: row.ladder_rung,
+      status: row.status,
+      scheduledFor: row.scheduled_for,
+    });
+    byInvitation.set(row.invitation_id, list);
+  }
+  return byInvitation;
+}
+
+/** Invitations with an unresolved escalation flag — W5's raised threshold. */
+async function readEscalatedInvitationsIn(tx: Tx, eventId: string): Promise<Set<string>> {
+  const rows = await tx.query<{ invitation_id: string }>(
+    `select f.invitation_id
+       from public.nonresponse_flags f
+       join public.invitations i on i.id = f.invitation_id
+      where i.event_id = $1 and f.threshold = 'escalation' and f.resolved_at is null`,
+    [eventId],
+  );
+  return new Set(rows.rows.map((row) => row.invitation_id));
+}
+
 async function readPeopleIn(
   tx: Tx,
   eventId: string,
@@ -315,6 +398,14 @@ async function readPeopleIn(
   questions: readonly ParticipationQuestion[],
 ): Promise<OperatorParticipationPerson[]> {
   const rows = await tx.query<PersonRow>(participantQuery(tier), [eventId]);
+
+  const operator = tier === "operator";
+  const chaseJobsByInvitation = operator
+    ? await readChaseJobsIn(tx, eventId)
+    : new Map<string, ChaseJobFact[]>();
+  const escalatedInvitations = operator
+    ? await readEscalatedInvitationsIn(tx, eventId)
+    : new Set<string>();
 
   const answersByInvitation = new Map<string, Record<string, string>>();
   if (questions.length > 0) {
@@ -338,6 +429,34 @@ async function readPeopleIn(
       : null;
     const isWalkUp = row.invitation_id === null;
 
+    // W6, `REQ-no-channel-backstop`. The one delivery state that is a roster
+    // fix rather than a retry — see `DELIVERY_LATERAL`'s doc comment for why
+    // this is read from the failure reason rather than a sixth job state.
+    const noUsableRoute =
+      row.delivery_state === "failed" &&
+      (row.delivery_failure_reason === NO_USABLE_NUMBER_REASON ||
+        row.delivery_failure_reason === NO_USABLE_EMAIL_REASON);
+    const whatsappUnresponsive =
+      row.delivery_channel === "whatsapp" &&
+      row.delivery_state === "failed" &&
+      row.delivery_fallback_status === "completed";
+
+    // W4's exceptions table: nothing here to chase for a walk-up, and nothing
+    // to chase for somebody the club has never reached at all — a pending
+    // reminder rung existing on its own schedule would otherwise read as
+    // "chasing" a person no message has ever got to.
+    const chaseResponseState =
+      answer === "yes" ? "responded_yes" : answer === "no" ? "responded_no" : "awaiting_response";
+    const chasePosition =
+      isWalkUp || row.invitation_id === null || noUsableRoute
+        ? null
+        : chasePositionLabel({
+            responseState: chaseResponseState,
+            isWalkUp: false,
+            escalated: escalatedInvitations.has(row.invitation_id),
+            jobs: chaseJobsByInvitation.get(row.invitation_id) ?? [],
+          });
+
     return {
       key: participantKey(row.capacity, row.season_membership_id, row.person_id),
       displayName: row.display_name ?? "Unnamed participant",
@@ -357,6 +476,9 @@ async function readPeopleIn(
       discrepancy: discrepancyFor({ answer, presence, isWalkUp }),
       answers: row.invitation_id ? (answersByInvitation.get(row.invitation_id) ?? {}) : {},
       delivery: row.delivery_state ?? null,
+      noUsableRoute,
+      whatsappUnresponsive,
+      chasePosition,
     };
   });
 }
