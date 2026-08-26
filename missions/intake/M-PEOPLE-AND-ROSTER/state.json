@@ -69,7 +69,7 @@
     {
       "id": "W2",
       "name": "Correct a person's record",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -77,7 +77,7 @@
     {
       "id": "W3",
       "name": "Add or link a person who holds no membership",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -85,7 +85,7 @@
     {
       "id": "W4",
       "name": "Merge two records for the same human",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -93,7 +93,7 @@
     {
       "id": "W5",
       "name": "Work this season's roster",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -101,7 +101,7 @@
     {
       "id": "W6",
       "name": "Open one player's record",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -109,7 +109,7 @@
     {
       "id": "W7",
       "name": "Work the missing-data queue",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -117,7 +117,7 @@
     {
       "id": "W8",
       "name": "See what changed on a person and who changed it",
-      "state": "not_started",
+      "state": "spec_draft",
       "stale": false,
       "feedback": [],
       "approvals": {}
@@ -1570,5 +1570,5 @@
       }
     ]
   },
-  "next_action": "Take Brian's round-two decisions on W1: the list columns, outside-only versus one list, four-role versus GM-only widening, whether W1-08 survives, and the garbled line"
+  "next_action": "Take Brian's decisions on W1, then work W2-W8 in order. W5 and W6 mockups are blocked: their surfaces exist on main and must be photographed, and port 3000 is held by another agent's dev server"
 }

@@ -1203,63 +1203,34 @@
   <body>
     <div class="page">
       <header class="page-head">
-        <h1>W1 · Look up any person the club holds</h1>
+        <h1>W4 · Merge two records for the same human</h1>
         <p>
-          An operator finds any human connected to the club and reads what is known about them.
-          Today that is impossible: no person route exists anywhere in the application, and a Person
-          can only be reached through a membership or an operator seat. Both surfaces this workflow
-          introduces —
-          <code>/operate/people</code> and <code>/operate/people/[personId]</code> — are new, and
-          nothing occupies either path on <code>main</code>.
+          The club holds one person twice; afterwards it holds them once, both identities are
+          preserved, everything that pointed at either record points at the survivor, and the whole
+          thing is answerable. Nothing is ever deleted — invariant I6.
+          <code>/operate/people/[personId]/merge</code> and its parent do not exist on
+          <code>main</code>.
         </p>
         <p>
-          <strong>Reading this review.</strong> Every screen shows two sides, always labelled the
-          same way and always banded the same way:
+          <strong>Reading this review.</strong>
           <span class="side-label" style="background: #90a4ae; color: #fff"
             >Current — on main today</span
           >
           and
           <span class="side-label" style="background: var(--primary); color: #fff"
             >Proposed — this mission</span
-          >. Each screen head also states whether the surface is
-          <span class="disposition new">New</span> or
-          <span class="disposition modified">Modified</span>.
-        </p>
-        <p>
-          <strong
-            >Every screen here is New, so every current side reads “New surface, nothing to
-            compare”.</strong
-          >
-          That is the grounding rule, not an omission: a surface that does not exist is drawn on
-          both sides, and a surface that exists is photographed on both sides. Never one of each.
-          <code>W5</code> and <code>W6</code> redesign the roster, which does exist, so those
-          screens will be photographs.
-        </p>
-        <p>
-          <strong>What binds, and what does not.</strong> The mockup owns structure and copy — which
-          sections exist and in what order, what each row carries, which controls exist and where
-          they sit, which states get their own screen. The application owns style: button variants,
-          colour, typography, spacing and shared formatters come from <code>src/theme.ts</code> and
-          MUI defaults. An ugly control here means “a control goes here”.
-        </p>
-        <p>
-          <strong>Second round.</strong> Every screen head marks what changed since your review with
-          <strong>Changed:</strong>. The largest change is not on any one screen: no sentence inside
-          an application frame explains anything any more. Labels, values and states only, plus the
-          one sentence an empty or refusal state genuinely needs. Three screens carry a
-          <strong>Decide:</strong> line where a change opened a question I should not answer for
-          you.
+          >. Every screen is <span class="disposition new">New</span>.
         </p>
         <div class="legend">
           <span
-            >Still open: the <strong>list columns</strong>, <code>W1-01</code>'s table head, which
-            you approved in principle and asked to judge rendered</span
+            ><strong>W4-02 is the screen this workflow exists for.</strong> Everything else is a
+            refusal or a consequence</span
           >
           <span
-            >Standing is the rebuilt six-rung ladder — Recruit · Onboarding · Active · Inactive ·
-            Departed · Archived</span
+            >This is the most disclosing screen in the mission — two people's contact, academic,
+            date-of-birth and emergency-contact values side by side</span
           >
-          <span>All names, colleges and numbers are the synthetic local dataset</span>
+          <span>All names and numbers are the synthetic local dataset</span>
         </div>
       </header>
       <div id="screens"></div>
@@ -1372,106 +1343,12 @@
         </div>`;
       };
 
-      /* ------------------------- the People list ------------------------- */
+      /* -------------------- shared list primitives ----------------------- */
 
-      /*
-       * One cast, used on every screen of this workflow. Names, colleges and
-       * numbers are the synthetic local dataset (`scripts/seed-local.mjs`).
-       *
-       *   standing   the ladder, or null for somebody who holds no membership
-       *              and no prospect record. A coach's tie to the season is a
-       *              role, so their standing column is simply empty — the
-       *              ladder describes players and says nothing about them
-       *   is         what they are to the club, and for a season role, when
-       *   mob/mail   contactability indicators. Raw contact values never
-       *              appear on a list — Task 08 §5
-       *   missing    counted against the required set for where this person
-       *              stands on the ladder
-       */
-      const SEASON_PEOPLE = [
-        { name: "Alaric Ashcombe", standing: "Active", is: "Player", mob: 1, mail: 1, missing: 0 },
-        { name: "Bertram", standing: "Active", is: "Player", mob: 1, mail: 0, missing: 8 },
-        {
-          name: "Caspian Hallowfield",
-          standing: null,
-          is: "Secretary · 2026-27",
-          mob: 1,
-          mail: 1,
-          missing: 0,
-        },
-        {
-          name: "Dashiell Draycott",
-          standing: "Onboarding",
-          is: "Player",
-          mob: 1,
-          mail: 1,
-          missing: 2,
-        },
-        {
-          name: "Emrys Fairhurst",
-          standing: "Recruit",
-          is: "Recruit",
-          mob: 1,
-          mail: 0,
-          missing: 0,
-        },
-        {
-          name: "Fenwick Gorsemoor",
-          standing: null,
-          is: "Head Coach · 2026-27",
-          mob: 1,
-          mail: 1,
-          missing: 0,
-        },
-        {
-          name: "Gideon Inglewhite",
-          standing: "Inactive",
-          is: "Player",
-          mob: 1,
-          mail: 1,
-          missing: 1,
-        },
-        {
-          name: "Hollis Jarrowdale",
-          aka: "Holly",
-          standing: "Active",
-          is: "Player · Gameday Secretary",
-          mob: 1,
-          mail: 1,
-          missing: 0,
-        },
-        {
-          name: "Ignatius Kirkbride",
-          standing: "Departed",
-          is: "Player",
-          mob: 0,
-          mail: 1,
-          missing: 0,
-        },
-        { name: "Jarrah Lanthorne", standing: "Active", is: "Player", mob: 1, mail: 1, missing: 0 },
-        {
-          name: "Marlowe Ravenscar-Pike",
-          standing: "Onboarding",
-          is: "Player",
-          mob: 1,
-          mail: 0,
-          missing: 3,
-        },
-        {
-          name: "Norbert Mereworth",
-          standing: "Recruit",
-          is: "Recruit",
-          mob: 1,
-          mail: 0,
-          missing: 0,
-        },
-      ];
-
-      /* `roster/presentation.ts`'s own mapping: active success, onboarding
-         info, inactive warning, everything else default. Recruit is not a
-         membership status at all and takes the default. */
+      /* `roster/presentation.ts`'s mapping: active success, onboarding info,
+         inactive warning, everything else default. */
       const standingChip = (standing) => {
-        if (standing === null) return `<span class="sec">—</span>`;
+        if (!standing) return `<span class="sec">—</span>`;
         const tone =
           standing === "Active"
             ? " ok"
@@ -1483,691 +1360,437 @@
         return `<span class="chip${tone}">${standing}</span>`;
       };
 
-      const contactCell = (p) => {
-        const bits = [];
-        if (p.mob) bits.push(`<span class="chip chip-outline">Mobile</span>`);
-        if (p.mail) bits.push(`<span class="chip chip-outline">Email</span>`);
-        return bits.length ? bits.join(" ") : `<span class="sec">—</span>`;
-      };
-
-      const missingCell = (p) =>
-        p.missing
-          ? `<span class="chip chip-warn">${p.missing} missing</span>`
-          : `<span class="sec">—</span>`;
-
-      const nameCell = (p, matched) => `
-        <span class="bold">${p.name}</span>
-        ${
-          matched && p.aka
-            ? `<div class="aka">matched alias “${p.aka}”</div>`
-            : p.aka
-              ? `<div class="aka">also “${p.aka}”</div>`
-              : ""
-        }
-        ${p.era ? `<div class="aka">${p.era}</div>` : ""}`;
-
-      /* Every column that can be meaningfully ordered is sortable — Brian,
-         2026-08-26: "we should be able to sort aggressively". A link, as
-         `roster/page.tsx`'s SortableHeader already is, so the order is in the
-         URL and survives the back button. */
       const sortHead = (label, on = false, dir = "▲") =>
         `<a class="sortable${on ? " on" : ""}" href="#">${label}<span class="arw">${dir}</span></a>`;
 
-      const peopleTable = (rows, matched = false) => `
+      /* One table, one card list, from one row set — so the 1280 and the 375
+         frames can never drift apart. */
+      const dataTable = (headers, rows, sortedIndex = 0) => `
         <div class="paper wide-only" style="padding:0">
           <div class="scroll-x">
             <table class="tbl">
-              <thead>
-                <tr>
-                  <th>${sortHead("Name", true)}</th>
-                  <th>${sortHead("Standing")}</th>
-                  <th>${sortHead("To the club")}</th>
-                  <th>${sortHead("Contactable")}</th>
-                  <th>${sortHead("Missing")}</th>
-                </tr>
-              </thead>
+              <thead><tr>${headers
+                .map((h, i) => `<th>${sortHead(h, i === sortedIndex)}</th>`)
+                .join("")}</tr></thead>
               <tbody>
-                ${rows
-                  .map(
-                    (p) => `
-                  <tr>
-                    <td>${nameCell(p, matched)}</td>
-                    <td>${standingChip(p.standing)}</td>
-                    <td>${p.is}</td>
-                    <td>${contactCell(p)}</td>
-                    <td>${missingCell(p)}</td>
-                  </tr>`,
-                  )
-                  .join("")}
+                ${rows.map((cells) => `<tr>${cells.map((c) => `<td>${c}</td>`).join("")}</tr>`).join("")}
               </tbody>
             </table>
           </div>
         </div>`;
 
-      const peopleCards = (rows, matched = false) => `
+      const cardList = (cards) => `
         <div class="narrow-only">
-          ${rows
+          ${cards
             .map(
-              (p) => `
+              (c) => `
             <div class="percard">
-              <div class="pname">${p.name}</div>
-              ${matched && p.aka ? `<div class="aka">matched alias “${p.aka}”</div>` : p.aka ? `<div class="aka">also “${p.aka}”</div>` : ""}
-              ${p.era ? `<div class="aka">${p.era}</div>` : ""}
-              <div class="chiprow">
-                ${p.standing === null ? "" : standingChip(p.standing)}
-                ${p.is === p.standing ? "" : `<span class="chip chip-outline">${p.is}</span>`}
-                ${p.missing ? `<span class="chip chip-warn">${p.missing} missing</span>` : ""}
-              </div>
+              <div class="pname">${c.title}</div>
+              ${c.sub ? `<div class="aka">${c.sub}</div>` : ""}
+              <div class="chiprow">${c.chips.join("")}</div>
             </div>`,
             )
             .join("")}
         </div>`;
 
-      /* Search, then two thin filters. Brian, 2026-08-26: "keep the filter
-         thin for now". The phone collapses everything but search behind one
-         `Filters` button, which is what `list-filters.tsx` already does. */
-      const filterBar = (term = "") => `
-        <div class="row g2 wide-only" style="flex-wrap:wrap">
-          <span class="field-inline" style="flex:1;min-width:240px">
-            ${term ? `<span class="bold">${term}</span>` : "Search name or alias"}
-          </span>
-          <span class="field-inline">Standing: All ▾</span>
-          <span class="field-inline">Missing data: All ▾</span>
-        </div>
-        <div class="narrow-only">
-          <div class="row g2" style="align-items:center">
-            <span class="field-inline" style="flex:1">
-              ${term ? `<span class="bold">${term}</span>` : "Search name or alias"}
-            </span>
-            <button class="btn btn-outlined btn-sm">Filters</button>
-          </div>
-        </div>`;
-
-      const listHead = (subline, action) => `
+      const pageHead = (title, subline, action = "") => `
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
           <div style="min-width:0">
-            <p class="h6" style="margin:0">People</p>
+            <p class="h6" style="margin:0">${title}</p>
             <p class="body2 sec" style="margin:2px 0 0">${subline}</p>
           </div>
           ${action}
         </div>`;
 
-      /* Brian, 2026-08-26: "we need a more clear way of saying see people
-         outside of the season… Everyone the club has ever held is a weird
-         language there." */
-      const OUTSIDE_BTN = `<button class="btn btn-outlined">See people outside this season</button>`;
-
-      /* --------------------------- list screens -------------------------- */
-
-      const W101 = operatorShell(`
-        <div class="stack g3">
-          ${listHead("Season 2026-27 · 12 people", OUTSIDE_BTN)}
-          ${filterBar()}
-          ${peopleTable(SEASON_PEOPLE)}
-          ${peopleCards(SEASON_PEOPLE)}
-        </div>`);
-
-      const HOLLIS_ROW = SEASON_PEOPLE.find((p) => p.aka === "Holly");
-
-      const W102 = operatorShell(`
-        <div class="stack g3">
-          ${listHead("Season 2026-27 · 1 of 12 match “Holly”", OUTSIDE_BTN)}
-          ${filterBar("Holly")}
-          ${peopleTable([HOLLIS_ROW], true)}
-          ${peopleCards([HOLLIS_ROW], true)}
-        </div>`);
-
-      /*
-       * `roster/page.tsx`'s EmptyRoster idiom — an outlined Paper carrying its
-       * own recovery. Empty-state copy is the one place a sentence belongs in
-       * a surface, and it is one sentence.
-       */
-      const W103 = operatorShell(`
-        <div class="stack g3">
-          ${listHead("Season 2026-27 · no match for “Kestrel”", "")}
-          ${filterBar("Kestrel")}
-          <div class="paper">
-            <div class="stack g2" style="max-width:640px">
-              <p class="h6" style="margin:0">Nobody in this season matches “Kestrel”</p>
-              <p class="body1 sec" style="margin:0">
-                People outside the 2026-27 season are not in this list.
-              </p>
-              <div class="row g2" style="flex-wrap:wrap">
-                <button class="btn btn-contained">See people outside this season</button>
-                <button class="btn btn-outlined">Clear search</button>
-              </div>
-            </div>
+      const searchBar = (placeholder, term = "", filters = []) => `
+        <div class="row g2 wide-only" style="flex-wrap:wrap">
+          <span class="field-inline" style="flex:1;min-width:240px">
+            ${term ? `<span class="bold">${term}</span>` : placeholder}
+          </span>
+          ${filters.map((f) => `<span class="field-inline">${f}</span>`).join("")}
+        </div>
+        <div class="narrow-only">
+          <div class="row g2" style="align-items:center">
+            <span class="field-inline" style="flex:1">
+              ${term ? `<span class="bold">${term}</span>` : placeholder}
+            </span>
+            ${filters.length ? `<button class="btn btn-outlined btn-sm">Filters</button>` : ""}
           </div>
-        </div>`);
+        </div>`;
 
-      const OUTSIDE_PEOPLE = [
-        {
-          name: "Kestrel Caldicott",
-          standing: null,
-          is: "Alumnus",
-          era: "Last season 2019-20",
-          mob: 0,
-          mail: 1,
-          missing: 0,
-        },
-        {
-          name: "Osgood Thornbury",
-          standing: null,
-          is: `<span class="sec">—</span>`,
-          era: "No season, no role",
-          mob: 1,
-          mail: 1,
-          missing: 0,
-        },
-        {
-          name: "Percival Oakhanger",
-          standing: null,
-          is: "Head Coach · 2024-25",
-          era: "Last season 2024-25",
-          mob: 1,
-          mail: 1,
-          missing: 1,
-        },
-      ];
+      /* A labelled text field, as MUI renders a small outlined TextField. */
+      const field = (label, value, opts = {}) => `
+        <div class="field${opts.focused ? " focused" : ""}${opts.disabled ? " disabled" : ""}"
+             style="${opts.style ?? ""}">
+          <span class="lab">${label}</span>
+          <span style="min-width:0;overflow-wrap:anywhere">${value}</span>
+          ${opts.right ?? ""}
+        </div>`;
 
-      const W104 = operatorShell(`
-        <div class="stack g3">
-          ${listHead("Outside the 2026-27 season · 202 people", "")}
-          <div class="widened">
-            <span class="body2"><span class="bold">People outside the 2026-27 season.</span></span>
-            <button class="btn btn-outlined">Back to this season</button>
-          </div>
-          ${filterBar()}
-          ${peopleTable(OUTSIDE_PEOPLE)}
-          ${peopleCards(OUTSIDE_PEOPLE)}
-        </div>`);
-
-      /* ------------------------- the person record ----------------------- */
-
-      /*
-       * One record layout, filled from data, so the people below cannot drift
-       * into different pages. Sections in this order: who they are, how to
-       * reach them, academic, restricted, where they stand, their seasons,
-       * what changed.
-       *
-       * Nothing in it explains itself. Every sentence that used to sit inside
-       * this frame is either gone or has moved to the screen head.
-       */
-      const recordHead = (p) => `
+      const mergeHead = (action) => `
         <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
           <div style="min-width:0">
-            <p class="body2 sec" style="margin:0">
-              <a class="golink" href="#">← People</a>
-            </p>
-            <p class="h5" style="margin:4px 0 0">${p.name}</p>
-            <div class="chiprow">
-              ${p.standing === null ? "" : standingChip(p.standing)}
-              <span class="chip chip-outline">${p.is}</span>
-            </div>
+            <p class="body2 sec" style="margin:0"><a class="golink" href="#">← Hollis Jarrowdale</a></p>
+            <p class="h5" style="margin:4px 0 0">Merge two records</p>
           </div>
-          <div class="row g2" style="flex-wrap:wrap">
-            <button class="btn btn-outlined">Correct this record</button>
-            <button class="btn btn-text">Merge…</button>
+          <div class="row g2">
+            <button class="btn btn-text">Cancel</button>
+            ${action}
           </div>
         </div>`;
 
-      const personRecord = (p) => `
+      const section = (title, body) => paper(title, `<div class="stack g3">${body}</div>`);
+
+      /*
+       * One field, both values, and which one the survivor keeps. Neither is
+       * assumed right for being older or newer: the older record is often the
+       * more complete and the newer the more correct, and assuming either loses
+       * data.
+       */
+      const compare = (label, left, right, keep, differs = true) => `
+        <div class="frow" style="grid-template-columns:170px 1fr">
+          <div class="flab">${label}${differs ? ` <span class="chip chip-warn" style="height:18px;font-size:11px">differs</span>` : ""}</div>
+          <div class="grid2 g2" style="width:100%">
+            <div class="qbox" style="${keep === "left" ? "border-color:var(--primary);border-width:2px;padding:15px" : ""}">
+              <div class="body2">${left}</div>
+              ${keep === "left" ? `<div class="over" style="color:var(--primary);line-height:1.6">Keep this</div>` : `<button class="btn btn-text btn-sm" style="padding-left:0">Keep this</button>`}
+            </div>
+            <div class="qbox" style="${keep === "right" ? "border-color:var(--primary);border-width:2px;padding:15px" : ""}">
+              <div class="body2">${right}</div>
+              ${keep === "right" ? `<div class="over" style="color:var(--primary);line-height:1.6">Keep this</div>` : `<button class="btn btn-text btn-sm" style="padding-left:0">Keep this</button>`}
+            </div>
+          </div>
+        </div>`;
+
+      const W401 = operatorShell(`
         <div class="stack g3">
-          ${recordHead(p)}
-          ${p.banner ?? ""}
-          ${paper(
-            "Who they are",
-            frow("First name", p.first) + frow("Last name", p.last) + frow("Aliases", p.aliases),
+          ${mergeHead(`<button class="btn btn-contained">Compare</button>`)}
+          ${searchBar("Search name or alias", "Jarrowdale")}
+          ${dataTable(
+            ["Name", "Standing", "To the club", "Contactable"],
+            [
+              [
+                `<span class="bold">Holly Jarrowdale</span><div class="aka">created 14 September 2024</div>`,
+                `<span class="sec">—</span>`,
+                `<span class="sec">—</span>`,
+                `<span class="chip chip-outline">Mobile</span>`,
+              ],
+            ],
           )}
-          ${paper(
-            "How to reach them",
-            frow("Mobile phone", p.mobile) +
-              frow("Personal email", p.personalEmail) +
-              frow("College email", p.collegeEmail),
-          )}
-          ${paper(
-            "Academic",
-            frow("College", p.college) +
-              frow("Matriculation year", p.matric) +
-              frow("Expected graduation", p.graduation) +
-              frow("Degree field", p.degree),
-          )}
-          ${paper(
-            "Restricted",
-            frow("Date of birth", p.dob) +
-              frow("Under 18", p.under18) +
-              frow("Emergency contact", p.emergency),
-          )}
-          ${paper(
-            "Where they stand",
-            frow("Standing", p.standingDetail) +
-              frow("Alumni standing", p.alumniDetail) +
-              frow("Roles", p.roles),
-          )}
-          ${paper("Their seasons", p.seasons)}
-          ${paper("What changed", p.history, `<a class="golink" href="#">Full history →</a>`)}
-        </div>`;
+          ${cardList([
+            {
+              title: "Holly Jarrowdale",
+              sub: "created 14 September 2024",
+              chips: [`<span class="chip chip-outline">Mobile</span>`],
+            },
+          ])}
+        </div>`);
 
-      /*
-       * A season row is one link, not a row with an Open button beside it.
-       * Brian, 2026-08-26: "I don't know what 'open' means… it's not clear to
-       * me what that 'open' button does." The season's own standing sits on
-       * the row, so an archived season reads as archived rather than as
-       * something to act on.
-       */
-      const seasonRow = (label, standing, note) => `
-        <div class="seasonrow">
-          <div style="min-width:0">
-            <a class="golink" href="#">${label}</a>
-            <div class="aka">${note}</div>
+      const W402 = operatorShell(`
+        <div class="stack g3">
+          ${mergeHead(`<button class="btn btn-contained">Merge</button>`)}
+          ${paper(
+            "Which record survives",
+            `<div class="grid2 g2">
+               <div class="qbox" style="border-color:var(--primary);border-width:2px;padding:15px">
+                 <div class="bold">Hollis Jarrowdale</div>
+                 <div class="aka">Player · 2026-27 · created 2 September 2024</div>
+                 <div class="over" style="color:var(--primary);line-height:1.6">Survivor</div>
+               </div>
+               <div class="qbox">
+                 <div class="bold">Holly Jarrowdale</div>
+                 <div class="aka">No season, no role · created 14 September 2024</div>
+                 <button class="btn btn-text btn-sm" style="padding-left:0">Make this the survivor</button>
+               </div>
+             </div>`,
+          )}
+          ${paper(
+            "What each record says",
+            compare("First name", "Hollis", "Holly", "left") +
+              compare("Last name", "Jarrowdale", "Jarrowdale", "left", false) +
+              compare(
+                "Mobile phone",
+                "+44 7700 900988",
+                `<span class="notrec">not recorded</span>`,
+                "left",
+              ) +
+              compare(
+                "Personal email",
+                `<span class="notrec">not recorded</span>`,
+                "holly.j@example.com",
+                "right",
+              ) +
+              compare(
+                "College",
+                "Hallamshire",
+                `<span class="notrec">not recorded</span>`,
+                "left",
+              ) +
+              compare("Date of birth", "4 March 2005", "4 March 2005", "left", false) +
+              compare(
+                "Emergency contact",
+                "Alwyn Winterbourne · Parent",
+                `<span class="notrec">not recorded</span>`,
+                "left",
+              ),
+          )}
+          ${section("Why", field("Reason", "Same person, entered twice at the 2024 freshers' fair", { focused: true }))}
+        </div>`);
+
+      const W403 = operatorShell(`
+        <div class="stack g3">
+          ${mergeHead(`<button class="btn btn-contained">Merge</button>`)}
+          ${paper(
+            "What each record says",
+            compare(
+              "Personal email",
+              `<span class="notrec">not recorded</span>`,
+              "holly.j@example.com",
+              "right",
+            ) + compare("Aliases", "Holly (display name) · H.J.", "Holly J", "left"),
+          )}
+          ${alert("info", "Aliases from both records are kept on the survivor as dedupe evidence.")}
+        </div>`);
+
+      const W404 = operatorShell(`
+        <div class="stack g3">
+          ${mergeHead(`<button class="btn btn-contained">Merge</button>`)}
+          ${alert("warn", "A reason is required.")}
+          ${section("Why", field("Reason", "", { focused: true }))}
+        </div>`);
+
+      const W405 = operatorShell(`
+        <div class="stack g3">
+          ${mergeHead(`<button class="btn btn-contained">Merge</button>`)}
+          ${paper(
+            "What will move onto Hollis Jarrowdale",
+            `<div class="stack g1">
+               ${[
+                 "3 season memberships",
+                 "1 prospect record · 2024-25",
+                 "2 role assignments",
+                 "1 contact point",
+                 "18 RSVPs",
+                 "22 attendance records",
+                 "7 history entries",
+               ]
+                 .map((x) => `<div class="seasonrow"><div class="body2">${x}</div></div>`)
+                 .join("")}
+             </div>`,
+          )}
+          ${paper(
+            "What happens to Holly Jarrowdale",
+            `<div class="seasonrow"><div class="body2">Marked merged, dated, pointing at Hollis Jarrowdale</div></div>
+             <div class="seasonrow"><div class="body2">Kept. Never listed, never offered by a search or a duplicate check</div></div>`,
+          )}
+        </div>`);
+
+      const W406 = operatorShell(`
+        <div class="stack g3">
+          ${mergeHead(`<button class="btn btn-contained" style="opacity:.5">Merge</button>`)}
+          ${alert(
+            "warn",
+            "<strong>Holly Jarrowdale</strong> holds an active operator seat. End the seat before merging.",
+          )}
+          <div class="row g2" style="flex-wrap:wrap">
+            <button class="btn btn-contained">Open operator administration</button>
           </div>
-          ${standingChip(standing)}
-        </div>`;
+        </div>`);
 
-      const changeRow = (what, when, who) => `
-        <div class="seasonrow">
-          <div style="min-width:0">
-            <div class="body2">${what}</div>
-            <div class="aka">${when} · ${who}</div>
+      const W407 = operatorShell(`
+        <div class="stack g3">
+          ${mergeHead(`<button class="btn btn-contained" style="opacity:.5">Merge</button>`)}
+          ${alert(
+            "warn",
+            "Both records hold a 2026-27 membership. Two memberships for one human in one season is a roster question; resolve it there first.",
+          )}
+          <div class="row g2" style="flex-wrap:wrap">
+            <button class="btn btn-contained">Open the 2026-27 roster</button>
           </div>
-        </div>`;
+        </div>`);
 
-      /*
-       * Hollis Jarrowdale — a complete record. The contested-value state is
-       * gone: Brian, 2026-08-26, "there shouldn't be a dispute here. It should
-       * just see the latest record… they're the operator. Nothing goes higher
-       * than the operator." So the field shows the value that is current, and
-       * who put it there.
-       */
-      const HOLLIS = {
-        name: "Hollis Jarrowdale",
-        standing: "Active",
-        is: "Player · Gameday Secretary",
-        first: `Hollis ${by("Caspian Hallowfield")}`,
-        last: `Jarrowdale ${by("Caspian Hallowfield")}`,
-        aliases: `<span class="bold">Holly</span> <span class="chip chip-outline">display name</span> ${by("Caspian Hallowfield")}
-          <span style="width:100%"></span>H.J. ${PLAYER}`,
-        mobile: `+44 7700 900412 ${by("Caspian Hallowfield")}`,
-        personalEmail: `holly.jarrowdale@example.com ${by("Caspian Hallowfield")}`,
-        collegeEmail: `hollis.jarrowdale@hallamshire.ox.ac.example ${VERIFIED}`,
-        college: `Hallamshire ${VERIFIED}`,
-        matric: `2024 ${VERIFIED}`,
-        graduation: `2027 ${VERIFIED}`,
-        degree: `Engineering Science ${PLAYER}`,
-        dob: `4 March 2005 ${PLAYER}`,
-        under18: `No`,
-        emergency: `Alwyn Winterbourne · Parent
-          <span style="width:100%"></span>+44 7700 900198 · alwyn.winterbourne@example.com ${PLAYER}`,
-        standingDetail: `${standingChip("Active")} <span class="body2 sec">2026-27</span>`,
-        alumniDetail: `Current member`,
-        roles: `Gameday Secretary · committee year 2026-27
-          <span style="width:100%"></span>Gameday Secretary · committee year 2025-26 <span class="chip chip-outline">ended</span>`,
-        seasons:
-          seasonRow("2026-27", "Active", "Blue 24") +
-          seasonRow("2025-26", "Archived", "Blue 24 · Half Blue awarded") +
-          seasonRow("2024-25", "Archived", "Blue 31"),
-        history:
-          changeRow("Personal email changed", "24 August 2026, 09:12", "Caspian Hallowfield") +
-          changeRow("Mobile phone changed", "3 August 2026, 17:40", "Caspian Hallowfield") +
-          changeRow(
-            "Alias “Holly” set as the display name",
-            "12 October 2025, 11:02",
-            "Norbert Mereworth",
-          ),
-      };
+      const W408 = operatorShell(`
+        <div class="stack g3">
+          ${mergeHead(`<button class="btn btn-contained">Merge</button>`)}
+          ${paper(
+            "Two prospect records for 2024-25",
+            compare("First contact", "2 October 2024", "9 October 2024", "left") +
+              compare("Status", "Committed", "Contacted", "left") +
+              compare("Source", "Freshers' Fair", "Walk-up at training", "left"),
+          )}
+          ${alert(
+            "info",
+            "Combined onto the survivor: earliest first contact, furthest-along status. One prospect record per person per season.",
+          )}
+        </div>`);
 
-      const W105 = operatorShell(personRecord(HOLLIS));
-
-      /* The legacy record the source data says is 26% of the club: a first
-         name, a phone, and nothing else. Every absent field says `not
-         recorded` and the page says nothing else about it. */
-      const BERTRAM = {
-        name: "Bertram",
-        standing: "Active",
-        is: "Player",
-        first: `Bertram ${by("Norbert Mereworth")}`,
-        last: NR,
-        aliases: NR,
-        mobile: `+44 7700 900233 ${by("Norbert Mereworth")}`,
-        personalEmail: NR,
-        collegeEmail: NR,
-        college: NR,
-        matric: NR,
-        graduation: NR,
-        degree: NR,
-        dob: NR,
-        under18: NR,
-        emergency: NR,
-        standingDetail: `${standingChip("Active")} <span class="body2 sec">2026-27</span>`,
-        alumniDetail: `Current member`,
-        roles: NR,
-        seasons: seasonRow("2026-27", "Active", "No jersey recorded"),
-        history: changeRow("Person created", "2 September 2026, 08:31", "Norbert Mereworth"),
-        banner: alert("warn", "8 required facts are missing."),
-      };
-
-      const W106 = operatorShell(personRecord(BERTRAM));
-
-      /*
-       * A coach. Brian, 2026-08-26: "if a person gets added as a coach, they
-       * are part of this season. They are a member of this season. They're
-       * just not a player."
-       *
-       * So nothing on this record calls him an exception. His standing column
-       * is empty because the ladder describes players; his tie to 2026-27 is
-       * the coaching role, and his season row says so.
-       */
-      const FENWICK = {
-        name: "Fenwick Gorsemoor",
-        standing: null,
-        is: "Head Coach · 2026-27",
-        first: `Fenwick ${by("Caspian Hallowfield")}`,
-        last: `Gorsemoor ${by("Caspian Hallowfield")}`,
-        aliases: NR,
-        mobile: `+44 7700 900871 ${by("Caspian Hallowfield")}`,
-        personalEmail: `fenwick.gorsemoor@example.com ${by("Caspian Hallowfield")}`,
-        collegeEmail: NR,
-        college: NR,
-        matric: NR,
-        graduation: NR,
-        degree: NR,
-        dob: NR,
-        under18: NR,
-        emergency: NR,
-        standingDetail: `<span class="sec">—</span>`,
-        alumniDetail: `Never a member`,
-        roles: `Head Coach · season 2026-27
-          <span style="width:100%"></span>Head Coach · season 2025-26 <span class="chip chip-outline">ended</span>`,
-        seasons:
-          seasonRow("2026-27", null, "Head Coach") + seasonRow("2025-26", null, "Head Coach"),
-        history: changeRow(
-          "Head Coach assignment recorded for 2026-27",
-          "18 August 2026, 14:05",
-          "Caspian Hallowfield",
-        ),
-      };
-
-      const W107 = operatorShell(personRecord(FENWICK));
-
-      /*
-       * A recruit. Brian, 2026-08-26: "There's nothing on here related to
-       * recruits. There should be nothing here related to the recruit process.
-       * It's a person record." So the source, first-contact, committed and
-       * conversion facts are gone from this surface entirely — they are
-       * Mission 6's, on Mission 6's surface. What survives is the standing,
-       * because that is what the person is, and there is no control that moves
-       * it.
-       */
-      const EMRYS = {
-        name: "Emrys Fairhurst",
-        standing: "Recruit",
-        is: "Recruit",
-        first: `Emrys ${PLAYER}`,
-        last: `Fairhurst ${PLAYER}`,
-        aliases: NR,
-        mobile: `+44 7700 900556 ${PLAYER}`,
-        personalEmail: NR,
-        collegeEmail: NR,
-        college: NR,
-        matric: NR,
-        graduation: NR,
-        degree: NR,
-        dob: NR,
-        under18: NR,
-        emergency: NR,
-        standingDetail: `${standingChip("Recruit")} <span class="body2 sec">2026-27</span>`,
-        alumniDetail: `Never a member`,
-        roles: NR,
-        seasons: `<p class="body2 sec" style="margin:0">None</p>`,
-        history: changeRow("Person created", "2 October 2026, 16:22", "Marlowe Ravenscar-Pike"),
-      };
-
-      const W108 = operatorShell(personRecord(EMRYS));
-
-      /* A merged-away duplicate is never listed and never offered. Its id
-         still resolves, to the survivor, and the notice is one sentence. */
-      const MERGED = {
-        ...HOLLIS,
-        banner: alert(
-          "info",
-          "“Holly Jarrowdale” was merged into this record on 3 October 2025 by Caspian Hallowfield.",
-        ),
-      };
-
-      const W109 = operatorShell(personRecord(MERGED));
-
-      /*
-       * An operator outside the four-role group. Brian, 2026-08-26: "if you're
-       * an operator outside the four roles, you just never see this page. It's
-       * just something that never pops up for you."
-       *
-       * So People is absent from their navigation — resolved server-side, the
-       * way LAN-110 already resolves the coach shell. The refusal behind it
-       * does not move: reaching the route directly still refuses, and no
-       * person data is in the payload. A hidden link stays a courtesy and
-       * never an authorization boundary.
-       */
-      const W110 = operatorShell(
-        `
-        <div style="display:flex;justify-content:center;padding:32px 8px">
-          <div class="paper" style="max-width:640px;width:100%;padding:28px">
-            <div class="stack g3" style="align-items:flex-start">
-              <p class="h5" style="margin:0;font-weight:700">You do not have access to this action</p>
-              <p class="body1 sec" style="margin:0">
-                Your operator profile is active, but your current role assignments do not permit
-                this action.
-              </p>
-              ${alert("warn", "This action requires one of these roles: President, Vice-President, Secretary or General Manager.")}
-              ${alert("info", "Authorization is enforced by the service action independently of whether a navigation item was visible.")}
-              <div class="row g2" style="flex-wrap:wrap">
-                <button class="btn btn-contained">Return to an authorized area</button>
-                <button class="btn btn-outlined">Sign out</button>
-              </div>
+      const W409 = operatorShell(`
+        <div class="stack g3">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+            <div style="min-width:0">
+              <p class="body2 sec" style="margin:0"><a class="golink" href="#">← Hollis Jarrowdale</a></p>
+              <p class="h5" style="margin:4px 0 0">What changed</p>
             </div>
           </div>
-        </div>`,
-        { selected: "", who: "Quillon Sedgewick", caption: "Authorized operator", admin: [] },
-      );
+          ${paper(
+            "26 October 2026",
+            `<div class="seasonrow">
+               <div style="min-width:0">
+                 <div class="bold">Merged “Holly Jarrowdale” into this record</div>
+                 <div class="aka">26 October 2026, 09:22 · Caspian Hallowfield</div>
+                 <div class="aka">Reason: same person, entered twice at the 2024 freshers' fair</div>
+                 <div class="chiprow">
+                   <span class="chip chip-outline">3 memberships</span>
+                   <span class="chip chip-outline">1 prospect</span>
+                   <span class="chip chip-outline">2 roles</span>
+                   <span class="chip chip-outline">18 RSVPs</span>
+                   <span class="chip chip-outline">22 attendance</span>
+                 </div>
+               </div>
+             </div>
+             <div class="seasonrow">
+               <div style="min-width:0">
+                 <div class="body2">Personal email set to holly.j@example.com</div>
+                 <div class="aka">26 October 2026, 09:22 · Caspian Hallowfield · from the merge</div>
+               </div>
+             </div>`,
+          )}
+        </div>`);
 
       /* ------------------------------ screens ---------------------------- */
 
       const CLOCK = "Now: Monday, 26 October 2026, 09:15";
       const NONE = "New surface, nothing to compare";
+      const S = (id, title, blurb, deltas, url, proposed) => ({
+        id,
+        title,
+        disposition: "new",
+        blurb,
+        deltas,
+        clockTag: CLOCK,
+        url,
+        now: null,
+        nowNone: NONE,
+        proposed,
+      });
 
       const SCREENS = [
-        {
-          id: "W1-01",
-          title: "People — the season in view",
-          disposition: "new",
-          blurb: `The list an operator lands on. It holds everybody with a tie to the season in view —
-            a season membership in any status, a prospect record, a season-scoped role assignment,
-            or a committee-year role in the committee year paired with that season. People is an
-            <strong>Administration</strong> destination, not a fourth entry beside Roster.`,
-          deltas: [
-            "<strong>This is the open decision.</strong> The five columns — name, standing, what they are to the club, contactability, missing — are the set you approved in principle and asked to judge rendered",
-            "<strong>Changed since your review:</strong> People moved into Administration, under the rule in the sidebar",
-            "<strong>Changed:</strong> a coach or a committee member's standing column is now empty rather than reading <em>No membership</em>. The ladder describes players; what they are to the club carries the role and the season it covers",
-            "<strong>Changed:</strong> the widen action is now <em>See people outside this season</em>",
-            "<strong>Changed:</strong> the disputed count is gone from the Missing column",
-            "Two thin filters, standing and missing data; every column sorts. The roster carries the full filter set",
-            "375px: the table becomes cards and everything but search collapses behind one <em>Filters</em> button, which is what the roster already does",
+        S(
+          "W4-01",
+          "Find the other record",
+          `The same search W1 uses, reached from the record the operator already holds — never from a
+           list. That is deliberate: the comparison screen is the most disclosing in this mission.`,
+          [
+            "Merged-away records are excluded from this search, as they are from every other",
+            "The candidate carries when it was created, because that is usually what tells two records of one person apart",
           ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people",
-          now: null,
-          nowNone: NONE,
-          proposed: W101,
-        },
-        {
-          id: "W1-02",
-          title: "Found by an alias that is not the display name",
-          disposition: "new",
-          blurb: `Search covers first name, last name and every alias — including one that is not the
-            person's display name. The row says which alias matched. You approved this screen as it
-            stood; only the widen button's wording has changed on it.`,
-          deltas: [
-            "Acceptance 3: “Holly” is an alias, the display name is Hollis Jarrowdale, and the row states the match",
-            "A search discloses names and contact indicators of people who are not its subject, which is why the capability is asserted on the query and not on the screen",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W401,
+        ),
+        S(
+          "W4-02",
+          "The comparison, field by field",
+          `The screen the workflow exists for. Both records side by side, every difference marked,
+           and a per-field choice of what the survivor keeps.`,
+          [
+            "Acceptance 1 and 2: every difference is marked, and the operator chooses per field",
+            "<strong>Decide:</strong> per-field choice rather than “survivor wins”. The older record is often the more complete and the newer the more correct; assuming either loses data",
+            "Fields that agree are shown without a <em>differs</em> mark rather than hidden, so the operator can see the comparison was complete",
+            "Which record survives is its own choice, made above the fields and not implied by them",
+            "375px: the two sides stack, and the field label stays above them",
           ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people?q=Holly",
-          now: null,
-          nowNone: NONE,
-          proposed: W102,
-        },
-        {
-          id: "W1-03",
-          title: "Nothing found in this season",
-          disposition: "new",
-          blurb: `An empty result carries its own recovery. Empty-state copy is the one place a
-            sentence belongs inside a surface, and it is now one sentence.`,
-          deltas: [
-            "The outlined-Paper empty state the roster already uses, with the recovery inside it",
-            "<strong>Changed:</strong> the explanatory second sentence is gone, and the action is <em>See people outside this season</em>",
-            "The header action is absent while the empty state is showing — <code>roster/page.tsx</code> already refuses to put one primary action on a screen twice",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W402,
+        ),
+        S(
+          "W4-03",
+          "Keeping a value from the losing record",
+          `The losing record is not the wrong record. Here it holds the only personal email, and the
+           survivor keeps it.`,
+          [
+            "Acceptance 2: keeping the older or otherwise “losing” value is an ordinary choice, not an exception",
+            "Aliases from both records survive as dedupe evidence, never as roster display",
+            "Each kept value is written as an ordinary audited correction, so the change history reads honestly rather than as one opaque event",
           ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people?q=Kestrel",
-          now: null,
-          nowNone: NONE,
-          proposed: W103,
-        },
-        {
-          id: "W1-04",
-          title: "People outside this season",
-          disposition: "new",
-          blurb: `The rare path, taken deliberately and reversibly. This is the screen your wording
-            changed: it now says what it is for — reaching somebody whose record needs changing who
-            has no tie to the season in view.`,
-          deltas: [
-            "<strong>Changed:</strong> “Everyone the club has ever held” is gone everywhere. The action, the banner and the count all say <em>outside this season</em>",
-            "<strong>Decide:</strong> it is drawn as <em>only</em> the people outside 2026-27 — 202 of the club's 214. The alternative is one list of all 214 with the season people still in it. Outside-only is the literal reading of what you asked for and makes the list shorter; it costs a second look if you are not sure which side somebody is on",
-            "Acceptance 6: the season list holds only people tied to 2026-27, and this is where the others are",
-            "<strong>Changed:</strong> <em>Contact</em> is gone as a category. A person is a player, a coach, an executive committee member, or nothing — Osgood Thornbury is nothing, and his column is empty rather than inventing a word for him",
-            "<strong>Open:</strong> whether this action is four-role or General-Manager-only. Drawn as four-role, because narrowing it would invent an authority split inside that group which Task 08 §6 does not make",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W403,
+        ),
+        S(
+          "W4-04",
+          "A reason is required",
+          `Task 08 §6 audits the merge with its reason. The merge cannot proceed without one.`,
+          [
+            "Acceptance 3: refused, in one sentence",
+            "The reason is what a reader of the history three months later actually needs",
           ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people?scope=outside",
-          now: null,
-          nowNone: NONE,
-          proposed: W104,
-        },
-        {
-          id: "W1-05",
-          title: "The person record",
-          disposition: "new",
-          blurb: `The durable person record: the thirteen person facts, aliases, standing, roles,
-            alumni standing, the person's seasons and what changed. You said to keep the layout as
-            it stands for now, so what has changed here is what is <em>on</em> it, not how it is
-            arranged.`,
-          deltas: [
-            "<strong>Changed:</strong> every explanatory sentence inside the frame is gone",
-            "<strong>Changed:</strong> the four source-and-confidence labels are gone. A value now carries at most two marks — who put it there, or <em>Player</em> when the person supplied it, and <em>Verified</em> where it was checked externally",
-            "<strong>Changed:</strong> <em>disputed — awaiting verification</em> is gone. The field shows the current value and who set it, because nothing goes higher than the operator. <strong>This supersedes Task 08 §6 and an approved invariant in <code>01-overview.md</code></strong>",
-            "<strong>Changed:</strong> the <em>Open →</em> button on each season is gone. The season label is the link, and the season's own standing sits on the row — 2025-26 reads Archived, not Active",
-            "Aliases are one concept with one of them flagged as the display name — known-as is gone",
-            "Correcting a value is W2, merging is W4, and the full history is W8",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W404,
+        ),
+        S(
+          "W4-05",
+          "What will move, before it moves",
+          `There is no undo. The confirmation states exactly what is about to be re-pointed and what
+           happens to the losing row.`,
+          [
+            "Acceptance 4: what will move is shown, and is found moved afterwards",
+            "<strong>Decide:</strong> no undo. The losing row surviving is what makes a manual repair possible; a real undo would be a second destructive path",
+            "Acceptance 5: the losing row is kept, marked merged, pointing at the survivor, and appears in no list and no duplicate check",
           ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people/4f8c21a6",
-          now: null,
-          nowNone: NONE,
-          proposed: W105,
-        },
-        {
-          id: "W1-06",
-          title: "A person who is almost nothing",
-          disposition: "new",
-          blurb: `A first name and a phone number and no more — the legacy record the source data says
-            is 26% of the club. It renders as a real record, never as an error and never with a
-            defaulted value.`,
-          deltas: [
-            "Acceptance 2: every absent field states <em>not recorded</em>. Nothing is blank and nothing is defaulted",
-            "<strong>Changed:</strong> the banner is now five words. The paragraph explaining what is required and why last name is not counted has moved to the specification, where it belongs",
-            "<strong>Changed:</strong> Under 18 reads <em>not recorded</em> rather than a sentence about why it cannot be derived",
-            "<strong>Changed:</strong> last name is now required at every rung, so Bertram counts eight missing facts rather than seven. Roughly a quarter of the club flags for it the day the queue opens, which is now the intent rather than the objection",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W405,
+        ),
+        S(
+          "W4-06",
+          "Refused: an operator seat on the losing record",
+          `Silently transferring a login is not acceptable. The seat is ended first, through Mission
+           1's existing flow.`,
+          [
+            "Acceptance 6: refused, naming what must happen first and routing to it",
+            "Your ruling, 2026-08-26",
+            "The refusal names the record, not the account or the email",
           ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people/7b1e04d9",
-          now: null,
-          nowNone: NONE,
-          proposed: W106,
-        },
-        {
-          id: "W1-07",
-          title: "A coach",
-          disposition: "new",
-          blurb: `You said a coach is part of the season — a member of it, just not a player. That is
-            what the model already does, and this screen was saying it badly. Nothing here calls him
-            an exception any more.`,
-          deltas: [
-            "<strong>Changed:</strong> <em>No membership</em> is gone. Standing is empty, because the ladder describes players, and what he is to the club reads <em>Head Coach · 2026-27</em>",
-            "<strong>Changed:</strong> <em>Their seasons</em> now lists 2026-27 and 2025-26 with his role on each, instead of saying he has none",
-            "<strong>Changed:</strong> the three sentences explaining that an unassigned Person is permitted are gone",
-            "Acceptance 1: found from the coach's own name, which is impossible today",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W406,
+        ),
+        S(
+          "W4-07",
+          "Refused: two memberships in one season",
+          `Merging them silently would rewrite a season's squad, so it is refused and sent to the
+           roster.`,
+          [
+            "Acceptance 7: refused, with a route to where it can be resolved",
+            "<strong>Decide:</strong> refuse, or ask the operator to pick one membership here. Refusing keeps the roster the only place a season's squad changes",
           ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people/2c9a77f1",
-          now: null,
-          nowNone: NONE,
-          proposed: W107,
-        },
-        {
-          id: "W1-08",
-          title: "A recruit",
-          disposition: "new",
-          blurb: `Nothing about the recruitment process is on this page any more. What is left is a
-            person who happens to stand at Recruit, and no control that moves them.`,
-          deltas: [
-            "<strong>Changed:</strong> the whole recruitment block is gone — source, first contact, committed, conversion. <strong>This changes the approved field inventory</strong>, which had all four as <em>display</em> on person detail",
-            "<strong>Changed:</strong> the banner explaining that nothing more is chased of a recruit is gone",
-            "Acceptance 4: the standing reads <em>Recruit</em> and there is no control anywhere on the page that advances, declines or reassigns them",
-            "<strong>Decide:</strong> with the recruitment facts gone, this screen now differs from W1-06 only by the standing chip. It earns its place only as proof that no funnel control exists — say the word and it comes out",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W407,
+        ),
+        S(
+          "W4-08",
+          "Duplicate prospect rows are combined",
+          `<code>recruitment_prospects_one_per_person_per_season</code> would otherwise make exactly
+           the duplicate case merge exists for impossible.`,
+          [
+            "Acceptance 8: earliest first-contact date, furthest-along status, shown before it is written",
+            "Your ruling, 2026-08-26, recorded as a seam Mission 6 inherits",
+            "The source is a choice like any other field, because two doors is a real thing that happened",
           ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people/8d40b3ec",
-          now: null,
-          nowNone: NONE,
-          proposed: W108,
-        },
-        {
-          id: "W1-09",
-          title: "A merged-away duplicate's link lands on the survivor",
-          disposition: "new",
-          blurb: `A merged record appears in no list and is offered by no search. Its id still
-            resolves, to the survivor, and says so in one sentence.`,
-          deltas: [
-            "Acceptance 5: the direct link redirects to the surviving record and states what happened",
-            "<strong>Changed:</strong> the notice is one sentence naming who merged and when. The paragraph about preserved identities has moved to the specification",
-            "<strong>Changed:</strong> the survivor's record no longer carries a disputed email, so the question you raised on this screen does not arise",
+          "oxfordlancers.example/operate/people/4f8c21a6/merge",
+          W408,
+        ),
+        S(
+          "W4-09",
+          "The merge on the survivor's history",
+          `One event, naming what was merged, what moved and why — not a scatter of forty field
+           edits.`,
+          [
+            "Acceptance 9: the merge reads as one thing that happened",
+            "Values taken from the losing record appear as their own entries beneath it, marked as coming from the merge",
+            "This is W8's surface; it is shown here to prove the outcome, not redrawn",
           ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people/1a55e0b7",
-          now: null,
-          nowNone: NONE,
-          proposed: W109,
-        },
-        {
-          id: "W1-10",
-          title: "An operator outside the four-role group",
-          disposition: "new",
-          blurb: `People never appears in their navigation — the destinations are resolved server-side
-            per operator, the way LAN-110 already resolves the coach shell. This is the route reached
-            directly, which is the only way they get here.`,
-          deltas: [
-            "<strong>Changed:</strong> the sidebar has no People entry and no Administration group at all. It does not pop up for them",
-            "Acceptance 7: no person data is in the response payload. It is absent from the DOM, not hidden in it (the LAN-75 contract). Hiding the link stays a courtesy and is never the boundary",
-            "The refusal names the roles the action requires and never names what the reader holds",
-            "<strong>Flagging:</strong> the second alert — “Authorization is enforced by the service action…” — is shipped UX-05 copy on <code>main</code>, not this mission's. It is narrative text in a surface. Left as it is because redrawing a shipped screen is not this workflow's job; worth a ticket",
-          ],
-          clockTag: CLOCK,
-          url: "oxfordlancers.example/operate/people",
-          now: null,
-          nowNone: NONE,
-          proposed: W110,
-        },
+          "oxfordlancers.example/operate/people/4f8c21a6/history",
+          W409,
+        ),
       ];
-
       const frame = (screen, html, kind) => `
         <div class="frame ${kind}">
           <div class="chrome">
