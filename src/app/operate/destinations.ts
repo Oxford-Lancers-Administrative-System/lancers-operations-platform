@@ -95,20 +95,36 @@ export const COACH_DESTINATIONS: readonly Destination[] = Object.freeze([
  * The separator and the caption are the decision, and a flat list cannot carry
  * them; `ShellNav` renders this one under its own heading.
  *
- * Both require `role_management`, which is `REQ-role-management-authority`'s
- * capability and is held by three seats. That has one consequence this file has
- * not had before: these two entries are **not** shown to every operator, where
- * Roster, Events and Report are. That is a courtesy and never a boundary —
- * `src/app/operate/admin/**` gates itself on the same capability, and a
- * Secretary who types the URL is refused by the page, not by this list.
- * Hiding it matters anyway, because a low-frequency privileged area advertised
- * to everybody who cannot open it is an invitation to try.
+ * Operators and Roles require `role_management`, which is
+ * `REQ-role-management-authority`'s capability and is held by three seats.
+ * **Messaging schedule** — LAN-171, added by W7 — is deliberately narrower
+ * than that and reuses `delivery_administration` instead: the four calendar
+ * roles who already approve events and repair their delivery are the ones
+ * who set the policy that decides when those events chase, and the
+ * Treasurer and coaching seats are excluded from it for the same recorded
+ * reason `delivery_administration` excludes them. It is not `role_management`
+ * — changing when the club messages people is not account or role
+ * administration, and folding it in would widen a grant nobody decided to
+ * widen. Ordered Operators, Messaging schedule, Roles, matching the approved
+ * `W7-02` mockup's own sidebar.
+ *
+ * None of these three is shown to every operator, where Roster, Events and
+ * Report are. That is a courtesy and never a boundary — `src/app/operate/admin/**`
+ * gates itself on the same capabilities, and an operator who types the URL is
+ * refused by the page, not by this list. Hiding it matters anyway, because a
+ * low-frequency privileged area advertised to everybody who cannot open it is
+ * an invitation to try.
  */
 export const ADMINISTRATION_DESTINATIONS: readonly Destination[] = Object.freeze([
   Object.freeze({
     href: "/operate/admin/operators",
     label: "Operators",
     capability: "role_management" as CapabilityKey,
+  }),
+  Object.freeze({
+    href: "/operate/admin/messaging",
+    label: "Messaging schedule",
+    capability: "delivery_administration" as CapabilityKey,
   }),
   Object.freeze({
     href: "/operate/admin/roles",

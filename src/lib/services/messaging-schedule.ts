@@ -1,7 +1,7 @@
 import "server-only";
 
-import { CLUB_TIME_ZONE } from "@/lib/club-time";
-import { ConstraintViolated, type Tx } from "@/lib/db";
+import { addClubDays, CLUB_TIME_ZONE, todayInClubZone } from "@/lib/club-time";
+import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 
 import { recordAudit } from "./audit";
 
@@ -166,6 +166,50 @@ export async function listMessagingSchedulesIn(tx: Tx): Promise<readonly Messagi
 }
 
 /**
+ * One event type's schedule, and the worked-example plan it would produce
+ * today — LAN-171, W7's "if the invitation went out today, when does
+ * everything else happen?".
+ */
+export interface MessagingScheduleWithPreview {
+  readonly schedule: MessagingSchedule;
+  readonly preview: MessagingPlan;
+}
+
+/**
+ * Every configured schedule, each carrying the plan it would produce for one
+ * worked example: an event of that type, four weeks from today at 20:00,
+ * approved today. Every row uses the same synthetic event so the seven
+ * previews are comparable, and every instant in `preview` is
+ * `resolveMessagingPlanIn`'s own arithmetic — W7's acceptance evidence that
+ * "the values shown are the ones the scheduler actually uses — read from the
+ * same source, never transcribed".
+ *
+ * `/operate/admin/messaging` is the only reader. It lives here rather than in
+ * that page because assembling a plan from a schedule is exactly the
+ * arithmetic this module owns, and a page composing it directly would be a
+ * second reader reaching past the service boundary for a business rule.
+ */
+export async function listMessagingSchedulesWithPreview(): Promise<
+  readonly MessagingScheduleWithPreview[]
+> {
+  const scheduledOn = addClubDays(todayInClubZone(), 28) ?? todayInClubZone();
+
+  return withTransaction(async (tx) => {
+    const schedules = await listMessagingSchedulesIn(tx);
+    const withPreview: MessagingScheduleWithPreview[] = [];
+    for (const schedule of schedules) {
+      const preview = await resolveMessagingPlanIn(tx, {
+        eventType: schedule.eventType,
+        scheduledOn,
+        startsAt: "20:00",
+      });
+      withPreview.push({ schedule, preview });
+    }
+    return withPreview;
+  });
+}
+
+/**
  * Changes one event type's policy, attributed.
  *
  * Not a surface — LAN-171 builds `/operate/admin/messaging` on top of this —
@@ -301,7 +345,16 @@ const HOUR_MS = 60 * 60 * 1000;
  * deadline. Rungs beyond it are not scheduled, because a reminder that lands
  * after the answer was due is chasing nothing.
  */
-function buildLadder(
+/**
+ * Exported for one reason: LAN-171's schedule page previews the dates a policy
+ * *would* produce for a worked example, without an event to resolve one
+ * against. Replaying this same function against a frozen plan's stored
+ * `invitationAt` and counts is also how the event page renders an **approved**
+ * event's committed ladder, since `event_messaging_plans` stores the counts and
+ * the anchor but not each rung's own instant. Both callers get the one
+ * arithmetic rather than a second copy of it.
+ */
+export function buildLadder(
   invitationAt: Date,
   cadenceHours: number,
   whatsappReminders: number,
@@ -607,4 +660,14 @@ export async function readFrozenPlanIn(
     emailRemindersScheduled: row.email_reminders_scheduled,
     frozenAt: row.frozen_at,
   };
+}
+
+/**
+ * The frozen plan for one event, or `null` before approval — for a page that
+ * only wants to read it and holds no transaction of its own.
+ */
+export async function readFrozenMessagingPlan(
+  eventId: string,
+): Promise<FrozenMessagingPlan | null> {
+  return withTransaction((tx) => readFrozenPlanIn(tx, eventId));
 }

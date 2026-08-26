@@ -1,5 +1,5 @@
 import type { TermCoordinate, TermWindow } from "@/lib/services/event-input";
-import { joinWithAnd, labelFor, TERM_LABELS } from "@/lib/services/event-vocabulary";
+import { joinWithAnd, labelFor, shortMonthOf, TERM_LABELS } from "@/lib/services/event-vocabulary";
 
 /**
  * How an event reads on the **operator's** screens — UX-30, UX-31, UX-32, UX-33.
@@ -358,3 +358,83 @@ export const INCOMPLETE_EVENT_HEADLINE = "This event cannot be approved";
 
 /** Where the operator goes to fix it. */
 export const INCOMPLETE_EVENT_ACTION = "Edit draft";
+
+// ---------------------------------------------------------------------------
+// The messaging plan disclosure — W1, LAN-171
+// ---------------------------------------------------------------------------
+
+/**
+ * One rung's instant, in the club's own zone — "Sat 10 Oct · 18:00".
+ *
+ * Compact rather than `formatDeadline`'s full sentence, because a plan lists
+ * several of these in a column and a reader scans it as a schedule rather than
+ * reading each line as its own fact. Still `Europe/London`, for the reason
+ * `formatDeadline` gives: rendering a plan instant at UTC would show every
+ * step an hour early for the whole of British Summer Time.
+ *
+ * The month comes from `shortMonthOf`'s fixed table rather than a second
+ * `Intl` call: recent ICU data renders `{ month: "short" }` for September as
+ * "Sept" in `en-GB`, four letters where every other month gets three, and
+ * this club abbreviates every month to three letters everywhere else in the
+ * application (`formatShortDate`, the events list). One September rendered
+ * differently on this one screen would be a defect a reader notices before a
+ * test does.
+ */
+export function formatPlanWhen(at: Date): string {
+  const part = (options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat("en-GB", { ...options, timeZone: "Europe/London" }).format(at);
+  const weekday = part({ weekday: "short" });
+  const day = part({ day: "numeric" });
+  const isoDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(at);
+  const month = shortMonthOf(isoDate);
+  const time = part({ hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${weekday} ${day} ${month} · ${time}`;
+}
+
+export const MESSAGING_PLAN_HEADLINE = "Messaging plan";
+
+/** "4 steps" / "1 step" — the disclosure's own count, closed or open. */
+export function describePlanStepCount(steps: number): string {
+  return `${steps} ${steps === 1 ? "step" : "steps"}`;
+}
+
+export const PLAN_COMMITS_ON_APPROVAL = "Approval commits this plan.";
+export const PLAN_FROZEN_AT_APPROVAL = "Frozen at approval.";
+export const PLAN_NO_QUIET_HOURS = "No quiet-hours adjustment.";
+export const PLAN_RECOVERY_NOTE =
+  "Failed sends retry automatically. Remaining errors appear in Delivery.";
+
+/**
+ * W1's settled guarantee, stated rather than derived — Brian, 2026-08-22: "if
+ * practice happens in 2 days and we're approving and we're sending it out,
+ * that needs to go out now, right? It should say that."
+ */
+export const PLAN_DISPATCHES_IMMEDIATELY =
+  "This event is closer than its own invitation lead, so its invitation goes out now rather " +
+  "than on a stated date.";
+
+/**
+ * `REQ-late-approval`, named on the panel rather than shown as a quietly
+ * shorter list — W1's "see a short-notice event labelled as one".
+ */
+export const PLAN_LATE_APPROVAL =
+  "There is not enough runway for the full ladder. This event still chases: it sends " +
+  "immediately, fills the time it has with WhatsApp only, and does not escalate to the " +
+  "President.";
+
+/** "1 user has an error." / "3 users have an error." — W1's concise count. */
+export function describeWhatsAppErrorCount(count: number): string {
+  return count === 1 ? "1 user has an error." : `${count} users have an error.`;
+}
+
+/** "See 1 user with error" / "See 3 users with error" — the disclosure summary. */
+export function whatsAppErrorDisclosureLabel(count: number): string {
+  return count === 1 ? "See 1 user with error" : `See ${count} users with error`;
+}
+
+export const WHATSAPP_ERROR_DETAIL = "WhatsApp error";

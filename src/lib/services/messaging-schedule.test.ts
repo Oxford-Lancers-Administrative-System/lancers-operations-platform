@@ -18,7 +18,12 @@ vi.mock("server-only", () => ({}));
 
 import { closePool, withTransaction } from "@/lib/db";
 
-import { resolveMessagingPlanIn, readMessagingScheduleIn } from "./messaging-schedule";
+import {
+  buildLadder,
+  listMessagingSchedulesWithPreview,
+  resolveMessagingPlanIn,
+  readMessagingScheduleIn,
+} from "./messaging-schedule";
 
 afterAll(async () => {
   await closePool();
@@ -307,5 +312,54 @@ describe("no quiet hours", () => {
       ),
     );
     expect(hours).toEqual([7, 7, 7, 7]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-171 — replaying the ladder, and the settings page's own worked example
+// ---------------------------------------------------------------------------
+
+describe("buildLadder, exported for replay against a frozen plan", () => {
+  it("reproduces the same rungs resolveMessagingPlanIn would compute", async () => {
+    const plan = await planFor(PRACTICE, "2026-10-01T09:00:00Z");
+
+    // Practice's default policy: two WhatsApp reminders, one email, all of it
+    // fitting the runway this far out — `available` is not the constraint here.
+    const replayed = buildLadder(plan.invitationAt, 24, 2, 1, 3);
+
+    expect(replayed).toEqual(plan.rungs);
+  });
+
+  it("guarantees the invitation even when no reminder fits", () => {
+    const invitationAt = new Date("2026-10-01T09:00:00Z");
+    const rungs = buildLadder(invitationAt, 24, 2, 1, 0);
+
+    expect(rungs).toHaveLength(1);
+    expect(rungs[0]).toMatchObject({ rung: 0, kind: "invitation", channel: "whatsapp" });
+  });
+});
+
+describe("the schedule page's worked example", () => {
+  it("previews every configured type against one comparable synthetic event", async () => {
+    const withPreview = await listMessagingSchedulesWithPreview();
+
+    // Complete over the type, same as the table itself.
+    expect(withPreview).toHaveLength(7);
+
+    const practice = withPreview.find((row) => row.schedule.eventType === "practice");
+    expect(practice).toBeDefined();
+    // `resolveMessagingPlanIn`'s own arithmetic, not a second copy of it: the
+    // preview's deadline is the schedule's day count before its own event start.
+    expect(practice!.preview.eventStartsAt.getUTCHours()).toBe(
+      practice!.preview.responseDeadlineAt.getUTCHours(),
+    );
+    expect(practice!.preview.lateApproval).toBe(false);
+    expect(practice!.preview.rungs.length).toBeGreaterThan(0);
+
+    // Every row is resolved against the same date and the same 20:00 start, so
+    // the seven previews are directly comparable — W7's own requirement for a
+    // page that shows one example per row.
+    const starts = withPreview.map((row) => row.preview.eventStartsAt.toISOString());
+    expect(new Set(starts).size).toBe(1);
   });
 });

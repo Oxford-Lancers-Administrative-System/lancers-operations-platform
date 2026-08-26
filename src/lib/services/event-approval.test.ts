@@ -251,6 +251,61 @@ async function countsFor(eventId: string) {
   };
 }
 
+/**
+ * Removes one person's phone contact points for the duration of `run`, then
+ * restores exactly what was there — LAN-171's WhatsApp-reachability check.
+ *
+ * The seeded roster's actual "nobody could be reached" case (Source Data
+ * Analysis's messiness stats) belongs to a fixed job this suite does not
+ * control, so this is how the test manufactures the condition on a person it
+ * chose itself, without leaving the shared dataset altered if the assertion
+ * inside `run` throws.
+ */
+async function withNoPhone(personId: string, run: () => Promise<void>): Promise<void> {
+  const existing = await observer.query<{
+    id: string;
+    kind: string;
+    raw_value: string;
+    normalised_value: string | null;
+    is_preferred: boolean;
+    valid_from: string;
+    valid_until: string | null;
+    source: string | null;
+  }>(
+    `select id, kind::text as kind, raw_value, normalised_value, is_preferred,
+            valid_from, valid_until, source
+       from public.contact_points where person_id = $1 and kind = 'phone'`,
+    [personId],
+  );
+  await observer.query(
+    "delete from public.contact_points where person_id = $1 and kind = 'phone'",
+    [personId],
+  );
+  try {
+    await run();
+  } finally {
+    for (const row of existing.rows) {
+      await observer.query(
+        `insert into public.contact_points
+           (id, person_id, kind, raw_value, normalised_value, is_preferred, valid_from,
+            valid_until, source)
+         values ($1, $2, $3::public.contact_point_kind, $4, $5, $6, $7, $8, $9)`,
+        [
+          row.id,
+          personId,
+          row.kind,
+          row.raw_value,
+          row.normalised_value,
+          row.is_preferred,
+          row.valid_from,
+          row.valid_until,
+          row.source,
+        ],
+      );
+    }
+  }
+}
+
 async function caught(run: () => Promise<unknown>): Promise<ServiceError> {
   try {
     await run();
@@ -832,6 +887,53 @@ describe("the approval preview", () => {
 
     const preview = await readApprovalPreview(event.id);
     expect(preview.deadline).toBeNull();
+    expect(preview.plan).toBeNull();
+  });
+
+  // LAN-171. The panel an approver reads before pressing Approve is the whole
+  // plan `resolveMessagingPlanIn` computes, not only the deadline — and it
+  // reads the same instant twice, from the two fields, so the two can never
+  // disagree with each other or with what `approveEvent` is about to freeze.
+  it("carries the whole messaging plan, not only the deadline", async () => {
+    // `draft()`'s own default window, 10:00–13:00 — a straddling-midnight fixture
+    // is exactly the trap this file's peers document, so this reuses the
+    // fixture's own well-ordered default rather than inventing a new pair.
+    const event = await newDraft({ scheduledOn: "2026-10-18" });
+
+    const preview = await readApprovalPreview(event.id);
+
+    expect(preview.plan).not.toBeNull();
+    expect(preview.plan?.responseDeadlineAt.toISOString()).toBe(preview.deadline?.at.toISOString());
+    // Practice, unconfigured on this event's row: invitation + 2 WhatsApp + 1
+    // email, none of it clamped by a short runway this far out.
+    expect(preview.plan?.lateApproval).toBe(false);
+    expect(preview.plan?.rungs).toHaveLength(4);
+    expect(preview.plan?.rungs[0].kind).toBe("invitation");
+    expect(preview.plan?.escalationAt).not.toBeNull();
+  });
+
+  // LAN-171, D8. "Every user is expected to have WhatsApp" — a missing number
+  // is named before approval rather than discovered afterwards.
+  it("names an audience member with no usable WhatsApp number", async () => {
+    const event = await newDraft({ scheduledOn: "2026-10-18" });
+    const [reachableKey, unreachableKey] = await keysFor(event, "player", 2);
+    await saveEventAudience(actorPersonId, event.id, [reachableKey, unreachableKey]);
+    const audience = await readEventAudience(event.id);
+    const target = audience.find(
+      (member) => `${member.capacity}:${member.anchorId}` === unreachableKey,
+    );
+    expect(target).toBeDefined();
+
+    await withNoPhone(target!.personId, async () => {
+      const preview = await readApprovalPreview(event.id);
+      expect(preview.unreachable).toHaveLength(1);
+      expect(preview.unreachable[0].member.id).toBe(target!.id);
+      expect(preview.unreachable[0].reason).toMatch(/no usable mobile number/i);
+    });
+
+    // Restored: the same audience is fully reachable again.
+    const restored = await readApprovalPreview(event.id);
+    expect(restored.unreachable).toHaveLength(0);
   });
 });
 
