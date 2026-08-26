@@ -124,11 +124,25 @@ superseded by dated owner decision, 2026-08-26, not quietly overwritten. Brian:
 _"Okay, yes, we're superseding that, and that should be decided."_
 
 **This is a vocabulary change to the frozen conceptual model**, and it reaches
-further than anything else in this mission: `membership_status` is consumed by
-event audiences, the weekly report, the roster and Mission 4's messaging.
-Postgres cannot drop enum values in place, so it is a new type and a data
-migration. Brian, on being told: _"Yeah, I know it's a data migration, but it's
-fucking wrong, so what else are we going to do?"_
+further than anything else in this mission. Brian, on being told: _"Yeah, I know
+it's a data migration, but it's fucking wrong, so what else are we going to
+do?"_
+
+**The blast radius, measured rather than estimated (2026-08-26, at `2115bfe`).**
+Postgres cannot alter an enum that a view depends on, so **every dependent view
+must be dropped and recreated inside the same migration**. Twelve views touch
+membership status: `person_standing`, `constitutional_membership`,
+`invitation_response_state`, `nonresponse_queue`, `uninvited_audience_members`,
+`rsvp_attendance_mismatches`, `current_rsvp`, `current_availability`,
+`transition_ledger` and their event-audience duplicates. Beyond the views:
+`membership.ts`, `roster.ts`, `weekly-report.ts`, `administration-directory.ts`,
+`roster/presentation.ts`, the generated database types, `seed-local.mjs`, the
+**production showcase scripts** under `scripts/production/showcase/`, and pilot
+SQL under `scripts/pilot/lan-74`, `lan-75` and `lan-93`.
+
+Dropping `known_as` compounds it: `person_standing` selects that column, so the
+same view has to be rebuilt for both reasons. The Mission Lead should treat the
+enum change and the known-as drop as **one migration**, not two.
 
 ## Season facts
 

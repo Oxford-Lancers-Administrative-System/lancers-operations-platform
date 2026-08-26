@@ -42,7 +42,10 @@ inventory, plus:
 - aliases, with the display name identified;
 - standing on the pipeline ladder, read-only;
 - role assignments covering any season, read-only;
-- alumni standing, derived, with its operator override visible as an override;
+- alumni standing, derived, with its operator override visible as an override —
+  **the derivation already exists** as the `person_standing` view, which
+  computes live-membership counts and honours `past_member_override`; this
+  workflow surfaces it rather than inventing it;
 - the under-18 flag where date of birth is recorded;
 - a list of the person's season records, each linking to its player detail;
 - the change history for this record (`W8`).

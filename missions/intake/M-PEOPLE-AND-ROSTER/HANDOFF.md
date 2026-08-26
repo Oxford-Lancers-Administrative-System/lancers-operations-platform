@@ -158,9 +158,44 @@ rediscover them the hard way.
   Task 10 carries "BPS meaning" as an open delegated gate. Not this mission's to
   close, but worth passing on.
 
+## The corpus moved today — read `notion-corrections.md` first
+
+Eleven amendments were applied across eight Notion records at the end of this
+session and **all seven pages were verified by refetch**. Task 08, Task 10, Task
+14, Task 05, Task 16, the Authority Manifest and the portfolio all carry dated
+2026-08-26 notes recorded with this intake. If you read a brief and it
+contradicts this ledger, check its amendment callout at the bottom before
+believing the body text.
+
+Two pages — Task 08 and Task 14 — needed a sentence struck through in place,
+because an earlier note from the same morning still said Mission 5 delivers a
+minimal season row. Those are the only approved prose this session rewrote.
+
+## Two repository facts worth having before you build
+
+**The status enum migration is bigger than it reads.** Twelve views depend on
+membership status, and Postgres cannot alter an enum a view depends on — every
+one must be dropped and recreated in the same migration. Dropping `known_as`
+hits `person_standing` for a second reason, so treat both as one migration. The
+full measured list is in `field-inventory.md`; it also reaches the production
+showcase scripts and three pilot SQL directories.
+
+**`person_standing` already derives alumni standing**, including the operator
+override. `W1` surfaces it rather than inventing it.
+
 ## Mission 4 drift
 
 `LAN-169`–`173` are executing and will move `main` during this intake. Tolerated
 by the portfolio and confirmed by inspection: its surface is messaging and
 scheduling, which this mission does not touch. Re-check before Stage 5 and
 record the observed head.
+
+**`main` has already moved twice past the `2115bfe` baseline**, observed
+2026-08-26 after this ledger was written:
+
+- `ceff8ef` — "Let an operator record an in-person RSVP answer (LAN-170)". Mission
+  4 scope, messaging, harmless here.
+- `53f01ee` — **"Gate visual packages on mockup structure" (#94)**. This one is
+  yours: the harness gate for mockup structure landed _after_ the baseline, so
+  the mockups you are about to build are subject to a check this ledger predates.
+  Read it before drawing anything.
