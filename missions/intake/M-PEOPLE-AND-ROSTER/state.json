@@ -39,7 +39,7 @@
     {
       "id": "W1",
       "name": "Look up any person the club holds",
-      "state": "spec_approved",
+      "state": "mock_draft",
       "stale": false,
       "feedback": [],
       "approvals": {
@@ -373,7 +373,7 @@
         "source_id": "SRC-task-08",
         "disposition": "workflow",
         "workflow": "W3",
-        "reason": "A Person may exist with no role and no membership at all — the potential coach case."
+        "reason": "A Person may exist with no role and no membership at all \u2014 the potential coach case."
       },
       {
         "id": "T08-person-vs-membership",
@@ -454,7 +454,7 @@
         "disposition": "other_mission",
         "other_mission": "M-RECRUITMENT",
         "reason": "Channel presence is named concretely: is the person on WhatsApp and in this season's group. Email is assumed, being universal and already a durable contact point.",
-        "evidence": "Brian, 2026-08-26: WhatsApp is the actual channel that matters and email should be assumed. The seam is Task 09 D3's community-group invite at every recruit door. Presence remains distinct from consent per Task 08 row 8 — it records where somebody already is, never that they agreed to be messaged, which stays Mission 8's."
+        "evidence": "Brian, 2026-08-26: WhatsApp is the actual channel that matters and email should be assumed. The seam is Task 09 D3's community-group invite at every recruit door. Presence remains distinct from consent per Task 08 row 8 \u2014 it records where somebody already is, never that they agreed to be messaged, which stays Mission 8's."
       },
       {
         "id": "T08-blues-counts",
@@ -463,7 +463,7 @@
         "superseded_by": "SRC-owner-session:OS-blues-are-seasonal-awards",
         "reason": "Half and Full Blue held as cumulative durable counts. It was the inventory's only cumulative count and Brian rejected the shape.",
         "approval": {
-          "words": "no other record here is a cumulative count at this point, so I don't really like that… I think for the season record, half blue, full blue for the season makes sense.",
+          "words": "no other record here is a cumulative count at this point, so I don't really like that\u2026 I think for the season record, half blue, full blue for the season makes sense.",
           "date": "2026-08-26"
         }
       },
@@ -501,7 +501,7 @@
         "source_id": "SRC-task-08",
         "disposition": "workflow",
         "workflow": "W2",
-        "reason": "A contested value is flagged `disputed — awaiting verification` with the operator's reason recorded."
+        "reason": "A contested value is flagged `disputed \u2014 awaiting verification` with the operator's reason recorded."
       },
       {
         "id": "T08-every-edit-audited",
@@ -526,9 +526,9 @@
         "source_id": "SRC-owner-session",
         "disposition": "workflow",
         "workflow": "W6",
-        "reason": "One status drives the whole pipeline, assembled from two records: the prospect record while somebody is a recruit, the membership from the flip onward. Recruit / Onboarding / Active / Inactive / Departed / Archived. carried_forward, confirmed and withdrawn are struck — entry already carries the returner fact, confirming is an action rather than a state, and a recruit who says no is declined on the prospect record and never receives a membership. Eight values become five. The frozen model's refusal to store recruits as memberships is honoured: the roster still means people on the team.",
+        "reason": "One status drives the whole pipeline, assembled from two records: the prospect record while somebody is a recruit, the membership from the flip onward. Recruit / Onboarding / Active / Inactive / Departed / Archived. carried_forward, confirmed and withdrawn are struck \u2014 entry already carries the returner fact, confirming is an action rather than a state, and a recruit who says no is declined on the prospect record and never receives a membership. Eight values become five. The frozen model's refusal to store recruits as memberships is honoured: the roster still means people on the team.",
         "approval": {
-          "words": "there's one status that should tell us what the player is at, and it drives the entire thing… carried forward should be just struck entirely.",
+          "words": "there's one status that should tell us what the player is at, and it drives the entire thing\u2026 carried forward should be just struck entirely.",
           "date": "2026-08-26"
         }
       },
@@ -567,7 +567,7 @@
         "source_id": "SRC-task-08",
         "disposition": "workflow",
         "workflow": "W2",
-        "reason": "The view/edit matrix by information category is this mission's to implement; §6 is the controlling table.",
+        "reason": "The view/edit matrix by information category is this mission's to implement; \u00a76 is the controlling table.",
         "also_referenced_by": ["W1", "W5", "W6"]
       },
       {
@@ -647,14 +647,14 @@
         "source_id": "SRC-task-08",
         "disposition": "workflow",
         "workflow": "W7",
-        "reason": "`not recorded` is explicit, visible and never defaulted, and never conflated with 'No' — the lesson of the 2023 workbook's defaulting Rookie column."
+        "reason": "`not recorded` is explicit, visible and never defaulted, and never conflated with 'No' \u2014 the lesson of the 2023 workbook's defaulting Rookie column."
       },
       {
         "id": "T08-audit-history-on-the-record",
         "source_id": "SRC-task-08",
         "disposition": "workflow",
         "workflow": "W8",
-        "reason": "§5 places the audit/history of changes on the record it describes."
+        "reason": "\u00a75 places the audit/history of changes on the record it describes."
       },
       {
         "id": "T08-read-back-on-mobile-capture",
@@ -749,8 +749,8 @@
         "id": "T08-migration-flags",
         "source_id": "SRC-task-08",
         "disposition": "delegated_to_mission_lead",
-        "reason": "§8 identifies likely migrations by capability and explicitly designs none. Schema shape is the Mission Lead's.",
-        "evidence": "§8 identifies likely migrations by capability and explicitly designs none. Schema shape is the Mission Lead's."
+        "reason": "\u00a78 identifies likely migrations by capability and explicitly designs none. Schema shape is the Mission Lead's.",
+        "evidence": "\u00a78 identifies likely migrations by capability and explicitly designs none. Schema shape is the Mission Lead's."
       },
       {
         "id": "T08-inventory-extensible",
@@ -763,15 +763,15 @@
         "id": "T08-excluded-fields",
         "source_id": "SRC-task-08",
         "disposition": "excluded",
-        "reason": "Home address, nationality and kit size have no source evidence and no decision; §1 excludes them explicitly, and each would be a fresh owner decision.",
-        "evidence": "Home address, nationality and kit size have no source evidence and no decision; §1 excludes them explicitly, and each would be a fresh owner decision."
+        "reason": "Home address, nationality and kit size have no source evidence and no decision; \u00a71 excludes them explicitly, and each would be a fresh owner decision.",
+        "evidence": "Home address, nationality and kit size have no source evidence and no decision; \u00a71 excludes them explicitly, and each would be a fresh owner decision."
       },
       {
         "id": "T08-media-and-health",
         "source_id": "SRC-task-08",
         "disposition": "excluded",
-        "reason": "Health narratives, statistics, media and photos are §1 guardrail exclusions; the schema cannot hold health data by design.",
-        "evidence": "Health narratives, statistics, media and photos are §1 guardrail exclusions; the schema cannot hold health data by design."
+        "reason": "Health narratives, statistics, media and photos are \u00a71 guardrail exclusions; the schema cannot hold health data by design.",
+        "evidence": "Health narratives, statistics, media and photos are \u00a71 guardrail exclusions; the schema cannot hold health data by design."
       },
       {
         "id": "T09-D2-four-entry-doors",
@@ -914,8 +914,8 @@
         "source_id": "SRC-task-10",
         "disposition": "other_mission",
         "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
-        "reason": "Onboarding memberships count as players for event audiences — an audience-derivation change owned where onboarding lives.",
-        "evidence": "Onboarding memberships count as players for event audiences — an audience-derivation change owned where onboarding lives."
+        "reason": "Onboarding memberships count as players for event audiences \u2014 an audience-derivation change owned where onboarding lives.",
+        "evidence": "Onboarding memberships count as players for event audiences \u2014 an audience-derivation change owned where onboarding lives."
       },
       {
         "id": "T10-R2-E-no-mid-season-expiry",
@@ -938,8 +938,8 @@
         "source_id": "SRC-task-10",
         "disposition": "shared_cross_mission",
         "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
-        "reason": "Item 9 is a derived rollup whose missing pieces ARE the missing-data queue — Task 10's own words, one source of truth, no double-counting. This mission defines that queue; Mission 7 derives the item from it.",
-        "evidence": "Item 9 is a derived rollup whose missing pieces ARE the missing-data queue — Task 10's own words, one source of truth, no double-counting. This mission defines that queue; Mission 7 derives the item from it."
+        "reason": "Item 9 is a derived rollup whose missing pieces ARE the missing-data queue \u2014 Task 10's own words, one source of truth, no double-counting. This mission defines that queue; Mission 7 derives the item from it.",
+        "evidence": "Item 9 is a derived rollup whose missing pieces ARE the missing-data queue \u2014 Task 10's own words, one source of truth, no double-counting. This mission defines that queue; Mission 7 derives the item from it."
       },
       {
         "id": "T10-item-8-comms-group-access",
@@ -970,16 +970,16 @@
         "source_id": "SRC-task-10",
         "disposition": "shared_cross_mission",
         "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
-        "reason": "Onboarding yellow, active green on the roster — a display decision on this mission's surface.",
-        "evidence": "Onboarding yellow, active green on the roster — a display decision on this mission's surface."
+        "reason": "Onboarding yellow, active green on the roster \u2014 a display decision on this mission's surface.",
+        "evidence": "Onboarding yellow, active green on the roster \u2014 a display decision on this mission's surface."
       },
       {
         "id": "T11-2-3-one-open-request",
         "source_id": "SRC-task-11",
         "disposition": "other_mission",
         "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
-        "reason": "At most one open collection request per person, ever. Task 11 §1 states the division outright: Task 08 defined the state and queue, Task 11 defines the chase. The request record is Mission 7's, not this mission's.",
-        "evidence": "At most one open collection request per person, ever. Task 11 §1 states the division outright: Task 08 defined the state and queue, Task 11 defines the chase. The request record is Mission 7's, not this mission's."
+        "reason": "At most one open collection request per person, ever. Task 11 \u00a71 states the division outright: Task 08 defined the state and queue, Task 11 defines the chase. The request record is Mission 7's, not this mission's.",
+        "evidence": "At most one open collection request per person, ever. Task 11 \u00a71 states the division outright: Task 08 defined the state and queue, Task 11 defines the chase. The request record is Mission 7's, not this mission's."
       },
       {
         "id": "T11-3-cadence-and-caps",
@@ -1018,8 +1018,8 @@
         "source_id": "SRC-task-11",
         "disposition": "other_mission",
         "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
-        "reason": "The mid-season maintenance cycle for a season-associated person whose data goes stale — this is the moment that answers how a coach updates their own record.",
-        "evidence": "The mid-season maintenance cycle for a season-associated person whose data goes stale — this is the moment that answers how a coach updates their own record."
+        "reason": "The mid-season maintenance cycle for a season-associated person whose data goes stale \u2014 this is the moment that answers how a coach updates their own record.",
+        "evidence": "The mid-season maintenance cycle for a season-associated person whose data goes stale \u2014 this is the moment that answers how a coach updates their own record."
       },
       {
         "id": "T11-M6-disputed-targeted-request",
@@ -1044,7 +1044,7 @@
         "superseded_by": "SRC-lan-174:LAN174-recruits-never-chased",
         "reason": "Dissolved by the 2026-08-25 decision that recruits are never chased; the dated amendment on the Task 11 brief records it.",
         "approval": {
-          "words": "recruits are never chased — one message, ever",
+          "words": "recruits are never chased \u2014 one message, ever",
           "date": "2026-08-25"
         }
       },
@@ -1053,8 +1053,8 @@
         "source_id": "SRC-task-11",
         "disposition": "shared_cross_mission",
         "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-ONBOARDING-AND-INFORMATION-COMPLETION"],
-        "reason": "A player submission never silently overwrites an operator-confirmed, externally verified or derived value; it flags `disputed — awaiting verification` and returns to the queue for a four-role operator to resolve. This mission builds the flag, the queue and the resolution surface; Mission 7 builds the ingestion that raises it.",
-        "evidence": "A player submission never silently overwrites an operator-confirmed, externally verified or derived value; it flags `disputed — awaiting verification` and returns to the queue for a four-role operator to resolve. This mission builds the flag, the queue and the resolution surface; Mission 7 builds the ingestion that raises it."
+        "reason": "A player submission never silently overwrites an operator-confirmed, externally verified or derived value; it flags `disputed \u2014 awaiting verification` and returns to the queue for a four-role operator to resolve. This mission builds the flag, the queue and the resolution surface; Mission 7 builds the ingestion that raises it.",
+        "evidence": "A player submission never silently overwrites an operator-confirmed, externally verified or derived value; it flags `disputed \u2014 awaiting verification` and returns to the queue for a four-role operator to resolve. This mission builds the flag, the queue and the resolution surface; Mission 7 builds the ingestion that raises it."
       },
       {
         "id": "T11-7-queue-consumed-not-redefined",
@@ -1145,8 +1145,8 @@
         "source_id": "SRC-task-07",
         "disposition": "shared_cross_mission",
         "shared_owners": ["M-PEOPLE-AND-ROSTER", "M-CONSENT-PRIVACY-AND-DATA-RIGHTS"],
-        "reason": "R13's acceptance is that correction is executable without an engineer, and §3 places the act on the existing person surface with actor, before/after and reason audited. This mission builds that surface and its audit; Mission 8 owns the rights-based request intake and the erasure path.",
-        "evidence": "R13's acceptance is that correction is executable without an engineer, and §3 places the act on the existing person surface with actor, before/after and reason audited. This mission builds that surface and its audit; Mission 8 owns the rights-based request intake and the erasure path."
+        "reason": "R13's acceptance is that correction is executable without an engineer, and \u00a73 places the act on the existing person surface with actor, before/after and reason audited. This mission builds that surface and its audit; Mission 8 owns the rights-based request intake and the erasure path.",
+        "evidence": "R13's acceptance is that correction is executable without an engineer, and \u00a73 places the act on the existing person surface with actor, before/after and reason audited. This mission builds that surface and its audit; Mission 8 owns the rights-based request intake and the erasure path."
       },
       {
         "id": "T07-free-text-discipline",
@@ -1271,7 +1271,7 @@
         "superseded_by": "SRC-owner-session:OS-season-bootstrap-to-m7",
         "reason": "The row assigned this mission a minimal season row and left its mechanism an open owner decision. Brian moved both to Mission 7's import this session.",
         "approval": {
-          "words": "the import is the season bootstrap for now… Season Bootstrap will move with 7",
+          "words": "the import is the season bootstrap for now\u2026 Season Bootstrap will move with 7",
           "date": "2026-08-26"
         }
       },
@@ -1352,7 +1352,7 @@
         "source_id": "SRC-lan-147",
         "disposition": "workflow",
         "workflow": "W1",
-        "reason": "Answered yes: a person-keyed list and detail view, which Task 08 §5 had already approved."
+        "reason": "Answered yes: a person-keyed list and detail view, which Task 08 \u00a75 had already approved."
       },
       {
         "id": "LAN147-Q3-remove-a-person",
@@ -1367,7 +1367,7 @@
         "source_id": "SRC-lan-147",
         "disposition": "workflow",
         "workflow": "W2",
-        "reason": "Answered by Task 08 §6's authority matrix: the four-role group corrects, and merges are four-role only.",
+        "reason": "Answered by Task 08 \u00a76's authority matrix: the four-role group corrects, and merges are four-role only.",
         "also_referenced_by": ["W4"]
       },
       {
@@ -1389,7 +1389,7 @@
         "source_id": "SRC-lan-146",
         "disposition": "superseded",
         "superseded_by": "SRC-task-08:T08-authority-matrix",
-        "reason": "An interim slice ruling that any linked operator may read contact values. Task 08 §6's four-role matrix supersedes it when this mission ships; this is a deliberate narrowing of a shipped surface, not a conflict.",
+        "reason": "An interim slice ruling that any linked operator may read contact values. Task 08 \u00a76's four-role matrix supersedes it when this mission ships; this is a deliberate narrowing of a shipped surface, not a conflict.",
         "approval": {
           "words": "Yep, F5 narrows. It should only be the core four that get to see this information, as I call them.",
           "date": "2026-08-26"
@@ -1452,7 +1452,7 @@
         "reason": "The minimal season bootstrap leaves this mission and travels with Mission 7's import, closing the row's open decision.",
         "evidence": "The seam is the season row itself: this mission's roster reads a season it never creates, and Mission 7's import creates the season and the memberships in the same operation. Recorded as the boundary's one portfolio deviation.",
         "approval": {
-          "words": "the import is the season bootstrap for now… Season Bootstrap will move with 7, basically, right to get it open, but it'll be done with an import, so that settles it one way or the other.",
+          "words": "the import is the season bootstrap for now\u2026 Season Bootstrap will move with 7, basically, right to get it open, but it'll be done with an import, so that settles it one way or the other.",
           "date": "2026-08-26"
         }
       },
@@ -1474,7 +1474,7 @@
         "disposition": "other_mission",
         "other_mission": "M-ONBOARDING-AND-INFORMATION-COMPLETION",
         "reason": "A person editing their own record rides Mission 7's signed link like everyone else. No settings surface is built anywhere for it.",
-        "evidence": "Task 11 §2.1 places players, coaches and committee members in one collection loop for person-level data, and §7's role table records that they supply and correct their own data via signed links. Moment M5 covers a season-associated person's data going stale mid-season, M6 a targeted correction. The seam is that this mission's operator correction path (W2) is the interim answer until Mission 7 ships.",
+        "evidence": "Task 11 \u00a72.1 places players, coaches and committee members in one collection loop for person-level data, and \u00a77's role table records that they supply and correct their own data via signed links. Moment M5 covers a season-associated person's data going stale mid-season, M6 a targeted correction. The seam is that this mission's operator correction path (W2) is the interim answer until Mission 7 ships.",
         "approval": {
           "words": "Okay, let's handle it that way for now.",
           "date": "2026-08-26"
@@ -1497,7 +1497,7 @@
         "disposition": "other_mission",
         "other_mission": "M-RECRUITMENT",
         "reason": "Contact information is durable; membership of a season's communication group is not. A named group is a season record, anchored to person and season so recruits are covered without a membership.",
-        "evidence": "Brian, 2026-08-26: a season will have an element saying we communicate via WhatsApp, and the record is grabbed then. The seam is Task 09 D3, which fires the community-group invite at every recruit door — Mission 6 is the first user, Mission 7 extends it. This mission keeps only the durable contact points and the contactability indicators built on them."
+        "evidence": "Brian, 2026-08-26: a season will have an element saying we communicate via WhatsApp, and the record is grabbed then. The seam is Task 09 D3, which fires the community-group invite at every recruit door \u2014 Mission 6 is the first user, Mission 7 extends it. This mission keeps only the durable contact points and the contactability indicators built on them."
       },
       {
         "id": "OS-four-role-narrowing-confirmed",
@@ -1538,7 +1538,7 @@
         "source_id": "SRC-owner-session",
         "disposition": "workflow",
         "workflow": "W4",
-        "reason": "Two prospect rows for one human in one season are combined onto the survivor — earliest first-contact date, furthest-along status — because recruitment_prospects_one_per_person_per_season would otherwise make exactly the duplicate case merge exists for impossible. Recorded as a seam Mission 6 inherits.",
+        "reason": "Two prospect rows for one human in one season are combined onto the survivor \u2014 earliest first-contact date, furthest-along status \u2014 because recruitment_prospects_one_per_person_per_season would otherwise make exactly the duplicate case merge exists for impossible. Recorded as a seam Mission 6 inherits.",
         "approval": {
           "words": "Merge is fine.",
           "date": "2026-08-26"
@@ -1553,5 +1553,5 @@
       }
     ]
   },
-  "next_action": "Build W1's mockups: People list and person detail, drawn on both sides, desktop and a measured 375px"
+  "next_action": "Show Brian W1's ten mockup screens and take his decision on the list columns and on whether widen-to-everyone is four-role or GM-only"
 }
