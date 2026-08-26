@@ -614,6 +614,30 @@ function FocusedPanel({
   const deadline = formatDeadline(invitation.responseDeadline);
   const attending = attendingSentence(landing.attendingCount);
   const otherOutstanding = otherOutstandingSentence(landing.otherOutstandingCount);
+  /**
+   * Owner correction round 4 (LAN-172-r4-F1). Two different questions were
+   * conflated into one boolean: "does the form render at all" and "do we
+   * show the acknowledgement instead." `landing.outstandingRequiredQuestions`
+   * alone answers the second only for an event that HAS a required question
+   * -- Brian's own approved rule for that case is "collapse once the
+   * required ones are answered, even if an optional one was left blank"
+   * (OWNER-LAN172-08). But it is structurally always zero for an event whose
+   * questions are ALL optional, which silently deleted the form for that
+   * case on every visit, forever -- W2's own acceptance text is explicit:
+   * "Optional questions remain visibly optional."
+   *
+   * The fix keeps Brian's mixed-event rule exactly as approved (a required
+   * question, once satisfied, is what closes the panel, regardless of an
+   * unanswered optional one) while restoring a real signal for the
+   * all-optional case: when an event carries no required question at all,
+   * "still outstanding" falls back to any question of any kind left
+   * unanswered, so the form keeps showing until the player has actually
+   * seen and answered them once.
+   */
+  const hasRequiredQuestion = landing.questions.some((question) => question.isRequired);
+  const questionsStillOutstanding = hasRequiredQuestion
+    ? landing.outstandingRequiredQuestions > 0
+    : landing.questions.some((question) => question.currentAnswer === null);
 
   return (
     <Paper
@@ -677,7 +701,7 @@ function FocusedPanel({
 
       {invitation.standingAnswer === "yes" ? (
         <Alert severity="success" sx={{ mb: 2 }}>
-          {invitation.outstandingRequiredQuestions > 0
+          {questionsStillOutstanding
             ? `${STANDING_YES} — ${OUTSTANDING_QUESTIONS}`
             : landing.questions.length > 0
               ? `${STANDING_YES} — ${QUESTIONS_RECORDED}`
@@ -778,13 +802,20 @@ function FocusedPanel({
       ) : null}
 
       {/*
-        Owner correction round 3 (OWNER-LAN172-08): once nothing required
-        remains outstanding, stop re-rendering the identical form — the top
-        Alert above already reads "Attending — Answer recorded" in that
-        state. Brian: "it should close it up and say 'Answer recorded'...
-        right now, it just goes blank."
+        Owner correction round 3 (OWNER-LAN172-08), corrected round 4
+        (LAN-172-r4-F1): once nothing is left to offer — a required question,
+        or for an all-optional event, any question at all — stop
+        re-rendering the identical form; the top Alert above already reads
+        "Attending — Answer recorded" in that state. Brian: "it should close
+        it up and say 'Answer recorded'... right now, it just goes blank."
+        `questionsStillOutstanding` (above) is what keeps this from
+        collapsing before an all-optional event's own questions have ever
+        been shown — the round-3 fix used outstandingRequiredQuestions alone,
+        which is structurally always zero for such an event and hid the form
+        forever, contradicting W2's "optional questions remain visibly
+        optional."
       */}
-      {invitation.standingAnswer === "yes" && invitation.outstandingRequiredQuestions > 0 ? (
+      {invitation.standingAnswer === "yes" && questionsStillOutstanding ? (
         <Box component="form" action={submitQuestions} sx={{ mt: 3 }}>
           <input type="hidden" name="token" value={token} />
           <input type="hidden" name="invitationId" value={invitation.invitationId} />

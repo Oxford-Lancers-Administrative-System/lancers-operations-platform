@@ -217,6 +217,15 @@ const QUESTION: EventQuestionForAnswer = {
   currentAnswer: null,
 };
 
+const OPTIONAL_QUESTION: EventQuestionForAnswer = {
+  id: "00000000-0000-4000-8000-0000000000bb",
+  prompt: "Any dietary needs?",
+  answerType: "text",
+  choices: null,
+  isRequired: false,
+  currentAnswer: null,
+};
+
 const YES_ENTRY = invitation({
   invitationId: "66666666-6666-4666-8666-666666666666",
   eventName: "Yes with questions",
@@ -290,6 +299,64 @@ describe("OWNER-LAN172-08 — saving questions ends in a plain acknowledgement, 
       attendingCount: 0,
       otherOutstandingCount: 0,
       questions: [{ ...QUESTION, currentAnswer: { text: null, boolean: true, choice: null } }],
+      outstandingRequiredQuestions: 0,
+    });
+
+    const { container } = await renderPage({ open: YES_ENTRY.invitationId });
+    const text = container.textContent ?? "";
+
+    expect(text).toContain(QUESTIONS_RECORDED);
+    expect(text).not.toContain(SAVE_QUESTIONS);
+  });
+
+  it("still shows the form for an event whose questions are ALL optional and unanswered — LAN-172-r4-F1", async () => {
+    // outstandingRequiredQuestions is structurally 0 here — there is no
+    // required question at all, not "the required ones are done" — so the
+    // round-3 gate (outstandingRequiredQuestions > 0) hid this form on every
+    // visit, forever, contradicting W2's "optional questions remain visibly
+    // optional." This is the case the round-4 review proved live.
+    givenHome(homeWithFocused({ ...YES_ENTRY, outstandingRequiredQuestions: 0 }));
+    vi.mocked(readPlayerAnswerLandingIn).mockResolvedValue({
+      attendingCount: 0,
+      otherOutstandingCount: 0,
+      questions: [OPTIONAL_QUESTION],
+      outstandingRequiredQuestions: 0,
+    });
+
+    const { container } = await renderPage({ open: YES_ENTRY.invitationId });
+    const text = container.textContent ?? "";
+
+    expect(text).toContain(SAVE_QUESTIONS);
+    expect(text).not.toContain(QUESTIONS_RECORDED);
+  });
+
+  it("collapses an all-optional event to the acknowledgement once its own optional question is answered", async () => {
+    givenHome(homeWithFocused({ ...YES_ENTRY, outstandingRequiredQuestions: 0 }));
+    vi.mocked(readPlayerAnswerLandingIn).mockResolvedValue({
+      attendingCount: 0,
+      otherOutstandingCount: 0,
+      questions: [
+        { ...OPTIONAL_QUESTION, currentAnswer: { text: "None", boolean: null, choice: null } },
+      ],
+      outstandingRequiredQuestions: 0,
+    });
+
+    const { container } = await renderPage({ open: YES_ENTRY.invitationId });
+    const text = container.textContent ?? "";
+
+    expect(text).toContain(QUESTIONS_RECORDED);
+    expect(text).not.toContain(SAVE_QUESTIONS);
+  });
+
+  it("keeps Brian's approved mixed-event rule: collapses once the required question is answered, even with an optional one still blank", async () => {
+    givenHome(homeWithFocused({ ...YES_ENTRY, outstandingRequiredQuestions: 0 }));
+    vi.mocked(readPlayerAnswerLandingIn).mockResolvedValue({
+      attendingCount: 0,
+      otherOutstandingCount: 0,
+      questions: [
+        { ...QUESTION, currentAnswer: { text: null, boolean: true, choice: null } },
+        OPTIONAL_QUESTION,
+      ],
       outstandingRequiredQuestions: 0,
     });
 

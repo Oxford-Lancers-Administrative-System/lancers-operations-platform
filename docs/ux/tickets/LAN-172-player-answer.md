@@ -269,11 +269,27 @@ and say 'Answer recorded'... right now, it just goes blank."_ `submitQuestions`
 always redirected to the same `open=` URL, and the form rendered whenever the
 event had any questions at all, regardless of what remained outstanding — a
 successful save just re-showed the identical, now pre-filled form. The
-focused panel now stops rendering the questions form once nothing required
-remains outstanding (`outstandingRequiredQuestions === 0`); its own top Alert
-already reads **"Attending — Answer recorded"** in that state, the same "then
-a plain acknowledgement" Q-21 asks for on the No side too — one rule, built
-once, in both places.
+focused panel stops rendering the questions form once nothing is left to
+offer; its own top Alert reads **"Attending — Answer recorded"** in that
+state, the same "then a plain acknowledgement" Q-21 asks for on the No side
+too — one rule, built once, in both places.
+
+**Correction round 4 (LAN-172-r4-F1): "nothing left to offer" means required
+_or_ optional, not required alone.** Round 3 shipped that gate as
+`outstandingRequiredQuestions === 0`. Brian's own approved rule for a mixed
+event — required and optional questions together — is exactly that: the
+panel closes once the required ones are answered, even if an optional one was
+left blank. But for an event whose questions are **all** optional,
+`outstandingRequiredQuestions` is structurally zero from the start, with no
+required question ever to satisfy — so that same gate hid the form on every
+visit, forever, for any such event. `W2-answer-an-invitation.md`'s own
+Yes-path acceptance section is explicit that "optional questions remain
+visibly optional"; this silently
+made them invisible instead. The gate now falls back to "any question of any
+kind still unanswered" specifically when the event carries no required
+question at all, so an all-optional event's questions are shown (and can be
+answered and saved) at least once, while a mixed event's approved behaviour —
+collapsing once the required ones are done, optional or not — is unchanged.
 
 **Correction round 3 (OWNER-LAN172-11): the row's secondary control.** Brian:
 _"Change to 'no' should just say 'change answer.' It should not say 'change to
@@ -363,6 +379,12 @@ ticket), `REQ-attendance-not-absence`, `REQ-plain-first-contact`,
       mockup's `yesPage()`, `noPage()`, `inbox()` and the durable page's
       heading and focused panel — see the pull request for the exact states
       compared and their screenshots.
+- [x] **Correction round 4 (LAN-172-r4-F1):** an event whose questions are
+      all optional still offers them through the focused panel, on the first
+      visit and every visit until they are answered, and still collapses to
+      "Answer recorded" once they are — a mixed event's approved behaviour
+      (collapse once the required ones are done, regardless of an unanswered
+      optional one) is unchanged (`screens.test.tsx`).
 
 ## Boundaries
 
