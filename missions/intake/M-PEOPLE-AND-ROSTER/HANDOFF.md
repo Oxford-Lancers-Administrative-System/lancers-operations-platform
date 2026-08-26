@@ -195,7 +195,13 @@ record the observed head.
 
 - `ceff8ef` — "Let an operator record an in-person RSVP answer (LAN-170)". Mission
   4 scope, messaging, harmless here.
-- `53f01ee` — **"Gate visual packages on mockup structure" (#94)**. This one is
-  yours: the harness gate for mockup structure landed _after_ the baseline, so
-  the mockups you are about to build are subject to a check this ledger predates.
-  Read it before drawing anything.
+- `53f01ee` — "Gate visual packages on mockup structure" (#94). **Read and
+  confirmed harmless to this intake.** It changes `run-mission`, the
+  code-reviewer agent, the merge gate and the mission state machine so an
+  _implementation package_ is checked against its approved mockups at merge
+  time, rather than the owner walkthrough being the first thing to notice a
+  dropped or reordered section (ADR 0037). It constrains execution, not intake:
+  this mission produces the mockups, and a later Mission Lead's packages are
+  what get gated. It also encodes the same Q-23 split recorded above — mockup
+  structure and copy bind, application styling stays authoritative. Nothing
+  about how you draw W1's screens changes.
