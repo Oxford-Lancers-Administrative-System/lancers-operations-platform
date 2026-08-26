@@ -26,7 +26,7 @@ import {
   scheduledOnFromDate,
   timeStringFromDate,
 } from "@/app/operate/events/date-time-controls";
-import type { ParticipationQuestion } from "@/lib/services/participation-view";
+import type { EventFactsBase, ParticipationQuestion } from "@/lib/services/participation-view";
 
 import { recordOperatorAnswerAction } from "./record-answer-actions";
 import { EMPTY_RECORD_ANSWER_STATE } from "./record-answer-state";
@@ -43,6 +43,7 @@ import {
   RECORD_ANSWER,
   RECORDING,
   recordAnswerDialogTitle,
+  recordAnswerEventSubtitle,
   RESPONSE_NO_LABEL,
   RESPONSE_YES_LABEL,
   WHAT_DID_THEY_SAY,
@@ -235,18 +236,27 @@ function QuestionField({
  * documents finding exactly this defect by pressing the real button against a
  * real database. The form here starts inside `Dialog` and encloses
  * `DialogActions` for the same reason that file's does.
+ *
+ * ## The dialog names which event it is recording against
+ *
+ * OWNER-LAN170-09 (correction round 4): `event` carries the identity facts
+ * `recordAnswerEventSubtitle` needs to draw the second title line `W3-02`
+ * and `W3-04` both show — an operator working two events open at once (or
+ * simply moving fast) otherwise has no on-screen confirmation which one a
+ * given dialog is for.
  */
 export function RecordAnswerControl({
-  eventId,
+  event,
   invitationId,
   displayName,
   questions,
 }: {
-  eventId: string;
+  event: Pick<EventFactsBase, "id" | "name" | "scheduledOn" | "startsAt" | "endsAt">;
   invitationId: string;
   displayName: string;
   questions: readonly ParticipationQuestion[];
 }) {
+  const eventId = event.id;
   const [state, formAction, pending] = useActionState(
     recordOperatorAnswerAction,
     EMPTY_RECORD_ANSWER_STATE,
@@ -317,7 +327,31 @@ export function RecordAnswerControl({
         maxWidth="sm"
         aria-labelledby="record-answer-title"
       >
-        <DialogTitle id="record-answer-title">{recordAnswerDialogTitle(displayName)}</DialogTitle>
+        <DialogTitle id="record-answer-title">
+          {/*
+            Both lines are wrapped in their own `span` — `DialogTitle` renders
+            straight into an `<h2>`, so a block element nested inside it is
+            invalid HTML, and an un-wrapped text node beside the subtitle
+            would leave nothing whose own text content is the title alone
+            for `recordAnswerDialogTitle`'s callers to match against.
+            `sx={{ display: "block" }}` still puts each line on its own row
+            the way `W3-02`/`W3-04` draw it; the title's own size and weight
+            come from `DialogTitle`'s own `variant="h6"` Typography, which a
+            plain `Box component="span"` inherits without restating it.
+          */}
+          <Box component="span" sx={{ display: "block" }}>
+            {recordAnswerDialogTitle(displayName)}
+          </Box>
+          <Typography
+            component="span"
+            variant="body2"
+            color="text.secondary"
+            sx={{ display: "block", mt: 0.5 }}
+            data-testid="record-answer-event-subtitle"
+          >
+            {recordAnswerEventSubtitle(event)}
+          </Typography>
+        </DialogTitle>
         <Box component="form" action={formAction} data-testid="record-answer-form">
           <input type="hidden" name="eventId" value={eventId} />
           <input type="hidden" name="invitationId" value={invitationId} />

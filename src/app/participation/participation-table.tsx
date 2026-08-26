@@ -16,6 +16,7 @@ import {
   applyParticipationView,
   participationSortHref,
   participationSortState,
+  type EventFactsBase,
   type OperatorParticipationPerson,
   type Participation,
   type ParticipationFilters,
@@ -130,12 +131,12 @@ function AnswerChip({ person }: { person: ParticipationPerson }) {
  */
 function AnswerCell({
   operator,
-  eventId,
+  event,
   person,
   questions,
 }: {
   operator: boolean;
-  eventId: string;
+  event: Pick<EventFactsBase, "id" | "name" | "scheduledOn" | "startsAt" | "endsAt">;
   person: ParticipationPerson;
   questions: readonly ParticipationQuestion[];
 }) {
@@ -147,7 +148,7 @@ function AnswerCell({
   if (offerRecording) {
     return (
       <RecordAnswerControl
-        eventId={eventId}
+        event={event}
         invitationId={invitationId}
         displayName={person.displayName}
         questions={questions}
@@ -293,9 +294,11 @@ export function ParticipationTable({
   const { questions } = participation;
   const people = applyParticipationView(participation.people, filters, questions);
   const total = participation.people.length;
-  // Common to both tiers' event-facts shape (`EventFactsBase.id`) — LAN-170's
-  // recording dialog needs it and the table otherwise never reads it.
-  const eventId = participation.event.id;
+  // Common to both tiers' event-facts shape (`EventFactsBase`) — LAN-170's
+  // recording dialog needs the event's identity (OWNER-LAN170-09: `id`, and
+  // now `name`/`scheduledOn`/`startsAt`/`endsAt` for its subtitle) and the
+  // table otherwise never reads any of it.
+  const event = participation.event;
 
   return (
     <Paper variant="outlined" data-testid="participation-table" data-tier={participation.tier}>
@@ -394,7 +397,7 @@ export function ParticipationTable({
                   <LabeledField label={TABLE_HEADINGS.answer}>
                     <AnswerCell
                       operator={operator}
-                      eventId={eventId}
+                      event={event}
                       person={person}
                       questions={questions}
                     />
@@ -519,7 +522,7 @@ export function ParticipationTable({
                     <TableCell>
                       <AnswerCell
                         operator={operator}
-                        eventId={eventId}
+                        event={event}
                         person={person}
                         questions={questions}
                       />

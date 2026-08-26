@@ -122,6 +122,7 @@ import {
   RESPONSE_NO_LABEL,
   RESPONSE_YES_LABEL,
   recordAnswerDialogTitle,
+  recordAnswerEventSubtitle,
   SORTABLE_NOTE,
   TABLE_HEADINGS,
 } from "./presentation";
@@ -142,8 +143,12 @@ const EVENT = {
   status: "approved",
   eventType: "practice",
   scheduledOn: "2027-02-17",
-  startsAt: "20:00:00",
-  endsAt: "22:30:00",
+  // Minute precision, matching what `readEventIn`'s own `asTime` actually
+  // returns to `readEventFactsIn` (`events.ts`, `participation.ts`) — not a
+  // raw `time` column value with seconds, which nothing in the real payload
+  // ever carries this far.
+  startsAt: "20:00",
+  endsAt: "22:30",
   venue: "Iffley Road Astro",
   deliveryMode: "in_person",
   description: "Full contact.",
@@ -1341,6 +1346,32 @@ describe("recording an answer in person", () => {
     expect(screen.getByTestId("response-yes")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("response-no")).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByTestId("record-answer-submit")).toBeDisabled();
+  });
+
+  // OWNER-LAN170-09 (correction round 4): `W3-02`/`W3-04` both draw a second
+  // line under the title naming the event; the shipped dialog dropped it
+  // with nothing authorising the omission. Structure/copy from the mockup,
+  // date/time style from the application's own `formatDetailWhen` (Q-23) —
+  // asserted via the same formatter the surface itself calls, not a second,
+  // independently hand-written date string that could drift from it.
+  it("names the event under the title, in the application's own date/time style", () => {
+    render(
+      <ParticipationTable
+        basePath="/operate/events/event-1"
+        participation={OPERATOR_WITH_UNANSWERED}
+        filters={filters()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTestId("record-answer-open")[0]);
+
+    expect(screen.getByTestId("record-answer-event-subtitle")).toHaveTextContent(
+      recordAnswerEventSubtitle(OPERATOR_WITH_UNANSWERED.event),
+    );
+    // Concretely: the event's own name, then its long-form date and time
+    // range — not the mockup's literal rendering, and not a bare ISO string.
+    expect(screen.getByTestId("record-answer-event-subtitle")).toHaveTextContent(
+      "Practice — hilary week 5 · Wednesday, 17 February 2027 · 20:00–22:30",
+    );
   });
 
   // OWNER-LAN170-06 (correction round 3): a standard exclusive toggle group,

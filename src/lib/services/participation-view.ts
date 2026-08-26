@@ -271,7 +271,13 @@ export interface OperatorParticipationPerson extends ParticipationPerson {
   readonly invitationId?: string | null;
 }
 
-interface EventFactsBase {
+/**
+ * Exported (correction round 4, OWNER-LAN170-09) so `RecordAnswerControl` can
+ * type the event-identity facts it needs for the dialog's subtitle — `name`,
+ * `scheduledOn`, `startsAt`, `endsAt` — as a `Pick` of this rather than a
+ * second, separately-maintained shape.
+ */
+export interface EventFactsBase {
   readonly id: string;
   readonly name: string;
   readonly status: string;

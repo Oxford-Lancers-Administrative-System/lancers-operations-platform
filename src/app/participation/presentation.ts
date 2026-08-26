@@ -1,5 +1,7 @@
 import type { AttendancePresence } from "@/lib/services/attendance-vocabulary";
+import { formatDetailWhen } from "@/lib/services/event-vocabulary";
 import type {
+  EventFactsBase,
   ParticipationDiscrepancy,
   ParticipationPerson,
 } from "@/lib/services/participation-view";
@@ -271,6 +273,27 @@ export const RECORD_ANSWER = "Record answer";
 
 export function recordAnswerDialogTitle(displayName: string): string {
   return `Record ${displayName}'s answer`;
+}
+
+/**
+ * `vs Harewell Hawks · Sunday, 13 September 2026 · 14:00–16:30` — the
+ * dialog's event-identity subtitle.
+ *
+ * OWNER-LAN170-09 (correction round 4): `W3-02` and `W3-04` both draw a
+ * second line under the title naming which event the answer is being
+ * recorded against; the shipped dialog dropped it with nothing authorising
+ * the omission. Structure and copy are the mockup's — the event's own name
+ * (which already carries the "vs" the club writes into it,
+ * `event-csv.ts`'s own note) followed by when it is — but the date/time
+ * half is `formatDetailWhen`, the same service formatter the operator event
+ * page's own header uses for this exact fact (`operate/events/[id]/page.tsx`
+ * `data-testid="event-subtitle"`), per Q-23: style is the application's, not
+ * the mockup's own rendering of the date, and not a hand-rolled one here.
+ */
+export function recordAnswerEventSubtitle(
+  event: Pick<EventFactsBase, "name" | "scheduledOn" | "startsAt" | "endsAt">,
+): string {
+  return `${event.name} · ${formatDetailWhen(event)}`;
 }
 
 export const WHAT_DID_THEY_SAY = "What did they say?";

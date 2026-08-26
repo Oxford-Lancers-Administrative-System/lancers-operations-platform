@@ -63,11 +63,15 @@ with the text it illustrates.
   anything to record. Every cell in the Answer column holds exactly one
   element — the absence of an answer chip is itself the "no answer" signal
   (OWNER-LAN170-05, correction round 3; see Correction history).
-- **The recording dialog.** An exclusive Yes/No toggle, a "when did they tell
-  you" date and time (defaulting to now, backdating allowed, postdating
-  refused), and — depending on which answer is selected — either a required
-  reason (No) or the event's own questions, answerable in the same form,
-  partially or not at all, and never blocking the answer (OWNER-LAN170-07).
+- **The recording dialog.** A title naming the person, and beneath it a
+  second line naming the event — its own name and, in the application's own
+  `formatDetailWhen` style, its date and time (`W3-02`/`W3-04`; restored in
+  correction round 4, OWNER-LAN170-09, after shipping without it). Then an
+  exclusive Yes/No toggle, a "when did they tell you" date and time
+  (defaulting to now, backdating allowed, postdating refused), and —
+  depending on which answer is selected — either a required reason (No) or
+  the event's own questions, answerable in the same form, partially or not
+  at all, and never blocking the answer (OWNER-LAN170-07).
 - **The write.** `recordOperatorRsvpResponse` in `src/lib/services/rsvp.ts` —
   an ordinary `rsvp_responses` row with `source = operator` and the recording
   operator's own person id, in the same transaction as cancelling that
@@ -171,8 +175,8 @@ anything a stale render passed it.
   selection treatment with the `action.selected` tint (OWNER-LAN170-03), and
   fixed the date/time picker's future-bound and five-minute-step defects
   (OWNER-LAN170-04).
-- **Round 3** (Brian's second walkthrough, 26 August 2026) is this revision.
-  Round 2's bare-text row button, the `action.selected` tint, and the
+- **Round 3** (Brian's second walkthrough, 26 August 2026). Round 2's
+  bare-text row button, the `action.selected` tint, and the
   "Yes is always filled" rule it depended on are all gone, replaced by the
   bordered row button and the `ToggleButtonGroup` described above
   (OWNER-LAN170-05, -06). Progressive disclosure narrows where the event's
@@ -181,6 +185,15 @@ anything a stale render passed it.
   operator's own "now" for these states to be walkable, and a wording fix
   keeps a required question from misstating whose rule is whose
   (OWNER-LAN170-08).
+- **Round 4** (an independent UX conformance check against the approved `W3`
+  mockups, 26 August 2026) is this revision. The dialog's event-identity
+  subtitle — dropped somewhere before round 1 with nothing authorising the
+  omission — is restored (OWNER-LAN170-09). Separately, the round 1 claim
+  that `W3-01` shows no row button at either viewport, carried forward
+  unexamined through round 3, is corrected: the button is plainly present at
+  375px, and the desktop image is truncated rather than proven empty
+  (OWNER-LAN170-10; see Deviations item 1). Nothing in this round touches
+  Deviation 3 (the two date/time pickers) — that stays Brian's call.
 
 ## Acceptance criteria
 
@@ -207,16 +220,34 @@ anything a stale render passed it.
 
 ## Deviations from the approved mockup
 
-1. **The `W3-01` screenshot does not visibly show the button.** Both rows the
-   capture names as "the two people yet to answer" (Alwyn Cholmondley, Jarrah)
-   render only the existing "No answer" chip in the captured JPG, with no
-   control beside it — inspected directly, cropped and upscaled, rather than
-   assumed. `W3-02` and `W3-03` are captured correctly. This reads as a capture
-   defect in the packet rather than a design change: the workflow document's
-   own prose, the acceptance contract's criterion 1, and Brian's verdict
-   ("I trust it's there") all describe the control existing on that row. This
-   package implements the acceptance contract's text; the stale capture is
-   flagged here for Brian's eye rather than resolved silently.
+1. **Corrected in correction round 4 (OWNER-LAN170-10) — the round 1 claim
+   below was false and should never have survived to round 3.** This entry
+   used to say `W3-01` shows no row button at all, at either viewport, and
+   called that a capture defect. Re-inspecting the actual images (not the
+   round 1 description of them) shows that is wrong at 375px and unproven at
+   desktop:
+   - **`W3-01-375.jpg`: the button is there.** Both unanswered cards —
+     Alwyn Cholmondley's and Jarrah (Committee)'s — carry a bordered
+     **Record answer** button at the foot of the card, below the "No answer"
+     chip and the "Transport back from Harewell Hawks?" line. Cropped and
+     upscaled directly; there is no capture defect at this viewport.
+   - **`W3-01-desktop.jpg`: genuinely no button visible in the Answer cell
+     on either unanswered row, but the capture does not settle why.** The
+     table is 1280px wide and scrolls horizontally; this JPG's right edge
+     cuts mid-header through "Trans[port]... back from Hare[well]...", so at
+     least one more column exists off-canvas. Given the 375px card places
+     the control _after_ every other fact on the card, the likely desktop
+     analogue is a trailing actions column that fell outside this capture's
+     width, not a missing render. "Position not visible in this capture" is
+     the accurate description here; "capture defect" overstated what the
+     image actually shows. A re-capture at full table width (or a captured
+     scroll to the right edge) would settle it, and has not been done.
+
+   Either way this does not change what shipped: Brian's own verdict
+   ("I trust it's there") and override 1 (`OWNER-LAN170-05`, "the button
+   replaces the chip entirely") settle the row's behaviour directly, and
+   both are implemented. `W3-02` and `W3-03` remain captured correctly.
+
 2. **Superseded in correction round 3 (OWNER-LAN170-05).** This deviation
    originally kept the control beside the "No answer" text rather than
    replacing it, reasoning that the acceptance contract said only where the
