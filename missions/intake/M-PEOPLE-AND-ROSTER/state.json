@@ -1,7 +1,7 @@
 {
   "mission_id": "M-PEOPLE-AND-ROSTER",
   "ledger_version": 2,
-  "stage": "overview",
+  "stage": "inventory",
   "baseline": {
     "branch": "main",
     "commit": "2115bfed9d08ab9146fe00f002d6337cae9796a2"
@@ -9,6 +9,17 @@
   "approvals": {
     "boundary": {
       "words": "Yeah, looks fine. This is approved.",
+      "date": "2026-08-26",
+      "by": "Brian Schuster"
+    },
+    "boundary_amendment": {
+      "words": "Approved, approved, go.",
+      "date": "2026-08-26",
+      "by": "Brian Schuster",
+      "change": "Withdrew the club-role-assignment deviation; that scope returns to Mission 1 and the underlying observation becomes a packet finding."
+    },
+    "overview": {
+      "words": "Approved, approved, go.",
       "date": "2026-08-26",
       "by": "Brian Schuster"
     }
@@ -38,5 +49,5 @@
     ],
     "decisions": []
   },
-  "next_action": "Complete and approve 01-overview.md"
+  "next_action": "Inventory every controlling source's decisions, then freeze the workflow inventory in 02-workflows.md"
 }

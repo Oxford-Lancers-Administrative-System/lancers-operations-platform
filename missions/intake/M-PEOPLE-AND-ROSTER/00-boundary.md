@@ -39,8 +39,6 @@
   holds — coaches, committee, prospects, alumni) and **Roster** (this season's
   players) plus player detail.
 - Add-or-link a person with no membership, with a deliberate duplicate check.
-- **Assigning a club role to a person who has no operator seat** (see the
-  portfolio deviation below).
 - Correction: attributable, audited; contact values supersede rather than
   overwrite; `disputed — awaiting verification` as a first-class state.
 - Audited person merge (invariant I6), including its three unresolved edges:
@@ -55,8 +53,6 @@
 - The missing-data queue's definition and its working surface: required-field
   definition, `not recorded` explicit and never defaulted, per-field indicators,
   a roster flag, and a filter that produces a real list.
-- The collection-request **contract** — Task 11 §2.3's "at most one open
-  request per person, ever" — defined here so M6 and M7 build one shared thing.
 - Per-person change history on the person and player detail surfaces.
 - Emergency contact's structural lockdown as a locked invariant: never a Person
   row, never a contact point, never reachable by any audience or messaging
@@ -65,6 +61,10 @@
 - **Redesign, not extension**, of the shipped `/operate/roster` and
   `/operate/roster/[membershipId]` surfaces (portfolio rule 3, backwards-looking
   and progressive).
+- Extending the local synthetic seed wherever a People or Roster journey needs a
+  case it lacks — a duplicate pair for the merge journey, a first-name-only
+  record. The seed already carries players, leavers, staff, role assignments,
+  aliases and prospects.
 
 ## Out of scope
 
@@ -76,6 +76,23 @@
 - **Import and carry-forward**, and with them the season bootstrap — moved to M7
   (see deviation below).
 - Season creation and all season lifecycle: open, close, rollover — M11.
+- **Club-role assignment and operator seats — M1.** Recording who holds a club
+  role is Mission 1's surface and is not reopened here. A coach or committee
+  member added through this mission's add-or-link path is a Person on the People
+  surface; granting them a role or a login stays where it already lives.
+- **A person editing their own record — M7.** Task 11 §2.1 and its decision log
+  of 2026-08-15 already place coaches and committee members in the collection
+  loop for person-level data, and §7 records that players, coaches and committee
+  "supply and correct their own data via signed links". Moment M5 covers a
+  season-associated person's data going stale mid-season and M6 covers a
+  targeted correction request. No settings surface is needed and none is built
+  here; until M7 ships, a four-role operator corrects the record for them.
+- **The collection request itself — M7.** Task 11 §1 states the division
+  directly: Task 08 defined the missing-data state and queue, Task 11 defines
+  the chase, and §7 consumes this queue rather than redefining it. The request
+  record, the one-open-request rule, its states including per-fact `refused`,
+  and all cadence are Mission 7's. This mission owns the fact-level states and
+  the queue only.
 - The recruits list, funnel stages, recruit notes and the four entry doors — M6.
   This mission builds the duplicate-check and merge machinery those doors call.
 - Onboarding item behaviour, the checklist, nudges, the chase — M7. This mission
@@ -98,31 +115,38 @@ outcome-coherence problem requires separation.
 
 ## Portfolio deviation
 
-Two exact amendments to the 2026-08-26 row, both from Brian in this session:
+One exact amendment to the 2026-08-26 row, from Brian in this session:
 
-1. **The minimal season bootstrap moves out of Mission 5 and into Mission 7,
-   delivered as the import.** The row currently assigns M5 "a minimal season
-   bootstrap (a season row so the roster has a scope)" and records the mechanism
-   as an open owner decision with a seed-only default. Brian: _"the import is the
-   season bootstrap for now… Season Bootstrap will move with 7, basically, right
-   to get it open, but it'll be done with an import, so that settles it one way
-   or the other."_ This closes that open decision and removes season creation
-   from this mission. Consequence recorded: **this mission closes walkable only
-   against seeded data**, since no path for real records to arrive exists until
-   M7.
-2. **Assigning a club role to a person who holds no operator seat is named as
-   Mission 5 scope.** The row does not mention it. It is within Task 08 §2's
-   add-or-link path, and it is load-bearing: `event-audience.ts:200` resolves
-   coaches and committee members to invitations **only** through
-   `role_assignments`, and the sole writer of that table on `main` is
-   operator-invitation acceptance (`operator-invitations.ts:1571`). A coach who
-   never logs in therefore cannot be invited to an event today. Recording a club
-   role is a different act from granting system access; M1's invitation flow is
-   unchanged and still the only way to obtain a login.
+**The minimal season bootstrap moves out of Mission 5 and into Mission 7,
+delivered as the import.** The row currently assigns M5 "a minimal season
+bootstrap (a season row so the roster has a scope)" and records the mechanism as
+an open owner decision with a seed-only default. Brian: _"the import is the
+season bootstrap for now… Season Bootstrap will move with 7, basically, right to
+get it open, but it'll be done with an import, so that settles it one way or the
+other."_ This closes that open decision and removes season creation from this
+mission. Consequence recorded: **this mission closes walkable only against
+seeded data**, since no path for real records to arrive exists until M7.
 
 Unchanged from the row and explicitly reconfirmed this session: **this mission
 ships no messaging of any kind**, and surfaces render a field only where its
 substrate exists on `main` at build time.
+
+### Amendment to this approved boundary — 2026-08-26
+
+A second deviation was drafted and approved, then withdrawn the same day on
+Brian's correction. It had named club-role assignment for a person with no
+operator seat as Mission 5 scope. Brian: _"an operator is almost like an
+entirely different workflow from this… there is no club role assignment here.
+That shouldn't be touched in this. It's already been done."_ Approval of the
+withdrawal: _"Approved, approved, go."_
+
+The observation that prompted it stands and is carried into the packet as a
+finding against Mission 1 rather than as scope here: `event-audience.ts:200`
+resolves coaches and committee members to invitations only through
+`role_assignments`, and the sole writer of that table on `main` is
+operator-invitation acceptance (`operator-invitations.ts:1571`), so a club role
+cannot be recorded without also granting a login. In this club's practice
+coaches hold seats already, because LAN-110's attendance tool requires one.
 
 ## Repository drift
 
