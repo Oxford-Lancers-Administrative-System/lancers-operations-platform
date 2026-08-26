@@ -66,6 +66,13 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
     readEventAudienceGroupSummary: vi.fn(),
   };
 });
+// LAN-171. Reads a real transaction; this file's fixtures are not about an
+// approved event's committed plan, which is proved in `messaging-schedule.test.ts`
+// and `event-approval.test.ts`.
+vi.mock("@/lib/services/messaging-schedule", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/messaging-schedule")>();
+  return { ...actual, readFrozenMessagingPlan: vi.fn().mockResolvedValue(null) };
+});
 vi.mock("@/lib/services/event-amendment", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/event-amendment")>();
   return {

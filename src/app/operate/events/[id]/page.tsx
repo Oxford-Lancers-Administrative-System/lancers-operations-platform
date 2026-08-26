@@ -30,7 +30,13 @@ import {
   readEventAudience,
   readEventAudienceGroupSummary,
   type AudienceMember,
+  type UnreachableAudienceMember,
 } from "@/lib/services/event-approval";
+import {
+  readFrozenMessagingPlan,
+  type FrozenMessagingPlan,
+  type MessagingPlan,
+} from "@/lib/services/messaging-schedule";
 import type { AudienceGroupSummary } from "@/lib/services/audience-selection";
 import { readEventTemplate } from "@/lib/services/event-templates";
 import { readEventChangeHistory, type EventChangeEntry } from "@/lib/services/event-amendment";
@@ -56,6 +62,12 @@ import { gateShellPage } from "../../gate";
 import { ApproveEventForm } from "../event-actions";
 import { AudienceBuilder } from "./audience-builder";
 import DeleteDraft from "./delete-draft";
+import {
+  frozenPlanForDisplay,
+  MessagingPlanDisclosure,
+  planForDisplay,
+  WhatsAppErrorsAlert,
+} from "./messaging-plan";
 import { ApprovedEventActions, CancelledPanel, ChangeHistoryPanel } from "./change-panels";
 import RenotifyPanel from "./renotify-panel";
 import { silentChangeNotice } from "./change-presentation";
@@ -237,6 +249,8 @@ export default async function EventDetailPage({
                   }
                 : null
             }
+            plan={preview.plan}
+            unreachable={preview.unreachable}
           />
         )}
       </ApprovalLayout>
@@ -288,6 +302,11 @@ export default async function EventDetailPage({
   // is what creates one. A page render must not write.
   const clubLink = shareOpen && mayManage ? await readEventClubLink(event.id) : null;
 
+  // LAN-171. Frozen at approval and never recomputed — `REQ-schedule-not-retroactive`.
+  // Read only once there is one to read: a draft has never been approved, so it
+  // has no row in `event_messaging_plans` yet.
+  const frozenPlan = event.status === "approved" ? await readFrozenMessagingPlan(event.id) : null;
+
   return (
     <EventDetailView
       event={event}
@@ -302,6 +321,7 @@ export default async function EventDetailPage({
       history={history}
       participation={participation}
       participationFilters={participationFilters}
+      frozenPlan={frozenPlan}
       share={
         shareOpen && mayManage
           ? {
@@ -457,6 +477,8 @@ function ApprovalReview({
   groupSummary,
   approvable,
   deadline,
+  plan,
+  unreachable,
 }: {
   event: EventDetail;
   audience: AudienceMember[];
@@ -464,6 +486,9 @@ function ApprovalReview({
   groupSummary: AudienceGroupSummary;
   approvable: boolean;
   deadline: { label: string; clamped: boolean } | null;
+  /** LAN-171. `null` only while `deadline` is — an event with no date yet. */
+  plan: MessagingPlan | null;
+  unreachable: readonly UnreachableAudienceMember[];
 }) {
   const stale = audience.filter((member) => !member.stillSelectable).length;
 
@@ -560,6 +585,14 @@ function ApprovalReview({
           />
         </Box>
 
+        {/*
+          D8, W1's exception table: a missing or unusable WhatsApp route is an
+          error named before approval, not discovered afterwards. Placed beside
+          the facts and ahead of the named list, exactly where the approved
+          mockup puts it.
+        */}
+        <WhatsAppErrorsAlert unreachable={unreachable} />
+
         <AudienceList audience={audience} heading="By name" testId="resolved-audience" />
 
         <Box>
@@ -571,6 +604,19 @@ function ApprovalReview({
           </Typography>
           <QuestionList questions={questions} leadWithRsvp testId="review-questions" />
         </Box>
+
+        {/*
+          W1's purpose: an approver reads the whole plan before pressing
+          Approve. Last in the review, per the approved acceptance contract —
+          "the messaging plan appears last as an expandable disclosure".
+        */}
+        {plan ? (
+          <MessagingPlanDisclosure
+            display={planForDisplay(plan)}
+            audienceSize={audience.length}
+            approved={false}
+          />
+        ) : null}
 
         {approvable ? <ApproveEventForm eventId={event.id} /> : null}
       </Stack>
@@ -819,6 +865,7 @@ function EventDetailView({
   participation,
   participationFilters,
   share,
+  frozenPlan,
 }: {
   event: EventDetail;
   mayManage: boolean;
@@ -836,6 +883,8 @@ function EventDetailView({
   participationFilters: ParticipationFilters;
   /** `null` unless the operator opened **Share link**. */
   share: { url: string | null; blockedReason: string | null; errorRule: string | null } | null;
+  /** LAN-171. Non-null exactly when the event is approved. */
+  frozenPlan: FrozenMessagingPlan | null;
 }) {
   const preApproval = isPreApproval(event.status);
   // W5-04's recovery path is offered exactly where it is needed: the last
@@ -1051,6 +1100,20 @@ function EventDetailView({
           ) : null}
         </Stack>
       </Paper>
+
+      {/*
+        W1's purpose extends past the review step: once approved, this is what
+        was actually committed. Frozen — `REQ-schedule-not-retroactive` — so a
+        later change to the club's schedule never rewrites what this page says
+        already ran.
+      */}
+      {frozenPlan ? (
+        <MessagingPlanDisclosure
+          display={frozenPlanForDisplay(frozenPlan)}
+          audienceSize={event.audienceCount}
+          approved
+        />
+      ) : null}
 
       {/*
         §4.13. Below the facts and above the actions, because it answers a

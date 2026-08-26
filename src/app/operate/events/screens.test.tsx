@@ -93,6 +93,16 @@ vi.mock("@/lib/services/event-approval", async (importOriginal) => {
     saveEventAudience: vi.fn(),
   };
 });
+// LAN-171. Reads a real transaction on a page this file otherwise mocks
+// entirely; the plan disclosure's own content is proved against the real
+// database in `messaging-schedule.test.ts` and `event-approval.test.ts`. Most
+// screens here are not about an approved event's committed plan, so the
+// default is `null` — no disclosure — and the one describe block that is
+// about it overrides this per test.
+vi.mock("@/lib/services/messaging-schedule", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/services/messaging-schedule")>();
+  return { ...actual, readFrozenMessagingPlan: vi.fn().mockResolvedValue(null) };
+});
 
 import { NotFound } from "@/lib/db";
 import { resolveOperatorAccess, type ResolvedOperator } from "@/lib/auth/operator";
@@ -421,6 +431,12 @@ function givenAudience(
       },
     },
     deadline: deadline ? { ...deadline, rule: { daysBefore: 2 } } : null,
+    // LAN-171. `null` here reads exactly as "no date yet" does for `deadline` —
+    // these screen tests are not about the messaging plan, which has its own
+    // coverage, so they stay off rather than fabricating a plan nothing here
+    // asserts on.
+    plan: null,
+    unreachable: [],
     // LAN-154. The review reads all three: the questions it shows as a player
     // will meet them, the group shape it leads with, and the completeness gate.
     questions: [],

@@ -349,6 +349,24 @@ export function resolveLocalTestOverrides(
 }
 
 /**
+ * The default calling code for a national-format number — `"44"` unless
+ * overridden — with its safe, non-secret default applied.
+ *
+ * LAN-171. Exported on its own, separate from `resolveOutboundConfig`, because
+ * a caller that only needs to know whether one person's own recorded number
+ * converts — the pre-approval WhatsApp-reachability check `event-approval.ts`
+ * runs for every audience member — must not be gated on the deployment's
+ * outbound secrets being present. The calling code carries no secret and
+ * already has a sensible default; folding this into `configured: true` would
+ * report a real "this person has no usable number" fact as "deployment not
+ * configured" on every developer machine and every CI run, which is exactly
+ * where that check has to work.
+ */
+export function resolveDefaultCallingCode(source: EnvironmentSource = process.env): string {
+  return withDefault("DELIVERY_DEFAULT_CALLING_CODE", source).replace(/^\+/, "");
+}
+
+/**
  * Resolves the outbound configuration, or names what is absent.
  *
  * Takes the environment as an argument so a test can supply one without

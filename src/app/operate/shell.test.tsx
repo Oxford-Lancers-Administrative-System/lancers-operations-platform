@@ -344,7 +344,12 @@ describe("row 13 — the shell for an authorized operator (UX-02)", () => {
     expect(screen.getByRole("link", { name: "Roster" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Events" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Report" })).toBeVisible();
-    expect(screen.getAllByRole("link")).toHaveLength(3);
+    // LAN-171: the Secretary holds `delivery_administration` and now also sees
+    // Messaging schedule, the Administration entry that reuses it — see
+    // "LAN-133 — Administration in the shell" below, which is where that
+    // group's own membership is asserted in full. The fourth link here is that
+    // one entry, not a second ordinary destination.
+    expect(screen.getAllByRole("link")).toHaveLength(4);
     expect(screen.queryByRole("link", { name: /home/i })).toBeNull();
   });
 
@@ -987,13 +992,20 @@ describe("LAN-110 — the coach shell", () => {
  *
  * `DEC-administration-navigation` puts it "at the bottom of the left
  * application sidebar, immediately above user/account controls", holding
- * Operators and Roles and nothing else. Two properties are asserted here, and
- * neither of them is authorization:
+ * Operators and Roles. LAN-171 adds a third entry, **Messaging schedule**,
+ * between them, gated on `delivery_administration` rather than
+ * `role_management` — the four calendar roles who already approve events and
+ * repair their delivery, not only the three seats that administer accounts.
+ * Three properties are asserted here, and none of them is authorization:
  *
- *   * an administrator sees it, with both entries pointing at the approved
- *     routes, after the ordinary destinations and before the account block; and
- *   * everybody else sees no trace of it in the DOM — not a hidden element and
- *     not an attribute, because a server-rendered page ships whatever is in it.
+ *   * an administrator sees the entries their capabilities permit, pointing at
+ *     the approved routes, after the ordinary destinations and before the
+ *     account block;
+ *   * a seat holding `delivery_administration` alone sees Messaging schedule
+ *     and nothing else in the group; and
+ *   * an operator holding neither capability sees no trace of the group in the
+ *     DOM — not a hidden element and not an attribute, because a
+ *     server-rendered page ships whatever is in it.
  *
  * The refusal itself lives on the pages and is asserted in
  * `admin/screens.test.tsx`. A hidden link is a courtesy; those pages are the
@@ -1001,23 +1013,30 @@ describe("LAN-110 — the coach shell", () => {
  */
 describe("LAN-133 — Administration in the shell", () => {
   /** The three seats `REQ-role-management-authority` gives `role_management`. */
-  const ADMINISTRATORS = ["president", "general_manager", "it_officer"];
+  const ROLE_ADMINISTRATORS = ["president", "general_manager", "it_officer"];
 
-  it.each(ADMINISTRATORS)("shows Operators and Roles to the %s", async (seat) => {
-    givenAccess({ state: "active", operator: actor([seat]) });
+  it.each(ROLE_ADMINISTRATORS)(
+    "shows Operators, Messaging schedule and Roles to the %s",
+    async (seat) => {
+      givenAccess({ state: "active", operator: actor([seat]) });
 
-    render(await OperateLayout(layoutProps(null)));
+      render(await OperateLayout(layoutProps(null)));
 
-    expect(screen.getByRole("link", { name: "Operators" })).toHaveAttribute(
-      "href",
-      "/operate/admin/operators",
-    );
-    expect(screen.getByRole("link", { name: "Roles" })).toHaveAttribute(
-      "href",
-      "/operate/admin/roles",
-    );
-    expect(screen.getAllByRole("link")).toHaveLength(5);
-  });
+      expect(screen.getByRole("link", { name: "Operators" })).toHaveAttribute(
+        "href",
+        "/operate/admin/operators",
+      );
+      expect(screen.getByRole("link", { name: "Messaging schedule" })).toHaveAttribute(
+        "href",
+        "/operate/admin/messaging",
+      );
+      expect(screen.getByRole("link", { name: "Roles" })).toHaveAttribute(
+        "href",
+        "/operate/admin/roles",
+      );
+      expect(screen.getAllByRole("link")).toHaveLength(6);
+    },
+  );
 
   it("captions the group, and puts it after the ordinary destinations", async () => {
     givenAccess({ state: "active", operator: actor(["it_officer"]) });
@@ -1030,6 +1049,7 @@ describe("LAN-133 — Administration in the shell", () => {
       "Events",
       "Report",
       "Operators",
+      "Messaging schedule",
       "Roles",
     ]);
   });
@@ -1044,20 +1064,43 @@ describe("LAN-133 — Administration in the shell", () => {
     expect(html.indexOf("Administration")).toBeLessThan(html.lastIndexOf("Casey Quinn"));
   });
 
-  // The empty string is the operator who holds no seat at all — as legitimate
-  // here as it is for the three ordinary destinations, and just as excluded.
-  it.each(["secretary", "vice_president", "treasurer", ""])(
-    "shows no trace of it to an operator holding '%s'",
+  // LAN-171. The Vice-President and Secretary hold `delivery_administration`
+  // but not `role_management` — `REQ-role-management-authority` excludes them
+  // from account and role administration, and that is unchanged. What changes
+  // is that they are no longer excluded from the whole group: they see the one
+  // entry their capability actually permits.
+  it.each(["vice_president", "secretary"])(
+    "shows only Messaging schedule to the %s",
     async (seat) => {
-      givenAccess({ state: "active", operator: actor(seat === "" ? [] : [seat]) });
+      givenAccess({ state: "active", operator: actor([seat]) });
 
       const { container } = render(await OperateLayout(layoutProps(null)));
 
-      expect(screen.getAllByRole("link")).toHaveLength(3);
-      expect(container.innerHTML).not.toContain("Administration");
-      expect(container.innerHTML).not.toContain("/operate/admin");
+      expect(screen.getByRole("link", { name: "Messaging schedule" })).toHaveAttribute(
+        "href",
+        "/operate/admin/messaging",
+      );
+      expect(screen.queryByRole("link", { name: "Operators" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Roles" })).toBeNull();
+      expect(container.textContent).toContain("Administration");
+      expect(screen.getAllByRole("link")).toHaveLength(4);
     },
   );
+
+  // The empty string is the operator who holds no seat at all — as legitimate
+  // here as it is for the three ordinary destinations, and just as excluded.
+  // The Treasurer holds neither `role_management` nor `delivery_administration`
+  // (`AGENTS.md`'s no-recorded-decision reasoning), so both stay in the group
+  // that sees nothing.
+  it.each(["treasurer", ""])("shows no trace of it to an operator holding '%s'", async (seat) => {
+    givenAccess({ state: "active", operator: actor(seat === "" ? [] : [seat]) });
+
+    const { container } = render(await OperateLayout(layoutProps(null)));
+
+    expect(screen.getAllByRole("link")).toHaveLength(3);
+    expect(container.innerHTML).not.toContain("Administration");
+    expect(container.innerHTML).not.toContain("/operate/admin");
+  });
 
   it("shows no trace of it to a narrow attendance recorder", async () => {
     givenAccess({ state: "active", operator: actor(["head_coach"]) });

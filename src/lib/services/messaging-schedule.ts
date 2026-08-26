@@ -1,9 +1,9 @@
 import "server-only";
 
-import { CLUB_TIME_ZONE } from "@/lib/club-time";
-import { ConstraintViolated, type Tx } from "@/lib/db";
+import { addClubDays, CLUB_TIME_ZONE, todayInClubZone } from "@/lib/club-time";
+import { ConstraintViolated, withTransaction, type Tx } from "@/lib/db";
 
-import { recordAudit } from "./audit";
+import { deriveEntityIdFromNaturalKey, recordAudit } from "./audit";
 
 /**
  * The club's messaging schedule, and the plan one approval freezes. LAN-169.
@@ -76,7 +76,15 @@ export interface MessagingSchedule {
   readonly invitationLeadDays: number;
   /** Hours between successive rungs. Reminders count forward from the invitation. */
   readonly reminderCadenceHours: number;
+  /**
+   * Every WhatsApp message the ladder sends, **counting the invitation
+   * itself as the first one** (Q-19, `REQ-ladder-order` governs over W7's
+   * looser "reminders" wording). A club that wants one further WhatsApp
+   * reminder after the invitation sets this to 2, not 1 — the count column
+   * never calls the invitation a reminder, but it does count it.
+   */
   readonly whatsappReminderCount: number;
+  /** Email reminders after the invitation. The invitation is never email. */
   readonly emailReminderCount: number;
   /** Hours after the RSVP deadline before the President is told. Zero is legal. */
   readonly escalationHours: number;
@@ -157,12 +165,69 @@ export async function readMessagingScheduleIn(
   return toSchedule(row);
 }
 
-/** Every configured schedule, for the settings page and the approval panel. */
+/**
+ * Every configured schedule, for the settings page and the approval panel.
+ *
+ * `order by t.event_type` — the table-qualified, still-enum-typed column —
+ * deliberately, and not the bare `event_type` the `select` list also produces.
+ * `SCHEDULE_COLUMNS` casts the column to text for its output alias, and
+ * PostgreSQL resolves a bare `ORDER BY` name against an output alias of the
+ * same name before it considers the source column: unqualified, this sorted
+ * alphabetically by the cast text ("chalk, game, meeting, practice…") rather
+ * than by `public.event_type`'s own declared order ("practice,
+ * strength_and_conditioning, chalk, game…") — the order LAN-171's settings
+ * page groups by, and the order the seed inserts in. Qualifying it is what
+ * makes `ORDER BY` see the real enum column instead of the aliased text.
+ */
 export async function listMessagingSchedulesIn(tx: Tx): Promise<readonly MessagingSchedule[]> {
   const result = await tx.query<ScheduleRow>(
-    `select ${SCHEDULE_COLUMNS} from public.messaging_schedules order by event_type`,
+    `select ${SCHEDULE_COLUMNS} from public.messaging_schedules t order by t.event_type`,
   );
   return result.rows.map(toSchedule);
+}
+
+/**
+ * One event type's schedule, and the worked-example plan it would produce
+ * today — LAN-171, W7's "if the invitation went out today, when does
+ * everything else happen?".
+ */
+export interface MessagingScheduleWithPreview {
+  readonly schedule: MessagingSchedule;
+  readonly preview: MessagingPlan;
+}
+
+/**
+ * Every configured schedule, each carrying the plan it would produce for one
+ * worked example: an event of that type, four weeks from today at 20:00,
+ * approved today. Every row uses the same synthetic event so the seven
+ * previews are comparable, and every instant in `preview` is
+ * `resolveMessagingPlanIn`'s own arithmetic — W7's acceptance evidence that
+ * "the values shown are the ones the scheduler actually uses — read from the
+ * same source, never transcribed".
+ *
+ * `/operate/admin/messaging` is the only reader. It lives here rather than in
+ * that page because assembling a plan from a schedule is exactly the
+ * arithmetic this module owns, and a page composing it directly would be a
+ * second reader reaching past the service boundary for a business rule.
+ */
+export async function listMessagingSchedulesWithPreview(): Promise<
+  readonly MessagingScheduleWithPreview[]
+> {
+  const scheduledOn = addClubDays(todayInClubZone(), 28) ?? todayInClubZone();
+
+  return withTransaction(async (tx) => {
+    const schedules = await listMessagingSchedulesIn(tx);
+    const withPreview: MessagingScheduleWithPreview[] = [];
+    for (const schedule of schedules) {
+      const preview = await resolveMessagingPlanIn(tx, {
+        eventType: schedule.eventType,
+        scheduledOn,
+        startsAt: "20:00",
+      });
+      withPreview.push({ schedule, preview });
+    }
+    return withPreview;
+  });
 }
 
 /**
@@ -218,11 +283,22 @@ export async function updateMessagingScheduleIn(
   // change stops being a reviewed pull request and becomes a runtime edit. The
   // audit row is the whole of what replaces version control here, so it carries
   // both the old and the new values rather than only the new ones.
+  //
+  // `entityId` is derived, not `eventType` itself (OWNER-LAN171-01):
+  // `audit_events.entity_id` is `uuid not null`, and `messaging_schedules` is
+  // keyed by `public.event_type` — a plain enum label such as `"practice"`,
+  // which Postgres rejects outright as a uuid. That rejection used to roll
+  // back this whole transaction, discarding the schedule UPDATE above along
+  // with the audit insert, so every save silently failed. `entity_table`
+  // still says `messaging_schedules` and `context` carries the full before
+  // and after, so the derived id and that pair together still identify
+  // exactly which row changed. See `deriveEntityIdFromNaturalKey`'s own
+  // comment for why this is not a migration.
   await recordAudit(tx, {
     actorPersonId,
     action: "messaging_schedule.changed",
     entityTable: "messaging_schedules",
-    entityId: eventType,
+    entityId: deriveEntityIdFromNaturalKey("messaging_schedules", eventType),
     context: { before, after: change },
   });
 
@@ -301,7 +377,24 @@ const HOUR_MS = 60 * 60 * 1000;
  * deadline. Rungs beyond it are not scheduled, because a reminder that lands
  * after the answer was due is chasing nothing.
  */
-function buildLadder(
+/**
+ * Exported for one reason: LAN-171's schedule page previews the dates a policy
+ * *would* produce for a worked example, without an event to resolve one
+ * against. Replaying this same function against a frozen plan's stored
+ * `invitationAt` and counts is also how the event page renders an **approved**
+ * event's committed ladder, since `event_messaging_plans` stores the counts and
+ * the anchor but not each rung's own instant. Both callers get the one
+ * arithmetic rather than a second copy of it.
+ *
+ * `whatsappReminders` and `emailReminders` are rungs **after** the invitation
+ * — the invitation is rung 0, built unconditionally below. Neither caller
+ * passes `schedule.whatsappReminderCount` unchanged: `resolveMessagingPlanIn`
+ * passes `schedule.whatsappReminderCount - 1`, because that column counts the
+ * invitation as WhatsApp #1 (Q-19); the event page passes a frozen plan's own
+ * `whatsappRemindersScheduled`, which was computed the same way at approval
+ * and already excludes it.
+ */
+export function buildLadder(
   invitationAt: Date,
   cadenceHours: number,
   whatsappReminders: number,
@@ -413,7 +506,12 @@ export async function resolveMessagingPlanIn(
   const runwayMs = responseDeadlineAt.getTime() - invitationAt.getTime();
   const available = runwayMs <= 0 ? 0 : Math.floor(runwayMs / cadenceMs);
 
-  const wanted = schedule.whatsappReminderCount + schedule.emailReminderCount;
+  // `schedule.whatsappReminderCount` counts the invitation as WhatsApp #1
+  // (Q-19, OWNER-LAN171-05): the invitation itself is rung 0, unconditional,
+  // built below regardless of any count. What `buildLadder` wants here is how
+  // many *further* WhatsApp rungs follow it, which is one fewer.
+  const whatsappRemindersAfterInvitation = Math.max(0, schedule.whatsappReminderCount - 1);
+  const wanted = whatsappRemindersAfterInvitation + schedule.emailReminderCount;
 
   // A late approval is one whose runway cannot carry the ladder the club
   // configured — not merely one that dispatches immediately. The two differ:
@@ -423,8 +521,8 @@ export async function resolveMessagingPlanIn(
   const lateApproval = available < wanted;
 
   const whatsappScheduled = lateApproval
-    ? Math.max(0, Math.min(schedule.whatsappReminderCount, available))
-    : schedule.whatsappReminderCount;
+    ? Math.max(0, Math.min(whatsappRemindersAfterInvitation, available))
+    : whatsappRemindersAfterInvitation;
 
   // WhatsApp only. Brian, 2026-08-25: "Late events should be WhatsApp only."
   // On a short runway the club uses the channel everybody has and does not add
@@ -607,4 +705,14 @@ export async function readFrozenPlanIn(
     emailRemindersScheduled: row.email_reminders_scheduled,
     frozenAt: row.frozen_at,
   };
+}
+
+/**
+ * The frozen plan for one event, or `null` before approval — for a page that
+ * only wants to read it and holds no transaction of its own.
+ */
+export async function readFrozenMessagingPlan(
+  eventId: string,
+): Promise<FrozenMessagingPlan | null> {
+  return withTransaction((tx) => readFrozenPlanIn(tx, eventId));
 }

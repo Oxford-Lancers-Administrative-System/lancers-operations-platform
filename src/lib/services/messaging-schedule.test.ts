@@ -17,14 +17,32 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { closePool, withTransaction } from "@/lib/db";
+import { deriveEntityIdFromNaturalKey } from "./audit";
 
-import { resolveMessagingPlanIn, readMessagingScheduleIn } from "./messaging-schedule";
+import {
+  buildLadder,
+  listMessagingSchedulesIn,
+  listMessagingSchedulesWithPreview,
+  resolveMessagingPlanIn,
+  readMessagingScheduleIn,
+  updateMessagingScheduleIn,
+  type MessagingScheduleChange,
+} from "./messaging-schedule";
 
 afterAll(async () => {
   await closePool();
 });
 
-/** A practice: RSVP two days before, invitation five days before, cadence 24h. */
+/**
+ * A practice: RSVP two days before, invitation five days before, cadence 24h.
+ * `invitationLeadDays` is the seeded `rsvpByDays + 3` (LAN-169's original
+ * default). Round 3, OWNER-LAN171-06: a migration that would have moved this
+ * to `+ 2`, matching the invitation now counting as WhatsApp #1 (round 2,
+ * Q-19, OWNER-LAN171-05), was ruled out — this package exists to make the
+ * value editable in the application, not by migration. The unedited default
+ * therefore leaves a one-day gap ahead of the deadline until the club edits
+ * it by hand.
+ */
 const PRACTICE = { eventType: "practice", scheduledOn: "2026-10-18", startsAt: "20:00" };
 
 /** A game: RSVP seven days before, invitation ten days before. */
@@ -113,35 +131,41 @@ describe("the ladder", () => {
     // `REQ-count-forward`, and Brian's words on 2026-08-25: "Count forward from
     // the invitations." Anchoring backwards from the deadline was the earlier
     // model and produced the gap W7's preview exposed.
+    //
+    // Three rungs, not four (Q-19, OWNER-LAN171-05): the default policy's
+    // `whatsappReminderCount` of 2 counts the invitation as WhatsApp #1, so
+    // only one further WhatsApp reminder follows it, then the email reminder.
     const plan = await planFor(PRACTICE, "2026-10-01T09:00:00Z");
 
     expect(plan.lateApproval).toBe(false);
     expect(plan.rungs.map((rung) => [rung.rung, rung.channel, rung.at.toISOString()])).toEqual([
       [0, "whatsapp", "2026-10-13T19:00:00.000Z"],
       [1, "whatsapp", "2026-10-14T19:00:00.000Z"],
-      [2, "whatsapp", "2026-10-15T19:00:00.000Z"],
-      [3, "email", "2026-10-16T19:00:00.000Z"],
+      [2, "email", "2026-10-15T19:00:00.000Z"],
     ]);
   });
 
-  it("puts the last reminder on the deadline rather than days before it", async () => {
-    // The invitation lead is the deadline plus the reminders times the cadence,
-    // which is what makes this true — a game invited twenty-one days out would
-    // finish its ladder eleven days before the deadline it is chasing.
+  it("lands the last reminder one cadence step before the deadline under the unedited default", async () => {
+    // The invitation lead is the deadline plus the reminders *after the
+    // invitation* times the cadence — that arithmetic still holds, it is
+    // just that the seeded `invitation_lead_days` (LAN-169's original
+    // `rsvp_by_days + 3`, left alone by OWNER-LAN171-06 in round 3) no
+    // longer matches it now that the invitation itself counts as WhatsApp #1
+    // (round 2, Q-19, OWNER-LAN171-05). One cadence step of slack is exactly
+    // the gap the settings page's warning exists to surface until the club
+    // edits the value by hand — see "the schedule page's worked example"
+    // below.
     const plan = await planFor(GAME, "2026-10-01T09:00:00Z");
     const last = plan.rungs[plan.rungs.length - 1];
-    expect(last.at.toISOString()).toBe(plan.responseDeadlineAt.toISOString());
+    expect(plan.responseDeadlineAt.getTime() - last.at.getTime()).toBe(24 * 60 * 60 * 1000);
   });
 
   it("keeps WhatsApp, WhatsApp, email in that fixed order", async () => {
     // `REQ-ladder-order`. Only the spacing and the counts are configurable.
+    // Invitation (WhatsApp #1) + one further WhatsApp reminder + one email
+    // reminder (Q-19, OWNER-LAN171-05).
     const plan = await planFor(GAME, "2026-10-01T09:00:00Z");
-    expect(plan.rungs.map((rung) => rung.channel)).toEqual([
-      "whatsapp",
-      "whatsapp",
-      "whatsapp",
-      "email",
-    ]);
+    expect(plan.rungs.map((rung) => rung.channel)).toEqual(["whatsapp", "whatsapp", "email"]);
   });
 
   it("schedules no rung after the deadline it is chasing", async () => {
@@ -156,16 +180,20 @@ describe("a late approval", () => {
   it("still chases, WhatsApp only, and never escalates", async () => {
     // Brian, 2026-08-25, replacing compression entirely: "start now, fill the
     // time you have, guarantee one message, do not escalate." Approving the
-    // practice three days out leaves two cadence steps before the deadline, so
-    // two WhatsApp reminders fit and the email rung does not send at all.
-    const plan = await planFor(PRACTICE, "2026-10-14T19:00:00Z");
+    // practice with one day of runway left leaves one cadence step before the
+    // deadline: under the corrected count (Q-19, OWNER-LAN171-05 — the
+    // invitation counts as WhatsApp #1, so the policy wants one further
+    // WhatsApp reminder plus one email after it) that one step is not enough
+    // to carry both, so the WhatsApp reminder fits and the email rung does
+    // not send at all.
+    const plan = await planFor(PRACTICE, "2026-10-15T19:00:00Z");
 
     expect(plan.lateApproval).toBe(true);
     expect(plan.dispatchesImmediately).toBe(true);
     expect(plan.escalationAt).toBeNull();
 
     const reminders = plan.rungs.filter((rung) => rung.kind === "reminder");
-    expect(reminders.map((rung) => rung.channel)).toEqual(["whatsapp", "whatsapp"]);
+    expect(reminders.map((rung) => rung.channel)).toEqual(["whatsapp"]);
     expect(reminders.some((rung) => rung.channel === "email")).toBe(false);
   });
 
@@ -232,6 +260,117 @@ describe("escalation", () => {
   });
 });
 
+describe("saving a schedule change, and the audit row that must accompany it", () => {
+  // OWNER-LAN171-01: `updateMessagingScheduleIn` calls `recordAudit` with
+  // `entityId: eventType` — a plain text label like `"practice"` — against a
+  // column declared `uuid not null`. Postgres rejected every such insert, the
+  // whole transaction rolled back, and the schedule UPDATE was discarded with
+  // it: the save had never worked, for any row, since it shipped. This suite
+  // is database-backed on purpose — the bug shipped because the package's
+  // other tests mock at the service boundary, so nothing ever exercised
+  // `recordAudit` against a real `audit_events` table.
+
+  async function withAuditActor<T>(fn: (actorPersonId: string) => Promise<T>): Promise<T> {
+    const actorPersonId = await withTransaction(async (tx) => {
+      const result = await tx.query<{ id: string }>(
+        "insert into public.people (given_name, family_name) values ($1, $2) returning id",
+        ["LAN171Fixture", "AuditActor"],
+      );
+      return result.rows[0].id;
+    });
+    try {
+      return await fn(actorPersonId);
+    } finally {
+      await withTransaction((tx) =>
+        tx.query("delete from public.audit_events where actor_person_id = $1", [actorPersonId]),
+      );
+      await withTransaction((tx) =>
+        tx.query("delete from public.people where id = $1", [actorPersonId]),
+      );
+    }
+  }
+
+  it("writes the schedule row and an audit row naming the actor, even though the row's own key is not a uuid", async () => {
+    await withAuditActor(async (actorPersonId) => {
+      const before = await withTransaction((tx) => readMessagingScheduleIn(tx, "recruitment"));
+      const restore: MessagingScheduleChange = {
+        rsvpByDays: before.rsvpByDays,
+        invitationLeadDays: before.invitationLeadDays,
+        reminderCadenceHours: before.reminderCadenceHours,
+        whatsappReminderCount: before.whatsappReminderCount,
+        emailReminderCount: before.emailReminderCount,
+        escalationHours: before.escalationHours,
+      };
+      const changed: MessagingScheduleChange = { ...restore, escalationHours: 9 };
+
+      try {
+        // The real write, through the real service, against the real
+        // database — not mocked. This is exactly the call that used to roll
+        // back silently.
+        const updated = await withTransaction((tx) =>
+          updateMessagingScheduleIn(tx, actorPersonId, "recruitment", changed),
+        );
+        expect(updated.escalationHours).toBe(9);
+
+        // The schedule row actually changed…
+        const reread = await withTransaction((tx) => readMessagingScheduleIn(tx, "recruitment"));
+        expect(reread.escalationHours).toBe(9);
+
+        // …and the audit row actually exists, naming the actor and carrying
+        // before/after — W7's attribution requirement.
+        const auditRow = await withTransaction(async (tx) => {
+          const result = await tx.query<{
+            actor_person_id: string;
+            action: string;
+            entity_table: string;
+            entity_id: string;
+            context: { before: { escalationHours: number }; after: { escalationHours: number } };
+          }>(
+            `select actor_person_id, action, entity_table, entity_id, context
+               from public.audit_events
+              where entity_table = 'messaging_schedules' and actor_person_id = $1
+              order by occurred_at desc
+              limit 1`,
+            [actorPersonId],
+          );
+          return result.rows[0];
+        });
+
+        expect(auditRow).toBeDefined();
+        expect(auditRow.actor_person_id).toBe(actorPersonId);
+        expect(auditRow.action).toBe("messaging_schedule.changed");
+        expect(auditRow.entity_table).toBe("messaging_schedules");
+        // Derived, deterministic, and a real uuid — not the literal
+        // "recruitment" that used to reach this uuid-typed column and be
+        // rejected by Postgres.
+        expect(auditRow.entity_id).toBe(
+          deriveEntityIdFromNaturalKey("messaging_schedules", "recruitment"),
+        );
+        expect(auditRow.context.before.escalationHours).toBe(before.escalationHours);
+        expect(auditRow.context.after.escalationHours).toBe(9);
+      } finally {
+        // Leave the club's configuration exactly as this suite found it —
+        // `withTransaction` commits, so the restore has to be explicit.
+        await withTransaction((tx) =>
+          updateMessagingScheduleIn(tx, actorPersonId, "recruitment", restore),
+        );
+      }
+    });
+  });
+
+  it("derives the same entity id for the same natural key every time, and different ids for different ones", () => {
+    expect(deriveEntityIdFromNaturalKey("messaging_schedules", "practice")).toBe(
+      deriveEntityIdFromNaturalKey("messaging_schedules", "practice"),
+    );
+    expect(deriveEntityIdFromNaturalKey("messaging_schedules", "practice")).not.toBe(
+      deriveEntityIdFromNaturalKey("messaging_schedules", "game"),
+    );
+    expect(deriveEntityIdFromNaturalKey("messaging_schedules", "practice")).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+    );
+  });
+});
+
 describe("the configuration itself", () => {
   it("is complete over every event type, with no default arm", async () => {
     const rows = await withTransaction(async (tx) =>
@@ -249,10 +388,39 @@ describe("the configuration itself", () => {
       expect(schedule.whatsappReminderCount).toBe(2);
       expect(schedule.emailReminderCount).toBe(1);
       expect(schedule.escalationHours).toBe(12);
-      // Counting forward means the invitation is the deadline plus the whole
-      // ladder, or the last reminder lands well before the deadline it chases.
+      // The seeded default is LAN-169's original `rsvp_by_days + 3`, left
+      // alone (round 3, OWNER-LAN171-06 ruled out a migration that would
+      // have moved it to `+ 2` to match the ladder-count correction below).
+      // Counting forward, the invitation exactly matching its deadline would
+      // need `+ 2` now that the invitation itself counts as WhatsApp #1
+      // (round 2, Q-19, OWNER-LAN171-05: `whatsappReminderCount` includes
+      // the invitation, so only one further WhatsApp reminder follows it,
+      // not two) — so the seeded `+ 3` leaves the last reminder a day before
+      // the deadline it chases. That is the gap the settings page's row
+      // preview warns about until the club edits a value by hand; it is not
+      // a defect this test papers over.
       expect(schedule.invitationLeadDays).toBe(schedule.rsvpByDays + 3);
     }
+  });
+
+  it("lists every schedule in the enum's own declared order, not alphabetically", async () => {
+    // A regression on its own right: the column list casts `event_type` to
+    // text for its output alias, and an unqualified `order by event_type`
+    // resolves against that same-named output alias rather than the
+    // underlying enum column — sorting "chalk, game, meeting, practice…"
+    // instead of the declared "practice, strength_and_conditioning, chalk,
+    // game…". LAN-171's settings page groups its rows in this order.
+    const rows = await withTransaction((tx) => listMessagingSchedulesIn(tx));
+
+    expect(rows.map((row) => row.eventType)).toEqual([
+      "practice",
+      "strength_and_conditioning",
+      "chalk",
+      "game",
+      "social",
+      "recruitment",
+      "meeting",
+    ]);
   });
 
   it("refuses an event type nobody has agreed a schedule for", async () => {
@@ -306,6 +474,135 @@ describe("no quiet hours", () => {
         }).format(rung.at),
       ),
     );
-    expect(hours).toEqual([7, 7, 7, 7]);
+    // Invitation (WhatsApp #1) + one further WhatsApp reminder + one email
+    // reminder — three rungs, not four (Q-19, OWNER-LAN171-05: the invitation
+    // counts against `whatsappReminderCount`, so a policy of 2 WhatsApp + 1
+    // email produces one WhatsApp reminder after the invitation, not two).
+    expect(hours).toEqual([7, 7, 7]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LAN-171 — replaying the ladder, and the settings page's own worked example
+// ---------------------------------------------------------------------------
+
+describe("buildLadder, exported for replay against a frozen plan", () => {
+  it("reproduces the same rungs resolveMessagingPlanIn would compute", async () => {
+    const plan = await planFor(PRACTICE, "2026-10-01T09:00:00Z");
+
+    // Practice's default policy is 2 WhatsApp (the invitation counts as the
+    // first, Q-19) and 1 email — one WhatsApp *reminder* after the
+    // invitation, which is what `buildLadder` takes here, plus the email
+    // reminder. All of it fits the runway this far out — `available` is not
+    // the constraint here.
+    const replayed = buildLadder(plan.invitationAt, 24, 1, 1, 2);
+
+    expect(replayed).toEqual(plan.rungs);
+  });
+
+  it("guarantees the invitation even when no reminder fits", () => {
+    const invitationAt = new Date("2026-10-01T09:00:00Z");
+    const rungs = buildLadder(invitationAt, 24, 2, 1, 0);
+
+    expect(rungs).toHaveLength(1);
+    expect(rungs[0]).toMatchObject({ rung: 0, kind: "invitation", channel: "whatsapp" });
+  });
+});
+
+describe("the ladder counts the invitation as WhatsApp #1 (Q-19, OWNER-LAN171-05)", () => {
+  it("sends four messages total for the default policy: invitation, one WhatsApp reminder, one email reminder, then the President", async () => {
+    // `REQ-ladder-order` governs over W7's looser "reminders" wording: the
+    // default policy is 2 WhatsApp *including the invitation* and 1 email, so
+    // a player who never answers gets the invitation (WhatsApp), one further
+    // WhatsApp reminder, one email reminder — three messages — and the
+    // President is the fourth. Before this fix the invitation was not
+    // counted, so the same policy produced two WhatsApp reminders on top of
+    // the invitation: four player messages instead of three.
+    const plan = await planFor(PRACTICE, "2026-10-01T09:00:00Z");
+
+    expect(plan.lateApproval).toBe(false);
+    expect(plan.rungs).toHaveLength(3);
+    expect(plan.rungs.map((rung) => [rung.kind, rung.channel])).toEqual([
+      ["invitation", "whatsapp"],
+      ["reminder", "whatsapp"],
+      ["reminder", "email"],
+    ]);
+    expect(plan.escalationAt).not.toBeNull();
+  });
+});
+
+describe("the schedule page's worked example", () => {
+  it("previews every configured type against one comparable synthetic event", async () => {
+    const withPreview = await listMessagingSchedulesWithPreview();
+
+    // Complete over the type, same as the table itself.
+    expect(withPreview).toHaveLength(7);
+
+    const practice = withPreview.find((row) => row.schedule.eventType === "practice");
+    expect(practice).toBeDefined();
+    // `resolveMessagingPlanIn`'s own arithmetic, not a second copy of it: the
+    // preview's deadline is the schedule's day count before its own event start.
+    expect(practice!.preview.eventStartsAt.getUTCHours()).toBe(
+      practice!.preview.responseDeadlineAt.getUTCHours(),
+    );
+    expect(practice!.preview.lateApproval).toBe(false);
+    expect(practice!.preview.rungs.length).toBeGreaterThan(0);
+
+    // Every row is resolved against the same date and the same 20:00 start, so
+    // the seven previews are directly comparable — W7's own requirement for a
+    // page that shows one example per row.
+    const starts = withPreview.map((row) => row.preview.eventStartsAt.toISOString());
+    expect(new Set(starts).size).toBe(1);
+  });
+
+  it("still shows a gap when a schedule genuinely carries slack — the warning is not just suppressed", async () => {
+    // Round 3, OWNER-LAN171-06, Brian: a migration to nudge a configurable
+    // value by one day is exactly what this settings page makes
+    // unnecessary — "we should be able to change the numbers as needed... in
+    // the app, not [by migration]." The unedited seeded default already
+    // carries its own one-day gap for this reason (see "the configuration
+    // itself" above), which is correct behaviour, not a defect, and W7
+    // already has Brian confirming these values himself before the first
+    // real dispatch. Five *additional* spare days proves the warning still
+    // fires for a value that is genuinely wrong, on top of that baseline gap,
+    // rather than always reporting clean.
+    await withTransaction((tx) =>
+      tx.query(
+        "update public.messaging_schedules set invitation_lead_days = invitation_lead_days + 5 where event_type = 'practice'",
+      ),
+    );
+
+    try {
+      const withPreview = await listMessagingSchedulesWithPreview();
+      const practice = withPreview.find((row) => row.schedule.eventType === "practice")!;
+      const lastRung = practice.preview.rungs[practice.preview.rungs.length - 1];
+      const gapMs = practice.preview.responseDeadlineAt.getTime() - lastRung.at.getTime();
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+      expect(practice.preview.lateApproval).toBe(false);
+      expect(lastRung.at.getTime()).toBeLessThan(practice.preview.responseDeadlineAt.getTime());
+      // R3-B1: `toBeLessThan` alone is satisfied by the seeded default's own
+      // one-day gap (OWNER-LAN171-06 — the invitation now counts as WhatsApp
+      // #1 without a matching migration) whether or not the +5 edit above is
+      // honoured at all, which is exactly how a defect that ignores
+      // `invitation_lead_days` entirely shipped with this test green. The
+      // magnitude is what distinguishes them: the baseline gap is one day
+      // (deadline two days out, invitation five days out, two 24h rungs after
+      // it lands three days out); five *further* days of lead widens that to
+      // six. Bounding well clear of both the one-day baseline and any
+      // reasonable rounding is enough to fail red the moment the edit stops
+      // being read.
+      expect(gapMs).toBeGreaterThan(5 * ONE_DAY_MS);
+      expect(gapMs).toBeLessThan(7 * ONE_DAY_MS);
+    } finally {
+      await withTransaction((tx) =>
+        tx.query(
+          "update public.messaging_schedules set invitation_lead_days = invitation_lead_days - 5 where event_type = 'practice'",
+        ),
+      );
+    }
+
+    const restored = await withTransaction((tx) => readMessagingScheduleIn(tx, "practice"));
+    expect(restored.invitationLeadDays).toBe(5);
   });
 });

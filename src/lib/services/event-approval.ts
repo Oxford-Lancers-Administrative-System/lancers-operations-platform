@@ -1,5 +1,7 @@
 import "server-only";
 
+import { resolveDefaultCallingCode } from "@/lib/delivery/config";
+import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
 import { ConstraintViolated, InvalidTransition, withTransaction, type Tx } from "@/lib/db";
 import { recordAudit } from "./audit";
 import { actorRequirement } from "./actor";
@@ -23,7 +25,7 @@ import {
   type MessagingPlan,
 } from "./messaging-schedule";
 import { scheduleEventLadderIn } from "./messaging-scheduler";
-import { resolveResponseDeadlineIn, type ResolvedResponseDeadline } from "./response-deadline";
+import type { ResolvedResponseDeadline } from "./response-deadline";
 
 /**
  * Proposing an audience, and approving the event. LAN-77.
@@ -107,6 +109,19 @@ export interface AudienceMember {
   stillSelectable: boolean;
 }
 
+/**
+ * One audience member W1's panel names before approval — D8, LAN-171.
+ *
+ * "Every user is expected to have WhatsApp" (Brian, 2026-08-24), so a missing
+ * or unconvertible number is an error the approver reads by name, not a
+ * configuration choice and not something this screen offers to work around.
+ */
+export interface UnreachableAudienceMember {
+  readonly member: AudienceMember;
+  /** The club's own sentence — the same one W6 reports after a failed send. */
+  readonly reason: string;
+}
+
 /** Everything the builder and UX-41 need before anything is approved. */
 export interface ApprovalPreview {
   event: EventDetail;
@@ -118,6 +133,20 @@ export interface ApprovalPreview {
    * while the event has no date — approval is refused without one (E1a).
    */
   deadline: ResolvedResponseDeadline | null;
+  /**
+   * LAN-171. The whole plan a live approval would commit — the dispatch
+   * anchor, the ladder and the escalation threshold — read through the same
+   * arithmetic `approveEvent` uses, at the moment this preview is read rather
+   * than at some earlier snapshot. `null` exactly where `deadline` is: an
+   * event with no date yet has no plan to project.
+   */
+  plan: MessagingPlan | null;
+  /**
+   * Audience members with no usable WhatsApp route right now. W1's exception
+   * table: the panel treats this as an error and names the person, and offers
+   * no manual-send workaround — W6 owns correction and recovery.
+   */
+  unreachable: readonly UnreachableAudienceMember[];
   /**
    * The questions this event asks, in the order a player will meet them —
    * amendment W4-A1. "Approve this event" means approving what these people are
@@ -294,13 +323,91 @@ async function readAudienceIn(
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
+/** The deadline, as its own small shape, read from the one arithmetic that decides it. */
+function deadlineFromPlan(plan: MessagingPlan): ResolvedResponseDeadline {
+  return {
+    at: plan.responseDeadlineAt,
+    configuredAt: plan.configuredDeadlineAt,
+    clamped: plan.deadlineClamped,
+    rule: { daysBefore: plan.schedule.rsvpByDays },
+  };
+}
+
 /**
- * The event, the people who can be chosen, the audience already chosen, and the
- * deadline approval would apply.
+ * Audience members with no usable WhatsApp route, right now — W1's D8,
+ * LAN-171.
  *
- * Reads the deadline through the same function the write path uses, so the
- * sentence on the confirmation screen and the value stored a moment later come
- * from one rule rather than from two that can disagree.
+ * Reads the same contact points, in the same preference order, and converts
+ * them through the same `selectMobileNumber` the dispatcher calls at send
+ * time (`delivery.ts`), so the count an approver reads here and the failures
+ * W6 reports afterwards cannot disagree about who has no route.
+ *
+ * Deliberately independent of `DELIVERY_RECIPIENT_ALLOWLIST`. That allowlist is
+ * a deployment safety control over which real numbers this environment may
+ * contact — it says nothing about whether the invitee actually has WhatsApp —
+ * and folding it in here would tell an approver a real person is unreachable
+ * when the only obstacle is the showcase's own guard rail.
+ */
+async function resolveUnreachableIn(
+  tx: Tx,
+  members: readonly AudienceMember[],
+): Promise<UnreachableAudienceMember[]> {
+  if (members.length === 0) return [];
+
+  const personIds = Array.from(new Set(members.map((member) => member.personId)));
+
+  const contacts = await tx.query<{
+    person_id: string;
+    kind: string;
+    raw_value: string;
+    normalised_value: string | null;
+    is_preferred: boolean;
+  }>(
+    // Same ordering `delivery.ts` reads for the same reason: sending to an
+    // arbitrary one of somebody's numbers is the kind of wrong that looks like
+    // working software.
+    `select person_id, kind::text as kind, raw_value, normalised_value, is_preferred
+       from public.contact_points
+      where person_id = any($1::uuid[])
+        and valid_from <= current_date
+        and (valid_until is null or valid_until > current_date)
+      order by person_id, is_preferred desc, valid_from desc, created_at desc, id`,
+    [personIds],
+  );
+
+  const byPerson = new Map<
+    string,
+    { kind: string; rawValue: string; normalisedValue: string | null; isPreferred: boolean }[]
+  >();
+  for (const row of contacts.rows) {
+    const list = byPerson.get(row.person_id) ?? [];
+    list.push({
+      kind: row.kind,
+      rawValue: row.raw_value,
+      normalisedValue: row.normalised_value,
+      isPreferred: row.is_preferred,
+    });
+    byPerson.set(row.person_id, list);
+  }
+
+  const callingCode = resolveDefaultCallingCode();
+
+  const unreachable: UnreachableAudienceMember[] = [];
+  for (const member of members) {
+    const usable = selectMobileNumber(byPerson.get(member.personId) ?? [], callingCode);
+    if (!usable) unreachable.push({ member, reason: NO_USABLE_NUMBER_REASON });
+  }
+  return unreachable;
+}
+
+/**
+ * The event, the people who can be chosen, the audience already chosen, the
+ * whole messaging plan approval would commit, and who cannot be reached.
+ *
+ * Reads the plan through the same function the write path uses
+ * (`resolveMessagingPlanIn`), so the sentence on the confirmation screen and
+ * the value stored a moment later come from one rule rather than from two that
+ * can disagree.
  */
 export async function readApprovalPreview(eventId: string): Promise<ApprovalPreview> {
   return withTransaction(async (tx) => {
@@ -308,15 +415,17 @@ export async function readApprovalPreview(eventId: string): Promise<ApprovalPrev
     const catalogue = await listAudienceCatalogueIn(tx, event.seasonId, event.scheduledOn);
     const audience = await readAudienceIn(tx, eventId, catalogue);
     // D23 removed "Response requested": everyone sent an event is expected to
-    // answer, so the only thing that can stop a deadline being computed is the
+    // answer, so the only thing that can stop a plan being computed is the
     // event not having a date yet.
-    const deadline = event.scheduledOn !== null ? await resolveResponseDeadlineIn(tx, event) : null;
+    const plan = event.scheduledOn !== null ? await resolveMessagingPlanIn(tx, event) : null;
 
     return {
       event,
       catalogue,
       audience,
-      deadline,
+      deadline: plan ? deadlineFromPlan(plan) : null,
+      plan,
+      unreachable: await resolveUnreachableIn(tx, audience),
       questions: await readEventQuestionsIn(tx, eventId),
       groupSummary: summariseAudienceGroups(
         catalogue.candidates,
@@ -498,12 +607,7 @@ export async function approveEvent(
     // guaranteed the date it is computed from, because approval is refused
     // without one.
     const plan = await resolveMessagingPlanIn(tx, before, approvedAt);
-    const deadline: ResolvedResponseDeadline = {
-      at: plan.responseDeadlineAt,
-      configuredAt: plan.configuredDeadlineAt,
-      clamped: plan.deadlineClamped,
-      rule: { daysBefore: plan.schedule.rsvpByDays },
-    };
+    const deadline: ResolvedResponseDeadline = deadlineFromPlan(plan);
 
     const updated = await tx.query<{ id: string }>(
       `update public.events

@@ -1107,8 +1107,12 @@ describe("cancelling an event", () => {
       notify: true,
     });
 
-    // Twenty-three: the five invitations that had not gone out, plus the whole
-    // of the chase ladder behind them — six invitees times three reminders.
+    // Seventeen: the five invitations that had not gone out, plus the whole
+    // of the chase ladder behind them — six invitees times two reminders
+    // (round 2, Q-19, OWNER-LAN171-05: the invitation counts as WhatsApp #1,
+    // so the default policy of 2 WhatsApp + 1 email produces one further
+    // WhatsApp reminder and one email reminder per invitee, not two WhatsApp
+    // reminders and an email).
     //
     // LAN-169 is what changed this number, and the change is the behaviour
     // rather than an accounting artefact. Before the ladder existed, cancelling
@@ -1116,7 +1120,7 @@ describe("cancelling an event", () => {
     // nothing else waiting; now every reminder and the email rung are queued at
     // approval, and cancelling an event that leaves them behind would chase
     // forty people for a fortnight about a match that is not happening.
-    expect(outcome.messagesCancelled).toBe(23);
+    expect(outcome.messagesCancelled).toBe(17);
 
     const jobs = await jobsFor(fixture.eventId);
     const invitations = jobs.filter((job) => job.job_type === "invitation");
@@ -1124,9 +1128,10 @@ describe("cancelling an event", () => {
     expect(invitations.filter((job) => job.status === "completed")).toHaveLength(1);
 
     // Every rung, not only the first. A reminder left `pending` on a cancelled
-    // event is one the sweep would dispatch when its moment arrived.
+    // event is one the sweep would dispatch when its moment arrived. Six
+    // invitees, two reminders each (round 2, Q-19, OWNER-LAN171-05).
     const reminders = jobs.filter((job) => job.job_type === "reminder");
-    expect(reminders).toHaveLength(18);
+    expect(reminders).toHaveLength(12);
     expect(reminders.every((job) => job.status === "cancelled")).toBe(true);
 
     // The notices the cancellation itself made owing are not among the ones it
