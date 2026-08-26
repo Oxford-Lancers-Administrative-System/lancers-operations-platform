@@ -39,10 +39,15 @@
     {
       "id": "W1",
       "name": "Look up any person the club holds",
-      "state": "not_started",
+      "state": "spec_approved",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "Okay, here you go. I approve.",
+          "date": "2026-08-26"
+        }
+      }
     },
     {
       "id": "W2",
@@ -1548,5 +1553,5 @@
       }
     ]
   },
-  "next_action": "Specify W1 — Look up any person the club holds"
+  "next_action": "Build W1's mockups: People list and person detail, drawn on both sides, desktop and a measured 375px"
 }
