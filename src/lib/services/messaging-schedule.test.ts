@@ -34,15 +34,18 @@ afterAll(async () => {
 });
 
 /**
- * A practice: RSVP two days before, invitation four days before, cadence 24h.
- * `invitationLeadDays` is `rsvpByDays + 2` (round 2, Q-19, OWNER-LAN171-05,
- * `20260826140000_correct_messaging_schedule_invitation_leads.sql`) — the
- * lead that lands the last of the two reminders after the invitation exactly
- * on the deadline, not the pre-Q19 `+ 3`.
+ * A practice: RSVP two days before, invitation five days before, cadence 24h.
+ * `invitationLeadDays` is the seeded `rsvpByDays + 3` (LAN-169's original
+ * default). Round 3, OWNER-LAN171-06: a migration that would have moved this
+ * to `+ 2`, matching the invitation now counting as WhatsApp #1 (round 2,
+ * Q-19, OWNER-LAN171-05), was ruled out — this package exists to make the
+ * value editable in the application, not by migration. The unedited default
+ * therefore leaves a one-day gap ahead of the deadline until the club edits
+ * it by hand.
  */
 const PRACTICE = { eventType: "practice", scheduledOn: "2026-10-18", startsAt: "20:00" };
 
-/** A game: RSVP seven days before, invitation nine days before. */
+/** A game: RSVP seven days before, invitation ten days before. */
 const GAME = { eventType: "game", scheduledOn: "2026-10-18", startsAt: "14:00" };
 
 function planFor(event: typeof PRACTICE, asOf: string) {
@@ -97,11 +100,11 @@ describe("the deadline", () => {
 describe("the dispatch anchor", () => {
   it("holds an event further out than its own invitation lead", async () => {
     // `REQ-dispatch-anchor`. Approve a practice seventeen days out with a
-    // four-day lead and nothing is sent for thirteen days.
+    // five-day lead and nothing is sent for twelve days.
     const plan = await planFor(PRACTICE, "2026-10-01T09:00:00Z");
 
     expect(plan.dispatchesImmediately).toBe(false);
-    expect(plan.invitationAt.toISOString()).toBe("2026-10-14T19:00:00.000Z");
+    expect(plan.invitationAt.toISOString()).toBe("2026-10-13T19:00:00.000Z");
   });
 
   it("sends immediately when the event is closer than its lead, and says so", async () => {
@@ -136,23 +139,25 @@ describe("the ladder", () => {
 
     expect(plan.lateApproval).toBe(false);
     expect(plan.rungs.map((rung) => [rung.rung, rung.channel, rung.at.toISOString()])).toEqual([
-      [0, "whatsapp", "2026-10-14T19:00:00.000Z"],
-      [1, "whatsapp", "2026-10-15T19:00:00.000Z"],
-      [2, "email", "2026-10-16T19:00:00.000Z"],
+      [0, "whatsapp", "2026-10-13T19:00:00.000Z"],
+      [1, "whatsapp", "2026-10-14T19:00:00.000Z"],
+      [2, "email", "2026-10-15T19:00:00.000Z"],
     ]);
   });
 
-  it("puts the last reminder on the deadline rather than days before it", async () => {
+  it("lands the last reminder one cadence step before the deadline under the unedited default", async () => {
     // The invitation lead is the deadline plus the reminders *after the
-    // invitation* times the cadence, which is what makes this true — a game
-    // invited far enough out would otherwise finish its ladder before the
-    // deadline it is chasing. `20260826140000_correct_messaging_schedule_
-    // invitation_leads.sql` (round 2, Q-19, OWNER-LAN171-05) is what makes
-    // the seeded default itself land exactly here now — no per-test override
-    // needed, unlike the pre-correction default that left a one-day gap.
+    // invitation* times the cadence — that arithmetic still holds, it is
+    // just that the seeded `invitation_lead_days` (LAN-169's original
+    // `rsvp_by_days + 3`, left alone by OWNER-LAN171-06 in round 3) no
+    // longer matches it now that the invitation itself counts as WhatsApp #1
+    // (round 2, Q-19, OWNER-LAN171-05). One cadence step of slack is exactly
+    // the gap the settings page's warning exists to surface until the club
+    // edits the value by hand — see "the schedule page's worked example"
+    // below.
     const plan = await planFor(GAME, "2026-10-01T09:00:00Z");
     const last = plan.rungs[plan.rungs.length - 1];
-    expect(last.at.toISOString()).toBe(plan.responseDeadlineAt.toISOString());
+    expect(plan.responseDeadlineAt.getTime() - last.at.getTime()).toBe(24 * 60 * 60 * 1000);
   });
 
   it("keeps WhatsApp, WhatsApp, email in that fixed order", async () => {
@@ -209,10 +214,8 @@ describe("a late approval", () => {
     // An event approved on its lead day exactly dispatches now and still has the
     // whole runway, so it runs the ordinary ladder and does escalate. Collapsing
     // the two would drop the email rung from every normally-timed event that
-    // happened to be approved on the day. Practice's lead day is 2026-10-14
-    // (four days before the event), not the 13th, since the seeded lead is
-    // `rsvp_by_days + 2` (round 2, Q-19).
-    const plan = await planFor(PRACTICE, "2026-10-14T19:00:00Z");
+    // happened to be approved on the day.
+    const plan = await planFor(PRACTICE, "2026-10-13T19:00:00Z");
 
     expect(plan.dispatchesImmediately).toBe(true);
     expect(plan.lateApproval).toBe(false);
@@ -385,15 +388,18 @@ describe("the configuration itself", () => {
       expect(schedule.whatsappReminderCount).toBe(2);
       expect(schedule.emailReminderCount).toBe(1);
       expect(schedule.escalationHours).toBe(12);
-      // Counting forward means the invitation is the deadline plus the two
-      // reminders that follow it (one WhatsApp, one email) at the configured
-      // cadence — `+ 2`, not the pre-Q19 `+ 3` (round 2, OWNER-LAN171-05):
-      // `whatsappReminderCount` counts the invitation itself as WhatsApp #1,
-      // so only one further WhatsApp reminder follows it, not two. Otherwise
-      // the last reminder lands a day before the deadline it chases, which
-      // is exactly the gap `20260826140000_correct_messaging_schedule_
-      // invitation_leads.sql` corrected.
-      expect(schedule.invitationLeadDays).toBe(schedule.rsvpByDays + 2);
+      // The seeded default is LAN-169's original `rsvp_by_days + 3`, left
+      // alone (round 3, OWNER-LAN171-06 ruled out a migration that would
+      // have moved it to `+ 2` to match the ladder-count correction below).
+      // Counting forward, the invitation exactly matching its deadline would
+      // need `+ 2` now that the invitation itself counts as WhatsApp #1
+      // (round 2, Q-19, OWNER-LAN171-05: `whatsappReminderCount` includes
+      // the invitation, so only one further WhatsApp reminder follows it,
+      // not two) — so the seeded `+ 3` leaves the last reminder a day before
+      // the deadline it chases. That is the gap the settings page's row
+      // preview warns about until the club edits a value by hand; it is not
+      // a defect this test papers over.
+      expect(schedule.invitationLeadDays).toBe(schedule.rsvpByDays + 3);
     }
   });
 
@@ -549,32 +555,17 @@ describe("the schedule page's worked example", () => {
     expect(new Set(starts).size).toBe(1);
   });
 
-  it("leaves no gap for a freshly seeded default — the last reminder lands exactly on the deadline", async () => {
-    // Round 2, Mission Lead: leaving the seeded defaults alone so the
-    // corrected arithmetic surfaces a warning on every row would read as the
-    // page being broken and bury the warning's real purpose. Q-19 already
-    // settled what the corrected default is ("the practice default becomes 4
-    // days, and the game and social defaults move by the same arithmetic"),
-    // so `20260826140000_correct_messaging_schedule_invitation_leads.sql`
-    // moves them — this is that correction proved for every type at once,
-    // straight off a fresh `db:reset`, not one type asserted by hand.
-    const withPreview = await listMessagingSchedulesWithPreview();
-    expect(withPreview).toHaveLength(7);
-
-    for (const { schedule, preview } of withPreview) {
-      expect(preview.lateApproval).toBe(false);
-      const lastRung = preview.rungs[preview.rungs.length - 1];
-      expect(lastRung.at.getTime(), `${schedule.eventType} should have no gap`).toBe(
-        preview.responseDeadlineAt.getTime(),
-      );
-    }
-  });
-
   it("still shows a gap when a schedule genuinely carries slack — the warning is not just suppressed", async () => {
-    // The Lead's requirement: prove the warning still fires for a value that
-    // is actually wrong, not merely that this correction silenced it
-    // everywhere. Five spare days is not the corrected default for any type,
-    // so this is a deliberately bad configuration, not a realistic one.
+    // Round 3, OWNER-LAN171-06, Brian: a migration to nudge a configurable
+    // value by one day is exactly what this settings page makes
+    // unnecessary — "we should be able to change the numbers as needed... in
+    // the app, not [by migration]." The unedited seeded default already
+    // carries its own one-day gap for this reason (see "the configuration
+    // itself" above), which is correct behaviour, not a defect, and W7
+    // already has Brian confirming these values himself before the first
+    // real dispatch. Five *additional* spare days proves the warning still
+    // fires for a value that is genuinely wrong, on top of that baseline gap,
+    // rather than always reporting clean.
     await withTransaction((tx) =>
       tx.query(
         "update public.messaging_schedules set invitation_lead_days = invitation_lead_days + 5 where event_type = 'practice'",
@@ -597,6 +588,6 @@ describe("the schedule page's worked example", () => {
     }
 
     const restored = await withTransaction((tx) => readMessagingScheduleIn(tx, "practice"));
-    expect(restored.invitationLeadDays).toBe(4);
+    expect(restored.invitationLeadDays).toBe(5);
   });
 });

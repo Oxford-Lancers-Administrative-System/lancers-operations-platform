@@ -57,8 +57,9 @@ function schedule(overrides: Partial<MessagingSchedule> = {}): MessagingSchedule
   return {
     eventType: "practice",
     rsvpByDays: 2,
-    // `rsvpByDays + 2` — the corrected default (round 2, Q-19,
-    // OWNER-LAN171-05): two reminders after the invitation, not three.
+    // An arbitrary lead chosen only so the baseline fixture below carries no
+    // gap warning by construction — not a claim about the seeded default,
+    // which is untouched (OWNER-LAN171-06, round 3) and does carry a gap.
     invitationLeadDays: 4,
     reminderCadenceHours: 24,
     whatsappReminderCount: 2,
@@ -74,9 +75,10 @@ const HOUR_MS = 60 * 60 * 1000;
 
 /**
  * A plan derived from `base`'s own fields, so the baseline fixture carries no
- * gap warning by construction — exactly what the derived defaults produce for
- * real. A test that wants a gap overrides `invitationAt` and `rungs`
- * explicitly, as "warns when a row's own configuration leaves a gap…" does.
+ * gap warning by construction — this screen's own rendering, not a claim
+ * about what the seeded default currently produces. A test that wants a gap
+ * overrides `invitationAt` and `rungs` explicitly, as "warns when a row's own
+ * configuration leaves a gap…" does.
  *
  * `whatsappReminderCount` counts the invitation as WhatsApp #1 (Q-19,
  * OWNER-LAN171-05), so the number of WhatsApp *reminder* rungs after it is
