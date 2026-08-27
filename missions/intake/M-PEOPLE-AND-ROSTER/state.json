@@ -184,19 +184,21 @@
     {
       "id": "W7",
       "name": "Work the missing-data queue",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
-      "feedback": [
-        {
-          "screen_id": "W7-01",
-          "text": "Deferred: where missing data belongs. The sidebar entry and the linked count stay for now; Brian named a dissatisfaction without a replacement."
+      "feedback": [],
+      "approvals": {
+        "spec": {
+          "words": "W-7 is approved. Everything's approved.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
         },
-        {
-          "screen_id": "W7-01",
-          "text": "Standing may need renaming on every surface if the word is not carrying the ladder's meaning."
+        "mock": {
+          "words": "W-7 is approved. Everything's approved.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
         }
-      ],
-      "approvals": {}
+      }
     }
   ],
   "mockup_hub": "generated",
@@ -1646,5 +1648,5 @@
       }
     ]
   },
-  "next_action": "Seven workflows. W7 is the last one awaiting a read"
+  "next_action": "Every workflow is done. Assemble the packet"
 }

@@ -125,18 +125,18 @@ Against seeded synthetic data, an operator can:
 
 ## Core decisions
 
-| Decision                                                                                  | Classification                | Governing evidence or recommended default                                                                                 | Status        |
-| ----------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| One primary action, top right, on every screen; row choices sit on their row              | `locked`                      | Brian, 2026-08-27                                                                                                         | Settled       |
-| The minimum to mint is first name, last name and one contact point                        | `locked`                      | Task 08 §4 as amended 2026-08-26; last name became required at every rung the same day                                    | Settled       |
-| The duplicate check runs before creation and its result must be answered                  | `locked`                      | Task 09 D7                                                                                                                | Settled       |
-| A role — season or committee year — is captured at creation rather than on a second visit | `proposed for owner approval` | Without it a coach lands outside every season, which contradicts the 2026-08-26 ruling that a coach is part of the season | Recommend yes |
-| Minting over an exact contact-point match requires an explicit override                   | `proposed for owner approval` | A shared email is the strongest duplicate signal the club has                                                             | Recommend yes |
-| Rejected duplicate candidates are audited, not discarded                                  | `proposed for owner approval` | It is what lets a later merge see the decision was deliberate rather than careless                                        | Recommend yes |
-| This path never creates a membership                                                      | `locked`                      | The frozen model: the roster means people on the team                                                                     | Settled       |
-| No login or club role with authority is granted here                                      | `locked`                      | Task 08 §6; Mission 1 owns the seat                                                                                       | Settled       |
-| Whether the three duplicate-check implementations are consolidated                        | `delegated to Mission Lead`   | Recorded as deliberate duplication at inventory freeze; no product meaning either way                                     | Delegated     |
-| Candidate ordering and how many are shown                                                 | `delegated to Mission Lead`   | The club holds hundreds of people, not millions                                                                           | Delegated     |
+| Decision                                                                                  | Classification              | Governing evidence or recommended default                                                         | Status     |
+| ----------------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------------------------------- | ---------- |
+| One primary action, top right, on every screen; row choices sit on their row              | `locked`                    | Brian, 2026-08-27                                                                                 | Settled    |
+| The minimum to mint is first name, last name and one contact point                        | `locked`                    | Task 08 §4 as amended 2026-08-26; last name became required at every rung the same day            | Settled    |
+| The duplicate check runs before creation and its result must be answered                  | `locked`                    | Task 09 D7                                                                                        | Settled    |
+| A role — season or committee year — is captured at creation rather than on a second visit | `superseded`                | **Superseded 2026-08-27**: roles left this workflow entirely. Administration → Roles assigns them | Superseded |
+| Minting over an exact contact-point match requires an explicit override                   | `locked`                    | Approved with the workflow, 2026-08-27, as a required reason rather than a confirm                | Settled    |
+| Rejected duplicate candidates are audited, not discarded                                  | `locked`                    | Approved with the workflow, 2026-08-27                                                            | Settled    |
+| This path never creates a membership                                                      | `locked`                    | The frozen model: the roster means people on the team                                             | Settled    |
+| No login or club role with authority is granted here                                      | `locked`                    | Task 08 §6; Mission 1 owns the seat                                                               | Settled    |
+| Whether the three duplicate-check implementations are consolidated                        | `delegated to Mission Lead` | Recorded as deliberate duplication at inventory freeze; no product meaning either way             | Delegated  |
+| Candidate ordering and how many are shown                                                 | `delegated to Mission Lead` | The club holds hundreds of people, not millions                                                   | Delegated  |
 
 ## Brian approval
 

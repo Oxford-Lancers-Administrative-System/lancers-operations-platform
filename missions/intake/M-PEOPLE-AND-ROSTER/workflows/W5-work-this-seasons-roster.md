@@ -279,17 +279,17 @@ Against seeded synthetic data, an operator can:
 
 ## Core decisions
 
-| Decision                                                                      | Classification                | Governing evidence or recommended default                                                                             | Status                |
-| ----------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| The default column set                                                        | `proposed for owner approval` | Task 08 §5 approves a set; the field inventory names which fields reach the grid. The exact order and width are drawn | Confirm at the mockup |
-| Raw email and phone come off the grid, replaced by indicators                 | `locked`                      | Task 08 §5                                                                                                            | Settled               |
-| Filters combine and apply immediately                                         | `locked`                      | Task 08 §5                                                                                                            | Settled               |
-| No season picker; the roster follows the active season                        | `locked`                      | Brian, 2026-08-26                                                                                                     | Settled               |
-| Column visibility is derived from category grants, not special-cased          | `locked`                      | Task 08 §6                                                                                                            | Settled               |
-| The mobile quick action is voice call only                                    | `locked`                      | Task 08 §5; R12 and R15 prohibit manual sending outside the pipeline                                                  | Settled               |
-| The grid shows the predominant jersey number, not every number a player holds | `proposed for owner approval` | Roughly 8% hold several in one kit. Showing all makes the column unreadable for the 92%                               | Recommend predominant |
-| Availability renders only under an availability grant                         | `locked`                      | Task 08 §6                                                                                                            | Settled               |
-| Page size, column widths, and the sort's default column                       | `delegated to Mission Lead`   | No product meaning                                                                                                    | Delegated             |
+| Decision                                                                      | Classification              | Governing evidence or recommended default                                                                        | Status     |
+| ----------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------- |
+| The default column set                                                        | `superseded`                | **Superseded 2026-08-27** by the eighteen-column board and its Person/Onboarding/Season grouping                 | Superseded |
+| Raw email and phone come off the grid, replaced by indicators                 | `locked`                    | Task 08 §5                                                                                                       | Settled    |
+| Filters combine and apply immediately                                         | `locked`                    | Task 08 §5                                                                                                       | Settled    |
+| No season picker; the roster follows the active season                        | `locked`                    | Brian, 2026-08-26                                                                                                | Settled    |
+| Column visibility is derived from category grants, not special-cased          | `locked`                    | Task 08 §6                                                                                                       | Settled    |
+| The mobile quick action is voice call only                                    | `locked`                    | Task 08 §5; R12 and R15 prohibit manual sending outside the pipeline                                             | Settled    |
+| The grid shows the predominant jersey number, not every number a player holds | `superseded`                | **Superseded 2026-08-27**: the board carries Blue # and White # as separate columns; the model stays provisional | Superseded |
+| Availability renders only under an availability grant                         | `locked`                    | Task 08 §6                                                                                                       | Settled    |
+| Page size, column widths, and the sort's default column                       | `delegated to Mission Lead` | No product meaning                                                                                               | Delegated  |
 
 ## Brian approval
 
