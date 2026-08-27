@@ -141,18 +141,19 @@ Against seeded synthetic data, an operator can:
 
 ## Core decisions
 
-| Decision                                                                           | Classification                | Governing evidence or recommended default                                                                | Status                |
-| ---------------------------------------------------------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------- |
-| Durable facts render as the person's, with a route to the person record            | `proposed for owner approval` | The person-versus-season test made visible. The alternative duplicates thirteen fields onto every season | Recommend as drawn    |
-| The rebuilt five-value stored ladder, with `recruit` living on the prospect record | `locked`                      | Brian, 2026-08-26; supersedes OD-3                                                                       | Settled               |
-| Formalwear is seasonal and reasked each season                                     | `locked`                      | Brian, 2026-08-26; matches Task 10 R1b                                                                   | Settled               |
-| Blues are seasonal awards; the total derives                                       | `locked`                      | Brian, 2026-08-26                                                                                        | Settled               |
-| The shipped activation control is preserved as the only write                      | `locked`                      | Task 08 §5                                                                                               | Settled               |
-| A departed membership hides the activation control rather than disabling it        | `proposed for owner approval` | A disabled control invites the question of how to enable it; an absent one answers it                    | Recommend absent      |
-| Section order on the page                                                          | `proposed for owner approval` | Drawn person-first, then this season's standing, then football, then history                             | Confirm at the mockup |
-| Which of Mission 9's football fields render read-only versus not at all            | `delegated to Mission Lead`   | The rule is substrate-on-`main`; the enumeration is mechanical                                           | Delegated             |
+| Decision                                                                           | Classification              | Governing evidence or recommended default                                                                            | Status    |
+| ---------------------------------------------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------- |
+| Durable facts render as the person's, with a route to the person record            | `locked`                    | Approved as drawn, 2026-08-27. A durable fact is editable in exactly one place in the mission                        | Settled   |
+| The rebuilt five-value stored ladder, with `recruit` living on the prospect record | `locked`                    | Brian, 2026-08-26; supersedes OD-3                                                                                   | Settled   |
+| Formalwear is seasonal and reasked each season                                     | `locked`                    | Brian, 2026-08-26; matches Task 10 R1b                                                                               | Settled   |
+| Blues are seasonal awards; the total derives                                       | `locked`                    | Brian, 2026-08-26                                                                                                    | Settled   |
+| The shipped activation control is preserved as the only write                      | `locked`                    | Task 08 §5                                                                                                           | Settled   |
+| A departed membership hides the activation control rather than disabling it        | `locked`                    | Approved as drawn, 2026-08-27. A disabled control invites the question of how to enable it; an absent one answers it | Settled   |
+| Section order: Person, Onboarding, Season, then seasons and history                | `locked`                    | Approved as drawn, 2026-08-27                                                                                        | Settled   |
+| Which of Mission 9's football fields render read-only versus not at all            | `delegated to Mission Lead` | The rule is substrate-on-`main`; the enumeration is mechanical                                                       | Delegated |
 
 ## Brian approval
 
-- Exact words:
-- Date:
+- Exact words: "Looks fantastic, W6 approved."
+- Date: 2026-08-27
+- By: Brian Schuster
