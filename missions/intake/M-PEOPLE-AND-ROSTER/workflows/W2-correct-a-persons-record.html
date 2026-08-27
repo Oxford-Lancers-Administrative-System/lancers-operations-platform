@@ -227,9 +227,17 @@
         <li>Flag an alias as the display name, add an alias, and remove one.</li>
         <li>
           <strong>Validate every phone and email before the save is offered.</strong> An email must
-          be a syntactically valid address; a phone must be a plausible number, UK mobiles first.
-          The refusal is per field, names the rule rather than saying &quot;invalid&quot;, and the
-          save is unavailable rather than failing afterwards.
+          be a syntactically valid address; a phone must be a plausible number
+          <strong>from anywhere</strong>. Brian, 2026-08-27:
+          <em
+            >&quot;there are people who are going to have US numbers, Irish numbers, or numbers from
+            other places. They come from all over the world. It can&#39;t just literally be from the
+            UK.&quot;</em
+          >
+          A number is valid if it parses with its country code; a bare national number is read as
+          UK, which is the only place a default is applied and the only thing the club&#39;s
+          location decides. The refusal is per field, names the rule rather than saying
+          &quot;invalid&quot;, and the save is unavailable rather than failing afterwards.
         </li>
         <li>
           <strong>Check the number against WhatsApp before saving it.</strong> Where the number
@@ -385,9 +393,10 @@
           A correct number being refused is the worse failure: it stops an operator recording
           something true, and it will be met by typing something false. The set that must pass, at
           minimum: <code>+44 7700 900988</code>, <code>07700 900988</code>,
-          <code>07700900988</code>, <code>+44 7700 900 988</code>, and a non-UK number in
-          international form. The set that must fail: too few digits, letters, an empty country
-          code, and an address with no domain or no local part.
+          <code>07700900988</code>, <code>+44 7700 900 988</code>, <code>+1 415 555 0142</code>,
+          <code>+353 85 555 0142</code>, and any other number in international form. The set that
+          must fail: too few digits, letters, an empty country code, and an address with no domain
+          or no local part.
         </li>
         <li>
           <strong>A phone number that will not normalise.</strong> The raw value is preserved
@@ -467,7 +476,8 @@
         </li>
         <li>
           <strong>save every correct form of a number</strong> — <code>+44</code> and national,
-          spaced and unspaced, and a non-UK international number — and have none of them refused;
+          spaced and unspaced, a US number, an Irish number and any other international form — and
+          have none of them refused;
         </li>
         <li>
           change a number that is <strong>on WhatsApp for the active season</strong> and be told,
@@ -581,6 +591,12 @@
               Brian, 2026-08-27 — &quot;negative cases so that correct numbers don&#39;t get
               invalidated&quot;
             </td>
+            <td>Settled</td>
+          </tr>
+          <tr>
+            <td>A number from any country is valid; only a bare national number defaults to UK</td>
+            <td><code>locked</code></td>
+            <td>Brian, 2026-08-27 — the club&#39;s people come from all over the world</td>
             <td>Settled</td>
           </tr>
           <tr>

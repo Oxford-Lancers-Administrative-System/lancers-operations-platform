@@ -235,3 +235,29 @@ control on the page moves it. `field-inventory.md` needs the dated amendment.
   just update this after the fact."
 - **One garbled dictation line** — "The player, certainly, the change to see what
   it is shouldn't be here" — is unresolved and awaiting his restatement.
+
+## Amendment raised 2026-08-27 — the missing-data queue has no way in
+
+`W7`'s queue is reached from nowhere. This workflow is approved with an
+Administration group of **People · Operators · Roles** and a Missing column that
+renders a count rather than a link, so nothing on an approved screen opens the
+queue. `W7`'s specification claimed a navigation entry; it was asserted and
+never drawn.
+
+Two routes are proposed, both of which amend this approved workflow:
+
+- **The count becomes a link**, on `W1-01`'s People list and on the roster. This
+  is the route an operator falls into — they are looking at somebody and click
+  the number beside them.
+- **A Missing data entry joins Administration.** This is the route `W7`'s own
+  trigger describes: an hour to spend usefully, starting from no particular
+  person.
+
+Recommendation: **both**, because they answer different questions. `W7-06` draws
+them. Not applied to this workflow's mockup until Brian decides, so the approved
+record stands unchanged in the meantime.
+
+**A consequence to weigh with it:** the Administration group would go from three
+entries to four, taking the phone bottom bar from six destinations to seven.
+`W7-06`'s 375px frame shows what that does — _Missing…_ and _Operat…_ both
+truncate.

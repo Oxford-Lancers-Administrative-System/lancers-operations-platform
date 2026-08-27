@@ -179,9 +179,13 @@
           people.
         </li>
         <li>
-          Entry point: <strong>Missing data</strong> in the Administration navigation, and the
-          missing-data flag on the roster (<code>W5</code>) and on the People list
-          (<code>W1-01</code>).
+          Entry point: <strong>not yet decided, and not yet drawn anywhere.</strong> Corrected
+          2026-08-27: this specification asserted a <strong>Missing data</strong> navigation entry
+          that no screen renders, and <code>W1-01</code>&#39;s Missing column is a chip rather than
+          a link. Two routes are proposed and both amend approved <code>W1</code> — see
+          <code>W7-06</code>: the count on the roster and on the People list becomes a link, and/or
+          a <strong>Missing data</strong> entry joins the Administration group. Recommendation:
+          both.
         </li>
         <li>
           Route/placement: <code>/operate/people/missing</code>. Neither the route nor its parent
@@ -372,6 +376,16 @@
               time
             </td>
             <td>Recommend yes</td>
+          </tr>
+          <tr>
+            <td>The queue&#39;s entry point: a linked count, an Administration entry, or both</td>
+            <td><code>proposed for owner approval</code></td>
+            <td>
+              Neither exists today. The count is the route an operator falls into; the entry is the
+              route the trigger describes — an hour to spend usefully, starting from nobody in
+              particular
+            </td>
+            <td>Recommend both</td>
           </tr>
           <tr>
             <td>Season-scoped by default, with the same widen action as People</td>

@@ -1491,9 +1491,6 @@
                 editField(
                   "Aliases",
                   v.aliases ?? (s.who === "Bertram" ? "" : "Holly (display name) · H.J."),
-                  {
-                    right: `<button class="btn btn-text btn-sm">Edit</button>`,
-                  },
                 ),
             )}
             ${section(
@@ -1581,7 +1578,7 @@
           mobile: "0770 12",
           mobileOpts: {
             invalid: true,
-            error: "Not a phone number. UK mobiles are 11 digits, or +44 and 10.",
+            error: "Not a phone number. Enter it with its country code, or as a UK number.",
           },
           email: "holly.jarrowdale@",
           emailOpts: { invalid: true, error: "Not an email address." },
@@ -1827,8 +1824,9 @@
            refusal is per field and names what is wrong, and the save is unavailable rather than
            failing after the fact. <br /><br />Surface: ${EDIT}`,
           [
-            "<strong>New requirement, 2026-08-27:</strong> simple validation on every phone and email path, UK mobiles first",
-            "<strong>And the negative cases matter more than the positive ones.</strong> A correct number must never be refused: <code>+44</code> and national form, spaces and no spaces, leading zero, and an international number that is not UK",
+            "<strong>New requirement, 2026-08-27:</strong> simple validation on every phone and email path",
+            "<strong>Any country, not just the UK.</strong> The club has US, Irish and other numbers. A number is valid if it parses with its country code; a bare national number is read as UK, which is the only place a default is applied",
+            "<strong>And the negative cases matter more than the positive ones.</strong> A correct number must never be refused: <code>+1</code>, <code>+353</code>, <code>+44</code>, national form, spaces and no spaces, and a leading zero",
             "The error names the rule rather than saying “invalid”",
             "The acceptance criteria now carry both directions — see the specification",
           ],
@@ -1914,11 +1912,13 @@
         S(
           "W2-10",
           "Arriving from the missing-data queue",
-          `The same edit page, reached from W7. <strong>The path is: Administration → Missing data →
-           a row → here.</strong> The queue is W7's surface and is not redrawn; W7-01 is what the
-           operator was looking at a moment ago. <br /><br />Surface: ${EDIT}`,
+          `The same edit page, reached from W7's queue. <strong>That queue has no entry point in any
+           approved screen yet</strong> — see the note below — so this screen shows the destination
+           of a route that is still being decided. <br /><br />Surface: ${EDIT}`,
           [
-            "<strong>Changed:</strong> the queue previously appeared from nowhere. The head now names the path and the crumb goes back to it",
+            "<strong>Correction, 2026-08-27.</strong> I asserted a path that does not exist. No mockup renders a <em>Missing data</em> navigation entry, and W1-01's Missing count is a chip, not a link. Until one of them changes, nothing reaches this screen",
+            "<strong>Where “missing data” exists today, in approved work:</strong> the Missing column on W1-01's People list, and the banner on W1-06's record. Both are per person. The queue is the first surface that is not",
+            "<strong>Decide:</strong> the count on W1-01 and on the roster becomes a link, or a <em>Missing data</em> entry joins Administration, or both. Either is an amendment to approved W1 — see W7-06",
             "Acceptance 1 and 5: the position in the queue is stated, and saving moves to the next row",
             "<strong>Changed:</strong> the whole record is shown rather than only the gaps, so it is the same page as W2-01 and not a third thing",
             "<em>Skip</em> exists because a row that cannot be satisfied today should not block the other 41. There is still no per-fact refused state — that is Mission 7's",

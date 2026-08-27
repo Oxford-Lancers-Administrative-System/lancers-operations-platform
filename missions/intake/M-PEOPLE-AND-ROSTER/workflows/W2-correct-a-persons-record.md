@@ -38,8 +38,13 @@
   already has a value only with a reason**, recorded and shown on the history.
 - Flag an alias as the display name, add an alias, and remove one.
 - **Validate every phone and email before the save is offered.** An email must be
-  a syntactically valid address; a phone must be a plausible number, UK mobiles
-  first. The refusal is per field, names the rule rather than saying "invalid",
+  a syntactically valid address; a phone must be a plausible number **from
+  anywhere**. Brian, 2026-08-27: _"there are people who are going to have US
+  numbers, Irish numbers, or numbers from other places. They come from all over
+  the world. It can't just literally be from the UK."_ A number is valid if it
+  parses with its country code; a bare national number is read as UK, which is
+  the only place a default is applied and the only thing the club's location
+  decides. The refusal is per field, names the rule rather than saying "invalid",
   and the save is unavailable rather than failing afterwards.
 - **Check the number against WhatsApp before saving it.** Where the number being
   replaced is on WhatsApp for the active season, say so and say what follows,
@@ -140,7 +145,8 @@ moment for the operator to be told.
   invalidated."_ A correct number being refused is the worse failure: it stops
   an operator recording something true, and it will be met by typing something
   false. The set that must pass, at minimum: `+44 7700 900988`, `07700 900988`,
-  `07700900988`, `+44 7700 900 988`, and a non-UK number in international form.
+  `07700900988`, `+44 7700 900 988`, `+1 415 555 0142`, `+353 85 555 0142`, and
+  any other number in international form.
   The set that must fail: too few digits, letters, an empty country code, and an
   address with no domain or no local part.
 - **A phone number that will not normalise.** The raw value is preserved
@@ -192,7 +198,8 @@ Against seeded synthetic data, an operator can:
 9. be **refused a malformed email and a malformed number**, per field, with the
    rule named;
 10. **save every correct form of a number** — `+44` and national, spaced and
-    unspaced, and a non-UK international number — and have none of them refused;
+    unspaced, a US number, an Irish number and any other international form —
+    and have none of them refused;
 11. change a number that is **on WhatsApp for the active season** and be told,
     before saving, that the group membership ends and a rejoin will be asked for;
 12. change a number that is **not** on WhatsApp for the season and see no such
@@ -212,6 +219,7 @@ Against seeded synthetic data, an operator can:
 | The college/personal email split is a migration this mission carries                             | `locked`                      | `contact_point_kind` on `main` is `('email','phone')`                                                                                                         | Settled                     |
 | Phone and email are validated before the save is offered, per field, naming the rule             | `locked`                      | Brian, 2026-08-27                                                                                                                                             | Settled                     |
 | A correct number is never refused; the negative cases are acceptance criteria in their own right | `locked`                      | Brian, 2026-08-27 — "negative cases so that correct numbers don't get invalidated"                                                                            | Settled                     |
+| A number from any country is valid; only a bare national number defaults to UK                   | `locked`                      | Brian, 2026-08-27 — the club's people come from all over the world                                                                                            | Settled                     |
 | Changing a number that is on WhatsApp for the active season raises it before the save            | `locked`                      | Brian, 2026-08-27                                                                                                                                             | Settled                     |
 | Whether the save also sends the rejoin request, or only marks it needed                          | `proposed for owner approval` | This mission sends nothing; dispatch is Mission 4's. Marking it needed keeps that true                                                                        | Recommend mark only         |
 | Field-level permissioning within the four-role group                                             | `delegated to Mission Lead`   | Task 08 §6 grants the group uniformly; no source splits it further                                                                                            | Delegated                   |

@@ -52,7 +52,14 @@
           "date": "2026-08-26",
           "by": "Brian Schuster"
         }
-      }
+      },
+      "amendments": [
+        {
+          "id": "W1-A1",
+          "status": "open",
+          "summary": "The missing-data queue has no entry point. Proposed: the Missing count becomes a link, and/or a Missing data entry joins Administration. Both amend approved W1."
+        }
+      ]
     },
     {
       "id": "W2",
@@ -108,7 +115,12 @@
       "name": "Work the missing-data queue",
       "state": "spec_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W7-06",
+          "text": "Decide the queue's entry point: a linked count, an Administration entry, or both. Either amends approved W1."
+        }
+      ],
       "approvals": {}
     },
     {
@@ -1567,5 +1579,5 @@
       }
     ]
   },
-  "next_action": "W2 round two is ready: one surface throughout, validation with its negative cases, the WhatsApp notice on W2-05, the Compare handoff shown on W2-08, and the queue path named on W2-10"
+  "next_action": "Decide W1-A1 - how the missing-data queue is reached - then continue W2's round-three read"
 }

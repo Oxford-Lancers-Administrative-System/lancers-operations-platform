@@ -2246,6 +2246,38 @@
                 his restatement.
               </li>
             </ul>
+            <h2>Amendment raised 2026-08-27 — the missing-data queue has no way in</h2>
+            <p>
+              <code>W7</code>&#39;s queue is reached from nowhere. This workflow is approved with an
+              Administration group of <strong>People · Operators · Roles</strong> and a Missing
+              column that renders a count rather than a link, so nothing on an approved screen opens
+              the queue. <code>W7</code>&#39;s specification claimed a navigation entry; it was
+              asserted and never drawn.
+            </p>
+            <p>Two routes are proposed, both of which amend this approved workflow:</p>
+            <ul>
+              <li>
+                <strong>The count becomes a link</strong>, on <code>W1-01</code>&#39;s People list
+                and on the roster. This is the route an operator falls into — they are looking at
+                somebody and click the number beside them.
+              </li>
+              <li>
+                <strong>A Missing data entry joins Administration.</strong> This is the route
+                <code>W7</code>&#39;s own trigger describes: an hour to spend usefully, starting
+                from no particular person.
+              </li>
+            </ul>
+            <p>
+              Recommendation: <strong>both</strong>, because they answer different questions.
+              <code>W7-06</code> draws them. Not applied to this workflow&#39;s mockup until Brian
+              decides, so the approved record stands unchanged in the meantime.
+            </p>
+            <p>
+              <strong>A consequence to weigh with it:</strong> the Administration group would go
+              from three entries to four, taking the phone bottom bar from six destinations to
+              seven. <code>W7-06</code>&#39;s 375px frame shows what that does —
+              <em>Missing…</em> and <em>Operat…</em> both truncate.
+            </p>
           </div>
         </section>
 
@@ -2254,6 +2286,7 @@
             <h2>W2 · Correct a person's record</h2>
             <span class="chip">spec draft</span>
             <a class="golink" href="mockups/W2-correct-a-persons-record.html">Open the mockup →</a>
+            <span class="chip warn">2 open</span>
           </header>
           <div class="md">
             <h1>W2 — Correct a person&#39;s record</h1>
@@ -2322,9 +2355,18 @@
               <li>Flag an alias as the display name, add an alias, and remove one.</li>
               <li>
                 <strong>Validate every phone and email before the save is offered.</strong> An email
-                must be a syntactically valid address; a phone must be a plausible number, UK
-                mobiles first. The refusal is per field, names the rule rather than saying
-                &quot;invalid&quot;, and the save is unavailable rather than failing afterwards.
+                must be a syntactically valid address; a phone must be a plausible number
+                <strong>from anywhere</strong>. Brian, 2026-08-27:
+                <em
+                  >&quot;there are people who are going to have US numbers, Irish numbers, or
+                  numbers from other places. They come from all over the world. It can&#39;t just
+                  literally be from the UK.&quot;</em
+                >
+                A number is valid if it parses with its country code; a bare national number is read
+                as UK, which is the only place a default is applied and the only thing the
+                club&#39;s location decides. The refusal is per field, names the rule rather than
+                saying &quot;invalid&quot;, and the save is unavailable rather than failing
+                afterwards.
               </li>
               <li>
                 <strong>Check the number against WhatsApp before saving it.</strong> Where the
@@ -2487,7 +2529,8 @@
                 A correct number being refused is the worse failure: it stops an operator recording
                 something true, and it will be met by typing something false. The set that must
                 pass, at minimum: <code>+44 7700 900988</code>, <code>07700 900988</code>,
-                <code>07700900988</code>, <code>+44 7700 900 988</code>, and a non-UK number in
+                <code>07700900988</code>, <code>+44 7700 900 988</code>,
+                <code>+1 415 555 0142</code>, <code>+353 85 555 0142</code>, and any other number in
                 international form. The set that must fail: too few digits, letters, an empty
                 country code, and an address with no domain or no local part.
               </li>
@@ -2572,8 +2615,8 @@
               </li>
               <li>
                 <strong>save every correct form of a number</strong> — <code>+44</code> and
-                national, spaced and unspaced, and a non-UK international number — and have none of
-                them refused;
+                national, spaced and unspaced, a US number, an Irish number and any other
+                international form — and have none of them refused;
               </li>
               <li>
                 change a number that is <strong>on WhatsApp for the active season</strong> and be
@@ -2690,6 +2733,14 @@
                     Brian, 2026-08-27 — &quot;negative cases so that correct numbers don&#39;t get
                     invalidated&quot;
                   </td>
+                  <td>Settled</td>
+                </tr>
+                <tr>
+                  <td>
+                    A number from any country is valid; only a bare national number defaults to UK
+                  </td>
+                  <td><code>locked</code></td>
+                  <td>Brian, 2026-08-27 — the club&#39;s people come from all over the world</td>
                   <td>Settled</td>
                 </tr>
                 <tr>
@@ -3887,6 +3938,7 @@
             <a class="golink" href="mockups/W7-work-the-missing-data-queue.html"
               >Open the mockup →</a
             >
+            <span class="chip warn">1 open</span>
           </header>
           <div class="md">
             <h1>W7 — Work the missing-data queue</h1>
@@ -3906,9 +3958,13 @@
                 against eleven people.
               </li>
               <li>
-                Entry point: <strong>Missing data</strong> in the Administration navigation, and the
-                missing-data flag on the roster (<code>W5</code>) and on the People list
-                (<code>W1-01</code>).
+                Entry point: <strong>not yet decided, and not yet drawn anywhere.</strong> Corrected
+                2026-08-27: this specification asserted a <strong>Missing data</strong> navigation
+                entry that no screen renders, and <code>W1-01</code>&#39;s Missing column is a chip
+                rather than a link. Two routes are proposed and both amend approved
+                <code>W1</code> — see <code>W7-06</code>: the count on the roster and on the People
+                list becomes a link, and/or a <strong>Missing data</strong> entry joins the
+                Administration group. Recommendation: both.
               </li>
               <li>
                 Route/placement: <code>/operate/people/missing</code>. Neither the route nor its
@@ -4115,6 +4171,18 @@
                     at a time
                   </td>
                   <td>Recommend yes</td>
+                </tr>
+                <tr>
+                  <td>
+                    The queue&#39;s entry point: a linked count, an Administration entry, or both
+                  </td>
+                  <td><code>proposed for owner approval</code></td>
+                  <td>
+                    Neither exists today. The count is the route an operator falls into; the entry
+                    is the route the trigger describes — an hour to spend usefully, starting from
+                    nobody in particular
+                  </td>
+                  <td>Recommend both</td>
                 </tr>
                 <tr>
                   <td>Season-scoped by default, with the same widen action as People</td>

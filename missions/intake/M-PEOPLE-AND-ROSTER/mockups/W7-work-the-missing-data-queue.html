@@ -1501,7 +1501,10 @@
 
       const FILTERS = ["Missing: All ▾", "Standing: All ▾"];
 
-      const W701 = operatorShell(`
+      const ADMIN = ["People", "Missing data", "Operators", "Roles"];
+      const shell = (c) => operatorShell(c, { selected: "Missing data", admin: ADMIN });
+
+      const W701 = shell(`
         <div class="stack g3">
           ${pageHead("Missing data", "Season 2026-27 · 7 of 13 people · 17 facts", `<button class="btn btn-outlined">See people outside this season</button>`)}
           ${searchBar("Search name or alias", "", FILTERS)}
@@ -1518,7 +1521,7 @@
         gaps: ["last name"],
       }));
 
-      const W702 = operatorShell(`
+      const W702 = shell(`
         <div class="stack g3">
           ${pageHead("Missing data", "Season 2026-27 · 4 people with no emergency contact", "")}
           ${searchBar("Search name or alias", "", ["Missing: Emergency contact ▾", "Standing: All ▾"])}
@@ -1526,7 +1529,7 @@
           ${queueCards(NOEC)}
         </div>`);
 
-      const W703 = operatorShell(`
+      const W703 = shell(`
         <div class="stack g3">
           ${pageHead("Missing data", "Season 2026-27 · 2 people with no last name", "")}
           ${searchBar("Search name or alias", "", ["Missing: Last name ▾", "Standing: All ▾"])}
@@ -1534,7 +1537,7 @@
           ${queueCards(NOLAST)}
         </div>`);
 
-      const W704 = operatorShell(`
+      const W704 = shell(`
         <div class="stack g3">
           ${pageHead("Missing data", "Season 2026-27 · no match", "")}
           ${searchBar("Search name or alias", "", ["Missing: Date of birth ▾", "Standing: Departed ▾"])}
@@ -1546,7 +1549,7 @@
           </div>
         </div>`);
 
-      const W705 = operatorShell(`
+      const W705 = shell(`
         <div class="stack g3">
           ${pageHead("Missing data", "Season 2026-27 · nothing missing", `<button class="btn btn-outlined">See people outside this season</button>`)}
           ${searchBar("Search name or alias", "", FILTERS)}
@@ -1558,9 +1561,10 @@
           </div>
         </div>`);
 
-      const W706 = operatorShell(`
-        <div class="stack g3">
+      const W706 = operatorShell(
+        `        <div class="stack g3">
           ${pageHead("Roster", "Season 2026-27 · 42 players", `<button class="btn btn-contained">Add player</button>`)}
+          ${alert("info", "Both routes to the queue are proposals: the counts below are links, and Missing data is a new Administration entry.")}
           ${searchBar("Search name or alias", "", ["Standing: All ▾", "Entry: All ▾", "Missing data: All ▾"])}
           ${dataTable(
             ["Player", "Standing", "Entry", "College", "Onboarding", "Contactable", "Missing"],
@@ -1611,7 +1615,9 @@
               chips: [standingChip("Onboarding"), `<span class="chip chip-warn">2 missing</span>`],
             },
           ])}
-        </div>`);
+        </div>`,
+        { selected: "Roster", admin: ADMIN },
+      );
 
       const IGGY = [
         {
@@ -1622,7 +1628,7 @@
         },
       ];
 
-      const W707 = operatorShell(`
+      const W707 = shell(`
         <div class="stack g3">
           ${pageHead("Missing data", "Season 2026-27 · 1 match for “Ignatius”", "")}
           ${searchBar("Search name or alias", "Ignatius", FILTERS)}
@@ -1716,13 +1722,17 @@
         ),
         S(
           "W7-06",
-          "The roster flag that leads in",
-          `The Missing column on the roster is how most operators will reach this queue. The count
-           links straight to that person's gaps.`,
+          "Where this queue is reached from — and the amendment it needs",
+          `<strong>Nothing reaches this queue today.</strong> W1 is approved with an Administration
+           group of People · Operators · Roles and no Missing data entry, and its Missing column is
+           a chip rather than a link. Both routes below are proposals, and both amend approved work.`,
           [
-            "The roster carries the flag; the queue carries the work",
-            "<strong>This roster is a sketch, not a proposal.</strong> W5 redesigns a surface that exists on <code>main</code>, so its real appearance is <em>photographed</em> in W5's own mockup. This is here only to show where the entry point sits",
-            "Bertram shows 8 here and 8 in the queue, from one definition of required",
+            "<strong>Correction, 2026-08-27.</strong> W7's specification claimed a navigation entry that no screen renders. It was asserted, not drawn",
+            "<strong>Route one — the count becomes a link.</strong> On the roster, and on W1-01's People list. It is the route an operator falls into: they are looking at somebody and click the number beside them",
+            "<strong>Route two — a Missing data entry in Administration.</strong> It is the route the trigger actually describes — “the Secretary has an hour and wants it spent usefully” — which starts from no particular person at all",
+            "<strong>Decide:</strong> one, the other, or both. My recommendation is both, because they answer different questions, and the queue is the only surface in this mission that is not about one person",
+            "Either way this is an <strong>amendment to approved W1</strong>, recorded as one rather than slipped in",
+            "The roster shown here is a sketch. W5's real appearance is photographed in its own mockup",
           ],
           "oxfordlancers.example/operate/roster",
           W706,

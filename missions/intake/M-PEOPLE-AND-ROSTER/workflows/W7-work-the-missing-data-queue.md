@@ -8,8 +8,12 @@
 - Trigger: the week before a fixture and nobody knows who has an emergency
   contact; the Secretary has an hour and wants it spent usefully; the roster
   shows a flag against eleven people.
-- Entry point: **Missing data** in the Administration navigation, and the
-  missing-data flag on the roster (`W5`) and on the People list (`W1-01`).
+- Entry point: **not yet decided, and not yet drawn anywhere.** Corrected
+  2026-08-27: this specification asserted a **Missing data** navigation entry
+  that no screen renders, and `W1-01`'s Missing column is a chip rather than a
+  link. Two routes are proposed and both amend approved `W1` — see `W7-06`:
+  the count on the roster and on the People list becomes a link, and/or a
+  **Missing data** entry joins the Administration group. Recommendation: both.
 - Route/placement: `/operate/people/missing`. Neither the route nor its parent
   exists on `main`; nothing occupies the path.
 - Controlling source: Task 08 §5 (missing required data); Task 08 §6 (`not
@@ -114,16 +118,17 @@ Against seeded synthetic data, an operator can:
 
 ## Core decisions
 
-| Decision                                                                                | Classification                | Governing evidence or recommended default                                                                    | Status                      |
-| --------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------- |
-| The queue names which facts are missing per row, not a count                            | `proposed for owner approval` | A count sends the operator to the record to find out what the queue already knows                            | Recommend as drawn          |
-| `disputed` is not a category here                                                       | `locked`                      | Brian, 2026-08-26, struck the state. The frozen inventory's line for this workflow needs the dated amendment | Settled, amendment pending  |
-| The queue shows an absence and never a value                                            | `proposed for owner approval` | It keeps date of birth and emergency contact off a routine screen entirely                                   | Recommend yes               |
-| Filter by which fact is missing                                                         | `proposed for owner approval` | It is how the work batches — one afternoon of emergency contacts, not one person at a time                   | Recommend yes               |
-| Season-scoped by default, with the same widen action as People                          | `locked`                      | Brian, 2026-08-26, on People; the queue is the same population                                               | Settled                     |
-| No `refused` or `not applicable` state; a row that cannot be satisfied persists         | `proposed for owner approval` | Task 11 §1 puts the per-fact refused state in Mission 7. Inventing one here would pre-empt it                | Recommend accepting the gap |
-| Onboarding completeness is not in this queue                                            | `locked`                      | Mission 7 owns it; the roster carries it as its own column                                                   | Settled                     |
-| Page size, ordering within an equal count, and the flag's exact placement on the roster | `delegated to Mission Lead`   | No product meaning                                                                                           | Delegated                   |
+| Decision                                                                                | Classification                | Governing evidence or recommended default                                                                                                                                         | Status                      |
+| --------------------------------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| The queue names which facts are missing per row, not a count                            | `proposed for owner approval` | A count sends the operator to the record to find out what the queue already knows                                                                                                 | Recommend as drawn          |
+| `disputed` is not a category here                                                       | `locked`                      | Brian, 2026-08-26, struck the state. The frozen inventory's line for this workflow needs the dated amendment                                                                      | Settled, amendment pending  |
+| The queue shows an absence and never a value                                            | `proposed for owner approval` | It keeps date of birth and emergency contact off a routine screen entirely                                                                                                        | Recommend yes               |
+| Filter by which fact is missing                                                         | `proposed for owner approval` | It is how the work batches — one afternoon of emergency contacts, not one person at a time                                                                                        | Recommend yes               |
+| The queue's entry point: a linked count, an Administration entry, or both               | `proposed for owner approval` | Neither exists today. The count is the route an operator falls into; the entry is the route the trigger describes — an hour to spend usefully, starting from nobody in particular | Recommend both              |
+| Season-scoped by default, with the same widen action as People                          | `locked`                      | Brian, 2026-08-26, on People; the queue is the same population                                                                                                                    | Settled                     |
+| No `refused` or `not applicable` state; a row that cannot be satisfied persists         | `proposed for owner approval` | Task 11 §1 puts the per-fact refused state in Mission 7. Inventing one here would pre-empt it                                                                                     | Recommend accepting the gap |
+| Onboarding completeness is not in this queue                                            | `locked`                      | Mission 7 owns it; the roster carries it as its own column                                                                                                                        | Settled                     |
+| Page size, ordering within an equal count, and the flag's exact placement on the roster | `delegated to Mission Lead`   | No product meaning                                                                                                                                                                | Delegated                   |
 
 ## Brian approval
 
