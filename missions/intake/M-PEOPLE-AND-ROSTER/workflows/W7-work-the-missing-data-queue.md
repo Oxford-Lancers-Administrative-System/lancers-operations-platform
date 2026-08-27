@@ -116,6 +116,27 @@ Against seeded synthetic data, an operator can:
 7. confirm **no value is ever displayed**, only the name of what is absent;
 8. confirm an operator **outside the four-role group** is refused.
 
+## Deferred 2026-08-27 — where missing data belongs
+
+Brian: _"Missing data as its own column doesn't make sense. I think there's a
+better place to put this. I can't think of one right now. We'll just keep it on
+the sidebar right now."_
+
+So it stays as drawn: the **Missing data** entry in the Administration group is
+the route, and the linked count on the roster and the People list is the second
+one. Recorded as deferred rather than settled, because he named a dissatisfaction
+without a replacement and it should not quietly become a decision.
+
+**What is not in question:** the queue's own **Missing** column, which names the
+absent facts per row. That is the surface's whole point and he approved it —
+_"I like the missing field."_
+
+**Standing stays on the queue** because the required set depends on it: a recruit
+needs a first name, a last name and a mobile; a coach or alumnus adds a personal
+email; an active player adds the academic fields, date of birth and emergency
+contact. Without it, `3 missing` cannot be judged. If the word is not carrying
+that meaning it is worth renaming on every surface rather than only this one.
+
 ## Core decisions
 
 | Decision                                                                                | Classification                | Governing evidence or recommended default                                                                                                                                         | Status                      |

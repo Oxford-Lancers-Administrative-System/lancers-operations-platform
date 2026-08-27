@@ -181,7 +181,16 @@
       "name": "Work the missing-data queue",
       "state": "spec_draft",
       "stale": false,
-      "feedback": [],
+      "feedback": [
+        {
+          "screen_id": "W7-01",
+          "text": "Deferred: where missing data belongs. The sidebar entry and the linked count stay for now; Brian named a dissatisfaction without a replacement."
+        },
+        {
+          "screen_id": "W7-01",
+          "text": "Standing may need renaming on every surface if the word is not carrying the ladder's meaning."
+        }
+      ],
       "approvals": {}
     },
     {
@@ -1640,5 +1649,5 @@
       }
     ]
   },
-  "next_action": "W6 is done. W7 and W8 remain, both drawn and both awaiting their first read"
+  "next_action": "W7 awaits its read; the missing-data placement is deferred and Standing's naming is an open question across every surface"
 }
