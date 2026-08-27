@@ -10,6 +10,7 @@ import {
   type Tx,
 } from "@/lib/db";
 import {
+  playerAnswerUrl,
   resolveDeliveryProvider,
   rsvpUrl,
   type DeliveryContext,
@@ -25,6 +26,7 @@ import {
 import { NO_USABLE_NUMBER_REASON, selectMobileNumber } from "@/lib/delivery/phone";
 import type { MessageKind, OutboundMessage, ProviderCallbackEvent } from "@/lib/delivery/provider";
 import { recordAudit } from "./audit";
+import { issueAnswerTokenIn } from "./player-answer-tokens";
 import { issueTokenIn, revokeTokensIn } from "./rsvp-tokens";
 
 /**
@@ -390,6 +392,22 @@ async function claimJobIn(
 
   const token = await issueTokenIn(tx, job.invitation_id, { actorLabel: DISPATCH_ACTOR_LABEL });
 
+  // LAN-172, Q-11: the two player-facing rungs also carry a Yes and a No
+  // one-time answer token each — independent of, and in addition to, the
+  // `rsvp_access_tokens` row above, which `delivery_attempts` still keys its
+  // own bookkeeping on. Neither token supersedes the other; they are two
+  // different credentials serving two different mechanisms.
+  let yesUrl: string | null = null;
+  let noUrl: string | null = null;
+  if (kind === "invitation" || kind === "reminder") {
+    const [yes, no] = await Promise.all([
+      issueAnswerTokenIn(tx, job.invitation_id, "yes"),
+      issueAnswerTokenIn(tx, job.invitation_id, "no"),
+    ]);
+    yesUrl = playerAnswerUrl(context.appBaseUrl, yes.token);
+    noUrl = playerAnswerUrl(context.appBaseUrl, no.token);
+  }
+
   const attempt = await tx.query<{ id: string }>(
     `insert into public.delivery_attempts
        (notification_job_id, attempt_number, channel, provider, rsvp_access_token_id)
@@ -422,6 +440,8 @@ async function claimJobIn(
         // The one place the plaintext token becomes a URL, and the last place
         // it exists at all.
         rsvpUrl: rsvpUrl(context.appBaseUrl, token.token),
+        yesUrl,
+        noUrl,
       },
     },
   };

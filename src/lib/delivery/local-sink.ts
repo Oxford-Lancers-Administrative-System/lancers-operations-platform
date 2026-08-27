@@ -132,7 +132,12 @@ function validateWhatsApp(payload: unknown, source: EnvironmentSource): Validati
     template?: {
       name?: unknown;
       language?: { code?: unknown };
-      components?: { type?: unknown; parameters?: unknown[] }[];
+      components?: {
+        type?: unknown;
+        sub_type?: unknown;
+        index?: unknown;
+        parameters?: unknown[];
+      }[];
     };
     text?: { body?: unknown };
   } | null;
@@ -214,7 +219,55 @@ function validateWhatsApp(payload: unknown, source: EnvironmentSource): Validati
     };
   }
 
+  // LAN-172, Q-11: `invitation` and `reminder` declare two URL buttons. The
+  // registry is the one place that says which kinds do — checking
+  // `buttonUrls` here rather than hard-coding the two names is what keeps this
+  // validator honest if a future kind gains buttons of its own.
+  if (typeof MESSAGE_TEMPLATES[kind].buttonUrls === "function") {
+    const buttonError = validateAnswerButtons(name, body.template.components ?? []);
+    if (buttonError) return buttonError;
+  }
+
   return { ok: true, kind, recipient };
+}
+
+function validateAnswerButtons(
+  templateName: string,
+  components: readonly {
+    type?: unknown;
+    sub_type?: unknown;
+    index?: unknown;
+    parameters?: unknown[];
+  }[],
+): Validation | null {
+  for (const expectedIndex of ["0", "1"] as const) {
+    const component = components.find(
+      (entry) => entry.type === "button" && String(entry.index) === expectedIndex,
+    );
+    if (!component) {
+      return {
+        ok: false,
+        code: 132_000,
+        detail: `Template "${templateName}" declares two URL buttons and button ${expectedIndex} was not sent.`,
+      };
+    }
+    if (component.sub_type !== "url") {
+      return {
+        ok: false,
+        code: 132_000,
+        detail: `Button ${expectedIndex} on "${templateName}" must be a URL button, not a Quick Reply.`,
+      };
+    }
+    const suffix = component.parameters?.[0] as { text?: unknown } | undefined;
+    if (typeof suffix?.text !== "string" || suffix.text.trim() === "") {
+      return {
+        ok: false,
+        code: 132_000,
+        detail: `Button ${expectedIndex} on "${templateName}" carries no dynamic URL suffix.`,
+      };
+    }
+  }
+  return null;
 }
 
 function validateEmail(payload: unknown): Validation {

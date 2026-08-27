@@ -8,6 +8,7 @@ import {
   RECOVERY_CALLBACK_PATH,
   RESET_PASSWORD_PATH,
 } from "@/lib/auth/recovery";
+import { ANSWER_GATE_COOKIE, ANSWER_GATE_MAX_AGE_SECONDS } from "@/lib/rsvp/answer-gate";
 
 /**
  * Next.js 16 renamed the `middleware` convention to `proxy`. This runs before
@@ -60,6 +61,34 @@ const RSVP_PREFIX = "/rsvp";
  * still not a public document for a CDN to hold or a crawler to index.
  */
 const CLUB_LINK_PREFIX = "/e";
+
+/**
+ * The WhatsApp/email answer link (LAN-172, Q-11) and the durable player page
+ * — public, and handled exactly like `/rsvp` and `/e`, for the same three
+ * facts: the token in the URL is the whole authorization, nothing here may be
+ * cached or indexed, and no referrer may carry the token onward.
+ */
+const ANSWER_LINK_PREFIX = "/a";
+const PLAYER_HOME_PREFIX = "/me";
+
+/**
+ * The GET/POST gate cookie for `/a/[token]` — see `@/lib/rsvp/answer-gate.ts`
+ * for the full contract. Setting it here, in the proxy, rather than in the
+ * page, is not a style choice: a Server Component's render may not mutate
+ * cookies in this framework, and the proxy runs before the request reaches
+ * one. `Path` is set to the request's own pathname, which is what makes the
+ * cookie return only on a request to this exact token's URL — never another
+ * token's, and never a plain `/a` crawl of the prefix.
+ */
+function setAnswerGateCookie(response: NextResponse, request: NextRequest): void {
+  response.cookies.set(ANSWER_GATE_COOKIE, "1", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: request.nextUrl.protocol === "https:",
+    path: request.nextUrl.pathname,
+    maxAge: ANSWER_GATE_MAX_AGE_SECONDS,
+  });
+}
 
 /**
  * The three headers a page reached by a private link must carry. Named for what
@@ -120,9 +149,16 @@ function matchesPrefix(pathname: string, prefixes: readonly string[]): boolean {
 
 export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  if (matchesPrefix(path, [RSVP_PREFIX, CLUB_LINK_PREFIX])) {
+  if (
+    matchesPrefix(path, [RSVP_PREFIX, CLUB_LINK_PREFIX, ANSWER_LINK_PREFIX, PLAYER_HOME_PREFIX])
+  ) {
     const privateLink = NextResponse.next({ request });
     for (const [key, value] of PRIVATE_LINK_HEADERS) privateLink.headers.set(key, value);
+    // Only `/a/[token]`, and only its GET: that is the one request `page.tsx`
+    // treats as side-effect-free and the one a POST must prove it followed.
+    if (request.method === "GET" && matchesPrefix(path, [ANSWER_LINK_PREFIX])) {
+      setAnswerGateCookie(privateLink, request);
+    }
     return privateLink;
   }
 
@@ -193,9 +229,10 @@ export const config = {
     // Everything except Next.js internals, the health check, the provider
     // webhook, and static assets.
     //
-    // `/rsvp` and `/e` stay matched deliberately, even though both are public:
-    // the proxy returns early for them above, before any Supabase work, and
-    // sets the headers those routes depend on. Excluding them from the matcher
+    // `/rsvp`, `/e`, `/a` and `/me` stay matched deliberately, even though all
+    // four are public: the proxy returns early for them above, before any
+    // Supabase work, and sets the headers those routes depend on (plus, for
+    // `/a`, the answer-link gate cookie). Excluding them from the matcher
     // would skip the early return too, and with it `no-store`.
     //
     // The WhatsApp webhook — that one route, not the `api/webhooks` namespace —

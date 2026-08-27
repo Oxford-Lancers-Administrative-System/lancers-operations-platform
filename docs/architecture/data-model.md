@@ -503,6 +503,18 @@ Notification Job that carries a message. What it had no home for was **when**.
   one person revocable without waiting for one. At most one live durable
   credential per person per season, as a partial unique index.
 
+  `WP-player-answer` (LAN-172) is the table's first consumer, and it consumes
+  both shapes without a schema change. The table has no `invitation_id` column
+  and no "which button" column, so a one-time answer token embeds both facts
+  in its own plaintext — `y.<invitationId>.<nonce>` or `n.<invitationId>.<nonce>`
+  — and the digest stored in `token_hash` is `sha256` of that whole string. A
+  matching row therefore proves the invitation id and the answer were exactly
+  what was minted, because changing either before presenting the token changes
+  the hash to one nothing matches. The durable credential is plain random bytes,
+  with no such structure, and is **reissued** rather than looked up whenever a
+  fresh plaintext is needed — its earlier plaintext is gone the moment it was
+  handed to the caller that minted it, the same as `rsvp_access_tokens`.
+
 - **`nonresponse_flags`** — `unique (invitation_id, threshold)` is what makes
   the escalation idempotent under reruns, and it has to be the constraint rather
   than a check-then-insert because two scheduler instances can cross a threshold

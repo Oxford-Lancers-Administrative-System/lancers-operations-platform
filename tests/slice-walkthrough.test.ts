@@ -85,7 +85,7 @@ vi.mock("@/lib/auth/guards", async (importOriginal) => {
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Client } from "pg";
 
-import { closePool, isServiceError, type ServiceError } from "@/lib/db";
+import { closePool, isServiceError, withTransaction, type ServiceError } from "@/lib/db";
 import { assertCapability } from "@/lib/auth/guards";
 import {
   CAPABILITY_KEYS,
@@ -114,8 +114,8 @@ import {
   dispatchEventInvitations,
   readEventDelivery,
 } from "@/lib/services/delivery";
-import { resolveRsvpToken } from "@/lib/services/rsvp-tokens";
-import { recordSignedLinkResponse } from "@/lib/services/rsvp";
+import { recordAnswerIn } from "@/lib/services/rsvp";
+import { consumeAnswerTokenIn, resolveAnswerToken } from "@/lib/services/player-answer-tokens";
 import {
   readAttendanceBoard,
   recordAttendance,
@@ -266,8 +266,8 @@ let sayingYes: Walker;
 let sayingNo: Walker;
 
 let eventId: string;
-/** invitation id → the plaintext token the adapter actually sent. */
-const deliveredTokens = new Map<string, string>();
+/** invitation id → the plaintext Yes and No answer tokens the adapter actually sent. */
+const deliveredTokens = new Map<string, { yes: string; no: string }>();
 /** invitation id → the provider message identifier the send returned. */
 const providerMessageIds = new Map<string, string>();
 let yesInvitationId: string;
@@ -600,6 +600,10 @@ async function cleanUp(): Promise<void> {
   await purge("public.contact_points", "person_id", personIds);
   await purge("public.person_aliases", "person_id", personIds);
   await purge("public.operator_accounts", "person_id", personIds);
+  // LAN-172: `invitation` and `reminder` dispatch also mints a Yes and a No
+  // one-time answer token per job, keyed to the person rather than the
+  // invitation.
+  await purge("public.person_access_tokens", "person_id", personIds);
   await purge("public.people", "id", personIds);
 
   // The Auth users last: `operator_accounts.auth_user_id` is `on delete restrict`.
@@ -944,8 +948,10 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
     expect(sent).toHaveLength(2);
 
     // The provider contract, as `whatsapp-cloud.test.ts` pins it: the Graph
-    // messages endpoint for the configured phone number, a bearer token, and
-    // the approved template's four body parameters in order.
+    // messages endpoint for the configured phone number, a bearer token, the
+    // approved template's three body parameters in order, and — LAN-172,
+    // Q-11 — two URL buttons carrying one-time Yes and No answer tokens
+    // rather than a raw link in body copy.
     for (const request of sent) {
       expect(request.method).toBe("POST");
       expect(request.url).toContain(`/${PROVIDER_ENVIRONMENT.WHATSAPP_PHONE_NUMBER_ID}/messages`);
@@ -954,15 +960,21 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
 
       const template = request.body.template as {
         name: string;
-        components: { parameters: { text: string }[] }[];
+        components: { type: string; index?: string; parameters: { text: string }[] }[];
       };
       expect(template.name).toBe(PROVIDER_ENVIRONMENT.WHATSAPP_TEMPLATE_NAME);
-      const parameters = template.components[0].parameters.map((entry) => entry.text);
-      expect(parameters).toHaveLength(4);
+      const body = template.components.find((c) => c.type === "body");
+      const parameters = body!.parameters.map((entry) => entry.text);
+      expect(parameters).toHaveLength(3);
       expect(parameters[1]).toContain(MARKER);
-      expect(parameters[3]).toMatch(
-        new RegExp(`^${PROVIDER_ENVIRONMENT.APP_BASE_URL}/rsvp/[A-Za-z0-9_-]{43}$`),
-      );
+      expect(parameters.join(" ")).not.toContain("/rsvp/");
+
+      const buttons = template.components.filter((c) => c.type === "button");
+      expect(buttons).toHaveLength(2);
+      const yesSuffix = buttons.find((b) => b.index === "0")!.parameters[0].text;
+      const noSuffix = buttons.find((b) => b.index === "1")!.parameters[0].text;
+      expect(yesSuffix).toMatch(/^y\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
+      expect(noSuffix).toMatch(/^n\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
     }
 
     // Durable evidence: an attempt per invitation, each carrying the provider's
@@ -1016,24 +1028,27 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
   // resolves to that invitation.
   // -------------------------------------------------------------------------
 
-  it("hands off approval to delivery: the token that went out resolves to the invitation approval created", async () => {
+  it("hands off approval to delivery: the tokens that went out resolve to the invitation approval created", async () => {
     // The tokens come out of the captured request bodies, not out of the
     // database. That is the whole point: a token read from
-    // `rsvp_access_tokens` would prove the test can query, and this proves the
-    // link a player receives is the link this invitation minted.
+    // `person_access_tokens` would prove the test can query, and this proves
+    // the buttons a player receives are the buttons this invitation minted.
     for (const request of sent) {
       const template = request.body.template as {
-        components: { parameters: { text: string }[] }[];
+        components: { type: string; index?: string; parameters: { text: string }[] }[];
       };
-      const link = template.components[0].parameters[3].text;
-      const token = link.slice(link.lastIndexOf("/") + 1);
+      const yesToken = template.components.find((c) => c.type === "button" && c.index === "0")!
+        .parameters[0].text;
+      const noToken = template.components.find((c) => c.type === "button" && c.index === "1")!
+        .parameters[0].text;
 
-      const resolution = await resolveRsvpToken(token);
+      const resolution = await resolveAnswerToken(yesToken);
       expect(resolution.state).toBe("valid");
       expect(resolution.writable).toBe(true);
+      expect(resolution.answer).toBe("yes");
       expect(resolution.invitation!.eventId).toBe(eventId);
 
-      deliveredTokens.set(resolution.invitation!.invitationId, token);
+      deliveredTokens.set(resolution.invitation!.invitationId, { yes: yesToken, no: noToken });
     }
 
     // Both invitations approval created, and no others.
@@ -1041,13 +1056,19 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
 
     // Only the digest is stored. The plaintext exists in the message and nowhere else.
     const stored = await db.query<{ token_hash: string }>(
-      `select token_hash from public.rsvp_access_tokens
-        where invitation_id = any($1::uuid[])`,
+      `select token_hash from public.person_access_tokens
+        where person_id = any(
+          select coalesce(i.person_id, m.person_id)
+            from public.invitations i
+            left join public.season_memberships m on m.id = i.season_membership_id
+           where i.id = any($1::uuid[])
+        )`,
       [[yesInvitationId, noInvitationId]],
     );
-    expect(stored.rows).toHaveLength(2);
+    expect(stored.rows.length).toBeGreaterThanOrEqual(4); // a Yes and a No token per invitation
+    const plaintexts = [...deliveredTokens.values()].flatMap((pair) => [pair.yes, pair.no]);
     for (const row of stored.rows) {
-      expect([...deliveredTokens.values()]).not.toContain(row.token_hash);
+      expect(plaintexts).not.toContain(row.token_hash);
     }
   }, 60_000);
 
@@ -1098,27 +1119,59 @@ describe.runIf(configured).sequential("the whole slice, walked once", () => {
   // -------------------------------------------------------------------------
 
   it("answers Yes on one delivered link and No with a reason on the other", async () => {
-    const yes = await recordSignedLinkResponse(deliveredTokens.get(yesInvitationId)!, {
-      response: "yes",
-    });
+    // The Yes tap: side-effect-free GET already proved separately
+    // (`player-answer-tokens.test.ts`); this is the POST's write, LAN-172.
+    const yes = await withTransaction((tx) =>
+      consumeAnswerTokenIn(tx, deliveredTokens.get(yesInvitationId)!.yes),
+    );
     expect(yes.invitationId).toBe(yesInvitationId);
-    yesResponseId = yes.responseId;
+    expect(yes.answer).toBe("yes");
+    expect(yes.recorded).toBe(true);
 
-    // A No with no reason is refused before anything is written.
+    // The No tap records the honest default, standing from the click —
+    // Brian's Q-11 resolution — not a reason typed on the WhatsApp button.
+    const no = await withTransaction((tx) =>
+      consumeAnswerTokenIn(tx, deliveredTokens.get(noInvitationId)!.no),
+    );
+    expect(no.invitationId).toBe(noInvitationId);
+    expect(no.answer).toBe("no");
+
+    // Replacing the default with a real reason — the durable page's own
+    // write, `recordPlayerHomeAnswerIn`'s underlying transaction — refuses a
+    // blank reason before anything changes, exactly as the click-time
+    // default would if it were ever supplied blank.
     const refusal = await refusalOf(() =>
-      recordSignedLinkResponse(deliveredTokens.get(noInvitationId)!, {
-        response: "no",
-        reason: "   ",
-      }),
+      withTransaction((tx) =>
+        recordAnswerIn(
+          tx,
+          noInvitationId,
+          { response: "no", reason: "   " },
+          { actorLabel: "test: player's own page", source: "signed_link" },
+        ),
+      ),
     );
     expect(refusal.rule).toBe("rsvp_responses_no_requires_a_reason");
 
-    const no = await recordSignedLinkResponse(deliveredTokens.get(noInvitationId)!, {
-      response: "no",
-      reason: DECLINE_REASON,
-    });
-    expect(no.invitationId).toBe(noInvitationId);
-    noResponseId = no.responseId;
+    await withTransaction((tx) =>
+      recordAnswerIn(
+        tx,
+        noInvitationId,
+        { response: "no", reason: DECLINE_REASON },
+        { actorLabel: "test: player's own page", source: "signed_link" },
+      ),
+    );
+
+    const standingIds = await db.query<{ invitation_id: string; rsvp_response_id: string }>(
+      `select invitation_id, rsvp_response_id from public.current_rsvp
+        where invitation_id = any($1::uuid[])`,
+      [[yesInvitationId, noInvitationId]],
+    );
+    yesResponseId = standingIds.rows.find(
+      (row) => row.invitation_id === yesInvitationId,
+    )!.rsvp_response_id;
+    noResponseId = standingIds.rows.find(
+      (row) => row.invitation_id === noInvitationId,
+    )!.rsvp_response_id;
 
     const standing = await db.query<{
       invitation_id: string;

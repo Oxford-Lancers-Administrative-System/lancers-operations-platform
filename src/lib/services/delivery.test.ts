@@ -152,6 +152,13 @@ afterEach(async () => {
     `delete from public.rsvp_access_tokens where invitation_id in ${invitations}`,
     [scope],
   );
+  // LAN-172: `invitation` and `reminder` dispatch now also mints a Yes and a
+  // No one-time answer token per job, keyed to the person rather than the
+  // invitation — deleted here for the same reason `rsvp_access_tokens` is.
+  await observer.query(
+    "delete from public.person_access_tokens where person_id in (select id from public.people where given_name = $1)",
+    [MARKER],
+  );
   await observer.query(`delete from public.invitations where event_id in ${events}`, [scope]);
   await observer.query(`delete from public.event_audience_members where event_id in ${events}`, [
     scope,
@@ -434,7 +441,11 @@ describe("dispatching after approval", () => {
     expect(delivered.rows[0].count).toBe("0");
   });
 
-  it("issues exactly one live token, carried into the message", async () => {
+  it("issues exactly one live rsvp_access_token, kept for delivery_attempts' own bookkeeping", async () => {
+    // LAN-172: the invitation's WhatsApp body no longer carries this token at
+    // all — the club's two answer buttons do, minted separately below — but
+    // `delivery_attempts.rsvp_access_token_id` still keys its per-attempt
+    // record on one, so one is still issued on every dispatch.
     const { eventId, invitationId } = await fixture();
     const transport = accepts();
     await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
@@ -445,31 +456,49 @@ describe("dispatching after approval", () => {
       [invitationId],
     );
     expect(live.rows[0].count).toBe("1");
-
-    const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
-    const body = JSON.parse(init.body as string) as {
-      template: { components: { parameters: { text: string }[] }[] };
-    };
-    const link = body.template.components[0].parameters[3].text;
-    expect(link).toMatch(/^https:\/\/lancers\.example\.org\/rsvp\/[A-Za-z0-9_-]{43}$/);
   });
 
-  it("never stores the link it sent", async () => {
-    const { eventId, invitationId } = await fixture();
+  it("carries a one-time Yes and No answer token on the message's two buttons", async () => {
+    // LAN-172, Q-11: the WhatsApp button's dynamic suffix is the whole token,
+    // never a full URL — Meta supplies the fixed prefix the approved template
+    // already carries.
+    const { eventId } = await fixture();
     const transport = accepts();
     await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
 
     const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
     const body = JSON.parse(init.body as string) as {
-      template: { components: { parameters: { text: string }[] }[] };
+      template: { components: { type: string; index?: string; parameters: { text: string }[] }[] };
     };
-    const token = body.template.components[0].parameters[3].text.split("/").pop() as string;
+    const buttons = body.template.components.filter((c) => c.type === "button");
+    expect(buttons).toHaveLength(2);
+    const yesSuffix = buttons.find((b) => b.index === "0")?.parameters[0].text;
+    const noSuffix = buttons.find((b) => b.index === "1")?.parameters[0].text;
+    expect(yesSuffix).toMatch(/^y\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
+    expect(noSuffix).toMatch(/^n\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
+  });
 
-    for (const table of ["rsvp_access_tokens", "delivery_attempts", "audit_events"]) {
+  it("never stores the plaintext answer token it sent", async () => {
+    const { eventId } = await fixture();
+    const transport = accepts();
+    await dispatchEventInvitations(eventId, { source: CONFIGURED, transport });
+
+    const [, init] = transport.mock.calls[0] as unknown as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as {
+      template: { components: { type: string; index?: string; parameters: { text: string }[] }[] };
+    };
+    const token = body.template.components.find((c) => c.type === "button" && c.index === "0")
+      ?.parameters[0].text as string;
+
+    for (const table of [
+      "rsvp_access_tokens",
+      "person_access_tokens",
+      "delivery_attempts",
+      "audit_events",
+    ]) {
       const rows = await observer.query(`select * from public.${table}`);
       expect(JSON.stringify(rows.rows)).not.toContain(token);
     }
-    void invitationId;
   });
 
   it("sends nothing and says why when delivery is not configured", async () => {

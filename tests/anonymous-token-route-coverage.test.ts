@@ -42,6 +42,18 @@ const expected = [
     refusal:
       /TERMINAL: TokenState\[\] = \["unknown", "expired", "revoked", "superseded", "event_started"\]/,
   },
+  {
+    source: "src/app/a/[token]/actions.ts",
+    test: "src/app/a/[token]/actions.test.ts",
+    refusal:
+      /refuses an anonymous injected token[\s\S]*consumeAnswerTokenIn\)\.toHaveBeenCalledWith/,
+  },
+  {
+    source: "src/app/me/[token]/actions.ts",
+    test: "src/app/me/[token]/actions.test.ts",
+    refusal:
+      /refuses an anonymous injected token[\s\S]*resolvePersonTokenIn\)\.toHaveBeenCalledWith/,
+  },
 ];
 
 describe("anonymous abuse of every token-bearing route", () => {

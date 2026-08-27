@@ -137,6 +137,12 @@ afterEach(async () => {
     `delete from public.rsvp_access_tokens where invitation_id in ${invitations}`,
     [scope],
   );
+  // LAN-172: `invitation` and `reminder` dispatch also mints a Yes and a No
+  // one-time answer token per job, keyed to the person rather than the
+  // invitation.
+  await observer.query(`delete from public.person_access_tokens where person_id in ${people}`, [
+    MARKER,
+  ]);
   await observer.query(`delete from public.rsvp_responses where invitation_id in ${invitations}`, [
     scope,
   ]);

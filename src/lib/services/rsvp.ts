@@ -294,6 +294,113 @@ export function composeReason(reason: string | null | undefined): string {
 }
 
 /**
+ * Records one answer against an invitation that is already known to be
+ * writable, or refuses. LAN-172 extracted this out of `recordSignedLinkResponse`
+ * so that a second unauthenticated write path — the WhatsApp/email answer link
+ * — records through the identical transaction rather than a rewritten copy of
+ * it. See `recordSignedLinkResponse` for the full contract; this function skips
+ * only the *resolution* step, because its callers each resolve their own kind
+ * of token first and pass in an invitation id they have already proved is live.
+ *
+ * `actorLabel` and `source` are supplied by the caller because the two paths
+ * are genuinely different mechanisms — a signed per-invitation link and a
+ * one-time WhatsApp/email button — and the audit trail should say which one
+ * this was, even though both are unauthenticated bearer tokens with no second
+ * factor.
+ */
+export async function recordAnswerIn(
+  tx: Tx,
+  invitationId: string,
+  submission: SignedRsvpSubmission,
+  options: { actorLabel: string; source: "signed_link" },
+): Promise<RecordedRsvpResponse> {
+  // The refusal that used to be here — "this event is for information only, so
+  // there is nothing to respond to" — went with `solicits_response`. D23
+  // removed the flag: everyone sent an event is expected to answer, and whether
+  // the club expects them to be there is mandatory-or-optional, which is a
+  // different question. There is no longer an event a signed link can reach
+  // that has nothing to answer.
+
+  // A withdrawn invitation outlives its own cancellation (invariant P4), so the
+  // token can still resolve against it. There is nothing left to answer.
+  const invitation = await tx.query<{ status: string }>(
+    `select status::text as status from public.invitations where id = $1 for update`,
+    [invitationId],
+  );
+  const previousStatus = invitation.rows[0]?.status ?? null;
+  if (previousStatus === "cancelled") {
+    throw new InvalidTransition(
+      "This invitation has been withdrawn, so a response can no longer be recorded.",
+      { rule: INVITATION_WITHDRAWN_RULE },
+    );
+  }
+
+  const reason = submission.response === "no" ? composeReason(submission.reason) : null;
+
+  // The same rule the database enforces, refused here so the player gets a
+  // sentence instead of an integrity error. Both checks are load-bearing: this
+  // one for the message, the constraint for the guarantee.
+  if (submission.response === "no" && reason === "") {
+    throw new ConstraintViolated("Choose a reason before saving Not attending.", {
+      rule: NO_REQUIRES_A_REASON_RULE,
+    });
+  }
+
+  const inserted = await tx.query<{ id: string; responded_at: Date }>(
+    `insert into public.rsvp_responses
+       (invitation_id, response, reason, source, responded_at)
+     values ($1, $2::public.rsvp_value, $3, $4::public.rsvp_source, now())
+     returning id, responded_at`,
+    [invitationId, submission.response, reason, options.source],
+  );
+  const row = inserted.rows[0];
+
+  // `expired` → `responded` is legal and deliberate: late answers are answers
+  // (model §2.4). So is `responded` → `responded`, which is what a changed
+  // answer does.
+  await tx.query(
+    `update public.invitations set status = 'responded' where id = $1 and status <> 'responded'`,
+    [invitationId],
+  );
+
+  // Model §2.7 — an arriving RSVP calls off that person's pending reminders,
+  // and LAN-169 adds the second half of `REQ-chase-stopped`: it also clears an
+  // un-actioned nonresponse flag, in this same transaction. Both live in
+  // `stopChasingIn` above so that this path, `cancelEvent`, and the operator's
+  // record-an-answer path cannot drift into three slightly different
+  // definitions of "stop chasing".
+  const { cancelledJobs, clearedFlags } = await stopChasingIn(tx, invitationId);
+
+  // The response itself is recorded in `rsvp_responses`, which is its typed
+  // first-class home; this row records the invitation's *transition* and the
+  // reminders it called off. The reason text is deliberately not copied here —
+  // absence reasons are private to the response, and duplicating them into the
+  // audit trail would widen who can read them.
+  await recordAudit(tx, {
+    actorLabel: options.actorLabel,
+    action: "invitation.response_recorded",
+    entityTable: "invitations",
+    entityId: invitationId,
+    fromState: previousStatus,
+    toState: "responded",
+    context: {
+      response: submission.response,
+      source: options.source,
+      cancelledNotificationJobs: cancelledJobs,
+      clearedNonresponseFlags: clearedFlags,
+    },
+  });
+
+  return {
+    responseId: row.id,
+    response: submission.response,
+    respondedAt: row.responded_at,
+    invitationId,
+    cancelledJobs,
+  };
+}
+
+/**
  * Records one answer through a signed link, or refuses.
  *
  * Everything commits together: the response row, the invitation's move to
@@ -321,92 +428,10 @@ export async function recordSignedLinkResponse(
       });
     }
 
-    const invitationId = resolution.invitation.invitationId;
-
-    // The refusal that used to be here — "this event is for information only,
-    // so there is nothing to respond to" — went with `solicits_response`. D23
-    // removed the flag: everyone sent an event is expected to answer, and
-    // whether the club expects them to be there is mandatory-or-optional, which
-    // is a different question. There is no longer an event a signed link can
-    // reach that has nothing to answer.
-
-    // A withdrawn invitation outlives its own cancellation (invariant P4), so
-    // the token can still resolve against it. There is nothing left to answer.
-    const invitation = await tx.query<{ status: string }>(
-      `select status::text as status from public.invitations where id = $1 for update`,
-      [invitationId],
-    );
-    const previousStatus = invitation.rows[0]?.status ?? null;
-    if (previousStatus === "cancelled") {
-      throw new InvalidTransition(
-        "This invitation has been withdrawn, so a response can no longer be recorded.",
-        { rule: INVITATION_WITHDRAWN_RULE },
-      );
-    }
-
-    const reason = submission.response === "no" ? composeReason(submission.reason) : null;
-
-    // The same rule the database enforces, refused here so the player gets a
-    // sentence instead of an integrity error. Both checks are load-bearing:
-    // this one for the message, the constraint for the guarantee.
-    if (submission.response === "no" && reason === "") {
-      throw new ConstraintViolated("Choose a reason before saving Not attending.", {
-        rule: NO_REQUIRES_A_REASON_RULE,
-      });
-    }
-
-    const inserted = await tx.query<{ id: string; responded_at: Date }>(
-      `insert into public.rsvp_responses
-         (invitation_id, response, reason, source, responded_at)
-       values ($1, $2::public.rsvp_value, $3, 'signed_link', now())
-       returning id, responded_at`,
-      [invitationId, submission.response, reason],
-    );
-    const row = inserted.rows[0];
-
-    // `expired` → `responded` is legal and deliberate: late answers are
-    // answers (model §2.4). So is `responded` → `responded`, which is what a
-    // changed answer does.
-    await tx.query(
-      `update public.invitations set status = 'responded' where id = $1 and status <> 'responded'`,
-      [invitationId],
-    );
-
-    // Model §2.7 — an arriving RSVP calls off that person's pending reminders,
-    // and LAN-169 adds the second half of `REQ-chase-stopped`: it also clears an
-    // un-actioned nonresponse flag, in this same transaction. Both live in
-    // `stopChasingIn` above so that this path, `cancelEvent`, and the operator's
-    // record-an-answer path cannot drift into three slightly different
-    // definitions of "stop chasing".
-    const { cancelledJobs, clearedFlags } = await stopChasingIn(tx, invitationId);
-
-    // The response itself is recorded in `rsvp_responses`, which is its typed
-    // first-class home; this row records the invitation's *transition* and the
-    // reminders it called off. The reason text is deliberately not copied here
-    // — absence reasons are private to the response, and duplicating them into
-    // the audit trail would widen who can read them.
-    await recordAudit(tx, {
+    return recordAnswerIn(tx, resolution.invitation.invitationId, submission, {
       actorLabel: "player: signed RSVP link",
-      action: "invitation.response_recorded",
-      entityTable: "invitations",
-      entityId: invitationId,
-      fromState: previousStatus,
-      toState: "responded",
-      context: {
-        response: submission.response,
-        source: "signed_link",
-        cancelledNotificationJobs: cancelledJobs,
-        clearedNonresponseFlags: clearedFlags,
-      },
+      source: "signed_link",
     });
-
-    return {
-      responseId: row.id,
-      response: submission.response,
-      respondedAt: row.responded_at,
-      invitationId,
-      cancelledJobs,
-    };
   });
 }
 

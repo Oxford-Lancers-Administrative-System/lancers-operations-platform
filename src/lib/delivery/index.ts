@@ -127,7 +127,7 @@ export function resolveDeliveryProvider(
   };
 }
 
-export { rsvpUrl } from "./config";
+export { rsvpUrl, playerAnswerUrl, playerHomeUrl } from "./config";
 export type {
   DeliveryProvider,
   InvitationMessage,

@@ -88,6 +88,14 @@ export interface OutboundMessage {
   readonly whenLabel: string;
   /** The signed RSVP link. Carries the plaintext token and is never logged. */
   readonly rsvpUrl: string;
+  /**
+   * The two Yes/No answer links — LAN-172, Q-11. `invitation` and `reminder`
+   * are the only kinds that carry these; every other kind still uses the
+   * single `rsvpUrl` above. Each carries its own one-time token and is never
+   * logged, for the same reason `rsvpUrl` never is.
+   */
+  readonly yesUrl?: string | null;
+  readonly noUrl?: string | null;
   /** Where the event happens, where the club records one. */
   readonly venue?: string | null;
   /** The response deadline, already formatted. Displayed, never enforced here. */

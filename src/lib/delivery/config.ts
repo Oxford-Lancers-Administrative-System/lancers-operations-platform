@@ -517,3 +517,22 @@ export function describeMissingConfiguration(missing: readonly string[]): string
 export function rsvpUrl(appBaseUrl: string, token: string): string {
   return `${appBaseUrl.replace(/\/+$/, "")}/rsvp/${encodeURIComponent(token)}`;
 }
+
+/**
+ * The WhatsApp/email answer link for one one-time token — LAN-172, Q-11.
+ *
+ * The only place a player-answer token becomes a URL, for the same reason
+ * `rsvpUrl` is the only place its token does: one reader for the base URL
+ * means no route, adapter or template string anywhere else can grow a
+ * hard-coded host. `app.oxfordlancers.com` is the decided permanent host
+ * (Q-14), but it is still read from `APP_BASE_URL` here, never inlined — a
+ * local or review deployment keeps its own configured host.
+ */
+export function playerAnswerUrl(appBaseUrl: string, token: string): string {
+  return `${appBaseUrl.replace(/\/+$/, "")}/a/${encodeURIComponent(token)}`;
+}
+
+/** The player's own durable page for one season — LAN-172. */
+export function playerHomeUrl(appBaseUrl: string, token: string): string {
+  return `${appBaseUrl.replace(/\/+$/, "")}/me/${encodeURIComponent(token)}`;
+}

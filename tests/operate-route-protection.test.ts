@@ -46,8 +46,8 @@ function givenRecoverySession() {
   givenClaims({ sub: "auth-user-id", amr: [{ method: "otp" }] });
 }
 
-function requestFor(path: string): NextRequest {
-  return new NextRequest(new URL(path, ORIGIN));
+function requestFor(path: string, init?: { method?: string }): NextRequest {
+  return new NextRequest(new URL(path, ORIGIN), init);
 }
 
 /**
@@ -472,5 +472,115 @@ describe("the club link is public, unauthenticated, and carries its own headers"
     givenSignedIn(true);
     await proxy(requestFor("/events/something"));
     expect(createServerClient).toHaveBeenCalled();
+  });
+});
+
+/**
+ * The WhatsApp/email answer link — LAN-172, Q-11.
+ *
+ * The same three headers as `/rsvp` and `/e`, for the same three reasons, plus
+ * one property neither of those routes has: a GET sets the gate cookie the
+ * answer's POST checks, and a POST does not set it again.
+ */
+describe("the answer link is public, unauthenticated, and gates its own POST", () => {
+  const ANSWER_LINK =
+    "/a/y.abcdefgh-abcd-abcd-abcd-abcdefabcdef.token123token123token123token123token123x";
+
+  it("is matched by the proxy, or none of the below would run at all", () => {
+    expect(matcherRuns("/a")).toBe(true);
+    expect(matcherRuns(ANSWER_LINK)).toBe(true);
+  });
+
+  it("stops the token leaving in a Referer header", async () => {
+    givenSignedIn(false);
+    const response = await proxy(requestFor(ANSWER_LINK));
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  it("lets nothing keep a copy", async () => {
+    givenSignedIn(false);
+    const response = await proxy(requestFor(ANSWER_LINK));
+    const cacheControl = response.headers.get("cache-control") ?? "";
+    expect(cacheControl).toContain("no-store");
+    expect(cacheControl).toContain("private");
+  });
+
+  it("keeps a one-time link out of search results", async () => {
+    givenSignedIn(false);
+    const response = await proxy(requestFor(ANSWER_LINK));
+    expect(response.headers.get("x-robots-tag")).toContain("noindex");
+  });
+
+  it("does no Supabase work, so a player's tap cannot rotate an operator's cookie", async () => {
+    givenSignedIn(true);
+    await proxy(requestFor(ANSWER_LINK));
+    expect(createServerClient).not.toHaveBeenCalled();
+  });
+
+  it("sets the gate cookie on a GET, scoped to this exact path", async () => {
+    const response = await proxy(requestFor(ANSWER_LINK, { method: "GET" }));
+    const cookie = response.cookies.get("lo_pa_gate");
+    expect(cookie?.value).toBe("1");
+    expect(cookie?.path).toBe(ANSWER_LINK);
+    expect(cookie?.httpOnly).toBe(true);
+  });
+
+  it("does not set the gate cookie on a POST — only a GET proves a browser read the page", async () => {
+    const response = await proxy(requestFor(ANSWER_LINK, { method: "POST" }));
+    expect(response.cookies.get("lo_pa_gate")).toBeUndefined();
+  });
+
+  it("does not swallow a path that merely starts with the same letter", async () => {
+    givenSignedIn(true);
+    await proxy(requestFor("/auth/recovery"));
+    expect(createServerClient).toHaveBeenCalled();
+  });
+});
+
+/**
+ * The player's durable page — LAN-172.
+ *
+ * Same three headers as every other unauthenticated link surface. No cookie
+ * gate: unlike `/a`, nothing here is single-use, so there is nothing a
+ * GET/POST split needs to protect.
+ */
+describe("the durable player page is public and unauthenticated", () => {
+  const HOME = "/me/abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLM0123";
+
+  it("is matched by the proxy, or none of the below would run at all", () => {
+    expect(matcherRuns("/me")).toBe(true);
+    expect(matcherRuns(HOME)).toBe(true);
+  });
+
+  it("stops the token leaving in a Referer header", async () => {
+    givenSignedIn(false);
+    const response = await proxy(requestFor(HOME));
+    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  it("lets nothing keep a copy of a page that lists a player's own events", async () => {
+    givenSignedIn(false);
+    const response = await proxy(requestFor(HOME));
+    const cacheControl = response.headers.get("cache-control") ?? "";
+    expect(cacheControl).toContain("no-store");
+    expect(cacheControl).toContain("private");
+  });
+
+  it("keeps a durable link out of search results", async () => {
+    givenSignedIn(false);
+    const response = await proxy(requestFor(HOME));
+    expect(response.headers.get("x-robots-tag")).toContain("noindex");
+  });
+
+  it("never redirects a player to sign in — they have no account", async () => {
+    givenSignedIn(false);
+    const response = await proxy(requestFor(HOME));
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("does no Supabase work, so a player's page load cannot rotate an operator's cookie", async () => {
+    givenSignedIn(true);
+    await proxy(requestFor(HOME));
+    expect(createServerClient).not.toHaveBeenCalled();
   });
 });
