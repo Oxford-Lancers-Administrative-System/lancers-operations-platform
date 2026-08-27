@@ -21,10 +21,14 @@
 ## Required actions
 
 - Show every membership in the season in view, in any status.
-- **Carry the approved column set**: player, standing, entry, college,
-  positions, jersey, onboarding completeness, contactability, and the
-  missing-data flag — replacing today's Member · Status · Entry · Email · Phone
-  · Onboarding.
+- **Carry every column the season has**, eighteen of them: player, standing,
+  entry, college, matriculation year, expected graduation, degree field,
+  positions, Blue #, White #, coach group, onboarding, formalwear, Blues,
+  eligibility, availability, contactability and the missing-data flag —
+  replacing today's Member · Status · Entry · Email · Phone · Onboarding.
+- **Be a board, not a list.** Wide, scrolling sideways inside its own container,
+  with the player column pinned so a row stays identifiable at column sixteen.
+- **Sort and filter on every column.**
 - **Take the raw email and phone off the grid.** Task 08 §5 puts contactability
   indicators there, not values. This is a deliberate narrowing of what a routine
   screen discloses.
@@ -38,9 +42,26 @@
 
 ## State transitions
 
-**None. This workflow is read-only.** Nothing on the grid moves a membership.
-Activation, correction and every status change happen on player detail or in
-`W2`.
+**Rewritten 2026-08-27. This workflow now writes, and the board is why.** Brian:
+_"any position needs to be editable from here… everything is editable from this
+thing, from this screen."_
+
+Two kinds of cell, and the difference is the person-versus-season test again:
+
+- **Season facts edit in the cell** — standing, entry, positions, jersey,
+  coach group, formalwear, Blues, eligibility, availability. No reason is asked
+  for, because nothing prior is being overwritten: they belong to this season and
+  this season only. Each edit is audited.
+- **Person facts do not edit here.** College, matriculation year, expected
+  graduation and degree field render on the board and open the person record.
+  Brian: _"anything that needs to be edited there needs to be edited in the
+  people thing there because it is an override… The columns for the people data
+  should be more deliberate, where you can't just willy-nilly change that, but
+  you should show as much as you possibly can."_ `W2`'s rules then apply — a
+  reason when a value is replaced, contacts superseding, every edit audited.
+
+Onboarding items remain read-only here; Mission 7 owns their behaviour.
+Activation stays on player detail, through the control that already exists.
 
 ## Handoffs
 
@@ -57,6 +78,20 @@ Activation, correction and every status change happen on player detail or in
 
 ## Dependencies and mission boundaries
 
+- **This mission now builds the columns it shows.** Positions, jersey, coach
+  group, formalwear, Blues, eligibility and availability have no storage on
+  `main`. Brian, 2026-08-27: _"I don't care if most of the columns don't exist
+  yet. The point is, we're building those columns right now… we should just build
+  everything that we're going to build in this package here."_ This is scope this
+  mission did not have, taken deliberately. Mission 9 still owns what positions,
+  jersey and coach group **mean**; this mission gives them somewhere to live.
+- **Jersey is two columns and the model is provisional.** Blue # and White #, with
+  the fuller editor on player detail. Two kits, several numbers per player in one
+  kit for about 8%, numbers that are not unique. Brian: _"however we have the
+  data, we'll figure it out for the kit."_
+- **Date of birth and emergency contact are not on this board and cannot be.**
+  Task 08 §6 and the cross-cutting invariants lock them off every list. This is
+  the one limit on showing everything, and it is not negotiable here.
 - **The status enum changes underneath this surface.** The rebuilt ladder is
   five stored values, and twelve views depend on the column, so the migration
   drops and recreates every one of them. Measured, not estimated, in

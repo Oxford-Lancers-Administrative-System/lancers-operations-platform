@@ -3516,6 +3516,7 @@
             <h2>W5 · Work this season's roster</h2>
             <span class="chip">spec draft</span>
             <a class="golink" href="mockups/W5-work-this-seasons-roster.html">Open the mockup →</a>
+            <span class="chip warn">2 open</span>
           </header>
           <div class="md">
             <h1>W5 — Work this season&#39;s roster</h1>
@@ -3557,10 +3558,18 @@
             <ul>
               <li>Show every membership in the season in view, in any status.</li>
               <li>
-                <strong>Carry the approved column set</strong>: player, standing, entry, college,
-                positions, jersey, onboarding completeness, contactability, and the missing-data
-                flag — replacing today&#39;s Member · Status · Entry · Email · Phone · Onboarding.
+                <strong>Carry every column the season has</strong>, eighteen of them: player,
+                standing, entry, college, matriculation year, expected graduation, degree field,
+                positions, Blue #, White #, coach group, onboarding, formalwear, Blues, eligibility,
+                availability, contactability and the missing-data flag — replacing today&#39;s
+                Member · Status · Entry · Email · Phone · Onboarding.
               </li>
+              <li>
+                <strong>Be a board, not a list.</strong> Wide, scrolling sideways inside its own
+                container, with the player column pinned so a row stays identifiable at column
+                sixteen.
+              </li>
+              <li><strong>Sort and filter on every column.</strong></li>
               <li>
                 <strong>Take the raw email and phone off the grid.</strong> Task 08 §5 puts
                 contactability indicators there, not values. This is a deliberate narrowing of what
@@ -3583,9 +3592,38 @@
             </ul>
             <h2>State transitions</h2>
             <p>
-              <strong>None. This workflow is read-only.</strong> Nothing on the grid moves a
-              membership. Activation, correction and every status change happen on player detail or
-              in <code>W2</code>.
+              <strong>Rewritten 2026-08-27. This workflow now writes, and the board is why.</strong>
+              Brian:
+              <em
+                >&quot;any position needs to be editable from here… everything is editable from this
+                thing, from this screen.&quot;</em
+              >
+            </p>
+            <p>Two kinds of cell, and the difference is the person-versus-season test again:</p>
+            <ul>
+              <li>
+                <strong>Season facts edit in the cell</strong> — standing, entry, positions, jersey,
+                coach group, formalwear, Blues, eligibility, availability. No reason is asked for,
+                because nothing prior is being overwritten: they belong to this season and this
+                season only. Each edit is audited.
+              </li>
+              <li>
+                <strong>Person facts do not edit here.</strong> College, matriculation year,
+                expected graduation and degree field render on the board and open the person record.
+                Brian:
+                <em
+                  >&quot;anything that needs to be edited there needs to be edited in the people
+                  thing there because it is an override… The columns for the people data should be
+                  more deliberate, where you can&#39;t just willy-nilly change that, but you should
+                  show as much as you possibly can.&quot;</em
+                >
+                <code>W2</code>&#39;s rules then apply — a reason when a value is replaced, contacts
+                superseding, every edit audited.
+              </li>
+            </ul>
+            <p>
+              Onboarding items remain read-only here; Mission 7 owns their behaviour. Activation
+              stays on player detail, through the control that already exists.
             </p>
             <h2>Handoffs</h2>
             <ul>
@@ -3610,6 +3648,32 @@
             </ul>
             <h2>Dependencies and mission boundaries</h2>
             <ul>
+              <li>
+                <strong>This mission now builds the columns it shows.</strong> Positions, jersey,
+                coach group, formalwear, Blues, eligibility and availability have no storage on
+                <code>main</code>. Brian, 2026-08-27:
+                <em
+                  >&quot;I don&#39;t care if most of the columns don&#39;t exist yet. The point is,
+                  we&#39;re building those columns right now… we should just build everything that
+                  we&#39;re going to build in this package here.&quot;</em
+                >
+                This is scope this mission did not have, taken deliberately. Mission 9 still owns
+                what positions, jersey and coach group <strong>mean</strong>; this mission gives
+                them somewhere to live.
+              </li>
+              <li>
+                <strong>Jersey is two columns and the model is provisional.</strong> Blue # and
+                White #, with the fuller editor on player detail. Two kits, several numbers per
+                player in one kit for about 8%, numbers that are not unique. Brian:
+                <em>&quot;however we have the data, we&#39;ll figure it out for the kit.&quot;</em>
+              </li>
+              <li>
+                <strong
+                  >Date of birth and emergency contact are not on this board and cannot be.</strong
+                >
+                Task 08 §6 and the cross-cutting invariants lock them off every list. This is the
+                one limit on showing everything, and it is not negotiable here.
+              </li>
               <li>
                 <strong>The status enum changes underneath this surface.</strong> The rebuilt ladder
                 is five stored values, and twelve views depend on the column, so the migration drops

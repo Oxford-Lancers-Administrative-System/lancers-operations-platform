@@ -3,12 +3,12 @@
     {
       "id": "W5-01",
       "route": "/operate/roster",
-      "headSha": "c15049636073841f040c5e034948803e68529bac",
-      "slot": "overflow",
+      "headSha": "7ba4b1e13d8608e5d71c11c9c827551e9088143b",
+      "slot": "primary",
       "proposal": {
         "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-01.js",
-        "sha256": "a207408f31de3d063d525bb6cf5812a52970a56131f9aa108afd036c27a42e46",
-        "bytes": 7168
+        "sha256": "e124a77e0d4e7068369c9ff394eaee6d843d20423ae36de50ad59d1ac685a11f",
+        "bytes": 8966
       },
       "captures": [
         {
@@ -44,7 +44,7 @@
           "file": "shots/W5-01-proposed-phone375.png"
         }
       ],
-      "at": "2026-08-26T21:15:40.949Z"
+      "at": "2026-08-27T17:55:05.425Z"
     },
     {
       "id": "W5-02",
@@ -183,6 +183,52 @@
         }
       ],
       "at": "2026-08-26T21:43:39.223Z"
+    },
+    {
+      "id": "W5-05",
+      "route": "/operate/roster",
+      "headSha": "7ba4b1e13d8608e5d71c11c9c827551e9088143b",
+      "slot": "primary",
+      "proposal": {
+        "file": "missions/intake/M-PEOPLE-AND-ROSTER/mockups/proposals/W5-05.js",
+        "sha256": "4ffc8b74cc64b025b524489acf704c53a8619f4e69028a7ecebab060042701ea",
+        "bytes": 9013
+      },
+      "captures": [
+        {
+          "side": "current",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-05-current-desktop.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "desktop",
+          "requestedWidth": 1280,
+          "measuredWidth": 1280,
+          "measuredHeight": 900,
+          "file": "shots/W5-05-proposed-desktop.png"
+        },
+        {
+          "side": "current",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-05-current-phone375.png"
+        },
+        {
+          "side": "proposed",
+          "viewport": "phone375",
+          "requestedWidth": 375,
+          "measuredWidth": 375,
+          "measuredHeight": 812,
+          "file": "shots/W5-05-proposed-phone375.png"
+        }
+      ],
+      "at": "2026-08-27T17:55:10.582Z"
     },
     {
       "id": "W6-01",

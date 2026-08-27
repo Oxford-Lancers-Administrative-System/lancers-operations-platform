@@ -192,6 +192,8 @@
     });
   }
 
+  if (container) container.scrollLeft = 4000;
+
   const search = document.querySelector('[data-testid="roster-filters"] label');
   if (search && /Search/.test(search.textContent)) search.textContent = "Search name or alias";
   document.querySelectorAll('[data-testid="roster-filters"] input[name="q"]').forEach((i) => {

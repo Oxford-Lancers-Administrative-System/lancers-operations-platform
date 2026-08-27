@@ -1284,19 +1284,32 @@
       const SCREENS = [
         S(
           "W5-01",
-          "The roster's column set",
-          `Six columns become nine, and the two carrying raw contact values leave. Both sides are the
-           same running page at <code>ceff8ef</code>; the proposed side is that page with the column
-           set evaluated into it.`,
+          "The board — the left-hand columns",
+          `<strong>Rebuilt 2026-08-27 as a working board.</strong> Eighteen columns, wide, scrolling
+           inside its own container, sortable, and editable in the cell. The Player column stays put
+           so a row is still identifiable at column sixteen. Both sides are the same running page at
+           <code>ceff8ef</code>; the proposed side is that page with the board evaluated into it.`,
           [
-            "<strong>Decide: the column set.</strong> Player · Standing · Entry · College · Positions · Jersey · Onboarding · Contactable · Missing",
-            "<strong>Raw email and phone are gone.</strong> Task 08 §5 puts contactability indicators on the grid, not values. Compare the two sides: today every address and number in the club is on one screen",
-            "<strong>The ladder is visible in the current side.</strong> <em>Confirmed</em>, <em>Carried forward</em> and <em>Withdrawn</em> all appear on <code>main</code> today and are struck; they map to Onboarding, Onboarding and Departed",
-            "College is derived from the address the grid is losing, so it costs no new data",
-            "Positions and Jersey read <code>not recorded</code> throughout: they have no substrate on <code>main</code> and this mission does not invent one. <strong>Decide:</strong> carry the columns empty, or leave them out until Mission 9",
-            "<strong>Decide:</strong> nine columns at 1280 wraps the names onto two lines. Fewer columns, or horizontal scroll, or accept the wrap",
-            "Three filters are added beside Status and Entry — College, Onboarding, Missing data — and Task 08 §5 makes them combinable",
-            "375px: the condensed cards keep the standing and the flag and never show an address",
+            "<strong>Every value on this grid is editable where it sits.</strong> The dashed underline is the affordance; Bertram's College is shown open. Onboarding is the one read-only column — Mission 7 owns its behaviour",
+            "<strong>Raw email and phone are still gone</strong>, replaced by indicators. <strong>Date of birth and emergency contact are not here and cannot be</strong> — Task 08 §6 and the cross-cutting invariants both lock them off every list. That is the one limit on “everything about them”",
+            "<strong>Consequence — this workflow is no longer read-only.</strong> Its approved specification said it wrote nothing. It now writes, which collides with W2: a correction needs a reason when it replaces an existing value, contacts supersede rather than overwrite, and every edit is audited. <strong>Decide:</strong> seasonal facts edit with no reason and durable person facts prompt for one, or one rule for both",
+            "<strong>Consequence — most of these columns have no storage.</strong> Positions, Blue #, White #, Coach group, Formalwear, Blues, Eligibility and Availability do not exist on <code>main</code>, and Mission 9 owns the first four. Making them editable means this mission builds that storage — real scope it did not have",
+            "<strong>Jersey is two columns, not one.</strong> Two kits, several numbers per player in one kit for about 8%, numbers that are not unique. Blue # and White # here; the fuller editor stays on player detail",
+            "Four filters join Status and Entry: College, Position, Onboarding, Missing",
+            "375px is <strong>not</strong> a spreadsheet. The condensed cards stay, because eighteen columns in a 375 frame is not a smaller board, it is an unusable one",
+          ],
+          "oxfordlancers.example/operate/roster",
+        ),
+        S(
+          "W5-05",
+          "The board — scrolled to its right-hand end",
+          `The same page as W5-01, scrolled sideways. A photograph of a horizontally scrolling grid
+           otherwise shows only the columns that happen to fit, so this is the rest of them.`,
+          [
+            "Onboarding, Formalwear, Blues, Eligibility, Availability, Contactable and Missing",
+            "The Player column is still there on the left — that is the sticky column doing its job, not a second table",
+            "Five of these seven columns are empty because they have no substrate on <code>main</code>. That is what this mission would be building",
+            "<strong>Decide:</strong> whether eighteen is the right number. Every column you add is one more thing to scroll past on the way to the one you wanted",
           ],
           "oxfordlancers.example/operate/roster",
         ),
