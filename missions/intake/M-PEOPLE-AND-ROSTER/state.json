@@ -122,10 +122,21 @@
     {
       "id": "W4",
       "name": "Merge two records for the same human",
-      "state": "spec_draft",
+      "state": "done",
       "stale": false,
       "feedback": [],
-      "approvals": {}
+      "approvals": {
+        "spec": {
+          "words": "W4 approved.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        },
+        "mock": {
+          "words": "W4 approved.",
+          "date": "2026-08-27",
+          "by": "Brian Schuster"
+        }
+      }
     },
     {
       "id": "W5",
@@ -1668,5 +1679,5 @@
       }
     ]
   },
-  "next_action": "W3 is done. Work W4 next: the merge, and W4-02's side-by-side comparison is what it exists to settle"
+  "next_action": "W4 is done. W5 is next and is photographed: the roster's column set is the decision it carries"
 }
